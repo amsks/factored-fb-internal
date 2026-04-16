@@ -1,0 +1,9 @@
+torch>=2.3
+ogbench>=1.1.2
+wandb>=0.22.3
+h5py>=3.11.0
+safetensors>=0.4.4
+pydantic>=2.0
+tqdm
+numpy
+gymnasium
