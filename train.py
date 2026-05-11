@@ -143,9 +143,13 @@ def main(cfg: DictConfig) -> None:
         run_name = cfg.wandb_run_name or f"{cfg.domain}__{cfg.agent}__s{cfg.seed}"
         wandb.init(
             project=cfg.wandb_project,
+            entity=cfg.wandb_entity,
+            group=cfg.wandb_group,
+            tags=list(cfg.wandb_tags) if cfg.wandb_tags else None,
             name=run_name,
             config=OmegaConf.to_container(cfg, resolve=True),
             dir=os.getcwd(),
+            save_code=cfg.wandb_save_code,
         )
 
     print(f"[train] env: {cfg.domain}")
