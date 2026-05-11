@@ -2,7 +2,7 @@
 
 A clean, standalone implementation of **Forward-Backward (FB) representations** for offline goal-conditioned reinforcement learning on [OGBench](https://github.com/seohongpark/ogbench).
 
-This repo is the FB baseline on top of which the **Factored-FB** variant is built. Ported from [facebookresearch/td\_jepa](https://github.com/facebookresearch/td_jepa/tree/main/metamotivo) — DMC support, the `exca` launcher, and all non-FB agents are dropped.
+This repo is a faithful port of the FB / FlowBC agents from [facebookresearch/td_jepa](https://github.com/facebookresearch/td_jepa/tree/main/metamotivo) to state-based OGBench. DMC support, the `exca` launcher, and all non-FB agents are dropped.
 
 ---
 
@@ -21,7 +21,7 @@ Two agent variants:
 | Agent | Actor | Use case |
 |---|---|---|
 | `fb` | TruncatedNormal (DDPG-style mean) | Antmaze / locomotion |
-| `fb_flowbc` | NoiseConditionedActor + BC loss | Cube / puzzle / scene manipulation |
+| `fb_flowbc` | Flow-matching velocity field + distilled noise actor | Cube / puzzle / scene manipulation |
 
 ---
 
@@ -68,27 +68,6 @@ python train.py domain=antmaze-medium-navigate-v0 agent=fb_flowbc
 python train.py domain=cube_single                         # domain preset
 python train.py --multirun seed=1,2,3 domain=antmaze-medium-navigate-v0
 ```
-
----
-
-## Testing
-
-```bash
-make test             # full suite
-make test-fast        # skip env/data I/O (no OGBench install needed)
-make test-agents      # agent + nn_models + buffer only (~5 s)
-```
-
-The test suite is split so the core logic can be validated without downloading OGBench datasets:
-
-| File | Needs OGBench? | What it covers |
-|---|---|---|
-| `test_agents.py` | No | FBModel, FBAgent.update/act/infer_z, FlowBC, checkpoint |
-| `test_nn_models.py` | No | All network building blocks, output shapes |
-| `test_buffers.py` | No | DictBuffer extend/sample/overflow |
-| `test_core.py` | No | Base classes, utils, gym_spaces |
-| `test_data.py` | No | load_transitions, load_ogbench_data (uses synthetic .npz) |
-| `test_envs.py` | Yes | Domain lists, env creation, rollout |
 
 ---
 
@@ -205,18 +184,6 @@ batch["next"]["terminated"]   [B]
 2. Solve `min_w ||B(obs)·w − r||²` (closed form) for **z**
 3. Roll out `eval_n_episodes` episodes via `envs/rollout.py`
 4. Log `eval/{task}/success` and `eval/{task}/reward`
-
----
-
-## Extending to Factored-FB
-
-The baseline is designed for clean extension:
-
-- **New architecture**: `agents/factored_fb/model.py` subclassing `FBModel`
-- **New agent**: `agents/factored_fb/agent.py` subclassing `FBAgent`, overriding `_fb_loss` if needed
-- **New config**: `configs/agent/factored_fb.yaml`
-
-No changes needed to `data/`, `evals/`, `envs/`, `buffers/`, or `train.py`.
 
 ---
 

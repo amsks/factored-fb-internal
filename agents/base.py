@@ -48,8 +48,8 @@ class BaseAgent(ABC):
 
     @abstractmethod
     def infer_z(self, obs: Tensor, reward: Tensor) -> Tensor:
-        """Infer goal embedding z from a batch of (obs, reward) pairs via the
-        backward map least-squares solve."""
+        """Infer goal embedding z from (obs, reward) pairs via the linear
+        estimator z = project(sum(r * B(obs)))."""
 
     def save(self, path: str) -> None:
         torch.save(self.state_dict(), path)
