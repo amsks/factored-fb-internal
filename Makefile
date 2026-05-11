@@ -1,85 +1,65 @@
-.PHONY: install test test-fast test-agents lint format smoke clean help
+.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium data clean help
 
 # ── Installation ──────────────────────────────────────────────────────────── #
 
+## Install dependencies with uv (recommended; uses .venv/)
 install:
 	uv pip install -r requirements.txt
 
-install-dev: install
-	uv pip install ruff pytest
+## Install dependencies with plain pip
+install-pip:
+	python -m pip install -r requirements.txt
 
-# ── Testing ───────────────────────────────────────────────────────────────── #
+# ── OGBench dataset ──────────────────────────────────────────────────────── #
 
-## Run the full test suite
-test:
-	pytest tests/ -v
+## Download + extract all state-based OGBench domains into ./datasets/
+data:
+	python scripts/extract_ogbench.py --output_folder datasets
 
-## Run fast tests only (skips OGBench data I/O and env tests)
-test-fast:
-	pytest tests/ -v -x \
-	  --ignore=tests/test_envs.py \
-	  -k "not test_load_ogbench_data"
+# ── Pipeline check ────────────────────────────────────────────────────────── #
 
-## Run only the agent smoke tests (no env or data deps)
-test-agents:
-	pytest tests/test_agents.py tests/test_nn_models.py tests/test_buffers.py -v
-
-# ── Code quality ──────────────────────────────────────────────────────────── #
-
-lint:
-	ruff check .
-
-format:
-	ruff format .
-
-# ── Training ──────────────────────────────────────────────────────────────── #
-
-## Fast pipeline smoke test (~30s, verifies everything is wired)
+## Synthetic-data pipeline smoke (~20s, NO OGBench dataset needed)
 smoke:
-	python train.py +experiment=smoke_test domain=antmaze-medium-navigate-v0
+	python scripts/smoke.py
 
-## Full antmaze medium run
+# ── Training (requires extracted OGBench data under ./datasets/) ─────────── #
+
+## Antmaze medium (standard FB)
 train-ant-medium:
-	python train.py domain=antmaze-medium-navigate-v0
+	python train.py domain=antmaze_medium
 
-## Full antmaze large run
+## Antmaze large (standard FB)
 train-ant-large:
-	python train.py domain=antmaze-large-navigate-v0
+	python train.py domain=antmaze_large
 
-## Cube manipulation with FlowBC actor
+## Cube single (FlowBC)
 train-cube:
 	python train.py domain=cube_single
 
-## Seeded sweep over antmaze medium (seeds 1-3)
+## Antmaze medium with seeds 1-3
 sweep-ant-medium:
-	python train.py --multirun seed=1,2,3 domain=antmaze-medium-navigate-v0
+	python train.py --multirun seed=1,2,3 domain=antmaze_medium
 
 # ── Housekeeping ──────────────────────────────────────────────────────────── #
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.pyc" -delete
-	rm -rf .pytest_cache outputs multirun
+	rm -rf outputs multirun
 
 help:
 	@echo ""
 	@echo "Factored-FB — available targets"
 	@echo "────────────────────────────────────────────────────────"
-	@echo "  install          Install dependencies with uv"
-	@echo "  install-dev      Install deps + ruff + pytest"
+	@echo "  install          Install deps with uv into .venv/"
+	@echo "  install-pip      Install deps with plain pip"
+	@echo "  data             Download + extract OGBench to ./datasets/"
 	@echo ""
-	@echo "  test             Full test suite"
-	@echo "  test-fast        Skip env/data tests (no OGBench needed)"
-	@echo "  test-agents      Agent + nn_models + buffer tests only"
+	@echo "  smoke            Synthetic pipeline check (no data needed)"
+	@echo "  train-ant-medium Antmaze medium run"
+	@echo "  train-ant-large  Antmaze large run"
+	@echo "  train-cube       Cube single run (FlowBC)"
+	@echo "  sweep-ant-medium Antmaze medium, seeds 1-3"
 	@echo ""
-	@echo "  lint             ruff check"
-	@echo "  format           ruff format"
-	@echo ""
-	@echo "  smoke            30-second pipeline smoke test"
-	@echo "  train-ant-medium Antmaze medium full run"
-	@echo "  train-ant-large  Antmaze large full run"
-	@echo "  train-cube       Cube manipulation (FlowBC)"
-	@echo "  sweep-ant-medium Seeds 1-3 multirun"
-	@echo ""
-	@echo "  clean            Remove pycache, outputs, pytest cache"
+	@echo "  clean            Remove pycache, outputs"
 	@echo "────────────────────────────────────────────────────────"
