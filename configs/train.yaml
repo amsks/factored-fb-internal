@@ -27,7 +27,11 @@ eval_shift_reward: 1.0
 # Logging
 use_wandb: false
 wandb_project: factored-fb
-wandb_run_name: null
+wandb_run_name: null            # default: ${domain}__${agent}__s${seed}
+wandb_entity: null              # team / username; null -> default workspace
+wandb_group: null               # useful for --multirun (e.g. group=fb_antmaze)
+wandb_tags: []                  # list of strings, e.g. [baseline, antmaze]
+wandb_save_code: true           # snapshot train.py and configs/ into the run
 save_dir: checkpoints/
 
 hydra:
