@@ -98,6 +98,10 @@ python train.py domain=antmaze_medium device=cpu
 
 # Override anything on the CLI
 python train.py domain=antmaze_medium ortho_coef=100 lr_b=1e-5 seed=7
+
+# With wandb logging (entity/group help when running sweeps under a shared account)
+python train.py domain=antmaze_medium use_wandb=true \
+    wandb_entity=my-team wandb_group=fb-antmaze wandb_tags='[baseline]'
 ```
 
 **Domain configs** live in `configs/domain/*.yaml` and each one selects the right agent via its own `defaults:` list — `domain=antmaze_*` pulls in `fb.yaml`; `domain=cube_*`, `scene`, `puzzle_3x3` pull in `fb_flowbc.yaml`. You normally do not need to pass `agent=` explicitly.
