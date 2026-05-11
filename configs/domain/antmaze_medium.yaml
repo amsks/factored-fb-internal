@@ -1,0 +1,10 @@
+# @package _global_
+defaults:
+  - /agent: fb
+  - _self_
+
+domain: antmaze-medium-navigate-v0
+agent: fb
+# Per-domain sweepables (override on CLI):
+ortho_coef: 1.0       # td_jepa sweep used 100 and 1000
+lr_b: 1.0e-4          # td_jepa sweep used 1e-4 and 1e-5
