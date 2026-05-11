@@ -2,7 +2,7 @@
 
 A clean, standalone implementation of **Forward-Backward (FB) representations** for offline goal-conditioned reinforcement learning on [OGBench](https://github.com/seohongpark/ogbench).
 
-This repo is the FB baseline on top of which the **Factored-FB** variant is built. Ported from [facebookresearch/td\_jepa](https://github.com/facebookresearch/td_jepa/tree/main/metamotivo) — DMC support, the `exca` launcher, and all non-FB agents are dropped.
+This repo is a faithful port of the FB / FlowBC agents from [facebookresearch/td_jepa](https://github.com/facebookresearch/td_jepa/tree/main/metamotivo) to state-based OGBench. DMC support, the `exca` launcher, and all non-FB agents are dropped.
 
 ---
 
@@ -14,14 +14,19 @@ FB representations decompose the Q-function as:
 Q(s, a, z) = F(s, z, a) · B(s')
 ```
 
-**F** (forward map) predicts successor features; **B** (backward map) maps observations to a latent goal space **z**. At test time a task is specified by inferring **z** via a closed-form least-squares solve on relabelled offline transitions — no fine-tuning required.
+**F** (forward map) predicts successor features; **B** (backward map) maps observations to a latent goal space **z**. At test time a task is specified by inferring **z** as `z = project(Σ r_i · B(next_obs_i))` on relabelled offline transitions — no fine-tuning required.
+
+- `fb_flowbc`: a noise-conditioned actor distilled from a flow-matching velocity field
+  `v_θ(obs, x_t, t)`. The velocity field is trained on dataset actions; the actor is
+  trained with `Q = F·z` plus a BC term that distills the ODE rollout of `v_θ`.
+  Used for cube / scene / puzzle.
 
 Two agent variants:
 
 | Agent | Actor | Use case |
 |---|---|---|
 | `fb` | TruncatedNormal (DDPG-style mean) | Antmaze / locomotion |
-| `fb_flowbc` | NoiseConditionedActor + BC loss | Cube / puzzle / scene manipulation |
+| `fb_flowbc` | Flow-matching velocity field + distilled noise actor | Cube / puzzle / scene manipulation |
 
 ---
 
@@ -71,27 +76,6 @@ python train.py --multirun seed=1,2,3 domain=antmaze-medium-navigate-v0
 
 ---
 
-## Testing
-
-```bash
-make test             # full suite
-make test-fast        # skip env/data I/O (no OGBench install needed)
-make test-agents      # agent + nn_models + buffer only (~5 s)
-```
-
-The test suite is split so the core logic can be validated without downloading OGBench datasets:
-
-| File | Needs OGBench? | What it covers |
-|---|---|---|
-| `test_agents.py` | No | FBModel, FBAgent.update/act/infer_z, FlowBC, checkpoint |
-| `test_nn_models.py` | No | All network building blocks, output shapes |
-| `test_buffers.py` | No | DictBuffer extend/sample/overflow |
-| `test_core.py` | No | Base classes, utils, gym_spaces |
-| `test_data.py` | No | load_transitions, load_ogbench_data (uses synthetic .npz) |
-| `test_envs.py` | Yes | Domain lists, env creation, rollout |
-
----
-
 ## Configuration
 
 All hyperparameters live in `configs/`:
@@ -121,13 +105,20 @@ python train.py domain=antmaze-medium-navigate-v0 ortho_coef=10 lr_f=3e-4 seed=7
 | Parameter | Default | Notes |
 |---|---|---|
 | `z_dim` | 50 | Latent goal dimension |
-| `hidden_dim` | 1024 | Width of F and actor MLPs |
-| `n_ensemble` | 2 | ForwardMap parallel heads |
-| `ortho_coef` | 1.0 | B orthonormality weight; 100+ for manipulation |
-| `pessimism` | 1.0 | Ensemble std coefficient in Q target |
-| `train_goal_ratio` | 0.5 | Fraction of z from B(next\_obs) vs random |
-| `actor_std` | 0.1 | TruncatedNormal std during training |
-| `bc_coeff` | 0.0 | BC loss weight (FlowBC only) |
+| `L_dim` | 50 | Left-encoder output dimension |
+| `hidden_dim` (F, B, left_encoder, actor) | 512 | Width of MLP blocks |
+| `forward.hidden_layers` | 2 | Forward map depth |
+| `backward.hidden_layers` | 4 | Backward map depth |
+| `left_encoder.hidden_layers` | 4 | Left encoder depth |
+| `forward.num_parallel` | 2 | F ensemble heads |
+| `ortho_coef` | 1.0 | B orthonormality weight (sweep 100/1000 for manipulation) |
+| `actor_std` | 0.2 | TruncatedNormal std (FB only; ignored by FlowBC) |
+| `stddev_clip` | 0.3 | Action sample clip |
+| `train_goal_ratio` | 0.5 | Fraction of z drawn from B(next_obs[perm]) |
+| `f_target_tau`, `b_target_tau` | 0.005 | Polyak soft-update rates |
+| `bc_coeff` (FlowBC) | 0.3 antmaze / 3.0 manip | Distillation BC weight |
+| `flow_steps` (FlowBC) | 10 | Euler steps for the action-flow ODE |
+| `actor_encode_obs` | false | If true, actor sees the left-encoded representation |
 
 ---
 
@@ -181,18 +172,20 @@ Each `.npz` contains arrays of shape `[T, ·]` over one episode:
 
 | Key | Shape | Description |
 |---|---|---|
-| `observation` | [T, obs\_dim] | Proprioceptive state (= qpos for ant tasks) |
+| `observation` | [T, obs\_dim] | Proprioceptive state |
 | `action` | [T, act\_dim] | |
-| `physics` | [T, phys\_dim] | Full physics state; used for reward relabelling |
+| `physics` | [T, phys\_dim] | Full physics state; used for next-state reward relabelling |
 | `discount` | [T] | 0 at terminal steps |
 
-`load_transitions` converts T-step episodes into T-1 transition tuples and stores them in a `DictBuffer` under the layout:
+`load_ogbench_dataset` converts T-step episodes into T−1 transition tuples and
+stores them in a `DictBuffer` under the layout:
 
 ```
-batch["observation"]          [B, obs_dim]
-batch["action"]               [B, act_dim]
-batch["next"]["observation"]  [B, obs_dim]
-batch["next"]["terminated"]   [B]
+batch["observation"]            [B, obs_dim]
+batch["action"]                 [B, act_dim]
+batch["next"]["observation"]    [B, obs_dim]
+batch["next"]["physics"]        [B, phys_dim]
+batch["next"]["terminated"]     [B, 1]
 ```
 
 ---
@@ -201,22 +194,12 @@ batch["next"]["terminated"]   [B]
 
 `OGBenchEvaluator` iterates all 5 task variants per domain. For each:
 
-1. Sample a batch from the offline buffer and relabel with `get_relabel_fn(domain, task)`
-2. Solve `min_w ||B(obs)·w − r||²` (closed form) for **z**
-3. Roll out `eval_n_episodes` episodes via `envs/rollout.py`
-4. Log `eval/{task}/success` and `eval/{task}/reward`
-
----
-
-## Extending to Factored-FB
-
-The baseline is designed for clean extension:
-
-- **New architecture**: `agents/factored_fb/model.py` subclassing `FBModel`
-- **New agent**: `agents/factored_fb/agent.py` subclassing `FBAgent`, overriding `_fb_loss` if needed
-- **New config**: `configs/agent/factored_fb.yaml`
-
-No changes needed to `data/`, `evals/`, `envs/`, `buffers/`, or `train.py`.
+1. Sample `eval_relabel_size` transitions from the offline buffer.
+2. Relabel rewards with `get_relabel_fn(domain, task)(batch["next"]["physics"], action)`.
+3. Add `eval_shift_reward` (default 1.0) — shifts sparse rewards from `{−k, …, 0}` to `{1−k, …, 1}`.
+4. Compute `z = project(Σ r_i · B(next_obs_i))` via `agent.model.reward_inference`.
+5. Roll out `eval_n_episodes` episodes via `envs/rollout.py`.
+6. Log `eval/{task}/success` and `eval/{task}/reward`.
 
 ---
 
