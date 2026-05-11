@@ -1,0 +1,40 @@
+# @package _global_
+agent: fb
+# core hyperparameters (override on CLI with `lr_b=1e-5` etc.)
+z_dim: 50
+L_dim: 50
+actor_encode_obs: false
+discount: 0.99
+lr_f: 1.0e-4
+lr_b: 1.0e-4
+lr_actor: 1.0e-4
+weight_decay: 0.0
+clip_grad_norm: 0.0
+ortho_coef: 1.0
+train_goal_ratio: 0.5
+fb_pessimism_penalty: 0.0
+actor_pessimism_penalty: 0.0
+actor_std: 0.2
+stddev_clip: 0.3
+f_target_tau: 0.005
+b_target_tau: 0.005
+
+# Per-network architecture (td_jepa OGBench launch defaults)
+forward:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+  num_parallel: 2
+backward:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+left_encoder:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+actor:
+  name: simple
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
