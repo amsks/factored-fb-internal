@@ -1,164 +1,179 @@
 """
-agents/fb/model.py — FBModel
+agents/fb/model.py — FBModel.
 
-Constructs all FB networks via their ArchiConfig builders, keeping target copies
-for F and B. Uses _soft_update_params from nn_models for efficient Polyak updates.
+Network call chain (all encoders / normalizer are Identity for state OGBench):
+    obs -> _obs_normalizer -> _fw_encoder -> _left_encoder -> _forward_map
+                          \-> _bw_encoder ----> _backward_map
+                          \-> (left_enc if actor_encode_obs else fw_enc) -> _actor
 
-ForwardMap output shape: [num_parallel, B, z_dim]  (when num_parallel > 1)
-BackwardMap output shape: [B, z_dim]  (already L2-normalised by Norm layer)
-Actor output: TruncatedNormal(loc=[B, act_dim], scale=std)
+Target nets: _target_forward_map, _target_backward_map, _target_left_encoder.
+All soft-updated.
 """
 
 from __future__ import annotations
 
 import copy
 import math
+from typing import Optional
 
-import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 
 from nn_models import (
     BackwardArchiConfig,
     ForwardArchiConfig,
-    NoiseConditionedActorArchiConfig,
+    IdentityNN,
     SimpleActorArchiConfig,
     _soft_update_params,
     weight_init,
 )
+from normalizers import IdentityNormalizerConfig
 
 
 class FBModel(nn.Module):
-    """Container for all FB networks + target copies.
-
-    Parameters
-    ----------
-    obs_space : gymnasium.spaces.Box  (1-D state space)
-    action_dim : int
-    z_dim : int
-    forward_cfg : ForwardArchiConfig
-    backward_cfg : BackwardArchiConfig
-    actor_cfg : SimpleActorArchiConfig | NoiseConditionedActorArchiConfig
-    f_target_tau, b_target_tau : float
-    device : str
-    """
+    """Container for FB networks, encoders, normalizer, and target copies."""
 
     def __init__(
         self,
         obs_space,
         action_dim: int,
         z_dim: int = 50,
-        forward_cfg: ForwardArchiConfig | None = None,
-        backward_cfg: BackwardArchiConfig | None = None,
-        actor_cfg: SimpleActorArchiConfig | None = None,
-        f_target_tau: float = 0.005,
-        b_target_tau: float = 0.005,
+        L_dim: int = 50,
+        norm_z: bool = True,
+        actor_encode_obs: bool = False,
+        forward_cfg: Optional[ForwardArchiConfig] = None,
+        backward_cfg: Optional[BackwardArchiConfig] = None,
+        left_encoder_cfg: Optional[BackwardArchiConfig] = None,
+        actor_cfg=None,
+        obs_normalizer_cfg=None,
         device: str = "cpu",
     ):
         super().__init__()
         self.z_dim = z_dim
-        self.f_target_tau = f_target_tau
-        self.b_target_tau = b_target_tau
+        self.L_dim = L_dim
+        self.norm_z = norm_z
+        self.actor_encode_obs = actor_encode_obs
         self.device = device
 
-        # ── Defaults matching OGBench paper configs ──────────────────────── #
+        # Defaults match td_jepa's OGBench launch
         if forward_cfg is None:
-            forward_cfg = ForwardArchiConfig()       # hidden_dim=1024, num_parallel=2
+            forward_cfg = ForwardArchiConfig(hidden_dim=512, hidden_layers=2, num_parallel=2)
         if backward_cfg is None:
-            backward_cfg = BackwardArchiConfig()     # hidden_dim=256, norm=True
+            backward_cfg = BackwardArchiConfig(hidden_dim=512, hidden_layers=4, norm=True)
+        if left_encoder_cfg is None:
+            left_encoder_cfg = BackwardArchiConfig(hidden_dim=512, hidden_layers=4, norm=True)
         if actor_cfg is None:
-            actor_cfg = SimpleActorArchiConfig()     # hidden_dim=1024
+            actor_cfg = SimpleActorArchiConfig(hidden_dim=512, hidden_layers=2)
+        if obs_normalizer_cfg is None:
+            obs_normalizer_cfg = IdentityNormalizerConfig()
 
-        # ── Build networks ───────────────────────────────────────────────── #
-        self.forward_map = forward_cfg.build(obs_space, z_dim, action_dim)
-        self.backward_map = backward_cfg.build(obs_space, z_dim)
-        self.actor = actor_cfg.build(obs_space, z_dim, action_dim)
+        # Encoders / normalizer (Identity passthroughs for state OGBench)
+        self._obs_normalizer = obs_normalizer_cfg.build(obs_space)
+        self._fw_encoder = IdentityNN(obs_space)
+        self._bw_encoder = IdentityNN(obs_space)
 
-        # ── Apply orthogonal init ─────────────────────────────────────────── #
-        self.forward_map.apply(weight_init)
-        self.backward_map.apply(weight_init)
-        self.actor.apply(weight_init)
+        # Left encoder produces L_dim-shaped output from fw_encoder.output_space
+        self._left_encoder = left_encoder_cfg.build(self._fw_encoder.output_space, L_dim)
 
-        # ── Target networks (F and B only) ────────────────────────────────── #
-        self.forward_map_target = copy.deepcopy(self.forward_map)
-        self.backward_map_target = copy.deepcopy(self.backward_map)
-        for p in self.forward_map_target.parameters():
+        # FB maps
+        self._backward_map = backward_cfg.build(self._bw_encoder.output_space, z_dim)
+        self._forward_map = forward_cfg.build(self._left_encoder.output_space, z_dim, action_dim)
+
+        # Actor input space depends on actor_encode_obs
+        actor_in_space = (
+            self._left_encoder.output_space if actor_encode_obs else self._fw_encoder.output_space
+        )
+        self._actor = actor_cfg.build(actor_in_space, z_dim, action_dim)
+
+        # Init weights
+        self.apply(weight_init)
+
+        # Target nets
+        self._target_forward_map = copy.deepcopy(self._forward_map)
+        self._target_backward_map = copy.deepcopy(self._backward_map)
+        self._target_left_encoder = copy.deepcopy(self._left_encoder)
+        for p in self._target_forward_map.parameters():
             p.requires_grad_(False)
-        for p in self.backward_map_target.parameters():
+        for p in self._target_backward_map.parameters():
+            p.requires_grad_(False)
+        for p in self._target_left_encoder.parameters():
             p.requires_grad_(False)
 
         self.to(device)
 
-    # ── Target updates ───────────────────────────────────────────────────── #
+    # ── Target updates ────────────────────────────────────────────────── #
 
-    def soft_update_targets(self) -> None:
+    def soft_update_targets(self, f_tau: float, b_tau: float) -> None:
         _soft_update_params(
-            list(self.forward_map.parameters()),
-            list(self.forward_map_target.parameters()),
-            self.f_target_tau,
+            list(self._forward_map.parameters()),
+            list(self._target_forward_map.parameters()),
+            f_tau,
         )
         _soft_update_params(
-            list(self.backward_map.parameters()),
-            list(self.backward_map_target.parameters()),
-            self.b_target_tau,
+            list(self._backward_map.parameters()),
+            list(self._target_backward_map.parameters()),
+            b_tau,
+        )
+        _soft_update_params(
+            list(self._left_encoder.parameters()),
+            list(self._target_left_encoder.parameters()),
+            f_tau,
         )
 
-    # ── z utilities ──────────────────────────────────────────────────────── #
+    # ── z utilities ──────────────────────────────────────────────────── #
 
     def project_z(self, z: Tensor) -> Tensor:
-        """Re-normalise to ||z|| = sqrt(z_dim) (matches Norm layer convention)."""
-        return z / z.norm(dim=-1, keepdim=True).clamp(min=1e-8) * math.sqrt(self.z_dim)
+        if self.norm_z:
+            z = math.sqrt(z.shape[-1]) * F.normalize(z, dim=-1)
+        return z
 
     def sample_z(self, n: int) -> Tensor:
-        return self.project_z(torch.randn(n, self.z_dim, device=self.device))
+        z = torch.randn(n, self.z_dim, device=self.device)
+        return self.project_z(z)
 
-    def mixed_z(self, next_obs: Tensor, train_goal_ratio: float = 0.5) -> Tensor:
-        """50 % from B(next_obs), 50 % random Gaussian."""
-        B = next_obs.shape[0]
-        n_goal = int(B * train_goal_ratio)
+    def mixed_z(self, next_obs_normed_encoded_bw: Tensor, train_goal_ratio: float) -> Tensor:
+        """Sample z: with prob train_goal_ratio use B(next_obs[perm]), else random.
+
+        `next_obs_normed_encoded_bw` is the output of `_bw_encoder(_normalize(next_obs))`,
+        which the agent has already computed for the FB loss.
+        """
+        B = next_obs_normed_encoded_bw.shape[0]
+        z = self.sample_z(B)
+        perm = torch.randperm(B, device=self.device)
         with torch.no_grad():
-            z_goal = self.backward_map(next_obs[:n_goal])   # already normalised by Norm
-        z_rand = self.sample_z(B - n_goal)
-        return torch.cat([z_goal, z_rand], dim=0)
+            goals = self.project_z(
+                self._backward_map(next_obs_normed_encoded_bw[perm])
+            )
+        mask = (torch.rand((B, 1), device=self.device) < train_goal_ratio)
+        return torch.where(mask, goals, z)
 
-    # ── Reward inference ─────────────────────────────────────────────────── #
+    # ── Public API used at eval ───────────────────────────────────────── #
+
+    def normalize(self, x: Tensor) -> Tensor:
+        with torch.no_grad():
+            self._obs_normalizer.eval()
+            return self._obs_normalizer(x)
 
     @torch.no_grad()
-    def infer_z(self, obs: Tensor, reward: Tensor) -> Tensor:
-        """Closed-form least-squares: w* = (B^T B + λI)^{-1} B^T r → normalised z.
+    def backward_map(self, obs: Tensor) -> Tensor:
+        """Public B(obs) including normalize + bw_encoder."""
+        return self._backward_map(self._bw_encoder(self.normalize(obs)))
 
-        Parameters
-        ----------
-        obs    : [N, obs_dim]
-        reward : [N] or [N, 1]
-        Returns
-        -------
-        z : [z_dim]   (normalised)
+    @torch.no_grad()
+    def reward_inference(self, next_obs: Tensor, reward: Tensor) -> Tensor:
+        """Linear estimator: z = project(sum_i r_i * B(next_obs_i)).
+
+        reward : [N, 1] or [N]
+        next_obs : [N, obs_dim]
+        Returns z of shape [z_dim].
         """
-        r = reward.reshape(-1, 1).float().to(self.device)
-        B_mat = self.backward_map(obs.to(self.device))          # [N, z_dim]
-        reg = 1e-4 * torch.eye(self.z_dim, device=self.device)
-        w = torch.linalg.solve(B_mat.T @ B_mat + reg, B_mat.T @ r).squeeze(-1)
-        return self.project_z(w.unsqueeze(0)).squeeze(0)
+        B_mat = self.backward_map(next_obs)              # [N, z_dim]
+        if reward.dim() == 1:
+            reward = reward.unsqueeze(-1)                # [N, 1]
+        z = (reward.T @ B_mat).squeeze(0)                # [z_dim]
+        return self.project_z(z.unsqueeze(0)).squeeze(0)
 
-    # ── Convenience: pessimistic Q from ensemble ─────────────────────────── #
-
-    @staticmethod
-    def pessimistic_q(F_out: Tensor, B_out: Tensor, pessimism: float = 1.0) -> Tensor:
-        """Compute Q_mean − pessimism·Q_std from ensemble.
-
-        Parameters
-        ----------
-        F_out : [E, B, z_dim]  or  [B, z_dim]
-        B_out : [B, z_dim]
-        Returns
-        -------
-        Q : [B]
-        """
-        if F_out.dim() == 3:
-            # [E, B, z_dim] · [B, z_dim] → [E, B]
-            Qs = (F_out * B_out.unsqueeze(0)).sum(-1)
-            return Qs.mean(0) - pessimism * Qs.std(0)
-        # Single head
-        return (F_out * B_out).sum(-1)
+    # Backwards-compatible alias used by FBAgent.infer_z
+    infer_z = reward_inference
