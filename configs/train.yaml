@@ -1,13 +1,16 @@
 defaults:
   - _self_
-  - domain: antmaze_medium
-  - agent: fb
+  - domain: antmaze_medium      # domain config selects its own agent via its defaults list
   - override hydra/launcher: basic
 
+# Domain (overridden by domain/*.yaml)
 domain: antmaze-medium-navigate-v0
-obs_type: state                    # state | pixels
-n_transitions: null                # null = load full dataset
+obs_type: state
+data_path: datasets
+n_transitions: null         # null = load full dataset
+load_n_episodes: 1000
 
+# Training
 num_train_steps: 1_000_000
 batch_size: 256
 eval_every: 50_000
@@ -16,35 +19,20 @@ save_every: 200_000
 seed: 42
 device: cuda
 
-# architecture
-z_dim: 50
-hidden_dim: 1024                   # used for F and actor (matches metamotivo)
-n_ensemble: 2                      # ForwardMap num_parallel
-
-# optimisation
-lr_f: 1e-4
-lr_b: 1e-4
-lr_actor: 1e-4
-discount: 0.99
-
-# FB
-ortho_coef: 1.0
-pessimism: 1.0
-train_goal_ratio: 0.5
-actor_std: 0.1
-f_target_tau: 0.005
-b_target_tau: 0.005
-
-# FlowBC (ignored when agent=fb)
-bc_coeff: 0.0
-flow_steps: 10                     # n_action_samples at eval for FlowBC
-
-# eval
+# Eval
 eval_n_episodes: 10
-eval_relabel_size: 512
+eval_relabel_size: 10_000
+eval_shift_reward: 1.0
 
-# logging
+# Logging
 use_wandb: false
 wandb_project: factored-fb
 wandb_run_name: null
 save_dir: checkpoints/
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}__${domain}__${agent}__s${seed}
+  sweep:
+    dir: outputs/multirun/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.num}__s${seed}

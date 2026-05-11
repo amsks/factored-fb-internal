@@ -1,11 +1,12 @@
-"""
-evals/ogbench.py — OGBench evaluator.
+"""evals/ogbench.py — OGBench evaluator.
 
 For each of the 5 tasks in a domain:
-  1. Relabel offline buffer with task reward via get_relabel_fn
-  2. Solve min_w ||B(obs)·w − r||² for z
-  3. Rollout policy via envs/rollout.py
-  4. Report success rate + mean return
+  1. Sample a batch from the offline buffer.
+  2. Relabel with `get_relabel_fn(domain, task)(next.physics, action)`.
+  3. Shift rewards by `shift_reward` (default 1.0).
+  4. Infer z = project(sum r_i * B(next_obs_i)).
+  5. Roll out `n_episodes` episodes via envs/rollout.py.
+  6. Report mean success and mean return per task.
 """
 
 from __future__ import annotations
@@ -21,14 +22,14 @@ from envs.rollout import rollout
 
 
 class OGBenchEvaluator:
-
     def __init__(
         self,
         domain: str,
         agent,
         offline_buffer,
-        relabel_size: int = 512,
+        relabel_size: int = 10_000,
         n_episodes: int = 10,
+        shift_reward: float = 1.0,
         obs_type: str = "state",
         seed: int = 0,
         device: str = "cpu",
@@ -38,6 +39,7 @@ class OGBenchEvaluator:
         self.offline_buffer = offline_buffer
         self.relabel_size = relabel_size
         self.n_episodes = n_episodes
+        self.shift_reward = shift_reward
         self.device = device
 
         tasks = ALL_TASKS.get(domain, [])
@@ -68,15 +70,22 @@ class OGBenchEvaluator:
             return self.agent.model.sample_z(1).squeeze(0)
 
         batch = self.offline_buffer.sample(n)
-        # Buffer stores "observation" (not "obs")
-        obs_np  = batch["observation"].cpu().numpy()
-        act_np  = batch["action"].cpu().numpy()
 
-        rewards_np = relabel_fn(obs_np, act_np)          # [N, 1]
-        rewards = torch.as_tensor(rewards_np, dtype=torch.float32).squeeze(-1)
+        if "physics" not in batch["next"]:
+            raise KeyError(
+                "Buffer batch is missing batch['next']['physics']. "
+                "Re-load the dataset with data.ogbench.load_ogbench_dataset "
+                "(updated to place physics under next/)."
+            )
 
-        mask = rewards.abs() > 1e-6
-        if mask.sum() < 8:
-            return self.agent.model.sample_z(1).squeeze(0)
+        phys_np = batch["next"]["physics"].cpu().numpy()
+        act_np = batch["action"].cpu().numpy()
 
-        return self.agent.infer_z(batch["observation"][mask], rewards[mask])
+        rewards_np = relabel_fn(phys_np, act_np)               # [N, 1]
+        rewards_np = rewards_np + self.shift_reward
+        rewards = torch.as_tensor(rewards_np, dtype=torch.float32, device=self.device)
+
+        return self.agent.model.reward_inference(
+            next_obs=batch["next"]["observation"].to(self.device),
+            reward=rewards,
+        )
