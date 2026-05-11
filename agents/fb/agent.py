@@ -167,8 +167,7 @@ class FBAgent(BaseAgent):
         with torch.no_grad():
             next_left = self.model._target_left_encoder(next_obs)
             actor_in = next_left if self.actor_encode_obs else next_obs
-            next_dist = self.model._actor(actor_in, z, self.actor_std)
-            next_action = next_dist.sample(clip=self.stddev_clip)
+            next_action = self._sample_target_action(actor_in, z)
             target_Fs = self.model._target_forward_map(next_left, z, next_action)  # [E, B, z_dim]
             target_B = self.model._target_backward_map(goal)                       # [B, z_dim]
             target_Ms = torch.matmul(target_Fs, target_B.T)                        # [E, B, B]
@@ -212,6 +211,15 @@ class FBAgent(BaseAgent):
             "train/B_norm": B_out.norm(dim=-1).mean().item(),
             "train/z_norm": z.norm(dim=-1).mean().item(),
         }
+
+    # ── Target action sampling (overridden by FlowBC) ─────────────────── #
+
+    def _sample_target_action(self, actor_in: Tensor, z: Tensor) -> Tensor:
+        """Sample a' from the policy for the FB TD target. Standard FB uses
+        TruncatedNormal(loc, actor_std).sample(clip=stddev_clip). FlowBC
+        agents override this since their actor takes a noise tensor."""
+        dist = self.model._actor(actor_in, z, self.actor_std)
+        return dist.sample(clip=self.stddev_clip)
 
     # ── Actor loss (Q = F·z, pairwise-L1 pessimism, sampled action) ───── #
 
