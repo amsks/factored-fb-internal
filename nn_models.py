@@ -172,6 +172,11 @@ class BackwardMap(nn.Module):
         super().__init__()
         self.cfg: BackwardArchiConfig = cfg
         assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
+        from gymnasium.spaces import Box
+        import numpy as _np
+        self._output_space = Box(
+            low=-_np.inf, high=_np.inf, shape=(z_dim,), dtype=_np.float32
+        )
         seq = [nn.Linear(obs_space.shape[0], cfg.hidden_dim), nn.LayerNorm(cfg.hidden_dim), nn.Tanh()]
         for _ in range(cfg.hidden_layers - 1):
             seq += [nn.Linear(cfg.hidden_dim, cfg.hidden_dim), nn.ReLU()]
@@ -181,6 +186,10 @@ class BackwardMap(nn.Module):
         if cfg.norm:
             seq += [Norm()]
         self.net = nn.Sequential(*seq)
+
+    @property
+    def output_space(self):
+        return self._output_space
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
@@ -421,3 +430,34 @@ class VectorField(nn.Module):
 
     def forward(self, obs: torch.Tensor, action: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         return self.net(torch.cat([obs, action, t], dim=-1))
+
+
+##########################
+# Identity passthrough (for encoder slots when running on state observations)
+##########################
+
+
+class IdentityNN(nn.Module):
+    """Passthrough module that exposes an output_space attribute.
+
+    Used as a default for _obs_normalizer/_fw_encoder/_bw_encoder/_left_encoder
+    when no real encoder is needed. obs_space is passed through unchanged.
+    """
+
+    def __init__(self, obs_space) -> None:
+        super().__init__()
+        self._output_space = obs_space
+
+    @property
+    def output_space(self):
+        return self._output_space
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x
+
+
+class IdentityNNConfig(BaseConfig):
+    name: tp.Literal["IdentityNN"] = "IdentityNN"
+
+    def build(self, obs_space, *args, **kwargs) -> IdentityNN:
+        return IdentityNN(obs_space)
