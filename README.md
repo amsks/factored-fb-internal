@@ -32,19 +32,51 @@ Two agent variants:
 
 ## Installation
 
-**Python ≥ 3.11** required.
+**Python ≥ 3.11** required. The repo is set up for [`uv`](https://github.com/astral-sh/uv) (a `.venv/` is committed via `pyvenv.cfg`), but plain `pip` works too.
 
 ```bash
-git clone https://github.com/your-org/Factored-FB
+git clone <repo-url> Factored-FB
 cd Factored-FB
-make install          # uv pip install -r requirements.txt
-make install-dev      # also installs ruff + pytest
+
+# Option A — uv (recommended)
+uv venv --python 3.11             # creates .venv/
+source .venv/bin/activate
+make install                      # uv pip install -r requirements.txt
+
+# Option B — plain pip / conda
+python -m venv .venv
+source .venv/bin/activate
+make install-pip                  # python -m pip install -r requirements.txt
 ```
 
-Or with plain pip:
+CUDA is the default device; CPU users should pass `device=cpu` on the CLI.
+
+### Verify the install (no data needed)
 
 ```bash
-pip install -r requirements.txt
+make smoke
+```
+
+Runs `scripts/smoke.py` — builds both `FBAgent` and `FBFlowBCAgent` from every domain config and runs five update steps on synthetic Box observations. ~20 seconds, no OGBench dataset required.
+
+---
+
+## Getting the OGBench data
+
+The training loop expects per-episode `.npz` files at `<data_path>/<domain>/buffer/*.npz` (default `data_path: datasets`). One command pulls down the official OGBench datasets and splits them into the expected layout:
+
+```bash
+make data                                             # all state-based domains
+# or a single env:
+python scripts/extract_ogbench.py --env antmaze-medium-navigate-v0 --output_folder datasets
+```
+
+The script (`scripts/extract_ogbench.py`) calls `ogbench.utils.make_env_and_datasets` to download into OGBench's default cache, then writes `datasets/<env>/buffer/episode_XXXXXX_<length>.npz` with the keys `observation`, `action`, `physics`, `reward`, `discount`.
+
+If you already have the OGBench `.npz` files cached somewhere else:
+
+```bash
+python scripts/extract_ogbench.py --dataset_path /path/to/cache --output_folder datasets
 ```
 
 ---
@@ -52,27 +84,25 @@ pip install -r requirements.txt
 ## Quick start
 
 ```bash
-# Verify everything is wired (~30 s, no full dataset needed)
-make smoke
+# Antmaze medium (standard FB)
+make train-ant-medium                                 # or: python train.py domain=antmaze_medium
 
-# Full antmaze medium run
-make train-ant-medium
-
-# Cube manipulation with FlowBC actor
-make train-cube
+# Cube manipulation (FlowBC)
+make train-cube                                       # or: python train.py domain=cube_single
 
 # Seeded sweep
-make sweep-ant-medium
+make sweep-ant-medium                                 # or: python train.py --multirun seed=1,2,3 domain=antmaze_medium
+
+# CPU run (no CUDA)
+python train.py domain=antmaze_medium device=cpu
+
+# Override anything on the CLI
+python train.py domain=antmaze_medium ortho_coef=100 lr_b=1e-5 seed=7
 ```
 
-Or directly with Hydra:
+**Domain configs** live in `configs/domain/*.yaml` and each one selects the right agent via its own `defaults:` list — `domain=antmaze_*` pulls in `fb.yaml`; `domain=cube_*`, `scene`, `puzzle_3x3` pull in `fb_flowbc.yaml`. You normally do not need to pass `agent=` explicitly.
 
-```bash
-python train.py domain=antmaze-medium-navigate-v0
-python train.py domain=antmaze-medium-navigate-v0 agent=fb_flowbc
-python train.py domain=cube_single                         # domain preset
-python train.py --multirun seed=1,2,3 domain=antmaze-medium-navigate-v0
-```
+Available domain config names: `antmaze_medium`, `antmaze_large`, `antmaze_giant`, `cube_single`, `cube_double`, `scene`, `puzzle_3x3`.
 
 ---
 
@@ -82,22 +112,24 @@ All hyperparameters live in `configs/`:
 
 ```
 configs/
-├── train.yaml              ← base config (all defaults)
+├── train.yaml                   ← top-level (training loop, eval, logging)
 ├── agent/
-│   ├── fb.yaml
-│   └── fb_flowbc.yaml      ← bc_coeff=0.3, ortho_coef=100
-├── domain/
-│   ├── antmaze_medium.yaml
-│   ├── antmaze_large.yaml
-│   └── cube_single.yaml    ← sets agent=fb_flowbc automatically
-└── experiment/
-    └── smoke_test.yaml     ← 500-step fast pipeline check
+│   ├── fb.yaml                  ← standard FB defaults (td_jepa OGBench launch)
+│   └── fb_flowbc.yaml           ← inherits fb.yaml; noise actor + flow-matching VF
+└── domain/
+    ├── antmaze_medium.yaml      ← pulls in /agent: fb
+    ├── antmaze_large.yaml       ← pulls in /agent: fb
+    ├── antmaze_giant.yaml       ← pulls in /agent: fb
+    ├── cube_single.yaml         ← pulls in /agent: fb_flowbc; bc_coeff=3.0
+    ├── cube_double.yaml         ← pulls in /agent: fb_flowbc; bc_coeff=3.0
+    ├── scene.yaml               ← pulls in /agent: fb_flowbc; bc_coeff=3.0
+    └── puzzle_3x3.yaml          ← pulls in /agent: fb_flowbc; bc_coeff=3.0
 ```
 
-Override anything on the command line:
+Override anything on the CLI:
 
 ```bash
-python train.py domain=antmaze-medium-navigate-v0 ortho_coef=10 lr_f=3e-4 seed=7
+python train.py domain=antmaze_medium ortho_coef=100 lr_b=1e-5 seed=7
 ```
 
 ### Key hyperparameters
@@ -127,31 +159,34 @@ python train.py domain=antmaze-medium-navigate-v0 ortho_coef=10 lr_f=3e-4 seed=7
 ```
 Factored-FB/
 ├── agents/
-│   ├── base.py               # BaseAgent ABC, soft_update / hard_update
+│   ├── base.py                 # BaseAgent ABC, soft_update / hard_update
 │   └── fb/
-│       ├── model.py          # FBModel: networks + targets + z utilities
-│       ├── agent.py          # FBAgent: FB/ortho/actor losses
+│       ├── model.py            # FBModel: networks + encoders + targets + z utilities
+│       ├── agent.py            # FBAgent: M-matrix TD, contrastive ortho, F·z actor
 │       └── flow_bc/
-│           └── agent.py      # FBFlowBCAgent: NoiseConditionedActor + BC
+│           ├── model.py        # FBFlowBCModel: adds _actor_vf velocity field
+│           └── agent.py        # FBFlowBCAgent: FM loss + RL + distillation BC
 ├── buffers/
-│   └── transition.py         # DictBuffer — generic nested-dict circular buffer
-├── configs/                  # Hydra YAML configs
+│   └── transition.py           # DictBuffer — nested-dict circular buffer
+├── configs/                    # Hydra YAML configs (see Configuration)
 ├── data/
-│   └── ogbench.py            # load_transitions, load_ogbench_data → DictBuffer
+│   └── ogbench.py              # load_ogbench_dataset → DictBuffer
 ├── envs/
-│   ├── ogbench.py            # create_ogbench_env, get_relabel_fn, ALL_TASKS
-│   ├── rollout.py            # rollout(env, agent, n_episodes, ctx)
-│   ├── wrappers.py           # PixelWrapper (frame stacking)
-│   └── gym_spaces.py         # Space JSON serialisation
+│   ├── ogbench.py              # create_ogbench_env, get_relabel_fn, ALL_TASKS
+│   ├── rollout.py              # rollout(env, agent, n_episodes, ctx)
+│   ├── wrappers.py             # PixelWrapper (unused — kept for future pixel work)
+│   └── gym_spaces.py           # Space JSON serialisation (for checkpoint metadata)
 ├── evals/
-│   └── ogbench.py            # OGBenchEvaluator: relabel → infer z → rollout
-├── tests/                    # pytest suite (see Testing section above)
-├── base_config.py            # Pydantic BaseConfig (from metamotivo)
-├── base_model.py             # BaseModel, save_model, load_model
-├── nn_models.py              # All network building blocks (from metamotivo)
-├── normalizers.py            # BatchNorm / Identity / RGB normalizers
-├── utils.py                  # set_seed_everywhere, EveryNStepsChecker, …
-├── train.py                  # Main entry point (Hydra)
+│   └── ogbench.py              # OGBenchEvaluator: relabel → infer z → rollout
+├── scripts/
+│   ├── extract_ogbench.py      # Download + split OGBench .npz → per-episode files
+│   └── smoke.py                # Synthetic pipeline smoke (no data needed)
+├── base_config.py              # Pydantic BaseConfig
+├── base_model.py               # BaseModel, save_model, load_model
+├── nn_models.py                # All network building blocks
+├── normalizers.py              # BatchNorm / Identity / RGB normalizers
+├── utils.py                    # set_seed_everywhere, EveryNStepsChecker, …
+├── train.py                    # Hydra entry point
 ├── Makefile
 └── requirements.txt
 ```
@@ -160,15 +195,7 @@ Factored-FB/
 
 ## Data layout
 
-OGBench episode files are expected at:
-
-```
-<data_path>/<domain>/buffer/ep0.npz
-<data_path>/<domain>/buffer/ep1.npz
-...
-```
-
-Each `.npz` contains arrays of shape `[T, ·]` over one episode:
+After `make data`, episode files live at `<data_path>/<domain>/buffer/episode_XXXXXX_<length>.npz` (default `data_path` = `datasets/`). Each `.npz` contains arrays of shape `[T, ·]` over one episode:
 
 | Key | Shape | Description |
 |---|---|---|
