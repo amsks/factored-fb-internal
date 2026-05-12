@@ -251,6 +251,8 @@ class FBAgent(BaseAgent):
     def act(self, obs: Tensor, z: Tensor, *, eval_mode: bool = True) -> Tensor:
         obs = obs.to(self.device).float()
         z = z.to(self.device).float()
+        if z.dim() == 1:
+            z = z.unsqueeze(0)
         obs_n = self.model._fw_encoder(self.model.normalize(obs))
         actor_in = self.model._left_encoder(obs_n) if self.actor_encode_obs else obs_n
         dist = self.model._actor(actor_in, z, std=0.0 if eval_mode else self.actor_std)

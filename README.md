@@ -37,16 +37,9 @@ Two agent variants:
 ```bash
 git clone <repo-url> Factored-FB
 cd Factored-FB
-
-# Option A — uv (recommended)
 uv venv --python 3.11             # creates .venv/
 source .venv/bin/activate
 make install                      # uv pip install -r requirements.txt
-
-# Option B — plain pip / conda
-python -m venv .venv
-source .venv/bin/activate
-make install-pip                  # python -m pip install -r requirements.txt
 ```
 
 CUDA is the default device; CPU users should pass `device=cpu` on the CLI.
