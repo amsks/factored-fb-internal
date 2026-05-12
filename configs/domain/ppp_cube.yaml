@@ -1,0 +1,14 @@
+# @package _global_
+defaults:
+  - /agent: fb_flowbc
+  - _self_
+
+benchmark: hecrl
+domain: ppp-cube
+agent: fb_flowbc
+data_path: datasets/hecrl
+
+# HECRL-launch defaults for first cut
+bc_coeff: 3.0
+ortho_coef: 1.0
+lr_b: 1.0e-4
