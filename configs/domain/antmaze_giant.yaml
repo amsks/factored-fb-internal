@@ -3,6 +3,8 @@ defaults:
   - /agent: fb
   - _self_
 
+benchmark: ogbench
+
 domain: antmaze-giant-navigate-v0
 agent: fb
 ortho_coef: 1.0

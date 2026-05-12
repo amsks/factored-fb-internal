@@ -3,6 +3,8 @@ defaults:
   - /agent: fb_flowbc
   - _self_
 
+benchmark: ogbench
+
 domain: puzzle-3x3-play-v0
 agent: fb_flowbc
 bc_coeff: 3.0

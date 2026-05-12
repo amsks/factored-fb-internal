@@ -4,6 +4,7 @@ defaults:
   - override hydra/launcher: basic
 
 # Domain (overridden by domain/*.yaml)
+benchmark: ogbench
 domain: antmaze-medium-navigate-v0
 obs_type: state
 data_path: datasets

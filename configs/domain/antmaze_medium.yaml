@@ -3,6 +3,8 @@ defaults:
   - /agent: fb
   - _self_
 
+benchmark: ogbench
+
 domain: antmaze-medium-navigate-v0
 agent: fb
 # Per-domain sweepables (override on CLI):

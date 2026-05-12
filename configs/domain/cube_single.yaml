@@ -3,6 +3,8 @@ defaults:
   - /agent: fb_flowbc
   - _self_
 
+benchmark: ogbench
+
 domain: cube-single-play-v0
 agent: fb_flowbc
 bc_coeff: 3.0
