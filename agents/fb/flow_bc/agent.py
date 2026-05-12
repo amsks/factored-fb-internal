@@ -198,6 +198,8 @@ class FBFlowBCAgent(FBAgent):
     def act(self, obs: Tensor, z: Tensor, *, eval_mode: bool = True) -> Tensor:
         obs = obs.to(self.device).float()
         z = z.to(self.device).float()
+        if z.dim() == 1:
+            z = z.unsqueeze(0)
         obs_n = self.model._fw_encoder(self.model.normalize(obs))
         actor_in = self.model._left_encoder(obs_n) if self.actor_encode_obs else obs_n
         noises = torch.randn(obs.shape[0], self.action_dim, device=self.device)
