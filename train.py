@@ -22,9 +22,6 @@ from omegaconf import DictConfig, OmegaConf
 
 from agents.fb.agent import FBAgent
 from agents.fb.flow_bc.agent import FBFlowBCAgent
-from data.ogbench import load_ogbench_dataset
-from envs.ogbench import create_ogbench_env
-from evals.ogbench import OGBenchEvaluator
 from nn_models import (
     BackwardArchiConfig,
     ForwardArchiConfig,
@@ -132,6 +129,22 @@ def log_metrics(metrics: Dict[str, float], step: int, *, use_wandb: bool, prefix
     print(f"[step {step:>8d}]  {kv}")
 
 
+def make_benchmark_components(cfg: DictConfig):
+    """Return (create_env, load_dataset, Evaluator) for the active benchmark."""
+    bench = cfg.benchmark
+    if bench == "ogbench":
+        from envs.ogbench import create_ogbench_env as create_env
+        from data.ogbench import load_ogbench_dataset as load_dataset
+        from evals.ogbench import OGBenchEvaluator as Evaluator
+    elif bench == "hecrl":
+        from envs.hecrl import create_hecrl_env as create_env
+        from data.hecrl import load_hecrl_dataset as load_dataset
+        from evals.hecrl import HECRLEvaluator as Evaluator
+    else:
+        raise ValueError(f"Unknown benchmark: {bench!r}")
+    return create_env, load_dataset, Evaluator
+
+
 @hydra.main(config_path="configs", config_name="train", version_base="1.3")
 def main(cfg: DictConfig) -> None:
     cfg.device = resolve_device(cfg.device)
@@ -152,14 +165,16 @@ def main(cfg: DictConfig) -> None:
             save_code=cfg.wandb_save_code,
         )
 
-    print(f"[train] env: {cfg.domain}")
-    env, _ = create_ogbench_env(cfg.domain, obs_type=cfg.obs_type, seed=cfg.seed)
+    create_env, load_dataset, Evaluator = make_benchmark_components(cfg)
+
+    print(f"[train] benchmark: {cfg.benchmark} | env: {cfg.domain}")
+    env, _ = create_env(cfg.domain, obs_type=cfg.obs_type, seed=cfg.seed)
     obs_space = env.observation_space
     action_dim = env.action_space.shape[0]
     print(f"[train] obs_space={obs_space.shape}  action_dim={action_dim}")
 
     print(f"[train] loading dataset for {cfg.domain}")
-    buffer = load_ogbench_dataset(
+    buffer = load_dataset(
         domain=cfg.domain,
         data_path=cfg.data_path,
         load_n_episodes=cfg.load_n_episodes,
@@ -171,7 +186,7 @@ def main(cfg: DictConfig) -> None:
     agent = make_agent(cfg, obs_space, action_dim)
     print(f"[train] agent: {type(agent).__name__}")
 
-    evaluator = OGBenchEvaluator(
+    evaluator = Evaluator(
         domain=cfg.domain,
         agent=agent,
         offline_buffer=buffer,
