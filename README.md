@@ -92,7 +92,7 @@ make data-hecrl                              # downloads ppp-cube-noisy-v0-mv.np
                                              # https://huggingface.co/datasets/DanHrmti/hecrl
 ```
 
-The file lands at `datasets/hecrl/ppp-cube-noisy-v0-mv.npz` (~hundreds of MB). The dataset was collected by HECRL using a noisy oracle on `manipobj-v0` with `ob_type='pixels'`, but we read its `state_observations` side channel (the factored 11-dim state) instead of the pixel column.
+The file lands at `datasets/hecrl/ppp-cube-noisy-v0-mv.npz` (~10 GB — pixel observations dominate the size; ensure you have disk + bandwidth). The dataset was collected by HECRL using a noisy oracle on `manipobj-v0` with `ob_type='pixels'`, but we read its `state_observations` side channel (the factored 11-dim state) instead of the pixel column.
 
 ---
 
