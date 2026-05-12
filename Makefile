@@ -1,4 +1,4 @@
-.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium data clean help
+.PHONY: install install-pip smoke smoke-hecrl train-ant-medium train-ant-large train-cube train-ppp-cube sweep-ant-medium data data-hecrl clean help
 
 # ── Installation ──────────────────────────────────────────────────────────── #
 
@@ -16,11 +16,19 @@ install-pip:
 data:
 	python scripts/extract_ogbench.py --output_folder datasets
 
+## Download HECRL ppp-cube dataset from HuggingFace into ./datasets/hecrl/
+data-hecrl:
+	python scripts/download_hecrl.py ppp-cube
+
 # ── Pipeline check ────────────────────────────────────────────────────────── #
 
 ## Synthetic-data pipeline smoke (~20s, NO OGBench dataset needed)
 smoke:
 	python scripts/smoke.py
+
+## Synthetic pipeline smoke for HECRL (~5s, NO dataset needed)
+smoke-hecrl:
+	python scripts/smoke.py --benchmark hecrl
 
 # ── Training (requires extracted OGBench data under ./datasets/) ─────────── #
 
@@ -35,6 +43,10 @@ train-ant-large:
 ## Cube single (FlowBC)
 train-cube:
 	python train.py domain=cube_single
+
+## HECRL ppp-cube (factored state, FlowBC)
+train-ppp-cube:
+	python train.py domain=ppp_cube
 
 ## Antmaze medium with seeds 1-3
 sweep-ant-medium:
@@ -54,11 +66,14 @@ help:
 	@echo "  install          Install deps with uv into .venv/"
 	@echo "  install-pip      Install deps with plain pip"
 	@echo "  data             Download + extract OGBench to ./datasets/"
+	@echo "  data-hecrl       Download HECRL ppp-cube dataset to ./datasets/hecrl/"
 	@echo ""
 	@echo "  smoke            Synthetic pipeline check (no data needed)"
+	@echo "  smoke-hecrl      Synthetic pipeline check for HECRL (no data)"
 	@echo "  train-ant-medium Antmaze medium run"
 	@echo "  train-ant-large  Antmaze large run"
 	@echo "  train-cube       Cube single run (FlowBC)"
+	@echo "  train-ppp-cube   HECRL ppp-cube run (FlowBC)"
 	@echo "  sweep-ant-medium Antmaze medium, seeds 1-3"
 	@echo ""
 	@echo "  clean            Remove pycache, outputs"
