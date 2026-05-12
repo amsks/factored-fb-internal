@@ -54,6 +54,19 @@ Runs `scripts/smoke.py` — builds both `FBAgent` and `FBFlowBCAgent` from every
 
 ---
 
+## Benchmarks
+
+This repo supports two benchmarks behind a single FB code path:
+
+| Benchmark | Domains | Observation | Data source |
+|---|---|---|---|
+| `ogbench` | antmaze-{medium,large,giant}, cube-{single,double}, scene, puzzle-3x3 | proprioceptive state | Official OGBench `.npz` (auto-downloaded via `make data`) |
+| `hecrl`   | ppp-cube | **factored state** (6 agent dims + 5 per-cube dims = 11 for num_cubes=1) | HECRL's HuggingFace dataset (auto-downloaded via `make data-hecrl`) |
+
+The active benchmark is set by each domain config's `benchmark:` field. You don't pass it on the CLI.
+
+---
+
 ## Getting the OGBench data
 
 The training loop expects per-episode `.npz` files at `<data_path>/<domain>/buffer/*.npz` (default `data_path: datasets`). One command pulls down the official OGBench datasets and splits them into the expected layout:
@@ -71,6 +84,15 @@ If you already have the OGBench `.npz` files cached somewhere else:
 ```bash
 python scripts/extract_ogbench.py --dataset_path /path/to/cache --output_folder datasets
 ```
+
+### HECRL ppp-cube dataset
+
+```bash
+make data-hecrl                              # downloads ppp-cube-noisy-v0-mv.npz from
+                                             # https://huggingface.co/datasets/DanHrmti/hecrl
+```
+
+The file lands at `datasets/hecrl/ppp-cube-noisy-v0-mv.npz` (~hundreds of MB). The dataset was collected by HECRL using a noisy oracle on `manipobj-v0` with `ob_type='pixels'`, but we read its `state_observations` side channel (the factored 11-dim state) instead of the pixel column.
 
 ---
 
@@ -95,6 +117,10 @@ python train.py domain=antmaze_medium ortho_coef=100 lr_b=1e-5 seed=7
 # With wandb logging (entity/group help when running sweeps under a shared account)
 python train.py domain=antmaze_medium use_wandb=true \
     wandb_entity=my-team wandb_group=fb-antmaze wandb_tags='[baseline]'
+
+# HECRL ppp-cube (factored state, FlowBC)
+make data-hecrl                                       # one-time HuggingFace download
+make train-ppp-cube                                   # or: python train.py domain=ppp_cube
 ```
 
 **Domain configs** live in `configs/domain/*.yaml` and each one selects the right agent via its own `defaults:` list — `domain=antmaze_*` pulls in `fb.yaml`; `domain=cube_*`, `scene`, `puzzle_3x3` pull in `fb_flowbc.yaml`. You normally do not need to pass `agent=` explicitly.
@@ -167,16 +193,22 @@ Factored-FB/
 │   └── transition.py           # DictBuffer — nested-dict circular buffer
 ├── configs/                    # Hydra YAML configs (see Configuration)
 ├── data/
-│   └── ogbench.py              # load_ogbench_dataset → DictBuffer
+│   ├── ogbench.py              # load_ogbench_dataset → DictBuffer (per-episode .npz)
+│   └── hecrl.py                # load_hecrl_dataset → DictBuffer (HF flat .npz)
 ├── envs/
 │   ├── ogbench.py              # create_ogbench_env, get_relabel_fn, ALL_TASKS
+│   ├── hecrl/                  # HECRL ManipObj adapter (CC BY-NC 4.0)
+│   │   ├── __init__.py         # register manipobj-v0, create_hecrl_env, ALL_TASKS
+│   │   └── manip_obj_env.py    # vendored from DanHrmti/HECRL
 │   ├── rollout.py              # rollout(env, agent, n_episodes, ctx)
 │   ├── wrappers.py             # PixelWrapper (unused — kept for future pixel work)
 │   └── gym_spaces.py           # Space JSON serialisation (for checkpoint metadata)
 ├── evals/
-│   └── ogbench.py              # OGBenchEvaluator: relabel → infer z → rollout
+│   ├── ogbench.py              # OGBenchEvaluator: 5 tasks/domain, relabel → infer z → rollout
+│   └── hecrl.py                # HECRLEvaluator: per-episode goal, compute_reward_batch
 ├── scripts/
 │   ├── extract_ogbench.py      # Download + split OGBench .npz → per-episode files
+│   ├── download_hecrl.py       # Download HECRL datasets from Hugging Face
 │   └── smoke.py                # Synthetic pipeline smoke (no data needed)
 ├── base_config.py              # Pydantic BaseConfig
 ├── base_model.py               # BaseModel, save_model, load_model
@@ -243,3 +275,5 @@ batch["next"]["terminated"]     [B, 1]
 ## License
 
 Code adapted from [facebookresearch/td\_jepa](https://github.com/facebookresearch/td_jepa) is subject to the **CC BY-NC 4.0** license.
+
+The vendored `envs/hecrl/manip_obj_env.py` from [DanHrmti/HECRL](https://github.com/DanHrmti/HECRL) is also licensed under **CC BY-NC 4.0**; see the header comment in that file for the pinned upstream commit.
