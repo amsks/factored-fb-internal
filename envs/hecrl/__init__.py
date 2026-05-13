@@ -17,6 +17,7 @@ from gymnasium.envs.registration import register
 register(
     id="manipobj-v0",
     entry_point="envs.hecrl.manip_obj_env:ManipObjEnv",
+    max_episode_steps=200,        # HECRL's collect_manipobj default
 )
 
 
