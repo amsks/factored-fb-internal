@@ -43,8 +43,14 @@ def load_transitions(npz_files: List[Union[str, Path]]) -> Dict:
         act = ep["action"].astype(np.float32)
         disc = ep["discount"].astype(np.float32) if "discount" in ep else np.ones(len(obs))
 
+        # IMPORTANT: scripts/extract_ogbench.py applies an EXORL-style shift so
+        # that episode["action"][t] is the action that LED to obs[t], with
+        # episode["action"][0] = 0. We undo that shift here by taking act[1:],
+        # matching td_jepa's metamotivo/data_loading/base.py::load_transitions.
+        # The pair (obs_list[i], act_list[i], next_obs_list[i]) is then
+        # (obs[i], action_taken_from_obs[i], obs[i+1]) — standard RL convention.
         obs_list.append(obs[:-1])
-        act_list.append(act[:-1])
+        act_list.append(act[1:])
         next_obs_list.append(obs[1:])
         term_list.append((disc[1:] == 0.0).reshape(-1, 1))
 
