@@ -22,8 +22,13 @@ register(
 
 # Short canonical names -> ManipObjEnv kwargs.
 # Adding a new task (e.g. stack-cube) is a one-line entry here.
+#
+# NOTE: HECRL's pre-collected HuggingFace dataset "ppp-cube-noisy-v0-mv.npz"
+# was collected with num_cubes=3 (state_observations dim 21 = 6 + 5*3).
+# Match that here so the env's factored state and qpos slicing align with the
+# buffer.
 DOMAIN_KWARGS = {
-    "ppp-cube": dict(num_cubes=1, mode="task", reward_mode="step"),
+    "ppp-cube": dict(num_cubes=3, mode="task", reward_mode="step"),
 }
 
 

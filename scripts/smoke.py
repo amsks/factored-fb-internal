@@ -38,7 +38,7 @@ SMOKE_SETS = {
         ("puzzle_3x3",     "FBFlowBCAgent", 15, 4),
     ],
     "hecrl": [
-        ("ppp_cube",       "FBFlowBCAgent", 11, 5),     # 6+5*1 obs, 5-D action
+        ("ppp_cube",       "FBFlowBCAgent", 21, 5),     # 6+5*3 obs (num_cubes=3), 5-D action
     ],
 }
 

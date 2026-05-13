@@ -61,7 +61,7 @@ This repo supports two benchmarks behind a single FB code path:
 | Benchmark | Domains | Observation | Data source |
 |---|---|---|---|
 | `ogbench` | antmaze-{medium,large,giant}, cube-{single,double}, scene, puzzle-3x3 | proprioceptive state | Official OGBench `.npz` (auto-downloaded via `make data`) |
-| `hecrl`   | ppp-cube | **factored state** (6 agent dims + 5 per-cube dims = 11 for num_cubes=1) | HECRL's HuggingFace dataset (auto-downloaded via `make data-hecrl`) |
+| `hecrl`   | ppp-cube | **factored state** (6 agent dims + 5 per-cube dims = 21 for num_cubes=3) | HECRL's HuggingFace dataset (auto-downloaded via `make data-hecrl`) |
 
 The active benchmark is set by each domain config's `benchmark:` field. You don't pass it on the CLI.
 
