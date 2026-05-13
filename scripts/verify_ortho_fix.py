@@ -56,8 +56,10 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--batch-size", type=int, default=256)
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--use-wandb", action="store_true",
-                    help="Forward use_wandb=true to train.py (default: false).")
+    ap.add_argument("--no-wandb", action="store_true",
+                    help="Disable wandb logging (default: enabled, group=verify-ortho-fix).")
+    ap.add_argument("--wandb-group", default="verify-ortho-fix",
+                    help="wandb group for this verification run (default: verify-ortho-fix).")
     return ap.parse_args()
 
 
@@ -84,7 +86,9 @@ def main() -> None:
         f"batch_size={args.batch_size}",
         f"device={args.device}",
         f"seed={args.seed}",
-        f"use_wandb={'true' if args.use_wandb else 'false'}",
+        f"use_wandb={'false' if args.no_wandb else 'true'}",
+        f"wandb_group={args.wandb_group}",
+        f"wandb_tags=[verify-ortho-fix]",
     ]
     cmd = [sys.executable, "-u", "train.py"] + overrides
     print(f"[verify] running: {' '.join(cmd)}", flush=True)
