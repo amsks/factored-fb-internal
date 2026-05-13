@@ -1,4 +1,4 @@
-.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium data clean help
+.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken data clean help
 
 # ── Installation ──────────────────────────────────────────────────────────── #
 
@@ -40,6 +40,16 @@ train-cube:
 sweep-ant-medium:
 	python train.py --multirun seed=1,2,3 domain=antmaze_medium
 
+# ── FB collapse diagnostic (50k steps, asserts metrics stay bounded) ─────── #
+
+## Verify ortho_coef=100 prevents FB collapse on antmaze (~10 min on GPU)
+verify-ortho-fix:
+	python scripts/verify_ortho_fix.py
+
+## Reproduce the collapse with the broken config (ortho_coef=1.0, no clip)
+verify-ortho-broken:
+	python scripts/verify_ortho_fix.py --ortho-coef 1.0 --clip-grad-norm 0
+
 # ── Housekeeping ──────────────────────────────────────────────────────────── #
 
 clean:
@@ -60,6 +70,9 @@ help:
 	@echo "  train-ant-large  Antmaze large run"
 	@echo "  train-cube       Cube single run (FlowBC)"
 	@echo "  sweep-ant-medium Antmaze medium, seeds 1-3"
+	@echo ""
+	@echo "  verify-ortho-fix    50k-step antmaze run; asserts no FB collapse"
+	@echo "  verify-ortho-broken Same but with ortho_coef=1.0 to reproduce collapse"
 	@echo ""
 	@echo "  clean            Remove pycache, outputs"
 	@echo "────────────────────────────────────────────────────────"
