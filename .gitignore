@@ -12,6 +12,10 @@ venv/
 .eggs/
 wandb/
 workdir/
+datasets/
+outputs/
+multirun/
+checkpoints/
 
 ### AL ###
 #Template for AL projects for Dynamics 365 Business Central
