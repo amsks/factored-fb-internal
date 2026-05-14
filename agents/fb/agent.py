@@ -89,13 +89,17 @@ class FBAgent(BaseAgent):
         self.amp = amp
         self.device = device
 
-        # Build the model (td_jepa builds in cfg.model.build(...); ours via kwargs).
-        self.model = FBModel(
+        # Build the model via a hook so subclasses (FBFlowBCAgent) can return
+        # FBFlowBCModel directly — matches td_jepa's `cfg.model.build(...)`
+        # one-shot construction. Building twice (parent first, child second)
+        # would consume RNG and shift weight_init's offset.
+        self.model = self._make_model(
             obs_space=obs_space,
             action_dim=action_dim,
             z_dim=z_dim,
             L_dim=L_dim,
             actor_encode_obs=actor_encode_obs,
+            amp=amp,
             forward_cfg=forward_cfg,
             backward_cfg=backward_cfg,
             left_encoder_cfg=left_encoder_cfg,
@@ -105,6 +109,10 @@ class FBAgent(BaseAgent):
         )
         self.setup_training()
         self.model.to(self.device)
+
+    def _make_model(self, **kwargs):
+        """Construct the model. Subclasses override to return their variant."""
+        return FBModel(**kwargs)
 
     @property
     def amp_dtype(self):

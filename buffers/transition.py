@@ -116,9 +116,14 @@ class DictBuffer:
     # ------------------------------------------------------------------ #
 
     def sample(self, batch_size: int) -> Dict[str, Any]:
-        """Sample *batch_size* transitions uniformly.  Returns nested dict of tensors."""
+        """Sample *batch_size* transitions uniformly.  Returns nested dict of tensors.
+
+        Uses torch.randint (not np.random) so RNG consumption matches td_jepa's
+        DictBuffer.sample exactly. With the same torch.manual_seed(seed), this
+        produces the same sequence of batch indices as td_jepa.
+        """
         assert self._size > 0, "Buffer is empty"
-        idx = np.random.randint(0, self._size, size=batch_size)
+        idx = torch.randint(0, self._size, (batch_size,)).numpy()
         flat_tensors = {
             k: torch.as_tensor(v[idx]).to(self.device)
             for k, v in self._storage.items()
