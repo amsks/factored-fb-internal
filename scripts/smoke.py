@@ -53,8 +53,8 @@ def smoke(domain: str, expected_type: str, *, batch_size: int = 32, n_steps: int
     assert all(np.isfinite(v) for v in last.values()), last
     print(
         f"OK {domain:18s} {expected_type:14s} "
-        f"loss/fb={last['loss/fb']:.2f} "
-        f"loss/actor={last['loss/actor']:.2f}"
+        f"fb_loss={last['fb_loss']:.2f} "
+        f"actor_loss={last['actor_loss']:.2f}"
     )
 
 
