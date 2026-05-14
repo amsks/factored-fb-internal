@@ -30,6 +30,7 @@ DOMAINS="${DOMAINS:-antmaze_medium cube_single}"
 ORTHOS="${ORTHOS:-100 1000}"
 LR_BS="${LR_BS:-1e-4 1e-5}"
 DATA_PATH="${DATA_PATH:-/dev/shm/datasets}"
+EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 mkdir -p "$LOG_DIR"
 
@@ -62,6 +63,7 @@ echo "[sweep] ortho_coef: $ORTHOS"
 echo "[sweep] lr_b:       $LR_BS"
 echo "[sweep] seeds:      $SEEDS"
 echo "[sweep] data_path:  $DATA_PATH"
+echo "[sweep] extra_args: ${EXTRA_ARGS:-(none)}"
 echo ""
 
 # ── Graceful shutdown on Ctrl-C ───────────────────────────────────────────
@@ -127,6 +129,7 @@ for i in "${!JOB_DOMAINS[@]}"; do
             wandb_group="$group" \
             "wandb_tags=[sweep-${TIMESTAMP}]" \
             wandb_run_name="$run_name" \
+            $EXTRA_ARGS \
         > "$log" 2>&1
         echo "[sweep] $(date +%T)  DONE: $run_name"
     ) &
