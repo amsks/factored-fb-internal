@@ -207,14 +207,14 @@ def main(cfg: DictConfig) -> None:
 
         if step % cfg.log_every == 0:
             avg = {k: v / accum_n for k, v in accum.items()}
-            avg["misc/steps_per_sec"] = cfg.log_every / (time.time() - t0)
+            avg["FPS"] = cfg.log_every / (time.time() - t0)
             log_metrics(avg, step, use_wandb=cfg.use_wandb, prefix="train/")
             accum, accum_n = {}, 0
             t0 = time.time()
 
         if step % cfg.eval_every == 0:
             print(f"[eval] step={step}")
-            log_metrics(evaluator.run(), step, use_wandb=cfg.use_wandb, prefix="eval/")
+            log_metrics(evaluator.run(), step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
 
         if step % cfg.save_every == 0:
             ckpt = save_dir / f"step_{step}.pt"

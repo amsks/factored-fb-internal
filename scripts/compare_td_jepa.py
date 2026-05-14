@@ -4,10 +4,7 @@ vs td_jepa's run on the same data + hyperparameters.
 Pulls both runs from wandb (project: factored-fb), aligns metric trajectories
 by step, and prints a delta table.
 
-td_jepa uses different metric key names than ours:
-    td_jepa: "M1", "fb_loss", "orth_loss_offdiag", ...
-    ours:    "train/train/M1", "train/loss/fb", "train/loss/orth_offdiag", ...
-This script maps the common metrics and reports both sides.
+Both codebases use identical metric key names under the "train/" prefix.
 
 Must be run with td_jepa's uv environment (needs pandas + wandb from td_jepa):
 
@@ -28,19 +25,19 @@ import pandas as pd
 import wandb
 
 
-# Keys: (ours_in_wandb, tdjepa_in_wandb)
+# Keys: (ours_in_wandb, tdjepa_in_wandb) — identical names since standardization
 METRIC_PAIRS = {
-    "M1":           ("train/train/M1",            "train/M1"),
-    "Q_actor":      ("train/train/Q_actor",       "train/q"),
-    "fb_loss":      ("train/loss/fb",             "train/fb_loss"),
-    "fb_diag":      ("train/loss/fb_diag",        "train/fb_diag"),
-    "fb_offdiag":   ("train/loss/fb_offdiag",     "train/fb_offdiag"),
-    "orth":         ("train/loss/orth",           "train/orth_loss"),
-    "orth_offdiag": ("train/loss/orth_offdiag",   "train/orth_loss_offdiag"),
-    "actor_loss":   ("train/loss/actor",          "train/actor_loss"),
-    "bc_flow":      ("train/loss/bc_flow",        "train/bc_flow_loss"),
-    "B_norm":       ("train/train/B_norm",        "train/B_norm"),
-    "z_norm":       ("train/train/z_norm",        "train/z_norm"),
+    "M1":           ("train/M1",              "train/M1"),
+    "q":            ("train/q",               "train/q"),
+    "fb_loss":      ("train/fb_loss",         "train/fb_loss"),
+    "fb_diag":      ("train/fb_diag",         "train/fb_diag"),
+    "fb_offdiag":   ("train/fb_offdiag",      "train/fb_offdiag"),
+    "orth_loss":    ("train/orth_loss",        "train/orth_loss"),
+    "orth_offdiag": ("train/orth_loss_offdiag", "train/orth_loss_offdiag"),
+    "actor_loss":   ("train/actor_loss",      "train/actor_loss"),
+    "bc_flow":      ("train/bc_flow_loss",    "train/bc_flow_loss"),
+    "B_norm":       ("train/B_norm",          "train/B_norm"),
+    "z_norm":       ("train/z_norm",          "train/z_norm"),
 }
 
 

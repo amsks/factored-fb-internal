@@ -14,9 +14,9 @@ the ortho_coef bump (run `make verify-ortho-fix` for that).
 
 Collapse signature (asserted not present by step 50k):
 
-  - train/train/M1                stays below 40
-  - train/train/Q_actor (abs)     stays below 100
-  - train/loss/orth_offdiag       stays below 60
+  - train/M1                stays below 40
+  - train/q (abs)           stays below 100
+  - train/orth_loss_offdiag stays below 60
 
 Examples
 --------
@@ -40,9 +40,9 @@ METRIC_RE = re.compile(r"\[step\s+(\d+)\]\s+(.+)")
 KV_RE = re.compile(r"(\S+?)=(\S+)")
 
 THRESHOLDS = {
-    "train/train/M1":          ("max",     40.0),
-    "train/train/Q_actor":     ("abs_max", 100.0),
-    "train/loss/orth_offdiag": ("max",     60.0),
+    "train/M1":                ("max",     40.0),
+    "train/q":                 ("abs_max", 100.0),
+    "train/orth_loss_offdiag": ("max",     60.0),
 }
 
 
