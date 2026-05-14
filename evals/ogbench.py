@@ -6,12 +6,14 @@ For each of the 5 tasks in a domain:
   3. Shift rewards by `shift_reward` (default 1.0).
   4. Infer z = project(sum r_i * B(next_obs_i)).
   5. Roll out `n_episodes` episodes via envs/rollout.py.
-  6. Report mean success and mean return per task.
+  6. Report mean/std success and reward per task, plus relabel-inference
+     debug metrics (matches td_jepa's OGBenchRewardEvaluation.run output).
+  7. Aggregate across tasks: eval/reward, eval/reward#std, eval/success.
 """
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 import torch
@@ -51,26 +53,45 @@ class OGBenchEvaluator:
 
     def run(self) -> Dict[str, float]:
         metrics: Dict[str, float] = {}
+        all_rewards: list[np.ndarray] = []
+        all_successes: list[np.ndarray] = []
         for task in self.tasks:
             env, _ = create_ogbench_env(task, seed=self.seed, obs_type=self.obs_type)
             try:
-                z = self._infer_z(task)
+                z, relabel_metrics = self._infer_z(task)
                 stats, infos = rollout(env, self.agent, self.n_episodes, ctx=z)
             finally:
                 env.close()
-            success = float(np.mean([
-                any(step.get("success", False) for step in ep_info)
-                for ep_info in infos
-            ]))
-            metrics[f"{task}/success"] = success
-            metrics[f"{task}/reward"] = float(np.mean(stats["reward"]))
+
+            per_ep_success = np.array(
+                [any(step.get("success", False) for step in ep_info) for ep_info in infos],
+                dtype=np.float32,
+            )
+            per_ep_reward = np.array(stats["reward"], dtype=np.float32)
+
+            metrics[f"{task}/success"] = float(np.mean(per_ep_success))
+            metrics[f"{task}/reward"] = float(np.mean(per_ep_reward))
+            metrics[f"{task}/reward#std"] = float(np.std(per_ep_reward))
+            for k, v in relabel_metrics.items():
+                metrics[f"{task}/{k}"] = float(v)
+
+            all_rewards.append(per_ep_reward)
+            all_successes.append(per_ep_success)
+
+        if all_rewards:
+            rewards_all = np.concatenate(all_rewards)
+            successes_all = np.concatenate(all_successes)
+            metrics["eval/reward"] = float(np.mean(rewards_all))
+            metrics["eval/reward#std"] = float(np.std(rewards_all))
+            metrics["eval/success"] = float(np.mean(successes_all))
+
         return metrics
 
-    def _infer_z(self, task: str) -> Tensor:
+    def _infer_z(self, task: str) -> Tuple[Tensor, Dict[str, float]]:
         relabel_fn = get_relabel_fn(self.domain, task)  # builds + closes a temp env internally
         n = min(self.relabel_size, len(self.offline_buffer))
         if n < 8:
-            return self.agent.model.sample_z(1).squeeze(0)
+            return self.agent.model.sample_z(1).squeeze(0), {}
 
         batch = self.offline_buffer.sample(n)
 
@@ -88,7 +109,16 @@ class OGBenchEvaluator:
         rewards_np = rewards_np + self.shift_reward
         rewards = torch.as_tensor(rewards_np, dtype=torch.float32, device=self.device)
 
-        return self.agent.model.reward_inference(
+        non_zero = int(np.count_nonzero(rewards_np.ravel()))
+        relabel_metrics = {
+            "relabel_reward#mean": float(np.mean(rewards_np)),
+            "relabel_reward#nonzero": float(non_zero),
+            "relabel_reward#zero": float(rewards_np.size - non_zero),
+            "relabel_reward#num_samples": float(rewards_np.size),
+        }
+
+        z = self.agent.model.reward_inference(
             next_obs=batch["next"]["observation"].to(self.device),
             reward=rewards,
         )
+        return z, relabel_metrics
