@@ -31,33 +31,22 @@ class FBFlowBCAgent(FBAgent):
     ):
         if actor_cfg is None:
             actor_cfg = NoiseConditionedActorArchiConfig()
-        # Stash FlowBC-specific config; FBAgent.__init__ will call setup_training()
-        # which (overridden below) builds the FlowBC model + actor_vf optimizer.
+        # Stash FlowBC-specific config BEFORE super().__init__ so _make_model
+        # (called inside super().__init__) sees actor_vf_cfg.
         self.flow_steps = flow_steps
         self.lr_actor_vf = lr_actor_vf
         self._actor_vf_cfg = actor_vf_cfg
         super().__init__(obs_space=obs_space, action_dim=action_dim, actor_cfg=actor_cfg, **fb_kwargs)
 
+    def _make_model(self, **kwargs):
+        """Override FBAgent._make_model to build FBFlowBCModel directly.
+        Matches td_jepa's `cfg.model.build(...)` one-shot construction so
+        RNG state at weight_init time is identical."""
+        return FBFlowBCModel(actor_vf_cfg=self._actor_vf_cfg, **kwargs)
+
     def setup_training(self) -> None:
-        # Replace the FBModel built by FBAgent.__init__ with an FBFlowBCModel.
-        # We carry over the actor cfg from self.model._actor's class.
-        actor_cfg = NoiseConditionedActorArchiConfig(
-            hidden_dim=getattr(self.model._actor.cfg, "hidden_dim", 512),
-            hidden_layers=getattr(self.model._actor.cfg, "hidden_layers", 2),
-            embedding_layers=getattr(self.model._actor.cfg, "embedding_layers", 2),
-        )
-        self.model = FBFlowBCModel(
-            obs_space=self.obs_space,
-            action_dim=self.action_dim,
-            z_dim=self.z_dim,
-            L_dim=self.L_dim,
-            actor_encode_obs=self.actor_encode_obs,
-            actor_std=self.actor_std,
-            amp=self.amp,
-            actor_cfg=actor_cfg,
-            actor_vf_cfg=self._actor_vf_cfg,
-            device=self.device,
-        )
+        # Model is already an FBFlowBCModel (built via _make_model). Just run
+        # parent setup (weight_init, target nets, optimizers) and add actor_vf.
         super().setup_training()
         self.actor_vf_optimizer = torch.optim.Adam(
             self.model._actor_vf.parameters(),
