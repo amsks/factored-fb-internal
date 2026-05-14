@@ -194,34 +194,48 @@ def main(cfg: DictConfig) -> None:
     save_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[train] {cfg.num_train_steps:,} steps")
-    t0 = time.time()
-    accum: Dict[str, float] = {}
-    accum_n = 0
+    # Match td_jepa Workspace.train_offline:
+    #   - loop range(0, N+1) — runs one extra "warm-up" optimizer step at t=0
+    #   - log at t=0 (divisor=1) and every log_every steps (divisor=log_every)
+    #   - skip checkpoint at t=0 (matches `t != self._checkpoint_time` guard)
+    #   - eval triggers at t=0 if step_zero_should_trigger (configurable)
+    start_time = time.time()
+    fps_start_time = time.time()
+    total_metrics: Dict[str, float] | None = None
 
-    for step in range(1, cfg.num_train_steps + 1):
-        batch = buffer.sample(cfg.batch_size)
-        metrics = agent.update(batch, step)
-        for k, v in metrics.items():
-            accum[k] = accum.get(k, 0.0) + v
-        accum_n += 1
-
-        if step % cfg.log_every == 0:
-            avg = {k: v / accum_n for k, v in accum.items()}
-            avg["FPS"] = cfg.log_every / (time.time() - t0)
-            log_metrics(avg, step, use_wandb=cfg.use_wandb, prefix="train/")
-            accum, accum_n = {}, 0
-            t0 = time.time()
-
-        if step % cfg.eval_every == 0:
-            print(f"[eval] step={step}")
-            log_metrics(evaluator.run(), step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
-
-        if step % cfg.save_every == 0:
+    for step in range(0, cfg.num_train_steps + 1):
+        # Checkpoint (skip t=0 per td_jepa convention)
+        if step > 0 and step % cfg.save_every == 0:
             ckpt = save_dir / f"step_{step}.pt"
             torch.save(agent.state_dict(), ckpt)
             print(f"[ckpt] {ckpt}")
 
-    log_metrics(evaluator.run(), cfg.num_train_steps, use_wandb=cfg.use_wandb, prefix="eval/")
+        # Eval (td_jepa's EveryNStepsChecker triggers at t=0 and every N)
+        if cfg.eval_every > 0 and (step == 0 or step % cfg.eval_every == 0):
+            print(f"[eval] step={step}")
+            log_metrics(evaluator.run(), step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
+
+        # Update
+        batch = buffer.sample(cfg.batch_size)
+        metrics = agent.update(batch, step)
+
+        # Accumulate (matches td_jepa: copy on first, add on subsequent)
+        if total_metrics is None:
+            total_metrics = {k: float(v) for k, v in metrics.items()}
+        else:
+            for k, v in metrics.items():
+                total_metrics[k] = total_metrics[k] + float(v)
+
+        # Log at t=0 and every log_every steps (matches td_jepa log_time_checker)
+        if step == 0 or step % cfg.log_every == 0:
+            divisor = 1 if step == 0 else cfg.log_every
+            m_dict = {k: round(v / divisor, 6) for k, v in total_metrics.items()}
+            m_dict["duration"] = time.time() - start_time
+            m_dict["FPS"] = divisor / (time.time() - fps_start_time)
+            log_metrics(m_dict, step, use_wandb=cfg.use_wandb, prefix="train/")
+            total_metrics = None
+            fps_start_time = time.time()
+
     torch.save(agent.state_dict(), save_dir / "final.pt")
     print("[train] Done.")
 
