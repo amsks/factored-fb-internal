@@ -61,8 +61,9 @@ def smoke(domain: str, expected_type: str, *, batch_size: int = 32, n_steps: int
 def main() -> None:
     torch.manual_seed(0)
     np.random.seed(0)
-    smoke("antmaze_medium", "FBAgent")
-    smoke("antmaze_large",  "FBAgent")
+    # td_jepa uses FBFlowBCAgent on ALL OGBench domains (bc_coeff=0.3 antmaze, 3.0 cube).
+    smoke("antmaze_medium", "FBFlowBCAgent")
+    smoke("antmaze_large",  "FBFlowBCAgent")
     smoke("cube_single",    "FBFlowBCAgent")
     smoke("scene",          "FBFlowBCAgent")
     smoke("puzzle_3x3",     "FBFlowBCAgent")

@@ -75,8 +75,10 @@ def extract(env_name: str, output_folder: str, dataset_path: str | None = None) 
         # First-step action is set to zero (matches td_jepa convention).
         ep["action"][1:] = ep["action"][:-1]
         ep["action"][0] = 0.0
-        # Mark terminal step
-        ep["discount"][-1] = 0.0
+        # NOTE: td_jepa's extract_all.py leaves discount as all ones and never
+        # marks a terminal step. We match that here. The loader treats every
+        # transition as non-terminal (terminated = False everywhere), so the
+        # TD bootstrap always uses discount = gamma = 0.99.
         # Some envs have additional button states concatenated into physics
         if "button_states" in data:
             ep["physics"] = np.concatenate([ep["physics"], data["button_states"][start : end + 1]], axis=-1)
