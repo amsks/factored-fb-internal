@@ -87,6 +87,7 @@ def main() -> None:
         f"device={args.device}",
         f"seed={args.seed}",
         f"use_wandb={'false' if args.no_wandb else 'true'}",
+        f"wandb_entity=amsks",
         f"wandb_group={args.wandb_group}",
         f"wandb_tags=[verify-ortho-fix]",
     ]

@@ -22,14 +22,17 @@ launch_fb_ogbench.py BASE_CFG + sweep_antmaze first trial):
 Reads data from <repo>/datasets/<domain>/buffer/*.npz — same files our
 training uses.
 
-Logs to wandb project `factored-fb`, group `td-jepa-50k`, tag `td-jepa-50k`.
+Logs to wandb project `factored-fb`, group `td-jepa-50k`.
 
-Run from the Factored-FB repo root:
+Must be run with td_jepa's uv environment (it needs safetensors, tyro, etc.):
 
-    python scripts/run_td_jepa_50k.py
+    uv run --directory /home/mclovin/git/Austin/td_jepa \\
+        python /home/mclovin/git/Austin/Factored-FB/scripts/run_td_jepa_50k.py
 
-Requires td_jepa to be present at $TD_JEPA_ROOT (default
-/Users/adityamohan/git/Austin/td_jepa).
+Override the td_jepa path via env var if needed:
+
+    TD_JEPA_ROOT=/path/to/td_jepa uv run --directory /path/to/td_jepa \\
+        python scripts/run_td_jepa_50k.py
 """
 
 from __future__ import annotations
@@ -39,7 +42,7 @@ import sys
 from pathlib import Path
 
 OUR_REPO = Path(__file__).resolve().parent.parent
-TD_JEPA = Path(os.environ.get("TD_JEPA_ROOT", "/Users/adityamohan/git/Austin/td_jepa"))
+TD_JEPA = Path(os.environ.get("TD_JEPA_ROOT", "/home/mclovin/git/Austin/td_jepa"))
 
 if not TD_JEPA.exists():
     sys.exit(f"[run_td_jepa_50k] td_jepa not found at {TD_JEPA}. Set TD_JEPA_ROOT.")
@@ -77,7 +80,7 @@ CONFIG: dict = {
     "use_wandb": True,
     "wandb_pname": "factored-fb",
     "wandb_gname": "td-jepa-50k",
-    "wandb_ename": None,
+    "wandb_ename": "amsks",
 
     # ── Data ─────────────────────────────────────────────────────────── #
     "data": {

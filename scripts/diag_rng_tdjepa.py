@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 OUR_REPO = Path(__file__).resolve().parents[1]
-TD_JEPA = Path(os.environ.get("TD_JEPA_ROOT", "/Users/adityamohan/git/Austin/td_jepa"))
+TD_JEPA = Path(os.environ.get("TD_JEPA_ROOT", "/home/mclovin/git/Austin/td_jepa"))
 
 if not TD_JEPA.exists():
     sys.exit(f"[diag_rng_tdjepa] td_jepa not found at {TD_JEPA}. Set TD_JEPA_ROOT.")
@@ -109,9 +109,14 @@ CONFIG: dict = {
 
 
 def fp(label: str) -> None:
-    state = torch.get_rng_state().numpy().tobytes()
-    digest = hashlib.sha1(state).hexdigest()[:16]
-    print(f"  [rng] {label:42s}  {digest}")
+    cpu_state = torch.get_rng_state().numpy().tobytes()
+    cpu_digest = hashlib.sha1(cpu_state).hexdigest()[:16]
+    if torch.cuda.is_available():
+        cuda_state = torch.cuda.get_rng_state().cpu().numpy().tobytes()
+        cuda_digest = hashlib.sha1(cuda_state).hexdigest()[:16]
+    else:
+        cuda_digest = "n/a             "
+    print(f"  [rng] {label:42s}  cpu={cpu_digest}  cuda={cuda_digest}")
 
 
 def hash_tensor(t: torch.Tensor) -> str:

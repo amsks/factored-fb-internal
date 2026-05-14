@@ -38,10 +38,15 @@ from data.ogbench import load_ogbench_dataset  # noqa: E402
 
 
 def fp(label: str) -> None:
-    """Print SHA1 fingerprint of current torch CPU RNG state."""
-    state = torch.get_rng_state().numpy().tobytes()
-    digest = hashlib.sha1(state).hexdigest()[:16]
-    print(f"  [rng] {label:42s}  {digest}")
+    """Print SHA1 fingerprint of current torch CPU+CUDA RNG state."""
+    cpu_state = torch.get_rng_state().numpy().tobytes()
+    cpu_digest = hashlib.sha1(cpu_state).hexdigest()[:16]
+    if torch.cuda.is_available():
+        cuda_state = torch.cuda.get_rng_state().cpu().numpy().tobytes()
+        cuda_digest = hashlib.sha1(cuda_state).hexdigest()[:16]
+    else:
+        cuda_digest = "n/a             "
+    print(f"  [rng] {label:42s}  cpu={cpu_digest}  cuda={cuda_digest}")
 
 
 def hash_tensor(t: torch.Tensor) -> str:
@@ -62,7 +67,10 @@ def main():
                 "seed=1",
                 "use_wandb=false",
                 "num_train_steps=5",
-                "log_every_updates=1",
+                "log_every=1",
+                # Match diag_rng_tdjepa.py CONFIG exactly
+                "ortho_coef=100.0",
+                "clip_grad_norm=1.0",
             ],
         )
     cfg.device = resolve_device(cfg.device)
