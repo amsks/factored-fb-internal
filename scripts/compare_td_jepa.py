@@ -9,9 +9,14 @@ td_jepa uses different metric key names than ours:
     ours:    "train/train/M1", "train/loss/fb", "train/loss/orth_offdiag", ...
 This script maps the common metrics and reports both sides.
 
-Usage:
-    python scripts/compare_td_jepa.py
-    python scripts/compare_td_jepa.py --ours-group verify-ortho-fix --tdjepa-group td-jepa-50k
+Must be run with td_jepa's uv environment (needs pandas + wandb from td_jepa):
+
+    uv run --directory /home/mclovin/git/Austin/td_jepa \\
+        python /home/mclovin/git/Austin/Factored-FB/scripts/compare_td_jepa.py
+
+    uv run --directory /home/mclovin/git/Austin/td_jepa \\
+        python /home/mclovin/git/Austin/Factored-FB/scripts/compare_td_jepa.py \\
+        --ours-group verify-ortho-fix --tdjepa-group td-jepa-50k
 """
 
 from __future__ import annotations
