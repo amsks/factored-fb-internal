@@ -20,3 +20,6 @@ h5py>=3.11.0
 # Logging
 wandb>=0.22.3
 tqdm
+
+# Video / GIF writing
+imageio>=2.31
