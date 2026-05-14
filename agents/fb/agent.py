@@ -308,19 +308,19 @@ class FBAgent(BaseAgent):
 
         with torch.no_grad():
             output_metrics = {
-                "train/target_M": target_M.mean(),
-                "train/M1": Ms[0].mean(),
-                "train/F1": Fs[0].mean(),
-                "train/B": B.mean(),
-                "train/B_norm": torch.norm(B, dim=-1).mean(),
-                "train/z_norm": torch.norm(z, dim=-1).mean(),
-                "loss/fb": fb_loss,
-                "loss/fb_diag": fb_diag,
-                "loss/fb_offdiag": fb_offdiag,
-                "loss/orth": orth_loss,
-                "loss/orth_diag": orth_loss_diag,
-                "loss/orth_offdiag": orth_loss_offdiag,
-                "loss/q": q_loss,
+                "target_M": target_M.mean(),
+                "M1": Ms[0].mean(),
+                "F1": Fs[0].mean(),
+                "B": B.mean(),
+                "B_norm": torch.norm(B, dim=-1).mean(),
+                "z_norm": torch.norm(z, dim=-1).mean(),
+                "fb_loss": fb_loss,
+                "fb_diag": fb_diag,
+                "fb_offdiag": fb_offdiag,
+                "orth_loss": orth_loss,
+                "orth_loss_diag": orth_loss_diag,
+                "orth_loss_offdiag": orth_loss_offdiag,
+                "q_loss": q_loss,
             }
         return output_metrics
 
@@ -362,9 +362,9 @@ class FBAgent(BaseAgent):
         self.actor_optimizer.step()
 
         return {
-            "loss/actor": actor_loss.detach(),
-            "loss/actor_bc": bc_error.detach() if isinstance(bc_error, torch.Tensor) else torch.tensor(bc_error),
-            "train/Q_actor": Q.mean().detach(),
+            "actor_loss": actor_loss.detach(),
+            "bc_error": bc_error.detach() if isinstance(bc_error, torch.Tensor) else torch.tensor(bc_error),
+            "q": Q.mean().detach(),
         }
 
     def get_targets_uncertainty(

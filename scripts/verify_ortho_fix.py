@@ -4,9 +4,9 @@ Spawns `python train.py` with the recommended antmaze-medium overrides for a
 short horizon (default 50k steps), parses stdout for the metric trajectory,
 and asserts the collapse signature does not appear:
 
-  - train/train/M1                stays below 40   (collapse goes to 80-110)
-  - train/train/Q_actor (abs)     stays below 100  (collapse goes to 400-550 = ||F||*||z||)
-  - train/loss/orth_offdiag       stays below 60   (collapse drifts upward to 80+)
+  - train/M1                stays below 40   (collapse goes to 80-110)
+  - train/q (abs)           stays below 100  (collapse goes to 400-550 = ||F||*||z||)
+  - train/orth_loss_offdiag stays below 60   (collapse drifts upward to 80+)
 
 Use this twice to compare: once with the fix (default), once with the broken
 config (`--ortho-coef 1.0 --clip-grad-norm 0`) to confirm collapse on the bad
@@ -39,9 +39,9 @@ KV_RE = re.compile(r"(\S+?)=(\S+)")
 # Collapse thresholds. Healthy training (ortho_coef >= 100) keeps these well
 # below the limits; collapse (ortho_coef = 1) clearly exceeds them by 50k steps.
 THRESHOLDS = {
-    "train/train/M1":          ("max",     40.0),
-    "train/train/Q_actor":     ("abs_max", 100.0),
-    "train/loss/orth_offdiag": ("max",     60.0),
+    "train/M1":                ("max",     40.0),
+    "train/q":                 ("abs_max", 100.0),
+    "train/orth_loss_offdiag": ("max",     60.0),
 }
 
 

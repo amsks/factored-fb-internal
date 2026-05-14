@@ -119,9 +119,9 @@ def main():
 
         # Print key metrics that we know diverge between runs (M1, fb_offdiag)
         key_metrics = [
-            "train/M1", "train/B_norm", "train/z_norm",
-            "loss/fb_offdiag", "loss/fb_diag", "loss/orth",
-            "train/Q_actor", "loss/actor",
+            "M1", "B_norm", "z_norm",
+            "fb_offdiag", "fb_diag", "orth_loss",
+            "q", "actor_loss",
         ]
         for k in key_metrics:
             if k in metrics:
