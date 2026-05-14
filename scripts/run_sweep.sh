@@ -20,7 +20,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 LOG_DIR="$REPO/logs/$TIMESTAMP"
-N_PARALLEL="${N_PARALLEL:-6}"
+N_PARALLEL="${N_PARALLEL:-24}"
 SEEDS="${SEEDS:-1 2 3}"
 DOMAINS="${DOMAINS:-antmaze_medium cube_single}"
 ORTHOS="${ORTHOS:-100 1000}"
