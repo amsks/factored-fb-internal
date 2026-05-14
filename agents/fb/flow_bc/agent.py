@@ -109,10 +109,10 @@ class FBFlowBCAgent(FBAgent):
         self.actor_vf_optimizer.step()
 
         return {
-            "loss/actor": actor_loss.mean().detach(),
-            "loss/bc_flow": bc_flow_loss.detach(),
-            "loss/actor_bc": bc_error.detach() if isinstance(bc_error, torch.Tensor) else torch.tensor(bc_error),
-            "train/Q_actor": Q.mean().detach(),
+            "actor_loss": actor_loss.mean().detach(),
+            "bc_flow_loss": bc_flow_loss.detach(),
+            "bc_error": bc_error.detach() if isinstance(bc_error, torch.Tensor) else torch.tensor(bc_error),
+            "q": Q.mean().detach(),
         }
 
     def compute_flow_actions(self, obs: torch.Tensor, noises: torch.Tensor) -> torch.Tensor:
