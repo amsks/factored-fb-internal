@@ -1,40 +1,40 @@
-"""
-agents/fb/model.py — FBModel.
+"""agents/fb/model.py — Literal port of td_jepa/metamotivo/agents/fb/model.py.
 
-Network call chain (all encoders / normalizer are Identity for state OGBench):
-    obs -> _obs_normalizer -> _fw_encoder -> _left_encoder -> _forward_map
-                          \-> _bw_encoder ----> _backward_map
-                          \-> (left_enc if actor_encode_obs else fw_enc) -> _actor
+Substitutions vs upstream:
+    self.cfg.archi.X    -> self.X        (architecture hyperparams as instance attrs)
+    self.cfg.X          -> self.X        (top-level model hyperparams)
+    self._normalize     -> kept name (used by `actor`, `backward_map`, etc.)
+    safetensors load/save -> dropped (use plain nn.Module state_dict)
+    pydantic config classes -> replaced by ctor kwargs
 
-Target nets: _target_forward_map, _target_backward_map, _target_left_encoder.
-All soft-updated.
+The network construction (encoders, normalizer, augmentator, left_encoder,
+backward_map, forward_map, actor, target nets) is line-for-line equivalent
+to td_jepa's, in the same order, with the same gradient/eval-mode setup.
 """
 
 from __future__ import annotations
 
 import copy
 import math
+import typing as tp
 from typing import Optional
 
+import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
+from torch.amp import autocast
 
 from nn_models import (
     BackwardArchiConfig,
     ForwardArchiConfig,
-    IdentityNN,
+    IdentityNNConfig,
     SimpleActorArchiConfig,
-    _soft_update_params,
-    weight_init,
+    eval_mode,
 )
 from normalizers import IdentityNormalizerConfig
 
 
-class FBModel(nn.Module):
-    """Container for FB networks, encoders, normalizer, and target copies."""
-
+class FBModel(torch.nn.Module):
     def __init__(
         self,
         obs_space,
@@ -43,137 +43,126 @@ class FBModel(nn.Module):
         L_dim: int = 50,
         norm_z: bool = True,
         actor_encode_obs: bool = False,
+        actor_std: float = 0.2,
+        amp: bool = False,
+        inference_batch_size: int = 500_000,
         forward_cfg: Optional[ForwardArchiConfig] = None,
         backward_cfg: Optional[BackwardArchiConfig] = None,
-        left_encoder_cfg: Optional[BackwardArchiConfig] = None,
+        left_encoder_cfg=None,
         actor_cfg=None,
+        rgb_encoder_cfg=None,
+        augmentator_cfg=None,
         obs_normalizer_cfg=None,
         device: str = "cpu",
     ):
         super().__init__()
+        self.obs_space = obs_space
+        self.action_dim = action_dim
+        # Store every config attr as a plain instance attribute (stand-in for cfg.archi.X / cfg.X).
         self.z_dim = z_dim
         self.L_dim = L_dim
         self.norm_z = norm_z
         self.actor_encode_obs = actor_encode_obs
+        self.actor_std = actor_std
+        self.amp = amp
+        self.inference_batch_size = inference_batch_size
         self.device = device
+        self.amp_dtype = torch.bfloat16
 
-        # Defaults match td_jepa's OGBench launch
+        # Defaults matching td_jepa's FBModelArchiConfig
         if forward_cfg is None:
-            forward_cfg = ForwardArchiConfig(hidden_dim=512, hidden_layers=2, num_parallel=2)
+            forward_cfg = ForwardArchiConfig()
         if backward_cfg is None:
-            backward_cfg = BackwardArchiConfig(hidden_dim=512, hidden_layers=4, norm=True)
-        if left_encoder_cfg is None:
-            left_encoder_cfg = BackwardArchiConfig(hidden_dim=512, hidden_layers=4, norm=True)
+            backward_cfg = BackwardArchiConfig()
         if actor_cfg is None:
-            actor_cfg = SimpleActorArchiConfig(hidden_dim=512, hidden_layers=2)
+            actor_cfg = SimpleActorArchiConfig()
+        if left_encoder_cfg is None:
+            left_encoder_cfg = IdentityNNConfig()
+        if rgb_encoder_cfg is None:
+            rgb_encoder_cfg = IdentityNNConfig()
+        if augmentator_cfg is None:
+            augmentator_cfg = IdentityNNConfig()
         if obs_normalizer_cfg is None:
             obs_normalizer_cfg = IdentityNormalizerConfig()
 
-        # Encoders / normalizer (Identity passthroughs for state OGBench)
+        # create networks (order and naming mirror td_jepa exactly)
         self._obs_normalizer = obs_normalizer_cfg.build(obs_space)
-        self._fw_encoder = IdentityNN(obs_space)
-        self._bw_encoder = IdentityNN(obs_space)
-
-        # Left encoder produces L_dim-shaped output from fw_encoder.output_space
+        self._bw_encoder = rgb_encoder_cfg.build(obs_space)
+        self._augmentator = augmentator_cfg.build(obs_space)
+        self._fw_encoder = rgb_encoder_cfg.build(obs_space)
         self._left_encoder = left_encoder_cfg.build(self._fw_encoder.output_space, L_dim)
 
-        # FB maps
         self._backward_map = backward_cfg.build(self._bw_encoder.output_space, z_dim)
         self._forward_map = forward_cfg.build(self._left_encoder.output_space, z_dim, action_dim)
-
-        # Actor input space depends on actor_encode_obs
-        actor_in_space = (
-            self._left_encoder.output_space if actor_encode_obs else self._fw_encoder.output_space
+        self._actor = actor_cfg.build(
+            self._left_encoder.output_space if self.actor_encode_obs else self._fw_encoder.output_space,
+            z_dim,
+            action_dim,
         )
-        self._actor = actor_cfg.build(actor_in_space, z_dim, action_dim)
 
-        # Init weights
-        self.apply(weight_init)
+        # make sure the model is in eval mode and never computes gradients
+        self.train(False)
+        self.requires_grad_(False)
+        self.to(self.device)
 
-        # Target nets
-        self._target_forward_map = copy.deepcopy(self._forward_map)
+    def _prepare_for_train(self) -> None:
+        # create TARGET networks
         self._target_backward_map = copy.deepcopy(self._backward_map)
+        self._target_forward_map = copy.deepcopy(self._forward_map)
         self._target_left_encoder = copy.deepcopy(self._left_encoder)
-        for p in self._target_forward_map.parameters():
-            p.requires_grad_(False)
-        for p in self._target_backward_map.parameters():
-            p.requires_grad_(False)
-        for p in self._target_left_encoder.parameters():
-            p.requires_grad_(False)
 
-        self.to(device)
+    def _normalize(self, obs: torch.Tensor):
+        with torch.no_grad(), eval_mode(self._obs_normalizer):
+            return self._obs_normalizer(obs)
 
-    # ── Target updates ────────────────────────────────────────────────── #
+    @torch.no_grad()
+    def backward_map(self, obs: torch.Tensor):
+        with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
+            return self._backward_map(self._bw_encoder(self._normalize(obs)))
 
-    def soft_update_targets(self, f_tau: float, b_tau: float) -> None:
-        _soft_update_params(
-            list(self._forward_map.parameters()),
-            list(self._target_forward_map.parameters()),
-            f_tau,
-        )
-        _soft_update_params(
-            list(self._backward_map.parameters()),
-            list(self._target_backward_map.parameters()),
-            b_tau,
-        )
-        _soft_update_params(
-            list(self._left_encoder.parameters()),
-            list(self._target_left_encoder.parameters()),
-            f_tau,
-        )
+    @torch.no_grad()
+    def forward_map(self, obs: torch.Tensor, z: torch.Tensor, action: torch.Tensor):
+        with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
+            return self._forward_map(self._left_encoder(self._fw_encoder(self._normalize(obs))), z, action)
 
-    # ── z utilities ──────────────────────────────────────────────────── #
+    @torch.no_grad()
+    def actor(self, obs: torch.Tensor, z: torch.Tensor, std: float):
+        with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
+            obs = self._fw_encoder(self._normalize(obs))
+            obs = self._left_encoder(obs) if self.actor_encode_obs else obs
+            return self._actor(obs, z, std)
 
-    def project_z(self, z: Tensor) -> Tensor:
+    def sample_z(self, size: int, device: str = "cpu") -> torch.Tensor:
+        z = torch.randn((size, self.z_dim), dtype=torch.float32, device=device)
+        return self.project_z(z)
+
+    def project_z(self, z):
         if self.norm_z:
             z = math.sqrt(z.shape[-1]) * F.normalize(z, dim=-1)
         return z
 
-    def sample_z(self, n: int) -> Tensor:
-        z = torch.randn(n, self.z_dim, device=self.device)
-        return self.project_z(z)
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
+        dist = self.actor(obs, z, self.actor_std)
+        if mean:
+            return dist.mean.float()
+        return dist.sample().float()
 
-    def mixed_z(self, next_obs_normed_encoded_bw: Tensor, train_goal_ratio: float) -> Tensor:
-        """Sample z: with prob train_goal_ratio use B(next_obs[perm]), else random.
-
-        `next_obs_normed_encoded_bw` is the output of `_bw_encoder(_normalize(next_obs))`,
-        which the agent has already computed for the FB loss.
-        """
-        B = next_obs_normed_encoded_bw.shape[0]
-        z = self.sample_z(B)
-        perm = torch.randperm(B, device=self.device)
-        with torch.no_grad():
-            goals = self.project_z(
-                self._backward_map(next_obs_normed_encoded_bw[perm])
-            )
-        mask = (torch.rand((B, 1), device=self.device) < train_goal_ratio)
-        return torch.where(mask, goals, z)
-
-    # ── Public API used at eval ───────────────────────────────────────── #
-
-    def normalize(self, x: Tensor) -> Tensor:
-        with torch.no_grad():
-            self._obs_normalizer.eval()
-            return self._obs_normalizer(x)
-
-    @torch.no_grad()
-    def backward_map(self, obs: Tensor) -> Tensor:
-        """Public B(obs) including normalize + bw_encoder."""
-        return self._backward_map(self._bw_encoder(self.normalize(obs)))
-
-    @torch.no_grad()
-    def reward_inference(self, next_obs: Tensor, reward: Tensor) -> Tensor:
-        """Linear estimator: z = project(sum_i r_i * B(next_obs_i)).
-
-        reward : [N, 1] or [N]
-        next_obs : [N, obs_dim]
-        Returns z of shape [z_dim].
-        """
-        B_mat = self.backward_map(next_obs)              # [N, z_dim]
-        if reward.dim() == 1:
-            reward = reward.unsqueeze(-1)                # [N, 1]
-        z = (reward.T @ B_mat).squeeze(0)                # [z_dim]
-        return self.project_z(z.unsqueeze(0)).squeeze(0)
+    def reward_inference(
+        self, next_obs: torch.Tensor, reward: torch.Tensor, weight: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
+            batch_size = next_obs.shape[0]
+            num_batches = int(np.ceil(batch_size / self.inference_batch_size))
+            z = 0
+            wr = reward if weight is None else reward * weight
+            for i in range(num_batches):
+                start_idx, end_idx = i * self.inference_batch_size, (i + 1) * self.inference_batch_size
+                next_obs_slice = next_obs[start_idx:end_idx].to(self.device)
+                B = self.backward_map(next_obs_slice)
+                z += torch.matmul(wr[start_idx:end_idx].to(self.device).T, B)
+        # td_jepa's reward_inference returns shape [1, z_dim]; our callers expect [z_dim].
+        z = self.project_z(z)
+        return z.squeeze(0) if z.dim() == 2 and z.shape[0] == 1 else z
 
     # Backwards-compatible alias used by FBAgent.infer_z
     infer_z = reward_inference

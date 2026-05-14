@@ -41,7 +41,6 @@ def load_transitions(npz_files: List[Union[str, Path]]) -> Dict:
         ep = np.load(f)
         obs = ep["observation"].astype(np.float32)
         act = ep["action"].astype(np.float32)
-        disc = ep["discount"].astype(np.float32) if "discount" in ep else np.ones(len(obs))
 
         # IMPORTANT: scripts/extract_ogbench.py applies an EXORL-style shift so
         # that episode["action"][t] is the action that LED to obs[t], with
@@ -52,7 +51,13 @@ def load_transitions(npz_files: List[Union[str, Path]]) -> Dict:
         obs_list.append(obs[:-1])
         act_list.append(act[1:])
         next_obs_list.append(obs[1:])
-        term_list.append((disc[1:] == 0.0).reshape(-1, 1))
+        # td_jepa's extract leaves discount all-ones and never marks terminals.
+        # Their loader computes terminated = 1 - discount[1:], which is always
+        # False. We force the same behavior regardless of how this .npz was
+        # extracted (old versions of our extract_ogbench.py set
+        # discount[-1] = 0, which would otherwise produce one True per episode).
+        n_trans = obs.shape[0] - 1
+        term_list.append(np.zeros((n_trans, 1), dtype=bool))
 
         if has_physics and "physics" in ep:
             next_phys_list.append(ep["physics"].astype(np.float32)[1:])
