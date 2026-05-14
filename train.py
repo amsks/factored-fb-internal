@@ -20,6 +20,11 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+# Match td_jepa/train.py: allow TF32 matmuls on CUDA. Affects every F @ B.T,
+# B @ B.T, F @ z reduction. Without this, our F-side metrics (M1, Q_actor,
+# fb_offdiag) drift ~6-22% from td_jepa over 50k steps.
+torch.set_float32_matmul_precision("high")
+
 from agents.fb.agent import FBAgent
 from agents.fb.flow_bc.agent import FBFlowBCAgent
 from data.ogbench import load_ogbench_dataset
