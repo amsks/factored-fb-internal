@@ -93,6 +93,9 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         stddev_clip=cfg.stddev_clip,
         f_target_tau=cfg.f_target_tau,
         b_target_tau=cfg.b_target_tau,
+        bc_coeff=cfg.get("bc_coeff", 0.0),
+        q_loss_coef=cfg.get("q_loss_coef", 0.0),
+        amp=cfg.get("amp", False),
         device=cfg.device,
     )
 
@@ -109,7 +112,6 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         return FBFlowBCAgent(
             actor_cfg=actor_cfg,
             actor_vf_cfg=actor_vf_cfg,
-            bc_coeff=cfg.bc_coeff,
             flow_steps=cfg.flow_steps,
             lr_actor_vf=cfg.lr_actor_vf,
             **shared,
