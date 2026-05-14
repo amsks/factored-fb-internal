@@ -10,6 +10,11 @@ Examples
 from __future__ import annotations
 
 import os
+
+# Headless OpenGL backend for MuJoCo (needed when env.render() is called
+# without an X display, e.g. during eval-video capture on a remote host).
+os.environ.setdefault("MUJOCO_GL", "egl")
+
 import random
 import time
 from pathlib import Path
@@ -178,6 +183,13 @@ def main(cfg: DictConfig) -> None:
     agent = make_agent(cfg, obs_space, action_dim)
     print(f"[train] agent: {type(agent).__name__}")
 
+    save_dir = Path(cfg.save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    video_dir = Path(cfg.eval_videos_dir)
+    if cfg.save_eval_videos:
+        video_dir.mkdir(parents=True, exist_ok=True)
+
     evaluator = OGBenchEvaluator(
         domain=cfg.domain,
         agent=agent,
@@ -188,10 +200,10 @@ def main(cfg: DictConfig) -> None:
         obs_type=cfg.obs_type,
         seed=cfg.seed,
         device=cfg.device,
+        save_videos=cfg.save_eval_videos,
+        video_dir=video_dir,
+        use_wandb=cfg.use_wandb,
     )
-
-    save_dir = Path(cfg.save_dir)
-    save_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[train] {cfg.num_train_steps:,} steps")
     # Match td_jepa Workspace.train_offline:
@@ -213,7 +225,7 @@ def main(cfg: DictConfig) -> None:
         # Eval (td_jepa's EveryNStepsChecker triggers at t=0 and every N)
         if cfg.eval_every > 0 and (step == 0 or step % cfg.eval_every == 0):
             print(f"[eval] step={step}")
-            log_metrics(evaluator.run(), step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
+            log_metrics(evaluator.run(step=step), step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
 
         # Update
         batch = buffer.sample(cfg.batch_size)
