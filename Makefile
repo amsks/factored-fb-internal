@@ -12,9 +12,11 @@ install-pip:
 
 # ── OGBench dataset ──────────────────────────────────────────────────────── #
 
-## Download + extract all state-based OGBench domains into ./datasets/
+OUTPUT ?= datasets
+
+## Download + extract all state-based OGBench domains into ./datasets/ (or OUTPUT=<path>)
 data:
-	python scripts/extract_ogbench.py --output_folder datasets
+	python scripts/extract_ogbench.py --output_folder $(OUTPUT)
 
 # ── Pipeline check ────────────────────────────────────────────────────────── #
 
