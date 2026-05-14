@@ -34,27 +34,30 @@ class OGBenchEvaluator:
         seed: int = 0,
         device: str = "cpu",
     ):
+        # Match td_jepa's OGBenchRewardEvaluation: do NOT build envs upfront.
+        # Building all 5 eval envs + 5 relabel-fn envs at startup would add
+        # ~50s of mujoco init even on runs that never call run(). Build them
+        # lazily inside run() / _infer_z() and tear them down after each task.
         self.domain = domain
         self.agent = agent
         self.offline_buffer = offline_buffer
         self.relabel_size = relabel_size
         self.n_episodes = n_episodes
         self.shift_reward = shift_reward
+        self.obs_type = obs_type
+        self.seed = seed
         self.device = device
-
-        tasks = ALL_TASKS.get(domain, [])
-        self.task_envs: Dict[str, object] = {}
-        self.relabel_fns: Dict[str, object] = {}
-        for task in tasks:
-            env, _ = create_ogbench_env(task, seed=seed, obs_type=obs_type)
-            self.task_envs[task] = env
-            self.relabel_fns[task] = get_relabel_fn(domain, task)
+        self.tasks = ALL_TASKS.get(domain, [])
 
     def run(self) -> Dict[str, float]:
         metrics: Dict[str, float] = {}
-        for task, env in self.task_envs.items():
-            z = self._infer_z(task)
-            stats, infos = rollout(env, self.agent, self.n_episodes, ctx=z)
+        for task in self.tasks:
+            env, _ = create_ogbench_env(task, seed=self.seed, obs_type=self.obs_type)
+            try:
+                z = self._infer_z(task)
+                stats, infos = rollout(env, self.agent, self.n_episodes, ctx=z)
+            finally:
+                env.close()
             success = float(np.mean([
                 any(step.get("success", False) for step in ep_info)
                 for ep_info in infos
@@ -64,7 +67,7 @@ class OGBenchEvaluator:
         return metrics
 
     def _infer_z(self, task: str) -> Tensor:
-        relabel_fn = self.relabel_fns[task]
+        relabel_fn = get_relabel_fn(self.domain, task)  # builds + closes a temp env internally
         n = min(self.relabel_size, len(self.offline_buffer))
         if n < 8:
             return self.agent.model.sample_z(1).squeeze(0)
