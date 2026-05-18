@@ -118,3 +118,31 @@ def test_rollout_for_profile_attaches_outcome_and_d():
     assert e["outcome"] in ("success", "transport_fail", "other")
     assert e["d"].shape[0] == e["obs"].shape[0]      # ||cube-goal|| per step
     assert e["transport_mask"].shape[0] == e["obs"].shape[0]
+
+
+def _fake_ep(outcome, d, v_at_d):
+    """Build a profile-episode whose V(s_t) = v_at_d(d_t) via stub model."""
+    T = len(d)
+    obs = np.zeros((T, 5), np.float32)
+    obs[:, 0] = [v_at_d(x) for x in d]      # _StubModel Q ~ obs[:,0]
+    return {
+        "obs": obs, "action": np.zeros((max(T - 1, 0), 2), np.float32),
+        "d": np.asarray(d, np.float64),
+        "transport_mask": np.ones(T, bool),
+        "outcome": outcome, "length": T,
+    }
+
+
+def test_value_landscape_slope_success_vs_fail():
+    m, ag = _StubModel(), _StubAgent()
+    z = torch.tensor([1.0, 0.0, 0.0])
+    # success: V rises as d -> 0 (slope wrt -d > 0); fail: V flat
+    eps = [
+        _fake_ep("success", [0.30, 0.20, 0.10, 0.02], lambda x: 1.0 - x),
+        _fake_ep("transport_fail", [0.30, 0.20, 0.10, 0.05], lambda x: 0.5),
+    ]
+    per_ep, per_step = rp.probe_value_landscape(m, ag, eps, z)
+    s = per_ep.set_index("outcome")["slope_V_negd"]
+    assert s.loc["success"] > 0.5
+    assert abs(s.loc["transport_fail"]) < 1e-6
+    assert set(per_step.columns) >= {"outcome", "d", "V"}
