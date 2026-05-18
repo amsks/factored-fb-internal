@@ -39,3 +39,5 @@ TestResults.xml
 # GCIQL/JAX track local artifacts (live on the NVMe, never committed)
 last_run_gciql.json
 /mnt/
+outputs/
+multirun/

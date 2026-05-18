@@ -78,6 +78,7 @@ def main(cfg: DictConfig) -> None:
 
     env = os.environ.copy()
     env["MUJOCO_GL"] = "egl"
+    env["CUDA_VISIBLE_DEVICES"] = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
     mode = str(plain.get("wandb_mode", "online"))
     if mode == "disabled":
         env["WANDB_DISABLED"] = "true"
