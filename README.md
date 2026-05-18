@@ -270,8 +270,8 @@ reboot**). For runs that must survive a reboot, use the NVMe override.
 
 ```bash
 # tmpfs (default, no sudo):
-make install-jax-shm                   # isolated .venv-jax in /dev/shm
-make smoke-gciql                       # end-to-end check (state + visual)
+make install-jax-shm                   # isolated .venv-jax in /dev/shm (run first)
+make smoke-gciql                       # end-to-end check (needs install-jax-shm)
 VARIANT=state  SEEDS="0 1 2" bash scripts/run_gciql.sh
 VARIANT=visual SEEDS="0 1 2" bash scripts/run_gciql.sh
 
