@@ -262,10 +262,10 @@ def test_aggregate_builds_tables_and_story(tmp_path):
         d = tmp_path / f"s{s}_final"
         d.mkdir()
         pd.DataFrame([{"task": "t1", "outcome": "success",
-                       "slope_V_negd": 1.0, "V_at_secure": 0.1,
+                       "rho_V_negd": 0.9, "V_at_secure": 0.1,
                        "V_at_end": 0.9, "n_transport_steps": 5},
                       {"task": "t1", "outcome": "transport_fail",
-                       "slope_V_negd": 0.0, "V_at_secure": 0.5,
+                       "rho_V_negd": 0.0, "V_at_secure": 0.5,
                        "V_at_end": 0.5, "n_transport_steps": 5}]
                      ).to_parquet(d / "value_landscape.parquet")
         pd.DataFrame([{"task": "t1", "outcome": "success", "d": 0.1,
@@ -288,6 +288,10 @@ def test_aggregate_builds_tables_and_story(tmp_path):
     txt = (out / "story.md").read_text()
     assert "## Readout" in txt
     assert "0.02" in txt          # relabel_pos_frac mean filled in
+    assert "T1 value gradient" in txt and "Synthesis:" in txt
+    # rho_succ=0.9, rho_fail=0.0 -> SUPPORTS; frac 0.02 & topk 0.1 -> SUPPORTS
+    assert "SUPPORTS" in txt
+    assert "Reach ~100%" not in txt   # hardcoded template is gone
 
 
 class _ContractModel:
@@ -326,3 +330,28 @@ def test_v_values_broadcasts_global_z_over_batch():
     z = torch.tensor([1.0, 0.0, 0.0])          # one global task vector
     v = rp.v_values(_ContractModel(), _ContractAgent(), obs, z)
     assert v.shape == (5,)
+
+
+def test_aggregate_verdict_helpers():
+    import importlib
+    agg = importlib.import_module("scripts.representation_profile_aggregate")
+    # T1: success monotone, fail flat -> SUPPORTS
+    assert agg._verdict_t1(0.40, 0.02)[0] == "SUPPORTS"
+    # T1: fail rises more than success -> CONTRADICTS
+    assert agg._verdict_t1(0.05, 0.40)[0] == "CONTRADICTS"
+    # T1: nan in -> INSUFFICIENT DATA
+    assert agg._verdict_t1(float("nan"), 0.1)[0] == "INSUFFICIENT DATA"
+    # T2: sparse + z mis-pointed -> SUPPORTS
+    assert agg._verdict_t2(0.02, 0.20)[0] == "SUPPORTS"
+    assert agg._verdict_t2(0.30, 0.80)[0] == "WEAK"
+    # T3: weak resolution -> SUPPORTS; strong -> RESOLVES
+    assert agg._verdict_t3(0.30, 0.65)[0] == "SUPPORTS"
+    assert agg._verdict_t3(0.80, 0.95)[0] == "RESOLVES"
+    # T4: fail far more off-support -> SUPPORTS; similar -> NEUTRAL
+    assert agg._verdict_t4(3.0, 1.0)[0] == "SUPPORTS"
+    assert agg._verdict_t4(2.2, 2.1)[0] == "NEUTRAL"
+    assert agg._verdict_t4(float("nan"), 2.0)[0] == "INSUFFICIENT DATA"
+    # synthesis names supporting probes
+    syn = agg._synthesis({"T1": ("SUPPORTS", ""), "T2": ("SUPPORTS", ""),
+                           "T3": ("WEAK", ""), "T4": ("NEUTRAL", "")})
+    assert "T1" in syn and "T2" in syn and syn.startswith("Synthesis:")
