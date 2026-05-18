@@ -139,3 +139,61 @@ def probe_z_decoding(model, next_obs: torch.Tensor, physics: np.ndarray,
         "topk_pct_at_goal": float(np.mean(d[idx] < goal_thresh)),
         "topk": k,
     }
+
+
+def _ridge_r2(X: np.ndarray, y: np.ndarray, seed: int,
+              alpha: float = 1.0) -> float:
+    """Closed-form ridge with a 70/30 split; returns held-out R²."""
+    X = np.asarray(X, np.float64)
+    y = np.asarray(y, np.float64)
+    if len(y) < 4 or np.ptp(y) < 1e-12:
+        return float("nan")
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(len(y))
+    cut = int(0.7 * len(y))
+    tr, te = perm[:cut], perm[cut:]
+    Xtr = np.hstack([X[tr], np.ones((len(tr), 1))])
+    Xte = np.hstack([X[te], np.ones((len(te), 1))])
+    d = Xtr.shape[1]
+    A = Xtr.T @ Xtr + alpha * np.eye(d)
+    w = np.linalg.solve(A, Xtr.T @ y[tr])
+    pred = Xte @ w
+    ss_res = float(((y[te] - pred) ** 2).sum())
+    ss_tot = float(((y[te] - y[te].mean()) ** 2).sum())
+    return 1.0 - ss_res / ss_tot if ss_tot > 1e-12 else float("nan")
+
+
+def _lda_acc(X: np.ndarray, lbl: np.ndarray) -> float:
+    """Fisher-LDA train=test accuracy for a 2-class problem."""
+    X = np.asarray(X, np.float64)
+    cls = np.unique(lbl)
+    if len(cls) != 2:
+        return float("nan")
+    mu = [X[lbl == c].mean(0) for c in cls]
+    Sw = sum(np.cov(X[lbl == c], rowvar=False) * (np.sum(lbl == c) - 1)
+             for c in cls)
+    Sw = np.atleast_2d(Sw) + 1e-6 * np.eye(X.shape[1])
+    w = np.linalg.solve(Sw, mu[1] - mu[0])
+    proj = X @ w
+    thr = 0.5 * (proj[lbl == cls[0]].mean() + proj[lbl == cls[1]].mean())
+    pred = np.where(proj > thr, cls[1], cls[0])
+    return float((pred == lbl).mean())
+
+
+def probe_b_resolution(B: np.ndarray, d: np.ndarray,
+                       seed: int = 0) -> Dict[str, float]:
+    """Ridge R²(B->d) and placed-vs-near-miss linear separability."""
+    if hasattr(B, "detach"):
+        B = B.detach().cpu().numpy()
+    B = np.asarray(B, np.float64)
+    d = np.asarray(d, np.float64)
+    r2 = _ridge_r2(B, d, seed)
+    placed = d < 0.04
+    near = (d >= 0.04) & (d < 0.12)
+    sel = placed | near
+    if placed.sum() >= 2 and near.sum() >= 2:
+        acc = _lda_acc(B[sel], placed[sel].astype(int))
+    else:
+        acc = float("nan")
+    return {"r2": r2, "placed_vs_near_acc": acc,
+            "n_placed": int(placed.sum()), "n_near": int(near.sum())}
