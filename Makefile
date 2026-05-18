@@ -1,4 +1,4 @@
-.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql run-gciql run-gciql-state smoke-gciql
+.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql run-gciql run-gciql-state run-gciql-state-sweep smoke-gciql
 
 # ── Installation ──────────────────────────────────────────────────────────── #
 
@@ -130,6 +130,10 @@ run-gciql:
 ## Full multi-seed GCIQL state run (cube-single-play-v0, 1M steps, online wandb)
 run-gciql-state:
 	bash scripts/run_gciql_state.sh
+
+## Parallel 10-seed GCIQL state sweep across GPUs (mirrors run_sweep.sh)
+run-gciql-state-sweep:
+	bash scripts/run_gciql_state_sweep.sh
 
 ## End-to-end smoke test for GCIQL (state + visual)
 smoke-gciql:
