@@ -35,6 +35,9 @@ def main() -> None:
     ap.add_argument("--n-episodes", type=int, default=20)
     ap.add_argument("--scenarios", default="S0,S1,S2")
     ap.add_argument("--seed", type=int, default=None)
+    ap.add_argument("--data-path", default=None,
+                    help="override cfg.data_path (offline buffer root); "
+                         "the saved config may point at a cluster path")
     ap.add_argument("--mujoco-gl", default=None,
                     help="osmesa|glfw|egl; sets MUJOCO_GL before env import")
     ap.add_argument("--eps-reach", type=float, default=0.06)
@@ -61,6 +64,8 @@ def main() -> None:
     cfg = load_cfg(args.config, device=args.device)
     if args.seed is not None:
         cfg.seed = args.seed
+    if args.data_path is not None:
+        cfg.data_path = args.data_path
     env, agent, _, _ = build_env_and_agent(cfg)
     load_checkpoint(agent, args.checkpoint, map_location=args.device)
     agent.eval() if hasattr(agent, "eval") else None
@@ -96,7 +101,7 @@ def main() -> None:
         e, _ = create_ogbench_env(task, seed=cfg.seed, obs_type=cfg.obs_type)
         return e
 
-    per_ep, summary, hist = run_phase_probe(
+    per_ep, summary, _hist = run_phase_probe(
         agent=agent, infer_z=infer_z, make_env=make_env, tasks=tasks,
         scenarios=scenarios, n_episodes=args.n_episodes, thr=thr)
 
