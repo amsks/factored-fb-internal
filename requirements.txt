@@ -23,3 +23,8 @@ tqdm
 
 # Video / GIF writing
 imageio>=2.31
+
+# Analysis (wandb pull + plotting)
+pandas>=2.2
+pyarrow>=15.0
+matplotlib>=3.8
