@@ -86,7 +86,8 @@ def main(cfg: DictConfig) -> None:
     mode = str(plain.get("wandb_mode", "online"))
     if mode in ("offline", "disabled"):
         env["GCIQL_WANDB_FORCE_MODE"] = mode
-        env["WANDB_MODE"] = mode  # harmless belt-and-suspenders
+        # belt-and-suspenders; "disabled" is not a valid WANDB_MODE value
+        env["WANDB_MODE"] = "offline" if mode == "disabled" else mode
         shim_dir = str(REPO_ROOT / "tools" / "wandb_mode_shim")
         existing = env.get("PYTHONPATH")
         env["PYTHONPATH"] = shim_dir + (os.pathsep + existing if existing else "")
