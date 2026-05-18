@@ -275,3 +275,41 @@ def test_aggregate_builds_tables_and_story(tmp_path):
     txt = (out / "story.md").read_text()
     assert "## Readout" in txt
     assert "0.02" in txt          # relabel_pos_frac mean filled in
+
+
+class _ContractModel:
+    """Enforces the real FB contract: forward_map needs z batched to
+    obs (ForwardMap concatenates [obs, z] on the feature axis)."""
+    z_dim = 3
+
+    def forward_map(self, obs, z, action):
+        assert z.dim() == 2 and z.shape[0] == obs.shape[0], \
+            (tuple(obs.shape), tuple(z.shape))
+        base = (obs[:, 0:1] + action[:, 0:1]).expand(-1, self.z_dim)
+        return torch.stack([base, base + 1.0], dim=0)             # [2,B,zd]
+
+
+class _ContractAgent:
+    """Enforces the real agent.act contract: z must be [B, z_dim]
+    (model.actor draws noises = randn((z.shape[0], action_dim)))."""
+    device = "cpu"
+
+    def act(self, obs, z):
+        assert z.dim() == 2 and z.shape[0] == obs.shape[0], \
+            (tuple(obs.shape), tuple(z.shape))
+        return torch.zeros((obs.shape[0], 2))
+
+
+def test_q_values_broadcasts_global_z_over_batch():
+    obs = torch.zeros((5, 4))
+    action = torch.zeros((5, 2))
+    z = torch.tensor([1.0, 0.0, 0.0])          # one global task vector
+    q = rp.q_values(_ContractModel(), obs, action, z)
+    assert q.shape == (5,)
+
+
+def test_v_values_broadcasts_global_z_over_batch():
+    obs = torch.zeros((5, 4))
+    z = torch.tensor([1.0, 0.0, 0.0])          # one global task vector
+    v = rp.v_values(_ContractModel(), _ContractAgent(), obs, z)
+    assert v.shape == (5,)
