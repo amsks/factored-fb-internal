@@ -49,6 +49,41 @@ if _forced in ("offline", "disabled") or _fb_env or _project or _entity:
 
         if _fb_env:
             _env_base = _fb_env[:-3] if _fb_env.endswith("-v0") else _fb_env
+
+            # OGBench logs its tiled eval clip as
+            # wandb.Video(ndarray, fps=15, format='mp4') where the array is
+            # (t, c, H, W) uint8 (get_wandb_video -> reshape_video in
+            # third_party/ogbench/impls/utils/log_utils.py). Re-encode it as a
+            # GIF with FB's exact imageio params so GCIQL eval media matches
+            # FB's recording (evals/ogbench.py).
+            import numpy as _np
+            import tempfile as _tempfile
+            import imageio as _imageio
+
+            _orig_video = _wandb.Video
+
+            def _video(data_or_path, caption=None, fps=None, format=None):
+                try:
+                    if isinstance(data_or_path, _np.ndarray) and format == "mp4":
+                        _frames = _np.transpose(data_or_path, (0, 2, 3, 1))
+                        _tmp = _tempfile.NamedTemporaryFile(
+                            suffix=".gif", delete=False
+                        )
+                        _tmp.close()
+                        _imageio.mimsave(
+                            _tmp.name, _frames, format="GIF", fps=30, loop=0
+                        )
+                        return _orig_video(
+                            _tmp.name, caption=caption, fps=30, format="gif"
+                        )
+                except Exception:
+                    pass
+                return _orig_video(
+                    data_or_path, caption=caption, fps=fps, format=format
+                )
+
+            _wandb.Video = _video
+
             _task_re = re.compile(r"^evaluation/task(\d+)_.*_success$")
             _orig_log = _wandb.log
 
