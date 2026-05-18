@@ -78,7 +78,16 @@ def main(cfg: DictConfig) -> None:
 
     env = os.environ.copy()
     env["MUJOCO_GL"] = "egl"
-    env["CUDA_VISIBLE_DEVICES"] = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+    cvd = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+    env["CUDA_VISIBLE_DEVICES"] = cvd
+    # CUDA_VISIBLE_DEVICES masks CUDA/JAX but NOT MuJoCo's EGL device
+    # enumeration. With MUJOCO_EGL_DEVICE_ID unset, every process defaults to
+    # EGL device 0, so N concurrent runs pile all offscreen render contexts
+    # (OGBench's eval renders the goal image on every episode reset) onto
+    # GPU 0 -> "Offscreen framebuffer is not complete" (GL 0x8cdd) for most.
+    # Pin EGL to the same physical GPU JAX uses so contexts spread out.
+    egl_dev = cvd.split(",")[0].strip() or "0"
+    env.setdefault("MUJOCO_EGL_DEVICE_ID", egl_dev)
     # OGBench's vendored setup_wandb hardcodes wandb.init(mode='online'), which
     # (wandb >= 0.27) overrides WANDB_MODE/WANDB_DISABLED env vars. Since the
     # vendored code must not be edited, force the mode via an auto-imported
