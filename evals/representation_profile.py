@@ -237,3 +237,64 @@ def probe_coverage(episodes, ref_obs: np.ndarray, thr,
             rows.append({"outcome": ep["outcome"], "region": str(r),
                          "nn_dist": float(n)})
     return pd.DataFrame(rows)
+
+
+def run_representation_profile(*, model, agent, infer_z, make_env,
+                               sample_buffer, relabel_fn_for, goal_for,
+                               tasks, n_episodes, thr, buffer_sample,
+                               topk, seed):
+    """Run the four probes per task. `infer_z(task)->(z,relabel_metrics)`,
+    `make_env(task)->env`, `sample_buffer(n)->{next_obs,physics,action}`,
+    `relabel_fn_for(task)->fn`, `goal_for(task)->goal[3]`. Returns a dict
+    of five DataFrames (value_landscape, value_steps, z_decoding,
+    b_resolution, coverage), each with a `task` column."""
+    import pandas as pd
+
+    vl, vs, zd, br, cv = [], [], [], [], []
+    for task in tasks:
+        z, relabel_metrics = infer_z(task)
+        goal = np.asarray(goal_for(task), np.float64).reshape(3)
+
+        env = make_env(task)
+        try:
+            eps = rollout_for_profile(env, agent, z, n_episodes, thr)
+        finally:
+            if hasattr(env, "close"):
+                env.close()
+        per_ep, per_step = probe_value_landscape(model, agent, eps, z)
+        for df in (per_ep, per_step):
+            df.insert(0, "task", task)
+        vl.append(per_ep)
+        vs.append(per_step)
+
+        smp = sample_buffer(buffer_sample)
+        next_obs = smp["next_obs"]
+        physics = np.asarray(smp["physics"], np.float32)
+        zdec = probe_z_decoding(model, next_obs, physics, goal, z,
+                                relabel_metrics, topk=topk)
+        zdec["task"] = task
+        zd.append(zdec)
+
+        B = model.backward_map(
+            next_obs.float() if hasattr(next_obs, "float") else
+            torch.as_tensor(next_obs, dtype=torch.float32))
+        d_off = np.linalg.norm(
+            physics[:, 14:17] - goal.reshape(1, 3), axis=1)
+        bres = probe_b_resolution(B, d_off, seed=seed)
+        bres["task"] = task
+        br.append(bres)
+
+        ref_obs = (smp["next_obs"].detach().cpu().numpy()
+                   if hasattr(smp["next_obs"], "detach")
+                   else np.asarray(smp["next_obs"]))
+        cov = probe_coverage(eps, ref_obs, thr, seed=seed)
+        cov.insert(0, "task", task)
+        cv.append(cov)
+
+    return {
+        "value_landscape": pd.concat(vl, ignore_index=True),
+        "value_steps": pd.concat(vs, ignore_index=True),
+        "z_decoding": pd.DataFrame(zd),
+        "b_resolution": pd.DataFrame(br),
+        "coverage": pd.concat(cv, ignore_index=True),
+    }
