@@ -168,3 +168,23 @@ def test_z_decoding_topk_at_goal():
     # top-5 by B·z are indices 0..4; of these, 0,1,2 at goal => 60%
     assert abs(out["topk_pct_at_goal"] - 0.6) < 1e-9
     assert out["topk_mean_d"] >= 0.0
+
+
+def test_b_resolution_linear_vs_random():
+    rng = np.random.default_rng(0)
+    N = 400
+    B_lin = rng.normal(size=(N, 4)).astype(np.float32)
+    d_lin = (B_lin @ np.array([1.0, -2.0, 0.5, 0.0]) + 0.1).astype(np.float64)
+    out_lin = rp.probe_b_resolution(B_lin, d_lin, seed=0)
+    assert out_lin["r2"] > 0.95
+
+    B_rnd = rng.normal(size=(N, 4)).astype(np.float32)
+    d_rnd = rng.normal(size=N).astype(np.float64)
+    out_rnd = rp.probe_b_resolution(B_rnd, d_rnd, seed=0)
+    assert out_rnd["r2"] < 0.2
+
+    # separability: placed (d<0.04) vs near (0.04..0.12) clearly offset
+    B_sep = np.vstack([np.zeros((100, 4)), np.ones((100, 4))]).astype(np.float32)
+    d_sep = np.concatenate([np.full(100, 0.01), np.full(100, 0.08)])
+    out_sep = rp.probe_b_resolution(B_sep, d_sep, seed=0)
+    assert out_sep["placed_vs_near_acc"] > 0.95
