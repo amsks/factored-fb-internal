@@ -26,19 +26,39 @@ def _ensemble_q(F: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
     return q.mean(0)              # [B]
 
 
+def _tile_z(z: torch.Tensor, batch: int) -> torch.Tensor:
+    """Broadcast one global task vector to one row per state.
+
+    The FB nets concatenate z with obs on the feature axis (and the
+    flow actor draws ``noises = randn((z.shape[0], action_dim))``), so
+    z must carry the same batch dim as obs. The probes apply a single
+    task z across all T states of an episode.
+    """
+    z = torch.as_tensor(z)
+    if z.dim() == 1:
+        z = z.unsqueeze(0)
+    if z.shape[0] == batch:
+        return z
+    if z.shape[0] == 1:
+        return z.expand(batch, -1)
+    raise ValueError(f"z batch {z.shape[0]} != obs batch {batch}")
+
+
 @torch.no_grad()
 def q_values(model, obs: torch.Tensor, action: torch.Tensor,
              z: torch.Tensor) -> np.ndarray:
-    F = model.forward_map(obs, z, action)
-    return _ensemble_q(F, z).cpu().numpy()
+    zb = _tile_z(z, obs.shape[0]).to(obs.device).float()
+    F = model.forward_map(obs, zb, action)
+    return _ensemble_q(F, zb).cpu().numpy()
 
 
 @torch.no_grad()
 def v_values(model, agent, obs: torch.Tensor, z: torch.Tensor) -> np.ndarray:
-    action = agent.act(obs, z)
+    zb = _tile_z(z, obs.shape[0]).to(obs.device).float()
+    action = agent.act(obs, zb)
     if isinstance(action, np.ndarray):
         action = torch.as_tensor(action, dtype=torch.float32)
-    return q_values(model, obs, action.to(obs.device).float(), z)
+    return q_values(model, obs, action.to(obs.device).float(), zb)
 
 
 def transport_mask(ep: Dict[str, Any], thr) -> np.ndarray:
