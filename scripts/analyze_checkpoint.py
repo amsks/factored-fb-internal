@@ -64,6 +64,10 @@ def main() -> None:
     env, agent, _, _ = build_env_and_agent(cfg)
     load_checkpoint(agent, args.checkpoint, map_location=args.device)
     agent.eval() if hasattr(agent, "eval") else None
+    # build_env_and_agent only needed env for obs/action dims; per-task
+    # envs are created later. Release this one's renderer/physics resources.
+    if hasattr(env, "close"):
+        env.close()
 
     tasks = (args.tasks.split(",") if args.tasks
              else list(ALL_TASKS.get(cfg.domain, [])))
