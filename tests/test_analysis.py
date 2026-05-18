@@ -95,3 +95,30 @@ def test_save_trajectories_writes_npz_and_summary(tmp_path):
     assert len(summ) == 2
     assert set(["task", "episode", "return", "length", "success"]).issubset(
         summ.columns)
+
+
+def test_z_probe_cross_task_matrix_shape():
+    tasks = ["t1", "t2", "t3"]
+
+    def infer_z(task):
+        return torch.zeros(4)
+
+    def make_env(task):
+        return _StubEnv()
+
+    df = A.z_probe_cross_task(tasks, _StubAgent(), infer_z, make_env,
+                              n_episodes=2)
+    assert set(df.columns) == {"env_task", "z_task", "success", "reward"}
+    assert len(df) == 9  # 3x3
+    assert set(df["env_task"]) == set(tasks)
+
+
+def test_z_interp_sweeps_alpha():
+    def make_env(task):
+        return _StubEnv()
+
+    df = A.z_interp(torch.zeros(4), torch.ones(4), _StubAgent(),
+                    make_env("t2"), n_alpha=5, n_episodes=1)
+    assert len(df) == 5
+    assert list(df["alpha"]) == [0.0, 0.25, 0.5, 0.75, 1.0]
+    assert {"alpha", "success", "reward"}.issubset(df.columns)
