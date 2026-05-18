@@ -81,3 +81,104 @@ def aggregate(
             "n": g.count().values,
         })
     return out
+
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+
+
+def _label(cell: Cell) -> str:
+    return f"ortho={cell[1]}, lr_b={cell[2]}"
+
+
+def _plot_metric(ax, agg: Dict[Cell, pd.DataFrame], domain: str, title: str):
+    plotted = False
+    for cell, df in sorted(agg.items()):
+        if cell[0] != domain:
+            continue
+        d = df.sort_values("step")
+        ax.plot(d["step"], d["mean"], label=_label(cell))
+        ax.fill_between(d["step"], d["mean"] - d["std"], d["mean"] + d["std"],
+                        alpha=0.2)
+        plotted = True
+    ax.set_title(title)
+    ax.set_xlabel("step")
+    if plotted:
+        ax.legend(fontsize=7)
+    return plotted
+
+
+def render_all(
+    meta: List[dict],
+    histories: Dict[str, pd.DataFrame],
+    out_dir: Path | str,
+    domains: List[str],
+) -> None:
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    summary_lines = ["# Final eval success per HP cell", ""]
+
+    for domain in domains:
+        safe = domain
+
+        # 1. eval success + reward
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        _plot_metric(axes[0], aggregate(histories, meta, "eval/reward/eval/success"),
+                     domain, "eval/success")
+        _plot_metric(axes[1], aggregate(histories, meta, "eval/reward/eval/reward"),
+                     domain, "eval/reward")
+        fig.tight_layout()
+        fig.savefig(out_dir / f"sweep-{safe}__eval.png", dpi=120)
+        plt.close(fig)
+
+        # 2. per-task success
+        task_keys = [k for k in per_task_eval_keys(domain) if k.endswith("/success")]
+        ncols = max(1, len(task_keys))
+        fig, axes = plt.subplots(1, ncols, figsize=(4 * ncols, 4), squeeze=False)
+        for ax, key in zip(axes[0], task_keys):
+            _plot_metric(ax, aggregate(histories, meta, key), domain,
+                         key.split("/")[-2])
+        fig.tight_layout()
+        fig.savefig(out_dir / f"sweep-{safe}__eval_pertask.png", dpi=120)
+        plt.close(fig)
+
+        # 3. train losses
+        loss_keys = ["train/fb_loss", "train/orth_loss", "train/actor_loss",
+                     "train/bc_flow_loss"]
+        fig, axes = plt.subplots(1, 4, figsize=(16, 4), squeeze=False)
+        for ax, key in zip(axes[0], loss_keys):
+            _plot_metric(ax, aggregate(histories, meta, key), domain, key)
+        fig.tight_layout()
+        fig.savefig(out_dir / f"sweep-{safe}__train.png", dpi=120)
+        plt.close(fig)
+
+        # 4. final-performance bar + summary md
+        agg = aggregate(histories, meta, "eval/reward/eval/success")
+        cells = sorted(c for c in agg if c[0] == domain)
+        fig, ax = plt.subplots(figsize=(max(4, 1.5 * len(cells)), 4))
+        summary_lines.append(f"## {domain}")
+        if cells:
+            means, stds, labels = [], [], []
+            for c in cells:
+                last = agg[c].sort_values("step").iloc[-1]
+                means.append(last["mean"])
+                stds.append(last["std"])
+                labels.append(_label(c))
+                summary_lines.append(
+                    f"- {_label(c)}: {last['mean']*100:.2f} ± "
+                    f"{last['std']*100:.2f} (n={int(last['n'])}, "
+                    f"@step {int(last['step'])})")
+            ax.bar(range(len(cells)), means, yerr=stds)
+            ax.set_xticks(range(len(cells)))
+            ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=7)
+        else:
+            summary_lines.append("- (no data)")
+        ax.set_title(f"{domain} final eval/success")
+        fig.tight_layout()
+        fig.savefig(out_dir / f"sweep-{safe}__final.png", dpi=120)
+        plt.close(fig)
+        summary_lines.append("")
+
+    (out_dir / "final_summary.md").write_text("\n".join(summary_lines))
+    print(f"[plot_sweep] wrote plots to {out_dir}")
