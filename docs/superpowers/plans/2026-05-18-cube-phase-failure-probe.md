@@ -485,16 +485,40 @@ Expected: FAIL — `AttributeError: module 'evals.phase_probe' has no attribute 
 
 - [ ] **Step 3: Add `apply_scenario` to `evals/phase_probe.py`**
 
-Add this import near the top of `evals/phase_probe.py` (after `import numpy as np`):
+Add a lazily-imported `mujoco` module-level name near the top of
+`evals/phase_probe.py` (replace `import numpy as np` block so it reads):
 
 ```python
-import mujoco
+import numpy as np
+
+# mujoco is imported lazily by _ensure_mujoco(): importing it at module
+# load triggers a GL-context check that fails when MUJOCO_GL is set to an
+# unsupported value (e.g. `egl` on macOS, which train.py sets via
+# os.environ.setdefault). The pure phase-classification logic and unit
+# tests must import this module with no valid GL backend (spec §8); only
+# apply_scenario needs real MuJoCo. Tests monkeypatch
+# `phase_probe.mujoco` with a fake, which _ensure_mujoco honours.
+mujoco = None
 ```
 
 Append to `evals/phase_probe.py`:
 
 ```python
 SCENARIOS = ["S0", "S1", "S2"]
+
+
+def _ensure_mujoco():
+    """Return the mujoco module, importing it on first real use.
+
+    If a test (or caller) has set the module-level ``mujoco`` attribute
+    (e.g. a fake), that value is used and no real import happens.
+    """
+    global mujoco
+    if mujoco is None:
+        import mujoco as _m
+
+        mujoco = _m
+    return mujoco
 
 
 def apply_scenario(env, scenario: str) -> None:
@@ -508,6 +532,7 @@ def apply_scenario(env, scenario: str) -> None:
     if scenario == "S0":
         return
 
+    mj = _ensure_mujoco()
     u = env.unwrapped
     model, data = u._model, u._data
     eff = np.asarray(data.site_xpos[u._pinch_site_id], dtype=np.float64).copy()
@@ -518,16 +543,16 @@ def apply_scenario(env, scenario: str) -> None:
         joint.qpos[0] = eff[0]
         joint.qpos[1] = eff[1]
         joint.qpos[2] = table_z
-        mujoco.mj_forward(model, data)
+        mj.mj_forward(model, data)
         return
 
     if scenario == "S2":
         joint.qpos[:3] = eff
-        mujoco.mj_forward(model, data)
+        mj.mj_forward(model, data)
         data.ctrl[u._gripper_actuator_ids] = 255.0
         for _ in range(N_SETTLE):
-            mujoco.mj_step(model, data)
-        mujoco.mj_forward(model, data)
+            mj.mj_step(model, data)
+        mj.mj_forward(model, data)
         return
 
     raise ValueError(f"unknown scenario {scenario!r} (expected one of {SCENARIOS})")
