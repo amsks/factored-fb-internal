@@ -94,6 +94,9 @@ def main(cfg: DictConfig) -> None:
     env["PYTHONPATH"] = shim_dir + (os.pathsep + existing if existing else "")
     env["GCIQL_FB_ENV"] = str(plain["env_name"])
     mode = str(plain.get("wandb_mode", "online"))
+    # don't inherit a stale GCIQL_WANDB_FORCE_MODE from the parent shell:
+    # only this launcher should set it, and only for offline/disabled.
+    env.pop("GCIQL_WANDB_FORCE_MODE", None)
     if mode in ("offline", "disabled"):
         env["GCIQL_WANDB_FORCE_MODE"] = mode
         # belt-and-suspenders; "disabled" is not a valid WANDB_MODE value
