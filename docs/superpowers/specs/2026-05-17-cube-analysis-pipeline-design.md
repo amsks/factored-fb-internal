@@ -54,7 +54,8 @@ Cache/plot dirs stay at existing `analysis/wandb_data/` and `analysis/plots/`.
   --out analysis/wandb_data`.
 - Uses `wandb.Api()` (same pattern as `scripts/sweep_results.py`). Filters
   runs by group / tag / created-at window / domain.
-- Pulls `r.history(...)` for a configurable metric key list; writes one
+- Pulls `r.history(...)` for the **canonical metric key constant** (4.3) —
+  not an arbitrary user-supplied list; writes one
   parquet per run to `analysis/wandb_data/<run_id>.parquet`; refreshes
   `analysis/wandb_data/_meta.json` (list of `{id, name, state, group,
   config, summary}` — matching the existing cache schema exactly).
@@ -67,23 +68,47 @@ Cache/plot dirs stay at existing `analysis/wandb_data/` and `analysis/plots/`.
 - Loads parquet + `_meta.json`, groups runs by `(domain, ortho_coef, lr_b)`
   HP cell, aligns on `_step`, computes mean±std across seeds.
 - Per domain, produces:
-  - `sweep-<domain>__eval.png` — `eval/success` & `eval/reward` vs step,
-    one mean±std band per HP cell.
+  - `sweep-<domain>__eval.png` — `eval/reward/eval/success` &
+    `eval/reward/eval/reward` vs step, one mean±std band per HP cell.
   - `sweep-<domain>__eval_pertask.png` — the 5 cube singletask success
-    curves (`task1..task5`).
-  - `sweep-<domain>__train.png` — `train/loss/{fb,orth,actor,bc_flow}`
-    vs step, mean±std per HP cell.
+    curves: `eval/reward/cube-single-play-singletask-task{1..5}-v0/success`.
+  - `sweep-<domain>__train.png` — `train/{fb_loss,orth_loss,actor_loss,
+    bc_flow_loss}` vs step, mean±std per HP cell.
   - `sweep-<domain>__final.png` + `analysis/plots/final_summary.md` —
     final (or best) eval success per HP cell, mean±std (n).
 
-### 4.3 Schema drift (key design point)
+### 4.3 Canonical metric schema (single source of truth)
 
-Cached runs span code versions with different metric names (e.g. old
-`eval/cube-single-play-singletask-task1-v0/success` vs current
-`eval/reward/eval/success`). Metric selection uses **substring/regex
-patterns with an ordered fallback list**. Unmatched keys warn and are
-omitted from that run's curves — old and new runs co-plot where they
-overlap, nothing crashes.
+The pull and plot scripts target **exactly the metric names the current
+code logs** (the eval-artifacts branch, now merged to `main`). No
+back-compat remapping, no pattern/fallback matching — one schema only.
+Runs that do not expose these exact keys are **skipped with a warning**;
+the stale old-schema entries in `analysis/wandb_data/` (group
+`sweep-cube-single`, nested `train/loss/*` / un-prefixed `eval/<task>/*`)
+are **not** relied upon and are refreshed by `wandb_pull.py`.
+
+Canonical keys, derived from the code:
+
+- **Eval** — `train.py:228` logs `evaluator.run()` with prefix
+  `eval/reward/`; `evals/ogbench.py:85-102` emits `<task>/success`,
+  `<task>/reward`, `<task>/reward#std` and aggregate `eval/success`,
+  `eval/reward`, `eval/reward#std`. Resulting wandb keys:
+  - `eval/reward/eval/success`, `eval/reward/eval/reward`,
+    `eval/reward/eval/reward#std`
+  - `eval/reward/<task>/success`, `eval/reward/<task>/reward`,
+    `eval/reward/<task>/reward#std`, with `<task>` =
+    `cube-single-play-singletask-task{1..5}-v0` (analogous for antmaze).
+- **Train** — `train.py:247` logs `agent.update()` output with prefix
+  `train/`; `agents/fb/agent.py` / `agents/fb/flow_bc/agent.py` return a
+  **flat** dict. Resulting wandb keys (flat, not nested under `loss/`):
+  `train/fb_loss`, `train/orth_loss`, `train/actor_loss`,
+  `train/bc_flow_loss`, plus `train/q`, `train/M1`, `train/B_norm`,
+  `train/z_norm`, `train/FPS`, `train/duration`.
+
+The exact key list lives in one module-level constant in
+`scripts/wandb_pull.py`, imported by `scripts/plot_sweep.py`, so the
+schema is defined in exactly one place. If the logging code changes,
+this constant is the single update point.
 
 ### 4.4 Testability
 
@@ -138,8 +163,10 @@ analysis/checkpoint_runs/<name>/
 
 - **wandb auth/network:** ambient `wandb` login; per-run `try/except` in the
   pull loop; empty history → skip + warn.
-- **Schema drift:** pattern-based metric resolution with fallbacks; unmatched
-  keys warn and are omitted (see 4.3).
+- **One schema only:** the canonical key list (4.3) is matched exactly. A run
+  missing those keys (e.g. old-schema `sweep-cube-single` runs) is skipped
+  with a warning — no remapping, no fallback. Keeps pulls strictly aligned
+  with current logging.
 - **Missing HP cell / domain:** plot script emits remaining plots and notes
   the gap in `final_summary.md` instead of erroring.
 - **Device:** explicit `cuda`→`cpu` override via `--device`;
