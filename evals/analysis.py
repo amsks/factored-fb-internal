@@ -152,3 +152,49 @@ def save_trajectories(result: Dict[str, Any], task: str,
     if summ_path.exists():
         new = pd.concat([pd.read_parquet(summ_path), new], ignore_index=True)
     new.to_parquet(summ_path)
+
+
+def _episode_stats(env, agent, z, n_episodes):
+    res = rollout_with_trajectory(env, agent, n_episodes, z, record=False)
+    success = float(np.mean(res["success"]))
+    reward = float(np.mean([
+        res["rewards"][i, : max(int(res["lengths"][i]) - 1, 0)].sum()
+        for i in range(len(res["lengths"]))
+    ]))
+    return success, reward
+
+
+def z_probe_cross_task(tasks, agent, infer_z, make_env, n_episodes: int = 10):
+    """Roll out in env_task conditioned on z_task's z for all pairs.
+
+    `infer_z(task) -> Tensor`, `make_env(task) -> env`. Returns a tidy
+    DataFrame (env_task, z_task, success, reward) — a |tasks|^2 matrix.
+    """
+    import pandas as pd
+
+    zs = {t: infer_z(t) for t in tasks}
+    rows = []
+    for env_task in tasks:
+        env = make_env(env_task)
+        try:
+            for z_task in tasks:
+                s, r = _episode_stats(env, agent, zs[z_task], n_episodes)
+                rows.append({"env_task": env_task, "z_task": z_task,
+                             "success": s, "reward": r})
+        finally:
+            if hasattr(env, "close"):
+                env.close()
+    return pd.DataFrame(rows)
+
+
+def z_interp(z_a, z_b, agent, env, n_alpha: int = 11, n_episodes: int = 10):
+    """Sweep z = (1-α)·z_a + α·z_b for α in linspace(0,1,n_alpha) in `env`."""
+    import pandas as pd
+
+    rows = []
+    for alpha in np.linspace(0.0, 1.0, n_alpha):
+        z = (1.0 - float(alpha)) * z_a + float(alpha) * z_b
+        s, r = _episode_stats(env, agent, z, n_episodes)
+        rows.append({"alpha": round(float(alpha), 10), "success": s,
+                     "reward": r})
+    return pd.DataFrame(rows)
