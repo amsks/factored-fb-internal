@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
+import mujoco
 import numpy as np
 
 PHASE_ORDER = ["none", "reached", "secured", "success"]
@@ -138,3 +139,42 @@ def ensure_manip_env(env) -> None:
             "phase_probe is cube-only: env.unwrapped lacks manipspace "
             "handles (_data/_pinch_site_id/cur_task_info)."
         )
+
+
+SCENARIOS = ["S0", "S1", "S2"]
+
+
+def apply_scenario(env, scenario: str) -> None:
+    """Mutate post-reset MuJoCo state for a counterfactual start.
+
+    S0: no-op. S1: cube under the hand at table height, gripper open.
+    S2: cube at the effector, gripper closed, settle N_SETTLE steps so
+    the fingers physically clamp it (no weld). The task goal/target
+    mocap is never touched.
+    """
+    if scenario == "S0":
+        return
+
+    u = env.unwrapped
+    model, data = u._model, u._data
+    eff = np.asarray(data.site_xpos[u._pinch_site_id], dtype=np.float64).copy()
+    joint = data.joint("object_joint_0")
+
+    if scenario == "S1":
+        table_z = episode_table_z(env)
+        joint.qpos[0] = eff[0]
+        joint.qpos[1] = eff[1]
+        joint.qpos[2] = table_z
+        mujoco.mj_forward(model, data)
+        return
+
+    if scenario == "S2":
+        joint.qpos[:3] = eff
+        mujoco.mj_forward(model, data)
+        data.ctrl[u._gripper_actuator_ids] = 255.0
+        for _ in range(N_SETTLE):
+            mujoco.mj_step(model, data)
+        mujoco.mj_forward(model, data)
+        return
+
+    raise ValueError(f"unknown scenario {scenario!r} (expected one of {SCENARIOS})")
