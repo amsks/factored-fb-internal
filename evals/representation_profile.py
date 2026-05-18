@@ -115,3 +115,27 @@ def probe_value_landscape(model, agent, episodes, z):
                             "V_at_end": v_end,
                             "n_transport_steps": int(m.sum())})
     return pd.DataFrame(per_ep_rows), pd.DataFrame(per_step_rows)
+
+
+@torch.no_grad()
+def probe_z_decoding(model, next_obs: torch.Tensor, physics: np.ndarray,
+                     goal: np.ndarray, z: torch.Tensor,
+                     relabel_metrics: Dict[str, float],
+                     topk: int = 256,
+                     goal_thresh: float = 0.04) -> Dict[str, float]:
+    """How sparse are goal states, and does z point at 'placed' states?"""
+    B = model.backward_map(next_obs.float())              # [N, z_dim]
+    scores = (B * z.view(1, -1)).sum(-1).cpu().numpy()    # B·z
+    cube = np.asarray(physics, np.float64)[:, 14:17]
+    d = np.linalg.norm(cube - np.asarray(goal, np.float64).reshape(1, 3),
+                        axis=1)
+    k = int(min(topk, len(scores)))
+    idx = np.argsort(-scores)[:k]
+    ns = float(relabel_metrics.get("relabel_reward#num_samples", 0.0)) or 1.0
+    return {
+        "relabel_pos_frac": float(
+            relabel_metrics.get("relabel_reward#nonzero", 0.0)) / ns,
+        "topk_mean_d": float(d[idx].mean()),
+        "topk_pct_at_goal": float(np.mean(d[idx] < goal_thresh)),
+        "topk": k,
+    }

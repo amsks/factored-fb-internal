@@ -146,3 +146,25 @@ def test_value_landscape_slope_success_vs_fail():
     assert s.loc["success"] > 0.5
     assert abs(s.loc["transport_fail"]) < 1e-6
     assert set(per_step.columns) >= {"outcome", "d", "V"}
+
+
+def test_z_decoding_topk_at_goal():
+    m = _StubModel()  # B(next_obs) = first 3 dims
+    N = 20
+    next_obs = torch.zeros((N, 5))
+    # 5 states aligned with z=[1,0,0]; of those, 3 are at goal (d<0.04)
+    next_obs[:5, 0] = 10.0
+    physics = np.zeros((N, 20), np.float32)
+    goal = np.array([0.0, 0.0, 0.02], np.float64)
+    physics[:, 14:17] = goal              # all at goal by default
+    physics[3:, 14] = 1.0                 # indices 3.. are FAR from goal
+    z = torch.tensor([1.0, 0.0, 0.0])
+    relabel_metrics = {"relabel_reward#nonzero": 3.0,
+                       "relabel_reward#num_samples": 20.0}
+    out = rp.probe_z_decoding(m, next_obs, physics, goal, z,
+                              relabel_metrics, topk=5)
+    assert out["relabel_pos_frac"] == 3.0 / 20.0
+    assert 0.0 <= out["topk_pct_at_goal"] <= 1.0
+    # top-5 by B·z are indices 0..4; of these, 0,1,2 at goal => 60%
+    assert abs(out["topk_pct_at_goal"] - 0.6) < 1e-9
+    assert out["topk_mean_d"] >= 0.0
