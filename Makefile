@@ -1,4 +1,4 @@
-.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help
+.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax test-gciql run-gciql smoke-gciql
 
 # ── Installation ──────────────────────────────────────────────────────────── #
 
@@ -91,4 +91,32 @@ help:
 	@echo "  verify-both         Run ortho-fix then lr-b-fix (~20 min on GPU)"
 	@echo ""
 	@echo "  clean            Remove pycache, outputs"
+	@echo ""
+	@echo "  install-jax      Install isolated JAX env on the NVMe (GCIQL track)"
+	@echo "  test-gciql       Run the run_gciql argv/isolation test"
+	@echo "  run-gciql        Launch GCIQL (vendored OGBench, JAX) state config"
+	@echo "  smoke-gciql      End-to-end GCIQL smoke (state + visual)"
 	@echo "────────────────────────────────────────────────────────"
+
+# ── GCIQL / JAX track ─────────────────────────────────────────────────────── #
+
+## Install isolated JAX venv on NVMe at /mnt/scratch1 (run once per instance)
+install-jax:
+	@test -d /mnt/scratch1 || { echo "Mount the NVMe at /mnt/scratch1 first (see spec Prerequisites)"; exit 1; }
+	uv venv --python 3.11 /mnt/scratch1/.venv-jax
+	uv pip install --python /mnt/scratch1/.venv-jax/bin/python -r requirements-jax.txt
+	@mkdir -p /mnt/scratch1/ogbench_data /mnt/scratch1/gciql_outputs
+	@test -e ~/.ogbench || ln -s /mnt/scratch1/ogbench_data ~/.ogbench
+	@echo "[install-jax] done. Verify: /mnt/scratch1/.venv-jax/bin/python -c 'import jax; print(jax.devices())'"
+
+## Argv / isolation unit test for the GCIQL launcher
+test-gciql:
+	python scripts/test_run_gciql.py
+
+## Launch GCIQL with cube_single_state config
+run-gciql:
+	python run_gciql.py --config-name cube_single_state
+
+## End-to-end smoke test for GCIQL (state + visual)
+smoke-gciql:
+	bash scripts/smoke_test_gciql.sh
