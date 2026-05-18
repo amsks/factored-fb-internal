@@ -239,3 +239,39 @@ def test_run_representation_profile_returns_four_frames(monkeypatch):
                         "z_decoding", "b_resolution", "coverage"}
     assert {"task"}.issubset(out["z_decoding"].columns)
     assert out["z_decoding"]["task"].nunique() == 2
+
+
+def test_aggregate_builds_tables_and_story(tmp_path):
+    import importlib
+    import pandas as pd
+    agg = importlib.import_module("scripts.representation_profile_aggregate")
+    for s in (3, 7):
+        d = tmp_path / f"s{s}_final"
+        d.mkdir()
+        pd.DataFrame([{"task": "t1", "outcome": "success",
+                       "slope_V_negd": 1.0, "V_at_secure": 0.1,
+                       "V_at_end": 0.9, "n_transport_steps": 5},
+                      {"task": "t1", "outcome": "transport_fail",
+                       "slope_V_negd": 0.0, "V_at_secure": 0.5,
+                       "V_at_end": 0.5, "n_transport_steps": 5}]
+                     ).to_parquet(d / "value_landscape.parquet")
+        pd.DataFrame([{"task": "t1", "outcome": "success", "d": 0.1,
+                       "V": 0.5, "transport": True}]
+                     ).to_parquet(d / "value_steps.parquet")
+        pd.DataFrame([{"task": "t1", "relabel_pos_frac": 0.02,
+                       "topk_mean_d": 0.3, "topk_pct_at_goal": 0.1,
+                       "topk": 4}]).to_parquet(d / "z_decoding.parquet")
+        pd.DataFrame([{"task": "t1", "r2": 0.2,
+                       "placed_vs_near_acc": 0.6, "n_placed": 5,
+                       "n_near": 9}]).to_parquet(d / "b_resolution.parquet")
+        pd.DataFrame([{"task": "t1", "outcome": "transport_fail",
+                       "region": "transport", "nn_dist": 3.0}]
+                     ).to_parquet(d / "coverage.parquet")
+    out = tmp_path / "aggregate"
+    agg.aggregate(tmp_path, out)
+    assert (out / "story.md").exists()
+    assert (out / "value_vs_dist.png").exists()
+    assert (out / "T1_value_gradient.parquet").exists()
+    txt = (out / "story.md").read_text()
+    assert "## Readout" in txt
+    assert "0.02" in txt          # relabel_pos_frac mean filled in
