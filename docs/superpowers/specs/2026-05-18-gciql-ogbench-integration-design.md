@@ -248,6 +248,15 @@ reboot). Checkpoints worth keeping must be pushed off-box (rsync/S3).
 - **Headless render:** OGBench renders video episodes during eval;
   `MUJOCO_GL=egl` is set for the child (matches FB track's existing default).
 - **NVMe ephemerality:** documented; not solved here (out of scope).
+- **wandb offline/disabled (resolved during validation):** OGBench's vendored
+  `setup_wandb` hardcodes `wandb.init(mode='online')`, which wandb >= 0.27 lets
+  override `WANDB_MODE`/`WANDB_DISABLED` env vars (empirically confirmed — env
+  vars alone are insufficient, contrary to the original assumption). Since the
+  vendored code must not be edited, `wandb_mode=offline|disabled` is enforced via
+  an auto-imported `tools/wandb_mode_shim/sitecustomize.py` on the child's
+  `PYTHONPATH` (no-op unless `GCIQL_WANDB_FORCE_MODE` is set). The smoke uses
+  `offline` (not `disabled`: disabled makes `wandb.run.project='dummy'`, which
+  relocates the OGBench run dir and breaks the smoke's path glob).
 
 ## Testing strategy
 
