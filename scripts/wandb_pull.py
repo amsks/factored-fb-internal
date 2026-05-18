@@ -171,3 +171,32 @@ def pull(
     (out_dir / "_meta.json").write_text(json.dumps(meta, indent=2, default=str))
     print(f"[wandb_pull] wrote {written} run(s) to {out_dir}")
     return written
+
+
+def _csv(value: Optional[str]) -> Optional[List[str]]:
+    return [x for x in value.split(",") if x] if value else None
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--entity", default=None)
+    ap.add_argument("--project", default="amsks/factored-fb")
+    ap.add_argument("--groups", default=None, help="comma-separated")
+    ap.add_argument("--tags", default=None, help="comma-separated")
+    ap.add_argument("--hours", type=int, default=96)
+    ap.add_argument("--domains", default=None, help="comma-separated")
+    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "wandb_data"))
+    args = ap.parse_args()
+    pull(
+        entity=args.entity,
+        project=args.project,
+        groups=_csv(args.groups),
+        tags=_csv(args.tags),
+        hours=args.hours,
+        domains=_csv(args.domains),
+        out_dir=Path(args.out),
+    )
+
+
+if __name__ == "__main__":
+    main()
