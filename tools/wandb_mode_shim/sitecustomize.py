@@ -93,6 +93,9 @@ if _forced in ("offline", "disabled") or _fb_env or _project or _entity:
                     if k == "evaluation/overall_success":
                         extra["eval/reward/eval/success"] = v
                         continue
+                    if k == "video":
+                        extra["eval_video/all_tasks"] = v
+                        continue
                     m = _task_re.match(k)
                     if m:
                         n = m.group(1)

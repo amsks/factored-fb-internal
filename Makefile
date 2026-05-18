@@ -1,4 +1,4 @@
-.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql run-gciql run-gciql-state run-gciql-state-sweep smoke-gciql
+.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql test-wandb-shim run-gciql run-gciql-state run-gciql-state-sweep smoke-gciql
 
 # ── Installation ──────────────────────────────────────────────────────────── #
 
@@ -122,6 +122,10 @@ install-jax:
 ## Argv / isolation unit test for the GCIQL launcher
 test-gciql:
 	python scripts/test_run_gciql.py
+
+## Unit test for the wandb shim video GIF + re-key behavior
+test-wandb-shim:
+	/dev/shm/.venv-jax/bin/python scripts/test_wandb_shim_video.py
 
 ## Launch GCIQL with cube_single_state config
 run-gciql:
