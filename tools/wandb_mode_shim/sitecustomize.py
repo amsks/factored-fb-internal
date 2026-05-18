@@ -22,17 +22,27 @@ import re
 
 _forced = os.environ.get("GCIQL_WANDB_FORCE_MODE")
 _fb_env = os.environ.get("GCIQL_FB_ENV")
+# OGBench hardcodes wandb.init(project='OGBench', entity=None); an explicit
+# project= kwarg overrides WANDB_PROJECT, so override the init kwargs here to
+# land GCIQL runs in FB's project/entity for direct comparison.
+_project = os.environ.get("GCIQL_WANDB_PROJECT")
+_entity = os.environ.get("GCIQL_WANDB_ENTITY")
 
-if _forced in ("offline", "disabled") or _fb_env:
+if _forced in ("offline", "disabled") or _fb_env or _project or _entity:
     try:
         import wandb as _wandb
 
-        if _forced in ("offline", "disabled"):
+        if _forced in ("offline", "disabled") or _project or _entity:
             _orig_init = _wandb.init
 
             @functools.wraps(_orig_init)
-            def _init(*args, **kwargs):  # force mode regardless of caller kwarg
-                kwargs["mode"] = _forced
+            def _init(*args, **kwargs):  # override caller kwargs as configured
+                if _forced in ("offline", "disabled"):
+                    kwargs["mode"] = _forced
+                if _project:
+                    kwargs["project"] = _project
+                if _entity:
+                    kwargs["entity"] = _entity
                 return _orig_init(*args, **kwargs)
 
             _wandb.init = _init
