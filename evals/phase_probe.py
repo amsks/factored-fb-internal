@@ -100,3 +100,41 @@ def classify_phases(signals: Dict[str, Any], thr: Thresholds) -> Dict[str, Any]:
         "final_cube_goal_dist": float(np.linalg.norm(cube[-1] - goal)),
         "length": int(T),
     }
+
+
+def step_signals(info: Dict[str, Any]) -> Dict[str, Any]:
+    """Per-step signals from an OGBench manipspace `info` dict."""
+    return {
+        "eff": np.asarray(info["proprio/effector_pos"], dtype=np.float64),
+        "cube": np.asarray(info["privileged/block_0_pos"], dtype=np.float64),
+        "grip": float(np.asarray(info["proprio/gripper_opening"]).reshape(-1)[0]),
+        "success": bool(info.get("success", False)),
+    }
+
+
+def _target_block(env) -> int:
+    return int(getattr(env.unwrapped, "_target_block", 0) or 0)
+
+
+def episode_goal(env) -> np.ndarray:
+    tb = _target_block(env)
+    return np.asarray(
+        env.unwrapped.cur_task_info["goal_xyzs"][tb], dtype=np.float64
+    )
+
+
+def episode_table_z(env) -> float:
+    tb = _target_block(env)
+    return float(env.unwrapped.cur_task_info["init_xyzs"][tb][2])
+
+
+def ensure_manip_env(env) -> None:
+    """Raise a clear error if this is not an OGBench cube manip env."""
+    u = getattr(env, "unwrapped", None)
+    if u is None or not all(
+        hasattr(u, a) for a in ("_data", "_pinch_site_id", "cur_task_info")
+    ):
+        raise RuntimeError(
+            "phase_probe is cube-only: env.unwrapped lacks manipspace "
+            "handles (_data/_pinch_site_id/cur_task_info)."
+        )
