@@ -15,6 +15,8 @@ RUN_GROUP="${RUN_GROUP:-factored-fb-gciql}"
 STORAGE="${STORAGE:-shm}"
 
 echo "[gciql-state] seeds=$SEEDS wandb=$WANDB_MODE group=$RUN_GROUP storage=$STORAGE"
+# seeds run sequentially: each is a full ~1M-step GPU run; OGBench/JAX already
+# uses the GPU. Parallelize externally if you have spare GPUs.
 for seed in $SEEDS; do
     echo "[gciql-state] $(date +%T)  launching seed=$seed (1M steps, cube-single-play-v0)"
     python run_gciql.py --config-name cube_single_state \
