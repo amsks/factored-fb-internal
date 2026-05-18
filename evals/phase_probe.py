@@ -219,6 +219,7 @@ def _initial_obs(env):
 
 def rollout_with_phase_signals(
     env, agent, z, n_episodes: int, thr: Thresholds, scenario: str = "S0",
+    record_obs: bool = False,
 ) -> List[Dict[str, Any]]:
     """Roll out n_episodes under `scenario`, recording per-step signals.
 
@@ -242,16 +243,23 @@ def rollout_with_phase_signals(
         effs.append(s0["eff"]); cubes.append(s0["cube"]); grips.append(s0["grip"])
         ep_success = bool(s0["success"])
 
+        obs_list, act_list = [], []
         observation = _initial_obs(env)
+        if record_obs:
+            obs_list.append(np.asarray(observation, dtype=np.float32))
         while True:
             a = agent.act(
                 obs=torch.tensor(np.asarray(observation), device=agent.device,
                                  dtype=torch.float32)[None],
                 z=z,
             ).cpu().numpy()[0]
+            if record_obs:
+                act_list.append(np.asarray(a, dtype=np.float32))
             observation, _, terminated, truncated, info = env.step(a)
             s = step_signals(info)
             effs.append(s["eff"]); cubes.append(s["cube"]); grips.append(s["grip"])
+            if record_obs:
+                obs_list.append(np.asarray(observation, dtype=np.float32))
             ep_success = ep_success or s["success"]
             if terminated or truncated:
                 break
@@ -264,6 +272,10 @@ def rollout_with_phase_signals(
             "success": bool(ep_success),
             "table_z": table_z,
             "length": len(effs),
+            "obs": (np.asarray(obs_list, dtype=np.float32)
+                    if record_obs else None),
+            "action": (np.asarray(act_list, dtype=np.float32)
+                       if record_obs else None),
         })
     return episodes
 
