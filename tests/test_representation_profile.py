@@ -57,3 +57,64 @@ def test_v_values_uses_policy_action():
     v = rp.v_values(m, ag, obs, z)
     # policy action is zeros => same as q_values with zero action
     assert np.allclose(v, rp.q_values(m, obs, torch.zeros((3, 2)), z))
+
+
+from evals import phase_probe as pp
+
+
+class _PhaseEnv:
+    """3-step episode; manip-like; cube approaches goal so it 'succeeds'."""
+    def __init__(self):
+        self.unwrapped = _PhaseUnwrapped()
+        self.t = 0
+
+    def _info(self, eff, cube):
+        return {
+            "proprio/effector_pos": np.array(eff, np.float64),
+            "proprio/gripper_opening": np.array([1.0]),
+            "privileged/block_0_pos": np.array(cube, np.float64),
+            "success": self.t >= 3,
+        }
+
+    def reset(self, seed=None):
+        self.t = 0
+        return np.zeros(5, np.float32), self._info([9, 9, 9], [0, 0, 0.02])
+
+    def step(self, a):
+        self.t += 1
+        done = self.t >= 3
+        return (np.full(5, self.t, np.float32), -1.0, done, False,
+                self._info([0, 0, 0.20], [0, 0, 0.20]))
+
+    def close(self):
+        pass
+
+
+class _PhaseUnwrapped:
+    _target_block = 0
+    # _data / _pinch_site_id only satisfy ensure_manip_env; never
+    # dereferenced because every Task-2 rollout uses S0 (a no-op).
+    _data = object()
+    _pinch_site_id = 0
+    cur_task_info = {"goal_xyzs": np.array([[0.0, 0.0, 0.20]]),
+                     "init_xyzs": np.array([[0.0, 0.0, 0.02]])}
+
+
+def test_phase_rollout_records_obs_when_requested():
+    eps = pp.rollout_with_phase_signals(
+        _PhaseEnv(), _StubAgent(), z=torch.zeros(3), n_episodes=1,
+        thr=pp.Thresholds(), scenario="S0", record_obs=True)
+    e = eps[0]
+    assert "obs" in e and "action" in e
+    assert e["obs"].shape[0] == e["length"]
+    assert e["action"].shape[0] == e["length"] - 1  # actions between steps
+
+
+def test_rollout_for_profile_attaches_outcome_and_d():
+    eps = rp.rollout_for_profile(
+        _PhaseEnv(), _StubAgent(), z=torch.zeros(3), n_episodes=1,
+        thr=pp.Thresholds())
+    e = eps[0]
+    assert e["outcome"] in ("success", "transport_fail", "other")
+    assert e["d"].shape[0] == e["obs"].shape[0]      # ||cube-goal|| per step
+    assert e["transport_mask"].shape[0] == e["obs"].shape[0]
