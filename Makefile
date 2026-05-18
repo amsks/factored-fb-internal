@@ -1,4 +1,4 @@
-.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax test-gciql run-gciql smoke-gciql
+.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql run-gciql smoke-gciql
 
 # ── Installation ──────────────────────────────────────────────────────────── #
 
@@ -92,6 +92,7 @@ help:
 	@echo ""
 	@echo "  clean            Remove pycache, outputs"
 	@echo ""
+	@echo "  install-jax-shm  install isolated JAX env in tmpfs /dev/shm (no sudo, default)"
 	@echo "  install-jax      Install isolated JAX env on the NVMe (GCIQL track)"
 	@echo "  test-gciql       Run the run_gciql argv/isolation test"
 	@echo "  run-gciql        Launch GCIQL (vendored OGBench, JAX) state config"
@@ -99,6 +100,14 @@ help:
 	@echo "────────────────────────────────────────────────────────"
 
 # ── GCIQL / JAX track ─────────────────────────────────────────────────────── #
+
+## Install isolated JAX venv in tmpfs at /dev/shm (no sudo, default)
+install-jax-shm:
+	uv venv --python 3.11 /dev/shm/.venv-jax
+	UV_CACHE_DIR=/dev/shm/uv-cache uv pip install --python /dev/shm/.venv-jax/bin/python -r requirements-jax.txt
+	@mkdir -p /dev/shm/ogbench_data /dev/shm/gciql_outputs
+	@test -e ~/.ogbench || ln -s /dev/shm/ogbench_data ~/.ogbench
+	@echo "[install-jax-shm] done (tmpfs; ephemeral on reboot). Verify: /dev/shm/.venv-jax/bin/python -c 'import jax; print(jax.devices())'"
 
 ## Install isolated JAX venv on NVMe at /mnt/scratch1 (run once per instance)
 install-jax:

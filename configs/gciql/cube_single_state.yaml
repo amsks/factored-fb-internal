@@ -1,6 +1,9 @@
 # Thin-launcher config. Values map 1:1 to OGBench CLI flags; the OGBench
 # pipeline runs verbatim. Only deviations from gciql.py get_config() defaults
 # go under agent_overrides (here: alpha=1.0 per impls/hyperparameters.sh).
+defaults:
+  - storage: shm
+  - _self_
 variant: state
 env_name: cube-single-play-v0
 agent_file: agents/gciql.py
@@ -15,6 +18,3 @@ run_group: factored-fb-gciql
 agent_overrides:
   alpha: 1.0
 wandb_mode: online            # online | offline | disabled
-jax_python: /mnt/scratch1/.venv-jax/bin/python
-output_root: /mnt/scratch1/gciql_outputs
-ogbench_home_symlink: ~/.ogbench

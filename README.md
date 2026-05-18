@@ -265,29 +265,28 @@ For comparing FB against OGBench's GCIQL on cube manipulation. GCIQL runs as a
 FB track. A thin Hydra launcher (`run_gciql.py`) translates config into
 OGBench's exact CLI flags and subprocesses OGBench's own `impls/main.py`.
 
-Prerequisite (one-time, run in a real SSH terminal — needs sudo):
+Default storage is tmpfs (`/dev/shm`, RAM-backed, no sudo, **ephemeral on
+reboot**). For runs that must survive a reboot, use the NVMe override.
 
 ```bash
+# tmpfs (default, no sudo):
+make install-jax-shm                   # isolated .venv-jax in /dev/shm
+make smoke-gciql                       # end-to-end check (state + visual)
+VARIANT=state  SEEDS="0 1 2" bash scripts/run_gciql.sh
+VARIANT=visual SEEDS="0 1 2" bash scripts/run_gciql.sh
+
+# durable NVMe (one-time, real SSH terminal — needs sudo):
 sudo mkfs.xfs /dev/nvme1n1
 sudo mkdir -p /mnt/scratch1 && sudo mount /dev/nvme1n1 /mnt/scratch1
 sudo chown "$USER":"$USER" /mnt/scratch1
+make install-jax
+python run_gciql.py --config-name cube_single_state storage=nvme
 ```
 
-Then:
-
-```bash
-make install-jax                       # isolated .venv-jax on the NVMe
-make smoke-gciql                       # end-to-end check (state + visual)
-
-# Full runs (OGBench's exact cube hyperparameters):
-VARIANT=state  SEEDS="0 1 2" bash scripts/run_gciql.sh
-VARIANT=visual SEEDS="0 1 2" bash scripts/run_gciql.sh
-```
-
-Outputs/datasets/checkpoints live under `/mnt/scratch1` (instance-store —
-wiped on instance stop; rsync/S3 anything worth keeping). FB vs GCIQL is
-compared via each method's own success metric (their evaluators differ by
-design); align runs in wandb with a shared `run_group`.
+Datasets/checkpoints live under the chosen storage root; OGBench's
+`~/.ogbench` cache is symlinked there. FB vs GCIQL is compared via each
+method's own success metric (their evaluators differ by design); align runs in
+wandb with a shared `run_group`.
 
 ---
 
