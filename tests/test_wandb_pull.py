@@ -1,3 +1,4 @@
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -45,3 +46,57 @@ def test_filter_runs_by_group_tag_hours_domain():
     )
     assert [r.id for r in kept] == ["x"]
     assert kept[0] is recent
+
+
+import pandas as pd
+
+
+def test_has_canonical_schema_true_when_eval_agg_present():
+    df_ok = pd.DataFrame({"_step": [0, 100], "eval/reward/eval/success": [0.0, 0.1]})
+    df_bad = pd.DataFrame({"_step": [0], "eval/cube-x/success": [0.0]})
+    assert wp.has_canonical_schema(df_ok) is True
+    assert wp.has_canonical_schema(df_bad) is False
+
+
+class _FakeRun:
+    def __init__(self, rid, df, domain="cube-single-play-v0"):
+        self.id = rid
+        self.name = f"run-{rid}"
+        self.group = "g1"
+        self.tags = ["sweep"]
+        self.state = "finished"
+        self.created_at = "2026-05-18T00:00:00Z"
+        self.config = {"domain": domain, "ortho_coef": 1000, "lr_b": 1e-4, "seed": 1}
+        self.summary = {"eval/reward/eval/success": 0.5}
+        self._df = df
+
+    def history(self, keys=None, samples=None, pandas=True):
+        return self._df
+
+
+class _FakeApi:
+    def __init__(self, runs):
+        self._runs = runs
+
+    def runs(self, project, order=None, per_page=None):
+        return list(self._runs)
+
+
+def test_pull_writes_parquet_and_meta(tmp_path):
+    good = _FakeRun("aaa", pd.DataFrame(
+        {"_step": [0, 100], "eval/reward/eval/success": [0.0, 0.4],
+         "train/fb_loss": [9.0, 3.0]}))
+    bad = _FakeRun("bbb", pd.DataFrame({"_step": [0], "eval/old/success": [0.0]}))
+    n = wp.pull(
+        entity=None, project="amsks/factored-fb",
+        groups=["g1"], tags=None, hours=999, domains=["cube-single-play-v0"],
+        out_dir=tmp_path, api=_FakeApi([good, bad]),
+    )
+    assert n == 1  # only the canonical-schema run is written
+    assert (tmp_path / "aaa.parquet").exists()
+    assert not (tmp_path / "bbb.parquet").exists()
+    meta = json.loads((tmp_path / "_meta.json").read_text())
+    assert [m["id"] for m in meta] == ["aaa"]
+    assert meta[0]["config"]["seed"] == 1
+    back = pd.read_parquet(tmp_path / "aaa.parquet")
+    assert "eval/reward/eval/success" in back.columns
