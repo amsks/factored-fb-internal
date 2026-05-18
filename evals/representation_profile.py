@@ -100,16 +100,25 @@ def rollout_for_profile(env, agent, z, n_episodes: int, thr,
     return out
 
 
-def _slope(y: np.ndarray, x: np.ndarray) -> float:
-    """OLS slope of y on x; nan if <2 distinct x."""
-    if len(x) < 2 or np.ptp(x) < 1e-12:
+def _spearman(y: np.ndarray, x: np.ndarray) -> float:
+    """Spearman rho (Pearson on average ranks) of y vs x; nan if either
+    side is constant or fewer than 2 points. Outlier-robust and
+    scale-free, unlike an OLS slope on the unnormalised value V."""
+    import pandas as pd
+
+    y = np.asarray(y, np.float64)
+    x = np.asarray(x, np.float64)
+    if len(x) < 2 or np.ptp(x) < 1e-12 or np.ptp(y) < 1e-12:
         return float("nan")
-    return float(np.polyfit(x, y, 1)[0])
+    rx = pd.Series(x).rank().to_numpy()
+    ry = pd.Series(y).rank().to_numpy()
+    return float(np.corrcoef(rx, ry)[0, 1])
 
 
 def probe_value_landscape(model, agent, episodes, z):
-    """Per-episode slope of V w.r.t. (-d) over the transport region,
-    plus a long-form (outcome, d, V) frame for binned plots."""
+    """Per-episode Spearman rho of V vs (-d) over the transport region
+    (nan unless >=5 steps with non-degenerate d and V), plus a long-form
+    (outcome, d, V) frame for binned plots."""
     import pandas as pd
 
     per_ep_rows, per_step_rows = [], []
@@ -124,16 +133,17 @@ def probe_value_landscape(model, agent, episodes, z):
             per_step_rows.append({"episode": i, "outcome": ep["outcome"],
                                   "d": float(dd), "V": float(vv),
                                   "transport": bool(mm)})
-        if m.sum() >= 2:
-            slope = _slope(V[m], -d[m])
+        n_t = int(m.sum())
+        if (n_t >= 5 and np.ptp(d[m]) > 1e-9 and np.ptp(V[m]) > 1e-9):
+            rho = _spearman(V[m], -d[m])
             v_secure = float(V[m][0])
             v_end = float(V[-1])
         else:
-            slope, v_secure, v_end = float("nan"), float("nan"), float("nan")
+            rho, v_secure, v_end = float("nan"), float("nan"), float("nan")
         per_ep_rows.append({"episode": i, "outcome": ep["outcome"],
-                            "slope_V_negd": slope, "V_at_secure": v_secure,
+                            "rho_V_negd": rho, "V_at_secure": v_secure,
                             "V_at_end": v_end,
-                            "n_transport_steps": int(m.sum())})
+                            "n_transport_steps": n_t})
     return pd.DataFrame(per_ep_rows), pd.DataFrame(per_step_rows)
 
 
