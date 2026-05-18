@@ -53,3 +53,16 @@ def test_aggregate_mean_std_across_seeds(tmp_path):
     assert df.loc[1, "mean"] == 0.5          # (0.4 + 0.6) / 2
     assert df.loc[1, "n"] == 2
     assert abs(df.loc[1, "std"] - 0.1) < 1e-9  # population std
+
+
+def test_render_all_writes_four_outputs(tmp_path):
+    _cache(tmp_path)
+    out = tmp_path / "plots"
+    meta, hist = ps.load_cache(tmp_path)
+    ps.render_all(meta, hist, out, domains=["cube-single-play-v0"])
+    assert (out / "sweep-cube-single-play-v0__eval.png").exists()
+    assert (out / "sweep-cube-single-play-v0__eval_pertask.png").exists()
+    assert (out / "sweep-cube-single-play-v0__train.png").exists()
+    assert (out / "sweep-cube-single-play-v0__final.png").exists()
+    assert (out / "final_summary.md").exists()
+    assert "cube-single-play-v0" in (out / "final_summary.md").read_text()
