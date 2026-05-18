@@ -273,3 +273,48 @@ def test_rollout_with_phase_signals_shapes(monkeypatch):
     assert e["table_z"] == pytest.approx(0.0199)
     assert e["success"] is True            # reaches t>=3
     assert e["length"] == e["eff"].shape[0]
+
+
+def test_run_phase_probe_aggregates(monkeypatch, tmp_path):
+    monkeypatch.setattr(pp, "mujoco", _FakeMujoco())
+
+    def infer_z(task):
+        return torch.zeros(4)
+
+    def make_env(task):
+        return _RolloutEnv()
+
+    per_ep, summary, hist = pp.run_phase_probe(
+        agent=_RolloutAgent(), infer_z=infer_z, make_env=make_env,
+        tasks=["t1", "t2"], scenarios=["S0", "S2"], n_episodes=3,
+        thr=pp.Thresholds())
+    assert set(per_ep.columns) >= {
+        "task", "scenario", "episode", "reached", "secured", "success",
+        "reached_raw", "secured_raw", "fail_phase", "min_eff_cube_dist",
+        "max_cube_lift", "final_cube_goal_dist", "length"}
+    assert len(per_ep) == 2 * 2 * 3
+    row = summary[(summary.task == "t1") & (summary.scenario == "S0")].iloc[0]
+    assert row["n"] == 3
+    assert row["success_rate"] == pytest.approx(1.0)  # _RolloutEnv succeeds
+    assert "t1" in hist
+
+
+def test_plots_and_summary_md(tmp_path):
+    import pandas as pd
+    per_ep = pd.DataFrame([
+        {"task": "t1", "scenario": "S0", "episode": 0, "furthest_phase": "reached"},
+        {"task": "t1", "scenario": "S0", "episode": 1, "furthest_phase": "secured"},
+    ])
+    summary = pd.DataFrame([
+        {"task": "t1", "scenario": "S0", "reached_rate": 1.0,
+         "secured_rate": 0.5, "success_rate": 0.0, "n": 2},
+        {"task": "t1", "scenario": "S2", "reached_rate": 1.0,
+         "secured_rate": 1.0, "success_rate": 0.9, "n": 2},
+    ])
+    pp.plot_phase_histogram(per_ep, tmp_path / "hist.png")
+    pp.plot_scenario_success(summary, tmp_path / "succ.png")
+    pp.write_summary_md(summary, tmp_path / "summary.md")
+    assert (tmp_path / "hist.png").exists()
+    assert (tmp_path / "succ.png").exists()
+    txt = (tmp_path / "summary.md").read_text()
+    assert "Hypothesis" in txt and "t1" in txt

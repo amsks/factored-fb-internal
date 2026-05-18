@@ -15,8 +15,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
-import mujoco
 import numpy as np
+
+# mujoco is imported lazily by _ensure_mujoco(): importing it at module load
+# triggers a GL-context check that fails when MUJOCO_GL is set to an
+# unsupported value (e.g. `egl` on macOS, which train.py sets). The pure
+# phase-classification logic and unit tests must import this module with no
+# valid GL backend (spec §8); only apply_scenario needs real MuJoCo. Tests
+# monkeypatch `phase_probe.mujoco` with a fake, which _ensure_mujoco honours.
+mujoco = None
 
 PHASE_ORDER = ["none", "reached", "secured", "success"]
 N_SETTLE = 5  # MuJoCo steps to clamp the cube in S2 (module constant; YAGNI)
@@ -144,6 +151,20 @@ def ensure_manip_env(env) -> None:
 SCENARIOS = ["S0", "S1", "S2"]
 
 
+def _ensure_mujoco():
+    """Return the mujoco module, importing it on first real use.
+
+    If a test (or caller) has set the module-level ``mujoco`` attribute
+    (e.g. a fake), that value is used and no real import happens.
+    """
+    global mujoco
+    if mujoco is None:
+        import mujoco as _m
+
+        mujoco = _m
+    return mujoco
+
+
 def apply_scenario(env, scenario: str) -> None:
     """Mutate post-reset MuJoCo state for a counterfactual start.
 
@@ -155,6 +176,7 @@ def apply_scenario(env, scenario: str) -> None:
     if scenario == "S0":
         return
 
+    mj = _ensure_mujoco()
     u = env.unwrapped
     model, data = u._model, u._data
     eff = np.asarray(data.site_xpos[u._pinch_site_id], dtype=np.float64).copy()
@@ -165,16 +187,16 @@ def apply_scenario(env, scenario: str) -> None:
         joint.qpos[0] = eff[0]
         joint.qpos[1] = eff[1]
         joint.qpos[2] = table_z
-        mujoco.mj_forward(model, data)
+        mj.mj_forward(model, data)
         return
 
     if scenario == "S2":
         joint.qpos[:3] = eff
-        mujoco.mj_forward(model, data)
+        mj.mj_forward(model, data)
         data.ctrl[u._gripper_actuator_ids] = 255.0
         for _ in range(N_SETTLE):
-            mujoco.mj_step(model, data)
-        mujoco.mj_forward(model, data)
+            mj.mj_step(model, data)
+        mj.mj_forward(model, data)
         return
 
     raise ValueError(f"unknown scenario {scenario!r} (expected one of {SCENARIOS})")
@@ -244,3 +266,132 @@ def rollout_with_phase_signals(
             "length": len(effs),
         })
     return episodes
+
+
+def run_phase_probe(
+    *, agent, infer_z, make_env, tasks: List[str], scenarios: List[str],
+    n_episodes: int, thr: Thresholds,
+):
+    """Run M1+M2 over tasks x scenarios. Returns (per_ep_df, summary_df,
+    hist) where hist[task] -> {furthest_phase: count} for scenario S0."""
+    import pandas as pd
+
+    rows: List[Dict[str, Any]] = []
+    for task in tasks:
+        z = infer_z(task)
+        for scenario in scenarios:
+            env = make_env(task)
+            try:
+                eps = rollout_with_phase_signals(
+                    env, agent, z, n_episodes, thr, scenario=scenario)
+            finally:
+                if hasattr(env, "close"):
+                    env.close()
+            for i, sig in enumerate(eps):
+                c = classify_phases(sig, thr)
+                rows.append({
+                    "task": task, "scenario": scenario, "episode": i,
+                    "reached": c["reached"], "secured": c["secured"],
+                    "success": c["success"], "reached_raw": c["reached_raw"],
+                    "secured_raw": c["secured_raw"],
+                    "furthest_phase": c["furthest_phase"],
+                    "fail_phase": c["fail_phase"],
+                    "min_eff_cube_dist": c["min_eff_cube_dist"],
+                    "max_cube_lift": c["max_cube_lift"],
+                    "final_cube_goal_dist": c["final_cube_goal_dist"],
+                    "length": c["length"],
+                })
+
+    per_ep = pd.DataFrame(rows)
+    summary = (
+        per_ep.groupby(["task", "scenario"])
+        .agg(reached_rate=("reached", "mean"),
+             secured_rate=("secured", "mean"),
+             success_rate=("success", "mean"),
+             n=("episode", "count"))
+        .reset_index()
+    )
+    hist: Dict[str, Dict[str, int]] = {}
+    s0 = per_ep[per_ep.scenario == "S0"]
+    for task, g in s0.groupby("task"):
+        hist[task] = g["furthest_phase"].value_counts().to_dict()
+    return per_ep, summary, hist
+
+
+def plot_phase_histogram(per_ep, path) -> None:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    s0 = per_ep[per_ep.scenario == "S0"] if "scenario" in per_ep else per_ep
+    tasks = sorted(s0["task"].unique())
+    fig, ax = plt.subplots(figsize=(max(5, 1.6 * len(tasks)), 4))
+    bottom = np.zeros(len(tasks))
+    for phase in PHASE_ORDER:
+        counts = [
+            int((s0[s0.task == t]["furthest_phase"] == phase).sum())
+            for t in tasks
+        ]
+        ax.bar(tasks, counts, bottom=bottom, label=phase)
+        bottom += np.array(counts)
+    ax.set_ylabel("episodes")
+    ax.set_title("M1: furthest phase per task (S0)")
+    ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
+def plot_scenario_success(summary, path) -> None:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    tasks = sorted(summary["task"].unique())
+    scenarios = sorted(summary["scenario"].unique())
+    x = np.arange(len(tasks))
+    w = 0.8 / max(1, len(scenarios))
+    fig, ax = plt.subplots(figsize=(max(5, 1.6 * len(tasks)), 4))
+    for j, sc in enumerate(scenarios):
+        vals = [
+            float(summary[(summary.task == t) & (summary.scenario == sc)]
+                   ["success_rate"].mean())
+            for t in tasks
+        ]
+        ax.bar(x + j * w, vals, w, label=sc)
+    ax.set_xticks(x + w * (len(scenarios) - 1) / 2)
+    ax.set_xticklabels(tasks, rotation=20, ha="right", fontsize=7)
+    ax.set_ylabel("success rate")
+    ax.set_title("M2: success rate by scenario")
+    ax.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
+def write_summary_md(summary, path) -> None:
+    lines = ["# Cube phase-failure probe — summary", ""]
+    for _, r in summary.sort_values(["task", "scenario"]).iterrows():
+        lines.append(
+            f"- **{r['task']} / {r['scenario']}**: reached "
+            f"{r['reached_rate']*100:.1f}%  secured "
+            f"{r['secured_rate']*100:.1f}%  success "
+            f"{r['success_rate']*100:.1f}%  (n={int(r['n'])})")
+    lines += ["", "## Hypothesis readout", ""]
+    lines.append(
+        "Prediction: success(S0) ≈ success(S1) (grasp still required) and "
+        "success(S2) ≫ success(S0) (transport easy once held); baseline "
+        "reached-rate ≫ secured-rate ⇒ grasp/pick-up is the bottleneck.")
+    for task in sorted(summary["task"].unique()):
+        sub = summary[summary.task == task].set_index("scenario")
+
+        def g(sc, col):
+            return float(sub.loc[sc, col]) if sc in sub.index else float("nan")
+
+        lines.append(
+            f"- {task}: S0 reached={g('S0','reached_rate')*100:.0f}% "
+            f"secured={g('S0','secured_rate')*100:.0f}% "
+            f"success S0={g('S0','success_rate')*100:.0f}% "
+            f"S1={g('S1','success_rate')*100:.0f}% "
+            f"S2={g('S2','success_rate')*100:.0f}%")
+    Path(path).write_text("\n".join(lines))
