@@ -102,6 +102,10 @@ def main(cfg: DictConfig) -> None:
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = shim_dir + (os.pathsep + existing if existing else "")
     env["GCIQL_FB_ENV"] = str(plain["env_name"])
+    # Repo-wide default: all GCIQL runs log to FB's wandb entity/project so
+    # they sit alongside FB runs for comparison. Only run_group/tags vary.
+    env["GCIQL_WANDB_ENTITY"] = str(plain.get("wandb_entity", "amsks"))
+    env["GCIQL_WANDB_PROJECT"] = str(plain.get("wandb_project", "factored-fb"))
     mode = str(plain.get("wandb_mode", "online"))
     # don't inherit a stale GCIQL_WANDB_FORCE_MODE from the parent shell:
     # only this launcher should set it, and only for offline/disabled.
