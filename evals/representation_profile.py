@@ -78,3 +78,40 @@ def rollout_for_profile(env, agent, z, n_episodes: int, thr,
             "outcome": outcome, "length": ep["length"],
         })
     return out
+
+
+def _slope(y: np.ndarray, x: np.ndarray) -> float:
+    """OLS slope of y on x; nan if <2 distinct x."""
+    if len(x) < 2 or np.ptp(x) < 1e-12:
+        return float("nan")
+    return float(np.polyfit(x, y, 1)[0])
+
+
+def probe_value_landscape(model, agent, episodes, z):
+    """Per-episode slope of V w.r.t. (-d) over the transport region,
+    plus a long-form (outcome, d, V) frame for binned plots."""
+    import pandas as pd
+
+    per_ep_rows, per_step_rows = [], []
+    for i, ep in enumerate(episodes):
+        obs = torch.as_tensor(np.asarray(ep["obs"]), dtype=torch.float32)
+        if obs.shape[0] == 0:
+            continue
+        V = v_values(model, agent, obs, z)             # [T]
+        d = np.asarray(ep["d"], np.float64)
+        m = np.asarray(ep["transport_mask"], bool)
+        for dd, vv, mm in zip(d, V, m):
+            per_step_rows.append({"episode": i, "outcome": ep["outcome"],
+                                  "d": float(dd), "V": float(vv),
+                                  "transport": bool(mm)})
+        if m.sum() >= 2:
+            slope = _slope(V[m], -d[m])
+            v_secure = float(V[m][0])
+            v_end = float(V[-1])
+        else:
+            slope, v_secure, v_end = float("nan"), float("nan"), float("nan")
+        per_ep_rows.append({"episode": i, "outcome": ep["outcome"],
+                            "slope_V_negd": slope, "V_at_secure": v_secure,
+                            "V_at_end": v_end,
+                            "n_transport_steps": int(m.sum())})
+    return pd.DataFrame(per_ep_rows), pd.DataFrame(per_step_rows)
