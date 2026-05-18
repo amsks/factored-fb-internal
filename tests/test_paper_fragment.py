@@ -42,13 +42,15 @@ def test_build_fragment(tmp_path):
     pf.build_fragment(phase, repr_, tmp_path / "PAPER", "fb-cube-failure")
     base = tmp_path / "PAPER" / "fb-cube-failure"
     tex = (base / "fb_cube_failure.tex").read_text()
-    assert "\\section" in tex
-    assert tex.count("\\subsection") >= 4
+    # self-contained, compilable LaTeX document
+    assert "\\documentclass" in tex
+    assert "\\begin{document}" in tex and "\\end{document}" in tex
+    assert tex.count("\\section") >= 4
     assert "\\includegraphics" in tex
-    assert "\\input{tables/" in tex
-    assert (base / "standalone.tex").exists()
+    # tables embedded inline, not pulled from external files
+    assert "\\begin{tabular}" in tex
+    assert "\\input{" not in tex
     assert (base / "figures" / "value_vs_dist.png").exists()
-    assert list((base / "tables").glob("*.tex"))
     # missing optional figure handled, not crashed
     pf.build_fragment(phase, repr_, tmp_path / "PAPER2", "x",
                       figures=("nonexistent.png",))
