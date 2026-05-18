@@ -225,6 +225,69 @@ batch["next"]["terminated"]     [B, 1]
 5. Roll out `eval_n_episodes` episodes via `envs/rollout.py`.
 6. Log `eval/{task}/success` and `eval/{task}/reward`.
 
+### Per-run artifacts (checkpoints + eval videos)
+
+Every run writes its artifacts into its own Hydra output directory
+(`outputs/<timestamp>__<domain>__<agent>__s<seed>/`), so parallel sweep runs
+no longer clobber a shared `checkpoints/`:
+
+```
+outputs/<run>/
+├── checkpoints/        # step_<N>.pt at every save_every + final.pt
+└── eval_videos/        # only when save_eval_videos=true
+    └── step_<N>/<task>.gif
+```
+
+Video capture is **opt-in and off by default** (`save_eval_videos: false`).
+When enabled, the first eval episode per task is recorded as a GIF and, with
+`use_wandb=true`, uploaded as a `wandb.Video` under `eval_video/<task>`. Paths
+are configurable via `save_dir` / `eval_videos_dir` (both default to the run's
+Hydra output dir). Headless rendering works out of the box (`MUJOCO_GL=egl`).
+
+```bash
+# Capture eval GIFs for a run
+python train.py domain=cube_single save_eval_videos=true
+
+# Same, via the sweep script (EXTRA_ARGS is appended to every job)
+EXTRA_ARGS="save_eval_videos=true" bash scripts/run_sweep.sh
+
+# End-to-end check of the artifact layout
+bash scripts/smoke_test_artifacts.sh
+```
+
+---
+
+## GCIQL baseline (OGBench, JAX)
+
+For comparing FB against OGBench's GCIQL on cube manipulation. GCIQL runs as a
+**verbatim vendored copy of OGBench** (`third_party/ogbench/`, JAX) in a
+**separate environment** — it never shares a process or venv with the PyTorch
+FB track. A thin Hydra launcher (`run_gciql.py`) translates config into
+OGBench's exact CLI flags and subprocesses OGBench's own `impls/main.py`.
+
+Default storage is tmpfs (`/dev/shm`, RAM-backed, no sudo, **ephemeral on
+reboot**). For runs that must survive a reboot, use the NVMe override.
+
+```bash
+# tmpfs (default, no sudo):
+make install-jax-shm                   # isolated .venv-jax in /dev/shm (run first)
+make smoke-gciql                       # end-to-end check (needs install-jax-shm)
+VARIANT=state  SEEDS="0 1 2" bash scripts/run_gciql.sh
+VARIANT=visual SEEDS="0 1 2" bash scripts/run_gciql.sh
+
+# durable NVMe (one-time, real SSH terminal — needs sudo):
+sudo mkfs.xfs /dev/nvme1n1
+sudo mkdir -p /mnt/scratch1 && sudo mount /dev/nvme1n1 /mnt/scratch1
+sudo chown "$USER":"$USER" /mnt/scratch1
+make install-jax
+python run_gciql.py --config-name cube_single_state storage=nvme
+```
+
+Datasets/checkpoints live under the chosen storage root; OGBench's
+`~/.ogbench` cache is symlinked there. FB vs GCIQL is compared via each
+method's own success metric (their evaluators differ by design); align runs in
+wandb with a shared `run_group`.
+
 ---
 
 ## Citation
