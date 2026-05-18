@@ -43,3 +43,112 @@ def load_checkpoint(agent, ckpt_path: str | Path, map_location: str = "cpu") -> 
             f"checkpoint does not match agent (cfg.agent build). "
             f"Loading {ckpt_path} failed: {e}"
         ) from e
+
+
+def rollout_with_trajectory(
+    env: Any,
+    agent: Any,
+    num_episodes: int,
+    z: torch.Tensor,
+    record: bool = False,
+) -> Dict[str, Any]:
+    """Roll out `num_episodes` episodes, collecting per-step arrays.
+
+    Returns padded arrays [n_episodes, T_max, ...] plus lengths[n_episodes].
+    Mirrors the env protocol used by envs/rollout.py.
+    """
+    episodes = []
+    frames_all = [] if record else None
+    for _ in range(num_episodes):
+        obs, info = env.reset()
+        ep = {"observations": [obs], "actions": [], "rewards": [],
+              "terminated": [], "truncated": [], "success": False}
+        ep_frames = [env.render()] if record else None
+        while True:
+            a = agent.act(
+                obs=torch.tensor(np.asarray(obs), device=agent.device,
+                                 dtype=torch.float32)[None],
+                z=z,
+            ).cpu().numpy()[0]
+            obs, reward, terminated, truncated, info = env.step(a)
+            ep["actions"].append(a)
+            ep["rewards"].append(float(reward))
+            ep["terminated"].append(bool(terminated))
+            ep["truncated"].append(bool(truncated))
+            ep["observations"].append(obs)
+            if info.get("success", False):
+                ep["success"] = True
+            if record:
+                ep_frames.append(env.render())
+            if terminated or truncated:
+                break
+        episodes.append(ep)
+        if record:
+            frames_all.append(ep_frames)
+
+    lengths = np.array([len(e["observations"]) for e in episodes], dtype=np.int64)
+    t_max = int(lengths.max())
+    obs_dim = np.asarray(episodes[0]["observations"][0]).shape[-1]
+    act_dim = np.asarray(episodes[0]["actions"][0]).shape[-1]
+
+    n = len(episodes)
+    observations = np.zeros((n, t_max, obs_dim), dtype=np.float32)
+    actions = np.zeros((n, t_max, act_dim), dtype=np.float32)
+    rewards = np.zeros((n, t_max), dtype=np.float32)
+    terminated = np.zeros((n, t_max), dtype=bool)
+    truncated = np.zeros((n, t_max), dtype=bool)
+    for i, e in enumerate(episodes):
+        L = len(e["observations"])
+        observations[i, :L] = np.asarray(e["observations"], dtype=np.float32)
+        na = len(e["actions"])
+        actions[i, :na] = np.asarray(e["actions"], dtype=np.float32)
+        rewards[i, :na] = np.asarray(e["rewards"], dtype=np.float32)
+        terminated[i, :na] = np.asarray(e["terminated"], dtype=bool)
+        truncated[i, :na] = np.asarray(e["truncated"], dtype=bool)
+
+    return {
+        "observations": observations,
+        "actions": actions,
+        "rewards": rewards,
+        "terminated": terminated,
+        "truncated": truncated,
+        "lengths": lengths,
+        "success": np.array([e["success"] for e in episodes], dtype=bool),
+        "z": z.detach().cpu().numpy(),
+        "frames": frames_all,
+    }
+
+
+def save_trajectories(result: Dict[str, Any], task: str,
+                      out_dir: str | Path) -> None:
+    """Write trajectories/<task>.npz and append trajectory_summary.parquet."""
+    import pandas as pd
+
+    traj_dir = Path(out_dir) / "trajectories"
+    traj_dir.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        traj_dir / f"{task}.npz",
+        observations=result["observations"],
+        actions=result["actions"],
+        rewards=result["rewards"],
+        terminated=result["terminated"],
+        truncated=result["truncated"],
+        lengths=result["lengths"],
+        success=result["success"],
+        z=result["z"],
+    )
+    rows = []
+    for i in range(len(result["lengths"])):
+        L = int(result["lengths"][i])
+        rows.append({
+            "task": task,
+            "episode": i,
+            "return": float(result["rewards"][i, :max(L - 1, 0)].sum()),
+            "length": L,
+            "success": bool(result["success"][i]),
+        })
+    new = pd.DataFrame(rows)
+    summ_path = traj_dir / "trajectory_summary.parquet"
+    if summ_path.exists():
+        new = pd.concat([pd.read_parquet(summ_path), new], ignore_index=True)
+    new.to_parquet(summ_path)

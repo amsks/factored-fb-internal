@@ -46,3 +46,52 @@ def test_load_checkpoint_clear_error_on_mismatch(tmp_path):
     agent = make_agent(cfg, obs_space, action_dim=4)
     with pytest.raises(RuntimeError, match="checkpoint does not match"):
         A.load_checkpoint(agent, junk, map_location="cpu")
+
+
+class _StubEnv:
+    """Episode of fixed length 3, then done."""
+    def __init__(self):
+        self.t = 0
+
+    def reset(self):
+        self.t = 0
+        return np.zeros(15, dtype=np.float32), {"success": False}
+
+    def step(self, action):
+        self.t += 1
+        done = self.t >= 3
+        return (np.full(15, self.t, dtype=np.float32), 1.0, done, False,
+                {"success": done})
+
+    def render(self):
+        return np.zeros((4, 4, 3), dtype=np.uint8)
+
+
+class _StubAgent:
+    device = "cpu"
+
+    def act(self, obs=None, z=None):
+        return torch.zeros((1, 4))
+
+
+def test_rollout_with_trajectory_shapes():
+    res = A.rollout_with_trajectory(_StubEnv(), _StubAgent(), num_episodes=2,
+                                    z=torch.zeros(4), record=False)
+    assert res["observations"].shape == (2, 4, 15)  # T_max = 3 steps + reset
+    assert res["actions"].shape == (2, 4, 4)
+    assert list(res["lengths"]) == [4, 4]
+    assert res["success"].shape == (2,)
+    assert bool(res["success"][0]) is True
+
+
+def test_save_trajectories_writes_npz_and_summary(tmp_path):
+    res = A.rollout_with_trajectory(_StubEnv(), _StubAgent(), num_episodes=2,
+                                    z=torch.zeros(4), record=False)
+    A.save_trajectories(res, task="taskX", out_dir=tmp_path)
+    assert (tmp_path / "trajectories" / "taskX.npz").exists()
+    assert (tmp_path / "trajectories" / "trajectory_summary.parquet").exists()
+    import pandas as pd
+    summ = pd.read_parquet(tmp_path / "trajectories" / "trajectory_summary.parquet")
+    assert len(summ) == 2
+    assert set(["task", "episode", "return", "length", "success"]).issubset(
+        summ.columns)
