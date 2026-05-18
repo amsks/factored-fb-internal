@@ -42,9 +42,9 @@ preference: use the `info` dict returned by `env.step` if it carries the
 | `eff` (hand xyz) | `proprio/effector_pos` |
 | `grip` (0 open … 1 closed) | `proprio/gripper_opening` |
 | `cube` (xyz) | `privileged/block_0_pos` |
-| `goal` (xyz) | `privileged/target_block_pos` |
+| `goal` (xyz) | `env.unwrapped.cur_task_info['goal_xyzs'][tb]`, `tb = env.unwrapped._target_block` (0 for single cube). NOTE: in the `singletask` eval variant `info['privileged/target_block_pos']` is `None`, so it must NOT be used. |
 | `table_z` | cube z captured at the episode's first step |
-| `success` | env's own `_success` (cube within 0.04 m of goal) |
+| `success` | `info['success']` per step, OR-accumulated over the episode (identical to how `evals/ogbench.py` / `evals.analysis.rollout_with_trajectory` already determine success) |
 
 Per-episode ordered milestones:
 
