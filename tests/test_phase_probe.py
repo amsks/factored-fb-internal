@@ -90,3 +90,51 @@ def test_zero_length_episode():
     assert out["furthest_phase"] == "none"
     assert out["fail_phase"] == "reach"
     assert np.isnan(out["min_eff_cube_dist"])
+
+
+import pytest
+
+
+class _FakeUnwrapped:
+    def __init__(self):
+        self._data = object()
+        self._pinch_site_id = 0
+        self._target_block = 0
+        self.cur_task_info = {
+            "goal_xyzs": np.array([[0.4, -0.1, 0.02]]),
+            "init_xyzs": np.array([[0.42, 0.10, 0.0199]]),
+        }
+
+
+class _FakeEnv:
+    def __init__(self, unwrapped):
+        self.unwrapped = unwrapped
+
+
+def test_step_signals_reads_info_keys():
+    info = {
+        "proprio/effector_pos": np.array([0.1, 0.2, 0.3]),
+        "proprio/gripper_opening": np.array([0.9]),
+        "privileged/block_0_pos": np.array([0.4, 0.5, 0.02]),
+        "success": False,
+    }
+    s = pp.step_signals(info)
+    assert np.allclose(s["eff"], [0.1, 0.2, 0.3])
+    assert np.allclose(s["cube"], [0.4, 0.5, 0.02])
+    assert s["grip"] == pytest.approx(0.9)
+
+
+def test_episode_goal_and_table_z_from_cur_task_info():
+    env = _FakeEnv(_FakeUnwrapped())
+    assert np.allclose(pp.episode_goal(env), [0.4, -0.1, 0.02])
+    assert pp.episode_table_z(env) == pytest.approx(0.0199)
+
+
+def test_ensure_manip_env_rejects_non_manip():
+    class Bare:
+        pass
+
+    with pytest.raises(RuntimeError, match="cube-only"):
+        pp.ensure_manip_env(_FakeEnv(Bare()))
+    # a manip-like env passes silently
+    pp.ensure_manip_env(_FakeEnv(_FakeUnwrapped()))
