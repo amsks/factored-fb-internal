@@ -182,3 +182,20 @@ def render_all(
 
     (out_dir / "final_summary.md").write_text("\n".join(summary_lines))
     print(f"[plot_sweep] wrote plots to {out_dir}")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--in", dest="in_dir",
+                    default=str(REPO_ROOT / "analysis" / "wandb_data"))
+    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "plots"))
+    ap.add_argument("--domains", default="cube-single-play-v0,antmaze-medium-navigate-v0",
+                    help="comma-separated")
+    args = ap.parse_args()
+    meta, hist = load_cache(args.in_dir)
+    domains = [d for d in args.domains.split(",") if d]
+    render_all(meta, hist, args.out, domains)
+
+
+if __name__ == "__main__":
+    main()
