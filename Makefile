@@ -1,4 +1,4 @@
-.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql run-gciql smoke-gciql
+.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql run-gciql run-gciql-state smoke-gciql
 
 # ── Installation ──────────────────────────────────────────────────────────── #
 
@@ -96,6 +96,7 @@ help:
 	@echo "  install-jax      Install isolated JAX env on the NVMe (GCIQL track)"
 	@echo "  test-gciql       Run the run_gciql argv/isolation test"
 	@echo "  run-gciql        Launch GCIQL (vendored OGBench, JAX) state config"
+	@echo "  run-gciql-state  Multi-seed GCIQL state run (1M steps, online wandb)"
 	@echo "  smoke-gciql      End-to-end GCIQL smoke (state + visual)"
 	@echo "────────────────────────────────────────────────────────"
 
@@ -125,6 +126,10 @@ test-gciql:
 ## Launch GCIQL with cube_single_state config
 run-gciql:
 	python run_gciql.py --config-name cube_single_state
+
+## Full multi-seed GCIQL state run (cube-single-play-v0, 1M steps, online wandb)
+run-gciql-state:
+	bash scripts/run_gciql_state.sh
 
 ## End-to-end smoke test for GCIQL (state + visual)
 smoke-gciql:

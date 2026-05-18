@@ -83,14 +83,21 @@ def main(cfg: DictConfig) -> None:
     # (wandb >= 0.27) overrides WANDB_MODE/WANDB_DISABLED env vars. Since the
     # vendored code must not be edited, force the mode via an auto-imported
     # sitecustomize shim on PYTHONPATH (no-op unless the flag below is set).
+    # The wandb shim (tools/wandb_mode_shim/sitecustomize.py) is ALWAYS on the
+    # child PYTHONPATH; it is inert unless its env flags are set. GCIQL_FB_ENV
+    # enables mirroring GCIQL eval metrics into FB's wandb key scheme (so FB and
+    # GCIQL overlay on the same panels). GCIQL_WANDB_FORCE_MODE forces wandb
+    # offline/disabled (OGBench hardcodes mode='online'; wandb >= 0.27 lets that
+    # kwarg override the env vars). Vendored OGBench is never edited.
+    shim_dir = str(REPO_ROOT / "tools" / "wandb_mode_shim")
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = shim_dir + (os.pathsep + existing if existing else "")
+    env["GCIQL_FB_ENV"] = str(plain["env_name"])
     mode = str(plain.get("wandb_mode", "online"))
     if mode in ("offline", "disabled"):
         env["GCIQL_WANDB_FORCE_MODE"] = mode
         # belt-and-suspenders; "disabled" is not a valid WANDB_MODE value
         env["WANDB_MODE"] = "offline" if mode == "disabled" else mode
-        shim_dir = str(REPO_ROOT / "tools" / "wandb_mode_shim")
-        existing = env.get("PYTHONPATH")
-        env["PYTHONPATH"] = shim_dir + (os.pathsep + existing if existing else "")
 
     run_meta = {
         "argv": argv,
