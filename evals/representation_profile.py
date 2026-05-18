@@ -197,3 +197,43 @@ def probe_b_resolution(B: np.ndarray, d: np.ndarray,
         acc = float("nan")
     return {"r2": r2, "placed_vs_near_acc": acc,
             "n_placed": int(placed.sum()), "n_near": int(near.sum())}
+
+
+def _region(ep: Dict[str, Any], thr) -> np.ndarray:
+    """Per-step region label: 'transport' if lifted+gripped, else
+    'lift' if gripper closed, else 'reach'."""
+    grip = np.asarray(ep["grip"], np.float64).reshape(-1)
+    tm = np.asarray(ep["transport_mask"], bool)
+    out = np.where(tm, "transport",
+                   np.where(grip > thr.tau_grip, "lift", "reach"))
+    return out
+
+
+def probe_coverage(episodes, ref_obs: np.ndarray, thr,
+                   max_ref: int = 5000, seed: int = 0) -> "Any":
+    """Per-step nearest-neighbour L2 distance to the standardised offline
+    reference, tagged by outcome and region."""
+    import pandas as pd
+
+    ref = np.asarray(ref_obs, np.float64)
+    if len(ref) > max_ref:
+        rng = np.random.default_rng(seed)
+        ref = ref[rng.choice(len(ref), max_ref, replace=False)]
+    mu = ref.mean(0)
+    sd = ref.std(0) + 1e-6
+    refn = (ref - mu) / sd
+    rows = []
+    for ep in episodes:
+        obs = np.asarray(ep["obs"], np.float64)
+        if obs.shape[0] == 0:
+            continue
+        on = (obs - mu) / sd
+        # batched: ||on||^2 + ||refn||^2 - 2 on·refn
+        d2 = (on ** 2).sum(1, keepdims=True) + (refn ** 2).sum(1) \
+            - 2.0 * on @ refn.T
+        nn = np.sqrt(np.maximum(d2.min(1), 0.0))
+        reg = _region(ep, thr)
+        for r, n in zip(reg, nn):
+            rows.append({"outcome": ep["outcome"], "region": str(r),
+                         "nn_dist": float(n)})
+    return pd.DataFrame(rows)

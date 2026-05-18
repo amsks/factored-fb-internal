@@ -188,3 +188,21 @@ def test_b_resolution_linear_vs_random():
     d_sep = np.concatenate([np.full(100, 0.01), np.full(100, 0.08)])
     out_sep = rp.probe_b_resolution(B_sep, d_sep, seed=0)
     assert out_sep["placed_vs_near_acc"] > 0.95
+
+
+def test_coverage_nn_distance_by_region():
+    ref = np.zeros((50, 4), np.float32)            # support at origin
+    eps = [{
+        "obs": np.array([[0, 0, 0, 0],             # on-support (reach)
+                          [0, 0, 0, 0],             # on-support (lift)
+                          [9, 9, 9, 9]], np.float32),  # off-support (transport)
+        "transport_mask": np.array([False, False, True]),
+        "grip": np.array([0.0, 1.0, 1.0]),
+        "cube": np.array([[0, 0, 0.02], [0, 0, 0.10], [0, 0, 0.20]]),
+        "table_z": 0.02, "outcome": "transport_fail", "length": 3,
+    }]
+    df = rp.probe_coverage(eps, ref, pp.Thresholds())
+    assert set(df.columns) >= {"outcome", "region", "nn_dist"}
+    far = df[df.region == "transport"]["nn_dist"].mean()
+    near = df[df.region == "reach"]["nn_dist"].mean()
+    assert far > near
