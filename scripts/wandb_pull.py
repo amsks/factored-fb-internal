@@ -99,3 +99,75 @@ def filter_runs(
             continue
         kept.append(r)
     return kept
+
+
+def has_canonical_schema(history: "pd.DataFrame") -> bool:
+    """A run is canonical iff the aggregate eval key is present.
+
+    The discriminating signal vs. the old schema is the canonical aggregate
+    eval prefix ``eval/reward/eval/`` (train.py:228 + evals/ogbench.py:100).
+    ``#std`` is dropped by some parquet/history paths, so requiring the
+    primary aggregate success key (``EVAL_AGG_KEYS[0]``) keeps old-schema
+    runs (e.g. ``eval/<task>/success`` only) correctly skipped without
+    false-negatives on canonical runs whose ``#std`` column was not logged.
+    """
+    return EVAL_AGG_KEYS[0] in history.columns
+
+
+def pull(
+    *,
+    entity: Optional[str],
+    project: str,
+    groups: Optional[List[str]],
+    tags: Optional[List[str]],
+    hours: int,
+    domains: Optional[List[str]],
+    out_dir: Path,
+    api=None,
+) -> int:
+    """Pull canonical-schema runs into out_dir. Returns #runs written.
+
+    Per-run try/except: one failure warns and is skipped, never aborts.
+    """
+    import pandas as pd
+
+    if api is None:
+        import wandb
+        api = wandb.Api()
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    runs = list(api.runs(project, order="-created_at", per_page=300))
+    kept = filter_runs(runs, groups=groups, tags=tags, hours=hours, domains=domains)
+
+    meta = []
+    written = 0
+    for r in kept:
+        domain = r.config.get("domain")
+        try:
+            hist = r.history(keys=metric_keys(domain), samples=2000, pandas=True)
+        except Exception as e:  # noqa: BLE001 - resilience over precision
+            print(f"  [warn] history fetch failed for {r.id}: {e}")
+            continue
+        if hist is None or hist.empty:
+            print(f"  [warn] empty history for {r.id}, skipping")
+            continue
+        if not has_canonical_schema(hist):
+            print(f"  [warn] {r.id} ({getattr(r, 'name', '?')}) lacks canonical "
+                  f"eval keys — old schema, skipping")
+            continue
+        hist.to_parquet(out_dir / f"{r.id}.parquet")
+        meta.append({
+            "id": r.id,
+            "name": getattr(r, "name", r.id),
+            "state": getattr(r, "state", None),
+            "group": r.group,
+            "config": dict(r.config),
+            "summary": dict(getattr(r, "summary", {}) or {}),
+        })
+        written += 1
+
+    (out_dir / "_meta.json").write_text(json.dumps(meta, indent=2, default=str))
+    print(f"[wandb_pull] wrote {written} run(s) to {out_dir}")
+    return written
