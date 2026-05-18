@@ -79,11 +79,17 @@ def main(cfg: DictConfig) -> None:
     env = os.environ.copy()
     env["MUJOCO_GL"] = "egl"
     env["CUDA_VISIBLE_DEVICES"] = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+    # OGBench's vendored setup_wandb hardcodes wandb.init(mode='online'), which
+    # (wandb >= 0.27) overrides WANDB_MODE/WANDB_DISABLED env vars. Since the
+    # vendored code must not be edited, force the mode via an auto-imported
+    # sitecustomize shim on PYTHONPATH (no-op unless the flag below is set).
     mode = str(plain.get("wandb_mode", "online"))
-    if mode == "disabled":
-        env["WANDB_DISABLED"] = "true"
-    elif mode == "offline":
-        env["WANDB_MODE"] = "offline"
+    if mode in ("offline", "disabled"):
+        env["GCIQL_WANDB_FORCE_MODE"] = mode
+        env["WANDB_MODE"] = mode  # harmless belt-and-suspenders
+        shim_dir = str(REPO_ROOT / "tools" / "wandb_mode_shim")
+        existing = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = shim_dir + (os.pathsep + existing if existing else "")
 
     run_meta = {
         "argv": argv,

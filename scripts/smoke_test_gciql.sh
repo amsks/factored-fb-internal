@@ -13,7 +13,7 @@ for VARIANT in state visual; do
     echo "[smoke-gciql] === $VARIANT ==="
     python run_gciql.py --config-name "cube_single_${VARIANT}" \
         train_steps=2000 log_interval=1000 eval_interval=1000 \
-        save_interval=2000 eval_episodes=2 wandb_mode=disabled
+        save_interval=2000 eval_episodes=2 wandb_mode=offline
 
     RUN_DIR=$(ls -1dt /mnt/scratch1/gciql_outputs/OGBench/*/* 2>/dev/null | head -1)
     echo "[smoke-gciql] inspecting $RUN_DIR"
