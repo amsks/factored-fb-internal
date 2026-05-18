@@ -219,3 +219,57 @@ def test_apply_scenario_unknown_raises(monkeypatch):
     monkeypatch.setattr(pp, "mujoco", _FakeMujoco())
     with pytest.raises(ValueError, match="unknown scenario"):
         pp.apply_scenario(_FakeEnv(_FakeManip()), "SX")
+
+
+import torch
+
+
+class _RolloutEnv:
+    """3-step episodes; cube fixed, effector reaches it; manip-like."""
+
+    def __init__(self):
+        self.unwrapped = _FakeManip()
+        self.t = 0
+
+    def _info(self, eff):
+        return {
+            "proprio/effector_pos": np.array(eff, dtype=np.float64),
+            "proprio/gripper_opening": np.array([1.0]),
+            "privileged/block_0_pos": np.array([0.0, 0.0, 0.10]),
+            "success": self.t >= 3,
+        }
+
+    def reset(self, seed=None):
+        self.t = 0
+        return np.zeros(4, dtype=np.float32), self._info([9.0, 9.0, 9.0])
+
+    def step(self, action):
+        self.t += 1
+        done = self.t >= 3
+        return (np.zeros(4, dtype=np.float32), -1.0, done, False,
+                self._info([0.0, 0.0, 0.10]))
+
+    def close(self):
+        pass
+
+
+class _RolloutAgent:
+    device = "cpu"
+
+    def act(self, obs=None, z=None):
+        return torch.zeros((1, 4))
+
+
+def test_rollout_with_phase_signals_shapes(monkeypatch):
+    monkeypatch.setattr(pp, "mujoco", _FakeMujoco())
+    eps = pp.rollout_with_phase_signals(
+        _RolloutEnv(), _RolloutAgent(), z=torch.zeros(4),
+        n_episodes=2, thr=pp.Thresholds(), scenario="S0")
+    assert len(eps) == 2
+    e = eps[0]
+    assert e["eff"].shape[1] == 3 and e["cube"].shape[1] == 3
+    assert e["grip"].ndim == 1
+    assert e["goal"].shape == (3,)
+    assert e["table_z"] == pytest.approx(0.0199)
+    assert e["success"] is True            # reaches t>=3
+    assert e["length"] == e["eff"].shape[0]

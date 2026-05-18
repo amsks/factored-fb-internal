@@ -178,3 +178,69 @@ def apply_scenario(env, scenario: str) -> None:
         return
 
     raise ValueError(f"unknown scenario {scenario!r} (expected one of {SCENARIOS})")
+
+
+def _initial_obs(env):
+    """Initial observation for the post-reset (post-scenario) state.
+
+    The caller already did exactly one env.reset() this episode; calling
+    env.reset() again would re-randomize the task. OGBench manip envs
+    expose compute_observation() on the unwrapped env, so use that;
+    fall back to a fresh reset's observation only if it is unavailable.
+    """
+    u = env.unwrapped
+    if hasattr(u, "compute_observation"):
+        return np.asarray(u.compute_observation(), dtype=np.float32)
+    obs, _ = env.reset()
+    return np.asarray(obs, dtype=np.float32)
+
+
+def rollout_with_phase_signals(
+    env, agent, z, n_episodes: int, thr: Thresholds, scenario: str = "S0",
+) -> List[Dict[str, Any]]:
+    """Roll out n_episodes under `scenario`, recording per-step signals.
+
+    Each episode: one env.reset() -> apply_scenario -> run policy.
+    `success` is OR-accumulated from per-step info (same convention as
+    evals/ogbench.py). Returns one signals dict per episode suitable for
+    classify_phases.
+    """
+    import torch
+
+    ensure_manip_env(env)
+    episodes: List[Dict[str, Any]] = []
+    for _ in range(n_episodes):
+        _, info = env.reset()
+        apply_scenario(env, scenario)
+        goal = episode_goal(env)
+        table_z = episode_table_z(env)
+
+        effs, cubes, grips = [], [], []
+        s0 = step_signals(info)
+        effs.append(s0["eff"]); cubes.append(s0["cube"]); grips.append(s0["grip"])
+        ep_success = bool(s0["success"])
+
+        observation = _initial_obs(env)
+        while True:
+            a = agent.act(
+                obs=torch.tensor(np.asarray(observation), device=agent.device,
+                                 dtype=torch.float32)[None],
+                z=z,
+            ).cpu().numpy()[0]
+            observation, _, terminated, truncated, info = env.step(a)
+            s = step_signals(info)
+            effs.append(s["eff"]); cubes.append(s["cube"]); grips.append(s["grip"])
+            ep_success = ep_success or s["success"]
+            if terminated or truncated:
+                break
+
+        episodes.append({
+            "eff": np.asarray(effs, dtype=np.float64),
+            "cube": np.asarray(cubes, dtype=np.float64),
+            "grip": np.asarray(grips, dtype=np.float64),
+            "goal": goal,
+            "success": bool(ep_success),
+            "table_z": table_z,
+            "length": len(effs),
+        })
+    return episodes
