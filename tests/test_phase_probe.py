@@ -138,3 +138,84 @@ def test_ensure_manip_env_rejects_non_manip():
         pp.ensure_manip_env(_FakeEnv(Bare()))
     # a manip-like env passes silently
     pp.ensure_manip_env(_FakeEnv(_FakeUnwrapped()))
+
+
+class _FakeJoint:
+    def __init__(self):
+        self.qpos = np.zeros(7)
+
+
+class _FakeData:
+    def __init__(self):
+        self.site_xpos = np.array([[0.5, 0.6, 0.7]])  # pinch site id 0
+        self.ctrl = np.zeros(8)
+        self._joint = _FakeJoint()
+
+    def joint(self, name):
+        assert name == "object_joint_0"
+        return self._joint
+
+
+class _FakeManip:
+    def __init__(self):
+        self._model = object()
+        self._data = _FakeData()
+        self._pinch_site_id = 0
+        self._gripper_actuator_ids = np.array([6, 7])
+        self._target_block = 0
+        self.cur_task_info = {
+            "goal_xyzs": np.array([[0.4, -0.1, 0.02]]),
+            "init_xyzs": np.array([[0.42, 0.10, 0.0199]]),
+        }
+
+
+class _FakeMujoco:
+    def __init__(self):
+        self.forward_calls = 0
+        self.step_calls = 0
+
+    def mj_forward(self, model, data):
+        self.forward_calls += 1
+
+    def mj_step(self, model, data):
+        self.step_calls += 1
+
+
+def test_apply_scenario_s0_is_noop(monkeypatch):
+    fake_mj = _FakeMujoco()
+    monkeypatch.setattr(pp, "mujoco", fake_mj)
+    env = _FakeEnv(_FakeManip())
+    before = env.unwrapped._data._joint.qpos.copy()
+    pp.apply_scenario(env, "S0")
+    assert np.allclose(env.unwrapped._data._joint.qpos, before)
+    assert fake_mj.step_calls == 0
+
+
+def test_apply_scenario_s1_moves_cube_to_hand_xy(monkeypatch):
+    fake_mj = _FakeMujoco()
+    monkeypatch.setattr(pp, "mujoco", fake_mj)
+    env = _FakeEnv(_FakeManip())
+    pp.apply_scenario(env, "S1")
+    q = env.unwrapped._data._joint.qpos
+    assert q[0] == pytest.approx(0.5) and q[1] == pytest.approx(0.6)
+    assert q[2] == pytest.approx(0.0199)        # table_z, not hand z
+    assert fake_mj.forward_calls == 1
+    assert fake_mj.step_calls == 0
+
+
+def test_apply_scenario_s2_grasps_and_settles(monkeypatch):
+    fake_mj = _FakeMujoco()
+    monkeypatch.setattr(pp, "mujoco", fake_mj)
+    env = _FakeEnv(_FakeManip())
+    pp.apply_scenario(env, "S2")
+    q = env.unwrapped._data._joint.qpos
+    assert np.allclose(q[:3], [0.5, 0.6, 0.7])  # cube at effector
+    assert np.all(env.unwrapped._data.ctrl[[6, 7]] == 255.0)
+    assert fake_mj.step_calls == pp.N_SETTLE
+    assert fake_mj.forward_calls >= 1
+
+
+def test_apply_scenario_unknown_raises(monkeypatch):
+    monkeypatch.setattr(pp, "mujoco", _FakeMujoco())
+    with pytest.raises(ValueError, match="unknown scenario"):
+        pp.apply_scenario(_FakeEnv(_FakeManip()), "SX")
