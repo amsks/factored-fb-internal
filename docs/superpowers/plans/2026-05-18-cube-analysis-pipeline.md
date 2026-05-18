@@ -341,8 +341,13 @@ Append to `scripts/wandb_pull.py`:
 
 ```python
 def has_canonical_schema(history: "pd.DataFrame") -> bool:
-    """A run is canonical iff at least the aggregate eval keys are present."""
-    return all(k in history.columns for k in EVAL_AGG_KEYS)
+    """Canonical iff the primary aggregate eval key is present.
+
+    `eval/reward/eval/success` only exists under the current logging
+    prefix; old-schema runs use un-prefixed `eval/<task>/success`. This
+    one key is therefore the exact new-vs-old discriminator (§4.3).
+    """
+    return EVAL_AGG_KEYS[0] in history.columns
 
 
 def pull(
@@ -416,7 +421,7 @@ if TYPE_CHECKING:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_wandb_pull.py -v`
-Expected: PASS (5 passed)
+Expected: PASS (4 passed — 2 from A1 + 2 from A2)
 
 - [ ] **Step 5: Commit**
 
