@@ -130,6 +130,118 @@ def _zscore_v(df):
     return out
 
 
+def _bin_vz_grid(df, xmin, xmax, ymin, ymax, nbins):
+    """2D mean of df['Vz'] over an (nbins x nbins) cube-(x,y) grid;
+    cells with no samples are NaN. Returns (grid[ny,nx], x_edges,
+    y_edges). grid[j,i] = mean Vz for x-bin i, y-bin j."""
+    xe = np.linspace(xmin, xmax, nbins + 1)
+    ye = np.linspace(ymin, ymax, nbins + 1)
+    gx = np.clip(np.digitize(df["cube_x"], xe) - 1, 0, nbins - 1)
+    gy = np.clip(np.digitize(df["cube_y"], ye) - 1, 0, nbins - 1)
+    grid = np.full((nbins, nbins), np.nan)
+    tmp = pd.DataFrame({"gx": gx, "gy": gy, "Vz": df["Vz"].to_numpy()})
+    for (i, j), s in tmp.groupby(["gx", "gy"])["Vz"]:
+        grid[j, i] = float(s.mean())
+    return grid, xe, ye
+
+
+def _medoid_episode(df) -> int:
+    """Episode id whose per-step (cube_x,cube_y) path is closest (mean
+    L2) to the across-episode mean path (truncated to the shortest)."""
+    eps = sorted(df["episode"].unique())
+    paths = {e: df[df.episode == e][["cube_x", "cube_y"]].to_numpy()
+             for e in eps}
+    if not paths:
+        return -1
+    L = min(len(p) for p in paths.values())
+    if L == 0:
+        return eps[0]
+    stack = np.stack([paths[e][:L] for e in eps], axis=0)  # [E,L,2]
+    mean_path = stack.mean(axis=0)                          # [L,2]
+    dists = [float(np.linalg.norm(stack[k] - mean_path, axis=1).mean())
+             for k in range(len(eps))]
+    return int(eps[int(np.argmin(dists))])
+
+
+def _value_scene(cdir, gciql_root, fb_seed_root, scene_png, calib):
+    """Four {FB,GCIQL}x{success,transport_fail} translucent V heatmaps
+    over the shared top-down scene + medoid trajectory + a 2x2 montage.
+    Skipped (with a warning) if inputs are missing."""
+    import json
+
+    import matplotlib.image as mpimg
+    from evals.scene_calib import world_to_px
+
+    if not (Path(scene_png).exists() and Path(calib).exists()):
+        print("  [warn] _value_scene skipped (no scene/calib)")
+        return
+    cal = json.loads(Path(calib).read_text())
+    ws = cal["workspace"]
+    bg = mpimg.imread(str(scene_png))
+
+    def _seed_concat(rt, name):
+        if rt is None:
+            return None
+        fr = [pd.read_parquet(p)
+              for p in sorted(Path(rt).glob(f"s*_final/{name}.parquet"))]
+        return pd.concat(fr, ignore_index=True) if fr else None
+
+    sources = {"FB": _seed_concat(fb_seed_root, "value_steps"),
+               "GCIQL": _seed_concat(gciql_root, "value_steps")}
+    panels = []
+    for method, vs in sources.items():
+        if vs is None or "cube_x" not in vs.columns:
+            print(f"  [warn] _value_scene: no value_steps for {method}")
+            continue
+        vsz = _zscore_v(vs)
+        for oc in ("success", "transport_fail"):
+            sub = vsz[(vsz.outcome == oc) & (vsz.transport)]
+            fig, ax = plt.subplots(figsize=(5, 5))
+            ax.imshow(bg, extent=[0, cal["img_w"], cal["img_h"], 0])
+            ax.set_xlim(0, cal["img_w"]); ax.set_ylim(cal["img_h"], 0)
+            ax.axis("off")
+            title = f"{method} — {oc}"
+            if not sub.empty:
+                grid, xe, ye = _bin_vz_grid(
+                    sub, ws["xmin"], ws["xmax"], ws["ymin"], ws["ymax"],
+                    nbins=40)
+                p00 = world_to_px(ws["xmin"], ws["ymin"], cal)
+                p11 = world_to_px(ws["xmax"], ws["ymax"], cal)
+                ax.imshow(np.ma.masked_invalid(grid), origin="lower",
+                          extent=[p00[0], p11[0], p00[1], p11[1]],
+                          cmap="viridis", alpha=0.55, aspect="auto")
+                med = _medoid_episode(sub)
+                mp = sub[sub.episode == med]
+                pts = [world_to_px(x, y, cal) for x, y in
+                       zip(mp["cube_x"], mp["cube_y"])]
+                if pts:
+                    xs, ys = zip(*pts)
+                    ax.plot(xs, ys, "-", color="red", lw=2.0,
+                            label="medoid path")
+                    ax.scatter([xs[0]], [ys[0]], c="white",
+                               edgecolors="k", s=40, zorder=5)
+                ax.legend(loc="lower right", fontsize=7)
+            else:
+                title += " (no transport steps)"
+            ax.set_title(title, fontsize=9)
+            fig.tight_layout()
+            fp = cdir / f"cmp_scene_{method}_{oc}.png"
+            fig.savefig(fp, dpi=120)
+            plt.close(fig)
+            panels.append(fp)
+
+    if panels:
+        fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+        for axx, fp in zip(axes.ravel(), panels):
+            axx.imshow(mpimg.imread(str(fp)))
+            axx.axis("off")
+        for axx in list(axes.ravel())[len(panels):]:
+            axx.axis("off")
+        fig.tight_layout()
+        fig.savefig(cdir / "cmp_value_scene.png", dpi=120)
+        plt.close(fig)
+
+
 def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
                 g_verd, gciql_root=None, fb_seed_root=None) -> None:
     cdir.mkdir(parents=True, exist_ok=True)
@@ -270,6 +382,10 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
         "(value gradient, coverage, phase funnel); FB-specific "
         "z-decoding (T2) and B-resolution (T3) have no GCIQL analog.",
     ]))
+
+    _value_scene(cdir, gciql_root, fb_seed_root,
+                 REPO_ROOT / "analysis" / "scene" / "topdown.png",
+                 REPO_ROOT / "analysis" / "scene" / "calib.json")
 
 
 def main() -> None:
