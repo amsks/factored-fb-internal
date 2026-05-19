@@ -55,7 +55,9 @@ def test_episodes_to_frames_t1_t4_funnel():
     assert set(fun.columns) >= {"task", "episode", "furthest_phase",
                                 "outcome"}
     assert set(vs.columns) == {"task", "episode", "outcome", "d", "V",
-                               "transport"}
+                               "transport", "cube_x", "cube_y"}
+    assert vs["cube_x"].iloc[0] == eps[0]["cube"][0][0]
+    assert vs["cube_y"].iloc[0] == eps[0]["cube"][0][1]
     assert len(vs) == 6                       # one row per step
     assert vs["transport"].dtype == bool
 

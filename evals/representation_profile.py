@@ -113,10 +113,13 @@ def probe_value_landscape(model, agent, episodes, z):
         V = v_values(model, agent, obs, z)             # [T]
         d = np.asarray(ep["d"], np.float64)
         m = np.asarray(ep["transport_mask"], bool)
-        for dd, vv, mm in zip(d, V, m):
+        cube_xy = np.asarray(ep["cube"], np.float64).reshape(-1, 3)[:, :2]
+        for dd, vv, mm, cxy in zip(d, V, m, cube_xy):
             per_step_rows.append({"episode": i, "outcome": ep["outcome"],
                                   "d": float(dd), "V": float(vv),
-                                  "transport": bool(mm)})
+                                  "transport": bool(mm),
+                                  "cube_x": float(cxy[0]),
+                                  "cube_y": float(cxy[1])})
         n_t = int(m.sum())
         if (n_t >= 5 and np.ptp(d[m]) > 1e-9 and np.ptp(V[m]) > 1e-9):
             rho = _spearman(V[m], -d[m])

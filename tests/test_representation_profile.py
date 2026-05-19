@@ -128,6 +128,7 @@ def _fake_ep(outcome, d, v_at_d):
     return {
         "obs": obs, "action": np.zeros((max(T - 1, 0), 2), np.float32),
         "d": np.asarray(d, np.float64),
+        "cube": np.zeros((T, 3), np.float64),
         "transport_mask": np.ones(T, bool),
         "outcome": outcome, "length": T,
     }
@@ -149,6 +150,7 @@ def test_value_landscape_rho_success_vs_fail():
     assert s.loc["success"] > 0.99            # strictly monotone -> ~1
     assert np.isnan(s.loc["transport_fail"])  # flat V -> degenerate -> nan
     assert set(per_step.columns) >= {"outcome", "d", "V"}
+    assert {"cube_x", "cube_y"} <= set(per_step.columns)
 
 
 def test_value_landscape_rho_guard_short_episode():

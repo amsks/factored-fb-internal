@@ -82,14 +82,18 @@ def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
                         "grip": ep["grip"], "cube": ep["cube"],
                         "table_z": ep["table_z"],
                         "transport_mask": tm})
-        for dd, vv, mm in zip(d, V, tm):
+        cube_xy = np.asarray(ep["cube"], np.float64).reshape(-1, 3)[:, :2]
+        for dd, vv, mm, cxy in zip(d, V, tm, cube_xy):
             vs_rows.append({"task": ep["task"], "episode": ep["episode"],
                             "outcome": outcome, "d": float(dd),
-                            "V": float(vv), "transport": bool(mm)})
+                            "V": float(vv), "transport": bool(mm),
+                            "cube_x": float(cxy[0]),
+                            "cube_y": float(cxy[1])})
     cov = probe_coverage(cov_eps, ref_obs, thr)
     cov.insert(0, "task", episodes[0]["task"] if episodes else "")
     vs = pd.DataFrame(vs_rows, columns=["task", "episode", "outcome",
-                                        "d", "V", "transport"])
+                                        "d", "V", "transport",
+                                        "cube_x", "cube_y"])
     return (pd.DataFrame(vl_rows), cov, pd.DataFrame(fun_rows), vs)
 
 
