@@ -1,0 +1,7 @@
+# configs/gciql/storage/lustre_bigwork.yaml
+# @package _global_
+# Lustre-backed storage for GCIQL on the Slurm cluster.
+# Accessible from all compute nodes. One-time setup: make install-jax-bigwork
+jax_python: /bigwork/nhwpmoha/.venv-jax/bin/python
+output_root: /bigwork/nhwpmoha/Factored-FB/gciql_outputs
+ogbench_home_symlink: ~/.ogbench

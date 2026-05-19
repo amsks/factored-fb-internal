@@ -1,4 +1,4 @@
-.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql test-wandb-shim run-gciql run-gciql-state run-gciql-state-sweep smoke-gciql
+.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax install-jax-bigwork test-gciql test-wandb-shim run-gciql run-gciql-state run-gciql-state-sweep smoke-gciql
 
 # ── Installation ──────────────────────────────────────────────────────────── #
 
@@ -109,6 +109,14 @@ install-jax-shm:
 	@mkdir -p /dev/shm/ogbench_data /dev/shm/gciql_outputs
 	@test -e ~/.ogbench || ln -s /dev/shm/ogbench_data ~/.ogbench
 	@echo "[install-jax-shm] done (tmpfs; ephemeral on reboot). Verify: /dev/shm/.venv-jax/bin/python -c 'import jax; print(jax.devices())'"
+
+## Install isolated JAX venv on Lustre bigwork (accessible from all cluster nodes)
+install-jax-bigwork:
+	uv venv --python 3.11 /bigwork/nhwpmoha/.venv-jax
+	uv pip install --python /bigwork/nhwpmoha/.venv-jax/bin/python -r requirements-jax.txt
+	@mkdir -p /bigwork/nhwpmoha/ogbench_data /bigwork/nhwpmoha/Factored-FB/gciql_outputs
+	@test -e ~/.ogbench || ln -s /bigwork/nhwpmoha/ogbench_data ~/.ogbench
+	@echo "[install-jax-bigwork] done. Verify: /bigwork/nhwpmoha/.venv-jax/bin/python -c 'import jax; print(jax.devices())'"
 
 ## Install isolated JAX venv on NVMe at /mnt/scratch1 (run once per instance)
 install-jax:
