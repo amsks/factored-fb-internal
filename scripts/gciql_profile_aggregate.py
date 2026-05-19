@@ -145,6 +145,50 @@ def _bin_vz_grid(df, xmin, xmax, ymin, ymax, nbins):
     return grid, xe, ye
 
 
+def _phase_action_fields(df, grid, n_arrow: int = 12, n_min: int = 5):
+    """Pure: (Vz_grid, (U,V), counts) for one panel's rows.
+
+    `df` has columns episode,t,cube_x,cube_y,Vz (already filtered to one
+    task/method/outcome/region). `grid` = (x_edges, y_edges). Vz_grid is
+    the per-cell mean of Vz on the fine grid (NaN where empty). (U,V) is
+    a coarse `n_arrow x n_arrow` mean of per-step cube displacement
+    (NaN where < n_min samples). counts is the coarse sample count.
+    """
+    xe, ye = grid
+    nx, ny = len(xe) - 1, len(ye) - 1
+    vz = np.full((ny, nx), np.nan)
+    if not df.empty:
+        gx = np.clip(np.digitize(df["cube_x"], xe) - 1, 0, nx - 1)
+        gy = np.clip(np.digitize(df["cube_y"], ye) - 1, 0, ny - 1)
+        tmp = pd.DataFrame({"gx": gx, "gy": gy,
+                            "Vz": df["Vz"].to_numpy()})
+        for (i, j), s in tmp.groupby(["gx", "gy"])["Vz"]:
+            vz[j, i] = float(s.mean())
+
+    axe = np.linspace(xe[0], xe[-1], n_arrow + 1)
+    aye = np.linspace(ye[0], ye[-1], n_arrow + 1)
+    U = np.full((n_arrow, n_arrow), np.nan)
+    Vv = np.full((n_arrow, n_arrow), np.nan)
+    counts = np.zeros((n_arrow, n_arrow), int)
+    if not df.empty:
+        d = df.sort_values(["episode", "t"])
+        dx = d.groupby("episode")["cube_x"].diff().shift(-1)
+        dy = d.groupby("episode")["cube_y"].diff().shift(-1)
+        ok = dx.notna() & dy.notna()
+        cx, cy = d["cube_x"][ok], d["cube_y"][ok]
+        ai = np.clip(np.digitize(cx, axe) - 1, 0, n_arrow - 1)
+        aj = np.clip(np.digitize(cy, aye) - 1, 0, n_arrow - 1)
+        agg = pd.DataFrame({"ai": ai, "aj": aj,
+                            "dx": dx[ok].to_numpy(),
+                            "dy": dy[ok].to_numpy()})
+        for (i, j), s in agg.groupby(["ai", "aj"]):
+            counts[j, i] = len(s)
+            if len(s) >= n_min:
+                U[j, i] = float(s["dx"].mean())
+                Vv[j, i] = float(s["dy"].mean())
+    return vz, (U, Vv), counts
+
+
 def _medoid_episode(df) -> int:
     """Episode id whose per-step (cube_x,cube_y) path is closest (mean
     L2) to the across-episode mean path (truncated to the shortest)."""
