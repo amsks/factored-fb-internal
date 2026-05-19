@@ -246,14 +246,29 @@ class Augmentator(nn.Module):
 Run: `python -m pytest tests/test_drq_encoder.py tests/test_augmentator.py -q`
 Expected: PASS (8 passed)
 
-- [ ] **Step 6: Faithfulness diff (must be empty)**
+- [ ] **Step 6: Faithfulness check (per-class AST byte-compare — must be identical)**
 
-Run:
+Do NOT use a text-window `awk|sed`/`inspect.getsource` concatenation check — those
+yield false positives because PEP 8 blank lines *between* top-level classes are not
+part of any class's source. Use an authoritative per-class AST comparison:
 ```bash
-diff <(sed -n '329,409p' /home/adityamohan/git/baselines/td_jepa/metamotivo/nn_models.py) \
-     <(awk '/# Visual modules \(ported verbatim/{flag=1} flag' nn_models.py | sed -n '4,84p')
+.venv/bin/python - <<'EOF'
+import ast
+td=open("/home/adityamohan/git/baselines/td_jepa/metamotivo/nn_models.py").read()
+ours=open("nn_models.py").read()
+tt, ot = ast.parse(td), ast.parse(ours)
+def seg(tree, src, name):
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ClassDef) and n.name == name:
+            return ast.get_source_segment(src, n)
+ok=True
+for nm in ["DrQEncoderArchiConfig","DrQEncoder","AugmentatorArchiConfig","Augmentator"]:
+    same = seg(tt,td,nm) == seg(ot,ours,nm); ok &= same
+    print(nm, "byte-identical=", same)
+print("ALL FOUR BYTE-IDENTICAL:", ok)
+EOF
 ```
-Expected: empty diff for the class bodies (header comment lines differ — only the class definitions must match). If class bodies differ, fix to match td_jepa exactly.
+Expected: `ALL FOUR BYTE-IDENTICAL: True`. If any class differs, fix to match td_jepa exactly (do not edit the verbatim port to satisfy a broken check — only real content differences count).
 
 - [ ] **Step 7: Commit**
 
@@ -1135,20 +1150,32 @@ git commit -m "feat(gciql-pixel): runner script for visual-cube-single GCIQL"
 **Files:**
 - Create: `docs/superpowers/notes/2026-05-19-pixel-fb-faithfulness.md`
 
-- [ ] **Step 1: Run the entire test suite**
+- [ ] **Step 1: Run the pixel-FB suite + record the full suite**
 
-Run: `python -m pytest tests -q`
-Expected: PASS — all pre-existing tests plus the six new pixel test modules green. If any pre-existing test fails, investigate before proceeding (must not be a regression from Tasks 1-6).
+Run the in-scope tests: `.venv/bin/python -m pytest tests/test_drq_encoder.py tests/test_augmentator.py tests/test_pixel_data_loading.py tests/test_frame_stack_buffer.py tests/test_pixel_wiring.py tests/test_visual_cube_config.py tests/test_run_gciql_visual.py -q` — Expected: all green.
+Also run `.venv/bin/python -m pytest tests -q --continue-on-collection-errors 2>&1 | tail -20` for the record. NOTE: this repo has KNOWN pre-existing failures unrelated to this work — `tests/test_analysis.py`, `tests/test_phase_probe.py`, `tests/test_representation_profile.py` (FAIL) and `tests/test_paper_fragment.py`, `tests/test_plot_sweep.py`, `tests/test_wandb_pull.py` (collection ERROR), all due to missing third-party deps (e.g. `pandas`). These are NOT regressions and out of scope. Confirm every failure is one of those modules; if a pixel-FB test fails, that IS a regression — investigate.
 
-- [ ] **Step 2: Re-run the faithfulness diff and capture it**
+- [ ] **Step 2: Re-run the per-class AST faithfulness check (same as Task 1 Step 6)**
 
 Run:
 ```bash
-diff <(sed -n '329,409p' /home/adityamohan/git/baselines/td_jepa/metamotivo/nn_models.py) \
-     <(awk '/# Visual modules \(ported verbatim/{flag=1} flag' nn_models.py | sed -n '4,84p') \
-  && echo "DRQ/AUGMENTATOR: byte-identical"
+.venv/bin/python - <<'EOF'
+import ast
+td=open("/home/adityamohan/git/baselines/td_jepa/metamotivo/nn_models.py").read()
+ours=open("nn_models.py").read()
+tt, ot = ast.parse(td), ast.parse(ours)
+def seg(tree, src, name):
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ClassDef) and n.name == name:
+            return ast.get_source_segment(src, n)
+ok=True
+for nm in ["DrQEncoderArchiConfig","DrQEncoder","AugmentatorArchiConfig","Augmentator"]:
+    same = seg(tt,td,nm) == seg(ot,ours,nm); ok &= same
+    print(nm, "byte-identical=", same)
+print("ALL FOUR BYTE-IDENTICAL:", ok)
+EOF
 ```
-Expected: prints `DRQ/AUGMENTATOR: byte-identical`
+Expected: prints `ALL FOUR BYTE-IDENTICAL: True`
 
 - [ ] **Step 3: Write the faithfulness note**
 
