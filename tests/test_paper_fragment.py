@@ -45,12 +45,33 @@ def test_build_fragment(tmp_path):
     # self-contained, compilable LaTeX document
     assert "\\documentclass" in tex
     assert "\\begin{document}" in tex and "\\end{document}" in tex
-    assert tex.count("\\section") >= 4
     assert "\\includegraphics" in tex
     # tables embedded inline, not pulled from external files
     assert "\\begin{tabular}" in tex
     assert "\\input{" not in tex
     assert (base / "figures" / "value_vs_dist.png").exists()
+    # user's hand-restructured layout, reproduced by the generator
+    assert "\\section{Where and Why FB Fails on Cube Manipulation}" in tex
+    assert tex.count("\\subsection") >= 4
+    for sub in ("Experiment Design", "Methodology: Representation Probes",
+                "Results", "Discussion"):
+        assert sub in tex
+    # GCIQL comparison folded in when a comparison dir is supplied
+    gcmp = tmp_path / "gcmp"
+    gcmp.mkdir()
+    pd.DataFrame([{"method": "FB", "rho_success": 0.13,
+                   "rho_fail": 0.23, "T1_verdict": "WEAK"},
+                  {"method": "GCIQL", "rho_success": 0.4,
+                   "rho_fail": 0.05, "T1_verdict": "SUPPORTS"}]
+                 ).to_parquet(gcmp / "fb_vs_gciql.parquet")
+    (gcmp / "comparison.md").write_text(
+        "# cmp\n- FB ...\n- GCIQL ...")
+    (gcmp / "cmp_value_rho.png").write_bytes(b"\x89PNG")
+    pf.build_fragment(phase, repr_, tmp_path / "PAPER3", "x",
+                      gciql_cmp=gcmp)
+    t3 = (tmp_path / "PAPER3" / "x" / "fb_cube_failure.tex").read_text()
+    assert "FB vs GCIQL" in t3
+    assert "cmp_value_rho.png" in t3
     # missing optional figure handled, not crashed
     pf.build_fragment(phase, repr_, tmp_path / "PAPER2", "x",
                       figures=("nonexistent.png",))
