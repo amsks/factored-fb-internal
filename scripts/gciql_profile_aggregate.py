@@ -192,10 +192,15 @@ def _phase_action_fields(df, grid, n_arrow: int = 12, n_min: int = 5):
 def _cube_distribution_scatter(out_dir, gciql_root, fb_seed_root,
                                buffer_dir=None,
                                n_episodes_dataset: int = 500) -> None:
-    """One scatter PNG comparing cube xy distributions: offline dataset
-    (start/end per episode, blue light/dark) vs greedy rollouts under
-    each method (FB red, GCIQL green; light=start, dark=end). Answers
-    'is the policy operating inside the data manifold?'"""
+    """One scatter PNG comparing (state, goal) coverage between
+    training and evaluation. Training (offline play data): per-episode
+    cube xy at start (light blue) and end (dark blue) — these are the
+    (state, goal-reached) pairs the model saw. Evaluation: per-episode
+    cube xy at start (light orange) and the explicit task goal we hand
+    the policy (dark orange) — what we ASK the policy to do. We want
+    to see whether the eval (start, goal) pairs sit inside the
+    training (start, end) distribution."""
+    import json
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     buf = Path(buffer_dir or
@@ -214,54 +219,62 @@ def _cube_distribution_scatter(out_dir, gciql_root, fb_seed_root,
     ds_s = np.asarray(ds_s, float)
     ds_e = np.asarray(ds_e, float)
 
-    def _se(root):
-        s, e = [], []
+    def _eval_starts(root):
+        """Pooled cube xy at t=0 across all rollouts (methods, seeds,
+        tasks, episodes). Skips old-schema parquet."""
+        out = []
         if root is None:
-            return np.zeros((0, 2)), np.zeros((0, 2))
+            return np.zeros((0, 2))
         need = {"task", "episode", "t", "cube_x", "cube_y"}
         for p in sorted(Path(root).glob("s*_final/value_steps.parquet")):
             df = pd.read_parquet(p)
             if not need <= set(df.columns):
-                continue   # old-schema parquet -> skip this seed
+                continue
             df = df.sort_values(["task", "episode", "t"])
             for _, g in df.groupby(["task", "episode"]):
-                s.append(g.iloc[0][["cube_x", "cube_y"]].to_numpy())
-                e.append(g.iloc[-1][["cube_x", "cube_y"]].to_numpy())
-        return (np.asarray(s, float) if s else np.zeros((0, 2)),
-                np.asarray(e, float) if e else np.zeros((0, 2)))
+                out.append(g.iloc[0][["cube_x", "cube_y"]].to_numpy())
+        return np.asarray(out, float) if out else np.zeros((0, 2))
 
-    fb_s, fb_e = _se(fb_seed_root)
-    gc_s, gc_e = _se(gciql_root)
+    eval_starts = np.vstack([_eval_starts(gciql_root),
+                              _eval_starts(fb_seed_root)])
+    # Eval goals from env-extracted anchors (5 task targets).
+    sx = REPO_ROOT / "analysis" / "scene"
+    anchors_json = sx / "task_anchors.json"
+    eval_goals = []
+    if anchors_json.exists():
+        anc = json.loads(anchors_json.read_text())
+        eval_goals = [v["goal"] for v in anc.values() if "goal" in v]
+    eval_goals = (np.asarray(eval_goals, float)
+                  if eval_goals else np.zeros((0, 2)))
 
     fig, ax = plt.subplots(figsize=(8.5, 7.5))
-    ax.scatter(ds_s[:, 0], ds_s[:, 1], s=10, c="#9ecae1", alpha=0.5,
+    # training (state, end) pairs from offline data
+    ax.scatter(ds_s[:, 0], ds_s[:, 1], s=12, c="#9ecae1", alpha=0.55,
                edgecolors="none",
-               label=f"dataset start (n={len(ds_s)})")
-    ax.scatter(ds_e[:, 0], ds_e[:, 1], s=10, c="#08306b", alpha=0.6,
+               label=f"training: cube start (n={len(ds_s)})")
+    ax.scatter(ds_e[:, 0], ds_e[:, 1], s=12, c="#08306b", alpha=0.65,
                edgecolors="none",
-               label=f"dataset end (n={len(ds_e)})")
-    if len(fb_s):
-        ax.scatter(fb_s[:, 0], fb_s[:, 1], s=20, c="#fcae91", alpha=0.7,
-                   edgecolors="black", linewidths=0.4,
-                   label=f"FB rollout start (n={len(fb_s)})")
-        ax.scatter(fb_e[:, 0], fb_e[:, 1], s=20, c="#a50f15", alpha=0.7,
-                   edgecolors="black", linewidths=0.4,
-                   label=f"FB rollout end (n={len(fb_e)})")
-    if len(gc_s):
-        ax.scatter(gc_s[:, 0], gc_s[:, 1], s=20, c="#a1d99b", alpha=0.7,
-                   edgecolors="black", linewidths=0.4,
-                   label=f"GCIQL rollout start (n={len(gc_s)})")
-        ax.scatter(gc_e[:, 0], gc_e[:, 1], s=20, c="#005a32", alpha=0.7,
-                   edgecolors="black", linewidths=0.4,
-                   label=f"GCIQL rollout end (n={len(gc_e)})")
+               label=f"training: cube end (n={len(ds_e)})")
+    # evaluation (state, goal) pairs
+    if len(eval_starts):
+        ax.scatter(eval_starts[:, 0], eval_starts[:, 1], s=22,
+                   c="#fdae6b", alpha=0.85, edgecolors="black",
+                   linewidths=0.4,
+                   label=f"eval: cube start (n={len(eval_starts)})")
+    if len(eval_goals):
+        ax.scatter(eval_goals[:, 0], eval_goals[:, 1], s=180,
+                   c="#a63603", alpha=0.95, edgecolors="black",
+                   linewidths=1.2, marker="X",
+                   label=f"eval: task goal (n={len(eval_goals)})")
     ax.set_aspect("equal")
     ax.set_xlabel("cube x (m)")
     ax.set_ylabel("cube y (m)")
-    ax.set_title("Cube xy distribution: offline dataset vs greedy "
-                 "rollouts\n(do test states stay in the training "
-                 "manifold?)", fontsize=11)
+    ax.set_title("(state, goal) coverage: training data vs evaluation\n"
+                 "do eval (start, goal) pairs sit inside the training "
+                 "(start, end) distribution?",
+                 fontsize=11)
     ax.legend(loc="upper right", fontsize=8, framealpha=0.9,
-              markerscale=1.4)
+              markerscale=1.3)
     ax.grid(alpha=0.3)
     fig.tight_layout()
     fp = out_dir / "cube_distribution_scatter.png"
@@ -388,6 +401,15 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
             ylo, yhi = np.percentile(ys, [1, 99])
             px, py = 0.06 * (xhi - xlo), 0.06 * (yhi - ylo)
             xlo, xhi, ylo, yhi = xlo - px, xhi + px, ylo - py, yhi + py
+            # Square-pad so every panel is visually square (and the
+            # 4th column has the SAME axes/aspect as the phase panels).
+            xr, yr = xhi - xlo, yhi - ylo
+            if xr < yr:
+                pad = 0.5 * (yr - xr)
+                xlo, xhi = xlo - pad, xhi + pad
+            elif yr < xr:
+                pad = 0.5 * (xr - yr)
+                ylo, yhi = ylo - pad, yhi + pad
             xe = np.linspace(xlo, xhi, NBINS + 1)
             ye = np.linspace(ylo, yhi, NBINS + 1)
             ext = [xlo, xhi, ylo, yhi]
@@ -421,14 +443,15 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
             # 2 rows x 4 cols: cols 0-2 are phases; col 3 spans both
             # rows as a dedicated "offline dataset support" panel.
             fig = plt.figure(figsize=(20, 9.5))
-            gs = fig.add_gridspec(2, 4,
-                                  width_ratios=[1, 1, 1, 1.05],
+            gs = fig.add_gridspec(2, 4, width_ratios=[1, 1, 1, 1],
                                   wspace=0.06, hspace=0.10)
             axes = np.empty((2, 3), dtype=object)
             for rr in range(2):
                 for cc in range(3):
                     axes[rr, cc] = fig.add_subplot(gs[rr, cc])
-            ax_data = fig.add_subplot(gs[:, 3])
+            # Single cell for the data-support panel (same size as a
+            # phase panel). gs[1, 3] is intentionally left blank.
+            ax_data = fig.add_subplot(gs[0, 3])
             for r, oc in enumerate(("success", "transport_fail")):
                 for c, (rg, lbl) in enumerate(REGIONS):
                     ax = axes[r, c]
@@ -471,9 +494,6 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                                    marker="*", s=520, c="gold",
                                    edgecolors="black", linewidths=1.6,
                                    zorder=7, label="goal")
-                    ax.contour(kx, ky, kz, levels=[0.15, 0.6],
-                               colors="0.45", linewidths=0.7,
-                               alpha=0.6, zorder=1)
                     if n < 5:
                         continue
                     a = 0.35 if low else 1.0
@@ -521,43 +541,39 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                                   scale=NARROW * 1.1, width=0.007,
                                   headwidth=4, zorder=4, pivot="mid")
             # ---- 4th column: dataset-support reference panel -----
-            # Use the dataset's own full extent so the support reads
-            # clearly (independent of the rollouts' tighter extent).
-            dx_lo, dx_hi = np.percentile(support_xy[:, 0], [0.5, 99.5])
-            dy_lo, dy_hi = np.percentile(support_xy[:, 1], [0.5, 99.5])
-            dpx = 0.05 * (dx_hi - dx_lo)
-            dpy = 0.05 * (dy_hi - dy_lo)
-            dx_lo, dx_hi = dx_lo - dpx, dx_hi + dpx
-            dy_lo, dy_hi = dy_lo - dpy, dy_hi + dpy
-            ax_data.set_xlim(dx_lo, dx_hi)
-            ax_data.set_ylim(dy_lo, dy_hi)
+            # Use the SAME extent as the phase panels so axes are
+            # directly comparable (no transposed/portrait artifact).
+            ax_data.set_xlim(xlo, xhi)
+            ax_data.set_ylim(ylo, yhi)
             ax_data.set_aspect("equal")
             ax_data.set_xticks([])
             ax_data.set_yticks([])
             if bg_img is not None:
                 ax_data.imshow(bg_img,
-                               extent=[dx_lo, dx_hi, dy_lo, dy_hi],
+                               extent=[xlo, xhi, ylo, yhi],
                                aspect="auto", zorder=0,
                                interpolation="bilinear")
             else:
                 ax_data.set_facecolor("0.92")
-            # KDE evaluated on the data-extent grid
-            kxd = np.linspace(dx_lo, dx_hi, 80)
-            kyd = np.linspace(dy_lo, dy_hi, 80)
-            kzd = support_kde(support_xy, kxd, kyd)
-            # raw dataset cube xy scatter (subsample for clarity)
-            n_sub = min(8000, len(support_xy))
-            idx = np.random.default_rng(0).choice(
-                len(support_xy), n_sub, replace=False)
-            ax_data.scatter(support_xy[idx, 0], support_xy[idx, 1],
-                            s=2.0, c="#ffd86e", alpha=0.18, zorder=1,
-                            linewidths=0)
-            # filled KDE region + iso-lines on the data extent
-            ax_data.contourf(kxd, kyd, kzd,
+            # raw dataset cube xy scatter clipped to the phase extent
+            in_ext = ((support_xy[:, 0] >= xlo)
+                      & (support_xy[:, 0] <= xhi)
+                      & (support_xy[:, 1] >= ylo)
+                      & (support_xy[:, 1] <= yhi))
+            sup_clip = support_xy[in_ext]
+            n_sub = min(8000, len(sup_clip))
+            if n_sub:
+                idx = np.random.default_rng(0).choice(
+                    len(sup_clip), n_sub, replace=False)
+                ax_data.scatter(sup_clip[idx, 0], sup_clip[idx, 1],
+                                s=2.0, c="#ffd86e", alpha=0.18,
+                                zorder=1, linewidths=0)
+            # filled KDE region + iso-lines on the phase-panel grid
+            ax_data.contourf(kx, ky, kz,
                              levels=[0.10, 0.30, 0.60, 1.01],
                              colors=["#f0c0a0", "#e89060", "#d05050"],
                              alpha=0.45, zorder=2)
-            ax_data.contour(kxd, kyd, kzd, levels=[0.15, 0.6],
+            ax_data.contour(kx, ky, kz, levels=[0.15, 0.6],
                             colors="white", linewidths=1.2,
                             alpha=0.9, zorder=3)
             # task reference markers (env anchors)
