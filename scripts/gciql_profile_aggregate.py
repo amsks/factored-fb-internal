@@ -216,6 +216,24 @@ def _decode_support_xy(gciql_root, fb_seed_root):
     return xy
 
 
+def _nan_gaussian(grid, sigma: float = 1.0):
+    """NaN-aware Gaussian smooth: empty cells stay NaN, occupied cells
+    are blurred using only finite neighbours (renders a continuous
+    field instead of confetti)."""
+    from scipy.ndimage import gaussian_filter
+
+    g = np.asarray(grid, float)
+    m = np.isfinite(g)
+    if not m.any():
+        return np.full_like(g, np.nan)
+    filled = np.where(m, g, 0.0)
+    num = gaussian_filter(filled, sigma, mode="nearest")
+    den = gaussian_filter(m.astype(float), sigma, mode="nearest")
+    # paint only where enough finite mass diffused in (keeps the field
+    # near the data, not smeared across empty workspace)
+    return np.where(den > 1e-3, num / np.maximum(den, 1e-9), np.nan)
+
+
 REGIONS = [("reach", "approach"), ("lift", "contact"),
            ("transport", "transport")]
 
@@ -236,12 +254,7 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
     """10 figures (task x method); rows {success,transport_fail}, cols
     {approach,contact,transport}. Pure data + matplotlib; no model
     loading. Skips a method with no value_steps (warns)."""
-    import json
-
-    import matplotlib.image as mpimg
-
     from evals.dataset_support import support_kde
-    from evals.scene_calib import world_to_px
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -265,74 +278,101 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
     tasks = tasks or sorted(
         set().union(*[set(v["task"].unique()) for v in src.values()]))
 
-    sx = REPO_ROOT / "analysis" / "scene"
-    scene_png, calib = sx / "topdown.png", sx / "calib.json"
-    have_scene = scene_png.exists() and calib.exists()
-    if have_scene:
-        cal = json.loads(calib.read_text())
-        ws = cal["workspace"]
-        bg = mpimg.imread(str(scene_png))
-
     support_xy = _decode_support_xy(gciql_root, fb_seed_root)
+    NBINS, NARROW, LOW_N = 16, 10, 30
     written = []
     for task in tasks:
         for method, vs in src.items():
             sub_all = vs[vs.task == task]
             if sub_all.empty:
                 continue
-            mu = sub_all["V"].mean()
-            sd = sub_all["V"].std(ddof=0)
-            sd = sd if sd > 1e-9 else 1.0
-            fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+            # shared world extent for all 6 panels (data-driven, robust)
+            xs, ys = sub_all["cube_x"], sub_all["cube_y"]
+            xlo, xhi = np.percentile(xs, [1, 99])
+            ylo, yhi = np.percentile(ys, [1, 99])
+            px, py = 0.06 * (xhi - xlo), 0.06 * (yhi - ylo)
+            xlo, xhi, ylo, yhi = xlo - px, xhi + px, ylo - py, yhi + py
+            xe = np.linspace(xlo, xhi, NBINS + 1)
+            ye = np.linspace(ylo, yhi, NBINS + 1)
+            ext = [xlo, xhi, ylo, yhi]
+            # per-task goal proxy: mean cube xy of success states whose
+            # cube->goal distance d is in its lowest 5% (cube at goal)
+            succ = sub_all[sub_all.outcome == "success"]
+            if not succ.empty:
+                thr = np.percentile(succ["d"], 5)
+                at_goal = succ[succ["d"] <= thr]
+                goal_xy = (float(at_goal["cube_x"].mean()),
+                           float(at_goal["cube_y"].mean()))
+            else:
+                goal_xy = None
+            kx = 0.5 * (xe[:-1] + xe[1:])
+            ky = 0.5 * (ye[:-1] + ye[1:])
+            kz = support_kde(support_xy, kx, ky)
+
+            fig, axes = plt.subplots(2, 3, figsize=(15, 9.5))
             for r, oc in enumerate(("success", "transport_fail")):
                 for c, (rg, lbl) in enumerate(REGIONS):
                     ax = axes[r, c]
                     d = sub_all[(sub_all.outcome == oc)
-                                & (sub_all.region == rg)].copy()
-                    d["Vz"] = (d["V"] - mu) / sd
-                    if have_scene:
-                        ax.imshow(bg, extent=[0, cal["img_w"],
-                                              cal["img_h"], 0])
-                        ax.set_xlim(0, cal["img_w"])
-                        ax.set_ylim(cal["img_h"], 0)
-                        xe = np.linspace(ws["xmin"], ws["xmax"], 41)
-                        ye = np.linspace(ws["ymin"], ws["ymax"], 41)
-                    else:
-                        xe = np.linspace(-0.5, 0.5, 41)
-                        ye = np.linspace(-0.5, 0.5, 41)
-                    ax.axis("off")
-                    ax.set_title(f"{oc} — {lbl} (n={len(d)})",
-                                 fontsize=9)
-                    if len(d) < 5:
+                                & (sub_all.region == rg)]
+                    n = len(d)
+                    low = n < LOW_N
+                    ax.set_xlim(xlo, xhi)
+                    ax.set_ylim(ylo, yhi)
+                    ax.set_aspect("equal")
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    tag = f"{oc} — {lbl} (n={n}{', low' if low else ''})"
+                    ax.set_title(tag, fontsize=9,
+                                 color="grey" if low else "black")
+                    if goal_xy is not None:
+                        ax.scatter([goal_xy[0]], [goal_xy[1]],
+                                   marker="*", s=240, c="gold",
+                                   edgecolors="k", zorder=6)
+                    ax.contour(kx, ky, kz, levels=[0.15, 0.6],
+                               colors="0.45", linewidths=0.7,
+                               alpha=0.6, zorder=1)
+                    if n < 5:
                         continue
-                    vz, (U, Vv), _ = _phase_action_fields(d, (xe, ye))
-                    if have_scene:
-                        p00 = world_to_px(ws["xmin"], ws["ymin"], cal)
-                        p11 = world_to_px(ws["xmax"], ws["ymax"], cal)
-                        ext = [p00[0], p11[0], p00[1], p11[1]]
-                    else:
-                        ext = [xe[0], xe[-1], ye[0], ye[-1]]
-                    ax.imshow(np.ma.masked_invalid(vz), origin="lower",
-                              extent=ext, cmap="viridis", alpha=0.55,
-                              aspect="auto")
-                    kx = 0.5 * (xe[:-1] + xe[1:])
-                    ky = 0.5 * (ye[:-1] + ye[1:])
-                    kz = support_kde(support_xy, kx, ky)
-                    ax.contour(
-                        np.linspace(ext[0], ext[1], len(kx)),
-                        np.linspace(ext[2], ext[3], len(ky)),
-                        kz, levels=[0.2, 0.5, 0.8],
-                        colors="grey", linewidths=0.6, alpha=0.7)
-                    ac = np.linspace(ext[0], ext[1], U.shape[1])
-                    ar = np.linspace(ext[2], ext[3], U.shape[0])
+                    a = 0.35 if low else 1.0
+                    vz, (U, Vv), cnt = _phase_action_fields(
+                        d.assign(Vz=d["V"]), (xe, ye), n_arrow=NARROW,
+                        n_min=5)
+                    vz = _nan_gaussian(vz, sigma=1.0)
+                    fin = np.isfinite(vz)
+                    if fin.any():
+                        lo, hi = np.percentile(vz[fin], [2, 98])
+                        if hi - lo < 1e-9:
+                            hi = lo + 1.0
+                        ax.imshow(np.ma.masked_invalid(vz),
+                                  origin="lower", extent=ext,
+                                  cmap="viridis", vmin=lo, vmax=hi,
+                                  alpha=a, zorder=2, aspect="auto")
+                    # unit-normalized arrows, colored by displacement
+                    ac = 0.5 * (np.linspace(xlo, xhi, NARROW + 1)[:-1]
+                                + np.linspace(xlo, xhi,
+                                               NARROW + 1)[1:])
+                    ar = 0.5 * (np.linspace(ylo, yhi, NARROW + 1)[:-1]
+                                + np.linspace(ylo, yhi,
+                                               NARROW + 1)[1:])
                     AX, AY = np.meshgrid(ac, ar)
-                    ax.quiver(AX, AY, U, -Vv, color="red",
-                              scale=2.0, width=0.004)
-            fig.suptitle(f"{task} — {method}: phase value/action "
-                         f"fields", fontsize=13)
+                    mag = np.hypot(U, Vv)
+                    ok = np.isfinite(mag) & (mag > 0)
+                    if ok.any():
+                        un = np.where(ok, U / np.maximum(mag, 1e-9),
+                                      np.nan)
+                        vn = np.where(ok, Vv / np.maximum(mag, 1e-9),
+                                      np.nan)
+                        ax.quiver(AX[ok], AY[ok], un[ok], vn[ok],
+                                  color="white", edgecolor="black",
+                                  linewidth=0.5, alpha=a,
+                                  scale=NARROW * 1.1, width=0.007,
+                                  headwidth=4, zorder=4, pivot="mid")
+            fig.suptitle(f"{task} — {method}: phase-conditioned value "
+                         f"& action fields", fontsize=13)
             fig.tight_layout()
             fp = out_dir / f"{task}__{method}.png"
-            fig.savefig(fp, dpi=120)
+            fig.savefig(fp, dpi=125)
             plt.close(fig)
             written.append(fp.name)
     (out_dir / "_index.md").write_text(
