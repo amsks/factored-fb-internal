@@ -130,8 +130,13 @@ bodies vs td_jepa source.
 
 ## Risks & mitigations
 
-- **Image size:** td_jepa OGBench pixel uses 64×64; config asserts
-  `render_height == render_width == 64`.
+- **Image size:** td_jepa OGBench pixel uses 64×64. Guaranteed *by default*,
+  not by assertion: `create_ogbench_env` defaults `render_height=render_width=64`
+  and `train.py` never overrides them, so the pixel path always renders 64×64.
+  (`DrQEncoder.repr_dim` is computed dynamically, so a future caller that
+  overrides render size would silently train at another resolution rather than
+  fail fast — an explicit assert is a recommended follow-up if render size ever
+  becomes configurable.)
 - **Buffer divergence:** repo `DictBuffer` ≠ td_jepa `ParallelBuffer`; we port only the
   frame-stack sampling math, not the parallel-fetch machinery — intentional deviation,
   behaviorally equivalent for offline data, documented.
