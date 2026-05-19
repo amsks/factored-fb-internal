@@ -45,8 +45,8 @@ def test_episodes_to_frames_t1_t4_funnel():
     grip = [1.0] * 6
     cube_z = [0.20] * 6                    # lifted (table_z 0.02)
     eps = [_ep("success", d, v, grip, cube_z)]
-    vl, cov, fun = gp.episodes_to_frames(eps, Thresholds(),
-                                         ref_obs=np.zeros((10, 4)))
+    vl, cov, fun, vs = gp.episodes_to_frames(eps, Thresholds(),
+                                             ref_obs=np.zeros((10, 4)))
     assert set(vl.columns) >= {"task", "episode", "outcome",
                                "rho_V_negd", "n_transport_steps"}
     assert vl.iloc[0]["rho_V_negd"] > 0.99
@@ -54,6 +54,10 @@ def test_episodes_to_frames_t1_t4_funnel():
     assert set(cov.columns) >= {"task", "outcome", "region", "nn_dist"}
     assert set(fun.columns) >= {"task", "episode", "furthest_phase",
                                 "outcome"}
+    assert set(vs.columns) == {"task", "episode", "outcome", "d", "V",
+                               "transport"}
+    assert len(vs) == 6                       # one row per step
+    assert vs["transport"].dtype == bool
 
 
 def test_episodes_to_frames_attributes_transport_fail_with_real_eff():
@@ -73,8 +77,8 @@ def test_episodes_to_frames_attributes_transport_fail_with_real_eff():
         "goal": np.array([0.0, 0.0, 0.02]),
         "success": False, "task": "task1", "episode": 0,
     }
-    vl, _, fun = gp.episodes_to_frames([ep], Thresholds(),
-                                       ref_obs=np.zeros((10, 4)))
+    vl, _, fun, _ = gp.episodes_to_frames([ep], Thresholds(),
+                                          ref_obs=np.zeros((10, 4)))
     assert vl.iloc[0]["outcome"] == "transport_fail"
     assert fun.iloc[0]["furthest_phase"] == "transport"
 
