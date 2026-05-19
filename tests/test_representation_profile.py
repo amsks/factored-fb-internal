@@ -131,6 +131,7 @@ def _fake_ep(outcome, d, v_at_d):
         "cube": np.zeros((T, 3), np.float64),
         "transport_mask": np.ones(T, bool),
         "grip": np.ones(T, np.float64),   # real episodes always carry grip
+        "eff": np.zeros((T, 3), np.float64),  # and eff
         "outcome": outcome, "length": T,
     }
 
@@ -372,6 +373,9 @@ def test_probe_value_landscape_emits_t_and_region(monkeypatch):
         "cube": np.column_stack([np.linspace(0, 0.2, T), np.zeros(T),
                                  np.array([0.02, 0.02, 0.02,
                                            0.10, 0.10])]),
+        "eff": np.column_stack([np.linspace(0.1, 0.3, T),
+                                np.linspace(-0.1, 0.1, T),
+                                np.full(T, 0.4)]),
         "table_z": 0.02,
         "outcome": "success",
     }
@@ -382,3 +386,5 @@ def test_probe_value_landscape_emits_t_and_region(monkeypatch):
     assert list(per_step["t"]) == list(range(T))
     assert list(per_step["region"]) == ["reach", "reach", "lift",
                                         "transport", "transport"]
+    assert {"eef_x", "eef_y"} <= set(per_step.columns)
+    assert float(per_step.iloc[0]["eef_x"]) == 0.1

@@ -56,7 +56,7 @@ def test_episodes_to_frames_t1_t4_funnel():
                                 "outcome"}
     assert set(vs.columns) == {"task", "episode", "t", "outcome",
                                "region", "d", "V", "transport",
-                               "cube_x", "cube_y"}
+                               "cube_x", "cube_y", "eef_x", "eef_y"}
     assert vs["cube_x"].iloc[0] == eps[0]["cube"][0][0]
     assert vs["cube_y"].iloc[0] == eps[0]["cube"][0][1]
     assert len(vs) == 6                       # one row per step
@@ -273,3 +273,7 @@ def test_episodes_to_frames_emits_t_and_region():
     assert set(vs["region"]) <= {"reach", "lift", "transport"}
     assert list(vs["region"]) == ["reach", "reach", "lift",
                                   "transport", "transport", "transport"]
+    # eef_x/eef_y persisted from ep["eff"][:, :2]
+    assert set({"eef_x", "eef_y"}) <= set(vs.columns)
+    assert float(vs.iloc[0]["eef_x"]) == 0.0
+    assert float(vs.iloc[0]["eef_y"]) == 0.0
