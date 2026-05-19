@@ -238,6 +238,7 @@ def main(cfg: DictConfig) -> None:
         n_episodes=cfg.eval_n_episodes,
         shift_reward=cfg.eval_shift_reward,
         obs_type=cfg.obs_type,
+        frame_stack=cfg.get("frame_stack", 1),
         seed=cfg.seed,
         device=cfg.device,
         save_videos=cfg.save_eval_videos,
