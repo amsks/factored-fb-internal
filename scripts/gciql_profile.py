@@ -111,7 +111,8 @@ def _load_ref_obs(dataset_path: str, max_n: int = 5000) -> np.ndarray:
     obs = []
     for f in files:
         with np.load(f) as z:
-            key = "observations" if "observations" in z else "obs"
+            key = ("observation" if "observation" in z
+                   else "observations" if "observations" in z else "obs")
             obs.append(np.asarray(z[key], np.float32))
     arr = np.concatenate(obs, 0) if obs else np.zeros((1, 1), np.float32)
     if len(arr) > max_n:
@@ -128,7 +129,7 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
     if str(ogb_impls) not in sys.path:
         sys.path.insert(0, str(ogb_impls))
     import ogbench  # vendored
-    from agents.gciql import GCIQLAgent
+    from agents.gciql import GCIQLAgent, get_config
     from utils.flax_utils import restore_agent
     import jax
 
@@ -136,44 +137,51 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
     episodes: List[Dict[str, Any]] = []
     for task_id in task_ids:
         env = ogbench.make_env_and_datasets(
-            flags["env_name"], compact_dataset=True, env_only=True) \
-            if hasattr(ogbench, "make_env_and_datasets") else \
-            ogbench.make_env(flags["env_name"])
+            flags["env_name"], env_only=True)
         ex_obs, info = env.reset(options=dict(task_id=task_id))
-        goal = info["goal"]
         ex_act = env.action_space.sample()
         agent = GCIQLAgent.create(
             flags["seed"],
-            np.asarray(ex_obs)[None],
-            np.asarray(goal)[None],
-            np.asarray(ex_act)[None],
-            GCIQLAgent.get_config(),
+            np.asarray(ex_obs, np.float32)[None],
+            np.asarray(ex_act, np.float32)[None],
+            get_config(),
         )
         agent = restore_agent(agent, str(run_dir), step)
-        value_fn = jax.jit(lambda o, g: agent.network.select("value")(
-            o[None], g[None])[0])
+
+        @jax.jit
+        def _value(o, g):
+            return agent.network.select("value")(o[None], g[None])[0]
+
+        rng = jax.random.PRNGKey(0)
         for ep_i in range(n_episodes):
             obs, info = env.reset(options=dict(task_id=task_id))
             goal = info["goal"]
-            O, A, EFF, CUBE, GRIP, VV, D = [], [], [], [], [], [], []
+            u = env.unwrapped
+            tb = int(getattr(u, "_target_block", 0) or 0)
+            gxyz = np.asarray(u.cur_task_info["goal_xyzs"][tb], np.float64)
+            table_z = float(u.cur_task_info["init_xyzs"][tb][2])
+            O, EFF, CUBE, GRIP, VV, D = [], [], [], [], [], []
             succ = False
             for _ in range(max_steps):
+                rng, key = jax.random.split(rng)
                 a = np.asarray(agent.sample_actions(
-                    observations=np.asarray(obs), goals=np.asarray(goal),
-                    temperature=0.0))
-                v = float(np.asarray(value_fn(
+                    observations=np.asarray(obs, np.float32),
+                    goals=np.asarray(goal, np.float32),
+                    seed=key, temperature=0.0))
+                a = np.clip(a, -1.0, 1.0)
+                v = float(np.asarray(_value(
                     np.asarray(obs, np.float32),
                     np.asarray(goal, np.float32))))
                 obs, _, term, trunc, info = env.step(a)
-                eff = np.asarray(info["proprio/effector_pos"], np.float64)
                 cube = np.asarray(info["privileged/block_0_pos"],
                                   np.float64)
                 grip = float(np.asarray(
                     info["proprio/gripper_opening"]).reshape(-1)[0])
-                gxyz = np.asarray(info.get("privileged/target_block_pos",
-                                           cube), np.float64)
-                O.append(np.asarray(obs, np.float32)); A.append(a)
-                EFF.append(eff); CUBE.append(cube); GRIP.append(grip)
+                O.append(np.asarray(obs, np.float32))
+                EFF.append(np.asarray(info["proprio/effector_pos"],
+                                      np.float64))
+                CUBE.append(cube)
+                GRIP.append(grip)
                 VV.append(v)
                 D.append(float(np.linalg.norm(cube - gxyz)))
                 succ = succ or bool(info.get("success", False))
@@ -184,7 +192,7 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
                 "d": np.asarray(D), "V": np.asarray(VV),
                 "grip": np.asarray(GRIP),
                 "cube": np.asarray(CUBE),
-                "table_z": float(CUBE[0][2]) if CUBE else 0.02,
+                "table_z": table_z,
                 "success": succ,
                 "task": f"task{task_id}", "episode": ep_i})
         env.close()
