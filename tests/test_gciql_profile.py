@@ -172,6 +172,20 @@ def _seed_steps(_P, root, s, outcome, n=8):
          "outcome": outcome}]))
 
 
+def test_zscore_v_is_per_call_standardised_and_order_preserving():
+    import numpy as np
+    from scripts.gciql_profile_aggregate import _zscore_v
+    df = pd.DataFrame({"V": [2000.0, 2100.0, 1900.0, 2050.0, 1950.0]})
+    out = _zscore_v(df)
+    assert abs(float(out["Vz"].mean())) < 1e-9
+    assert abs(float(out["Vz"].std(ddof=0)) - 1.0) < 1e-9
+    # rank order preserved (so the curve shape is unchanged, only scale)
+    assert list(out["Vz"].rank()) == list(df["V"].rank())
+    # constant V -> all zeros, no div-by-zero
+    z0 = _zscore_v(pd.DataFrame({"V": [5.0, 5.0, 5.0]}))
+    assert (z0["Vz"] == 0.0).all()
+
+
 def test_comparison_emits_four_plots(tmp_path):
     import importlib
     agg = importlib.import_module("scripts.gciql_profile_aggregate")
