@@ -62,3 +62,53 @@ def test_build_argparser_has_required_flags():
         "--dataset-path", "datasets/cube-single-play-v0"])
     assert ns.run_dir == "/x/sd001" and ns.step == 1000000
     assert ns.tasks == "1,2,3" and ns.n_episodes == 4
+
+
+def _seed_dir(root, s):
+    d = root / f"s{s}_final"
+    d.mkdir(parents=True)
+    pd.DataFrame([
+        {"task": "task1", "episode": 0, "outcome": "success",
+         "rho_V_negd": 0.6, "V_at_secure": 0.1, "V_at_end": 0.9,
+         "n_transport_steps": 6},
+        {"task": "task1", "episode": 1, "outcome": "transport_fail",
+         "rho_V_negd": 0.0, "V_at_secure": 0.5, "V_at_end": 0.5,
+         "n_transport_steps": 6},
+    ]).to_parquet(d / "value_landscape.parquet")
+    pd.DataFrame([
+        {"task": "task1", "outcome": "transport_fail",
+         "region": "transport", "nn_dist": 3.0},
+        {"task": "task1", "outcome": "success",
+         "region": "transport", "nn_dist": 1.0}],
+    ).to_parquet(d / "coverage.parquet")
+    pd.DataFrame([
+        {"task": "task1", "episode": 0, "furthest_phase": "success",
+         "outcome": "success"},
+        {"task": "task1", "episode": 1, "furthest_phase": "transport",
+         "outcome": "transport_fail"}],
+    ).to_parquet(d / "phase_funnel.parquet")
+
+
+def test_gciql_aggregate_and_comparison(tmp_path):
+    import importlib
+    agg = importlib.import_module("scripts.gciql_profile_aggregate")
+    groot = tmp_path / "gciql"
+    for s in (1, 2):
+        _seed_dir(groot, s)
+    # synthetic FB aggregate for the comparison
+    fbagg = tmp_path / "fb_aggregate"
+    fbagg.mkdir(parents=True)
+    pd.DataFrame([
+        {"task": "task1", "outcome": "success", "rho_V_negd": 0.13},
+        {"task": "task1", "outcome": "transport_fail",
+         "rho_V_negd": 0.23}]).to_parquet(
+        fbagg / "T1_value_gradient.parquet")
+    out = tmp_path / "gagg"
+    agg.aggregate(groot, out, fb_aggregate=fbagg)
+    assert (out / "story.md").exists()
+    assert (out / "T1_value_gradient.parquet").exists()
+    cmp = out / "comparison"
+    assert (cmp / "fb_vs_gciql.parquet").exists()
+    assert (cmp / "comparison.md").exists()
+    txt = (cmp / "comparison.md").read_text()
+    assert "FB" in txt and "GCIQL" in txt
