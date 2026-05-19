@@ -254,10 +254,22 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
     """10 figures (task x method); rows {success,transport_fail}, cols
     {approach,contact,transport}. Pure data + matplotlib; no model
     loading. Skips a method with no value_steps (warns)."""
+    import json
+
+    import matplotlib.image as mpimg
+
     from evals.dataset_support import support_kde
 
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    sx = REPO_ROOT / "analysis" / "scene"
+    scene_png, calib_json = sx / "topdown.png", sx / "calib.json"
+    bg_img = None
+    if scene_png.exists() and calib_json.exists():
+        cal = json.loads(calib_json.read_text())
+        if cal.get("photoreal"):
+            bg_img = mpimg.imread(str(scene_png))
 
     def _seed_concat(rt):
         if rt is None:
@@ -322,6 +334,12 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                     ax.set_aspect("equal")
                     ax.set_xticks([])
                     ax.set_yticks([])
+                    if bg_img is not None:
+                        ax.imshow(bg_img, extent=[xlo, xhi, ylo, yhi],
+                                  aspect="auto", zorder=0,
+                                  interpolation="bilinear")
+                    else:
+                        ax.set_facecolor("0.92")
                     tag = f"{oc} — {lbl} (n={n}{', low' if low else ''})"
                     ax.set_title(tag, fontsize=9,
                                  color="grey" if low else "black")
@@ -347,7 +365,9 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                         ax.imshow(np.ma.masked_invalid(vz),
                                   origin="lower", extent=ext,
                                   cmap="viridis", vmin=lo, vmax=hi,
-                                  alpha=a, zorder=2, aspect="auto")
+                                  alpha=0.7 * a, zorder=2,
+                                  aspect="auto",
+                                  interpolation="bilinear")
                     # unit-normalized arrows, colored by displacement
                     ac = 0.5 * (np.linspace(xlo, xhi, NARROW + 1)[:-1]
                                 + np.linspace(xlo, xhi,
