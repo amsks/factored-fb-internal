@@ -130,6 +130,7 @@ def _fake_ep(outcome, d, v_at_d):
         "d": np.asarray(d, np.float64),
         "cube": np.zeros((T, 3), np.float64),
         "transport_mask": np.ones(T, bool),
+        "grip": np.ones(T, np.float64),   # real episodes always carry grip
         "outcome": outcome, "length": T,
     }
 
@@ -357,3 +358,27 @@ def test_aggregate_verdict_helpers():
     syn = agg._synthesis({"T1": ("SUPPORTS", ""), "T2": ("SUPPORTS", ""),
                            "T3": ("WEAK", ""), "T4": ("NEUTRAL", "")})
     assert "T1" in syn and "T2" in syn and syn.startswith("Synthesis:")
+
+
+def test_probe_value_landscape_emits_t_and_region(monkeypatch):
+    from evals.phase_probe import Thresholds
+
+    T = 5
+    ep = {
+        "obs": np.zeros((T, 3), np.float32),
+        "d": np.linspace(1.0, 0.1, T),
+        "transport_mask": np.array([False, False, False, True, True]),
+        "grip": np.array([0.0, 0.0, 0.9, 0.9, 0.9]),
+        "cube": np.column_stack([np.linspace(0, 0.2, T), np.zeros(T),
+                                 np.array([0.02, 0.02, 0.02,
+                                           0.10, 0.10])]),
+        "table_z": 0.02,
+        "outcome": "success",
+    }
+    monkeypatch.setattr(rp, "v_values",
+                         lambda *a, **k: np.linspace(0.0, 1.0, T))
+    _, per_step = rp.probe_value_landscape(None, None, [ep], None,
+                                           thr=Thresholds())
+    assert list(per_step["t"]) == list(range(T))
+    assert list(per_step["region"]) == ["reach", "reach", "lift",
+                                        "transport", "transport"]

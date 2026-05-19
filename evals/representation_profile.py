@@ -20,6 +20,7 @@ from evals._profile_core import (  # noqa: E402  (re-exported for callers)
     probe_coverage,
     transport_mask,
 )
+from evals.phase_probe import Thresholds  # noqa: E402
 
 
 @torch.no_grad()
@@ -99,12 +100,13 @@ def rollout_for_profile(env, agent, z, n_episodes: int, thr,
     return out
 
 
-def probe_value_landscape(model, agent, episodes, z):
+def probe_value_landscape(model, agent, episodes, z, thr=None):
     """Per-episode Spearman rho of V vs (-d) over the transport region
     (nan unless >=5 steps with non-degenerate d and V), plus a long-form
     (outcome, d, V) frame for binned plots."""
     import pandas as pd
 
+    thr = thr or Thresholds()
     per_ep_rows, per_step_rows = [], []
     for i, ep in enumerate(episodes):
         obs = torch.as_tensor(np.asarray(ep["obs"]), dtype=torch.float32)
@@ -114,8 +116,12 @@ def probe_value_landscape(model, agent, episodes, z):
         d = np.asarray(ep["d"], np.float64)
         m = np.asarray(ep["transport_mask"], bool)
         cube_xy = np.asarray(ep["cube"], np.float64).reshape(-1, 3)[:, :2]
-        for dd, vv, mm, cxy in zip(d, V, m, cube_xy):
-            per_step_rows.append({"episode": i, "outcome": ep["outcome"],
+        region = _region(ep, thr)
+        for ti, (dd, vv, mm, cxy, rg) in enumerate(
+                zip(d, V, m, cube_xy, region)):
+            per_step_rows.append({"episode": i, "t": int(ti),
+                                  "outcome": ep["outcome"],
+                                  "region": str(rg),
                                   "d": float(dd), "V": float(vv),
                                   "transport": bool(mm),
                                   "cube_x": float(cxy[0]),
