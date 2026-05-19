@@ -124,7 +124,8 @@ def _abstract_from_story(md: str) -> str:
 
 
 def build_fragment(phase_root, repr_root, out_dir, subdir: str,
-                   figures: Sequence[str] = _DEFAULT_FIGS) -> Path:
+                   figures: Sequence[str] = _DEFAULT_FIGS,
+                   gciql_cmp=None) -> Path:
     phase_root, repr_root = Path(phase_root), Path(repr_root)
     base = Path(out_dir) / subdir
     figdir = base / "figures"
@@ -175,6 +176,30 @@ def build_fragment(phase_root, repr_root, out_dir, subdir: str,
              _tex(n.replace("_", " ").replace(".png", "")))
         for n in figures)
 
+    gcmp_block = ""
+    if gciql_cmp is not None:
+        gciql_cmp = Path(gciql_cmp)
+        cmp_png = gciql_cmp / "cmp_value_rho.png"
+        if cmp_png.exists():
+            shutil.copyfile(cmp_png, figdir / "cmp_value_rho.png")
+        cmp_tbl = ""
+        pq = gciql_cmp / "fb_vs_gciql.parquet"
+        if pq.exists():
+            import pandas as pd
+            cmp_tbl = df_to_booktabs(
+                pd.read_parquet(pq), caption=_tex("FB vs GCIQL"),
+                label="tab:fb-vs-gciql")
+        cmp_md = ""
+        cmp_md_p = gciql_cmp / "comparison.md"
+        if cmp_md_p.exists():
+            cmp_md = _story_to_latex(cmp_md_p.read_text())
+        gcmp_block = "\n".join([
+            r"\subsection{FB vs GCIQL: Shared-Axis Comparison}",
+            _fig("figures", "cmp_value_rho.png",
+                 (figdir / "cmp_value_rho.png").exists(),
+                 _tex("FB vs GCIQL: value gradient")),
+            cmp_tbl, cmp_md])
+
     doc = [
         "% Auto-generated self-contained document; regenerate via "
         "scripts/build_paper_fragment.py",
@@ -192,44 +217,45 @@ def build_fragment(phase_root, repr_root, out_dir, subdir: str,
         _abstract_from_story(story_md),
         r"\end{abstract}",
         "",
-        r"\section{Experiment design}",
+        r"\section{Where and Why FB Fails on Cube Manipulation}",
         r"\label{sec:fb-cube-failure}",
+        "",
+        r"\subsection{Experiment Design \& Phase Probing}",
         r"We decompose each cube episode into reach $\to$ grasp/lift "
-        r"$\to$ transport, and probe the policy from three start states: "
-        r"S0 (baseline), S1 (skip-reach), S2 (pre-grasped, physically "
-        r"clamped, no weld). The phase-probe over seeds s3--s8, s10 "
-        r"localises where the rollout breaks.",
+        r"$\to$ transport, and probe the policy from three start "
+        r"states: S0 (baseline), S1 (skip-reach), S2 (pre-grasped, "
+        r"physically clamped, no weld). The phase-probe over seeds "
+        r"s3--s8, s10 localises where the rollout breaks.",
         figs_phase,
         "",
-        r"\section{Methods}",
+        r"\subsection{Methodology: Representation Probes}",
         r"Four representation probes on the FB checkpoints: (i) value "
         r"landscape $V(s)=Q_z(s,\pi(s))$, scored as the Spearman "
         r"$\rho$ between $V$ and $-d$ (cube--goal distance) over the "
         r"transport region; (ii) z-decoding and relabel sparsity; "
         r"(iii) ridge $R^2$ of $B(s)\!\to\!d$ and placed-vs-near "
         r"separability; (iv) off-support nearest-neighbour distance. "
-        r"Probes are aggregated (mean$\pm$std) over the seven seeds and "
-        r"each is assigned a heuristic verdict against the "
-        r"representation-failure hypothesis.",
+        r"Probes are aggregated (mean$\pm$std) over the seven seeds "
+        r"and each is assigned a heuristic verdict.",
         "",
-        r"\section{Results}",
+        r"\subsection{Results \& Empirical Synthesis}",
         figs_repr,
         tbls,
-        "",
-        r"\section{Findings}",
         _story_to_latex(story_md),
+        gcmp_block,
         "",
-        r"\section{Discussion}",
-        r"The evidence localises the failure to the \emph{representation}, "
-        r"not the value landscape or data coverage. The play data almost "
-        r"never shows the cube at the goal and the inferred task vector "
-        r"$z$'s highest-scoring states are mostly off-goal (T2); the "
-        r"backward map $B$ barely linearly resolves placement distance "
-        r"(T3). With a scale-free metric the value function provides no "
-        r"gradient that separates successes from transport-failures (T1 "
-        r"weak), and failures are not measurably further off data support "
-        r"than successes (T4 neutral). FB lifts the cube but lacks a "
-        r"learned, sharply-encoded target to deliver it.",
+        r"\subsection{Discussion \& Core Narrative}",
+        r"The evidence localises the failure to the \emph{"
+        r"representation}, not the value landscape or data coverage. "
+        r"The play data almost never shows the cube at the goal and "
+        r"the inferred task vector $z$'s highest-scoring states are "
+        r"mostly off-goal (T2); the backward map $B$ barely linearly "
+        r"resolves placement distance (T3). With a scale-free metric "
+        r"the value function provides no gradient that separates "
+        r"successes from transport-failures (T1 weak), and failures "
+        r"are not measurably further off data support than successes "
+        r"(T4 neutral). FB lifts the cube but lacks a learned, "
+        r"sharply-encoded target to deliver it.",
         "",
         r"\end{document}",
         "",

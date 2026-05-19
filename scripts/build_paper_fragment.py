@@ -29,12 +29,18 @@ def main() -> None:
                                 / "representation_profile" / "aggregate"))
     ap.add_argument("--out", default=str(REPO_ROOT / "PAPER"))
     ap.add_argument("--paper-subdir", default="fb-cube-failure")
+    ap.add_argument("--gciql-root",
+                    default=str(REPO_ROOT / "analysis" / "gciql_profile"
+                               / "aggregate" / "comparison"))
     args = ap.parse_args()
 
     from evals.paper_fragment import build_fragment
+    from pathlib import Path as _P
 
+    g = _P(args.gciql_root)
     base = build_fragment(args.phase_root, args.repr_root, args.out,
-                          args.paper_subdir)
+                          args.paper_subdir,
+                          gciql_cmp=g if g.exists() else None)
     print(f"[build_paper_fragment] wrote {base}")
 
 
