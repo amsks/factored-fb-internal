@@ -119,6 +119,17 @@ def aggregate(root, out, fb_aggregate=None, fb_seed_root=None) -> None:
     print(f"[gciql_profile_aggregate] {vl['seed'].nunique()} seeds -> {out}")
 
 
+def _zscore_v(df):
+    """Per-call standardised V column 'Vz' = (V-mean)/std (ddof=0);
+    constant V -> all zeros. Makes FB (V~2e3) and GCIQL (V~-60)
+    value curves comparable on one axis without changing curve shape."""
+    out = df.copy()
+    v = out["V"].to_numpy(dtype=float)
+    sd = v.std()
+    out["Vz"] = (v - v.mean()) / sd if sd > 1e-12 else 0.0
+    return out
+
+
 def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
                 g_verd, gciql_root=None, fb_seed_root=None) -> None:
     cdir.mkdir(parents=True, exist_ok=True)
@@ -174,7 +185,7 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
         edges = np.unique(edges)
         ctr = 0.5 * (edges[:-1] + edges[1:])
         fig, ax = plt.subplots(figsize=(6, 4))
-        for nm, df in (("FB", f_vs), ("GCIQL", g_vs)):
+        for nm, df in (("FB", _zscore_v(f_vs)), ("GCIQL", _zscore_v(g_vs))):
             for oc, ls in (("success", "-"),
                            ("transport_fail", "--")):
                 sub = df[df.outcome == oc]
@@ -182,12 +193,12 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
                     continue
                 idx = np.clip(np.digitize(sub["d"], edges) - 1, 0,
                               len(ctr) - 1)
-                mv = (pd.DataFrame({"b": idx, "V": sub["V"].to_numpy()})
+                mv = (pd.DataFrame({"b": idx, "V": sub["Vz"].to_numpy()})
                       .groupby("b")["V"].mean())
                 ax.plot(ctr[mv.index], mv.values, ls, marker="o",
                         label=f"{nm} {oc}")
         ax.set_xlabel("cube -> goal distance")
-        ax.set_ylabel("V(s)")
+        ax.set_ylabel("standardised V (per method, z-scored)")
         ax.set_title("Value vs goal distance: FB vs GCIQL")
         ax.legend(fontsize=7)
         fig.tight_layout()
