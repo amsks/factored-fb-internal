@@ -24,13 +24,15 @@ def test_parse_flags_reads_env_and_seed(tmp_path):
 
 def _ep(outcome, d, v, grip, cube_z, table_z=0.02):
     T = len(d)
+    cube = np.column_stack([np.zeros(T), np.zeros(T), np.asarray(cube_z)])
     return {
         "obs": np.zeros((T, 4), np.float32),
         "d": np.asarray(d, np.float64),
         "V": np.asarray(v, np.float64),
         "grip": np.asarray(grip, np.float64),
-        "cube": np.column_stack([np.zeros(T), np.zeros(T),
-                                 np.asarray(cube_z)]),
+        "cube": cube,
+        "eff": cube.copy(),                 # effector on the cube
+        "goal": np.array([0.0, 0.0, 0.02]),
         "table_z": table_z, "success": outcome == "success",
         "task": "task1", "episode": 0,
     }
@@ -52,6 +54,29 @@ def test_episodes_to_frames_t1_t4_funnel():
     assert set(cov.columns) >= {"task", "outcome", "region", "nn_dist"}
     assert set(fun.columns) >= {"task", "episode", "furthest_phase",
                                 "outcome"}
+
+
+def test_episodes_to_frames_attributes_transport_fail_with_real_eff():
+    # hand on the cube, cube lifted+gripped >=5 steps, never reaches
+    # goal, env success False  ->  classify_phases must say transport_fail
+    # (regression: zero-filled eff mislabels this as reach/other)
+    T = 6
+    cube = np.tile([0.40, 0.10, 0.20], (T, 1)).astype(np.float64)
+    eff = cube.copy()                       # effector reaches+secures
+    grip = np.ones(T)                       # gripper closed
+    d = np.linspace(0.30, 0.10, T)          # cube never delivered
+    V = np.linspace(0.0, 1.0, T)
+    ep = {
+        "obs": np.zeros((T, 4), np.float32),
+        "eff": eff, "cube": cube, "grip": grip,
+        "d": d, "V": V, "table_z": 0.02,
+        "goal": np.array([0.0, 0.0, 0.02]),
+        "success": False, "task": "task1", "episode": 0,
+    }
+    vl, _, fun = gp.episodes_to_frames([ep], Thresholds(),
+                                       ref_obs=np.zeros((10, 4)))
+    assert vl.iloc[0]["outcome"] == "transport_fail"
+    assert fun.iloc[0]["furthest_phase"] == "transport"
 
 
 def test_build_argparser_has_required_flags():
