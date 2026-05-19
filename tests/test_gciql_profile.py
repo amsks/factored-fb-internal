@@ -216,3 +216,32 @@ def test_comparison_emits_four_plots(tmp_path):
                "cmp_value_rho.png", "fb_vs_gciql.parquet",
                "comparison.md"):
         assert (cmp / fn).exists(), fn
+
+
+def test_bin_vz_grid_masks_empty_cells():
+    import numpy as np
+    from scripts.gciql_profile_aggregate import _bin_vz_grid
+    df = pd.DataFrame({
+        "cube_x": [0.31, 0.31, 0.54],
+        "cube_y": [-0.24, -0.24, 0.24],
+        "Vz": [1.0, 3.0, -2.0],
+    })
+    grid, xe, ye = _bin_vz_grid(df, xmin=0.30, xmax=0.55,
+                                ymin=-0.25, ymax=0.25, nbins=5)
+    assert grid.shape == (5, 5)
+    # the (0.31,-0.24) cell holds mean(1,3)=2.0; far corner holds -2.0
+    assert np.isfinite(grid).sum() == 2
+    assert np.nanmin(grid) == -2.0 and np.nanmax(grid) == 2.0
+
+
+def test_medoid_episode_picks_closest_to_mean_path():
+    import numpy as np
+    from scripts.gciql_profile_aggregate import _medoid_episode
+    # ep 0 & 1 near y=0; ep 2 far at y=1 -> medoid is 0 or 1, not 2
+    rows = []
+    for ep, y in ((0, 0.0), (1, 0.01), (2, 1.0)):
+        for t in range(4):
+            rows.append({"episode": ep, "cube_x": 0.4 + 0.01 * t,
+                         "cube_y": y})
+    df = pd.DataFrame(rows)
+    assert _medoid_episode(df) in (0, 1)
