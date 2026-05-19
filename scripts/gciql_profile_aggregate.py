@@ -46,7 +46,7 @@ def _ms(s: pd.Series) -> str:
     return f"{s.mean():.3g} ± {s.std(ddof=0):.2g}"
 
 
-def aggregate(root, out, fb_aggregate=None) -> None:
+def aggregate(root, out, fb_aggregate=None, fb_seed_root=None) -> None:
     root, out = Path(root), Path(out)
     out.mkdir(parents=True, exist_ok=True)
     vl = _load(root, "value_landscape")
@@ -114,12 +114,13 @@ def aggregate(root, out, fb_aggregate=None) -> None:
 
     if fb_aggregate is not None:
         _comparison(out / "comparison", vl, cvt, fb_aggregate,
-                    rho_s, rho_f, fail_nn, succ_nn, verdicts)
+                    rho_s, rho_f, fail_nn, succ_nn, verdicts,
+                    gciql_root=root, fb_seed_root=fb_seed_root)
     print(f"[gciql_profile_aggregate] {vl['seed'].nunique()} seeds -> {out}")
 
 
 def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
-                g_verd) -> None:
+                g_verd, gciql_root=None, fb_seed_root=None) -> None:
     cdir.mkdir(parents=True, exist_ok=True)
     fb_t1 = pd.read_parquet(
         Path(fb_aggregate) / "T1_value_gradient.parquet")
@@ -150,6 +151,101 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
     fig.tight_layout(); fig.savefig(cdir / "cmp_value_rho.png", dpi=120)
     plt.close(fig)
 
+    def _seed_concat(rt, name):
+        if rt is None:
+            return None
+        fr = []
+        for p in sorted(Path(rt).glob(f"s*_final/{name}.parquet")):
+            fr.append(pd.read_parquet(p))
+        return pd.concat(fr, ignore_index=True) if fr else None
+
+    g_vs = _seed_concat(gciql_root, "value_steps")
+    f_vs = _seed_concat(fb_seed_root, "value_steps")
+    g_vl = _seed_concat(gciql_root, "value_landscape")
+    f_vl = _seed_concat(fb_seed_root, "value_landscape")
+    g_cv = _seed_concat(gciql_root, "coverage")
+    f_cv = _seed_concat(fb_seed_root, "coverage")
+
+    # 1. value vs cube->goal distance (FB & GCIQL x success/fail)
+    if g_vs is not None and f_vs is not None:
+        pool = np.concatenate([g_vs["d"].to_numpy(),
+                               f_vs["d"].to_numpy()])
+        edges = np.quantile(pool, np.linspace(0, 1, 10))
+        edges = np.unique(edges)
+        ctr = 0.5 * (edges[:-1] + edges[1:])
+        fig, ax = plt.subplots(figsize=(6, 4))
+        for nm, df in (("FB", f_vs), ("GCIQL", g_vs)):
+            for oc, ls in (("success", "-"),
+                           ("transport_fail", "--")):
+                sub = df[df.outcome == oc]
+                if sub.empty:
+                    continue
+                idx = np.clip(np.digitize(sub["d"], edges) - 1, 0,
+                              len(ctr) - 1)
+                mv = (pd.DataFrame({"b": idx, "V": sub["V"].to_numpy()})
+                      .groupby("b")["V"].mean())
+                ax.plot(ctr[mv.index], mv.values, ls, marker="o",
+                        label=f"{nm} {oc}")
+        ax.set_xlabel("cube -> goal distance")
+        ax.set_ylabel("V(s)")
+        ax.set_title("Value vs goal distance: FB vs GCIQL")
+        ax.legend(fontsize=7)
+        fig.tight_layout()
+        fig.savefig(cdir / "cmp_value_vs_dist.png", dpi=120)
+        plt.close(fig)
+    else:
+        print("  [warn] cmp_value_vs_dist skipped (missing value_steps)")
+
+    # 2. per-episode rho distribution (box) for the four groups
+    if g_vl is not None and f_vl is not None:
+        groups, labels = [], []
+        for nm, df in (("FB", f_vl), ("GCIQL", g_vl)):
+            for oc in ("success", "transport_fail"):
+                v = df[df.outcome == oc]["rho_V_negd"].dropna()
+                groups.append(v.to_numpy() if len(v) else np.array([0.0]))
+                labels.append(f"{nm}\n{oc}")
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.boxplot(groups, labels=labels, showmeans=True)
+        ax.set_ylabel("Spearman rho(V, -d)")
+        ax.set_title("Per-episode value gradient: FB vs GCIQL")
+        ax.tick_params(axis="x", labelsize=7)
+        fig.tight_layout()
+        fig.savefig(cdir / "cmp_rho_box.png", dpi=120)
+        plt.close(fig)
+
+    # 3. outcome funnel (normalized fraction) FB vs GCIQL
+    if g_vl is not None and f_vl is not None:
+        order = ["success", "transport_fail", "other"]
+        fig, ax = plt.subplots(figsize=(6, 4))
+        x = np.arange(len(order))
+        for i, (nm, df) in enumerate((("FB", f_vl), ("GCIQL", g_vl))):
+            fr = (df["outcome"].value_counts(normalize=True)
+                  .reindex(order).fillna(0.0))
+            ax.bar(x + (i - 0.5) * 0.4, fr.values, 0.4, label=nm)
+        ax.set_xticks(x); ax.set_xticklabels(order)
+        ax.set_ylabel("episode fraction")
+        ax.set_title("Outcome funnel: FB vs GCIQL")
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(cdir / "cmp_funnel.png", dpi=120)
+        plt.close(fig)
+
+    # 4. coverage nn_dist by region FB vs GCIQL
+    if g_cv is not None and f_cv is not None:
+        regs = sorted(set(g_cv["region"]) | set(f_cv["region"]))
+        fig, ax = plt.subplots(figsize=(6, 4))
+        x = np.arange(len(regs))
+        for i, (nm, df) in enumerate((("FB", f_cv), ("GCIQL", g_cv))):
+            m = df.groupby("region")["nn_dist"].mean()
+            ax.bar(x + (i - 0.5) * 0.4,
+                   [float(m.get(r, 0.0)) for r in regs], 0.4, label=nm)
+        ax.set_xticks(x); ax.set_xticklabels(regs)
+        ax.set_ylabel("nn_dist"); ax.legend()
+        ax.set_title("Off-support coverage: FB vs GCIQL")
+        fig.tight_layout()
+        fig.savefig(cdir / "cmp_coverage.png", dpi=120)
+        plt.close(fig)
+
     (cdir / "comparison.md").write_text("\n".join([
         "# FB vs GCIQL — shared-axis comparison", "",
         f"- FB    value gradient: rho_s={fb_rs:.3g}, rho_f={fb_rf:.3g} "
@@ -173,11 +269,16 @@ def main() -> None:
     ap.add_argument("--fb-aggregate",
                     default=str(REPO_ROOT / "analysis"
                                / "representation_profile" / "aggregate"))
+    ap.add_argument("--fb-seed-root",
+                    default=str(REPO_ROOT / "analysis"
+                               / "representation_profile"))
     args = ap.parse_args()
     root = Path(args.root)
     fb = Path(args.fb_aggregate)
+    fbsr = Path(args.fb_seed_root)
     aggregate(root, Path(args.out) if args.out else root / "aggregate",
-              fb_aggregate=fb if fb.exists() else None)
+              fb_aggregate=fb if fb.exists() else None,
+              fb_seed_root=fbsr if fbsr.exists() else None)
 
 
 if __name__ == "__main__":
