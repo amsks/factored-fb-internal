@@ -141,3 +141,62 @@ def test_gciql_aggregate_and_comparison(tmp_path):
     assert (cmp / "comparison.md").exists()
     txt = (cmp / "comparison.md").read_text()
     assert "FB" in txt and "GCIQL" in txt
+
+
+def _seed_steps(_P, root, s, outcome, n=8):
+    import numpy as np
+    base = root / f"s{s}_final"
+    base.mkdir(parents=True, exist_ok=True)
+    ep = 0 if outcome == "success" else 1
+    rho = 0.5 if outcome == "success" else 0.0
+
+    def _app(name, df):
+        p = base / name
+        if p.exists():
+            df = pd.concat([pd.read_parquet(p), df], ignore_index=True)
+        df.to_parquet(p)
+
+    _app("value_landscape.parquet", pd.DataFrame([
+        {"task": "task1", "episode": ep, "outcome": outcome,
+         "rho_V_negd": rho, "V_at_secure": 0.1, "V_at_end": 0.9,
+         "n_transport_steps": n}]))
+    _app("value_steps.parquet", pd.DataFrame(
+        {"task": ["task1"] * n, "episode": [ep] * n,
+         "outcome": [outcome] * n, "d": np.linspace(0.3, 0.05, n),
+         "V": np.linspace(0.0, 1.0, n), "transport": [True] * n}))
+    _app("coverage.parquet", pd.DataFrame([
+        {"task": "task1", "outcome": outcome, "region": "transport",
+         "nn_dist": 2.0}]))
+    _app("phase_funnel.parquet", pd.DataFrame([
+        {"task": "task1", "episode": ep, "furthest_phase": outcome,
+         "outcome": outcome}]))
+
+
+def test_comparison_emits_four_plots(tmp_path):
+    import importlib
+    agg = importlib.import_module("scripts.gciql_profile_aggregate")
+    groot = tmp_path / "gciql"
+    froot = tmp_path / "repr"
+    for s in (1, 2):
+        _seed_steps(__import__("pathlib").Path, groot, s, "success")
+        _seed_steps(__import__("pathlib").Path, groot, s,
+                    "transport_fail")
+    for s in (1, 2):
+        _seed_steps(__import__("pathlib").Path, froot, s, "success")
+        _seed_steps(__import__("pathlib").Path, froot, s,
+                    "transport_fail")
+    fbagg = tmp_path / "fb_aggregate"
+    fbagg.mkdir()
+    pd.DataFrame([{"task": "task1", "outcome": "success",
+                   "rho_V_negd": 0.13},
+                  {"task": "task1", "outcome": "transport_fail",
+                   "rho_V_negd": 0.23}]).to_parquet(
+        fbagg / "T1_value_gradient.parquet")
+    out = tmp_path / "gagg"
+    agg.aggregate(groot, out, fb_aggregate=fbagg, fb_seed_root=froot)
+    cmp = out / "comparison"
+    for fn in ("cmp_value_vs_dist.png", "cmp_rho_box.png",
+               "cmp_funnel.png", "cmp_coverage.png",
+               "cmp_value_rho.png", "fb_vs_gciql.parquet",
+               "comparison.md"):
+        assert (cmp / fn).exists(), fn
