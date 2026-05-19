@@ -23,9 +23,19 @@ authoritative check.
   without storing a redundant timestep array. Equivalence rests on the data
   loader invariant `next/observation[i] == observation[i+1]` within an episode
   (observation = obs_full[:-1], next/observation = obs_full[1:]).
-- **CHW storage:** offline pixels stored `(N, C, H, W)` to match `DrQEncoder`
-  Conv2d input and `PixelWrapper` live-env output (td_jepa stores HWC and
-  relies on its own loader; we normalize at load time via moveaxis).
+- **Pixel orientation (CHW vs HWC):** td_jepa's `extract_all.py` stores pixels
+  **CHW** (`np.moveaxis(observations, -1, 1)`) and its loader does NOT
+  re-transpose. This repo instead stores pixels **HWC** at extraction
+  (`scripts/extract_ogbench.py` visual branch, no moveaxis) and converts
+  HWC->CHW inside `data/ogbench.py::load_transitions`
+  (`np.moveaxis(ep["pixels"], -1, 1)`). The orientation reaching `DrQEncoder`
+  (`(N, C, H, W)` after frame-stack -> 9 channels) is therefore identical to
+  td_jepa; only the on-disk layout and the location of the single transpose
+  differ. This is an intentional, documented deviation chosen so the committed
+  loader/buffer/config/env wiring is left untouched.
+- **State episodes:** td_jepa also writes an all-zero dummy `pixels` key for
+  state envs; this repo does NOT (state loader path never reads `pixels`),
+  keeping state episodes compact and byte-compatible with prior runs.
 - **`terminated`:** kept all-False per the existing repo convention (offline GC
   data treated as non-terminating), unchanged from the state path.
 - **Agent-layer cfg threading (Task 4 correction):** `rgb_encoder_cfg` /
