@@ -1,21 +1,30 @@
 # configs/hydra/launcher/slurm.yaml
-# Hydra submitit SLURM launcher — used by scripts/run_sweep_slurm.sh
-#
-# Install dep first: pip install -e ".[slurm]"
-# Override partition on the CLI: hydra.launcher.partition=YOUR_PARTITION
+# Hydra submitit SLURM launcher for the ai,tnt cluster.
+# Used by scripts/slurm/fb_sweep.sh (and any other --multirun call with hydra/launcher=slurm).
+# Override any field on the CLI: hydra.launcher.mem_gb=24 etc.
 
 _target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
 
-partition: ???          # MUST override: --partition gpu, gpu_a100, etc.
-account: null           # optional: your slurm account / project
-qos: null               # optional: e.g. "normal", "high"
+partition: ai,tnt
+account: null
+qos: null
+gres: gpu:1
 
 nodes: 1
 tasks_per_node: 1
-gpus_per_node: 1
-cpus_per_task: 4
-mem_gb: 32
+cpus_per_task: 8
+mem_gb: 12
 
-timeout_min: 1440       # 24 h — enough for 1 M-step FB run
+timeout_min: 1440         # 24 h
+
+# Commands run as bash on the compute node before Python starts.
+# WANDB_MODE=offline is set here because submitit does not forward the
+# submitting shell's environment; this is the only reliable hook.
+setup:
+  - export MUJOCO_GL=egl
+  - export WANDB_MODE=offline
+  - export OMP_NUM_THREADS=8
+  - export MKL_NUM_THREADS=8
 
 submitit_folder: ${hydra.sweep.dir}/.submitit/%j
+array_parallelism: 256
