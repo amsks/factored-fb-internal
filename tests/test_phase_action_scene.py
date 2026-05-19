@@ -71,11 +71,12 @@ def test_phase_action_scene_smoke(tmp_path, monkeypatch):
             for rg in ("reach", "lift", "transport"):
                 for t in range(4):
                     rows.append(dict(task=task_label, episode=0, t=t,
-                                     outcome=oc, region=rg, d=0.5,
+                                     outcome=oc, region=rg,
+                                     d=0.5 - 0.1 * t,
                                      V=float(t),
                                      transport=(rg == "transport"),
                                      cube_x=0.1 + 0.05 * t,
-                                     cube_y=0.0))
+                                     cube_y=-0.05 + 0.04 * t))
         pd.DataFrame(rows).to_parquet(d / "value_steps.parquet")
 
     fb_root = tmp_path / "fb"
