@@ -85,3 +85,133 @@ def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
     cov = probe_coverage(cov_eps, ref_obs, thr)
     cov.insert(0, "task", episodes[0]["task"] if episodes else "")
     return (pd.DataFrame(vl_rows), cov, pd.DataFrame(fun_rows))
+
+
+def build_argparser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--run-dir", required=True,
+                    help="a GCIQL seed dir (contains flags.json, "
+                         "params_<step>.pkl)")
+    ap.add_argument("--step", type=int, default=1000000)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--tasks", default="1,2,3,4,5")
+    ap.add_argument("--n-episodes", type=int, default=10)
+    ap.add_argument("--scenario", default="S0", choices=["S0"])
+    ap.add_argument("--dataset-path",
+                    default="datasets/cube-single-play-v0")
+    ap.add_argument("--max-steps", type=int, default=1000)
+    return ap
+
+
+def _load_ref_obs(dataset_path: str, max_n: int = 5000) -> np.ndarray:
+    """Stack next/observation from the OGBench cube npz buffer (same
+    data the FB coverage probe used)."""
+    buf = Path(dataset_path) / "buffer"
+    files = sorted(buf.glob("episode_*.npz"))[:200]
+    obs = []
+    for f in files:
+        with np.load(f) as z:
+            key = "observations" if "observations" in z else "obs"
+            obs.append(np.asarray(z[key], np.float32))
+    arr = np.concatenate(obs, 0) if obs else np.zeros((1, 1), np.float32)
+    if len(arr) > max_n:
+        rng = np.random.default_rng(0)
+        arr = arr[rng.choice(len(arr), max_n, replace=False)]
+    return arr
+
+
+def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
+                 n_episodes: int, max_steps: int):
+    """Load the GCIQL checkpoint and roll out the goal-conditioned
+    policy. Imports jax/flax/vendored OGBench — JAX venv only."""
+    ogb_impls = REPO_ROOT / "third_party" / "ogbench" / "impls"
+    if str(ogb_impls) not in sys.path:
+        sys.path.insert(0, str(ogb_impls))
+    import ogbench  # vendored
+    from agents.gciql import GCIQLAgent
+    from utils.flax_utils import restore_agent
+    import jax
+
+    flags = parse_flags(run_dir)
+    episodes: List[Dict[str, Any]] = []
+    for task_id in task_ids:
+        env = ogbench.make_env_and_datasets(
+            flags["env_name"], compact_dataset=True, env_only=True) \
+            if hasattr(ogbench, "make_env_and_datasets") else \
+            ogbench.make_env(flags["env_name"])
+        ex_obs, info = env.reset(options=dict(task_id=task_id))
+        goal = info["goal"]
+        ex_act = env.action_space.sample()
+        agent = GCIQLAgent.create(
+            flags["seed"],
+            np.asarray(ex_obs)[None],
+            np.asarray(goal)[None],
+            np.asarray(ex_act)[None],
+            GCIQLAgent.get_config(),
+        )
+        agent = restore_agent(agent, str(run_dir), step)
+        value_fn = jax.jit(lambda o, g: agent.network.select("value")(
+            o[None], g[None])[0])
+        for ep_i in range(n_episodes):
+            obs, info = env.reset(options=dict(task_id=task_id))
+            goal = info["goal"]
+            O, A, EFF, CUBE, GRIP, VV, D = [], [], [], [], [], [], []
+            succ = False
+            for _ in range(max_steps):
+                a = np.asarray(agent.sample_actions(
+                    observations=np.asarray(obs), goals=np.asarray(goal),
+                    temperature=0.0))
+                v = float(np.asarray(value_fn(
+                    np.asarray(obs, np.float32),
+                    np.asarray(goal, np.float32))))
+                obs, _, term, trunc, info = env.step(a)
+                eff = np.asarray(info["proprio/effector_pos"], np.float64)
+                cube = np.asarray(info["privileged/block_0_pos"],
+                                  np.float64)
+                grip = float(np.asarray(
+                    info["proprio/gripper_opening"]).reshape(-1)[0])
+                gxyz = np.asarray(info.get("privileged/target_block_pos",
+                                           cube), np.float64)
+                O.append(np.asarray(obs, np.float32)); A.append(a)
+                EFF.append(eff); CUBE.append(cube); GRIP.append(grip)
+                VV.append(v)
+                D.append(float(np.linalg.norm(cube - gxyz)))
+                succ = succ or bool(info.get("success", False))
+                if term or trunc:
+                    break
+            episodes.append({
+                "obs": np.asarray(O, np.float32),
+                "d": np.asarray(D), "V": np.asarray(VV),
+                "grip": np.asarray(GRIP),
+                "cube": np.asarray(CUBE),
+                "table_z": float(CUBE[0][2]) if CUBE else 0.02,
+                "success": succ,
+                "task": f"task{task_id}", "episode": ep_i})
+        env.close()
+    return episodes, flags
+
+
+def main() -> None:
+    args = build_argparser().parse_args()
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    task_ids = [int(t) for t in args.tasks.split(",") if t.strip()]
+    episodes, flags = _jax_rollout(
+        args.run_dir, args.step, task_ids, args.n_episodes,
+        args.max_steps)
+    ref = _load_ref_obs(args.dataset_path)
+    vl, cov, fun = episodes_to_frames(episodes, Thresholds(), ref)
+    vl.to_parquet(out / "value_landscape.parquet")
+    cov.to_parquet(out / "coverage.parquet")
+    fun.to_parquet(out / "phase_funnel.parquet")
+    (out / "metrics.json").write_text(json.dumps({
+        "run_dir": str(args.run_dir), "step": args.step,
+        "tasks": task_ids, "n_episodes": args.n_episodes,
+        "env_name": flags["env_name"],
+        "value_fn": "GCValue V(s,g)",
+    }, indent=2))
+    print(f"[gciql_profile] done -> {out}")
+
+
+if __name__ == "__main__":
+    main()

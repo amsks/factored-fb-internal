@@ -52,3 +52,13 @@ def test_episodes_to_frames_t1_t4_funnel():
     assert set(cov.columns) >= {"task", "outcome", "region", "nn_dist"}
     assert set(fun.columns) >= {"task", "episode", "furthest_phase",
                                 "outcome"}
+
+
+def test_build_argparser_has_required_flags():
+    ap = gp.build_argparser()
+    ns = ap.parse_args([
+        "--run-dir", "/x/sd001", "--step", "1000000",
+        "--out", "/tmp/o", "--tasks", "1,2,3", "--n-episodes", "4",
+        "--dataset-path", "datasets/cube-single-play-v0"])
+    assert ns.run_dir == "/x/sd001" and ns.step == 1000000
+    assert ns.tasks == "1,2,3" and ns.n_episodes == 4
