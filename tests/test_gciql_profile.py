@@ -54,8 +54,9 @@ def test_episodes_to_frames_t1_t4_funnel():
     assert set(cov.columns) >= {"task", "outcome", "region", "nn_dist"}
     assert set(fun.columns) >= {"task", "episode", "furthest_phase",
                                 "outcome"}
-    assert set(vs.columns) == {"task", "episode", "outcome", "d", "V",
-                               "transport", "cube_x", "cube_y"}
+    assert set(vs.columns) == {"task", "episode", "t", "outcome",
+                               "region", "d", "V", "transport",
+                               "cube_x", "cube_y"}
     assert vs["cube_x"].iloc[0] == eps[0]["cube"][0][0]
     assert vs["cube_y"].iloc[0] == eps[0]["cube"][0][1]
     assert len(vs) == 6                       # one row per step
@@ -245,3 +246,30 @@ def test_medoid_episode_picks_closest_to_mean_path():
                          "cube_y": y})
     df = pd.DataFrame(rows)
     assert _medoid_episode(df) in (0, 1)
+
+
+def test_episodes_to_frames_emits_t_and_region():
+    from scripts import gciql_profile as gp
+    from evals.phase_probe import Thresholds
+    import numpy as np
+    T = 6
+    ep = {
+        "obs": np.zeros((T, 4), np.float32),
+        "d": np.linspace(1.0, 0.1, T),
+        "V": np.linspace(0.0, 1.0, T),
+        "grip": np.array([0.0, 0.0, 0.9, 0.9, 0.9, 0.9]),
+        "cube": np.column_stack([np.linspace(0, 0.3, T),
+                                 np.zeros(T),
+                                 np.array([0.02, 0.02, 0.02,
+                                           0.10, 0.10, 0.10])]),
+        "eff": np.zeros((T, 3), np.float64),
+        "goal": np.array([0.3, 0.0, 0.02]),
+        "table_z": 0.02,
+        "success": True, "task": "task1", "episode": 0,
+    }
+    _, _, _, vs = gp.episodes_to_frames([ep], Thresholds(),
+                                        np.zeros((2, 4), np.float32))
+    assert list(vs["t"]) == list(range(T))
+    assert set(vs["region"]) <= {"reach", "lift", "transport"}
+    assert list(vs["region"]) == ["reach", "reach", "lift",
+                                  "transport", "transport", "transport"]
