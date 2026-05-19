@@ -189,6 +189,146 @@ def _phase_action_fields(df, grid, n_arrow: int = 12, n_min: int = 5):
     return vz, (U, Vv), counts
 
 
+def _decode_support_xy(gciql_root, fb_seed_root):
+    """Decode dataset cube xy once, cached to
+    analysis/dataset_support_cube_xy.npy."""
+    from evals.dataset_support import dataset_cube_xy
+
+    cache = REPO_ROOT / "analysis" / "dataset_support_cube_xy.npy"
+    if cache.exists():
+        return np.load(cache)
+    ref = None
+    for rt in (gciql_root, fb_seed_root):
+        if rt is None:
+            continue
+        fr = [pd.read_parquet(p) for p in
+              sorted(Path(rt).glob("s*_final/value_steps.parquet"))]
+        if fr:
+            cat = pd.concat(fr, ignore_index=True)
+            ref = cat[["cube_x", "cube_y"]].to_numpy()
+            break
+    if ref is None:
+        raise ValueError("no value_steps to derive ref cube xy")
+    buf = REPO_ROOT / "datasets" / "cube-single-play-v0" / "buffer"
+    xy = dataset_cube_xy(buf, ref_cube_xy=ref)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    np.save(cache, xy)
+    return xy
+
+
+REGIONS = [("reach", "approach"), ("lift", "contact"),
+           ("transport", "transport")]
+
+
+def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
+                        tasks=None) -> None:
+    """10 figures (task x method); rows {success,transport_fail}, cols
+    {approach,contact,transport}. Pure data + matplotlib; no model
+    loading. Skips a method with no value_steps (warns)."""
+    import json
+
+    import matplotlib.image as mpimg
+
+    from evals.dataset_support import support_kde
+    from evals.scene_calib import world_to_px
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    def _seed_concat(rt):
+        if rt is None:
+            return None
+        fr = [pd.read_parquet(p) for p in
+              sorted(Path(rt).glob("s*_final/value_steps.parquet"))]
+        return pd.concat(fr, ignore_index=True) if fr else None
+
+    src = {"FB": _seed_concat(fb_seed_root),
+           "GCIQL": _seed_concat(gciql_root)}
+    src = {k: v for k, v in src.items()
+           if v is not None and "region" in v.columns}
+    if not src:
+        print("  [warn] _phase_action_scene: no value_steps w/ region")
+        return
+    tasks = tasks or sorted(
+        set().union(*[set(v["task"].unique()) for v in src.values()]))
+
+    sx = REPO_ROOT / "analysis" / "scene"
+    scene_png, calib = sx / "topdown.png", sx / "calib.json"
+    have_scene = scene_png.exists() and calib.exists()
+    if have_scene:
+        cal = json.loads(calib.read_text())
+        ws = cal["workspace"]
+        bg = mpimg.imread(str(scene_png))
+
+    support_xy = _decode_support_xy(gciql_root, fb_seed_root)
+    written = []
+    for task in tasks:
+        for method, vs in src.items():
+            sub_all = vs[vs.task == task]
+            if sub_all.empty:
+                continue
+            mu = sub_all["V"].mean()
+            sd = sub_all["V"].std(ddof=0)
+            sd = sd if sd > 1e-9 else 1.0
+            fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+            for r, oc in enumerate(("success", "transport_fail")):
+                for c, (rg, lbl) in enumerate(REGIONS):
+                    ax = axes[r, c]
+                    d = sub_all[(sub_all.outcome == oc)
+                                & (sub_all.region == rg)].copy()
+                    d["Vz"] = (d["V"] - mu) / sd
+                    if have_scene:
+                        ax.imshow(bg, extent=[0, cal["img_w"],
+                                              cal["img_h"], 0])
+                        ax.set_xlim(0, cal["img_w"])
+                        ax.set_ylim(cal["img_h"], 0)
+                        xe = np.linspace(ws["xmin"], ws["xmax"], 41)
+                        ye = np.linspace(ws["ymin"], ws["ymax"], 41)
+                    else:
+                        xe = np.linspace(-0.5, 0.5, 41)
+                        ye = np.linspace(-0.5, 0.5, 41)
+                    ax.axis("off")
+                    ax.set_title(f"{oc} — {lbl} (n={len(d)})",
+                                 fontsize=9)
+                    if len(d) < 5:
+                        continue
+                    vz, (U, Vv), _ = _phase_action_fields(d, (xe, ye))
+                    if have_scene:
+                        p00 = world_to_px(ws["xmin"], ws["ymin"], cal)
+                        p11 = world_to_px(ws["xmax"], ws["ymax"], cal)
+                        ext = [p00[0], p11[0], p00[1], p11[1]]
+                    else:
+                        ext = [xe[0], xe[-1], ye[0], ye[-1]]
+                    ax.imshow(np.ma.masked_invalid(vz), origin="lower",
+                              extent=ext, cmap="viridis", alpha=0.55,
+                              aspect="auto")
+                    kx = 0.5 * (xe[:-1] + xe[1:])
+                    ky = 0.5 * (ye[:-1] + ye[1:])
+                    kz = support_kde(support_xy, kx, ky)
+                    ax.contour(
+                        np.linspace(ext[0], ext[1], len(kx)),
+                        np.linspace(ext[2], ext[3], len(ky)),
+                        kz, levels=[0.2, 0.5, 0.8],
+                        colors="grey", linewidths=0.6, alpha=0.7)
+                    ac = np.linspace(ext[0], ext[1], U.shape[1])
+                    ar = np.linspace(ext[2], ext[3], U.shape[0])
+                    AX, AY = np.meshgrid(ac, ar)
+                    ax.quiver(AX, AY, U, -Vv, color="red",
+                              scale=2.0, width=0.004)
+            fig.suptitle(f"{task} — {method}: phase value/action "
+                         f"fields", fontsize=13)
+            fig.tight_layout()
+            fp = out_dir / f"{task}__{method}.png"
+            fig.savefig(fp, dpi=120)
+            plt.close(fig)
+            written.append(fp.name)
+    (out_dir / "_index.md").write_text(
+        "# phase_scene\n\n"
+        + "\n".join(f"- {n}" for n in sorted(written)) + "\n")
+    print(f"[phase_action_scene] wrote {len(written)} figs -> "
+          f"{out_dir}")
+
+
 def _medoid_episode(df) -> int:
     """Episode id whose per-step (cube_x,cube_y) path is closest (mean
     L2) to the across-episode mean path (truncated to the shortest)."""
@@ -430,6 +570,8 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
     _value_scene(cdir, gciql_root, fb_seed_root,
                  REPO_ROOT / "analysis" / "scene" / "topdown.png",
                  REPO_ROOT / "analysis" / "scene" / "calib.json")
+
+    _phase_action_scene(cdir / "phase_scene", gciql_root, fb_seed_root)
 
 
 def main() -> None:
