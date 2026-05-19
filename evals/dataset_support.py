@@ -14,14 +14,30 @@ from pathlib import Path
 import numpy as np
 
 
-def _hist2d_unit(xy: np.ndarray, bins: int = 24) -> np.ndarray:
-    h, _, _ = np.histogram2d(xy[:, 0], xy[:, 1], bins=bins)
-    n = np.linalg.norm(h.ravel())
-    return h.ravel() / n if n > 0 else h.ravel()
+def _occupancy_iou(cand: np.ndarray, ref: np.ndarray,
+                   bins: int = 24) -> float:
+    """IoU of *occupied* 2D-histogram cells on the shared union range.
+
+    Binary occupancy (not counts) so a slice is scored on whether it
+    covers the same region as `ref`, NOT on matching visitation density
+    — rollout cube xy (policy paths) and dataset cube xy (play data)
+    share support but have very different densities.
+    """
+    rx = [min(cand[:, 0].min(), ref[:, 0].min()),
+          max(cand[:, 0].max(), ref[:, 0].max())]
+    ry = [min(cand[:, 1].min(), ref[:, 1].min()),
+          max(cand[:, 1].max(), ref[:, 1].max())]
+    hc, _, _ = np.histogram2d(cand[:, 0], cand[:, 1], bins=bins,
+                              range=[rx, ry])
+    hr, _, _ = np.histogram2d(ref[:, 0], ref[:, 1], bins=bins,
+                              range=[rx, ry])
+    a, b = hc > 0, hr > 0
+    u = int((a | b).sum())
+    return float((a & b).sum()) / u if u else 0.0
 
 
 def _match_score(cand: np.ndarray, ref: np.ndarray) -> float:
-    """Range-overlap × 2D-histogram cosine similarity in [0, 1]."""
+    """Range-overlap × occupied-cell IoU, in [0, 1]."""
     def overlap(a, b):
         lo, hi = max(a.min(), b.min()), min(a.max(), b.max())
         span = max(a.max(), b.max()) - min(a.min(), b.min())
@@ -29,8 +45,7 @@ def _match_score(cand: np.ndarray, ref: np.ndarray) -> float:
 
     ro = 0.5 * (overlap(cand[:, 0], ref[:, 0])
                 + overlap(cand[:, 1], ref[:, 1]))
-    cos = float(np.dot(_hist2d_unit(cand), _hist2d_unit(ref)))
-    return ro * cos
+    return ro * _occupancy_iou(cand, ref)
 
 
 def _load_buffer_arrays(buffer_dir, n_files: int):

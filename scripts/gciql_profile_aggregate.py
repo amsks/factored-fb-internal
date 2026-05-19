@@ -220,6 +220,17 @@ REGIONS = [("reach", "approach"), ("lift", "contact"),
            ("transport", "transport")]
 
 
+def _canon_task(s: str) -> str:
+    """Canonical 'taskN' for either recorder's task label.
+
+    GCIQL writes 'task1'..'task5'; FB writes the full OGBench env id
+    'cube-single-play-singletask-task{N}-v0'. Normalize so FB and
+    GCIQL pair per task.
+    """
+    m = re.search(r"task(\d+)", str(s))
+    return f"task{m.group(1)}" if m else str(s)
+
+
 def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                         tasks=None) -> None:
     """10 figures (task x method); rows {success,transport_fail}, cols
@@ -249,6 +260,8 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
     if not src:
         print("  [warn] _phase_action_scene: no value_steps w/ region")
         return
+    for v in src.values():
+        v["task"] = v["task"].map(_canon_task)
     tasks = tasks or sorted(
         set().union(*[set(v["task"].unique()) for v in src.values()]))
 
