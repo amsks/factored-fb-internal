@@ -24,9 +24,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from evals.scene_calib import make_calib, world_to_px  # noqa: E402
 
-XMIN, XMAX, YMIN, YMAX = 0.30, 0.55, -0.25, 0.25
-IMG_W = IMG_H = 600
-MARGIN = 50
+# Workspace widened beyond the calibration box so the photoreal
+# top-down covers the actual cube-xy data extent
+# (x in [0.245, 0.606], y in [-0.35, 0.32]) with margin.
+XMIN, XMAX, YMIN, YMAX = 0.20, 0.65, -0.40, 0.40
+# Default mujoco model offscreen buffer is ~640x480; stay within it.
+IMG_W = IMG_H = 480
+MARGIN = 40
 
 
 def _try_mujoco_topdown(out_png: Path) -> bool:
@@ -44,13 +48,28 @@ def _try_mujoco_topdown(out_png: Path) -> bool:
         env.reset(options=dict(task_id=1))
         m = env.unwrapped.model
         d = env.unwrapped.data
+        # The cube model's default offscreen framebuffer can be smaller
+        # than our requested image; enlarge it before the Renderer.
+        m.vis.global_.offwidth = max(int(m.vis.global_.offwidth), IMG_W)
+        m.vis.global_.offheight = max(int(m.vis.global_.offheight), IMG_H)
         cam = mujoco.MjvCamera()
         cam.lookat[:] = [0.5 * (XMIN + XMAX), 0.5 * (YMIN + YMAX), 0.05]
         cam.elevation = -89.9
         cam.azimuth = 90.0
         cam.distance = 1.2
+        # Robot is in geom groups 2-3; world (table) + cube + goal
+        # marker are all in group 1. Show only group 1 (drop the robot)
+        # and make the task-specific cube/goal geoms invisible so the
+        # background stays task-agnostic.
+        opt = mujoco.MjvOption()
+        opt.geomgroup[:] = 0
+        opt.geomgroup[1] = 1
+        for nm in ("object_0", "target_object_0"):
+            gid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, nm)
+            if gid >= 0:
+                m.geom_rgba[gid, 3] = 0.0
         ren = mujoco.Renderer(m, IMG_H, IMG_W)
-        ren.update_scene(d, camera=cam)
+        ren.update_scene(d, camera=cam, scene_option=opt)
         img = ren.render()
         ren.close()
         env.close()
