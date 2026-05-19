@@ -12,6 +12,8 @@
 
 **Source of truth for ports:** `/home/adityamohan/git/baselines/td_jepa/metamotivo/nn_models.py:329-409`, `metamotivo/buffers/parallel.py:73-89`, `scripts/train/pixel/launch_fb_ogbench.py`.
 
+**Plan correction (Task 4):** The original Task 4 wrongly assumed "no agent logic change" because `FBModel` accepts `rgb_encoder_cfg`/`augmentator_cfg`. In fact `FBAgent.__init__` (the layer between `make_agent` and the model) has no `**kwargs` and did not declare these params, so passing them broke *all* runs incl. the state path. Task 4 therefore also threads `rgb_encoder_cfg`/`augmentator_cfg` through `agents/fb/agent.py::FBAgent.__init__` → `_make_model(...)` (mirroring `obs_normalizer_cfg`); `FBFlowBCAgent` already forwards via `**fb_kwargs`. An agent-construction regression test (state + pixel-FlowBC) was added to `tests/test_pixel_wiring.py` to catch this class of break.
+
 **Conventions (locked, documented deviation per spec):**
 - Offline pixel observations are stored **CHW** per frame: `(N, C, H, W)` `uint8`, matching `DrQEncoder`'s `Conv2d` input and `PixelWrapper`'s live-env CHW output.
 - Frame stacking concatenates along the **channel axis**, order **oldest→newest**, clamped at the episode start via a stored episode-relative `timestep` (replicates `np.maximum(-i, -timesteps)` from td_jepa `parallel.py`).
