@@ -84,22 +84,26 @@ def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
                         "table_z": ep["table_z"],
                         "transport_mask": tm})
         cube_xy = np.asarray(ep["cube"], np.float64).reshape(-1, 3)[:, :2]
+        eff_xy = np.asarray(ep["eff"], np.float64).reshape(-1, 3)[:, :2]
         ep_for_region = dict(ep)
         ep_for_region["transport_mask"] = tm
         region = _region(ep_for_region, thr)
-        for ti, (dd, vv, mm, cxy, rg) in enumerate(
-                zip(d, V, tm, cube_xy, region)):
+        for ti, (dd, vv, mm, cxy, exy, rg) in enumerate(
+                zip(d, V, tm, cube_xy, eff_xy, region)):
             vs_rows.append({"task": ep["task"], "episode": ep["episode"],
                             "t": int(ti), "outcome": outcome,
                             "region": str(rg), "d": float(dd),
                             "V": float(vv), "transport": bool(mm),
                             "cube_x": float(cxy[0]),
-                            "cube_y": float(cxy[1])})
+                            "cube_y": float(cxy[1]),
+                            "eef_x": float(exy[0]),
+                            "eef_y": float(exy[1])})
     cov = probe_coverage(cov_eps, ref_obs, thr)
     cov.insert(0, "task", episodes[0]["task"] if episodes else "")
     vs = pd.DataFrame(vs_rows, columns=["task", "episode", "t", "outcome",
                                         "region", "d", "V", "transport",
-                                        "cube_x", "cube_y"])
+                                        "cube_x", "cube_y",
+                                        "eef_x", "eef_y"])
     return (pd.DataFrame(vl_rows), cov, pd.DataFrame(fun_rows), vs)
 
 

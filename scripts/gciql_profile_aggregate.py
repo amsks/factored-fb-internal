@@ -189,6 +189,87 @@ def _phase_action_fields(df, grid, n_arrow: int = 12, n_min: int = 5):
     return vz, (U, Vv), counts
 
 
+def _cube_distribution_scatter(out_dir, gciql_root, fb_seed_root,
+                               buffer_dir=None,
+                               n_episodes_dataset: int = 500) -> None:
+    """One scatter PNG comparing cube xy distributions: offline dataset
+    (start/end per episode, blue light/dark) vs greedy rollouts under
+    each method (FB red, GCIQL green; light=start, dark=end). Answers
+    'is the policy operating inside the data manifold?'"""
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    buf = Path(buffer_dir or
+               REPO_ROOT / "datasets" / "cube-single-play-v0" / "buffer")
+
+    # Dataset: first / last cube xy per episode (physics[:, 14:16])
+    ds_s, ds_e = [], []
+    for f in sorted(buf.glob("episode_*.npz"))[:n_episodes_dataset]:
+        with np.load(f) as z:
+            p = np.asarray(z["physics"], np.float64)
+            ds_s.append(p[0, 14:16])
+            ds_e.append(p[-1, 14:16])
+    if not ds_s:
+        print("  [warn] _cube_distribution_scatter: no buffer episodes")
+        return
+    ds_s = np.asarray(ds_s, float)
+    ds_e = np.asarray(ds_e, float)
+
+    def _se(root):
+        s, e = [], []
+        if root is None:
+            return np.zeros((0, 2)), np.zeros((0, 2))
+        need = {"task", "episode", "t", "cube_x", "cube_y"}
+        for p in sorted(Path(root).glob("s*_final/value_steps.parquet")):
+            df = pd.read_parquet(p)
+            if not need <= set(df.columns):
+                continue   # old-schema parquet -> skip this seed
+            df = df.sort_values(["task", "episode", "t"])
+            for _, g in df.groupby(["task", "episode"]):
+                s.append(g.iloc[0][["cube_x", "cube_y"]].to_numpy())
+                e.append(g.iloc[-1][["cube_x", "cube_y"]].to_numpy())
+        return (np.asarray(s, float) if s else np.zeros((0, 2)),
+                np.asarray(e, float) if e else np.zeros((0, 2)))
+
+    fb_s, fb_e = _se(fb_seed_root)
+    gc_s, gc_e = _se(gciql_root)
+
+    fig, ax = plt.subplots(figsize=(8.5, 7.5))
+    ax.scatter(ds_s[:, 0], ds_s[:, 1], s=10, c="#9ecae1", alpha=0.5,
+               edgecolors="none",
+               label=f"dataset start (n={len(ds_s)})")
+    ax.scatter(ds_e[:, 0], ds_e[:, 1], s=10, c="#08306b", alpha=0.6,
+               edgecolors="none",
+               label=f"dataset end (n={len(ds_e)})")
+    if len(fb_s):
+        ax.scatter(fb_s[:, 0], fb_s[:, 1], s=20, c="#fcae91", alpha=0.7,
+                   edgecolors="black", linewidths=0.4,
+                   label=f"FB rollout start (n={len(fb_s)})")
+        ax.scatter(fb_e[:, 0], fb_e[:, 1], s=20, c="#a50f15", alpha=0.7,
+                   edgecolors="black", linewidths=0.4,
+                   label=f"FB rollout end (n={len(fb_e)})")
+    if len(gc_s):
+        ax.scatter(gc_s[:, 0], gc_s[:, 1], s=20, c="#a1d99b", alpha=0.7,
+                   edgecolors="black", linewidths=0.4,
+                   label=f"GCIQL rollout start (n={len(gc_s)})")
+        ax.scatter(gc_e[:, 0], gc_e[:, 1], s=20, c="#005a32", alpha=0.7,
+                   edgecolors="black", linewidths=0.4,
+                   label=f"GCIQL rollout end (n={len(gc_e)})")
+    ax.set_aspect("equal")
+    ax.set_xlabel("cube x (m)")
+    ax.set_ylabel("cube y (m)")
+    ax.set_title("Cube xy distribution: offline dataset vs greedy "
+                 "rollouts\n(do test states stay in the training "
+                 "manifold?)", fontsize=11)
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.9,
+              markerscale=1.4)
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fp = out_dir / "cube_distribution_scatter.png"
+    fig.savefig(fp, dpi=140)
+    plt.close(fig)
+    print(f"[cube_distribution_scatter] wrote -> {fp}")
+
+
 def _decode_support_xy(gciql_root, fb_seed_root):
     """Decode dataset cube xy once, cached to
     analysis/dataset_support_cube_xy.npy."""
@@ -337,7 +418,17 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
             ky = 0.5 * (ye[:-1] + ye[1:])
             kz = support_kde(support_xy, kx, ky)
 
-            fig, axes = plt.subplots(2, 3, figsize=(15, 9.5))
+            # 2 rows x 4 cols: cols 0-2 are phases; col 3 spans both
+            # rows as a dedicated "offline dataset support" panel.
+            fig = plt.figure(figsize=(20, 9.5))
+            gs = fig.add_gridspec(2, 4,
+                                  width_ratios=[1, 1, 1, 1.05],
+                                  wspace=0.06, hspace=0.10)
+            axes = np.empty((2, 3), dtype=object)
+            for rr in range(2):
+                for cc in range(3):
+                    axes[rr, cc] = fig.add_subplot(gs[rr, cc])
+            ax_data = fig.add_subplot(gs[:, 3])
             for r, oc in enumerate(("success", "transport_fail")):
                 for c, (rg, lbl) in enumerate(REGIONS):
                     ax = axes[r, c]
@@ -359,19 +450,18 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                     tag = f"{oc} — {lbl} (n={n}{', low' if low else ''})"
                     ax.set_title(tag, fontsize=9,
                                  color="grey" if low else "black")
-                    if eef_init_xy is not None:
-                        # EEF start: cyan diamond
-                        ax.scatter([eef_init_xy[0]], [eef_init_xy[1]],
-                                   marker="D", s=160, c="cyan",
-                                   edgecolors="black", linewidths=1.4,
-                                   zorder=5, label="EEF start")
-                    if cube_init_xy is not None:
-                        # cube start: white square w/ black edge
-                        ax.scatter([cube_init_xy[0]],
-                                   [cube_init_xy[1]],
-                                   marker="s", s=170, c="white",
-                                   edgecolors="black", linewidths=1.4,
-                                   zorder=6, label="cube start")
+                    # per-phase mean cube + EEF positions (this filter)
+                    if n >= 5:
+                        cube_p = (float(d["cube_x"].mean()),
+                                  float(d["cube_y"].mean()))
+                        eef_p = (float(d["eef_x"].mean()),
+                                 float(d["eef_y"].mean()))
+                        ax.scatter([eef_p[0]], [eef_p[1]], marker="D",
+                                   s=160, c="cyan", edgecolors="black",
+                                   linewidths=1.4, zorder=5)
+                        ax.scatter([cube_p[0]], [cube_p[1]], marker="s",
+                                   s=170, c="white", edgecolors="black",
+                                   linewidths=1.4, zorder=6)
                     if goal_xy is not None:
                         # goal: bright gold star with halo + black edge
                         ax.scatter([goal_xy[0]], [goal_xy[1]],
@@ -402,8 +492,11 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                         from matplotlib.cm import get_cmap
                         norm = np.clip((vz - lo) / (hi - lo), 0.0, 1.0)
                         rgba = get_cmap("Reds")(norm)
+                        # Lighter "saliency" overlay: linear-in-value
+                        # alpha (no aggressive low-V fade) capped at
+                        # 0.55 so the photoreal table reads through.
                         rgba[..., 3] = np.where(
-                            fin, (norm ** 1.4) * (0.92 * a), 0.0)
+                            fin, norm * (0.55 * a), 0.0)
                         ax.imshow(rgba, origin="lower", extent=ext,
                                   zorder=2, aspect="auto",
                                   interpolation="bilinear")
@@ -427,23 +520,83 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                                   linewidth=0.5, alpha=a,
                                   scale=NARROW * 1.1, width=0.007,
                                   headwidth=4, zorder=4, pivot="mid")
+            # ---- 4th column: dataset-support reference panel -----
+            # Use the dataset's own full extent so the support reads
+            # clearly (independent of the rollouts' tighter extent).
+            dx_lo, dx_hi = np.percentile(support_xy[:, 0], [0.5, 99.5])
+            dy_lo, dy_hi = np.percentile(support_xy[:, 1], [0.5, 99.5])
+            dpx = 0.05 * (dx_hi - dx_lo)
+            dpy = 0.05 * (dy_hi - dy_lo)
+            dx_lo, dx_hi = dx_lo - dpx, dx_hi + dpx
+            dy_lo, dy_hi = dy_lo - dpy, dy_hi + dpy
+            ax_data.set_xlim(dx_lo, dx_hi)
+            ax_data.set_ylim(dy_lo, dy_hi)
+            ax_data.set_aspect("equal")
+            ax_data.set_xticks([])
+            ax_data.set_yticks([])
+            if bg_img is not None:
+                ax_data.imshow(bg_img,
+                               extent=[dx_lo, dx_hi, dy_lo, dy_hi],
+                               aspect="auto", zorder=0,
+                               interpolation="bilinear")
+            else:
+                ax_data.set_facecolor("0.92")
+            # KDE evaluated on the data-extent grid
+            kxd = np.linspace(dx_lo, dx_hi, 80)
+            kyd = np.linspace(dy_lo, dy_hi, 80)
+            kzd = support_kde(support_xy, kxd, kyd)
+            # raw dataset cube xy scatter (subsample for clarity)
+            n_sub = min(8000, len(support_xy))
+            idx = np.random.default_rng(0).choice(
+                len(support_xy), n_sub, replace=False)
+            ax_data.scatter(support_xy[idx, 0], support_xy[idx, 1],
+                            s=2.0, c="#ffd86e", alpha=0.18, zorder=1,
+                            linewidths=0)
+            # filled KDE region + iso-lines on the data extent
+            ax_data.contourf(kxd, kyd, kzd,
+                             levels=[0.10, 0.30, 0.60, 1.01],
+                             colors=["#f0c0a0", "#e89060", "#d05050"],
+                             alpha=0.45, zorder=2)
+            ax_data.contour(kxd, kyd, kzd, levels=[0.15, 0.6],
+                            colors="white", linewidths=1.2,
+                            alpha=0.9, zorder=3)
+            # task reference markers (env anchors)
+            anc_here = anchors.get(task, {})
+            if "eef_init" in anc_here:
+                eii = anc_here["eef_init"]
+                ax_data.scatter([eii[0]], [eii[1]], marker="D", s=160,
+                                c="cyan", edgecolors="black",
+                                linewidths=1.4, zorder=5)
+            if "cube_init" in anc_here:
+                cii = anc_here["cube_init"]
+                ax_data.scatter([cii[0]], [cii[1]], marker="s", s=170,
+                                c="white", edgecolors="black",
+                                linewidths=1.4, zorder=6)
+            if "goal" in anc_here:
+                gi = anc_here["goal"]
+                ax_data.scatter([gi[0]], [gi[1]], marker="*", s=900,
+                                c="white", alpha=0.55, zorder=6)
+                ax_data.scatter([gi[0]], [gi[1]], marker="*", s=520,
+                                c="gold", edgecolors="black",
+                                linewidths=1.6, zorder=7)
+            ax_data.set_title("offline dataset support\n"
+                              "(cube xy in the play data)", fontsize=9)
+
             from matplotlib.lines import Line2D
             handles = []
-            if eef_init_xy is not None:
-                handles.append(Line2D(
-                    [0], [0], marker="D", color="cyan",
-                    markeredgecolor="black", markersize=8,
-                    linestyle="", label="EEF start"))
-            if cube_init_xy is not None:
-                handles.append(Line2D(
-                    [0], [0], marker="s", color="white",
-                    markeredgecolor="black", markersize=10,
-                    linestyle="", label="cube start"))
+            handles.append(Line2D(
+                [0], [0], marker="D", color="cyan",
+                markeredgecolor="black", markersize=8,
+                linestyle="", label="EEF (mean this phase)"))
+            handles.append(Line2D(
+                [0], [0], marker="s", color="white",
+                markeredgecolor="black", markersize=10,
+                linestyle="", label="cube (mean this phase)"))
             if goal_xy is not None:
                 handles.append(Line2D(
                     [0], [0], marker="*", color="gold",
                     markeredgecolor="black", markersize=15,
-                    linestyle="", label="goal"))
+                    linestyle="", label="goal (task target)"))
             handles.append(Line2D(
                 [0], [0], color="0.55", linewidth=1.0,
                 label="offline data support"))
@@ -706,6 +859,8 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
                  REPO_ROOT / "analysis" / "scene" / "calib.json")
 
     _phase_action_scene(cdir / "phase_scene", gciql_root, fb_seed_root)
+    _cube_distribution_scatter(cdir / "phase_scene",
+                                gciql_root, fb_seed_root)
 
 
 def main() -> None:

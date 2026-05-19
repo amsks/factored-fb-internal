@@ -92,6 +92,7 @@ def rollout_for_profile(env, agent, z, n_episodes: int, thr,
         out.append({
             "obs": ep["obs"], "action": ep["action"],
             "cube": cube, "goal": goal, "d": d,
+            "eff": np.asarray(ep["eff"], np.float64).reshape(-1, 3),
             "grip": np.asarray(ep["grip"], np.float64).reshape(-1),
             "table_z": float(ep["table_z"]),
             "transport_mask": transport_mask(ep, thr),
@@ -116,16 +117,19 @@ def probe_value_landscape(model, agent, episodes, z, thr=None):
         d = np.asarray(ep["d"], np.float64)
         m = np.asarray(ep["transport_mask"], bool)
         cube_xy = np.asarray(ep["cube"], np.float64).reshape(-1, 3)[:, :2]
+        eff_xy = np.asarray(ep["eff"], np.float64).reshape(-1, 3)[:, :2]
         region = _region(ep, thr)
-        for ti, (dd, vv, mm, cxy, rg) in enumerate(
-                zip(d, V, m, cube_xy, region)):
+        for ti, (dd, vv, mm, cxy, exy, rg) in enumerate(
+                zip(d, V, m, cube_xy, eff_xy, region)):
             per_step_rows.append({"episode": i, "t": int(ti),
                                   "outcome": ep["outcome"],
                                   "region": str(rg),
                                   "d": float(dd), "V": float(vv),
                                   "transport": bool(mm),
                                   "cube_x": float(cxy[0]),
-                                  "cube_y": float(cxy[1])})
+                                  "cube_y": float(cxy[1]),
+                                  "eef_x": float(exy[0]),
+                                  "eef_y": float(exy[1])})
         n_t = int(m.sum())
         if (n_t >= 5 and np.ptp(d[m]) > 1e-9 and np.ptp(V[m]) > 1e-9):
             rho = _spearman(V[m], -d[m])

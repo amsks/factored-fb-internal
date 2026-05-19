@@ -91,3 +91,44 @@ def test_phase_action_scene_smoke(tmp_path, monkeypatch):
     pngs = sorted(p.name for p in out.glob("*.png"))
     assert pngs == ["task1__FB.png", "task1__GCIQL.png"]
     assert (out / "_index.md").exists()
+
+
+def test_cube_distribution_scatter_smoke(tmp_path):
+    # Minimal buffer: 3 episodes, physics[:, 14:16] = cube xy
+    buf = tmp_path / "buffer"
+    buf.mkdir()
+    rng = np.random.RandomState(0)
+    for e in range(3):
+        T = 20
+        phys = np.zeros((T, 21), np.float32)
+        phys[:, 14] = rng.uniform(0.3, 0.6, T)
+        phys[:, 15] = rng.uniform(-0.2, 0.2, T)
+        np.savez(buf / f"episode_{e:06d}_{T}.npz",
+                 physics=phys, observation=np.zeros((T, 28), np.float32),
+                 action=np.zeros((T, 5), np.float32),
+                 reward=np.zeros((T, 1), np.float32),
+                 discount=np.ones((T, 1), np.float32))
+    # Minimal value_steps for FB + GCIQL
+    def _vs(root):
+        d = Path(root) / "s1_final"
+        d.mkdir(parents=True)
+        rows = []
+        for ep in range(2):
+            for t in range(5):
+                rows.append(dict(task="task1", episode=ep, t=t,
+                                 outcome="success", region="transport",
+                                 d=0.1, V=0.0, transport=True,
+                                 cube_x=0.4 + 0.01 * t,
+                                 cube_y=0.05 * ep,
+                                 eef_x=0.4, eef_y=0.0))
+        pd.DataFrame(rows).to_parquet(d / "value_steps.parquet")
+
+    fb_root = tmp_path / "fb"
+    gc_root = tmp_path / "gc"
+    _vs(fb_root)
+    _vs(gc_root)
+    out = tmp_path / "scatter_out"
+    ga._cube_distribution_scatter(out, str(gc_root), str(fb_root),
+                                   buffer_dir=str(buf),
+                                   n_episodes_dataset=3)
+    assert (out / "cube_distribution_scatter.png").exists()
