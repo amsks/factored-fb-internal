@@ -55,6 +55,7 @@ def create_ogbench_env(
     render_height: int = 64,
     render_width: int = 64,
     obs_type: str = "state",
+    frame_stack: int = 1,
 ):
     if wrappers is None:
         wrappers = []
@@ -63,6 +64,7 @@ def create_ogbench_env(
             pass
         case "pixels":
             task = "visual-" + task
+            wrappers = wrappers + [lambda e: PixelWrapper(e, frame_stack)]
         case _:
             raise ValueError(f"Unsupported observation type {obs_type}")
     env_kwargs = {"height": render_height, "width": render_width}
