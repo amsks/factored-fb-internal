@@ -179,9 +179,12 @@ def build_fragment(phase_root, repr_root, out_dir, subdir: str,
     gcmp_block = ""
     if gciql_cmp is not None:
         gciql_cmp = Path(gciql_cmp)
-        cmp_png = gciql_cmp / "cmp_value_rho.png"
-        if cmp_png.exists():
-            shutil.copyfile(cmp_png, figdir / "cmp_value_rho.png")
+        cmp_figs = []
+        for png in sorted(gciql_cmp.glob("cmp_*.png")):
+            shutil.copyfile(png, figdir / png.name)
+            cap = _tex(png.stem.replace("cmp_", "").replace("_", " "))
+            cmp_figs.append(_fig("figures", png.name, True,
+                                 "FB vs GCIQL: " + cap))
         cmp_tbl = ""
         pq = gciql_cmp / "fb_vs_gciql.parquet"
         if pq.exists():
@@ -195,10 +198,7 @@ def build_fragment(phase_root, repr_root, out_dir, subdir: str,
             cmp_md = _story_to_latex(cmp_md_p.read_text())
         gcmp_block = "\n".join([
             r"\subsection{FB vs GCIQL: Shared-Axis Comparison}",
-            _fig("figures", "cmp_value_rho.png",
-                 (figdir / "cmp_value_rho.png").exists(),
-                 _tex("FB vs GCIQL: value gradient")),
-            cmp_tbl, cmp_md])
+            *cmp_figs, cmp_tbl, cmp_md])
 
     doc = [
         "% Auto-generated self-contained document; regenerate via "
