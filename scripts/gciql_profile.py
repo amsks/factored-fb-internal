@@ -49,10 +49,10 @@ def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
         V = np.asarray(ep["V"], np.float64)
         tm = transport_mask(ep, thr)
         sig = {
-            "eff": np.zeros((len(d), 3)),
+            "eff": np.asarray(ep["eff"], np.float64).reshape(-1, 3),
             "cube": np.asarray(ep["cube"], np.float64).reshape(-1, 3),
             "grip": np.asarray(ep["grip"], np.float64).reshape(-1),
-            "goal": np.asarray(ep["cube"], np.float64).reshape(-1, 3)[-1],
+            "goal": np.asarray(ep["goal"], np.float64).reshape(3),
             "success": bool(ep["success"]),
             "table_z": float(ep["table_z"]),
             "length": len(d),
@@ -192,6 +192,8 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
                 "d": np.asarray(D), "V": np.asarray(VV),
                 "grip": np.asarray(GRIP),
                 "cube": np.asarray(CUBE),
+                "eff": np.asarray(EFF),
+                "goal": gxyz,
                 "table_z": table_z,
                 "success": succ,
                 "task": f"task{task_id}", "episode": ep_i})
