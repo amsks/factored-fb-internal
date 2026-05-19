@@ -41,6 +41,19 @@ def test_phase_action_fields_empty():
     assert counts.sum() == 0
 
 
+def test_nan_gaussian_keeps_empty_nan_and_smooths():
+    g = np.full((9, 9), np.nan)
+    g[4, 4] = 10.0
+    g[4, 5] = 10.0
+    out = ga._nan_gaussian(g, sigma=1.0)
+    # the lone occupied cluster spreads to neighbours but far-away
+    # empty cells stay NaN (field stays near the data)
+    assert np.isfinite(out[4, 4]) and np.isfinite(out[4, 5])
+    assert abs(out[4, 4] - 10.0) < 5.0
+    assert np.isnan(out[0, 0]) and np.isnan(out[8, 8])
+    assert np.isnan(ga._nan_gaussian(np.full((4, 4), np.nan))).all()
+
+
 def test_canon_task_normalizes_both_recorder_labels():
     assert ga._canon_task("task3") == "task3"
     assert ga._canon_task(
