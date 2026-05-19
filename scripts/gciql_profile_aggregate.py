@@ -317,6 +317,11 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                            float(at_goal["cube_y"].mean()))
             else:
                 goal_xy = None
+            # starting-state marker: empirical mean cube xy at t==0
+            init = sub_all[sub_all["t"] == 0]
+            start_xy = ((float(init["cube_x"].mean()),
+                         float(init["cube_y"].mean()))
+                        if not init.empty else None)
             kx = 0.5 * (xe[:-1] + xe[1:])
             ky = 0.5 * (ye[:-1] + ye[1:])
             kz = support_kde(support_xy, kx, ky)
@@ -343,10 +348,23 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                     tag = f"{oc} — {lbl} (n={n}{', low' if low else ''})"
                     ax.set_title(tag, fontsize=9,
                                  color="grey" if low else "black")
+                    if start_xy is not None:
+                        # start: hollow white-ringed circle (no fill so
+                        # value-field underneath is still readable)
+                        ax.scatter([start_xy[0]], [start_xy[1]],
+                                   marker="o", s=180,
+                                   facecolors="none",
+                                   edgecolors="white",
+                                   linewidths=2.2, zorder=5)
                     if goal_xy is not None:
+                        # goal: bright gold star with halo + black edge
                         ax.scatter([goal_xy[0]], [goal_xy[1]],
-                                   marker="*", s=240, c="gold",
-                                   edgecolors="k", zorder=6)
+                                   marker="*", s=900, c="white",
+                                   alpha=0.55, zorder=6)
+                        ax.scatter([goal_xy[0]], [goal_xy[1]],
+                                   marker="*", s=520, c="gold",
+                                   edgecolors="black", linewidths=1.6,
+                                   zorder=7)
                     ax.contour(kx, ky, kz, levels=[0.15, 0.6],
                                colors="0.45", linewidths=0.7,
                                alpha=0.6, zorder=1)
@@ -362,11 +380,16 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                         lo, hi = np.percentile(vz[fin], [2, 98])
                         if hi - lo < 1e-9:
                             hi = lo + 1.0
-                        ax.imshow(np.ma.masked_invalid(vz),
-                                  origin="lower", extent=ext,
-                                  cmap="viridis", vmin=lo, vmax=hi,
-                                  alpha=0.7 * a, zorder=2,
-                                  aspect="auto",
+                        # red-saliency overlay: alpha proportional to
+                        # normalized value (low V transparent -> table
+                        # shows; high V bright red). RGB from 'Reds'.
+                        from matplotlib.cm import get_cmap
+                        norm = np.clip((vz - lo) / (hi - lo), 0.0, 1.0)
+                        rgba = get_cmap("Reds")(norm)
+                        rgba[..., 3] = np.where(
+                            fin, (norm ** 1.4) * (0.92 * a), 0.0)
+                        ax.imshow(rgba, origin="lower", extent=ext,
+                                  zorder=2, aspect="auto",
                                   interpolation="bilinear")
                     # unit-normalized arrows, colored by displacement
                     ac = 0.5 * (np.linspace(xlo, xhi, NARROW + 1)[:-1]
