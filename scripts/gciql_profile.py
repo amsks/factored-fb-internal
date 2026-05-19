@@ -43,7 +43,7 @@ def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
     Each record: obs[T,O], d[T], V[T], grip[T], cube[T,3], table_z,
     success(bool), task(str), episode(int). Pure; no jax.
     """
-    vl_rows, fun_rows, cov_eps = [], [], []
+    vl_rows, fun_rows, cov_eps, vs_rows = [], [], [], []
     for ep in episodes:
         d = np.asarray(ep["d"], np.float64)
         V = np.asarray(ep["V"], np.float64)
@@ -82,9 +82,15 @@ def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
                         "grip": ep["grip"], "cube": ep["cube"],
                         "table_z": ep["table_z"],
                         "transport_mask": tm})
+        for dd, vv, mm in zip(d, V, tm):
+            vs_rows.append({"task": ep["task"], "episode": ep["episode"],
+                            "outcome": outcome, "d": float(dd),
+                            "V": float(vv), "transport": bool(mm)})
     cov = probe_coverage(cov_eps, ref_obs, thr)
     cov.insert(0, "task", episodes[0]["task"] if episodes else "")
-    return (pd.DataFrame(vl_rows), cov, pd.DataFrame(fun_rows))
+    vs = pd.DataFrame(vs_rows, columns=["task", "episode", "outcome",
+                                        "d", "V", "transport"])
+    return (pd.DataFrame(vl_rows), cov, pd.DataFrame(fun_rows), vs)
 
 
 def build_argparser() -> argparse.ArgumentParser:
@@ -210,10 +216,11 @@ def main() -> None:
         args.run_dir, args.step, task_ids, args.n_episodes,
         args.max_steps)
     ref = _load_ref_obs(args.dataset_path)
-    vl, cov, fun = episodes_to_frames(episodes, Thresholds(), ref)
+    vl, cov, fun, vs = episodes_to_frames(episodes, Thresholds(), ref)
     vl.to_parquet(out / "value_landscape.parquet")
     cov.to_parquet(out / "coverage.parquet")
     fun.to_parquet(out / "phase_funnel.parquet")
+    vs.to_parquet(out / "value_steps.parquet")
     (out / "metrics.json").write_text(json.dumps({
         "run_dir": str(args.run_dir), "step": args.step,
         "tasks": task_ids, "n_episodes": args.n_episodes,
