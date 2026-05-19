@@ -270,6 +270,9 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
         cal = json.loads(calib_json.read_text())
         if cal.get("photoreal"):
             bg_img = mpimg.imread(str(scene_png))
+    anchors_json = sx / "task_anchors.json"
+    anchors = (json.loads(anchors_json.read_text())
+               if anchors_json.exists() else {})
 
     def _seed_concat(rt):
         if rt is None:
@@ -307,21 +310,29 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
             xe = np.linspace(xlo, xhi, NBINS + 1)
             ye = np.linspace(ylo, yhi, NBINS + 1)
             ext = [xlo, xhi, ylo, yhi]
-            # per-task goal proxy: mean cube xy of success states whose
-            # cube->goal distance d is in its lowest 5% (cube at goal)
-            succ = sub_all[sub_all.outcome == "success"]
-            if not succ.empty:
-                thr = np.percentile(succ["d"], 5)
-                at_goal = succ[succ["d"] <= thr]
-                goal_xy = (float(at_goal["cube_x"].mean()),
-                           float(at_goal["cube_y"].mean()))
+            # Per-task anchors from the real env (authoritative). Fall
+            # back to data-derived values if the cache is missing.
+            anc = anchors.get(task, {})
+            if "cube_init" in anc:
+                cube_init_xy = tuple(anc["cube_init"])
             else:
-                goal_xy = None
-            # starting-state marker: empirical mean cube xy at t==0
-            init = sub_all[sub_all["t"] == 0]
-            start_xy = ((float(init["cube_x"].mean()),
-                         float(init["cube_y"].mean()))
-                        if not init.empty else None)
+                init = sub_all[sub_all["t"] == 0]
+                cube_init_xy = ((float(init["cube_x"].mean()),
+                                 float(init["cube_y"].mean()))
+                                if not init.empty else None)
+            if "goal" in anc:
+                goal_xy = tuple(anc["goal"])
+            else:
+                succ = sub_all[sub_all.outcome == "success"]
+                if not succ.empty:
+                    thr = np.percentile(succ["d"], 5)
+                    g = succ[succ["d"] <= thr]
+                    goal_xy = (float(g["cube_x"].mean()),
+                               float(g["cube_y"].mean()))
+                else:
+                    goal_xy = None
+            eef_init_xy = (tuple(anc["eef_init"])
+                           if "eef_init" in anc else None)
             kx = 0.5 * (xe[:-1] + xe[1:])
             ky = 0.5 * (ye[:-1] + ye[1:])
             kz = support_kde(support_xy, kx, ky)
@@ -348,14 +359,19 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                     tag = f"{oc} — {lbl} (n={n}{', low' if low else ''})"
                     ax.set_title(tag, fontsize=9,
                                  color="grey" if low else "black")
-                    if start_xy is not None:
-                        # start: hollow white-ringed circle (no fill so
-                        # value-field underneath is still readable)
-                        ax.scatter([start_xy[0]], [start_xy[1]],
-                                   marker="o", s=180,
-                                   facecolors="none",
-                                   edgecolors="white",
-                                   linewidths=2.2, zorder=5)
+                    if eef_init_xy is not None:
+                        # EEF start: cyan diamond
+                        ax.scatter([eef_init_xy[0]], [eef_init_xy[1]],
+                                   marker="D", s=160, c="cyan",
+                                   edgecolors="black", linewidths=1.4,
+                                   zorder=5, label="EEF start")
+                    if cube_init_xy is not None:
+                        # cube start: white square w/ black edge
+                        ax.scatter([cube_init_xy[0]],
+                                   [cube_init_xy[1]],
+                                   marker="s", s=170, c="white",
+                                   edgecolors="black", linewidths=1.4,
+                                   zorder=6, label="cube start")
                     if goal_xy is not None:
                         # goal: bright gold star with halo + black edge
                         ax.scatter([goal_xy[0]], [goal_xy[1]],
@@ -364,7 +380,7 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                         ax.scatter([goal_xy[0]], [goal_xy[1]],
                                    marker="*", s=520, c="gold",
                                    edgecolors="black", linewidths=1.6,
-                                   zorder=7)
+                                   zorder=7, label="goal")
                     ax.contour(kx, ky, kz, levels=[0.15, 0.6],
                                colors="0.45", linewidths=0.7,
                                alpha=0.6, zorder=1)
@@ -411,6 +427,28 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                                   linewidth=0.5, alpha=a,
                                   scale=NARROW * 1.1, width=0.007,
                                   headwidth=4, zorder=4, pivot="mid")
+            from matplotlib.lines import Line2D
+            handles = []
+            if eef_init_xy is not None:
+                handles.append(Line2D(
+                    [0], [0], marker="D", color="cyan",
+                    markeredgecolor="black", markersize=8,
+                    linestyle="", label="EEF start"))
+            if cube_init_xy is not None:
+                handles.append(Line2D(
+                    [0], [0], marker="s", color="white",
+                    markeredgecolor="black", markersize=10,
+                    linestyle="", label="cube start"))
+            if goal_xy is not None:
+                handles.append(Line2D(
+                    [0], [0], marker="*", color="gold",
+                    markeredgecolor="black", markersize=15,
+                    linestyle="", label="goal"))
+            handles.append(Line2D(
+                [0], [0], color="0.55", linewidth=1.0,
+                label="offline data support"))
+            axes[0, 0].legend(handles=handles, loc="upper left",
+                              fontsize=7, framealpha=0.85, ncol=1)
             fig.suptitle(f"{task} — {method}: phase-conditioned value "
                          f"& action fields", fontsize=13)
             fig.tight_layout()
