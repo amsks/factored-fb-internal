@@ -14,6 +14,13 @@ from typing import Any, Dict, List
 import numpy as np
 import torch
 
+from evals._profile_core import (  # noqa: E402  (re-exported for callers)
+    _region,
+    _spearman,
+    probe_coverage,
+    transport_mask,
+)
+
 
 @torch.no_grad()
 def _ensemble_q(F: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
@@ -61,14 +68,6 @@ def v_values(model, agent, obs: torch.Tensor, z: torch.Tensor) -> np.ndarray:
     return q_values(model, obs, action.to(obs.device).float(), zb)
 
 
-def transport_mask(ep: Dict[str, Any], thr) -> np.ndarray:
-    """Per-step boolean: cube lifted above table and gripper closed."""
-    cube = np.asarray(ep["cube"], dtype=np.float64).reshape(-1, 3)
-    grip = np.asarray(ep["grip"], dtype=np.float64).reshape(-1)
-    lift = cube[:, 2] - float(ep["table_z"])
-    return (lift > thr.delta_lift) & (grip > thr.tau_grip)
-
-
 def rollout_for_profile(env, agent, z, n_episodes: int, thr,
                         seed_offset: int = 0) -> List[Dict[str, Any]]:
     """S0 rollouts with obs/action recorded, each tagged with outcome,
@@ -98,21 +97,6 @@ def rollout_for_profile(env, agent, z, n_episodes: int, thr,
             "outcome": outcome, "length": ep["length"],
         })
     return out
-
-
-def _spearman(y: np.ndarray, x: np.ndarray) -> float:
-    """Spearman rho (Pearson on average ranks) of y vs x; nan if either
-    side is constant or fewer than 2 points. Outlier-robust and
-    scale-free, unlike an OLS slope on the unnormalised value V."""
-    import pandas as pd
-
-    y = np.asarray(y, np.float64)
-    x = np.asarray(x, np.float64)
-    if len(x) < 2 or np.ptp(x) < 1e-12 or np.ptp(y) < 1e-12:
-        return float("nan")
-    rx = pd.Series(x).rank().to_numpy()
-    ry = pd.Series(y).rank().to_numpy()
-    return float(np.corrcoef(rx, ry)[0, 1])
 
 
 def probe_value_landscape(model, agent, episodes, z):
@@ -227,46 +211,6 @@ def probe_b_resolution(B: np.ndarray, d: np.ndarray,
         acc = float("nan")
     return {"r2": r2, "placed_vs_near_acc": acc,
             "n_placed": int(placed.sum()), "n_near": int(near.sum())}
-
-
-def _region(ep: Dict[str, Any], thr) -> np.ndarray:
-    """Per-step region label: 'transport' if lifted+gripped, else
-    'lift' if gripper closed, else 'reach'."""
-    grip = np.asarray(ep["grip"], np.float64).reshape(-1)
-    tm = np.asarray(ep["transport_mask"], bool)
-    out = np.where(tm, "transport",
-                   np.where(grip > thr.tau_grip, "lift", "reach"))
-    return out
-
-
-def probe_coverage(episodes, ref_obs: np.ndarray, thr,
-                   max_ref: int = 5000, seed: int = 0) -> "Any":
-    """Per-step nearest-neighbour L2 distance to the standardised offline
-    reference, tagged by outcome and region."""
-    import pandas as pd
-
-    ref = np.asarray(ref_obs, np.float64)
-    if len(ref) > max_ref:
-        rng = np.random.default_rng(seed)
-        ref = ref[rng.choice(len(ref), max_ref, replace=False)]
-    mu = ref.mean(0)
-    sd = ref.std(0) + 1e-6
-    refn = (ref - mu) / sd
-    rows = []
-    for ep in episodes:
-        obs = np.asarray(ep["obs"], np.float64)
-        if obs.shape[0] == 0:
-            continue
-        on = (obs - mu) / sd
-        # batched: ||on||^2 + ||refn||^2 - 2 on·refn
-        d2 = (on ** 2).sum(1, keepdims=True) + (refn ** 2).sum(1) \
-            - 2.0 * on @ refn.T
-        nn = np.sqrt(np.maximum(d2.min(1), 0.0))
-        reg = _region(ep, thr)
-        for r, n in zip(reg, nn):
-            rows.append({"outcome": ep["outcome"], "region": str(r),
-                         "nn_dist": float(n)})
-    return pd.DataFrame(rows)
 
 
 def run_representation_profile(*, model, agent, infer_z, make_env,
