@@ -67,11 +67,17 @@ def test_build_fragment(tmp_path):
     (gcmp / "comparison.md").write_text(
         "# cmp\n- FB ...\n- GCIQL ...")
     (gcmp / "cmp_value_rho.png").write_bytes(b"\x89PNG")
+    for extra in ("cmp_value_vs_dist.png", "cmp_rho_box.png",
+                  "cmp_funnel.png", "cmp_coverage.png"):
+        (gcmp / extra).write_bytes(b"\x89PNG")
     pf.build_fragment(phase, repr_, tmp_path / "PAPER3", "x",
                       gciql_cmp=gcmp)
     t3 = (tmp_path / "PAPER3" / "x" / "fb_cube_failure.tex").read_text()
     assert "FB vs GCIQL" in t3
     assert "cmp_value_rho.png" in t3
+    for extra in ("cmp_value_vs_dist.png", "cmp_rho_box.png",
+                  "cmp_funnel.png", "cmp_coverage.png"):
+        assert extra in t3
     # missing optional figure handled, not crashed
     pf.build_fragment(phase, repr_, tmp_path / "PAPER2", "x",
                       figures=("nonexistent.png",))
