@@ -21,6 +21,9 @@ PHASE_OUT="${PHASE_OUT:-analysis/phase_probe_pixel}"
 GCIQL_ROOT="${GCIQL_ROOT:-}"
 GCIQL_STEP="${GCIQL_STEP:-500000}"
 GCIQL_OUT="${GCIQL_OUT:-analysis/gciql_profile_pixel}"
+# If set, profile every FB seed at step_<CKPT_STEP>.pt (matched-budget run);
+# otherwise prefer final.pt and fall back to the latest step_*.pt.
+CKPT_STEP="${CKPT_STEP:-}"
 DRY_RUN="${DRY_RUN:-0}"
 
 run() { echo "+ $*"; [ "$DRY_RUN" = "1" ] || "$@"; }
@@ -30,11 +33,16 @@ for d in "$RESULTS_ROOT"/*__s*; do
   [ -d "$d" ] || continue
   s=$(basename "$d" | sed -E 's/.*__s([0-9]+)$/\1/')
   cfg="$d/.hydra/config.yaml"
-  # Prefer final.pt; fall back to the latest step_*.pt (not every seed saves
-  # a final checkpoint). Skip the seed if neither exists.
-  ckpt="$d/checkpoints/final.pt"
-  if [ ! -f "$ckpt" ]; then
-    ckpt=$(ls "$d/checkpoints/"step_*.pt 2>/dev/null | sort -V | tail -1)
+  # CKPT_STEP forces a specific step (matched-budget). Otherwise prefer
+  # final.pt, falling back to the latest step_*.pt (not every seed saves a
+  # final checkpoint). Skip the seed if the chosen checkpoint is absent.
+  if [ -n "$CKPT_STEP" ]; then
+    ckpt="$d/checkpoints/step_${CKPT_STEP}.pt"
+  else
+    ckpt="$d/checkpoints/final.pt"
+    if [ ! -f "$ckpt" ]; then
+      ckpt=$(ls "$d/checkpoints/"step_*.pt 2>/dev/null | sort -V | tail -1)
+    fi
   fi
   if [ -z "$ckpt" ] || [ ! -f "$ckpt" ]; then
     echo "[warn] no checkpoint for seed $s under $d/checkpoints; skipping"
