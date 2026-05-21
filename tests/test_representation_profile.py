@@ -258,6 +258,34 @@ def test_run_representation_profile_returns_four_frames(monkeypatch):
     assert out["z_decoding"]["task"].nunique() == 2
 
 
+def test_run_representation_profile_cube_coverage():
+    m, ag = _StubModel(), _StubAgent()
+
+    def infer_z(task):
+        return torch.tensor([1.0, 0.0, 0.0]), {
+            "relabel_reward#nonzero": 2.0,
+            "relabel_reward#num_samples": 10.0}
+
+    def make_env(task):
+        return _PhaseEnv()
+
+    def sample_buffer(n):
+        phys = np.zeros((n, 20), np.float32)   # cube ref at origin
+        return {"next_obs": torch.zeros((n, 5)), "physics": phys,
+                "action": np.zeros((n, 2), np.float32)}
+
+    out = rp.run_representation_profile(
+        model=m, agent=ag, infer_z=infer_z, make_env=make_env,
+        sample_buffer=sample_buffer,
+        relabel_fn_for=lambda t: (lambda p, a: np.zeros((len(p), 1),
+                                                        np.float32)),
+        goal_for=lambda t: np.array([0.0, 0.0, 0.20]),
+        tasks=["t1"], n_episodes=1, thr=pp.Thresholds(),
+        buffer_sample=8, topk=4, seed=0, coverage_feature="cube")
+    assert set(out["coverage"].columns) >= {"task", "outcome",
+                                            "region", "nn_dist"}
+
+
 def test_aggregate_builds_tables_and_story(tmp_path):
     import importlib
     import pandas as pd

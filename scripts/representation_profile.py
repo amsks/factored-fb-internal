@@ -115,7 +115,8 @@ def main() -> None:
         relabel_fn_for=relabel_fn_for, goal_for=goal_for, tasks=tasks,
         n_episodes=args.n_episodes, thr=thr,
         buffer_sample=args.buffer_sample, topk=args.topk,
-        seed=cfg.seed)
+        seed=cfg.seed,
+        coverage_feature=("cube" if cfg.obs_type == "pixels" else "obs"))
 
     res["value_landscape"].to_parquet(out / "value_landscape.parquet")
     res["value_steps"].to_parquet(out / "value_steps.parquet")

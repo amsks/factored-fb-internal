@@ -229,7 +229,7 @@ def probe_b_resolution(B: np.ndarray, d: np.ndarray,
 def run_representation_profile(*, model, agent, infer_z, make_env,
                                sample_buffer, relabel_fn_for, goal_for,
                                tasks, n_episodes, thr, buffer_sample,
-                               topk, seed):
+                               topk, seed, coverage_feature="obs"):
     """Run the four probes per task. `infer_z(task)->(z,relabel_metrics)`,
     `make_env(task)->env`, `sample_buffer(n)->{next_obs,physics,action}`,
     `relabel_fn_for(task)->fn`, `goal_for(task)->goal[3]`. Returns a dict
@@ -271,10 +271,14 @@ def run_representation_profile(*, model, agent, infer_z, make_env,
         bres["task"] = task
         br.append(bres)
 
-        ref_obs = (smp["next_obs"].detach().cpu().numpy()
-                   if hasattr(smp["next_obs"], "detach")
-                   else np.asarray(smp["next_obs"]))
-        cov = probe_coverage(eps, ref_obs, thr, seed=seed)
+        if coverage_feature == "cube":
+            cov_ref = physics[:, 14:17]
+        else:
+            cov_ref = (smp["next_obs"].detach().cpu().numpy()
+                       if hasattr(smp["next_obs"], "detach")
+                       else np.asarray(smp["next_obs"]))
+        cov = probe_coverage(eps, cov_ref, thr, seed=seed,
+                             feature=coverage_feature)
         cov.insert(0, "task", task)
         cv.append(cov)
 
