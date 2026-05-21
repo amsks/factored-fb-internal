@@ -70,11 +70,14 @@ run "$PY" scripts/representation_profile_aggregate.py --root "$REPR_OUT"
 if [ -n "$GCIQL_ROOT" ]; then
   for d in "$GCIQL_ROOT"/sd*; do
     [ -d "$d" ] || continue
-    s=$(basename "$d")
+    # Output dir must be s<seed>_final so the aggregate's seed regex
+    # (s(\d+)_final) matches; derive the seed number from the sdNNN prefix.
+    s=$(basename "$d" | sed -E 's/^sd0*([0-9]+)_.*/\1/')
     run "$JAX_PY" scripts/gciql_profile.py \
         --run-dir "$d" --step "$GCIQL_STEP" \
-        --out "$GCIQL_OUT/${s}_final" \
-        --obs-type pixels --dataset-path "$DATA_PATH/cube-single-play-v0"
+        --out "$GCIQL_OUT/s${s}_final" \
+        --obs-type pixels --dataset-path "$DATA_PATH/cube-single-play-v0" \
+        || echo "[warn] gciql_profile failed for seed $s"
   done
   # FB-vs-GCIQL comparison (numpy/matplotlib only -> PY).
   run "$PY" scripts/gciql_profile_aggregate.py \
