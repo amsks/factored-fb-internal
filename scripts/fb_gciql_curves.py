@@ -202,11 +202,11 @@ import matplotlib.pyplot as plt  # noqa: E402
 COLORS = {"FB": "#d62728", "GCIQL": "#1f77b4"}
 
 
-def _plot_curve(ax, pt, ci, title: str) -> None:
+def _plot_curve(ax, pt, ci, title: str, grid: np.ndarray = COMMON_GRID) -> None:
     for method in pt:
         c = COLORS.get(method, None)
-        ax.plot(COMMON_GRID, pt[method], label=method, color=c, lw=2)
-        ax.fill_between(COMMON_GRID, ci[method][0], ci[method][1],
+        ax.plot(grid, pt[method], label=method, color=c, lw=2)
+        ax.fill_between(grid, ci[method][0], ci[method][1],
                         color=c, alpha=0.2)
     ax.set_title(title, fontsize=10)
     ax.set_xlabel("env steps")
@@ -216,22 +216,29 @@ def _plot_curve(ax, pt, ci, title: str) -> None:
 
 def render(methods: Dict[str, Dict[int, pd.DataFrame]], out_dir: Path,
            *, title_prefix: str = "FB vs GCIQL",
-           n_seeds_note: str | None = None) -> None:
+           n_seeds_note: str | None = None,
+           grid: np.ndarray = COMMON_GRID,
+           final_at_grid_end: bool = False) -> None:
+    """Render curves + final IQM table. `grid` sets the shared step axis
+    (cap it for a matched-budget comparison). `final_at_grid_end` computes
+    the final table from each method's interpolated value at grid[-1]
+    (matched budget) rather than its last-logged eval."""
     out_dir.mkdir(parents=True, exist_ok=True)
     names = list(methods)
 
     def _inputs(cols: List[str]) -> Dict[str, np.ndarray]:
-        return {m: interp_tensor(methods[m], cols) for m in names}
+        return {m: interp_tensor(methods[m], cols, grid) for m in names}
 
     # Per-task sample-efficiency curves (IQM across seeds per task).
     fig, axes = plt.subplots(2, 3, figsize=(15, 8))
     for ax, t in zip(axes.ravel(), TASKS):
         pt, ci = iqm_curve(_inputs([t]))
-        _plot_curve(ax, pt, ci, TASK_LABELS[t])
+        _plot_curve(ax, pt, ci, TASK_LABELS[t], grid=grid)
         ax.set_ylabel("IQM success")
     # 6th panel: aggregate across all 5 tasks.
     pt_all, ci_all = iqm_curve(_inputs(TASKS))
-    _plot_curve(axes.ravel()[5], pt_all, ci_all, "aggregate (all 5 tasks)")
+    _plot_curve(axes.ravel()[5], pt_all, ci_all, "aggregate (all 5 tasks)",
+                grid=grid)
     axes.ravel()[5].set_ylabel("IQM success")
     axes.ravel()[5].legend(loc="lower right", fontsize=9)
     fig.suptitle(f"{title_prefix} — cube-single eval success (IQM, 95% CI)",
@@ -243,16 +250,22 @@ def render(methods: Dict[str, Dict[int, pd.DataFrame]], out_dir: Path,
     # Standalone aggregate curve.
     fig, ax = plt.subplots(figsize=(7, 5))
     _plot_curve(ax, pt_all, ci_all,
-                f"{title_prefix} — aggregate across 5 tasks")
+                f"{title_prefix} — aggregate across 5 tasks", grid=grid)
     ax.set_ylabel("IQM success (95% stratified bootstrap CI)")
     ax.legend(loc="lower right", fontsize=10)
     fig.tight_layout()
     fig.savefig(out_dir / "curve_aggregate.png", dpi=130)
     plt.close(fig)
 
-    # Final IQM table (last eval per seed; failed seeds = last checkpoint).
+    # Final IQM table. Default: last eval per seed (failed seeds = last
+    # checkpoint). final_at_grid_end: each method's interpolated value at
+    # grid[-1] (matched-budget comparison across methods).
     cols = TASKS + ["overall"]
-    final = {m: final_scores(methods[m], cols) for m in names}
+    if final_at_grid_end:
+        final = {m: interp_tensor(methods[m], cols, grid)[:, :, -1]
+                 for m in names}
+    else:
+        final = {m: final_scores(methods[m], cols) for m in names}
     pt, ci = iqm_table_estimates(final)
     note = f" {n_seeds_note}" if n_seeds_note else ""
     hdr = ["Method"] + [TASK_LABELS[t] for t in TASKS] + ["overall"]

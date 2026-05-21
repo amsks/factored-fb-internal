@@ -7,6 +7,10 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 PY="${PY:-.venv/bin/python}"
+# GCIQL profiling rolls out a JAX checkpoint and needs the isolated JAX venv;
+# point JAX_PY at it (the torch .venv has no jax). The GCIQL *aggregate* is
+# numpy/matplotlib only and runs under PY.
+JAX_PY="${JAX_PY:-$PY}"
 RESULTS_ROOT="${RESULTS_ROOT:-RESULTS/fb-pixel-results}"
 DATA_PATH="${DATA_PATH:-/dev/shm/factored-fb/datasets}"
 MUJOCO_GL="${MUJOCO_GL:-egl}"
@@ -15,6 +19,8 @@ BUFFER_SAMPLE="${BUFFER_SAMPLE:-20000}"
 REPR_OUT="${REPR_OUT:-analysis/representation_profile_pixel}"
 PHASE_OUT="${PHASE_OUT:-analysis/phase_probe_pixel}"
 GCIQL_ROOT="${GCIQL_ROOT:-}"
+GCIQL_STEP="${GCIQL_STEP:-500000}"
+GCIQL_OUT="${GCIQL_OUT:-analysis/gciql_profile_pixel}"
 DRY_RUN="${DRY_RUN:-0}"
 
 run() { echo "+ $*"; [ "$DRY_RUN" = "1" ] || "$@"; }
@@ -45,9 +51,14 @@ if [ -n "$GCIQL_ROOT" ]; then
   for d in "$GCIQL_ROOT"/sd*; do
     [ -d "$d" ] || continue
     s=$(basename "$d")
-    run "$PY" scripts/gciql_profile.py \
-        --run-dir "$d" --out "analysis/gciql_profile_pixel/${s}_final" \
+    run "$JAX_PY" scripts/gciql_profile.py \
+        --run-dir "$d" --step "$GCIQL_STEP" \
+        --out "$GCIQL_OUT/${s}_final" \
         --obs-type pixels --dataset-path "$DATA_PATH/cube-single-play-v0"
   done
+  # FB-vs-GCIQL comparison (numpy/matplotlib only -> PY).
+  run "$PY" scripts/gciql_profile_aggregate.py \
+      --root "$GCIQL_OUT" \
+      --fb-aggregate "$REPR_OUT/aggregate" --fb-seed-root "$REPR_OUT"
 fi
 echo "[run_pixel_profile] done"

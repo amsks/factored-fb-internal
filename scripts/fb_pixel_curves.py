@@ -19,11 +19,13 @@ import argparse
 import sys
 from pathlib import Path
 
+import numpy as np
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.fb_gciql_curves import load_fb, load_gciql, render
+from scripts.fb_gciql_curves import COMMON_GRID, load_fb, load_gciql, render
 
 
 def main() -> None:
@@ -31,7 +33,11 @@ def main() -> None:
     ap.add_argument("--fb", default=str(REPO_ROOT / "analysis"
                                         / "wandb_data_fbpixel"))
     ap.add_argument("--gciql", default=None,
-                    help="optional GCIQL pixel eval.csv root (reserved slot)")
+                    help="optional GCIQL pixel eval.csv root")
+    ap.add_argument("--max-step", type=int, default=None,
+                    help="cap the shared step grid for a matched-budget "
+                         "comparison (e.g. 500000 when GCIQL trains to 500k); "
+                         "the final table is then taken at this step too")
     ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "fb_pixel"))
     args = ap.parse_args()
 
@@ -39,10 +45,20 @@ def main() -> None:
     if args.gciql:
         methods["GCIQL"] = load_gciql(args.gciql)
 
+    if args.max_step is not None:
+        grid = np.arange(0, args.max_step + 1, 100_000)
+        final_at_grid_end = True
+        title = f"FB vs GCIQL (pixels, matched {args.max_step // 1000}k)"
+    else:
+        grid = COMMON_GRID
+        final_at_grid_end = False
+        title = "FB (pixels)"
+
     print(f"[fb_pixel_curves] methods={list(methods)} "
-          f"FB seeds={sorted(methods['FB'])}")
-    render(methods, Path(args.out), title_prefix="FB (pixels)",
-           n_seeds_note="n=5 seeds")
+          f"FB seeds={sorted(methods['FB'])} max_step={args.max_step}")
+    render(methods, Path(args.out), title_prefix=title,
+           n_seeds_note="n=5 seeds", grid=grid,
+           final_at_grid_end=final_at_grid_end)
 
 
 if __name__ == "__main__":
