@@ -25,7 +25,9 @@ def build_env_and_agent(cfg):
     from envs.ogbench import create_ogbench_env
     from train import make_agent
 
-    env, _ = create_ogbench_env(cfg.domain, obs_type=cfg.obs_type, seed=cfg.seed)
+    env, _ = create_ogbench_env(
+        cfg.domain, obs_type=cfg.obs_type, seed=cfg.seed,
+        frame_stack=int(getattr(cfg, "frame_stack", 1)))
     obs_space = env.observation_space
     action_dim = env.action_space.shape[0]
     agent = make_agent(cfg, obs_space, action_dim)

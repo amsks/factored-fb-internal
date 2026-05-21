@@ -30,11 +30,13 @@ for d in "$RESULTS_ROOT"/*__s*; do
       --out "$REPR_OUT/s${s}_final" \
       --data-path "$DATA_PATH" --mujoco-gl "$MUJOCO_GL" \
       --n-episodes "$N_EPISODES" --buffer-sample "$BUFFER_SAMPLE"
+  # Pixel phase funnel uses S0 only; S1/S2 counterfactuals require the pixel
+  # wrapper to re-render after a physics mutation (not supported yet).
   run "$PY" scripts/phase_probe.py \
       --config "$cfg" --checkpoint "$ckpt" \
       --out "$PHASE_OUT/s${s}_final" \
       --data-path "$DATA_PATH" --mujoco-gl "$MUJOCO_GL" \
-      --n-episodes "$N_EPISODES"
+      --scenarios S0 --n-episodes "$N_EPISODES"
 done
 
 run "$PY" scripts/representation_profile_aggregate.py --root "$REPR_OUT"
