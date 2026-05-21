@@ -1,13 +1,15 @@
-"""scripts/pixel_filmstrips.py — static filmstrips from FB pixel eval GIFs.
+"""scripts/pixel_filmstrips.py — static filmstrips from eval GIFs.
 
 For each cube-single task, sample evenly-spaced frames from a representative
 seed's eval GIF at a chosen checkpoint and composite a horizontal filmstrip PNG
-for the paper (a PDF cannot embed animation).
+for the paper (a PDF cannot embed animation). Works for any run that saved
+rendered eval GIFs (pixel or state runs, since the env renders regardless of the
+policy's observation type); `--prefix` sets the output filename prefix.
 
 Usage:
     python scripts/pixel_filmstrips.py \
         --results-root RESULTS/fb-pixel-results \
-        --seed 0 --step step_1000000 --frames 6 \
+        --seed 0 --step step_1000000 --frames 6 --prefix pixel \
         --out PAPER/fb-cube-failure/figures
 """
 
@@ -54,7 +56,7 @@ def find_run_dir(results_root: Path, seed: int) -> Path:
 
 
 def build(results_root: Path, seed: int, step: str, n_frames: int,
-          out_dir: Path) -> List[Path]:
+          out_dir: Path, prefix: str = "pixel") -> List[Path]:
     import imageio.v2 as imageio
 
     run = find_run_dir(results_root, seed)
@@ -65,7 +67,7 @@ def build(results_root: Path, seed: int, step: str, n_frames: int,
                / f"cube-single-play-singletask-task{t}-v0.gif")
         frames = imageio.mimread(str(gif))
         strip = make_filmstrip(sample_frames(frames, n_frames))
-        dest = out_dir / f"pixel_filmstrip_task{t}.png"
+        dest = out_dir / f"{prefix}_filmstrip_task{t}.png"
         strip.save(dest)
         written.append(dest)
         print(f"[pixel_filmstrips] wrote {dest} ({len(frames)} src frames)")
@@ -78,10 +80,12 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--step", default="step_1000000")
     ap.add_argument("--frames", type=int, default=6)
+    ap.add_argument("--prefix", default="pixel",
+                    help="output filename prefix (e.g. pixel, state)")
     ap.add_argument("--out", default="PAPER/fb-cube-failure/figures")
     args = ap.parse_args()
     build(Path(args.results_root), args.seed, args.step, args.frames,
-          Path(args.out))
+          Path(args.out), prefix=args.prefix)
 
 
 if __name__ == "__main__":
