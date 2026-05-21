@@ -30,19 +30,31 @@ for d in "$RESULTS_ROOT"/*__s*; do
   [ -d "$d" ] || continue
   s=$(basename "$d" | sed -E 's/.*__s([0-9]+)$/\1/')
   cfg="$d/.hydra/config.yaml"
+  # Prefer final.pt; fall back to the latest step_*.pt (not every seed saves
+  # a final checkpoint). Skip the seed if neither exists.
   ckpt="$d/checkpoints/final.pt"
+  if [ ! -f "$ckpt" ]; then
+    ckpt=$(ls "$d/checkpoints/"step_*.pt 2>/dev/null | sort -V | tail -1)
+  fi
+  if [ -z "$ckpt" ] || [ ! -f "$ckpt" ]; then
+    echo "[warn] no checkpoint for seed $s under $d/checkpoints; skipping"
+    continue
+  fi
+  echo "[run_pixel_profile] seed $s checkpoint: $ckpt"
   run "$PY" scripts/representation_profile.py \
       --config "$cfg" --checkpoint "$ckpt" \
       --out "$REPR_OUT/s${s}_final" \
       --data-path "$DATA_PATH" --mujoco-gl "$MUJOCO_GL" \
-      --n-episodes "$N_EPISODES" --buffer-sample "$BUFFER_SAMPLE"
+      --n-episodes "$N_EPISODES" --buffer-sample "$BUFFER_SAMPLE" \
+      || echo "[warn] representation_profile failed for seed $s"
   # Pixel phase funnel uses S0 only; S1/S2 counterfactuals require the pixel
   # wrapper to re-render after a physics mutation (not supported yet).
   run "$PY" scripts/phase_probe.py \
       --config "$cfg" --checkpoint "$ckpt" \
       --out "$PHASE_OUT/s${s}_final" \
       --data-path "$DATA_PATH" --mujoco-gl "$MUJOCO_GL" \
-      --scenarios S0 --n-episodes "$N_EPISODES"
+      --scenarios S0 --n-episodes "$N_EPISODES" \
+      || echo "[warn] phase_probe failed for seed $s"
 done
 
 run "$PY" scripts/representation_profile_aggregate.py --root "$REPR_OUT"
