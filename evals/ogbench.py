@@ -36,6 +36,7 @@ class OGBenchEvaluator:
         n_episodes: int = 10,
         shift_reward: float = 1.0,
         obs_type: str = "state",
+        frame_stack: int = 1,
         seed: int = 0,
         device: str = "cpu",
         save_videos: bool = False,
@@ -53,6 +54,7 @@ class OGBenchEvaluator:
         self.n_episodes = n_episodes
         self.shift_reward = shift_reward
         self.obs_type = obs_type
+        self.frame_stack = frame_stack
         self.seed = seed
         self.device = device
         self.tasks = ALL_TASKS.get(domain, [])
@@ -67,7 +69,12 @@ class OGBenchEvaluator:
         all_rewards: list[np.ndarray] = []
         all_successes: list[np.ndarray] = []
         for task in self.tasks:
-            env, _ = create_ogbench_env(task, seed=self.seed, obs_type=self.obs_type)
+            env, _ = create_ogbench_env(
+                task,
+                seed=self.seed,
+                obs_type=self.obs_type,
+                frame_stack=self.frame_stack,
+            )
             try:
                 z, relabel_metrics = self._infer_z(task)
                 stats, infos, frames = rollout(

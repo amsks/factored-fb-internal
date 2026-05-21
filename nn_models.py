@@ -12,6 +12,7 @@ import math
 import numbers
 import typing as tp
 
+import gymnasium
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -461,3 +462,91 @@ class IdentityNNConfig(BaseConfig):
 
     def build(self, obs_space, *args, **kwargs) -> IdentityNN:
         return IdentityNN(obs_space)
+
+
+##########################
+# Visual modules (ported verbatim from td_jepa metamotivo/nn_models.py:329-409)
+##########################
+
+
+class DrQEncoderArchiConfig(BaseConfig):
+    name: tp.Literal["drq"] = "drq"
+    feature_dim: int | None = None  # if not None, linearly project the output to feature_dim
+
+    def build(self, obs_space):
+        return DrQEncoder(obs_space, self)
+
+
+class DrQEncoder(nn.Module):
+    """RGB encoder from the DrQ-v2 paper"""
+
+    def __init__(self, obs_space, cfg: DrQEncoderArchiConfig) -> None:
+        super().__init__()
+        self.cfg = cfg
+
+        assert len(obs_space.shape) == 3, "obs_space must have a 3D shape (image)"
+
+        # courtesy of https://github.com/facebookresearch/drqv2/blob/main/drqv2.py
+        self.trunk = nn.Sequential(
+            nn.Conv2d(obs_space.shape[0], 32, 3, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, 3, stride=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, 3, stride=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, 3, stride=1),
+            nn.ReLU(),
+            nn.Flatten(),
+        )
+
+        with torch.no_grad():
+            self.repr_dim = np.prod(self.trunk(torch.zeros(1, *obs_space.shape)).shape)
+
+        if self.cfg.feature_dim is not None:
+            self.proj = nn.Sequential(nn.Linear(self.repr_dim, self.cfg.feature_dim), nn.LayerNorm(self.cfg.feature_dim), nn.Tanh())
+            self.repr_dim = self.cfg.feature_dim
+        else:
+            self.proj = nn.Identity()
+            print(
+                "WARNING: using a DrQ encoder with feature_dim=None. This yields very large feature vectors that are fed as input to other networks"
+            )
+
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        return self.proj(self.trunk(obs))
+
+    @property
+    def output_space(self):
+        return gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(self.repr_dim,), dtype=np.float32)
+
+
+class AugmentatorArchiConfig(BaseConfig):
+    name: tp.Literal["random_shifts"] = "random_shifts"
+    pad: int = 4
+
+    def build(self, obs_space):
+        return Augmentator(obs_space, self)
+
+
+class Augmentator(nn.Module):
+    """Image augmentations from DrQ-v2"""
+
+    def __init__(self, obs_space, cfg: AugmentatorArchiConfig) -> None:
+        super().__init__()
+        self.cfg = cfg
+
+        assert len(obs_space.shape) == 3, "obs_space must have a 3D shape (image)"
+
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        n, _, h, w = obs.size()
+        assert h == w, "Augmentator only supports square images"
+        padding = tuple([self.cfg.pad] * 4)
+        obs = F.pad(obs, padding, "replicate")
+        eps = 1.0 / (h + 2 * self.cfg.pad)
+        arange = torch.linspace(-1.0 + eps, 1.0 - eps, h + 2 * self.cfg.pad, device=obs.device, dtype=obs.dtype)[:h]
+        arange = arange.unsqueeze(0).repeat(h, 1).unsqueeze(2)
+        base_grid = torch.cat([arange, arange.transpose(1, 0)], dim=2)
+        base_grid = base_grid.unsqueeze(0).repeat(n, 1, 1, 1)
+        shift = torch.randint(0, 2 * self.cfg.pad + 1, size=(n, 1, 1, 2), device=obs.device, dtype=obs.dtype)
+        shift *= 2.0 / (h + 2 * self.cfg.pad)
+        grid = base_grid + shift
+        return F.grid_sample(obs, grid, padding_mode="zeros", align_corners=False)

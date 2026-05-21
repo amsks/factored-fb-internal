@@ -69,9 +69,18 @@ class DictBuffer:
     >>> batch = buf.sample(256)   # same nested structure, as tensors
     """
 
-    def __init__(self, capacity: int, device: str = "cpu"):
+    def __init__(
+        self,
+        capacity: int,
+        device: str = "cpu",
+        frame_stack: int = 1,
+        obs_type: str = "state",
+    ):
         self.capacity = capacity
         self.device = device
+        self.frame_stack = frame_stack
+        self.obs_type = obs_type
+        self._stack = obs_type == "pixels" and frame_stack > 1
         self._size: int = 0
         self._ptr: int = 0
         self._storage: Dict[str, np.ndarray] = {}  # flat storage
@@ -115,20 +124,61 @@ class DictBuffer:
     # Sampling
     # ------------------------------------------------------------------ #
 
+    def _stack_obs(self, key: str, idx: np.ndarray):
+        """Stack `frame_stack` frames of `key` ending at idx, clamped at the
+        episode start via stored `timestep` (td_jepa parallel.py:73-89 math).
+        Returns a CHW-concatenated tensor (oldest->newest on channel axis)."""
+        ts = self._storage["timestep"][idx]  # episode-relative index
+        frames = []
+        for k in range(self.frame_stack - 1, -1, -1):  # oldest -> newest
+            back = np.minimum(k, ts)                    # never cross ep start
+            frames.append(self._storage[key][idx - back])
+        arr = np.concatenate(frames, axis=1)            # channel axis
+        return torch.as_tensor(arr).to(self.device)
+
+    def _stack_next_obs(self, idx: np.ndarray):
+        """s' = drop oldest frame of s, append the stored next frame."""
+        ts = self._storage["timestep"][idx]
+        frames = []
+        for k in range(self.frame_stack - 2, -1, -1):   # s minus its oldest
+            back = np.minimum(k, ts)
+            frames.append(self._storage["observation"][idx - back])
+        frames.append(self._storage["next/observation"][idx])
+        arr = np.concatenate(frames, axis=1)
+        return torch.as_tensor(arr).to(self.device)
+
     def sample(self, batch_size: int) -> Dict[str, Any]:
-        """Sample *batch_size* transitions uniformly.  Returns nested dict of tensors.
+        """Sample *batch_size* transitions uniformly. Returns nested dict of tensors.
 
         Uses torch.randint (not np.random) so RNG consumption matches td_jepa's
-        DictBuffer.sample exactly. With the same torch.manual_seed(seed), this
-        produces the same sequence of batch indices as td_jepa.
+        DictBuffer.sample exactly.
         """
         assert self._size > 0, "Buffer is empty"
         idx = torch.randint(0, self._size, (batch_size,)).numpy()
-        flat_tensors = {
-            k: torch.as_tensor(v[idx]).to(self.device)
-            for k, v in self._storage.items()
-        }
-        return _unflatten(flat_tensors)
+
+        if not self._stack:
+            flat_tensors = {
+                k: torch.as_tensor(v[idx]).to(self.device)
+                for k, v in self._storage.items()
+            }
+            out = _unflatten(flat_tensors)
+            out.pop("timestep", None)  # internal-only; not part of a batch
+            return out
+
+        if "timestep" not in self._storage:
+            raise KeyError(
+                "frame_stack>1 with obs_type='pixels' requires a 'timestep' "
+                "array in storage (produced by data/ogbench.py pixel loader)."
+            )
+
+        out_flat = {}
+        for k, v in self._storage.items():
+            if k in ("observation", "next/observation", "timestep"):
+                continue
+            out_flat[k] = torch.as_tensor(v[idx]).to(self.device)
+        out_flat["observation"] = self._stack_obs("observation", idx)
+        out_flat["next/observation"] = self._stack_next_obs(idx)
+        return _unflatten(out_flat)
 
     # ------------------------------------------------------------------ #
     # Dunder helpers

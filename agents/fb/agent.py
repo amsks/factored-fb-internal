@@ -43,6 +43,8 @@ class FBAgent(BaseAgent):
         left_encoder_cfg=None,
         actor_cfg=None,
         obs_normalizer_cfg=None,
+        rgb_encoder_cfg=None,
+        augmentator_cfg=None,
         discount: float = 0.99,
         lr_f: float = 1e-4,
         lr_b: float = 1e-4,
@@ -105,6 +107,8 @@ class FBAgent(BaseAgent):
             left_encoder_cfg=left_encoder_cfg,
             actor_cfg=actor_cfg,
             obs_normalizer_cfg=obs_normalizer_cfg,
+            rgb_encoder_cfg=rgb_encoder_cfg,
+            augmentator_cfg=augmentator_cfg,
             device=device,
         )
         self.setup_training()

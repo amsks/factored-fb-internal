@@ -36,13 +36,16 @@ from data.ogbench import load_ogbench_dataset
 from envs.ogbench import create_ogbench_env
 from evals.ogbench import OGBenchEvaluator
 from nn_models import (
+    AugmentatorArchiConfig,
     BackwardArchiConfig,
+    DrQEncoderArchiConfig,
     ForwardArchiConfig,
+    IdentityNNConfig,
     NoiseConditionedActorArchiConfig,
     SimpleActorArchiConfig,
     SimpleVectorFieldArchiConfig,
 )
-from normalizers import IdentityNormalizerConfig
+from normalizers import IdentityNormalizerConfig, RGBNormalizerConfig
 
 
 def set_seed(seed: int) -> None:
@@ -58,6 +61,33 @@ def resolve_device(requested: str) -> str:
         print("[train] CUDA requested but unavailable — falling back to CPU")
         return "cpu"
     return requested
+
+
+def build_pixel_cfgs(cfg):
+    """Select obs-normalizer / rgb-encoder / augmentator configs.
+
+    Defaults (no pixel blocks in cfg) reproduce the state path exactly:
+    Identity normalizer + Identity encoder + Identity augmentator.
+    """
+    norm_block = cfg.get("obs_normalizer", None)
+    if norm_block is not None and norm_block.get("name") == "RGBNormalizerConfig":
+        obs_normalizer_cfg = RGBNormalizerConfig()
+    else:
+        obs_normalizer_cfg = IdentityNormalizerConfig()
+
+    rgb_block = cfg.get("rgb_encoder", None)
+    if rgb_block is not None and rgb_block.get("name") == "drq":
+        rgb_encoder_cfg = DrQEncoderArchiConfig(feature_dim=rgb_block.get("feature_dim"))
+    else:
+        rgb_encoder_cfg = IdentityNNConfig()
+
+    aug_block = cfg.get("augmentator", None)
+    if aug_block is not None and aug_block.get("name") == "random_shifts":
+        augmentator_cfg = AugmentatorArchiConfig(pad=aug_block.get("pad", 4))
+    else:
+        augmentator_cfg = IdentityNNConfig()
+
+    return obs_normalizer_cfg, rgb_encoder_cfg, augmentator_cfg
 
 
 def make_agent(cfg: DictConfig, obs_space, action_dim: int):
@@ -78,6 +108,7 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         norm=cfg.left_encoder.norm,
     )
 
+    _obs_normalizer_cfg, _rgb_encoder_cfg, _augmentator_cfg = build_pixel_cfgs(cfg)
     shared = dict(
         obs_space=obs_space,
         action_dim=action_dim,
@@ -88,7 +119,9 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         forward_cfg=forward_cfg,
         backward_cfg=backward_cfg,
         left_encoder_cfg=left_encoder_cfg,
-        obs_normalizer_cfg=IdentityNormalizerConfig(),
+        obs_normalizer_cfg=_obs_normalizer_cfg,
+        rgb_encoder_cfg=_rgb_encoder_cfg,
+        augmentator_cfg=_augmentator_cfg,
         discount=cfg.discount,
         lr_f=cfg.lr_f,
         lr_b=cfg.lr_b,
@@ -165,7 +198,12 @@ def main(cfg: DictConfig) -> None:
         )
 
     print(f"[train] env: {cfg.domain}")
-    env, _ = create_ogbench_env(cfg.domain, obs_type=cfg.obs_type, seed=cfg.seed)
+    env, _ = create_ogbench_env(
+        cfg.domain,
+        obs_type=cfg.obs_type,
+        seed=cfg.seed,
+        frame_stack=cfg.get("frame_stack", 1),
+    )
     obs_space = env.observation_space
     action_dim = env.action_space.shape[0]
     print(f"[train] obs_space={obs_space.shape}  action_dim={action_dim}")
@@ -177,6 +215,8 @@ def main(cfg: DictConfig) -> None:
         load_n_episodes=cfg.load_n_episodes,
         device=cfg.device,
         n_transitions=cfg.n_transitions,
+        obs_type=cfg.obs_type,
+        frame_stack=cfg.get("frame_stack", 1),
     )
     print(f"[train] buffer size: {len(buffer):,}")
 
@@ -198,6 +238,7 @@ def main(cfg: DictConfig) -> None:
         n_episodes=cfg.eval_n_episodes,
         shift_reward=cfg.eval_shift_reward,
         obs_type=cfg.obs_type,
+        frame_stack=cfg.get("frame_stack", 1),
         seed=cfg.seed,
         device=cfg.device,
         save_videos=cfg.save_eval_videos,
