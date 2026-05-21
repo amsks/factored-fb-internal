@@ -164,6 +164,17 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
     import jax
 
     flags = parse_flags(run_dir)
+    # Build the agent config from get_config() defaults, then overlay the
+    # saved run's agent config (flags.json stores the full agent dict for
+    # pixel runs — crucially `encoder`, e.g. 'impala_small' — without which
+    # restore_agent would mismatch the checkpoint's network shapes). State
+    # runs store `agent` as a path string; the overlay is then skipped.
+    config = get_config()
+    saved_agent = flags.get("agent")
+    if isinstance(saved_agent, dict):
+        for k, v in saved_agent.items():
+            if k in config:
+                config[k] = v
     episodes: List[Dict[str, Any]] = []
     for task_id in task_ids:
         env = ogbench.make_env_and_datasets(
@@ -174,7 +185,7 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
             flags["seed"],
             np.asarray(ex_obs, np.float32)[None],
             np.asarray(ex_act, np.float32)[None],
-            get_config(),
+            config,
         )
         agent = restore_agent(agent, str(run_dir), step)
 
