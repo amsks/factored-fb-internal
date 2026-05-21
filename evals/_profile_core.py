@@ -42,10 +42,20 @@ def _region(ep: Dict[str, Any], thr) -> np.ndarray:
     return out
 
 
+def _episode_feature(ep: Dict[str, Any], feature: str) -> np.ndarray:
+    """Per-step feature matrix for coverage. 'obs' = raw observation
+    (state path); 'cube' = cube xyz (physics-space, for pixels)."""
+    if feature == "cube":
+        return np.asarray(ep["cube"], np.float64).reshape(-1, 3)
+    return np.asarray(ep["obs"], np.float64)
+
+
 def probe_coverage(episodes, ref_obs: np.ndarray, thr,
-                   max_ref: int = 5000, seed: int = 0) -> "Any":
+                   max_ref: int = 5000, seed: int = 0,
+                   feature: str = "obs") -> "Any":
     """Per-step nearest-neighbour L2 distance to the standardised offline
-    reference, tagged by outcome and region."""
+    reference, tagged by outcome and region. `feature` selects the space:
+    'obs' (state observation, default) or 'cube' (physics-space cube xyz)."""
     import pandas as pd
 
     ref = np.asarray(ref_obs, np.float64)
@@ -57,10 +67,10 @@ def probe_coverage(episodes, ref_obs: np.ndarray, thr,
     refn = (ref - mu) / sd
     rows = []
     for ep in episodes:
-        obs = np.asarray(ep["obs"], np.float64)
-        if obs.shape[0] == 0:
+        feat = _episode_feature(ep, feature)
+        if feat.shape[0] == 0:
             continue
-        on = (obs - mu) / sd
+        on = (feat - mu) / sd
         # batched: ||on||^2 + ||refn||^2 - 2 on·refn
         d2 = (on ** 2).sum(1, keepdims=True) + (refn ** 2).sum(1) \
             - 2.0 * on @ refn.T
