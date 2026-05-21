@@ -96,6 +96,40 @@ def test_build_argparser_has_required_flags():
     assert ns.tasks == "1,2,3" and ns.n_episodes == 4
 
 
+def test_build_argparser_has_obs_type():
+    ap = gp.build_argparser()
+    ns = ap.parse_args(["--run-dir", "/x", "--out", "/o",
+                        "--obs-type", "pixels"])
+    assert ns.obs_type == "pixels"
+
+
+def test_load_ref_obs_cube_reads_physics(tmp_path):
+    buf = tmp_path / "buffer"
+    buf.mkdir(parents=True)
+    T = 5
+    phys = np.zeros((T, 21), np.float32)
+    phys[:, 14:17] = np.arange(T * 3).reshape(T, 3)
+    np.savez(buf / "episode_000000_5.npz",
+             observation=np.zeros((T, 28), np.float32),
+             physics=phys, action=np.zeros((T, 5), np.float32))
+    ref = gp._load_ref_obs(str(tmp_path), feature="cube")
+    assert ref.shape[1] == 3
+    assert np.allclose(np.sort(ref.ravel()),
+                       np.sort(phys[:, 14:17].ravel()))
+
+
+def test_episodes_to_frames_cube_coverage():
+    d = [0.30, 0.25, 0.20, 0.15, 0.10, 0.02]
+    v = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    grip = [1.0] * 6
+    cube_z = [0.20] * 6
+    eps = [_ep("success", d, v, grip, cube_z)]
+    cube_ref = np.zeros((10, 3), np.float32)
+    vl, cov, fun, vs = gp.episodes_to_frames(
+        eps, Thresholds(), cube_ref, feature="cube")
+    assert set(cov.columns) >= {"task", "outcome", "region", "nn_dist"}
+
+
 def _seed_dir(root, s):
     d = root / f"s{s}_final"
     d.mkdir(parents=True)

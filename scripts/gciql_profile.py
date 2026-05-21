@@ -34,11 +34,12 @@ def parse_flags(run_dir) -> Dict[str, Any]:
     data = json.loads((Path(run_dir) / "flags.json").read_text())
     return {"env_name": data.get("env_name", "cube-single-play-v0"),
             "seed": int(data.get("seed", 0)),
-            "agent": data.get("agent", "agents/gciql.py")}
+            "agent": data.get("agent", "agents/gciql.py"),
+            "obs_type": data.get("obs_type", "state")}
 
 
 def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
-                       ref_obs: np.ndarray):
+                       ref_obs: np.ndarray, feature: str = "obs"):
     """Episode records -> (value_landscape, coverage, funnel) frames.
 
     Each record: obs[T,O], d[T], V[T], grip[T], cube[T,3], table_z,
@@ -98,7 +99,7 @@ def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
                             "cube_y": float(cxy[1]),
                             "eef_x": float(exy[0]),
                             "eef_y": float(exy[1])})
-    cov = probe_coverage(cov_eps, ref_obs, thr)
+    cov = probe_coverage(cov_eps, ref_obs, thr, feature=feature)
     cov.insert(0, "task", episodes[0]["task"] if episodes else "")
     vs = pd.DataFrame(vs_rows, columns=["task", "episode", "t", "outcome",
                                         "region", "d", "V", "transport",
@@ -120,20 +121,29 @@ def build_argparser() -> argparse.ArgumentParser:
     ap.add_argument("--dataset-path",
                     default="datasets/cube-single-play-v0")
     ap.add_argument("--max-steps", type=int, default=1000)
+    ap.add_argument("--obs-type", default=None,
+                    help="state|pixels; default reads flags.json")
     return ap
 
 
-def _load_ref_obs(dataset_path: str, max_n: int = 5000) -> np.ndarray:
-    """Stack next/observation from the OGBench cube npz buffer (same
-    data the FB coverage probe used)."""
+def _load_ref_obs(dataset_path: str, max_n: int = 5000,
+                  feature: str = "obs") -> np.ndarray:
+    """Reference array for the coverage probe. feature='obs' stacks
+    next/observation (state path); feature='cube' stacks cube xyz
+    (physics[:,14:17]) for the pixel path."""
     buf = Path(dataset_path) / "buffer"
     files = sorted(buf.glob("episode_*.npz"))[:200]
     obs = []
     for f in files:
         with np.load(f) as z:
-            key = ("observation" if "observation" in z
-                   else "observations" if "observations" in z else "obs")
-            obs.append(np.asarray(z[key], np.float32))
+            if feature == "cube":
+                arr_i = np.asarray(z["physics"], np.float32)[:, 14:17]
+            else:
+                key = ("observation" if "observation" in z
+                       else "observations" if "observations" in z
+                       else "obs")
+                arr_i = np.asarray(z[key], np.float32)
+        obs.append(arr_i)
     arr = np.concatenate(obs, 0) if obs else np.zeros((1, 1), np.float32)
     if len(arr) > max_n:
         rng = np.random.default_rng(0)
@@ -229,8 +239,11 @@ def main() -> None:
     episodes, flags = _jax_rollout(
         args.run_dir, args.step, task_ids, args.n_episodes,
         args.max_steps)
-    ref = _load_ref_obs(args.dataset_path)
-    vl, cov, fun, vs = episodes_to_frames(episodes, Thresholds(), ref)
+    obs_type = args.obs_type or flags.get("obs_type", "state")
+    feature = "cube" if obs_type == "pixels" else "obs"
+    ref = _load_ref_obs(args.dataset_path, feature=feature)
+    vl, cov, fun, vs = episodes_to_frames(episodes, Thresholds(), ref,
+                                          feature=feature)
     vl.to_parquet(out / "value_landscape.parquet")
     cov.to_parquet(out / "coverage.parquet")
     fun.to_parquet(out / "phase_funnel.parquet")
