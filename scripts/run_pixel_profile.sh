@@ -7,10 +7,10 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 PY="${PY:-.venv/bin/python}"
-# GCIQL profiling rolls out a JAX checkpoint and needs the isolated JAX venv;
-# point JAX_PY at it (the torch .venv has no jax). The GCIQL *aggregate* is
-# numpy/matplotlib only and runs under PY.
-JAX_PY="${JAX_PY:-$PY}"
+# GCIQL profiling rolls out a JAX checkpoint and needs the isolated JAX venv
+# (the torch .venv has no jax). The GCIQL *aggregate* is numpy/matplotlib only
+# and runs under PY.
+JAX_PY="${JAX_PY:-.venv-jax-cpu/bin/python}"
 RESULTS_ROOT="${RESULTS_ROOT:-RESULTS/fb-pixel-results}"
 DATA_PATH="${DATA_PATH:-/dev/shm/factored-fb/datasets}"
 MUJOCO_GL="${MUJOCO_GL:-egl}"
