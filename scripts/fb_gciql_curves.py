@@ -214,28 +214,27 @@ def _plot_curve(ax, pt, ci, title: str) -> None:
     ax.grid(alpha=0.3)
 
 
-def render(fb: Dict[int, pd.DataFrame], gc: Dict[int, pd.DataFrame],
-           out_dir: Path) -> None:
+def render(methods: Dict[str, Dict[int, pd.DataFrame]], out_dir: Path,
+           *, title_prefix: str = "FB vs GCIQL",
+           n_seeds_note: str | None = None) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
+    names = list(methods)
 
-    # Per-task sample-efficiency curves (IQM across the 10 seeds per task).
+    def _inputs(cols: List[str]) -> Dict[str, np.ndarray]:
+        return {m: interp_tensor(methods[m], cols) for m in names}
+
+    # Per-task sample-efficiency curves (IQM across seeds per task).
     fig, axes = plt.subplots(2, 3, figsize=(15, 8))
     for ax, t in zip(axes.ravel(), TASKS):
-        pt, ci = iqm_curve({
-            "FB": interp_tensor(fb, [t])[:, :, :],
-            "GCIQL": interp_tensor(gc, [t])[:, :, :],
-        })
+        pt, ci = iqm_curve(_inputs([t]))
         _plot_curve(ax, pt, ci, TASK_LABELS[t])
         ax.set_ylabel("IQM success")
     # 6th panel: aggregate across all 5 tasks.
-    pt_all, ci_all = iqm_curve({
-        "FB": interp_tensor(fb, TASKS),
-        "GCIQL": interp_tensor(gc, TASKS),
-    })
+    pt_all, ci_all = iqm_curve(_inputs(TASKS))
     _plot_curve(axes.ravel()[5], pt_all, ci_all, "aggregate (all 5 tasks)")
     axes.ravel()[5].set_ylabel("IQM success")
     axes.ravel()[5].legend(loc="lower right", fontsize=9)
-    fig.suptitle("FB vs GCIQL — cube-single eval success (IQM, 95% CI)",
+    fig.suptitle(f"{title_prefix} — cube-single eval success (IQM, 95% CI)",
                  fontsize=13)
     fig.tight_layout()
     fig.savefig(out_dir / "curves_pertask.png", dpi=130)
@@ -243,24 +242,26 @@ def render(fb: Dict[int, pd.DataFrame], gc: Dict[int, pd.DataFrame],
 
     # Standalone aggregate curve.
     fig, ax = plt.subplots(figsize=(7, 5))
-    _plot_curve(ax, pt_all, ci_all, "FB vs GCIQL — aggregate across 5 tasks")
+    _plot_curve(ax, pt_all, ci_all,
+                f"{title_prefix} — aggregate across 5 tasks")
     ax.set_ylabel("IQM success (95% stratified bootstrap CI)")
     ax.legend(loc="lower right", fontsize=10)
     fig.tight_layout()
     fig.savefig(out_dir / "curve_aggregate.png", dpi=130)
     plt.close(fig)
 
-    # Final IQM table (last eval per seed; failed FB seeds = 950k).
+    # Final IQM table (last eval per seed; failed seeds = last checkpoint).
     cols = TASKS + ["overall"]
-    final = {"FB": final_scores(fb, cols), "GCIQL": final_scores(gc, cols)}
+    final = {m: final_scores(methods[m], cols) for m in names}
     pt, ci = iqm_table_estimates(final)
+    note = f" {n_seeds_note}" if n_seeds_note else ""
     hdr = ["Method"] + [TASK_LABELS[t] for t in TASKS] + ["overall"]
-    md = ["# FB vs GCIQL — final eval success (IQM, 95% CI)", "",
-          "Final eval per seed (failed FB seeds use their 950k checkpoint; "
-          "n=10 seeds each). IQM with 95% stratified-bootstrap CI.", "",
+    md = [f"# {title_prefix} — final eval success (IQM, 95% CI)", "",
+          "Final eval per seed (failed seeds use their last checkpoint;"
+          f"{note}). IQM with 95% stratified-bootstrap CI.", "",
           "| " + " | ".join(hdr) + " |",
           "| " + " | ".join([":---"] * len(hdr)) + " |"]
-    for method in ("FB", "GCIQL"):
+    for method in names:
         row = [method]
         for k in range(len(cols)):
             lo, hi = ci[method][0][k], ci[method][1][k]
@@ -273,7 +274,7 @@ def render(fb: Dict[int, pd.DataFrame], gc: Dict[int, pd.DataFrame],
     tex = [r"\begin{tabular}{l" + "c" * len(cols) + "}", r"\toprule",
            " & ".join(["Method"] + [t for t in TASKS] + ["Overall"])
            + r" \\", r"\midrule"]
-    for method in ("FB", "GCIQL"):
+    for method in names:
         cells = [method]
         for k in range(len(cols)):
             lo, hi = ci[method][0][k] * 100, ci[method][1][k] * 100
@@ -283,7 +284,7 @@ def render(fb: Dict[int, pd.DataFrame], gc: Dict[int, pd.DataFrame],
     tex += [r"\bottomrule", r"\end{tabular}"]
     (out_dir / "iqm_table.tex").write_text("\n".join(tex) + "\n")
 
-    print(f"[fb_gciql_curves] wrote curves + table to {out_dir}")
+    print(f"[curves] wrote curves + table to {out_dir}")
     print("\n".join(md))
 
 
@@ -300,7 +301,7 @@ def main() -> None:
     gc = load_gciql(args.gciql)
     print(f"[fb_gciql_curves] FB seeds={sorted(fb)} "
           f"GCIQL seeds={sorted(gc)}")
-    render(fb, gc, Path(args.out))
+    render({"FB": fb, "GCIQL": gc}, Path(args.out))
 
 
 if __name__ == "__main__":

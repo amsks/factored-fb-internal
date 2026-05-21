@@ -65,3 +65,23 @@ def test_load_fb_reads_canonical_keys(tmp_path):
     out = fc.load_fb(tmp_path)
     assert sorted(out) == [3]
     assert out[3].iloc[-1]["overall"] == 0.7
+
+
+def test_render_generic_single_method(tmp_path):
+    # Three seeds, FB-only; render must emit all four artifacts with one row.
+    fb = {}
+    for s in (0, 1, 2):
+        df = pd.DataFrame({"step": [0, 500_000, 1_000_000],
+                           "overall": [0.0, 0.3, 0.5]})
+        for t in fc.TASKS:
+            df[t] = [0.0, 0.25, 0.45]
+        fb[s] = df
+    out = tmp_path / "out"
+    fc.render({"FB": fb}, out, title_prefix="FB (pixels)",
+              n_seeds_note="n=3 seeds")
+    for f in ("curves_pertask.png", "curve_aggregate.png",
+              "iqm_table.tex", "iqm_table.md"):
+        assert (out / f).exists()
+    tex = (out / "iqm_table.tex").read_text()
+    assert tex.count(r" \\") == 2  # header row + one FB data row
+    assert "GCIQL" not in tex
