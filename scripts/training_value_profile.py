@@ -202,6 +202,10 @@ def _gciql(args) -> None:
     obs = np.asarray(st["obs"], np.float32)
     cube = np.asarray(st["cube"], np.float64)
     region = [str(r) for r in st["region"]]
+    if "outcome" not in st:
+        raise SystemExit("training_states.npz has no 'outcome' — re-run the "
+                         "FB pass (Task 2) before the GCIQL pass.")
+    outcome = np.asarray(st["outcome"], dtype=bool)  # [n_states, n_tasks]
 
     flags = parse_flags(args.run_dir)
     saved = flags.get("agent")
@@ -243,10 +247,13 @@ def _gciql(args) -> None:
         d = cube_to_goal_dist(cube, g_xyz)
         gj = jnp.broadcast_to(jnp.asarray(goal)[None], obs_j.shape)
         V = np.asarray(_value(obs_j, gj)).reshape(-1)
+        oc = outcome[:, ti - 1]
         for i in range(len(obs)):
             rows.append({"task": f"task{ti}", "region": region[i],
                          "d": float(d[i]), "cube_x": float(cube[i, 0]),
-                         "cube_y": float(cube[i, 1]), "V": float(V[i])})
+                         "cube_y": float(cube[i, 1]), "V": float(V[i]),
+                         "outcome": "success_bound" if oc[i]
+                         else "fail_bound"})
     env.close()
     pd.DataFrame(rows).to_parquet(out / "gciql_values.parquet")
     print(f"[training_value:gciql] {len(obs)} states x 5 tasks -> {out}")
