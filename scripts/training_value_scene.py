@@ -37,6 +37,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt          # noqa: E402
 import matplotlib.image as mpimg         # noqa: E402
 from matplotlib.lines import Line2D      # noqa: E402
+from matplotlib.patches import Patch     # noqa: E402
 
 CUBE_SLICE = slice(14, 17)
 GRIP_QPOS_IDX = 6
@@ -248,17 +249,23 @@ def _render(task, method, vdf, fdf, support_xy, anchors, bg_img, out_dir):
                       fontsize=9)
 
     handles = [
+        Patch(facecolor=matplotlib.colormaps["Reds"](0.85),
+              edgecolor="black", linewidth=0.4,
+              label="value V(s): low → high (per-panel)"),
+        Line2D([0], [0], color="white", marker=r"$\rightarrow$",
+               markeredgecolor="black", markersize=12, linestyle="",
+               label="cube-flow direction (offline data)"),
         Line2D([0], [0], marker="s", color="white", markeredgecolor="black",
                markersize=10, linestyle="", label="cube (mean this phase)"),
         Line2D([0], [0], marker="*", color="gold", markeredgecolor="black",
-               markersize=15, linestyle="", label="goal (task target)"),
-        Line2D([0], [0], color="white", marker=r"$\rightarrow$",
-               markeredgecolor="black", markersize=12, linestyle="",
-               label="cube flow (data)")]
+               markersize=15, linestyle="", label="goal (task target)")]
     axes[0, 0].legend(handles=handles, loc="upper left", fontsize=7,
                       framealpha=0.85)
-    fig.suptitle(f"{task} — {method}: phase x outcome value (saliency) "
-                 "& cube-flow fields  [training states]", fontsize=13)
+    fig.suptitle(
+        f"{task} — {method}  [training states]    "
+        "red = value V(s) (per-panel saliency, low→high)    ·    "
+        "white arrows = cube-flow direction in offline data (not policy action)",
+        fontsize=12)
     fig.tight_layout()
     fp = out_dir / f"{task}__{_slug(method)}.png"
     fig.savefig(fp, dpi=125)
