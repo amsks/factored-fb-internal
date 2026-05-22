@@ -55,6 +55,22 @@ def horizon_reach_label(d_future: np.ndarray, thresh: float,
     return bool(seg.size and np.min(seg) < thresh)
 
 
+def flow_step_labels(cube_traj: np.ndarray, goals_xyz: np.ndarray,
+                     horizon: int, thresh: float) -> np.ndarray:
+    """[T, n_goals] bool success-bound per step per goal for ONE episode:
+    does the cube reach within `thresh` of each goal within `horizon` future
+    steps. `cube_traj` = [T,3] cube xyz; `goals_xyz` = [n_goals,3]."""
+    cube_traj = np.asarray(cube_traj, np.float64).reshape(-1, 3)
+    goals_xyz = np.asarray(goals_xyz, np.float64).reshape(-1, 3)
+    T, G = len(cube_traj), len(goals_xyz)
+    out = np.zeros((T, G), dtype=bool)
+    for gi in range(G):
+        d = np.linalg.norm(cube_traj - goals_xyz[gi], axis=1)  # [T]
+        for t in range(T):
+            out[t, gi] = horizon_reach_label(d[t:], thresh, horizon)
+    return out
+
+
 def outcome_spearman_table(df, value_col: str = "V", group_cols=("task",)):
     """Per (region, outcome) Spearman rho(value, -d), mean/std over the
     `group_cols` combinations. `df` has columns region, outcome, d,
