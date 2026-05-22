@@ -262,6 +262,45 @@ def aggregate(root: Path, out: Path) -> None:
             else:
                 mdc.append(f"| {rg} | — | 0 |")
         (out / "outcome_composition.md").write_text("\n".join(mdc) + "\n")
+
+        # 9. Spatial value maps over cube-xy, split by outcome (per method).
+        #    Value z-scored per (group) so seeds/tasks pool; shared color
+        #    scale per phase row so success vs fail are comparable.
+        for df, vc, label in methods:
+            d = df.copy()
+            d["_vz"] = d.groupby(list(group_cols))[vc].transform(
+                lambda s: (s - s.mean()) / (s.std() + 1e-9))
+            fig, axes = plt.subplots(
+                len(REGIONS), len(OUTCOMES),
+                figsize=(5 * len(OUTCOMES), 4 * len(REGIONS)),
+                squeeze=False, constrained_layout=True)
+            for ri, rg in enumerate(REGIONS):
+                row = d[d.region == rg]
+                vmin = (float(np.nanpercentile(row["_vz"], 2))
+                        if len(row) else -1.0)
+                vmax = (float(np.nanpercentile(row["_vz"], 98))
+                        if len(row) else 1.0)
+                last_h = None
+                for ci, oc in enumerate(OUTCOMES):
+                    ax = axes[ri][ci]
+                    sub = row[row.outcome == oc]
+                    ax.set_title(f"{label} — {rg} — {oc} (n={len(sub)})")
+                    if len(sub) >= 20:
+                        last_h = ax.hexbin(sub["cube_x"], sub["cube_y"],
+                                           C=sub["_vz"], gridsize=20,
+                                           reduce_C_function=np.mean,
+                                           cmap="viridis", vmin=vmin, vmax=vmax)
+                    ax.set_xlabel("cube x")
+                    ax.set_ylabel("cube y")
+                if last_h is not None:
+                    fig.colorbar(last_h, ax=list(axes[ri]), shrink=0.8,
+                                 label="z-scored value")
+            fig.suptitle(f"{label}: training-state value over cube-xy, "
+                         "by phase x outcome")
+            fname = f"scene_outcome_{label.replace(' ', '_').lower()}.png"
+            fig.savefig(out / fname, dpi=130)
+            plt.close(fig)
+
         print("\n".join(mdo))
         print("\n".join(mdd))
 
