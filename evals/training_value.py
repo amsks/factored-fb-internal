@@ -25,20 +25,22 @@ def cube_to_goal_dist(cube_xyz: np.ndarray, goal_xyz: np.ndarray) -> np.ndarray:
     return np.linalg.norm(cube - goal, axis=1)
 
 
-def phase_spearman_table(df, value_col: str = "V"):
-    """Per (region) Spearman rho(value, -d): mean/std over tasks. `df` has
-    columns task, region, d, <value_col>. Returns a tidy DataFrame."""
+def phase_spearman_table(df, value_col: str = "V", group_cols=("task",)):
+    """Per (region) Spearman rho(value, -d), aggregated mean/std over the
+    `group_cols` combinations (default per-task; pass ('pair','task') for a
+    multi-seed run). `df` has columns region, d, <value_col>, + group_cols."""
     import pandas as pd
 
+    group_cols = list(group_cols)
     rows = []
     for region, g in df.groupby("region"):
-        per_task = []
-        for task, gt in g.groupby("task"):
-            per_task.append(_spearman(gt[value_col].to_numpy(),
-                                      -gt["d"].to_numpy()))
-        per_task = np.array(per_task, dtype=float)
+        vals = []
+        for _, gg in g.groupby(group_cols):
+            vals.append(_spearman(gg[value_col].to_numpy(),
+                                  -gg["d"].to_numpy()))
+        vals = np.array(vals, dtype=float)
         rows.append({"region": region,
-                     "rho_mean": float(np.nanmean(per_task)),
-                     "rho_std": float(np.nanstd(per_task)),
-                     "n_tasks": int(np.isfinite(per_task).sum())})
+                     "rho_mean": float(np.nanmean(vals)),
+                     "rho_std": float(np.nanstd(vals)),
+                     "n_groups": int(np.isfinite(vals).sum())})
     return pd.DataFrame(rows)
