@@ -46,7 +46,8 @@ def _ms(s: pd.Series) -> str:
     return f"{s.mean():.3g} ± {s.std(ddof=0):.2g}"
 
 
-def aggregate(root, out, fb_aggregate=None, fb_seed_root=None) -> None:
+def aggregate(root, out, fb_aggregate=None, fb_seed_root=None,
+              method_label="GCIQL") -> None:
     root, out = Path(root), Path(out)
     out.mkdir(parents=True, exist_ok=True)
     vl = _load(root, "value_landscape")
@@ -72,7 +73,7 @@ def aggregate(root, out, fb_aggregate=None, fb_seed_root=None) -> None:
     fig, ax = plt.subplots(figsize=(6, 4))
     g = vl.groupby("outcome")["rho_V_negd"].mean()
     ax.bar([str(i) for i in g.index], g.values)
-    ax.set_title("GCIQL value gradient")
+    ax.set_title(f"{method_label} value gradient")
     ax.set_ylabel("Spearman rho(V, -d)")
     fig.tight_layout(); fig.savefig(out / "value_rho_bars.png", dpi=120)
     plt.close(fig)
@@ -80,19 +81,19 @@ def aggregate(root, out, fb_aggregate=None, fb_seed_root=None) -> None:
     fig, ax = plt.subplots(figsize=(6, 4))
     cc = cv.groupby(["region", "outcome"])["nn_dist"].mean().unstack()
     cc.plot(kind="bar", ax=ax)
-    ax.set_title("GCIQL coverage"); ax.set_ylabel("nn_dist")
+    ax.set_title(f"{method_label} coverage"); ax.set_ylabel("nn_dist")
     fig.tight_layout(); fig.savefig(out / "coverage_curves.png", dpi=120)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(6, 4))
     fc = fun.groupby("furthest_phase").size()
     ax.bar([str(i) for i in fc.index], fc.values)
-    ax.set_title("GCIQL phase funnel")
+    ax.set_title(f"{method_label} phase funnel")
     fig.tight_layout(); fig.savefig(out / "funnel.png", dpi=120)
     plt.close(fig)
 
     lines = [
-        "# GCIQL cross-seed story", "",
+        f"# {method_label} cross-seed story", "",
         f"Seeds: {', '.join('s'+str(s) for s in sorted(vl['seed'].unique()))}",
         "", "## Value gradient (T1)",
         f"- Spearman ρ(V vs −d) success: "
@@ -115,7 +116,8 @@ def aggregate(root, out, fb_aggregate=None, fb_seed_root=None) -> None:
     if fb_aggregate is not None:
         _comparison(out / "comparison", vl, cvt, fb_aggregate,
                     rho_s, rho_f, fail_nn, succ_nn, verdicts,
-                    gciql_root=root, fb_seed_root=fb_seed_root)
+                    gciql_root=root, fb_seed_root=fb_seed_root,
+                    method_label=method_label)
     print(f"[gciql_profile_aggregate] {vl['seed'].nunique()} seeds -> {out}")
 
 
@@ -344,7 +346,7 @@ def _canon_task(s: str) -> str:
 
 
 def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
-                        tasks=None) -> None:
+                        tasks=None, method_label="GCIQL") -> None:
     """10 figures (task x method); rows {success,transport_fail}, cols
     {approach,contact,transport}. Pure data + matplotlib; no model
     loading. Skips a method with no value_steps (warns)."""
@@ -376,7 +378,7 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
         return pd.concat(fr, ignore_index=True) if fr else None
 
     src = {"FB": _seed_concat(fb_seed_root),
-           "GCIQL": _seed_concat(gciql_root)}
+           method_label: _seed_concat(gciql_root)}
     src = {k: v for k, v in src.items()
            if v is not None and "region" in v.columns}
     if not src:
@@ -650,7 +652,8 @@ def _medoid_episode(df) -> int:
     return int(eps[int(np.argmin(dists))])
 
 
-def _value_scene(cdir, gciql_root, fb_seed_root, scene_png, calib):
+def _value_scene(cdir, gciql_root, fb_seed_root, scene_png, calib,
+                 method_label="GCIQL"):
     """Four {FB,GCIQL}x{success,transport_fail} translucent V heatmaps
     over the shared top-down scene + medoid trajectory + a 2x2 montage.
     Skipped (with a warning) if inputs are missing."""
@@ -674,7 +677,7 @@ def _value_scene(cdir, gciql_root, fb_seed_root, scene_png, calib):
         return pd.concat(fr, ignore_index=True) if fr else None
 
     sources = {"FB": _seed_concat(fb_seed_root, "value_steps"),
-               "GCIQL": _seed_concat(gciql_root, "value_steps")}
+               method_label: _seed_concat(gciql_root, "value_steps")}
     panels = []
     for method, vs in sources.items():
         if vs is None or "cube_x" not in vs.columns:
@@ -730,8 +733,10 @@ def _value_scene(cdir, gciql_root, fb_seed_root, scene_png, calib):
 
 
 def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
-                g_verd, gciql_root=None, fb_seed_root=None) -> None:
+                g_verd, gciql_root=None, fb_seed_root=None,
+                method_label="GCIQL") -> None:
     cdir.mkdir(parents=True, exist_ok=True)
+    gl = method_label
     fb_t1 = pd.read_parquet(
         Path(fb_aggregate) / "T1_value_gradient.parquet")
 
@@ -745,7 +750,7 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
     rows = [
         {"method": "FB", "rho_success": fb_rs, "rho_fail": fb_rf,
          "T1_verdict": fbv[0]},
-        {"method": "GCIQL", "rho_success": g_rs, "rho_fail": g_rf,
+        {"method": gl, "rho_success": g_rs, "rho_fail": g_rf,
          "T1_verdict": g_verd["T1"][0]},
     ]
     cmp = pd.DataFrame(rows)
@@ -755,9 +760,9 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
     x = np.arange(2)
     ax.bar(x - 0.2, [fb_rs, g_rs], 0.4, label="success")
     ax.bar(x + 0.2, [fb_rf, g_rf], 0.4, label="transport_fail")
-    ax.set_xticks(x); ax.set_xticklabels(["FB", "GCIQL"])
+    ax.set_xticks(x); ax.set_xticklabels(["FB", gl])
     ax.set_ylabel("Spearman rho(V, -d)"); ax.legend()
-    ax.set_title("FB vs GCIQL: value gradient")
+    ax.set_title(f"FB vs {gl}: value gradient")
     fig.tight_layout(); fig.savefig(cdir / "cmp_value_rho.png", dpi=120)
     plt.close(fig)
 
@@ -784,7 +789,7 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
         edges = np.unique(edges)
         ctr = 0.5 * (edges[:-1] + edges[1:])
         fig, ax = plt.subplots(figsize=(6, 4))
-        for nm, df in (("FB", _zscore_v(f_vs)), ("GCIQL", _zscore_v(g_vs))):
+        for nm, df in (("FB", _zscore_v(f_vs)), (gl, _zscore_v(g_vs))):
             for oc, ls in (("success", "-"),
                            ("transport_fail", "--")):
                 sub = df[df.outcome == oc]
@@ -798,7 +803,7 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
                         label=f"{nm} {oc}")
         ax.set_xlabel("cube -> goal distance")
         ax.set_ylabel("standardised V (per method, z-scored)")
-        ax.set_title("Value vs goal distance: FB vs GCIQL")
+        ax.set_title(f"Value vs goal distance: FB vs {gl}")
         ax.legend(fontsize=7)
         fig.tight_layout()
         fig.savefig(cdir / "cmp_value_vs_dist.png", dpi=120)
@@ -809,7 +814,7 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
     # 2. per-episode rho distribution (box) for the four groups
     if g_vl is not None and f_vl is not None:
         groups, labels = [], []
-        for nm, df in (("FB", f_vl), ("GCIQL", g_vl)):
+        for nm, df in (("FB", f_vl), (gl, g_vl)):
             for oc in ("success", "transport_fail"):
                 v = df[df.outcome == oc]["rho_V_negd"].dropna()
                 groups.append(v.to_numpy() if len(v) else np.array([0.0]))
@@ -817,7 +822,7 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.boxplot(groups, labels=labels, showmeans=True)
         ax.set_ylabel("Spearman rho(V, -d)")
-        ax.set_title("Per-episode value gradient: FB vs GCIQL")
+        ax.set_title(f"Per-episode value gradient: FB vs {gl}")
         ax.tick_params(axis="x", labelsize=7)
         fig.tight_layout()
         fig.savefig(cdir / "cmp_rho_box.png", dpi=120)
@@ -828,13 +833,13 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
         order = ["success", "transport_fail", "other"]
         fig, ax = plt.subplots(figsize=(6, 4))
         x = np.arange(len(order))
-        for i, (nm, df) in enumerate((("FB", f_vl), ("GCIQL", g_vl))):
+        for i, (nm, df) in enumerate((("FB", f_vl), (gl, g_vl))):
             fr = (df["outcome"].value_counts(normalize=True)
                   .reindex(order).fillna(0.0))
             ax.bar(x + (i - 0.5) * 0.4, fr.values, 0.4, label=nm)
         ax.set_xticks(x); ax.set_xticklabels(order)
         ax.set_ylabel("episode fraction")
-        ax.set_title("Outcome funnel: FB vs GCIQL")
+        ax.set_title(f"Outcome funnel: FB vs {gl}")
         ax.legend()
         fig.tight_layout()
         fig.savefig(cdir / "cmp_funnel.png", dpi=120)
@@ -845,36 +850,38 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
         regs = sorted(set(g_cv["region"]) | set(f_cv["region"]))
         fig, ax = plt.subplots(figsize=(6, 4))
         x = np.arange(len(regs))
-        for i, (nm, df) in enumerate((("FB", f_cv), ("GCIQL", g_cv))):
+        for i, (nm, df) in enumerate((("FB", f_cv), (gl, g_cv))):
             m = df.groupby("region")["nn_dist"].mean()
             ax.bar(x + (i - 0.5) * 0.4,
                    [float(m.get(r, 0.0)) for r in regs], 0.4, label=nm)
         ax.set_xticks(x); ax.set_xticklabels(regs)
         ax.set_ylabel("nn_dist"); ax.legend()
-        ax.set_title("Off-support coverage: FB vs GCIQL")
+        ax.set_title(f"Off-support coverage: FB vs {gl}")
         fig.tight_layout()
         fig.savefig(cdir / "cmp_coverage.png", dpi=120)
         plt.close(fig)
 
     (cdir / "comparison.md").write_text("\n".join([
-        "# FB vs GCIQL — shared-axis comparison", "",
+        f"# FB vs {gl} — shared-axis comparison", "",
         f"- FB    value gradient: rho_s={fb_rs:.3g}, rho_f={fb_rf:.3g} "
         f"-> {fbv[0]}",
-        f"- GCIQL value gradient: rho_s={g_rs:.3g}, rho_f={g_rf:.3g} "
+        f"- {gl} value gradient: rho_s={g_rs:.3g}, rho_f={g_rf:.3g} "
         f"-> {g_verd['T1'][0]}",
-        f"- GCIQL coverage transport nn_dist: fail={g_fnn:.3g}, "
+        f"- {gl} coverage transport nn_dist: fail={g_fnn:.3g}, "
         f"success={g_snn:.3g} -> {g_verd['T4'][0]}",
         "",
         "Both methods are compared only on axes that transfer "
         "(value gradient, coverage, phase funnel); FB-specific "
-        "z-decoding (T2) and B-resolution (T3) have no GCIQL analog.",
+        f"z-decoding (T2) and B-resolution (T3) have no {gl} analog.",
     ]))
 
     _value_scene(cdir, gciql_root, fb_seed_root,
                  REPO_ROOT / "analysis" / "scene" / "topdown.png",
-                 REPO_ROOT / "analysis" / "scene" / "calib.json")
+                 REPO_ROOT / "analysis" / "scene" / "calib.json",
+                 method_label=gl)
 
-    _phase_action_scene(cdir / "phase_scene", gciql_root, fb_seed_root)
+    _phase_action_scene(cdir / "phase_scene", gciql_root, fb_seed_root,
+                        method_label=gl)
     _cube_distribution_scatter(cdir / "phase_scene",
                                 gciql_root, fb_seed_root)
 
@@ -890,13 +897,16 @@ def main() -> None:
     ap.add_argument("--fb-seed-root",
                     default=str(REPO_ROOT / "analysis"
                                / "representation_profile"))
+    ap.add_argument("--method-label", default="GCIQL",
+                    help="display name for the non-FB method (e.g. GCIVL)")
     args = ap.parse_args()
     root = Path(args.root)
     fb = Path(args.fb_aggregate)
     fbsr = Path(args.fb_seed_root)
     aggregate(root, Path(args.out) if args.out else root / "aggregate",
               fb_aggregate=fb if fb.exists() else None,
-              fb_seed_root=fbsr if fbsr.exists() else None)
+              fb_seed_root=fbsr if fbsr.exists() else None,
+              method_label=args.method_label)
 
 
 if __name__ == "__main__":
