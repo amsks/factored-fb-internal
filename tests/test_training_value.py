@@ -10,7 +10,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from evals.training_value import (region_labels, cube_to_goal_dist,
                                    phase_spearman_table, horizon_reach_label,
-                                   outcome_spearman_table, value_discrimination)
+                                   outcome_spearman_table, value_discrimination,
+                                   flow_step_labels)
 from evals.phase_probe import Thresholds
 
 
@@ -83,3 +84,19 @@ def test_value_discrimination_separable_and_random():
     auc = value_discrimination(pd.DataFrame(rrows), "V").set_index(
         "region").loc["reach", "auc"]
     assert abs(auc - 0.5) < 0.05
+
+
+def test_flow_step_labels_bounded_reach():
+    # one episode, cube first reaches goal g (0.30) at step 3, then leaves
+    cube = np.array([[0.50, 0.0, 0.0],   # d=0.20
+                     [0.45, 0.0, 0.0],   # d=0.15
+                     [0.40, 0.0, 0.0],   # d=0.10
+                     [0.30, 0.0, 0.0],   # d=0.00 -> reaches
+                     [0.60, 0.0, 0.0]])  # d=0.30
+    g = np.array([[0.30, 0.0, 0.0]])     # one goal
+    out = flow_step_labels(cube, g, horizon=2, thresh=0.04)  # [T, n_goals]
+    # horizon=2: step2 tail {0.10,0.00} hits; step3 tail {0.00,0.30} hits
+    assert out.shape == (5, 1)
+    assert out[2, 0] and out[3, 0]
+    assert not out[0, 0] and not out[1, 0]
+    assert not out[4, 0]                 # last step, tail {0.30}, no reach
