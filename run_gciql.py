@@ -69,16 +69,16 @@ def _preflight(cfg: Mapping[str, Any]) -> Path:
     return jax_python
 
 
-@hydra.main(version_base="1.3", config_path="configs/gciql",
-            config_name="cube_single_state")
-def main(cfg: DictConfig) -> None:
-    plain = OmegaConf.to_container(cfg, resolve=True)
-    argv = build_ogbench_argv(plain)
-    jax_python = _preflight(plain)
+def build_child_env(plain: Mapping[str, Any], base_env: Mapping[str, str]) -> dict:
+    """Build the OGBench child env from the resolved config + a base environment.
 
-    env = os.environ.copy()
+    Pure (no os.environ access) so it is unit-testable. Mirrors the wandb-shim
+    contract documented in this module's docstring and sets
+    OGBENCH_DRQ_FRONTEND=1 when the config selects the DrQ visual encoder.
+    """
+    env = dict(base_env)
     env["MUJOCO_GL"] = "egl"
-    cvd = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
+    cvd = base_env.get("CUDA_VISIBLE_DEVICES", "0")
     env["CUDA_VISIBLE_DEVICES"] = cvd
     # CUDA_VISIBLE_DEVICES masks CUDA/JAX but NOT MuJoCo's EGL device
     # enumeration. With MUJOCO_EGL_DEVICE_ID unset, every process defaults to
@@ -98,9 +98,16 @@ def main(cfg: DictConfig) -> None:
     # GCIQL overlay on the same panels). GCIQL_WANDB_FORCE_MODE forces wandb
     # offline/disabled (OGBench hardcodes mode='online'; wandb >= 0.27 lets that
     # kwarg override the env vars). Vendored OGBench is never edited.
+    # Put the shim dir FIRST (so Python imports OUR sitecustomize) and the
+    # OGBench impls dir SECOND. The impls dir is required on PYTHONPATH -- not
+    # just via main.py's cwd -- because sitecustomize is imported at interpreter
+    # startup, BEFORE the script directory is added to sys.path; without it the
+    # shim's `import utils.encoders` fails and encoder='drq' is never registered.
     shim_dir = str(REPO_ROOT / "tools" / "wandb_mode_shim")
-    existing = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = shim_dir + (os.pathsep + existing if existing else "")
+    impls_dir = str(REPO_ROOT / "third_party" / "ogbench" / "impls")
+    existing = base_env.get("PYTHONPATH")
+    parts = [shim_dir, impls_dir] + ([existing] if existing else [])
+    env["PYTHONPATH"] = os.pathsep.join(parts)
     env["GCIQL_FB_ENV"] = str(plain["env_name"])
     # Repo-wide default: all GCIQL runs log to FB's wandb entity/project so
     # they sit alongside FB runs for comparison. Only run_group/tags vary.
@@ -114,6 +121,23 @@ def main(cfg: DictConfig) -> None:
         env["GCIQL_WANDB_FORCE_MODE"] = mode
         # belt-and-suspenders; "disabled" is not a valid WANDB_MODE value
         env["WANDB_MODE"] = "offline" if mode == "disabled" else mode
+    # DrQ visual front-end: the sitecustomize shim swaps GCDataset.augment for
+    # FB's random_shifts only when this flag is set; gate it on the encoder so
+    # impala runs keep OGBench's native random_crop aug untouched.
+    overrides = plain.get("agent_overrides") or {}
+    if str(overrides.get("encoder")) == "drq":
+        env["OGBENCH_DRQ_FRONTEND"] = "1"
+    return env
+
+
+@hydra.main(version_base="1.3", config_path="configs/gciql",
+            config_name="cube_single_state")
+def main(cfg: DictConfig) -> None:
+    plain = OmegaConf.to_container(cfg, resolve=True)
+    argv = build_ogbench_argv(plain)
+    jax_python = _preflight(plain)
+
+    env = build_child_env(plain, os.environ.copy())
 
     run_meta = {
         "argv": argv,

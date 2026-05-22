@@ -56,13 +56,24 @@ if _forced in ("offline", "disabled") or _fb_env or _project or _entity:
             # third_party/ogbench/impls/utils/log_utils.py). Re-encode it as a
             # GIF with FB's exact imageio params so GCIQL eval media matches
             # FB's recording (evals/ogbench.py).
+            #
+            # Why patch __init__ instead of rebinding wandb.Video to a wrapper
+            # function: OGBench's CsvLogger uses
+            #   isinstance(v, (wandb.Image, wandb.Video, wandb.Histogram))
+            # to filter media out of the CSV header (log_utils.py:26). If
+            # wandb.Video is replaced with a function, that tuple contains a
+            # non-type and isinstance raises TypeError on the first eval,
+            # crashing every GCIQL pixel run. Mutating __init__ keeps the
+            # class identity intact.
             import numpy as _np
             import tempfile as _tempfile
             import imageio as _imageio
 
-            _orig_video = _wandb.Video
+            _orig_video_init = _wandb.Video.__init__
 
-            def _video(data_or_path, caption=None, fps=None, format=None):
+            def _video_init(
+                self, data_or_path, caption=None, fps=None, format=None
+            ):
                 try:
                     if isinstance(data_or_path, _np.ndarray) and format == "mp4":
                         _frames = _np.transpose(data_or_path, (0, 2, 3, 1))
@@ -73,16 +84,16 @@ if _forced in ("offline", "disabled") or _fb_env or _project or _entity:
                         _imageio.mimsave(
                             _tmp.name, _frames, format="GIF", fps=30, loop=0
                         )
-                        return _orig_video(
-                            _tmp.name, caption=caption, fps=30, format="gif"
+                        return _orig_video_init(
+                            self, _tmp.name, caption=caption, fps=30, format="gif"
                         )
                 except Exception:
                     pass
-                return _orig_video(
-                    data_or_path, caption=caption, fps=fps, format=format
+                return _orig_video_init(
+                    self, data_or_path, caption=caption, fps=fps, format=format
                 )
 
-            _wandb.Video = _video
+            _wandb.Video.__init__ = _video_init
 
             _task_re = re.compile(r"^evaluation/task(\d+)_.*_success$")
             _orig_log = _wandb.log
@@ -116,3 +127,24 @@ if _forced in ("offline", "disabled") or _fb_env or _project or _entity:
             _wandb.log = _log
     except Exception:
         pass
+
+# --- DrQ visual front-end injection (independent of the wandb block above) ---
+# Register the JAX DrQ encoder so configs may select encoder='drq', and -- only
+# when OGBENCH_DRQ_FRONTEND=1 -- swap GCDataset.augment for FB's random_shifts.
+# Guarded: this file is also auto-imported by non-OGBench/non-jax processes (e.g.
+# the wandb-shim tests under .venv), where these imports must fail silently.
+# run_gciql.py runs `python main.py` with cwd=third_party/ogbench/impls, so
+# sys.path[0] is that dir and `utils.*` import here at interpreter startup.
+try:
+    import utils.encoders as _ogb_encoders
+    from ogbench_drq import DrQEncoder as _DrQEncoder
+
+    _ogb_encoders.encoder_modules.setdefault("drq", _DrQEncoder)
+
+    if os.environ.get("OGBENCH_DRQ_FRONTEND") == "1":
+        import utils.datasets as _ogb_datasets
+        from ogbench_drq import gcdataset_augment as _drq_augment
+
+        _ogb_datasets.GCDataset.augment = _drq_augment
+except Exception:
+    pass

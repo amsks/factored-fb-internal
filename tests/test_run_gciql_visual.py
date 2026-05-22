@@ -27,4 +27,7 @@ def test_runner_script_exists_and_is_executable():
     mode = p.stat().st_mode
     assert mode & stat.S_IXUSR, "script must be executable"
     text = p.read_text()
-    assert "--config-name cube_single_visual" in text
+    # Runner is CONFIG-selectable (GCIQL vs GCIVL vs DrQ front-end); it passes
+    # --config-name "$CONFIG" and defaults CONFIG to the GCIQL visual config.
+    assert '--config-name "$CONFIG"' in text
+    assert 'CONFIG="${CONFIG:-cube_single_visual}"' in text
