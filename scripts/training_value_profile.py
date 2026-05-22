@@ -155,7 +155,69 @@ def _fb(args) -> None:
 
 
 def _gciql(args) -> None:
-    raise NotImplementedError("GCIQL backend added in Task 3")
+    ogb_impls = REPO_ROOT / "third_party" / "ogbench" / "impls"
+    if str(ogb_impls) not in sys.path:
+        sys.path.insert(0, str(ogb_impls))
+    import jax
+    import jax.numpy as jnp
+    import pandas as pd
+    import ogbench  # vendored, registers envs
+    from utils.flax_utils import restore_agent
+    from scripts.gciql_profile import parse_flags
+
+    out = Path(args.out)
+    st = np.load(out / "training_states.npz", allow_pickle=True)
+    obs = np.asarray(st["obs"], np.float32)
+    cube = np.asarray(st["cube"], np.float64)
+    region = [str(r) for r in st["region"]]
+
+    flags = parse_flags(args.run_dir)
+    saved = flags.get("agent")
+    agent_name = (saved.get("agent_name") if isinstance(saved, dict)
+                  else None) or "gciql"
+    if agent_name == "gcivl":
+        from agents.gcivl import GCIVLAgent as AgentCls, get_config
+    else:
+        from agents.gciql import GCIQLAgent as AgentCls, get_config
+    config = get_config()
+    if isinstance(saved, dict):
+        for k, v in saved.items():
+            if k in config:
+                config[k] = v
+
+    env = ogbench.make_env_and_datasets(flags["env_name"], env_only=True)
+    ex_obs, _ = env.reset(options=dict(task_id=1))
+    agent = AgentCls.create(flags["seed"],
+                            np.asarray(ex_obs, np.float32)[None],
+                            np.asarray(env.action_space.sample(),
+                                       np.float32)[None], config)
+    agent = restore_agent(agent, str(args.run_dir), args.step)
+
+    @jax.jit
+    def _value(o, g):
+        # o,g are batched [N, obs_dim]; value is [N] (gciql) or [2, N]
+        # (gcivl twin) -> average the leading twin axis if present.
+        v = jnp.asarray(agent.network.select("value")(o, g))
+        return v.mean(0) if v.ndim >= 2 else v
+
+    rows = []
+    obs_j = jnp.asarray(obs)
+    for ti in range(1, 6):
+        _, info = env.reset(options=dict(task_id=ti))
+        goal = np.asarray(info["goal"], np.float32)
+        tbk = int(getattr(env.unwrapped, "_target_block", 0) or 0)
+        g_xyz = np.asarray(env.unwrapped.cur_task_info["goal_xyzs"][tbk],
+                           np.float64)
+        d = cube_to_goal_dist(cube, g_xyz)
+        gj = jnp.broadcast_to(jnp.asarray(goal)[None], obs_j.shape)
+        V = np.asarray(_value(obs_j, gj)).reshape(-1)
+        for i in range(len(obs)):
+            rows.append({"task": f"task{ti}", "region": region[i],
+                         "d": float(d[i]), "cube_x": float(cube[i, 0]),
+                         "cube_y": float(cube[i, 1]), "V": float(V[i])})
+    env.close()
+    pd.DataFrame(rows).to_parquet(out / "gciql_values.parquet")
+    print(f"[training_value:gciql] {len(obs)} states x 5 tasks -> {out}")
 
 
 def main() -> None:
