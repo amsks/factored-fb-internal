@@ -127,3 +127,24 @@ if _forced in ("offline", "disabled") or _fb_env or _project or _entity:
             _wandb.log = _log
     except Exception:
         pass
+
+# --- DrQ visual front-end injection (independent of the wandb block above) ---
+# Register the JAX DrQ encoder so configs may select encoder='drq', and -- only
+# when OGBENCH_DRQ_FRONTEND=1 -- swap GCDataset.augment for FB's random_shifts.
+# Guarded: this file is also auto-imported by non-OGBench/non-jax processes (e.g.
+# the wandb-shim tests under .venv), where these imports must fail silently.
+# run_gciql.py runs `python main.py` with cwd=third_party/ogbench/impls, so
+# sys.path[0] is that dir and `utils.*` import here at interpreter startup.
+try:
+    import utils.encoders as _ogb_encoders
+    from ogbench_drq import DrQEncoder as _DrQEncoder
+
+    _ogb_encoders.encoder_modules.setdefault("drq", _DrQEncoder)
+
+    if os.environ.get("OGBENCH_DRQ_FRONTEND") == "1":
+        import utils.datasets as _ogb_datasets
+        from ogbench_drq import gcdataset_augment as _drq_augment
+
+        _ogb_datasets.GCDataset.augment = _drq_augment
+except Exception:
+    pass
