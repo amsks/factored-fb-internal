@@ -155,9 +155,13 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
                  n_episodes: int, max_steps: int):
     """Load the GCIQL checkpoint and roll out the goal-conditioned
     policy. Imports jax/flax/vendored OGBench — JAX venv only."""
-    ogb_impls = REPO_ROOT / "third_party" / "ogbench" / "impls"
-    if str(ogb_impls) not in sys.path:
-        sys.path.insert(0, str(ogb_impls))
+    ogb_impls = str(REPO_ROOT / "third_party" / "ogbench" / "impls")
+    # Always front-place so the vendored OGBench `agents`/`utils` win over the
+    # repo-root FB `agents` — even when ogb_impls is pre-injected via PYTHONPATH
+    # (needed to register the DrQ encoder in sitecustomize at startup).
+    if ogb_impls in sys.path:
+        sys.path.remove(ogb_impls)
+    sys.path.insert(0, ogb_impls)
     import ogbench  # vendored
     from utils.flax_utils import restore_agent
     import jax
@@ -185,9 +189,15 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
             if k in config:
                 config[k] = v
     episodes: List[Dict[str, Any]] = []
+    fs = config.get("frame_stack")
     for task_id in task_ids:
         env = ogbench.make_env_and_datasets(
             flags["env_name"], env_only=True)
+        # Pixel DrQ checkpoints train with a frame-stack wrapper (e.g. 3);
+        # match it so the encoder's input channels line up on restore/rollout.
+        if fs:
+            from utils.env_utils import FrameStackWrapper
+            env = FrameStackWrapper(env, fs)
         ex_obs, info = env.reset(options=dict(task_id=task_id))
         ex_act = env.action_space.sample()
         agent = AgentCls.create(
