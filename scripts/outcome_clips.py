@@ -93,6 +93,23 @@ def compose_with_goal(goal_frame: np.ndarray, strip, sep: int = 10):
     return canvas
 
 
+def frame_with_goal(goal_frame: np.ndarray, frame: np.ndarray,
+                    sep: int = 6) -> np.ndarray:
+    """One animated frame with the static goal panel on its left (goal resized
+    to the frame height). Used to bake the goal into the GIFs."""
+    from PIL import Image
+
+    fr = Image.fromarray(np.asarray(frame)).convert("RGB")
+    g = Image.fromarray(np.asarray(goal_frame)).convert("RGB")
+    h = fr.height
+    w = max(1, round(g.width * h / g.height))
+    g = g.resize((w, h))
+    canvas = Image.new("RGB", (g.width + sep + fr.width, h), "white")
+    canvas.paste(g, (0, 0))
+    canvas.paste(fr, (g.width + sep, 0))
+    return np.asarray(canvas)
+
+
 def render_goal_frame(env) -> Optional[np.ndarray]:
     """Render the scene with the cube placed at the task goal. The rollout
     render shows only the live scene (OGBench conveys the goal as a separate
@@ -275,10 +292,17 @@ def _rebuild_filmstrips(args) -> None:
             if strip is None:
                 print(f"  [warn] {tag} task{n}: no gifs in {gif_dir}")
                 continue
-            if goals.get(n) is not None:
-                strip = compose_with_goal(goals[n], strip)
+            gf = goals.get(n)
+            if gf is not None:
+                strip = compose_with_goal(gf, strip)
             strip.save(film_dir / f"clip_{tag}_task{n}.png")
-            print(f"[outcome_clips] rebuilt clip_{tag}_task{n}.png")
+            # Goal-paneled GIFs (non-destructive: separate *_goal.gif).
+            if gf is not None:
+                for outcome, frames in (("success", succ), ("failure", fail)):
+                    if frames:
+                        _save_gif([frame_with_goal(gf, f) for f in frames],
+                                  gif_dir / f"task{n}_{outcome}_goal.gif")
+            print(f"[outcome_clips] rebuilt clip_{tag}_task{n}.png (+goal gifs)")
 
 
 def main() -> None:
