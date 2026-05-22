@@ -16,13 +16,17 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from evals.training_value import phase_spearman_table
+from evals.training_value import (phase_spearman_table, outcome_spearman_table,
+                                   value_discrimination)
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 REGIONS = ["reach", "grasp", "transport"]
+OUTCOMES = ["success_bound", "fail_bound"]
+HORIZON_DEFAULT = 200    # label provenance (see profile --horizon)
+THRESH_DEFAULT = 0.04    # label provenance (see profile --thresh)
 
 
 def _load_pooled(root: Path, name: str):
@@ -138,6 +142,128 @@ def aggregate(root: Path, out: Path) -> None:
         fname = f"scene_{label.replace(' ', '_').lower()}.png"
         fig.savefig(out / fname, dpi=130)
         plt.close(fig)
+
+    # 5-8. Outcome-split outputs (skip cleanly on legacy dirs w/o 'outcome').
+    if not all("outcome" in df.columns for df, _, _ in methods):
+        print("[training_value_aggregate] no 'outcome' column — skipping "
+              "outcome-split outputs (re-run profile passes).")
+    else:
+        # 5. Spearman rho(V,-d) by phase x outcome.
+        rows = []
+        for df, vc, label in methods:
+            tab = outcome_spearman_table(df, value_col=vc,
+                                         group_cols=group_cols)
+            for _, r in tab.iterrows():
+                rows.append({"method": label, "region": r["region"],
+                             "outcome": r["outcome"],
+                             "rho_mean": r["rho_mean"],
+                             "rho_std": r["rho_std"]})
+        spo = pd.DataFrame(rows)
+        spo.to_parquet(out / "spearman_outcome_table.parquet")
+        mdo = ["# Training-state value gradient by phase x outcome: "
+               "Spearman rho(V, -d)",
+               f"_n_seeds={n_seeds}; success-bound = cube within "
+               f"{THRESH_DEFAULT} m of goal within {HORIZON_DEFAULT} steps. "
+               "Pathology replicates if rho is NOT higher for success_bound._",
+               "",
+               "| method | outcome | " + " | ".join(REGIONS) + " |",
+               "| :--- | :--- | " + " | ".join([":---"] * len(REGIONS)) + " |"]
+        for label in [m[2] for m in methods]:
+            for oc in OUTCOMES:
+                cells = [label, oc]
+                for rg in REGIONS:
+                    s = spo[(spo.method == label) & (spo.region == rg)
+                            & (spo.outcome == oc)]
+                    cells.append(f"{s['rho_mean'].iloc[0]:.3f}"
+                                 if len(s) else "—")
+                mdo.append("| " + " | ".join(cells) + " |")
+        (out / "spearman_outcome_table.md").write_text("\n".join(mdo) + "\n")
+
+        # 6. Outcome-discrimination: AUC + mean dV.
+        rows = []
+        for df, vc, label in methods:
+            disc = value_discrimination(df, value_col=vc,
+                                        group_cols=group_cols)
+            for _, r in disc.iterrows():
+                rows.append({"method": label, "region": r["region"],
+                             "auc": r["auc"], "mean_dV": r["mean_dV"],
+                             "n_success": r["n_success"],
+                             "n_fail": r["n_fail"]})
+        disc_df = pd.DataFrame(rows)
+        disc_df.to_parquet(out / "value_discrimination.parquet")
+        mdd = ["# Value outcome-discrimination on training states",
+               "_AUC of value separating success-bound vs fail-bound "
+               "(0.5 = none); (dV) = z-scored mean value gap_", "",
+               "| method | "
+               + " | ".join(f"{rg} AUC (dV)" for rg in REGIONS) + " |",
+               "| :--- | " + " | ".join([":---"] * len(REGIONS)) + " |"]
+        for label in [m[2] for m in methods]:
+            cells = [label]
+            for rg in REGIONS:
+                s = disc_df[(disc_df.method == label) & (disc_df.region == rg)]
+                if len(s) and np.isfinite(s["auc"].iloc[0]):
+                    cells.append(f"{s['auc'].iloc[0]:.2f} "
+                                 f"({s['mean_dV'].iloc[0]:+.2f})")
+                else:
+                    cells.append("—")
+            mdd.append("| " + " | ".join(cells) + " |")
+        (out / "value_discrimination.md").write_text("\n".join(mdd) + "\n")
+
+        # 7. value-vs-distance by outcome (rows=method, cols=phase).
+        n_m = len(methods)
+        fig, axes = plt.subplots(n_m, len(REGIONS),
+                                 figsize=(5 * len(REGIONS), 4 * n_m),
+                                 squeeze=False)
+        for mi, (df, vc, label) in enumerate(methods):
+            for ax, rg in zip(axes[mi], REGIONS):
+                for oc, color in (("success_bound", "tab:green"),
+                                  ("fail_bound", "tab:red")):
+                    sub = df[(df.region == rg) & (df.outcome == oc)]
+                    if len(sub) < 20:
+                        continue
+                    v = sub[vc].to_numpy(float)
+                    vz = (v - v.mean()) / (v.std() + 1e-9)
+                    edges = np.unique(np.quantile(sub["d"],
+                                                  np.linspace(0, 1, 8)))
+                    if len(edges) < 3:
+                        continue
+                    ctr = 0.5 * (edges[:-1] + edges[1:])
+                    idx = np.clip(np.digitize(sub["d"], edges) - 1,
+                                  0, len(ctr) - 1)
+                    mv = pd.DataFrame({"b": idx, "vz": vz}).groupby(
+                        "b")["vz"].mean()
+                    ax.plot(ctr[mv.index], mv.values, marker="o",
+                            color=color, label=oc)
+                ax.set_title(f"{label} — {rg}")
+                ax.set_xlabel("cube -> goal distance")
+                ax.set_ylabel("z-scored value")
+                ax.legend(fontsize=8)
+                ax.grid(alpha=0.3)
+        fig.suptitle("Training states: value vs distance, by phase and outcome")
+        fig.tight_layout()
+        fig.savefig(out / "value_vs_dist_by_outcome.png", dpi=130)
+        plt.close(fig)
+
+        # 8. Outcome composition (success-bound fraction per phase) — sanity.
+        comp_df = methods[0][0].assign(
+            _succ=(methods[0][0]["outcome"] == "success_bound").astype(float))
+        by_region = (comp_df.groupby("region")["_succ"].agg(["mean", "size"])
+                     .reindex(REGIONS))
+        by_region.reset_index().rename(
+            columns={"mean": "frac_success_bound", "size": "n"}
+        ).to_parquet(out / "outcome_composition.parquet")
+        mdc = ["# Success-bound fraction on training states (per phase)",
+               "_fraction of (state x task) rows that are success_bound_", "",
+               "| region | frac success_bound | n |", "| :--- | :--- | :--- |"]
+        for rg in REGIONS:
+            if rg in by_region.index and np.isfinite(by_region.loc[rg, "mean"]):
+                mdc.append(f"| {rg} | {by_region.loc[rg, 'mean']:.3f} | "
+                           f"{int(by_region.loc[rg, 'size'])} |")
+            else:
+                mdc.append(f"| {rg} | — | 0 |")
+        (out / "outcome_composition.md").write_text("\n".join(mdc) + "\n")
+        print("\n".join(mdo))
+        print("\n".join(mdd))
 
     print(f"[training_value_aggregate] -> {out}")
     print("\n".join(md))
