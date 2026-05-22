@@ -25,30 +25,52 @@ import matplotlib.pyplot as plt  # noqa: E402
 REGIONS = ["reach", "grasp", "transport"]
 
 
+def _load_pooled(root: Path, name: str):
+    """Read `name` from per-pair subdirs p*/ (multi-seed, tagged with `pair`)
+    if present, else from `root` directly (single run)."""
+    pair_dirs = sorted(d for d in root.glob("p*") if d.is_dir())
+    if pair_dirs:
+        frames = []
+        for pd_ in pair_dirs:
+            f = pd_ / name
+            if f.exists():
+                df = pd.read_parquet(f)
+                df["pair"] = pd_.name
+                frames.append(df)
+        return (pd.concat(frames, ignore_index=True) if frames else None), True
+    f = root / name
+    return (pd.read_parquet(f) if f.exists() else None), False
+
+
 def _methods(root: Path):
-    """(df, value_col, label) per method present under root."""
-    fb = pd.read_parquet(root / "fb_values.parquet")
+    """((df, value_col, label) list, group_cols). Pools per-pair subdirs."""
+    fb, multi = _load_pooled(root, "fb_values.parquet")
     out = [(fb, "V_policy", "FB policy"), (fb, "V_data", "FB data")]
-    gq = root / "gciql_values.parquet"
-    if gq.exists():
-        out.append((pd.read_parquet(gq), "V", "GCIQL"))
-    return out
+    gq, _ = _load_pooled(root, "gciql_values.parquet")
+    if gq is not None:
+        out.append((gq, "V", "GCIQL"))
+    group_cols = ("pair", "task") if multi else ("task",)
+    return out, group_cols
 
 
 def aggregate(root: Path, out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
-    methods = _methods(root)
+    methods, group_cols = _methods(root)
+    n_seeds = (methods[0][0]["pair"].nunique()
+               if "pair" in methods[0][0].columns else 1)
 
-    # 1. Spearman table (region x method, mean over tasks).
+    # 1. Spearman table (region x method, mean over group_cols).
     rows = []
     for df, vc, label in methods:
-        tab = phase_spearman_table(df, value_col=vc)
+        tab = phase_spearman_table(df, value_col=vc, group_cols=group_cols)
         for _, r in tab.iterrows():
             rows.append({"method": label, "region": r["region"],
                          "rho_mean": r["rho_mean"], "rho_std": r["rho_std"]})
     sp = pd.DataFrame(rows)
     sp.to_parquet(out / "spearman_table.parquet")
-    md = ["# Training-state value gradient: Spearman rho(V, -d) by phase", "",
+    md = ["# Training-state value gradient: Spearman rho(V, -d) by phase",
+          f"_n_seeds={n_seeds}; mean over {'seed x task' if n_seeds > 1 else 'task'}_",
+          "",
           "| method | " + " | ".join(REGIONS) + " |",
           "| :--- | " + " | ".join([":---"] * len(REGIONS)) + " |"]
     for label in [m[2] for m in methods]:
@@ -86,9 +108,10 @@ def aggregate(root: Path, out: Path) -> None:
     fig.savefig(out / "value_vs_dist.png", dpi=130)
     plt.close(fig)
 
-    # 3. dataset phase composition bar.
-    comp = pd.read_parquet(root / "phase_composition.parquet")
-    comp = comp.set_index("region").reindex(REGIONS).fillna(0.0)
+    # 3. dataset phase composition bar (averaged across pairs if multi-seed).
+    comp_raw, _ = _load_pooled(root, "phase_composition.parquet")
+    comp = (comp_raw.groupby("region")["fraction"].mean().reset_index()
+            .set_index("region").reindex(REGIONS).fillna(0.0))
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.bar(REGIONS, comp["fraction"].values)
     ax.set_ylabel("fraction of training transitions")
