@@ -35,7 +35,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from evals.training_value import region_labels, cube_to_goal_dist
+from evals.training_value import (region_labels, cube_to_goal_dist,
+                                   horizon_reach_label)
 
 CUBE_SLICE = slice(14, 17)
 GRIP_QPOS_IDX = 6      # ur5e/robotiq/right_driver_joint id (verified)
@@ -48,21 +49,31 @@ def _episode_files(data_path: str, domain: str) -> List[str]:
 
 
 def _sample_states(files, n_states, seed=0):
-    """Aligned (obs, physics, action) sampled across episodes."""
+    """Aligned (obs, physics, action) sampled across episodes, plus each
+    sampled state's (ep_id, step_id) and the per-episode cube trajectories
+    (for the outcome-label tail lookups)."""
     rng = np.random.default_rng(seed)
-    obs_l, phys_l, act_l = [], [], []
-    for f in files:
+    obs_l, phys_l, act_l, ep_l, st_l, cube_by_ep = [], [], [], [], [], []
+    for ei, f in enumerate(files):
         z = np.load(f)
-        obs_l.append(np.asarray(z["observation"], np.float32))
-        phys_l.append(np.asarray(z["physics"], np.float32))
+        o = np.asarray(z["observation"], np.float32)
+        ph = np.asarray(z["physics"], np.float32)
+        obs_l.append(o)
+        phys_l.append(ph)
         act_l.append(np.asarray(z["action"], np.float32))
+        ep_l.append(np.full(len(o), ei, dtype=np.int64))
+        st_l.append(np.arange(len(o), dtype=np.int64))
+        cube_by_ep.append(ph[:, CUBE_SLICE].astype(np.float64))
     obs = np.concatenate(obs_l)
     phys = np.concatenate(phys_l)
     act = np.concatenate(act_l)
+    ep_id = np.concatenate(ep_l)
+    step_id = np.concatenate(st_l)
     if len(obs) > n_states:
         idx = rng.choice(len(obs), n_states, replace=False)
         obs, phys, act = obs[idx], phys[idx], act[idx]
-    return obs, phys, act
+        ep_id, step_id = ep_id[idx], step_id[idx]
+    return obs, phys, act, ep_id, step_id, cube_by_ep
 
 
 def _phase_composition(files, thr, table_z):
@@ -77,6 +88,19 @@ def _phase_composition(files, thr, table_z):
     reg = region_labels(np.concatenate(grip_l), np.concatenate(lift_l), thr)
     vc = pd.Series(reg).value_counts(normalize=True)
     return pd.DataFrame({"region": vc.index, "fraction": vc.values})
+
+
+def _outcome_labels(cube_by_ep, ep_id, step_id, goal_xyz, horizon, thresh):
+    """[n_states] bool: success_bound per state for one goal — does the cube
+    reach within `thresh` of `goal_xyz` within `horizon` future steps of its
+    own episode."""
+    g = np.asarray(goal_xyz, np.float64).reshape(3)
+    out = np.zeros(len(ep_id), dtype=bool)
+    for i in range(len(ep_id)):
+        tail = cube_by_ep[ep_id[i]][step_id[i]: step_id[i] + horizon]
+        d_future = np.linalg.norm(tail - g, axis=1)
+        out[i] = horizon_reach_label(d_future, thresh, horizon)
+    return out
 
 
 def _fb(args) -> None:
@@ -107,7 +131,8 @@ def _fb(args) -> None:
     thr = Thresholds()
 
     files = _episode_files(cfg.data_path, cfg.domain)
-    obs, phys, act = _sample_states(files, args.n_states, seed=cfg.seed)
+    obs, phys, act, ep_id, step_id, cube_by_ep = _sample_states(
+        files, args.n_states, seed=cfg.seed)
     cube = phys[:, CUBE_SLICE]
     grip = np.clip(phys[:, GRIP_QPOS_IDX] / 0.8, 0, 1)
     region = region_labels(grip, phys[:, 16] - table_z, thr)
@@ -128,7 +153,7 @@ def _fb(args) -> None:
     tasks = list(ALL_TASKS.get(cfg.domain, []))
     obs_t = torch.as_tensor(obs, dtype=torch.float32)
     act_t = torch.as_tensor(act, dtype=torch.float32)
-    rows, goals = [], {}
+    rows, goals, outcome_cols = [], {}, []
     for ti, task in enumerate(tasks, start=1):
         z, _ = evaluator._infer_z(task)
         e, _ = create_ogbench_env(task, seed=cfg.seed, obs_type=cfg.obs_type)
@@ -137,6 +162,9 @@ def _fb(args) -> None:
         e.close()
         goals[f"task{ti}"] = g
         d = cube_to_goal_dist(cube, g)
+        oc = _outcome_labels(cube_by_ep, ep_id, step_id, g,
+                             args.horizon, args.thresh)
+        outcome_cols.append(oc)
         v_pol = v_values(agent.model, agent, obs_t, z)
         v_dat = q_values(agent.model, obs_t, act_t, z)
         for i in range(len(obs)):
@@ -144,13 +172,17 @@ def _fb(args) -> None:
                          "d": float(d[i]), "cube_x": float(cube[i, 0]),
                          "cube_y": float(cube[i, 1]),
                          "V_policy": float(v_pol[i]),
-                         "V_data": float(v_dat[i])})
+                         "V_data": float(v_dat[i]),
+                         "outcome": "success_bound" if oc[i]
+                         else "fail_bound"})
     pd.DataFrame(rows).to_parquet(out / "fb_values.parquet")
     _phase_composition(files, thr, table_z).to_parquet(
         out / "phase_composition.parquet")
+    outcome_mat = np.stack(outcome_cols, axis=1)  # [n_states, n_tasks] bool
     np.savez(out / "training_states.npz", obs=obs, cube=cube,
              region=region.astype("U12"),
-             goals=np.stack([goals[f"task{i}"] for i in range(1, 6)]))
+             goals=np.stack([goals[f"task{i}"] for i in range(1, 6)]),
+             outcome=outcome_mat)
     print(f"[training_value:fb] {len(obs)} states x {len(tasks)} tasks -> {out}")
 
 
@@ -231,6 +263,8 @@ def main() -> None:
     ap.add_argument("--checkpoint")
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--data-path", default="datasets")
+    ap.add_argument("--horizon", type=int, default=200)
+    ap.add_argument("--thresh", type=float, default=0.04)
     # gciql
     ap.add_argument("--run-dir")
     ap.add_argument("--step", type=int, default=1000000)
