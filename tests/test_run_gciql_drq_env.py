@@ -23,3 +23,13 @@ def test_build_child_env_still_sets_core_shim_vars():
     assert env["GCIQL_FB_ENV"] == "visual-cube-single-play-v0"
     assert "tools/wandb_mode_shim" in env["PYTHONPATH"]
     assert env["MUJOCO_GL"] == "egl"
+
+
+def test_pythonpath_has_shim_first_then_impls():
+    # The impls dir MUST be on PYTHONPATH so sitecustomize can import utils.* at
+    # interpreter startup (the script dir is not yet on sys.path then); the shim
+    # dir must come first so Python imports our sitecustomize.
+    env = build_child_env(_BASE, {})
+    parts = env["PYTHONPATH"].split(":")
+    assert parts[0].endswith("tools/wandb_mode_shim")
+    assert any(p.endswith("third_party/ogbench/impls") for p in parts)

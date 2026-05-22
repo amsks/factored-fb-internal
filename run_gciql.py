@@ -98,9 +98,16 @@ def build_child_env(plain: Mapping[str, Any], base_env: Mapping[str, str]) -> di
     # GCIQL overlay on the same panels). GCIQL_WANDB_FORCE_MODE forces wandb
     # offline/disabled (OGBench hardcodes mode='online'; wandb >= 0.27 lets that
     # kwarg override the env vars). Vendored OGBench is never edited.
+    # Put the shim dir FIRST (so Python imports OUR sitecustomize) and the
+    # OGBench impls dir SECOND. The impls dir is required on PYTHONPATH -- not
+    # just via main.py's cwd -- because sitecustomize is imported at interpreter
+    # startup, BEFORE the script directory is added to sys.path; without it the
+    # shim's `import utils.encoders` fails and encoder='drq' is never registered.
     shim_dir = str(REPO_ROOT / "tools" / "wandb_mode_shim")
+    impls_dir = str(REPO_ROOT / "third_party" / "ogbench" / "impls")
     existing = base_env.get("PYTHONPATH")
-    env["PYTHONPATH"] = shim_dir + (os.pathsep + existing if existing else "")
+    parts = [shim_dir, impls_dir] + ([existing] if existing else [])
+    env["PYTHONPATH"] = os.pathsep.join(parts)
     env["GCIQL_FB_ENV"] = str(plain["env_name"])
     # Repo-wide default: all GCIQL runs log to FB's wandb entity/project so
     # they sit alongside FB runs for comparison. Only run_group/tags vary.
