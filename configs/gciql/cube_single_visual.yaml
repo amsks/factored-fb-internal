@@ -9,10 +9,10 @@ seed: 0
 train_steps: 500000
 log_interval: 5000
 eval_interval: 100000
-save_interval: 500000
+save_interval: 50000
 eval_episodes: 50
 eval_on_cpu: 0
-run_group: factored-fb-gciql
+run_group: factored-fb-gciql-pixel
 agent_overrides:
   alpha: 1.0
   batch_size: 256
