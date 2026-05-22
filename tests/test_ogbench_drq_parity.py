@@ -60,9 +60,21 @@ def test_drq_jax_matches_fb_torch_under_transplant():
                 "proj_ln": {"scale": jnp.asarray(d["ln_w"]), "bias": jnp.asarray(d["ln_b"])},
             }
             out_j = np.asarray(enc.apply({"params": params}, x))
-            diff = float(np.max(np.abs(out_j - d["out_t"])))
-            print("MAXDIFF", diff)
-            sys.exit(0 if diff < 1e-5 else 1)
+            out_t = d["out_t"]
+            err = np.abs(out_j - out_t)
+            max_abs = float(np.max(err))
+            mean_abs = float(np.mean(err))
+            # per-element relative error: a diagnostic only (tanh outputs near 0
+            # make this large for individual elements), so it is printed, not gated.
+            max_rel = float(np.max(err / (np.abs(out_t) + 1e-8)))
+            cos_sim = float(
+                np.dot(out_j.ravel(), out_t.ravel())
+                / (np.linalg.norm(out_j.ravel()) * np.linalg.norm(out_t.ravel()) + 1e-8)
+            )
+            print(
+                f"METRICS max_abs={max_abs:.6e} mean_abs={mean_abs:.6e} "
+                f"max_rel={max_rel:.6e} cos_sim={cos_sim:.10f}"
+            )
             """
         )
         env = dict(os.environ)
@@ -75,6 +87,18 @@ def test_drq_jax_matches_fb_torch_under_transplant():
             env=env, capture_output=True, text=True,
         )
     assert proc.returncode == 0, (
-        f"parity failed\nstdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+        f"jax subprocess failed\nstdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     )
-    assert "MAXDIFF" in proc.stdout
+    line = next(
+        ln for ln in proc.stdout.splitlines() if ln.startswith("METRICS")
+    )
+    print(line)  # visible under `pytest -s` and on failure
+    m = dict(kv.split("=") for kv in line.split()[1:])
+    max_abs = float(m["max_abs"])
+    mean_abs = float(m["mean_abs"])
+    cos_sim = float(m["cos_sim"])
+    # Not bit-exact across PyTorch (NCHW/oneDNN) and JAX/XLA (NHWC): float32 conv
+    # accumulation order differs. Gate the whole representation, not one element:
+    assert max_abs < 1e-5, f"max_abs={max_abs:.3e} (>=1e-5): layout/transpose/padding bug?"
+    assert mean_abs < 1e-6, f"mean_abs={mean_abs:.3e} (>=1e-6): broad misalignment"
+    assert cos_sim > 0.999999, f"cos_sim={cos_sim:.10f} (<=0.999999): representations not aligned"
