@@ -78,6 +78,39 @@ def two_row_filmstrip(succ_frames: Optional[List[np.ndarray]],
     return canvas
 
 
+def compose_with_goal(goal_frame: np.ndarray, strip, sep: int = 10):
+    """Prepend a goal-reference panel (left) to a filmstrip, resized to the
+    strip's height (preserving aspect), with a white separator."""
+    from PIL import Image
+
+    g = Image.fromarray(np.asarray(goal_frame)).convert("RGB")
+    h = strip.height
+    w = max(1, round(g.width * h / g.height))
+    g = g.resize((w, h))
+    canvas = Image.new("RGB", (g.width + sep + strip.width, h), "white")
+    canvas.paste(g, (0, 0))
+    canvas.paste(strip, (g.width + sep, 0))
+    return canvas
+
+
+def render_goal_frame(env) -> Optional[np.ndarray]:
+    """Render the scene with the cube placed at the task goal. The rollout
+    render shows only the live scene (OGBench conveys the goal as a separate
+    signal), so we set the cube free-joint to ``cur_task_info['goal_xyzs']``
+    and render. Returns None if the env doesn't expose the manip internals."""
+    try:
+        import mujoco
+        u = env.unwrapped
+        tb = int(getattr(u, "_target_block", 0) or 0)
+        goal = np.asarray(u.cur_task_info["goal_xyzs"][tb], np.float64)
+        u._data.joint("object_joint_0").qpos[:3] = goal
+        mujoco.mj_forward(u._model, u._data)
+        return np.asarray(env.render())
+    except Exception as e:  # noqa: BLE001 - goal panel is best-effort
+        print(f"  [warn] render_goal_frame failed: {e}")
+        return None
+
+
 def _save_gif(frames: List[np.ndarray], path: Path, fps: int = 30) -> None:
     import imageio
     imageio.mimsave(str(path), [np.asarray(f) for f in frames],
@@ -85,7 +118,7 @@ def _save_gif(frames: List[np.ndarray], path: Path, fps: int = 30) -> None:
 
 
 def _emit(tag: str, task_n: int, succ, fail, out_dir: Path,
-          film_dir: Path, n_frames: int) -> str:
+          film_dir: Path, n_frames: int, goal_frame=None) -> str:
     out_dir.mkdir(parents=True, exist_ok=True)
     film_dir.mkdir(parents=True, exist_ok=True)
     if succ:
@@ -94,6 +127,8 @@ def _emit(tag: str, task_n: int, succ, fail, out_dir: Path,
         _save_gif(fail, out_dir / f"task{task_n}_failure.gif")
     strip = two_row_filmstrip(succ, fail, n_frames=n_frames)
     if strip is not None:
+        if goal_frame is not None:
+            strip = compose_with_goal(goal_frame, strip)
         strip.save(film_dir / f"clip_{tag}_task{task_n}.png")
     status = ("ok" if (succ and fail)
               else "MISSING failure" if succ else "MISSING success"
@@ -140,13 +175,15 @@ def _fb_clips(args) -> None:
         e, _ = create_ogbench_env(task, seed=cfg.seed, obs_type=cfg.obs_type,
                                   frame_stack=fs)
         try:
+            gf = render_goal_frame(e)
             _, infos, frames = rollout(e, agent, args.n_episodes, ctx=z,
                                        record=True)
         finally:
             e.close()
         successes = [any(si.get("success", False) for si in ep) for ep in infos]
         succ, fail = pick_success_failure(successes, frames)
-        _emit(args.tag, n, succ, fail, out_dir, film_dir, args.frames)
+        _emit(args.tag, n, succ, fail, out_dir, film_dir, args.frames,
+              goal_frame=gf)
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +216,7 @@ def _gciql_clips(args) -> None:
             flags["seed"], np.asarray(ex_obs, np.float32)[None],
             np.asarray(env.action_space.sample(), np.float32)[None], config)
         agent = restore_agent(agent, str(args.run_dir), args.step)
+        gf = render_goal_frame(env)
         rng = jax.random.PRNGKey(0)
         successes: List[bool] = []
         frames: List[List[np.ndarray]] = []
@@ -203,19 +241,60 @@ def _gciql_clips(args) -> None:
             frames.append(ep_frames)
         env.close()
         succ_f, fail_f = pick_success_failure(successes, frames)
-        _emit(args.tag, n, succ_f, fail_f, out_dir, film_dir, args.frames)
+        _emit(args.tag, n, succ_f, fail_f, out_dir, film_dir, args.frames,
+              goal_frame=gf)
+
+
+def _rebuild_filmstrips(args) -> None:
+    """Rebuild filmstrips (with a goal-reference panel) from already-saved
+    GIFs, without re-running rollouts. The goal scene is method/regime
+    independent, so we render it once per task from the state env."""
+    import imageio.v2 as imageio
+    from envs.ogbench import create_ogbench_env
+
+    tasks = [int(t) for t in args.tasks.split(",") if t.strip()]
+    film_dir = Path(args.filmstrip_out)
+    film_dir.mkdir(parents=True, exist_ok=True)
+    goals: Dict[int, Optional[np.ndarray]] = {}
+    for n in tasks:
+        e, _ = create_ogbench_env(TASK_TMPL.format(n=n), seed=0,
+                                  obs_type="state", render_height=240,
+                                  render_width=240)
+        try:
+            goals[n] = render_goal_frame(e)
+        finally:
+            e.close()
+    for tag in [t for t in args.tags.split(",") if t.strip()]:
+        gif_dir = Path(args.gif_root) / tag
+        for n in tasks:
+            sp = gif_dir / f"task{n}_success.gif"
+            fp = gif_dir / f"task{n}_failure.gif"
+            succ = list(imageio.mimread(str(sp))) if sp.exists() else None
+            fail = list(imageio.mimread(str(fp))) if fp.exists() else None
+            strip = two_row_filmstrip(succ, fail, n_frames=args.frames)
+            if strip is None:
+                print(f"  [warn] {tag} task{n}: no gifs in {gif_dir}")
+                continue
+            if goals.get(n) is not None:
+                strip = compose_with_goal(goals[n], strip)
+            strip.save(film_dir / f"clip_{tag}_task{n}.png")
+            print(f"[outcome_clips] rebuilt clip_{tag}_task{n}.png")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--method", required=True, choices=["fb", "gciql"])
+    ap.add_argument("--method", required=True,
+                    choices=["fb", "gciql", "filmstrips"])
     ap.add_argument("--tasks", default="1,2,3,4,5")
     ap.add_argument("--n-episodes", type=int, default=40)
     ap.add_argument("--frames", type=int, default=6)
-    ap.add_argument("--tag", required=True, help="output label, e.g. fb_pixel")
-    ap.add_argument("--out", required=True, help="dir for GIFs")
+    ap.add_argument("--tag", help="output label, e.g. fb_pixel")
+    ap.add_argument("--out", help="dir for GIFs")
     ap.add_argument("--filmstrip-out", required=True,
                     help="dir for the 2-row filmstrip PNGs")
+    ap.add_argument("--gif-root", help="(filmstrips mode) parent of <tag> "
+                    "GIF dirs to rebuild from")
+    ap.add_argument("--tags", help="(filmstrips mode) comma-separated tags")
     ap.add_argument("--mujoco-gl", default=None)
     # FB
     ap.add_argument("--config")
@@ -232,11 +311,16 @@ def main() -> None:
     if args.mujoco_gl:
         os.environ["MUJOCO_GL"] = args.mujoco_gl
 
-    if args.method == "fb":
+    if args.method == "filmstrips":
+        assert args.gif_root and args.tags, "filmstrips needs --gif-root/--tags"
+        _rebuild_filmstrips(args)
+    elif args.method == "fb":
         assert args.config and args.checkpoint, "fb needs --config/--checkpoint"
+        assert args.tag and args.out, "fb needs --tag/--out"
         _fb_clips(args)
     else:
         assert args.run_dir, "gciql needs --run-dir"
+        assert args.tag and args.out, "gciql needs --tag/--out"
         _gciql_clips(args)
 
 
