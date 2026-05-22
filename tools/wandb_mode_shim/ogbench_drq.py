@@ -39,3 +39,44 @@ class DrQEncoder(nn.Module):
         x = nn.Dense(self.feature_dim, kernel_init=init, name="proj")(x)
         x = nn.LayerNorm(epsilon=1e-5, name="proj_ln")(x)  # 1e-5 == torch default
         return jnp.tanh(x)
+
+
+def _shift_one(img, shift, pad):
+    # img: (H, W, C); shift: (2,) int in [0, 2*pad]; replicate-pad then crop.
+    padded = jnp.pad(img, ((pad, pad), (pad, pad), (0, 0)), mode="edge")
+    start = jnp.array([shift[0], shift[1], 0])
+    return jax.lax.dynamic_slice(padded, start, img.shape)
+
+
+@functools.partial(jax.jit, static_argnames=("pad",))
+def _batched_shift(imgs, shifts, pad):
+    """imgs: (N, H, W, C) uint8; shifts: (N, 2) int in [0, 2*pad]."""
+    return jax.vmap(_shift_one, (0, 0, None))(imgs, shifts, pad)
+
+
+def random_shifts_batch(batch, keys, pad=2, rng=None):
+    """In-place FB-faithful random_shifts: replicate-pad by `pad`, integer-crop.
+
+    Independent per-key shifts (matches FB's separate _augmentator calls). Only
+    4D arrays (N,H,W,C) are augmented; other keys pass through. `rng` is an
+    np.random.Generator (None -> fresh) so callers/tests can fix the seed.
+    """
+    g = np.random.default_rng() if rng is None else rng
+    for key in keys:
+        arr = batch[key]
+        if getattr(arr, "ndim", 0) != 4:
+            continue
+        n = arr.shape[0]
+        shifts = g.integers(0, 2 * pad + 1, size=(n, 2)).astype(np.int32)
+        batch[key] = np.asarray(
+            _batched_shift(jnp.asarray(arr), jnp.asarray(shifts), pad)
+        )
+    return batch
+
+
+def gcdataset_augment(self, batch, keys):
+    """Drop-in replacement for GCDataset.augment (pad=2, FB-faithful)."""
+    random_shifts_batch(batch, keys, pad=2)
+
+
+gcdataset_augment._ogbench_drq_patched = True  # sentinel for the injection test
