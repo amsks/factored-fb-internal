@@ -159,18 +159,27 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
     if str(ogb_impls) not in sys.path:
         sys.path.insert(0, str(ogb_impls))
     import ogbench  # vendored
-    from agents.gciql import GCIQLAgent, get_config
     from utils.flax_utils import restore_agent
     import jax
+    import jax.numpy as jnp
 
     flags = parse_flags(run_dir)
+    saved_agent = flags.get("agent")
+    # Select the agent class by name. gciql and gcivl share the
+    # create / sample_actions / value(s,g) API used below (gcivl's value
+    # returns a twin tuple, handled in _value).
+    agent_name = (saved_agent.get("agent_name")
+                  if isinstance(saved_agent, dict) else None) or "gciql"
+    if agent_name == "gcivl":
+        from agents.gcivl import GCIVLAgent as AgentCls, get_config
+    else:
+        from agents.gciql import GCIQLAgent as AgentCls, get_config
     # Build the agent config from get_config() defaults, then overlay the
     # saved run's agent config (flags.json stores the full agent dict for
     # pixel runs — crucially `encoder`, e.g. 'impala_small' — without which
     # restore_agent would mismatch the checkpoint's network shapes). State
     # runs store `agent` as a path string; the overlay is then skipped.
     config = get_config()
-    saved_agent = flags.get("agent")
     if isinstance(saved_agent, dict):
         for k, v in saved_agent.items():
             if k in config:
@@ -181,7 +190,7 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
             flags["env_name"], env_only=True)
         ex_obs, info = env.reset(options=dict(task_id=task_id))
         ex_act = env.action_space.sample()
-        agent = GCIQLAgent.create(
+        agent = AgentCls.create(
             flags["seed"],
             np.asarray(ex_obs, np.float32)[None],
             np.asarray(ex_act, np.float32)[None],
@@ -191,7 +200,10 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
 
         @jax.jit
         def _value(o, g):
-            return agent.network.select("value")(o[None], g[None])[0]
+            # Single (o,g) -> scalar value. Averages over any ensemble/twin
+            # axis (gcivl's value returns two heads) and the batch-of-1.
+            v = agent.network.select("value")(o[None], g[None])
+            return jnp.asarray(v).mean()
 
         rng = jax.random.PRNGKey(0)
         for ep_i in range(n_episodes):
