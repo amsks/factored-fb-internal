@@ -601,7 +601,15 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                               "(cube xy in the play data)", fontsize=9)
 
             from matplotlib.lines import Line2D
+            from matplotlib.patches import Patch
             handles = []
+            handles.append(Patch(
+                facecolor="#de2d26", edgecolor="black",
+                linewidth=0.4, label="value V(s): low → high (per-panel)"))
+            handles.append(Line2D(
+                [0], [0], color="white", marker=r"$\rightarrow$",
+                markeredgecolor="black", markersize=12, linestyle="",
+                label="cube-flow direction (rollouts)"))
             handles.append(Line2D(
                 [0], [0], marker="D", color="cyan",
                 markeredgecolor="black", markersize=8,
@@ -620,8 +628,10 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
                 label="offline data support"))
             axes[0, 0].legend(handles=handles, loc="upper left",
                               fontsize=7, framealpha=0.85, ncol=1)
-            fig.suptitle(f"{task} — {method}: phase-conditioned value "
-                         f"& action fields", fontsize=13)
+            fig.suptitle(
+                f"{task} — {method}  "
+                "red = value V(s) (per-panel saliency, low→high)    ·    "
+                "white arrows = cube-flow direction (rollouts)", fontsize=12)
             fig.tight_layout()
             fp = out_dir / f"{task}__{method}.png"
             fig.savefig(fp, dpi=125)
