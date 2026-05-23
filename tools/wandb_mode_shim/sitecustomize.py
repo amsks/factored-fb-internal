@@ -148,3 +148,15 @@ try:
         _ogb_datasets.GCDataset.augment = _drq_augment
 except Exception:
     pass
+
+# --- CRL+FlowBC agent injection (independent of the blocks above) ---
+# Register CRLFlowBCAgent so configs may select agent_name='crl_flowbc' via
+# --agent=tools/wandb_mode_shim/crl_flowbc.py. Guarded: inert in non-jax
+# processes (e.g. the .venv tests) where these imports fail.
+try:
+    import agents as _ogb_agents
+    from crl_flowbc import CRLFlowBCAgent as _CRLFlowBCAgent
+
+    _ogb_agents.agents.setdefault("crl_flowbc", _CRLFlowBCAgent)
+except Exception:
+    pass
