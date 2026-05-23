@@ -22,11 +22,19 @@ REPO_ROOT = Path(__file__).resolve().parent
 OGBENCH_IMPLS = REPO_ROOT / "third_party" / "ogbench" / "impls"
 
 
+def _resolve_agent_file(agent_file: str) -> str:
+    """Make a repo-relative agent file absolute (so custom agents outside the
+    vendored tree work as --agent from cwd=impls). Vendored 'agents/*.py' do not
+    exist under REPO_ROOT, so they pass through unchanged."""
+    candidate = REPO_ROOT / str(agent_file)
+    return str(candidate.resolve()) if candidate.is_file() else str(agent_file)
+
+
 def build_ogbench_argv(cfg: Mapping[str, Any]) -> list[str]:
     """Translate launcher config -> OGBench main.py absl argv (deterministic)."""
     argv = [
         f"--env_name={cfg['env_name']}",
-        f"--agent={cfg['agent_file']}",
+        f"--agent={_resolve_agent_file(cfg['agent_file'])}",
         f"--seed={cfg['seed']}",
         f"--train_steps={cfg['train_steps']}",
         f"--log_interval={cfg['log_interval']}",
