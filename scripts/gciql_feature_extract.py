@@ -26,10 +26,12 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _sample_states(data_path, domain, n, seed, obs_key):
+def _sample_states(data_path, domain, n, seed, obs_key, max_files=0):
     files = sorted(glob.glob(str(Path(data_path) / domain / "buffer" / "episode_*.npz")))
     if not files:
         raise SystemExit(f"no episodes under {data_path}/{domain}/buffer")
+    if max_files:
+        files = files[:max_files]  # cap memory (pixels are ~12MB/episode)
     rng = np.random.default_rng(seed)
     obs_l, phys_l = [], []
     for f in files:
@@ -76,6 +78,7 @@ def main():
     ap.add_argument("--data-path", default="datasets")
     ap.add_argument("--out", required=True)
     ap.add_argument("--n-states", type=int, default=6000)
+    ap.add_argument("--load-episodes", type=int, default=0, help="cap episodes loaded (0=all); use ~50 for pixels (memory)")
     ap.add_argument("--tasks", default="1,2,3,4,5")
     ap.add_argument("--inspect", action="store_true", help="print intermediates tree and exit")
     args = ap.parse_args()
@@ -109,7 +112,7 @@ def main():
     domain = env_name.replace("visual-", "")
 
     obs, phys = _sample_states(args.data_path, domain, args.n_states,
-                               int(flags.get("seed", 0)), obs_key)
+                               int(flags.get("seed", 0)), obs_key, args.load_episodes)
     cube = phys[:, 14:17].astype(np.float64)
     grip = phys[:, 6].astype(np.float64)
     lift = phys[:, 16].astype(np.float64)
