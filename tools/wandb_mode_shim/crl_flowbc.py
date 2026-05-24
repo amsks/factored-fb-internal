@@ -81,7 +81,13 @@ class CRLFlowBCAgent(CRLAgent):
     @jax.jit
     def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
         del temperature  # flow actor is noise-driven
-        noise = jax.random.normal(seed, (observations.shape[0], self.config['action_dim']))
+        # Noise must share the obs batch shape. Eval passes a single, unbatched
+        # observation (evaluation.py:80); training/tests pass batches. The obs
+        # event rank is 1 for state and 3 (H,W,C) for pixels (encoder present;
+        # see encoders.py:96), so strip the event dims to get the batch shape.
+        event_rank = 1 if self.config['encoder'] is None else 3
+        batch_shape = observations.shape[:-event_rank]
+        noise = jax.random.normal(seed, (*batch_shape, self.config['action_dim']))
         actions = self.network.select('actor')(observations, goals, noise)
         return jnp.clip(actions, -1.0, 1.0)
 
