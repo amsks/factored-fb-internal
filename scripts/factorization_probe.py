@@ -3,23 +3,24 @@
 Answers "why does FB fail at transport: data (B1), FB's use of data (B2), or the
 bilinear FᵀB factorization (B3)?" by measuring, on frozen embeddings, the
 readout ceiling R^2(feature -> cube-to-goal distance d) — the paper's R^2(B->d)
-— per manipulation phase, for raw obs vs the forward branch's left-encoder vs
-the backward map B, with linear vs MLP readouts.
+— per manipulation phase, for a geometry reference vs the forward branch's
+left-encoder vs the backward map B, with linear vs MLP readouts.
 
-Static geometry (d) is the target: in PLAY data, future-outcome targets
-(success_bound / mc_return) are exploration-driven and ~unpredictable, so they
-are deliberately not used here (see evals.factorization_probe for those helpers,
-kept for an on-policy value-calibration probe).
+Works for BOTH state and pixel FB: states are sampled from the offline buffer
+(load_ogbench_dataset handles frame-stacking + normalization), so `next_obs` is
+model-ready and `next_physics` carries the ground-truth cube position (cols
+14:17) for the label. The "raw" reference is the state vector for state FB, or
+the ground-truth cube xyz for pixels (raw images need a conv, not a flat MLP).
 
-Goal-independent embeddings (B, left_enc, raw) are extracted once; only d depends
-on the task goal, so all 5 tasks are swept cheaply. Reuses the extraction
-plumbing from scripts/training_value_profile.py (no existing files modified).
-Run under .venv (torch). macOS: prefix MUJOCO_GL=glfw. Example:
+Static geometry (d) is the target: in PLAY data, future-outcome targets are
+exploration-driven and ~unpredictable. Goal-independent embeddings (B, left_enc)
+are computed once; only d depends on the task goal, so all tasks are swept
+cheaply. Run under .venv (torch). macOS: prefix MUJOCO_GL=glfw. Example:
 
   MUJOCO_GL=glfw .venv/bin/python -m scripts.factorization_probe \
     --config <run>/.hydra/config.yaml --checkpoint <run>/checkpoints/final.pt \
     --data-path datasets --out analysis/factorization_probe/s3 \
-    --n-states 6000 --tasks all --device cpu
+    --n-states 6000 --load-episodes 300 --tasks all --device cpu
 """
 import argparse
 import json
@@ -31,10 +32,7 @@ import torch
 
 from evals.training_value import region_labels, cube_to_goal_dist
 from evals.factorization_probe import readout_ceiling_table, classify_bucket_regression
-# Reuse the tested extraction helpers + verified column constants (read-only).
-from scripts.training_value_profile import (
-    _sample_states, _episode_files, CUBE_SLICE, GRIP_QPOS_IDX, TASK_TMPL,
-)
+from scripts.training_value_profile import CUBE_SLICE, GRIP_QPOS_IDX, TASK_TMPL
 
 
 def main():
@@ -44,6 +42,7 @@ def main():
     ap.add_argument("--data-path", default="datasets")
     ap.add_argument("--out", required=True)
     ap.add_argument("--n-states", type=int, default=6000)
+    ap.add_argument("--load-episodes", type=int, default=0, help="cap episodes loaded (0=cfg); use ~200-300 for pixels (memory)")
     ap.add_argument("--tasks", default="all", help="comma-sep task ids (1-N) or 'all'")
     ap.add_argument("--device", default="cuda")
     args = ap.parse_args()
@@ -52,10 +51,16 @@ def main():
     from evals.analysis import build_env_and_agent, load_cfg, load_checkpoint
     from envs.ogbench import create_ogbench_env, ALL_TASKS
     from evals.phase_probe import Thresholds
+    from data.ogbench import load_ogbench_dataset
 
     cfg = load_cfg(args.config, device=args.device)
     if args.data_path:
         cfg.data_path = args.data_path
+    if args.load_episodes:
+        cfg.load_n_episodes = args.load_episodes
+    frame_stack = int(getattr(cfg, "frame_stack", 1))
+    is_pixel = cfg.obs_type == "pixels"
+
     env, agent, _, _ = build_env_and_agent(cfg)
     load_checkpoint(agent, args.checkpoint, map_location=args.device)
     agent.model.eval()
@@ -63,33 +68,44 @@ def main():
         env.close()
 
     thr = Thresholds()
-    # table-z (block init height; shared across tasks) from the task1 env.
-    e0, _ = create_ogbench_env(TASK_TMPL.format(n=1), seed=cfg.seed, obs_type=cfg.obs_type)
+    e0, _ = create_ogbench_env(TASK_TMPL.format(n=1), seed=cfg.seed,
+                               obs_type=cfg.obs_type, frame_stack=frame_stack)
     table_z = float(e0.unwrapped.cur_task_info["init_xyzs"][
         int(getattr(e0.unwrapped, "_target_block", 0) or 0)][2])
     e0.close()
 
-    # Sample states once; phase labels + frozen GOAL-INDEPENDENT embeddings once.
-    files = _episode_files(cfg.data_path, cfg.domain)
-    obs, phys, act, ep_id, step_id, cube_by_ep = _sample_states(files, args.n_states, seed=cfg.seed)
-    cube = phys[:, CUBE_SLICE].astype(np.float64)
-    grip = np.clip(phys[:, GRIP_QPOS_IDX] / 0.8, 0, 1)
-    region = [str(r) for r in region_labels(grip, phys[:, 16] - table_z, thr)]
+    # Sample model-ready next-states from the offline buffer (handles frame-stack
+    # + normalization for both state and pixel); next-physics gives cube + phase.
+    buffer = load_ogbench_dataset(domain=cfg.domain, data_path=cfg.data_path,
+                                  load_n_episodes=cfg.load_n_episodes, device=args.device,
+                                  n_transitions=cfg.n_transitions, obs_type=cfg.obs_type,
+                                  frame_stack=frame_stack)
+    smp = buffer.sample(min(args.n_states, len(buffer)))
+    next_obs = smp["next"]["observation"].to(args.device).float()
+    physics = smp["next"]["physics"].detach().cpu().numpy()
+    cube = physics[:, CUBE_SLICE].astype(np.float64)
+    grip = np.clip(physics[:, GRIP_QPOS_IDX] / 0.8, 0, 1)
+    region = [str(r) for r in region_labels(grip, physics[:, 16] - table_z, thr)]
+
+    # Frozen GOAL-INDEPENDENT embeddings: backward map B and forward left-encoder.
     m = agent.model
-    obs_t = torch.as_tensor(obs, dtype=torch.float32, device=args.device)
     with torch.no_grad():
-        B = m.backward_map(obs_t).cpu().numpy()
-        left = m._left_encoder(m._fw_encoder(m._normalize(obs_t))).cpu().numpy()
-    feats = {"raw": obs.astype(np.float64), "B": B, "left_enc": left}
+        B = m.backward_map(next_obs).cpu().numpy()
+        left = m._left_encoder(m._fw_encoder(m._normalize(next_obs))).cpu().numpy()
+    # "raw" reference = full obs vector (state) or ground-truth cube xyz (pixels:
+    # raw images are not a fair flat-MLP baseline). Both establish "geometry is
+    # available in principle" so that a low B-score isolates B (not B1/data).
+    raw = cube.copy() if is_pixel else next_obs.detach().cpu().numpy().astype(np.float64)
+    feats = {"raw": raw, "B": B, "left_enc": left}
 
     all_tasks = list(ALL_TASKS[cfg.domain])
     task_ids = (list(range(1, len(all_tasks) + 1)) if args.tasks == "all"
                 else [int(t) for t in args.tasks.split(",")])
 
-    # Per task: static cube->goal distance d -> readout ceiling R^2(feature -> d).
     ceilings, per_task = [], {}
     for ti in task_ids:
-        e, _ = create_ogbench_env(TASK_TMPL.format(n=ti), seed=cfg.seed, obs_type=cfg.obs_type)
+        e, _ = create_ogbench_env(TASK_TMPL.format(n=ti), seed=cfg.seed,
+                                  obs_type=cfg.obs_type, frame_stack=frame_stack)
         g = np.asarray(e.unwrapped.cur_task_info["goal_xyzs"][
             int(getattr(e.unwrapped, "_target_block", 0) or 0)], np.float64)
         e.close()
@@ -104,16 +120,18 @@ def main():
               .mean().reset_index())
     verdict = classify_bucket_regression(pooled, target="d")
 
-    ceiling.to_parquet(out / "readout_ceiling.parquet")        # per-task rows (has 'task')
-    pooled.to_parquet(out / "readout_ceiling_pooled.parquet")  # mean over tasks
-    (out / "verdict.json").write_text(json.dumps({**verdict, "per_task": per_task}, indent=2))
-    _write_story(out, pooled, verdict, per_task)
-    print(f"[factorization_probe] verdict={verdict['bucket']} | per-task={per_task} :: {verdict['why']}")
+    ceiling.to_parquet(out / "readout_ceiling.parquet")
+    pooled.to_parquet(out / "readout_ceiling_pooled.parquet")
+    (out / "verdict.json").write_text(json.dumps(
+        {**verdict, "obs_type": cfg.obs_type, "per_task": per_task}, indent=2))
+    _write_story(out, pooled, verdict, per_task, cfg.obs_type)
+    print(f"[factorization_probe:{cfg.obs_type}] verdict={verdict['bucket']} "
+          f"| per-task={per_task} :: {verdict['why']}")
 
 
-def _write_story(out, pooled, verdict, per_task):
+def _write_story(out, pooled, verdict, per_task, obs_type):
     tr = pooled[(pooled.region == "transport") & (pooled.target == "d")]
-    lines = ["# Factorization probe — R^2(feature -> cube-to-goal d), pooled over tasks", "",
+    lines = [f"# Factorization probe ({obs_type}) — R^2(feature -> cube-to-goal d)", "",
              f"**Verdict: {verdict['bucket']}** — {verdict['why']}", "",
              f"Per-task verdicts: {per_task}", "",
              "## Transport-phase readout ceilings (mean R^2 over tasks)", "",
