@@ -5,14 +5,15 @@ def test_random_shifts_identity_at_center_shift():
     """shift == pad recovers the original image exactly (replicate-pad then crop
     [pad:pad+h] == identity)."""
     code = """
-        import numpy as np, jax.numpy as jnp
-        from ogbench_drq import _batched_shift
+        import numpy as np
+        from ogbench_drq import _shift_batch_np
         rng = np.random.default_rng(0)
-        imgs = jnp.asarray(rng.integers(0, 256, (3, 8, 8, 9), dtype=np.uint8))
-        shifts = jnp.asarray(np.full((3, 2), 2, dtype=np.int32))  # pad=2
-        out = _batched_shift(imgs, shifts, 2)
+        imgs = rng.integers(0, 256, (3, 8, 8, 9), dtype=np.uint8)
+        shifts = np.full((3, 2), 2, dtype=np.int32)  # shift == pad -> identity
+        out = _shift_batch_np(imgs, shifts, 2)
         assert out.shape == imgs.shape, out.shape
-        assert np.array_equal(np.asarray(out), np.asarray(imgs))
+        assert out.dtype == imgs.dtype, out.dtype
+        assert np.array_equal(out, imgs)
         print("OK")
     """
     proc = run_jax(code)

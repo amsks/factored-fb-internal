@@ -5,10 +5,7 @@ Mirrors FB's PyTorch DrQEncoder (nn_models.py:480) and Augmentator
 (nn_models.py:530) so OGBench's pixel baselines share FB's encoder, augmentation,
 frame-stacking and normalization. Never edits vendored OGBench.
 """
-import functools
-
 import flax.linen as nn
-import jax
 import jax.numpy as jnp
 import numpy as np
 
@@ -41,17 +38,20 @@ class DrQEncoder(nn.Module):
         return jnp.tanh(x)
 
 
-def _shift_one(img, shift, pad):
-    # img: (H, W, C); shift: (2,) int in [0, 2*pad]; replicate-pad then crop.
-    padded = jnp.pad(img, ((pad, pad), (pad, pad), (0, 0)), mode="edge")
-    start = jnp.array([shift[0], shift[1], 0])
-    return jax.lax.dynamic_slice(padded, start, img.shape)
+def _shift_batch_np(arr, shifts, pad):
+    """Replicate-pad by `pad`, then integer-crop each image at its own shift.
 
-
-@functools.partial(jax.jit, static_argnames=("pad",))
-def _batched_shift(imgs, shifts, pad):
-    """imgs: (N, H, W, C) uint8; shifts: (N, 2) int in [0, 2*pad]."""
-    return jax.vmap(_shift_one, (0, 0, None))(imgs, shifts, pad)
+    arr: (N, H, W, C); shifts: (N, 2) ints in [0, 2*pad]. Pure NumPy (CPU): a
+    single vectorized gather, bit-identical to FB's random_shifts (edge-pad +
+    crop). Staying on the host lets augmentation overlap the jitted device step
+    instead of forcing a per-key host<->device round-trip every train step.
+    """
+    n, h, w, _ = arr.shape
+    padded = np.pad(arr, ((0, 0), (pad, pad), (pad, pad), (0, 0)), mode="edge")
+    rows = shifts[:, 0:1] + np.arange(h)  # (N, H)
+    cols = shifts[:, 1:2] + np.arange(w)  # (N, W)
+    ni = np.arange(n)[:, None, None]
+    return padded[ni, rows[:, :, None], cols[:, None, :], :]
 
 
 def random_shifts_batch(batch, keys, pad=2, rng=None):
@@ -67,10 +67,8 @@ def random_shifts_batch(batch, keys, pad=2, rng=None):
         if getattr(arr, "ndim", 0) != 4:
             continue
         n = arr.shape[0]
-        shifts = g.integers(0, 2 * pad + 1, size=(n, 2)).astype(np.int32)
-        batch[key] = np.asarray(
-            _batched_shift(jnp.asarray(arr), jnp.asarray(shifts), pad)
-        )
+        shifts = g.integers(0, 2 * pad + 1, size=(n, 2))
+        batch[key] = _shift_batch_np(np.asarray(arr), shifts, pad)
     return batch
 
 
