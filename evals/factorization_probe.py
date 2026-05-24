@@ -102,14 +102,29 @@ def _make_head(in_dim: int, kind: str) -> nn.Module:
     raise ValueError(f"unknown kind {kind!r}")
 
 
+def _ridge_predict(Xtr, ytr, Xte, lam=1.0):
+    """Closed-form ridge regression (optimal linear, no optimizer underfit;
+    matches the paper's _ridge_r2). Bias is unregularized."""
+    Xtr1 = np.hstack([Xtr, np.ones((len(Xtr), 1))])
+    Xte1 = np.hstack([Xte, np.ones((len(Xte), 1))])
+    reg = lam * np.eye(Xtr1.shape[1]); reg[-1, -1] = 0.0
+    w = np.linalg.solve(Xtr1.T @ Xtr1 + reg, Xtr1.T @ ytr)
+    return Xte1 @ w
+
+
 def fit_eval_readout(Xtr, ytr, Xte, yte, *, kind: str, task: str, seed=0) -> dict:
     """Fit a `kind` ('linear'|'mlp') readout to predict y from X; eval held-out.
-    task='regression' -> score is R^2; task='classification' -> score is AUC."""
+    task='regression' -> score is R^2; task='classification' -> score is AUC.
+    Linear regression uses closed-form ridge (the true linear ceiling); MLP and
+    all classification use an early-stopped torch head."""
     Xtr, ytr = np.asarray(Xtr, np.float64), np.asarray(ytr, np.float64)
     Xte, yte = np.asarray(Xte, np.float64), np.asarray(yte, np.float64)
     Xtr_s, Xte_s = _standardize(Xtr, Xte)
-    head = _make_head(Xtr_s.shape[1], kind)
-    pred = _torch_fit(Xtr_s, ytr, Xte_s, head, task=task, seed=seed)
+    if kind == "linear" and task == "regression":
+        pred = _ridge_predict(Xtr_s, ytr, Xte_s)
+    else:
+        head = _make_head(Xtr_s.shape[1], kind)
+        pred = _torch_fit(Xtr_s, ytr, Xte_s, head, task=task, seed=seed)
     if task == "classification":
         score = _auc(pred[yte > 0.5], pred[yte <= 0.5])
     else:
