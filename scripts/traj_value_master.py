@@ -59,9 +59,10 @@ def _bg_ext():
     return bg, [ws["xmin"], ws["xmax"], ws["ymin"], ws["ymax"]]
 
 
-def _group(master, summ, method, kind, frac=0.25, min_span=0.12, min_n=20):
-    """Trajectories grouped by goal-peaking: success = top `frac` goal_peak_rho
-    (value rises near goal), failure = bottom `frac` (it does not)."""
+def _pick(master, summ, method, kind, min_span=0.12, min_n=20):
+    """ONE example trajectory: success = highest goal_peak_rho (value rises near
+    goal), failure = lowest (it does not). Filtered to a real approach + enough
+    points so the single trajectory is legible."""
     dfm = master[master.method == method]
     s = summ[summ.method == method].copy()
     span = dfm.groupby("traj")["d"].agg(lambda x: x.max() - x.min())
@@ -69,10 +70,9 @@ def _group(master, summ, method, kind, frac=0.25, min_span=0.12, min_n=20):
     s = s[s.n >= min_n]
     if s.empty:
         return None, np.nan
-    k = max(1, int(len(s) * frac))
-    sel = (s.nlargest(k, "goal_peak_rho") if kind == "success"
-           else s.nsmallest(k, "goal_peak_rho"))
-    return dfm[dfm.traj.isin(sel["traj"])], float(sel["goal_peak_rho"].mean())
+    row = s.loc[s["goal_peak_rho"].idxmax() if kind == "success"
+               else s["goal_peak_rho"].idxmin()]
+    return dfm[dfm.traj == row["traj"]].sort_values("t"), float(row["goal_peak_rho"])
 
 
 def _scene_overlay(ax, g, bg, ext, title, nbins=16, narrow=10):
@@ -165,12 +165,12 @@ def main():
     cells = [("fb", "success"), ("fb", "failure"), ("gciql", "success"), ("gciql", "failure")]
     for j, (mth, kind) in enumerate(cells):
         ax = fig.add_subplot(gs[1, j])
-        g, rho = _group(master, summ, mth, kind)
+        g, rho = _pick(master, summ, mth, kind)
         lab = dict(fb="FB", gciql="GCIQL")[mth]
         if g is None or g.empty:
             ax.set_title(f"{lab} {kind}: none"); ax.set_xticks([]); ax.set_yticks([]); continue
         _scene_overlay(ax, g, bg, ext,
-                       f"{lab} — {kind} group (mean ρ={rho:.2f})\n"
+                       f"{lab} — {kind} example (one traj, ρ={rho:.2f})\n"
                        "red = value · white = cube-flow · ★ = goal")
 
     fig.suptitle("Goal-conditioned value along real training trajectories (hindsight goal): "
