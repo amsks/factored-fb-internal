@@ -27,6 +27,7 @@ LR_B="${LR_B:-1e-4}"
 STEPS="${STEPS:-1000000}"
 CLIP="${CLIP:-10.0}"
 WANDB_ENTITY="${WANDB_ENTITY:-amsks}"       # ALWAYS amsks, never the al-laq-fb team default
+WANDB_GROUP="${WANDB_GROUP:-covbal_a${ALPHA}}"  # group the seeds in wandb (was null)
 DATA="${DATA:-/dev/shm/factored-fb/datasets}"
 DENSITY="${DENSITY:-$REPO/analysis/cube_density.npz}"
 RUNROOT="${RUNROOT:-/dev/shm/factored-fb/runs}"
@@ -60,7 +61,8 @@ for s in "${SEED_ARR[@]}"; do
             reweight_alpha="$ALPHA" reweight_clip="$CLIP" reweight_density_path="$DENSITY" \
             ortho_coef="$ORTHO_COEF" lr_b="$LR_B" num_train_steps="$STEPS" \
             data_path="$DATA" seed="$s" device=cuda \
-            use_wandb=true wandb_entity="$WANDB_ENTITY" wandb_run_name="covbal_a${ALPHA}_s${s}" \
+            use_wandb=true wandb_entity="$WANDB_ENTITY" wandb_group="$WANDB_GROUP" \
+            wandb_run_name="covbal_a${ALPHA}_s${s}" \
             hydra.job.chdir=true "hydra.run.dir=$run_dir" \
             > "$log" 2>&1 &
         PIDS+=("$!")
