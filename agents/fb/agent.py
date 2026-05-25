@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor
@@ -27,6 +28,54 @@ from torch.amp import autocast
 from agents.base import BaseAgent
 from agents.fb.model import FBModel
 from nn_models import _soft_update_params, eval_mode, weight_init
+
+
+def coverage_weights(cube_xyz: Tensor, rho, alpha: float, clip: float) -> Tensor:
+    """Goal-agnostic coverage-balancing weights w(g) from the offline cube density.
+
+    rho = (H, [ex, ey, ez]) — a 3D histogram over cube xyz + bin edges, built from the
+    offline data only (NO eval/task goals). Rare cells get weight > 1, common < 1; raw
+    weight is capped at `clip` (rare-outlier guard) then mean-normalized so E[w]=1 (the
+    loss scales are preserved; only the distribution over goals shifts).
+    """
+    H, (ex, ey, ez) = rho
+    ix = (torch.bucketize(cube_xyz[:, 0].contiguous(), ex) - 1).clamp(0, H.shape[0] - 1)
+    iy = (torch.bucketize(cube_xyz[:, 1].contiguous(), ey) - 1).clamp(0, H.shape[1] - 1)
+    iz = (torch.bucketize(cube_xyz[:, 2].contiguous(), ez) - 1).clamp(0, H.shape[2] - 1)
+    dens = H[ix, iy, iz] + 1e-6
+    w = (dens.median() / dens) ** alpha  # rare -> >1, common -> <1
+    w = w.clamp(max=clip)
+    return (w / w.mean()).detach()
+
+
+def fb_successor_terms(diff: Tensor, off_diag: Tensor, off_diag_sum, w: Tensor | None = None):
+    """FB successor loss split into (off-diagonal, diagonal), reweighted under rho'.
+
+    Each goal/column j is up/down-weighted by w_j (off-diag); the diagonal pairs row i
+    with goal i, weighted by w_i. w=None reproduces the original unweighted terms
+    exactly. diff: [n_parallel, batch, batch]; w: [batch], mean-normalized.
+    """
+    n_parallel = diff.shape[0]
+    if w is None:
+        fb_offdiag = 0.5 * (diff * off_diag).pow(2).sum() / off_diag_sum
+        fb_diag = -torch.diagonal(diff, dim1=1, dim2=2).mean() * n_parallel
+    else:
+        wcol = w.view(1, 1, -1)  # weight goal/column j ~ rho'
+        fb_offdiag = 0.5 * ((diff * off_diag).pow(2) * wcol).sum() / off_diag_sum
+        fb_diag = -(torch.diagonal(diff, dim1=1, dim2=2) * w.view(1, -1)).mean() * n_parallel
+    return fb_offdiag, fb_diag
+
+
+def ortho_cov(B: Tensor, w: Tensor | None = None) -> Tensor:
+    """Backward-embedding covariance under rho': whiten B~=sqrt(w)*B so the ortho loss
+    minimum is E_rho'[B B^T]=I. This is the whitening term the diagnosis blames (it
+    isotropizes B over the bulk); reweighting it is the centerpiece of coverage-balancing.
+    w=None reproduces the original B B^T.
+    """
+    if w is None:
+        return torch.matmul(B, B.T)
+    Bw = B * w.sqrt().unsqueeze(-1)
+    return torch.matmul(Bw, Bw.T)
 
 
 class FBAgent(BaseAgent):
@@ -61,6 +110,9 @@ class FBAgent(BaseAgent):
         b_target_tau: float = 0.005,
         bc_coeff: float = 0.0,
         q_loss_coef: float = 0.0,
+        reweight_alpha: float = 0.0,
+        reweight_clip: float = 10.0,
+        reweight_density_path: str | None = None,
         amp: bool = False,
         device: str = "cpu",
     ):
@@ -90,6 +142,20 @@ class FBAgent(BaseAgent):
         self.q_loss_coef = q_loss_coef
         self.amp = amp
         self.device = device
+
+        # Experiment B — coverage-balanced (goal-agnostic) reweight of the FB
+        # diagonal term. Default-off (alpha=0) => byte-identical FB. The density is
+        # built from offline cube positions only (no eval/task goals); see
+        # docs/superpowers/specs/2026-05-25-fb-Bg-cause-isolation.md.
+        self.reweight_alpha = float(reweight_alpha)
+        self.reweight_clip = float(reweight_clip)
+        self._rho = None
+        if self.reweight_alpha > 0 and reweight_density_path:
+            z = np.load(reweight_density_path)
+            self._rho = (
+                torch.tensor(z["H"], dtype=torch.float32, device=self.device),
+                [torch.tensor(z[k], dtype=torch.float32, device=self.device) for k in ("ex", "ey", "ez")],
+            )
 
         # Build the model via a hook so subclasses (FBFlowBCAgent) can return
         # FBFlowBCModel directly — matches td_jepa's `cfg.model.build(...)`
@@ -185,6 +251,15 @@ class FBAgent(BaseAgent):
             next_obs = self.model._fw_encoder(next_obs)
         return obs, next_obs, goal
 
+    def _coverage_weights(self, batch) -> torch.Tensor | None:
+        """Inverse-density weight w(g) over cube xyz of the next-state (the rho_G
+        variable). Goal-agnostic: reads ONLY the precomputed offline density + physics
+        (never eval/task goals). Returns None when reweighting is off => byte-identical."""
+        if self.reweight_alpha <= 0 or self._rho is None:
+            return None
+        cube = batch["next"]["physics"][:, 14:17].to(self.device).float()  # s+ cube xyz
+        return coverage_weights(cube, self._rho, self.reweight_alpha, self.reweight_clip)
+
     def update(self, batch: Dict, step: int) -> Dict[str, torch.Tensor]:
         obs, action, next_obs, terminated = (
             batch["observation"].to(self.device).float(),
@@ -210,6 +285,10 @@ class FBAgent(BaseAgent):
         q_loss_coef = self.q_loss_coef if self.q_loss_coef > 0 else None
         clip_grad_norm = self.clip_grad_norm if self.clip_grad_norm > 0 else None
 
+        # Coverage-balanced reweight (goal-agnostic): the same measure rho' is applied
+        # to every goal-side term in update_fb. None when alpha=0 => byte-identical.
+        w = self._coverage_weights(batch)
+
         metrics = self.update_fb(
             obs=obs,
             action=action,
@@ -219,6 +298,7 @@ class FBAgent(BaseAgent):
             z=z,
             q_loss_coef=q_loss_coef,
             clip_grad_norm=clip_grad_norm,
+            w=w,
         )
         metrics.update(
             self.update_actor(
@@ -254,6 +334,7 @@ class FBAgent(BaseAgent):
         z: torch.Tensor,
         q_loss_coef: float | None,
         clip_grad_norm: float | None,
+        w: torch.Tensor | None = None,
     ) -> Dict[str, torch.Tensor]:
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
             with torch.no_grad():
@@ -272,12 +353,15 @@ class FBAgent(BaseAgent):
             Ms = torch.matmul(Fs, B.T)  # num_parallel x batch x batch
 
             diff = Ms - discount * target_M  # num_parallel x batch x batch
-            fb_offdiag = 0.5 * (diff * self.off_diag).pow(2).sum() / self.off_diag_sum
-            fb_diag = -torch.diagonal(diff, dim1=1, dim2=2).mean() * Ms.shape[0]
+            # Coverage-balanced reweight: the SAME goal measure rho' (w) is applied to
+            # every goal-side term — successor off-diag + diag here, orthonormality below,
+            # q-cov below — so the trained model is a valid FB in L2(rho'). w=None =>
+            # byte-identical to current FB.
+            fb_offdiag, fb_diag = fb_successor_terms(diff, self.off_diag, self.off_diag_sum, w)
             fb_loss = fb_offdiag + fb_diag
 
-            # compute orthonormality loss for backward embedding
-            Cov = torch.matmul(B, B.T)
+            # orthonormality loss for backward embedding (whitened under rho')
+            Cov = ortho_cov(B, w)
             orth_loss_diag = -Cov.diag().mean()
             orth_loss_offdiag = 0.5 * (Cov * self.off_diag).pow(2).sum() / self.off_diag_sum
             orth_loss = orth_loss_offdiag + orth_loss_diag
@@ -290,7 +374,10 @@ class FBAgent(BaseAgent):
                     _, _, next_Q = self.get_targets_uncertainty(next_Qs, self.fb_pessimism_penalty)  # batch
                     # we disable autocast here to make sure B and cov have the same dtype (otherwise torch.linalg.solve fails)
                     with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=False):
-                        cov = torch.matmul(B.T, B) / B.shape[0]  # z_dim x z_dim
+                        if w is None:
+                            cov = torch.matmul(B.T, B) / B.shape[0]  # z_dim x z_dim
+                        else:
+                            cov = torch.matmul((B * w.unsqueeze(-1)).T, B) / B.shape[0]  # E_rho'[B B^T]
                     B_inv_conv = torch.linalg.solve(cov, B, left=False)
                     implicit_reward = (B_inv_conv * z).sum(dim=-1)  # batch
                     target_Q = implicit_reward.detach() + discount.squeeze() * next_Q  # batch

@@ -138,6 +138,9 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         b_target_tau=cfg.b_target_tau,
         bc_coeff=cfg.get("bc_coeff", 0.0),
         q_loss_coef=cfg.get("q_loss_coef", 0.0),
+        reweight_alpha=cfg.get("reweight_alpha", 0.0),
+        reweight_clip=cfg.get("reweight_clip", 10.0),
+        reweight_density_path=cfg.get("reweight_density_path", None),
         amp=cfg.get("amp", False),
         device=cfg.device,
     )
