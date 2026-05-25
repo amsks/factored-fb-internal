@@ -1,7 +1,7 @@
 """scripts/training_value_scene.py — eval phase_scene analog on TRAINING
-states. Per task per method (FB policy, GCIQL): value-saliency heatmap (from the
-scored multiseed parquets) + cube-flow arrows (from the play buffer) over the
-top-down scene, gridded by phase x outcome, + a dataset-support panel. Pure data
+states. Per task per method (FB policy, GCIQL, CRL): value-saliency heatmap (from
+the scored multiseed parquets) over the top-down scene, gridded by phase x
+outcome, + a dataset-support panel. Pure data
 + matplotlib; no model loading. Run under .venv.
 
 Usage:
@@ -160,12 +160,6 @@ def _render(task, method, vdf, fdf, support_xy, anchors, bg_img, out_dir):
             axes[rr, cc] = fig.add_subplot(gs[rr, cc])
     ax_data = fig.add_subplot(gs[0, 3])
 
-    ac = 0.5 * (np.linspace(xlo, xhi, NARROW + 1)[:-1]
-                + np.linspace(xlo, xhi, NARROW + 1)[1:])
-    ar = 0.5 * (np.linspace(ylo, yhi, NARROW + 1)[:-1]
-                + np.linspace(ylo, yhi, NARROW + 1)[1:])
-    AX, AY = np.meshgrid(ac, ar)
-
     for r, oc in enumerate(OUTCOMES):
         for c, (rg, lbl) in enumerate(REGIONS):
             ax = axes[r, c]
@@ -210,19 +204,6 @@ def _render(task, method, vdf, fdf, support_xy, anchors, bg_img, out_dir):
                 rgba[..., 3] = np.where(fin, norm * (0.55 * a), 0.0)
                 ax.imshow(rgba, origin="lower", extent=ext, zorder=2,
                           aspect="auto", interpolation="bilinear")
-            df_arrow = ft[(ft.outcome == oc) & (ft.region == rg)]
-            if not df_arrow.empty:
-                _, (U, Vv), _ = _phase_action_fields(
-                    df_arrow.assign(Vz=0.0), (xe, ye), n_arrow=NARROW, n_min=5)
-                mag = np.hypot(U, Vv)
-                ok = np.isfinite(mag) & (mag > 0)
-                if ok.any():
-                    un = np.where(ok, U / np.maximum(mag, 1e-9), np.nan)
-                    vn = np.where(ok, Vv / np.maximum(mag, 1e-9), np.nan)
-                    ax.quiver(AX[ok], AY[ok], un[ok], vn[ok], color="white",
-                              edgecolor="black", linewidth=0.5, alpha=a,
-                              scale=NARROW * 1.1, width=0.007, headwidth=4,
-                              zorder=4, pivot="mid")
 
     ax_data.set_xlim(xlo, xhi)
     ax_data.set_ylim(ylo, yhi)
@@ -260,9 +241,6 @@ def _render(task, method, vdf, fdf, support_xy, anchors, bg_img, out_dir):
         Patch(facecolor=matplotlib.colormaps["Reds"](0.85),
               edgecolor="black", linewidth=0.4,
               label="value V(s): low → high (per-panel)"),
-        Line2D([0], [0], color="white", marker=r"$\rightarrow$",
-               markeredgecolor="black", markersize=12, linestyle="",
-               label="cube-flow direction (offline data)"),
         Line2D([0], [0], marker="s", color="white", markeredgecolor="black",
                markersize=10, linestyle="", label="cube (mean this phase)"),
         Line2D([0], [0], marker="*", color="gold", markeredgecolor="black",
@@ -271,8 +249,7 @@ def _render(task, method, vdf, fdf, support_xy, anchors, bg_img, out_dir):
                       framealpha=0.85)
     fig.suptitle(
         f"{task} — {method}  [training states]    "
-        "red = value V(s) (per-panel saliency, low→high)    ·    "
-        "white arrows = cube-flow direction in offline data (not policy action)",
+        "red = value V(s) (per-panel saliency, low→high)",
         fontsize=12)
     fig.tight_layout()
     fp = out_dir / f"{task}__{_slug(method)}.png"
