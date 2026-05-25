@@ -44,25 +44,35 @@ def coverage_weights(cube_xyz: Tensor, rho, alpha: float, clip: float) -> Tensor
     iz = (torch.bucketize(cube_xyz[:, 2].contiguous(), ez) - 1).clamp(0, H.shape[2] - 1)
     dens = H[ix, iy, iz] + 1e-6
     w = (dens.median() / dens) ** alpha  # rare -> >1, common -> <1
-    w = w.clamp(max=clip)
-    return (w / w.mean()).detach()
+    w = w.clamp(min=1.0 / clip, max=clip)  # also lower-clip: dense cells must keep mass
+    return (w / w.mean().clamp_min(1e-8)).detach()
 
 
-def fb_successor_terms(diff: Tensor, off_diag: Tensor, off_diag_sum, w: Tensor | None = None):
-    """FB successor loss split into (off-diagonal, diagonal), reweighted under rho'.
+def fb_successor_terms(diff: Tensor, off_diag: Tensor, off_diag_sum,
+                       w: Tensor | None = None, weight_diag: bool = False):
+    """FB successor loss split into (off-diagonal, diagonal).
 
-    Each goal/column j is up/down-weighted by w_j (off-diag); the diagonal pairs row i
-    with goal i, weighted by w_i. w=None reproduces the original unweighted terms
-    exactly. diff: [n_parallel, batch, batch]; w: [batch], mean-normalized.
+    The off-diagonal (quadratic, goals g~rho) is weighted by w_j => a clean change of
+    reference measure rho -> rho'. The diagonal (the -E[F^T B(s')] Bellman/Dirac term)
+    is NOT an integral over an independently sampled goal: under L2(rho') its density
+    ratio cancels (the immediate successor is delta_{s'}), so a PURE rho'-FB leaves it
+    UNWEIGHTED (weight_diag=False, default). weight_diag=True instead applies w_i to it
+    = extra TD pressure on rare achieved next-states (coverage-PRIORITIZED FB, a hybrid,
+    not a pure measure change). w=None reproduces the original unweighted terms exactly.
+    diff: [n_parallel, batch, batch]; w: [batch], mean-normalized.
     """
     n_parallel = diff.shape[0]
     if w is None:
         fb_offdiag = 0.5 * (diff * off_diag).pow(2).sum() / off_diag_sum
         fb_diag = -torch.diagonal(diff, dim1=1, dim2=2).mean() * n_parallel
+        return fb_offdiag, fb_diag
+    wcol = w.view(1, 1, -1)  # weight goal/column j ~ rho'
+    fb_offdiag = 0.5 * ((diff * off_diag).pow(2) * wcol).sum() / off_diag_sum
+    diag = torch.diagonal(diff, dim1=1, dim2=2)
+    if weight_diag:
+        fb_diag = -(diag * w.view(1, -1)).mean() * n_parallel   # prioritized
     else:
-        wcol = w.view(1, 1, -1)  # weight goal/column j ~ rho'
-        fb_offdiag = 0.5 * ((diff * off_diag).pow(2) * wcol).sum() / off_diag_sum
-        fb_diag = -(torch.diagonal(diff, dim1=1, dim2=2) * w.view(1, -1)).mean() * n_parallel
+        fb_diag = -diag.mean() * n_parallel                     # pure rho' (Dirac cancels)
     return fb_offdiag, fb_diag
 
 
@@ -113,6 +123,8 @@ class FBAgent(BaseAgent):
         reweight_alpha: float = 0.0,
         reweight_clip: float = 10.0,
         reweight_density_path: str | None = None,
+        weight_diag: bool = False,
+        weight_z: bool = False,
         amp: bool = False,
         device: str = "cpu",
     ):
@@ -142,19 +154,29 @@ class FBAgent(BaseAgent):
         self.q_loss_coef = q_loss_coef
         self.amp = amp
         self.device = device
+        self.device_type = str(device).split(":")[0]  # "cuda:0" -> "cuda" for autocast
 
-        # Experiment B — coverage-balanced (goal-agnostic) reweight of the FB
-        # diagonal term. Default-off (alpha=0) => byte-identical FB. The density is
-        # built from offline cube positions only (no eval/task goals); see
-        # docs/superpowers/specs/2026-05-25-fb-Bg-cause-isolation.md.
+        # Coverage-balanced (goal-agnostic) reweight under measure rho'. Default-off
+        # (alpha=0) => byte-identical FB. Density built from offline cube positions only
+        # (no eval/task goals). weight_diag: pure rho' (False, diagonal unweighted) vs
+        # coverage-PRIORITIZED FB (True). weight_z: resample goal-derived z's by w so F
+        # and the actor also see rare-goal z=B(g). See
+        # docs/superpowers/specs/2026-05-25-coverage-balanced-fb.md.
         self.reweight_alpha = float(reweight_alpha)
         self.reweight_clip = float(reweight_clip)
+        self.weight_diag = bool(weight_diag)
+        self.weight_z = bool(weight_z)
         self._rho = None
-        if self.reweight_alpha > 0 and reweight_density_path:
-            z = np.load(reweight_density_path)
+        if self.reweight_alpha > 0:
+            if not reweight_density_path:
+                raise ValueError(
+                    "reweight_alpha > 0 requires reweight_density_path "
+                    "(silent fallback would make ablations unreadable)."
+                )
+            zd = np.load(reweight_density_path)
             self._rho = (
-                torch.tensor(z["H"], dtype=torch.float32, device=self.device),
-                [torch.tensor(z[k], dtype=torch.float32, device=self.device) for k in ("ex", "ey", "ez")],
+                torch.tensor(zd["H"], dtype=torch.float32, device=self.device),
+                [torch.tensor(zd[k], dtype=torch.float32, device=self.device) for k in ("ex", "ey", "ez")],
             )
 
         # Build the model via a hook so subclasses (FBFlowBCAgent) can return
@@ -225,12 +247,20 @@ class FBAgent(BaseAgent):
         self.off_diag_sum = self.off_diag.sum()
 
     @torch.no_grad()
-    def sample_mixed_z(self, train_goal: torch.Tensor | None = None, *args, **kwargs):
-        # samples a batch from the z distribution used to update the networks
-        with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
+    def sample_mixed_z(self, train_goal: torch.Tensor | None = None,
+                       goal_weights: torch.Tensor | None = None, *args, **kwargs):
+        # samples a batch from the z distribution used to update the networks.
+        # goal_weights (mean-normalized w over batch goals): when given, the goal-derived
+        # z's are resampled ~ w (rare goals over-represented) so F and the actor also see
+        # rare-goal z=B(g); None => uniform permutation (behavior-marginal, original).
+        with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             z = self.model.sample_z(self.batch_size, device=self.device)
             if train_goal is not None:
-                perm = torch.randperm(self.batch_size, device=self.device)
+                if goal_weights is None:
+                    perm = torch.randperm(self.batch_size, device=self.device)
+                else:
+                    probs = goal_weights.float() / goal_weights.float().sum().clamp_min(1e-8)
+                    perm = torch.multinomial(probs, self.batch_size, replacement=True)
                 train_goal = train_goal[perm]
                 goals = self.model._backward_map(train_goal)
                 goals = self.model.project_z(goals)
@@ -271,6 +301,7 @@ class FBAgent(BaseAgent):
             discount = self.discount * ~terminated
         else:
             discount = self.discount * (1.0 - terminated)
+        discount = discount.reshape(-1, 1)  # [B,1] => row-wise discount in Ms - discount*target_M
 
         self.model._obs_normalizer(obs)
         self.model._obs_normalizer(next_obs)
@@ -280,14 +311,15 @@ class FBAgent(BaseAgent):
         obs, next_obs = self.aug(obs, next_obs)
         obs, next_obs, goal = self.enc(obs, next_obs)
 
-        z = self.sample_mixed_z(train_goal=goal).clone()
+        # Coverage-balanced reweight (goal-agnostic): same measure rho' for every
+        # goal-side term. None when alpha=0 => byte-identical. Computed BEFORE z so the
+        # goal-derived z's can be resampled by w when weight_z is set.
+        w = self._coverage_weights(batch)
+        z = self.sample_mixed_z(train_goal=goal,
+                                goal_weights=(w if self.weight_z else None)).clone()
 
         q_loss_coef = self.q_loss_coef if self.q_loss_coef > 0 else None
         clip_grad_norm = self.clip_grad_norm if self.clip_grad_norm > 0 else None
-
-        # Coverage-balanced reweight (goal-agnostic): the same measure rho' is applied
-        # to every goal-side term in update_fb. None when alpha=0 => byte-identical.
-        w = self._coverage_weights(batch)
 
         metrics = self.update_fb(
             obs=obs,
@@ -299,6 +331,7 @@ class FBAgent(BaseAgent):
             q_loss_coef=q_loss_coef,
             clip_grad_norm=clip_grad_norm,
             w=w,
+            weight_diag=self.weight_diag,
         )
         metrics.update(
             self.update_actor(
@@ -319,7 +352,7 @@ class FBAgent(BaseAgent):
         return {k: (v.item() if isinstance(v, torch.Tensor) else float(v)) for k, v in metrics.items()}
 
     def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-        with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
+        with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             dist = self.model._actor(obs, z, self.actor_std)
             action = dist.sample(clip=self.stddev_clip)
         return action
@@ -335,8 +368,9 @@ class FBAgent(BaseAgent):
         q_loss_coef: float | None,
         clip_grad_norm: float | None,
         w: torch.Tensor | None = None,
+        weight_diag: bool = False,
     ) -> Dict[str, torch.Tensor]:
-        with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
+        with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             with torch.no_grad():
                 next_left_enc = self.model._target_left_encoder(next_obs)  # batch x L_dim
                 actor_in = next_left_enc if self.actor_encode_obs else next_obs
@@ -357,7 +391,7 @@ class FBAgent(BaseAgent):
             # every goal-side term — successor off-diag + diag here, orthonormality below,
             # q-cov below — so the trained model is a valid FB in L2(rho'). w=None =>
             # byte-identical to current FB.
-            fb_offdiag, fb_diag = fb_successor_terms(diff, self.off_diag, self.off_diag_sum, w)
+            fb_offdiag, fb_diag = fb_successor_terms(diff, self.off_diag, self.off_diag_sum, w, weight_diag)
             fb_loss = fb_offdiag + fb_diag
 
             # orthonormality loss for backward embedding (whitened under rho')
@@ -372,14 +406,17 @@ class FBAgent(BaseAgent):
                 with torch.no_grad():
                     next_Qs = (target_Fs * z).sum(dim=-1)  # num_parallel x batch
                     _, _, next_Q = self.get_targets_uncertainty(next_Qs, self.fb_pessimism_penalty)  # batch
-                    # we disable autocast here to make sure B and cov have the same dtype (otherwise torch.linalg.solve fails)
-                    with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=False):
+                    # FP32 + ridge for a stable solve (rho'-weighting can lower the
+                    # effective sample size and ill-condition the covariance).
+                    with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=False):
+                        B32 = B.float()
                         if w is None:
-                            cov = torch.matmul(B.T, B) / B.shape[0]  # z_dim x z_dim
+                            cov = B32.T @ B32 / B32.shape[0]  # z_dim x z_dim
                         else:
-                            cov = torch.matmul((B * w.unsqueeze(-1)).T, B) / B.shape[0]  # E_rho'[B B^T]
-                    B_inv_conv = torch.linalg.solve(cov, B, left=False)
-                    implicit_reward = (B_inv_conv * z).sum(dim=-1)  # batch
+                            cov = (B32 * w.float().unsqueeze(-1)).T @ B32 / B32.shape[0]  # E_rho'[B B^T]
+                        cov = cov + 1e-4 * torch.eye(cov.shape[0], device=cov.device, dtype=cov.dtype)
+                    B_inv_conv = torch.linalg.solve(cov, B32, left=False)
+                    implicit_reward = (B_inv_conv * z.float()).sum(dim=-1).to(z.dtype)  # batch
                     target_Q = implicit_reward.detach() + discount.squeeze() * next_Q  # batch
                     expanded_targets = target_Q.expand(Fs.shape[0], -1)
                 Qs = (Fs * z).sum(dim=-1)  # num_parallel x batch
@@ -413,6 +450,15 @@ class FBAgent(BaseAgent):
                 "orth_loss_offdiag": orth_loss_offdiag,
                 "q_loss": q_loss,
             }
+            if w is not None:
+                ess = (w.sum() ** 2) / w.pow(2).sum().clamp_min(1e-8)
+                output_metrics.update({
+                    "reweight_w_mean": w.mean(),
+                    "reweight_w_min": w.min(),
+                    "reweight_w_max": w.max(),
+                    "reweight_w_std": w.std(),
+                    "reweight_ess_frac": ess / w.numel(),  # 1.0 = uniform, ->0 = few dominate
+                })
         return output_metrics
 
     def update_actor(
@@ -427,7 +473,7 @@ class FBAgent(BaseAgent):
     def update_td3_actor(
         self, obs: torch.Tensor, action: torch.Tensor, z: torch.Tensor, clip_grad_norm: float | None
     ) -> Dict[str, torch.Tensor]:
-        with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
+        with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             with torch.no_grad():
                 left_enc = self.model._left_encoder(obs)
             actor_in = left_enc if self.actor_encode_obs else obs

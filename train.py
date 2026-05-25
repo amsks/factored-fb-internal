@@ -141,6 +141,8 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         reweight_alpha=cfg.get("reweight_alpha", 0.0),
         reweight_clip=cfg.get("reweight_clip", 10.0),
         reweight_density_path=cfg.get("reweight_density_path", None),
+        weight_diag=cfg.get("weight_diag", False),
+        weight_z=cfg.get("weight_z", False),
         amp=cfg.get("amp", False),
         device=cfg.device,
     )

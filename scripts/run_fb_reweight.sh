@@ -27,7 +27,11 @@ LR_B="${LR_B:-1e-4}"
 STEPS="${STEPS:-1000000}"
 CLIP="${CLIP:-10.0}"
 WANDB_ENTITY="${WANDB_ENTITY:-amsks}"       # ALWAYS amsks, never the al-laq-fb team default
-WANDB_GROUP="${WANDB_GROUP:-covbal_a${ALPHA}}"  # group the seeds in wandb (was null)
+WEIGHT_DIAG="${WEIGHT_DIAG:-true}"          # true=coverage-PRIORITIZED (diag weighted); false=pure rho'
+WEIGHT_Z="${WEIGHT_Z:-true}"               # true=resample goal z by w (rare-goal exposure for F/actor)
+# variant tag for wandb: prio/pure x +wz
+_vtag=$([ "$WEIGHT_DIAG" = true ] && echo prio || echo pure)$([ "$WEIGHT_Z" = true ] && echo _wz || echo "")
+WANDB_GROUP="${WANDB_GROUP:-covbal_${_vtag}_a${ALPHA}}"  # group the seeds in wandb (was null)
 DATA="${DATA:-/dev/shm/factored-fb/datasets}"
 DENSITY="${DENSITY:-$REPO/analysis/cube_density.npz}"
 RUNROOT="${RUNROOT:-/dev/shm/factored-fb/runs}"
@@ -52,17 +56,18 @@ echo "[fb] runs=$RUNROOT  logs=$LOG_DIR  (VOLATILE /dev/shm)"
 declare -a PIDS=(); i=0
 for s in "${SEED_ARR[@]}"; do
     gpu="${GPU_ARR[$(( i % NG ))]}"
-    run_dir="$RUNROOT/${TS}__cube__covbal_a${ALPHA}__s${s}"
-    log="$LOG_DIR/fb_a${ALPHA}_s${s}.log"
+    run_dir="$RUNROOT/${TS}__cube__covbal_${_vtag}_a${ALPHA}__s${s}"
+    log="$LOG_DIR/fb_${_vtag}_a${ALPHA}_s${s}.log"
     echo "[fb] $(date +%T) seed=$s -> GPU $gpu  (log: ${log##*/})"
     if [[ "$DRY_RUN" != 1 ]]; then
         CUDA_VISIBLE_DEVICES="$gpu" nohup "$PYTHON" train.py \
             domain=cube_single \
             reweight_alpha="$ALPHA" reweight_clip="$CLIP" reweight_density_path="$DENSITY" \
+            weight_diag="$WEIGHT_DIAG" weight_z="$WEIGHT_Z" \
             ortho_coef="$ORTHO_COEF" lr_b="$LR_B" num_train_steps="$STEPS" \
             data_path="$DATA" seed="$s" device=cuda \
             use_wandb=true wandb_entity="$WANDB_ENTITY" wandb_group="$WANDB_GROUP" \
-            wandb_run_name="covbal_a${ALPHA}_s${s}" \
+            wandb_run_name="covbal_${_vtag}_a${ALPHA}_s${s}" \
             hydra.job.chdir=true "hydra.run.dir=$run_dir" \
             > "$log" 2>&1 &
         PIDS+=("$!")
