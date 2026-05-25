@@ -76,20 +76,29 @@ def main():
     # Shared color scale (cube->goal distance) so panels are directly comparable.
     dvals = np.concatenate([d["d"][d["region"] == "transport"] for _, d in cols])
     vmin, vmax = 0.0, float(np.percentile(dvals, 97))
-    fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+    fig, axes = plt.subplots(3, 3, figsize=(12, 11.5))
 
     for j, (label, data) in enumerate(cols):
-        # Row 1: PCA colored by cube->goal distance (transport states).
+        te, dhat, r2 = _heldout(data, np.random.default_rng(0))
+
+        # Row 0: PCA colored by cube->goal distance (transport states).
         m = np.where(data["region"] == "transport")[0]
         sub = rng.choice(m, min(2500, len(m)), replace=False)
         Z = _pca2(data["rep"][sub])
         sc = axes[0, j].scatter(Z[:, 0], Z[:, 1], c=data["d"][sub], cmap="viridis",
                                 s=7, alpha=0.75, vmin=vmin, vmax=vmax)
-        te, dhat, r2 = _heldout(data, np.random.default_rng(0))
-        axes[0, j].set_title(f"{label}\nPCA colored by cube→goal dist  (R²={r2:.2f})", fontsize=11)
+        axes[0, j].set_title(f"{label}  (R²={r2:.2f})\nPCA colored by cube→goal dist", fontsize=11)
         axes[0, j].set_xticks([]); axes[0, j].set_yticks([])
+        fig.colorbar(sc, ax=axes[0, j], fraction=0.046)
 
-        # Row 2: cube-xy field of held-out ridge-predicted distance.
+        # Row 1: calibration — held-out predicted vs true distance (blob vs diagonal).
+        axes[1, j].scatter(data["d"][te], dhat, s=6, alpha=0.35, color="steelblue")
+        axes[1, j].plot([vmin, vmax], [vmin, vmax], "k--", lw=1)
+        axes[1, j].set_xlim(vmin, vmax); axes[1, j].set_ylim(vmin, vmax)
+        axes[1, j].set_title("predicted vs true distance", fontsize=11)
+        axes[1, j].set_xlabel("true cube→goal dist"); axes[1, j].set_ylabel("predicted")
+
+        # Row 2: cube-xy field of held-out predicted distance.
         cx, cy = data["cube"][te, 0], data["cube"][te, 1]
         nb = 12
         xr = (cx.min(), cx.max()); yr = (cy.min(), cy.max())
@@ -98,14 +107,13 @@ def main():
         s = np.zeros((nb, nb)); cnt = np.zeros((nb, nb))
         np.add.at(s, (iy, ix), dhat); np.add.at(cnt, (iy, ix), 1)
         H = np.where(cnt > 0, s / np.maximum(cnt, 1), np.nan)
-        im = axes[1, j].imshow(H, origin="lower", extent=[xr[0], xr[1], yr[0], yr[1]],
+        im = axes[2, j].imshow(H, origin="lower", extent=[xr[0], xr[1], yr[0], yr[1]],
                                cmap="viridis", aspect="auto", vmin=vmin, vmax=vmax)
-        axes[1, j].plot(data["goal"][0], data["goal"][1], marker="*", color="red",
+        axes[2, j].plot(data["goal"][0], data["goal"][1], marker="*", color="red",
                         ms=18, mec="white", mew=1.2)
-        axes[1, j].set_title("cube-xy: predicted cube→goal dist", fontsize=11)
-        axes[1, j].set_xticks([]); axes[1, j].set_yticks([])
-        fig.colorbar(sc, ax=axes[0, j], fraction=0.046)
-        fig.colorbar(im, ax=axes[1, j], fraction=0.046)
+        axes[2, j].set_title("cube-xy: predicted cube→goal dist", fontsize=11)
+        axes[2, j].set_xticks([]); axes[2, j].set_yticks([])
+        fig.colorbar(im, ax=axes[2, j], fraction=0.046)
 
     fig.suptitle("Terminal-geometry resolution: FB state-B discards cube→goal geometry; "
                  "pixel-B and GCIQL value retain it", fontsize=12)
