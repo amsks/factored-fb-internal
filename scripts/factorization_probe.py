@@ -44,6 +44,7 @@ def main():
     ap.add_argument("--n-states", type=int, default=6000)
     ap.add_argument("--load-episodes", type=int, default=0, help="cap episodes loaded (0=cfg); use ~200-300 for pixels (memory)")
     ap.add_argument("--tasks", default="all", help="comma-sep task ids (1-N) or 'all'")
+    ap.add_argument("--dump-embeddings", action="store_true", help="also save B/left_enc/cube/region/goals npz for figures")
     ap.add_argument("--device", default="cuda")
     args = ap.parse_args()
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
@@ -102,18 +103,24 @@ def main():
     task_ids = (list(range(1, len(all_tasks) + 1)) if args.tasks == "all"
                 else [int(t) for t in args.tasks.split(",")])
 
-    ceilings, per_task = [], {}
+    ceilings, per_task, goals = [], {}, []
     for ti in task_ids:
         e, _ = create_ogbench_env(TASK_TMPL.format(n=ti), seed=cfg.seed,
                                   obs_type=cfg.obs_type, frame_stack=frame_stack)
         g = np.asarray(e.unwrapped.cur_task_info["goal_xyzs"][
             int(getattr(e.unwrapped, "_target_block", 0) or 0)], np.float64)
         e.close()
+        goals.append(g)
         frame = pd.DataFrame({"region": region, "d": cube_to_goal_dist(cube, g)})
         c = readout_ceiling_table(frame, feats, targets=("d",), seed=cfg.seed)
         c["task"] = f"task{ti}"
         ceilings.append(c)
         per_task[f"task{ti}"] = classify_bucket_regression(c, target="d")["bucket"]
+
+    if args.dump_embeddings:
+        np.savez(out / "embeddings.npz", B=B, left_enc=left, cube=cube,
+                 region=np.asarray(region), goals=np.asarray(goals),
+                 obs_type=cfg.obs_type)
 
     ceiling = pd.concat(ceilings, ignore_index=True)
     pooled = (ceiling.groupby(["feature", "target", "region", "kind"])["score"]
