@@ -14,6 +14,8 @@ import argparse
 import json
 from pathlib import Path
 
+import sys
+
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -22,6 +24,11 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+# canonical scene-overlay machinery (same as training_value_scene / _phase_action_scene)
+from scripts.gciql_profile_aggregate import (_bin_vz_grid, _phase_action_fields,
+                                             _nan_gaussian)
 
 
 def _norm(df):
@@ -52,33 +59,65 @@ def _bg_ext():
     return bg, [ws["xmin"], ws["xmax"], ws["ymin"], ws["ymax"]]
 
 
-def _pick(df, summ, method, kind, min_span=0.12, min_n=20):
+def _group(master, summ, method, kind, frac=0.25, min_span=0.12, min_n=20):
+    """Trajectories grouped by goal-peaking: success = top `frac` goal_peak_rho
+    (value rises near goal), failure = bottom `frac` (it does not)."""
+    dfm = master[master.method == method]
     s = summ[summ.method == method].copy()
-    # require a real approach (cube covers distance) and enough points
-    span = df[df.method == method].groupby("traj")["d"].agg(lambda x: x.max() - x.min())
+    span = dfm.groupby("traj")["d"].agg(lambda x: x.max() - x.min())
     s = s[s.traj.map(span).fillna(0) >= min_span]
     s = s[s.n >= min_n]
     if s.empty:
         return None, np.nan
-    row = s.loc[s.goal_peak_rho.idxmax() if kind == "success" else s.goal_peak_rho.idxmin()]
-    g = df[(df.method == method) & (df.traj == row.traj)].sort_values("t")
-    return g, float(row.goal_peak_rho)
+    k = max(1, int(len(s) * frac))
+    sel = (s.nlargest(k, "goal_peak_rho") if kind == "success"
+           else s.nsmallest(k, "goal_peak_rho"))
+    return dfm[dfm.traj.isin(sel["traj"])], float(sel["goal_peak_rho"].mean())
 
 
-def _overlay(ax, g, bg, ext, title):
+def _scene_overlay(ax, g, bg, ext, title, nbins=16, narrow=10):
+    """Value heatmap (binned, smoothed, Reds) + cube-flow arrows + hindsight
+    goal ★ on the MuJoCo top-down — the canonical _phase_action_scene style."""
+    xlo, xhi, ylo, yhi = ext
+    xe = np.linspace(xlo, xhi, nbins + 1); ye = np.linspace(ylo, yhi, nbins + 1)
     if bg is not None:
         ax.imshow(bg, extent=ext, aspect="auto", zorder=0, interpolation="bilinear")
     else:
         ax.set_facecolor("0.9")
-    ax.plot(g["cube_x"], g["cube_y"], color="white", lw=1.0, alpha=0.5, zorder=2)
-    sc = ax.scatter(g["cube_x"], g["cube_y"], c=g["Vn"], cmap="viridis", s=22,
-                    vmin=0, vmax=1, zorder=3, edgecolors="black", linewidths=0.2)
-    gp = g.loc[g["d"].idxmin()]
-    ax.scatter([gp["cube_x"]], [gp["cube_y"]], marker="*", s=320, c="gold",
-               edgecolors="black", linewidths=1.2, zorder=4)
-    ax.set_xlim(ext[0], ext[1]); ax.set_ylim(ext[2], ext[3])
+    # value heatmap (per-traj normalized value binned over cube-xy)
+    grid, _, _ = _bin_vz_grid(g.assign(Vz=g["Vn"]), xlo, xhi, ylo, yhi, nbins)
+    try:
+        vz = _nan_gaussian(grid, 1.0)
+    except Exception:
+        vz = grid
+    fin = np.isfinite(vz)
+    if fin.any():
+        lo, hi = np.percentile(vz[fin], [2, 98]); hi = max(hi, lo + 1e-9)
+        norm = np.clip((vz - lo) / (hi - lo), 0.0, 1.0)
+        rgba = matplotlib.colormaps["Reds"](norm)
+        rgba[..., 3] = np.where(fin, norm * 0.6, 0.0)
+        ax.imshow(rgba, origin="lower", extent=ext, zorder=2, aspect="auto",
+                  interpolation="bilinear")
+    # cube-flow arrows (mean cube displacement per cell)
+    ac = 0.5 * (np.linspace(xlo, xhi, narrow + 1)[:-1] + np.linspace(xlo, xhi, narrow + 1)[1:])
+    ar = 0.5 * (np.linspace(ylo, yhi, narrow + 1)[:-1] + np.linspace(ylo, yhi, narrow + 1)[1:])
+    AX, AY = np.meshgrid(ac, ar)
+    _, (U, Vv), _ = _phase_action_fields(
+        g.rename(columns={"traj": "episode"}).assign(Vz=0.0), (xe, ye),
+        n_arrow=narrow, n_min=5)
+    mag = np.hypot(U, Vv); ok = np.isfinite(mag) & (mag > 0)
+    if ok.any():
+        un = np.where(ok, U / np.maximum(mag, 1e-9), np.nan)
+        vn = np.where(ok, Vv / np.maximum(mag, 1e-9), np.nan)
+        ax.quiver(AX[ok], AY[ok], un[ok], vn[ok], color="white", edgecolor="black",
+                  linewidth=0.5, scale=narrow * 1.1, width=0.007, headwidth=4,
+                  zorder=4, pivot="mid")
+    # hindsight goal endpoints of the group
+    goals = g.loc[g.groupby("traj")["d"].idxmin(), ["cube_x", "cube_y"]]
+    ax.scatter(goals["cube_x"], goals["cube_y"], marker="*", s=70, c="gold",
+               edgecolors="black", linewidths=0.4, zorder=5)
+    ax.set_xlim(xlo, xhi); ax.set_ylim(ylo, yhi)
     ax.set_xticks([]); ax.set_yticks([]); ax.set_title(title, fontsize=10)
-    return sc
 
 
 def main():
@@ -124,17 +163,15 @@ def main():
 
     # Example overlays: success (value rises) + failure (it doesn't) per method.
     cells = [("fb", "success"), ("fb", "failure"), ("gciql", "success"), ("gciql", "failure")]
-    sc = None
     for j, (mth, kind) in enumerate(cells):
         ax = fig.add_subplot(gs[1, j])
-        g, rho = _pick(master, summ, mth, kind)
+        g, rho = _group(master, summ, mth, kind)
         lab = dict(fb="FB", gciql="GCIQL")[mth]
-        if g is None:
+        if g is None or g.empty:
             ax.set_title(f"{lab} {kind}: none"); ax.set_xticks([]); ax.set_yticks([]); continue
-        sc = _overlay(ax, g, bg, ext, f"{lab} — {kind} example  (ρ(V,−d)={rho:.2f}, ★=goal)")
-    if sc is not None:
-        fig.colorbar(sc, ax=fig.axes[2:], fraction=0.015, pad=0.01,
-                     label="normalized value (per-traj)")
+        _scene_overlay(ax, g, bg, ext,
+                       f"{lab} — {kind} group (mean ρ={rho:.2f})\n"
+                       "red = value · white = cube-flow · ★ = goal")
 
     fig.suptitle("Goal-conditioned value along real training trajectories (hindsight goal): "
                  "GCIQL value rises toward the goal; FB stays flat (B can't resolve the goal)",
