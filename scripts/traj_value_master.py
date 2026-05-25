@@ -112,9 +112,10 @@ def _rho(summ, method, traj):
     return float(m["goal_peak_rho"].iloc[0]) if len(m) else float("nan")
 
 
-def _scene_overlay(ax, g, bg, ext, title, nbins=16, narrow=10):
+def _scene_overlay(ax, g, bg, ext, title, nbins=16, narrow=10, arrows=True):
     """Value heatmap (binned, smoothed, Reds) + cube-flow arrows + hindsight
-    goal ★ on the MuJoCo top-down — the canonical _phase_action_scene style."""
+    goal ★ on the MuJoCo top-down — the canonical _phase_action_scene style.
+    arrows=False drops the cube-flow quiver layer (value heatmap + goal only)."""
     xlo, xhi, ylo, yhi = ext
     xe = np.linspace(xlo, xhi, nbins + 1); ye = np.linspace(ylo, yhi, nbins + 1)
     if bg is not None:
@@ -136,19 +137,20 @@ def _scene_overlay(ax, g, bg, ext, title, nbins=16, narrow=10):
         ax.imshow(rgba, origin="lower", extent=ext, zorder=2, aspect="auto",
                   interpolation="bilinear")
     # cube-flow arrows (mean cube displacement per cell)
-    ac = 0.5 * (np.linspace(xlo, xhi, narrow + 1)[:-1] + np.linspace(xlo, xhi, narrow + 1)[1:])
-    ar = 0.5 * (np.linspace(ylo, yhi, narrow + 1)[:-1] + np.linspace(ylo, yhi, narrow + 1)[1:])
-    AX, AY = np.meshgrid(ac, ar)
-    _, (U, Vv), _ = _phase_action_fields(
-        g.rename(columns={"traj": "episode"}).assign(Vz=0.0), (xe, ye),
-        n_arrow=narrow, n_min=5)
-    mag = np.hypot(U, Vv); ok = np.isfinite(mag) & (mag > 0)
-    if ok.any():
-        un = np.where(ok, U / np.maximum(mag, 1e-9), np.nan)
-        vn = np.where(ok, Vv / np.maximum(mag, 1e-9), np.nan)
-        ax.quiver(AX[ok], AY[ok], un[ok], vn[ok], color="white", edgecolor="black",
-                  linewidth=0.5, scale=narrow * 1.1, width=0.007, headwidth=4,
-                  zorder=4, pivot="mid")
+    if arrows:
+        ac = 0.5 * (np.linspace(xlo, xhi, narrow + 1)[:-1] + np.linspace(xlo, xhi, narrow + 1)[1:])
+        ar = 0.5 * (np.linspace(ylo, yhi, narrow + 1)[:-1] + np.linspace(ylo, yhi, narrow + 1)[1:])
+        AX, AY = np.meshgrid(ac, ar)
+        _, (U, Vv), _ = _phase_action_fields(
+            g.rename(columns={"traj": "episode"}).assign(Vz=0.0), (xe, ye),
+            n_arrow=narrow, n_min=5)
+        mag = np.hypot(U, Vv); ok = np.isfinite(mag) & (mag > 0)
+        if ok.any():
+            un = np.where(ok, U / np.maximum(mag, 1e-9), np.nan)
+            vn = np.where(ok, Vv / np.maximum(mag, 1e-9), np.nan)
+            ax.quiver(AX[ok], AY[ok], un[ok], vn[ok], color="white", edgecolor="black",
+                      linewidth=0.5, scale=narrow * 1.1, width=0.007, headwidth=4,
+                      zorder=4, pivot="mid")
     # hindsight goal endpoints of the group
     goals = g.loc[g.groupby("traj")["d"].idxmin(), ["cube_x", "cube_y"]]
     ax.scatter(goals["cube_x"], goals["cube_y"], marker="*", s=900, c="gold",
