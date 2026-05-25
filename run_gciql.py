@@ -45,6 +45,12 @@ def build_ogbench_argv(cfg: Mapping[str, Any]) -> list[str]:
         f"--run_group={cfg['run_group']}",
         f"--save_dir={cfg['output_root']}",
     ]
+    # Resume passthrough (only when set): vendored main.py restores the full
+    # agent state (params + opt state) from params_<restore_epoch>.pkl.
+    if cfg.get("restore_path"):
+        argv.append(f"--restore_path={cfg['restore_path']}")
+    if cfg.get("restore_epoch") is not None:
+        argv.append(f"--restore_epoch={cfg['restore_epoch']}")
     overrides = cfg.get("agent_overrides") or {}
     for key in sorted(overrides):
         argv.append(f"--agent.{key}={overrides[key]}")
@@ -135,6 +141,16 @@ def build_child_env(plain: Mapping[str, Any], base_env: Mapping[str, str]) -> di
     overrides = plain.get("agent_overrides") or {}
     if str(overrides.get("encoder")) == "drq":
         env["OGBENCH_DRQ_FRONTEND"] = "1"
+    # Resume: the sitecustomize shim reads these to reproduce a single-go layout
+    # (vendored OGBench is never edited). GCIQL_EXP_NAME pins the run dir / wandb
+    # name; GCIQL_STEP_OFFSET shifts saved ckpt epochs and wandb/CSV steps by the
+    # restore epoch; GCIQL_CSV_APPEND continues train.csv/eval.csv. See
+    # tools/wandb_mode_shim/sitecustomize.py.
+    if plain.get("exp_name"):
+        env["GCIQL_EXP_NAME"] = str(plain["exp_name"])
+    if plain.get("restore_epoch"):
+        env["GCIQL_STEP_OFFSET"] = str(int(plain["restore_epoch"]))
+        env["GCIQL_CSV_APPEND"] = "1"
     return env
 
 

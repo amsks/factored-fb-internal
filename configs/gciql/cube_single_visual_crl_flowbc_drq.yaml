@@ -16,6 +16,10 @@ save_interval: 50000
 eval_episodes: 50
 eval_on_cpu: 0
 run_group: factored-fb-crl-flowbc-pixel-drq
+# Resume support (all null = fresh run); see cube_single_state_crl_flowbc.yaml.
+restore_path: null
+restore_epoch: null
+exp_name: null
 agent_overrides:
   bc_coeff: 3.0
   batch_size: 256

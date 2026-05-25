@@ -16,6 +16,16 @@ save_interval: 1000000
 eval_episodes: 50
 eval_on_cpu: 1
 run_group: factored-fb-crl-flowbc
+# Resume support (all null = fresh run). Set on the CLI to continue a killed run
+# into the SAME output dir as a single 0..train_steps run would have produced:
+#   restore_path : dir holding params_<restore_epoch>.pkl (== the target save dir)
+#   restore_epoch: checkpoint step to load; also offsets saved ckpt epochs and
+#                  wandb/CSV steps so files are named params_<restore_epoch+i>.
+#   exp_name     : pin the run dir / wandb name to the original (else timestamped).
+# Then pass train_steps = REMAINING steps (e.g. 400000 to finish a 1M run @600k).
+restore_path: null
+restore_epoch: null
+exp_name: null
 agent_overrides:
   bc_coeff: 3.0
 wandb_mode: online
