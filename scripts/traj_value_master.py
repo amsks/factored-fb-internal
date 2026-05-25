@@ -59,20 +59,29 @@ def _bg_ext():
     return bg, [ws["xmin"], ws["xmax"], ws["ymin"], ws["ymax"]]
 
 
-def _pick(master, summ, method, kind, min_span=0.12, min_n=20):
-    """ONE example trajectory: success = highest goal_peak_rho (value rises near
-    goal), failure = lowest (it does not). Filtered to a real approach + enough
-    points so the single trajectory is legible."""
-    dfm = master[master.method == method]
-    s = summ[summ.method == method].copy()
-    span = dfm.groupby("traj")["d"].agg(lambda x: x.max() - x.min())
-    s = s[s.traj.map(span).fillna(0) >= min_span]
-    s = s[s.n >= min_n]
-    if s.empty:
-        return None, np.nan
-    row = s.loc[s["goal_peak_rho"].idxmax() if kind == "success"
-               else s["goal_peak_rho"].idxmin()]
-    return dfm[dfm.traj == row["traj"]].sort_values("t"), float(row["goal_peak_rho"])
+def _select_pair(master, summ, min_span=0.12, min_n=20):
+    """Two trajectories (same episode shown for BOTH algos): A = FB & GCIQL both
+    succeed (value rises near goal); B = FB fails but GCIQL succeeds. Selection
+    is over per-trajectory goal_peak_rho for each method (traj i = same episode)."""
+    piv = summ.pivot(index="traj", columns="method", values="goal_peak_rho")
+    if not {"fb", "gciql"}.issubset(piv.columns):
+        return None, None
+    ref = master[master.method == "fb"]
+    span = ref.groupby("traj")["d"].agg(lambda x: x.max() - x.min())
+    cnt = ref.groupby("traj")["t"].count()
+    keep = piv.index[(span.reindex(piv.index).fillna(0) >= min_span)
+                     & (cnt.reindex(piv.index).fillna(0) >= min_n)]
+    v = piv.loc[keep].dropna(subset=["fb", "gciql"])
+    if v.empty:
+        return None, None
+    traj_a = int(v[["fb", "gciql"]].min(axis=1).idxmax())      # both high
+    traj_b = int((v["gciql"] - v["fb"]).idxmax())              # GCIQL >> FB
+    return traj_a, traj_b
+
+
+def _rho(summ, method, traj):
+    m = summ[(summ.method == method) & (summ.traj == traj)]
+    return float(m["goal_peak_rho"].iloc[0]) if len(m) else float("nan")
 
 
 def _scene_overlay(ax, g, bg, ext, title, nbins=16, narrow=10):
@@ -114,8 +123,8 @@ def _scene_overlay(ax, g, bg, ext, title, nbins=16, narrow=10):
                   zorder=4, pivot="mid")
     # hindsight goal endpoints of the group
     goals = g.loc[g.groupby("traj")["d"].idxmin(), ["cube_x", "cube_y"]]
-    ax.scatter(goals["cube_x"], goals["cube_y"], marker="*", s=70, c="gold",
-               edgecolors="black", linewidths=0.4, zorder=5)
+    ax.scatter(goals["cube_x"], goals["cube_y"], marker="*", s=900, c="gold",
+               edgecolors="black", linewidths=1.6, zorder=5)
     ax.set_xlim(xlo, xhi); ax.set_ylim(ylo, yhi)
     ax.set_xticks([]); ax.set_yticks([]); ax.set_title(title, fontsize=10)
 
@@ -162,16 +171,19 @@ def main():
     axp.legend(); axp.set_title("Value vs progress — ALL training trajectories")
 
     # Example overlays: success (value rises) + failure (it doesn't) per method.
-    cells = [("fb", "success"), ("fb", "failure"), ("gciql", "success"), ("gciql", "failure")]
-    for j, (mth, kind) in enumerate(cells):
+    traj_a, traj_b = _select_pair(master, summ)
+    cells = [(traj_a, "fb", "A — FB & GCIQL succeed"),
+             (traj_a, "gciql", "A — FB & GCIQL succeed"),
+             (traj_b, "fb", "B — FB fails, GCIQL succeeds"),
+             (traj_b, "gciql", "B — FB fails, GCIQL succeeds")]
+    for j, (tr, mth, tag) in enumerate(cells):
         ax = fig.add_subplot(gs[1, j])
-        g, rho = _pick(master, summ, mth, kind)
         lab = dict(fb="FB", gciql="GCIQL")[mth]
-        if g is None or g.empty:
-            ax.set_title(f"{lab} {kind}: none"); ax.set_xticks([]); ax.set_yticks([]); continue
+        if tr is None:
+            ax.set_title("no trajectory found"); ax.set_xticks([]); ax.set_yticks([]); continue
+        g = master[(master.method == mth) & (master.traj == tr)].sort_values("t")
         _scene_overlay(ax, g, bg, ext,
-                       f"{lab} — {kind} example (one traj, ρ={rho:.2f})\n"
-                       "red = value · white = cube-flow · ★ = goal")
+                       f"{lab} · traj {tr}  ({tag})\nρ(V,−d)={_rho(summ, mth, tr):.2f}  ·  red=value · ★=goal")
 
     fig.suptitle("Goal-conditioned value along real training trajectories (hindsight goal): "
                  "GCIQL value rises toward the goal; FB stays flat (B can't resolve the goal)",
