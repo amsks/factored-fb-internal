@@ -157,16 +157,40 @@ def _scene_overlay(ax, g, bg, ext, title, nbins=16, narrow=10):
     ax.set_xticks([]); ax.set_yticks([]); ax.set_title(title, fontsize=10)
 
 
+def _select_single(master, summ, method, min_span=0.12, min_n=20):
+    """One success (value rises toward goal) + one failure (it doesn't) example
+    trajectory for a single method, by its own goal_peak_rho with span/count
+    filters. Used for the standalone per-method (e.g. CRL) scene overlay."""
+    ref = master[master.method == method]
+    if ref.empty:
+        return None, None
+    span = ref.groupby("traj")["d"].agg(lambda x: x.max() - x.min())
+    cnt = ref.groupby("traj")["t"].count()
+    keep = span.index[(span >= min_span) & (cnt.reindex(span.index).fillna(0) >= min_n)]
+    cand = summ[(summ.method == method) & (summ.traj.isin(keep))].dropna(
+        subset=["goal_peak_rho"])
+    if cand.empty:
+        return None, None
+    return (int(cand.loc[cand.goal_peak_rho.idxmax(), "traj"]),
+            int(cand.loc[cand.goal_peak_rho.idxmin(), "traj"]))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fb", required=True); ap.add_argument("--gciql", required=True)
+    ap.add_argument("--crl", default=None,
+                    help="optional CRL per-step parquet (adds CRL to master/summary, "
+                         "the aggregate curves, and a standalone CRL scene overlay)")
     ap.add_argument("--effector", default="analysis/traj_value/effector.parquet")
     ap.add_argument("--out-dir", required=True)
     args = ap.parse_args()
     out = Path(args.out_dir); out.mkdir(parents=True, exist_ok=True)
 
     fb = pd.read_parquet(args.fb); gq = pd.read_parquet(args.gciql)
-    master = _norm(pd.concat([fb, gq], ignore_index=True))
+    frames = [fb, gq]
+    if args.crl:
+        frames.append(pd.read_parquet(args.crl))
+    master = _norm(pd.concat(frames, ignore_index=True))
     # join FK effector + phase (model-independent) by (traj, t)
     eff = pd.read_parquet(args.effector)[["traj", "t", "region", "d_eff_cube",
                                           "eff_x", "eff_y", "eff_z", "cube_z"]]
@@ -180,6 +204,8 @@ def main():
     gs = fig.add_gridspec(2, 4, height_ratios=[1, 1.15], hspace=0.28, wspace=0.12)
     axd = fig.add_subplot(gs[0, 0:2]); axp = fig.add_subplot(gs[0, 2:4])
     series = [("fb", "FB", "tab:red"), ("gciql", "GCIQL", "tab:blue")]
+    if args.crl:
+        series.append(("crl", "CRL", "tab:green"))
 
     # Aggregate value vs distance-to-goal (whole dataset).
     dmax = float(np.percentile(master["d"], 97)); dbins = np.linspace(0, dmax, 18)
@@ -220,10 +246,32 @@ def main():
                  "GCIQL value rises toward the goal; FB stays flat (B can't resolve the goal)",
                  fontsize=12)
     fig.savefig(out / "traj_value_master.png", dpi=130, bbox_inches="tight")
+    plt.close(fig)
+
+    # Standalone CRL scene overlay (success + failure example), same style as the
+    # FB/GCIQL bottom panels — keeps the FB-vs-GCIQL figure above untouched.
+    methods_present = ["fb", "gciql"] + (["crl"] if args.crl else [])
+    if args.crl:
+        cs, cf = _select_single(master, summ, "crl")
+        cfig, caxes = plt.subplots(1, 2, figsize=(9, 5))
+        for ax, tr, tag in ((caxes[0], cs, "success: value rises near goal"),
+                            (caxes[1], cf, "failure: value stays flat")):
+            if tr is None:
+                ax.set_title("no trajectory found"); ax.set_xticks([]); ax.set_yticks([]); continue
+            g = master[(master.method == "crl") & (master.traj == tr)].sort_values("t")
+            _scene_overlay(ax, g, bg, ext,
+                           f"CRL · traj {tr}  ({tag})\nρ(V,−d)={_rho(summ, 'crl', tr):.2f}"
+                           "  ·  red=value · ★=goal")
+        cfig.suptitle("Goal-conditioned value along real training trajectories (hindsight goal) — CRL",
+                      fontsize=12)
+        cfig.savefig(out / "traj_value_crl_scene.png", dpi=130, bbox_inches="tight")
+        plt.close(cfig)
+
     print(f"[master] {master['traj'].nunique()} trajs/method; wrote {out}/master.csv, "
-          f"summary.csv, traj_value_master.png")
+          f"summary.csv, traj_value_master.png"
+          + (", traj_value_crl_scene.png" if args.crl else ""))
     print("  goal_peak_rho mean:  " +
-          "  ".join(f"{m}={summ[summ.method==m].goal_peak_rho.mean():.3f}" for m in ["fb", "gciql"]))
+          "  ".join(f"{m}={summ[summ.method==m].goal_peak_rho.mean():.3f}" for m in methods_present))
 
 
 if __name__ == "__main__":

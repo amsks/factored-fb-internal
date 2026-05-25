@@ -53,6 +53,9 @@ def _methods(root: Path):
     gq, _ = _load_pooled(root, "gciql_values.parquet")
     if gq is not None:
         out.append((gq, "V", "GCIQL"))
+    cr, _ = _load_pooled(root, "crl_values.parquet")
+    if cr is not None:
+        out.append((cr, "V", "CRL"))
     group_cols = ("pair", "task") if multi else ("task",)
     return out, group_cols
 

@@ -71,7 +71,15 @@ def _value_frame(root: Path) -> pd.DataFrame:
         ["task", "region", "outcome", "cube_x", "cube_y", "V"]
     ].copy()
     gq["method"] = "GCIQL"
-    return pd.concat([fb, gq], ignore_index=True)
+    frames = [fb, gq]
+    if any((d / "crl_values.parquet").exists() for d in root.glob("p*")) \
+            or (root / "crl_values.parquet").exists():
+        cr = _pool(root, "crl_values.parquet")[
+            ["task", "region", "outcome", "cube_x", "cube_y", "V"]
+        ].copy()
+        cr["method"] = "CRL"
+        frames.append(cr)
+    return pd.concat(frames, ignore_index=True)
 
 
 def _table_z(seed, obs_type) -> float:
@@ -280,7 +288,7 @@ def main() -> None:
     ap.add_argument("--out", default=None)
     ap.add_argument("--tasks", nargs="*",
                     default=[f"task{i}" for i in range(1, 6)])
-    ap.add_argument("--methods", nargs="*", default=["FB policy", "GCIQL"])
+    ap.add_argument("--methods", nargs="*", default=["FB policy", "GCIQL", "CRL"])
     ap.add_argument("--n-eps", type=int, default=300)
     ap.add_argument("--horizon", type=int, default=200)
     ap.add_argument("--thresh", type=float, default=0.04)

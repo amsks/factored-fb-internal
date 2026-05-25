@@ -124,9 +124,58 @@ def _gciql(args):
     return pd.DataFrame(rows)
 
 
+def _crl(args):
+    """CRL+FlowBC (JAX): contrastive value V(s,g)=min(q1,q2)(s,g,pi(s,g)).
+    Needs the wandb_mode_shim on path (crl_flowbc + ogbench_flow live there)."""
+    ogb = str(REPO_ROOT / "third_party" / "ogbench" / "impls")
+    shim = str(REPO_ROOT / "tools" / "wandb_mode_shim")
+    for p in (ogb, shim):
+        if p in sys.path:
+            sys.path.remove(p)
+    sys.path.insert(0, ogb)
+    sys.path.insert(0, shim)
+    import ogbench  # noqa: F401
+    import jax
+    import jax.numpy as jnp
+    from utils.flax_utils import restore_agent
+    from crl_flowbc import CRLFlowBCAgent, get_config
+    flags = json.loads((Path(args.run_dir) / "flags.json").read_text())
+    saved = flags.get("agent")
+    config = get_config()
+    if isinstance(saved, dict):
+        for k, v in saved.items():
+            if k in config:
+                config[k] = v
+    env_name = flags["env_name"]
+    env = ogbench.make_env_and_datasets(env_name, env_only=True)
+    ex_obs, _ = env.reset(options=dict(task_id=1))
+    agent = CRLFlowBCAgent.create(int(flags["seed"]), np.asarray(ex_obs, np.float32)[None],
+                                  np.asarray(env.action_space.sample(), np.float32)[None], config)
+    agent = restore_agent(agent, str(args.run_dir), args.step)
+    env.close()
+    key = jax.random.PRNGKey(0)
+
+    def value(o, g):
+        a = agent.sample_actions(o, g, seed=key)
+        q1, q2 = agent.network.select("critic")(o, g, a)
+        return np.asarray(jnp.minimum(q1, q2)).reshape(-1)
+
+    rows = []
+    for ti, (obs, phys) in enumerate(_episodes(args.data_path, env_name.replace("visual-", ""),
+                                               args.n_traj, int(flags.get("seed", 0)))):
+        T = len(obs); tg = T - 1 - args.goal_offset
+        if tg < args.stride * 3:
+            continue
+        ts = np.arange(0, tg, args.stride)
+        goal = np.broadcast_to(obs[tg][None], (len(ts),) + obs[tg].shape)
+        V = value(jnp.asarray(obs[ts], jnp.float32), jnp.asarray(goal, jnp.float32)).reshape(-1)
+        rows += _rows_from(ti, obs, phys, ts, tg, V)
+    return pd.DataFrame(rows)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--method", required=True, choices=["fb", "gciql"])
+    ap.add_argument("--method", required=True, choices=["fb", "gciql", "crl"])
     ap.add_argument("--config"); ap.add_argument("--checkpoint")
     ap.add_argument("--run-dir"); ap.add_argument("--step", type=int)
     ap.add_argument("--data-path", default="datasets")
@@ -136,7 +185,7 @@ def main():
     ap.add_argument("--goal-offset", type=int, default=5)
     ap.add_argument("--device", default="cpu")
     args = ap.parse_args()
-    df = _fb(args) if args.method == "fb" else _gciql(args)
+    df = {"fb": _fb, "gciql": _gciql, "crl": _crl}[args.method](args)
     df["method"] = args.method
     out = Path(args.out); out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out)

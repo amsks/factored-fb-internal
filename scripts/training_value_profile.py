@@ -259,9 +259,79 @@ def _gciql(args) -> None:
     print(f"[training_value:gciql] {len(obs)} states x 5 tasks -> {out}")
 
 
+def _crl(args) -> None:
+    """CRL+FlowBC (JAX) contrastive value V(s,g)=min(q1,q2)(s,g,pi(s,g)) on the
+    SAME shared training_states.npz produced by the FB pass. The crl_flowbc agent
+    + ogbench_flow nets live in the wandb_mode_shim, so it goes on path too."""
+    ogb = str(REPO_ROOT / "third_party" / "ogbench" / "impls")
+    shim = str(REPO_ROOT / "tools" / "wandb_mode_shim")
+    for p in (ogb, shim):
+        if p in sys.path:
+            sys.path.remove(p)
+    sys.path.insert(0, ogb)
+    sys.path.insert(0, shim)
+    import jax
+    import jax.numpy as jnp
+    import pandas as pd
+    import ogbench  # vendored, registers envs
+    from utils.flax_utils import restore_agent
+    from crl_flowbc import CRLFlowBCAgent, get_config
+    from scripts.gciql_profile import parse_flags
+
+    out = Path(args.out)
+    st = np.load(out / "training_states.npz", allow_pickle=True)
+    obs = np.asarray(st["obs"], np.float32)
+    cube = np.asarray(st["cube"], np.float64)
+    region = [str(r) for r in st["region"]]
+    if "outcome" not in st:
+        raise SystemExit("training_states.npz has no 'outcome' — run the FB pass first.")
+    outcome = np.asarray(st["outcome"], dtype=bool)  # [n_states, n_tasks]
+
+    flags = parse_flags(args.run_dir)
+    saved = flags.get("agent")
+    config = get_config()
+    if isinstance(saved, dict):
+        for k, v in saved.items():
+            if k in config:
+                config[k] = v
+
+    env = ogbench.make_env_and_datasets(flags["env_name"], env_only=True)
+    ex_obs, _ = env.reset(options=dict(task_id=1))
+    agent = CRLFlowBCAgent.create(flags["seed"], np.asarray(ex_obs, np.float32)[None],
+                                  np.asarray(env.action_space.sample(), np.float32)[None], config)
+    agent = restore_agent(agent, str(args.run_dir), args.step)
+    key = jax.random.PRNGKey(0)
+
+    def _value(o, g):
+        a = agent.sample_actions(o, g, seed=key)
+        q1, q2 = agent.network.select("critic")(o, g, a)
+        return np.asarray(jnp.minimum(q1, q2)).reshape(-1)
+
+    rows = []
+    obs_j = jnp.asarray(obs)
+    for ti in range(1, 6):
+        _, info = env.reset(options=dict(task_id=ti))
+        goal = np.asarray(info["goal"], np.float32)
+        tbk = int(getattr(env.unwrapped, "_target_block", 0) or 0)
+        g_xyz = np.asarray(env.unwrapped.cur_task_info["goal_xyzs"][tbk], np.float64)
+        d = cube_to_goal_dist(cube, g_xyz)
+        gj = jnp.broadcast_to(jnp.asarray(goal)[None], obs_j.shape)
+        V = _value(obs_j, gj)
+        oc = outcome[:, ti - 1]
+        for i in range(len(obs)):
+            rows.append({"task": f"task{ti}", "region": region[i],
+                         "d": float(d[i]), "cube_x": float(cube[i, 0]),
+                         "cube_y": float(cube[i, 1]), "V": float(V[i]),
+                         "outcome": "success_bound" if oc[i]
+                         else "fail_bound"})
+    env.close()
+    pd.DataFrame(rows).to_parquet(out / "crl_values.parquet")
+    print(f"[training_value:crl] {len(obs)} states x 5 tasks -> {out}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--method", required=True, choices=["fb", "gciql"])
+    ap.add_argument("--method", required=True, choices=["fb", "gciql", "crl"])
     ap.add_argument("--out", default="analysis/training_value")
     ap.add_argument("--n-states", type=int, default=20000)
     ap.add_argument("--mujoco-gl", default=None)
@@ -281,6 +351,9 @@ def main() -> None:
     if args.method == "fb":
         assert args.config and args.checkpoint, "fb needs --config/--checkpoint"
         _fb(args)
+    elif args.method == "crl":
+        assert args.run_dir, "crl needs --run-dir"
+        _crl(args)
     else:
         assert args.run_dir, "gciql needs --run-dir"
         _gciql(args)
