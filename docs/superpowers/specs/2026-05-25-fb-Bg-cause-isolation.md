@@ -46,75 +46,91 @@ Run the measurement protocol on each. **Decision:** R²(B→d) rises monotonical
 
 ---
 
-## Experiment B — terminal-reweighted ρ (allocation?)  [small code change, flag-gated]
-**Hypothesis:** B gets only ~3.5% of its gradient at the (abundant) near-goal s⁺; up-weighting them lets B resolve the terminal.
+## Experiment B — coverage-balanced ρ reweight (allocation?)  [small code change, flag-gated]
+**Hypothesis:** B's resolution is allocated by ρ's *density* — densely-visited cube configs get fine resolution, the rare tail (where placements live, ~3.5% of ρ) gets none. Up-weight the **under-sampled** regions so B resolves *any* potential goal uniformly.
+
+> ⚠️ **DO NOT use the eval/task goals to define the reweight.** That leaks the test tasks into reward-free pretraining and collapses FB into goal-conditioning on the eval goals. The reweight must be **goal-agnostic / self-supervised** — derived only from the offline data's own cube-position density. (Using the eval goals to *measure* R²(B→d) afterward is fine; using them in *training* is not.)
+
+### B0 — precompute the goal-agnostic density (no eval goals)
+A density over cube configuration = the goal-relevant projection of ρ; rare cells are where B is starved.
+```bash
+.venv/bin/python - <<'PY'
+import numpy as np, glob
+cubes=np.concatenate([np.load(f)['physics'][:,14:17] for f in
+    sorted(glob.glob('datasets/cube-single-play-v0/buffer/episode_*.npz'))]).astype(np.float64)
+nb=(16,16,8)
+edges=[np.linspace(cubes[:,i].min(),cubes[:,i].max(),nb[i]+1) for i in range(3)]
+H,_=np.histogramdd(cubes,bins=edges); H=H/H.sum()
+np.savez('analysis/cube_density.npz', H=H, ex=edges[0], ey=edges[1], ez=edges[2])
+print('density grid',H.shape,'nonzero cells',int((H>0).sum()))
+PY
+```
 
 ### Code change (default-off ⇒ byte-identical to current FB)
-
 **`configs/agent/fb.yaml`** — add:
 ```yaml
-terminal_reweight_k: 0.0          # 0 = off (current FB exactly); try 5, 20
-terminal_reweight_eps: 0.05       # "near a placement goal" radius (m)
-terminal_goals:                   # cube-single task goal xyz (placement targets)
-  - [0.425, -0.1, 0.02]
-  - [0.5,    0.0, 0.02]
-  - [0.35,   0.0, 0.02]
-  - [0.5,    0.2, 0.02]
-  - [0.5,   -0.2, 0.02]
+reweight_alpha: 0.0                       # 0 = off (current FB exactly); try 0.5, 1.0
+reweight_clip: 10.0                       # cap per-sample weight (rare-outlier guard)
+reweight_density_path: analysis/cube_density.npz
 ```
-
-**`agents/fb/agent.py::__init__`** — store config + goal set:
+**`agents/fb/agent.py::__init__`** — load the self-supervised density (no eval goals):
 ```python
-self.terminal_reweight_k = float(getattr(cfg, "terminal_reweight_k", 0.0))   # adapt to how cfg is read here
-self.terminal_reweight_eps = float(getattr(cfg, "terminal_reweight_eps", 0.05))
-gs = getattr(cfg, "terminal_goals", None)
-self.goal_set = (torch.tensor(np.asarray(gs), dtype=torch.float32, device=self.device)
-                 if gs is not None else None)   # [n_goals, 3]
+self.reweight_alpha = float(getattr(cfg, "reweight_alpha", 0.0))
+self.reweight_clip = float(getattr(cfg, "reweight_clip", 10.0))
+self._rho = None
+if self.reweight_alpha > 0:
+    z = np.load(getattr(cfg, "reweight_density_path"))
+    self._rho = (torch.tensor(z["H"], dtype=torch.float32, device=self.device),
+                 [torch.tensor(z[k], dtype=torch.float32, device=self.device) for k in ("ex", "ey", "ez")])
 ```
-
-**`agents/fb/agent.py::update`** — compute the near-goal mask for s⁺ and pass it down (the offline buffer stores `physics`; the cube xyz is `physics[:, 14:17]`):
+**`agents/fb/agent.py::update`** — inverse-density weight for s⁺ (cube xyz from the offline buffer's `physics`):
 ```python
-near = None
-if self.terminal_reweight_k > 0 and self.goal_set is not None:
-    cube_next = batch["next"]["physics"][:, 14:17].to(self.device).float()   # s+ cube xyz
-    near = (torch.cdist(cube_next, self.goal_set).min(dim=-1).values
-            < self.terminal_reweight_eps).float()                            # [batch]
+diag_w = None
+if self.reweight_alpha > 0 and self._rho is not None:
+    cube = batch["next"]["physics"][:, 14:17].to(self.device).float()        # s+ cube xyz
+    H, (ex, ey, ez) = self._rho
+    ix = (torch.bucketize(cube[:, 0], ex) - 1).clamp(0, H.shape[0] - 1)
+    iy = (torch.bucketize(cube[:, 1], ey) - 1).clamp(0, H.shape[1] - 1)
+    iz = (torch.bucketize(cube[:, 2], ez) - 1).clamp(0, H.shape[2] - 1)
+    dens = H[ix, iy, iz] + 1e-6
+    w = (dens.median() / dens) ** self.reweight_alpha                        # rare -> >1, common -> <1
+    w = w.clamp(max=self.reweight_clip)
+    diag_w = (w / w.mean()).detach()                                         # mean-preserving
 metrics = self.update_fb(obs=obs, action=action, discount=discount,
                          next_obs=next_obs, goal=goal, z=z,
                          q_loss_coef=q_loss_coef, clip_grad_norm=clip_grad_norm,
-                         near=near)
+                         diag_w=diag_w)
 ```
 > If `batch["next"]["physics"]` is absent in the training batch, plumb it through the buffer sampler (it IS stored offline — the probes read `buffer.sample()["next"]["physics"]`).
 
-**`agents/fb/agent.py::update_fb`** — add `near=None` param; weight only the diagonal (positive, per-s⁺ resolution) term, mean-preserving:
+**`agents/fb/agent.py::update_fb`** — add `diag_w=None`; weight only the diagonal (positive, per-s⁺ resolution) term. `diag_w` is already mean-normalized:
 ```python
 diag = torch.diagonal(diff, dim1=1, dim2=2)                  # [n_parallel, batch]
-if near is not None and self.terminal_reweight_k > 0:
-    w = 1.0 + self.terminal_reweight_k * near                # [batch], broadcasts over n_parallel
-    fb_diag = -(diag * w).mean() * Ms.shape[0] / w.mean()
+if diag_w is not None:
+    fb_diag = -(diag * diag_w).mean() * Ms.shape[0]          # diag_w broadcasts over n_parallel
 else:
     fb_diag = -diag.mean() * Ms.shape[0]                     # == current behaviour
 fb_loss = fb_offdiag + fb_diag
 ```
 
-### Test (TDD — confirm isolation)
-`tests/test_fb_terminal_reweight.py`:
+### Test (TDD — confirm isolation + goal-agnosticism)
+`tests/test_fb_reweight.py`:
 ```python
-# build the FB agent twice on a fixed batch+seed: terminal_reweight_k=0 vs default.
-# assert update_fb fb_diag with near=None equals -diagonal(diff).mean()*Ms.shape[0]
-#   (k=0 reproduces current loss exactly), and with near + k>0 it differs and is finite.
+# (1) reweight_alpha=0 -> diag_w=None -> fb_diag == -diagonal(diff).mean()*Ms.shape[0] (byte-identical).
+# (2) alpha>0 -> diag_w.mean() ~= 1, all finite, and low-density (rare) s+ get weight > high-density s+.
+# (3) the reweight reads ONLY analysis/cube_density.npz + physics -- assert no task/eval-goal input is used.
 ```
-Run: `.venv/bin/python -m pytest tests/test_fb_terminal_reweight.py -v`
+Run: `.venv/bin/python -m pytest tests/test_fb_reweight.py -v`
 
 ### Sweep
 ```bash
-for K in 0 5 20; do
-  .venv/bin/python train.py domain=cube_single terminal_reweight_k=$K ortho_coef=1000 \
+for A in 0 0.5 1.0; do
+  .venv/bin/python train.py domain=cube_single reweight_alpha=$A ortho_coef=1000 \
     lr_b=1e-4 num_train_steps=1000000 seed=1 device=cuda use_wandb=true \
-    wandb_run_name=reweight${K}_s1
+    wandb_run_name=reweight_a${A}_s1
 done
 ```
-Measurement protocol on each. **Decision:** R²(B→d) rises with K **and** privileged-z `z=B(g)` near-goal sharpens (gap to z\* closes) **and** success→GCIQL ⇒ **allocation/sampling is the cause** (the abundant terminal data just needed up-weighting) → **PURSUE this as the Tier-2 fix.** No change ⇒ not sampling.
+Measurement protocol on each. **Decision:** R²(B→d) rises with α **and** privileged-z `z=B(g)` near-goal sharpens (gap to z\* closes) **and** success→GCIQL ⇒ **allocation is the cause** (coverage-balancing — goal-agnostic — fixes it) → **PURSUE this as the Tier-2 fix.** No change ⇒ not allocation.
 
 ---
 
@@ -136,7 +152,7 @@ Probe R²(B→d). Rises ⇒ encoder shape matters.
 | outcome | cause | fix |
 |---|---|---|
 | A: R²(B→d) ↑ as ortho↓ | ortho whitening | lower/anneal ortho (mind success tradeoff) |
-| B: R²(B→d) ↑ with reweight_k, z=B(g) sharpens | ρ allocation (terminal starvation) | terminal-reweighted ρ |
+| B: R²(B→d) ↑ with reweight_alpha, z=B(g) sharpens | ρ allocation (density starves the tail) | coverage-balanced (goal-agnostic) ρ reweight |
 | C1: R²(B→d) ↑ with shallow-wide / C2 supervised-B capable | training signal, not encoder | A/B (+ aux geometry head on B) |
 | C2: supervised-B also fails | encoder architecture | wider / conv / object-centric B encoder |
 
