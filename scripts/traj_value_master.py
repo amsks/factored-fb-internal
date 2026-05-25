@@ -29,6 +29,34 @@ if str(REPO_ROOT) not in sys.path:
 # canonical scene-overlay machinery (same as training_value_scene / _phase_action_scene)
 from scripts.gciql_profile_aggregate import (_bin_vz_grid, _phase_action_fields,
                                              _nan_gaussian)
+from evals._profile_core import _spearman
+
+
+def _summary(master):
+    """Per-(method, trajectory) scores, incl. PHASE-specific value alignment:
+      approach_rho  = Spearman(V, -d_effector→cube)  over reach phase
+      grasp_rho     = Spearman(V, -d_cube→goal)      over grasp phase
+      transport_rho = Spearman(V, -d_cube→goal)      over transport phase
+    (approach asks if value tracks reaching the cube; transport if it tracks
+    placing it at the goal once in hand.)"""
+    def prho(g, phase, col):
+        s = g[g.region == phase]
+        if len(s) < 5 or s[col].isna().all():
+            return float("nan"), int(len(s))
+        return float(_spearman(s["V"].to_numpy(), -s[col].to_numpy())), int(len(s))
+
+    rows = []
+    for (mth, tr), g in master.groupby(["method", "traj"]):
+        ar, nr = prho(g, "reach", "d_eff_cube")
+        gr, ng = prho(g, "grasp", "d")
+        tp, nt = prho(g, "transport", "d")
+        rows.append(dict(method=mth, traj=int(tr), n=len(g),
+                         goal_peak_rho=float(_spearman(g["V"].to_numpy(), -g["d"].to_numpy())),
+                         approach_rho=ar, grasp_rho=gr, transport_rho=tp,
+                         n_reach=nr, n_grasp=ng, n_transport=nt,
+                         V_near=float(g.loc[g["d"].idxmin(), "V"]),
+                         V_far=float(g.loc[g["d"].idxmax(), "V"])))
+    return pd.DataFrame(rows)
 
 
 def _norm(df):
@@ -132,16 +160,19 @@ def _scene_overlay(ax, g, bg, ext, title, nbins=16, narrow=10):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fb", required=True); ap.add_argument("--gciql", required=True)
+    ap.add_argument("--effector", default="analysis/traj_value/effector.parquet")
     ap.add_argument("--out-dir", required=True)
     args = ap.parse_args()
     out = Path(args.out_dir); out.mkdir(parents=True, exist_ok=True)
 
     fb = pd.read_parquet(args.fb); gq = pd.read_parquet(args.gciql)
     master = _norm(pd.concat([fb, gq], ignore_index=True))
+    # join FK effector + phase (model-independent) by (traj, t)
+    eff = pd.read_parquet(args.effector)[["traj", "t", "region", "d_eff_cube",
+                                          "eff_x", "eff_y", "eff_z", "cube_z"]]
+    master = master.merge(eff, on=["traj", "t"], how="left")
     master.to_csv(out / "master.csv", index=False)
-    summ = pd.concat([pd.read_csv(Path(args.fb).with_name(Path(args.fb).stem + "_summary.csv")),
-                      pd.read_csv(Path(args.gciql).with_name(Path(args.gciql).stem + "_summary.csv"))],
-                     ignore_index=True)
+    summ = _summary(master)
     summ.to_csv(out / "summary.csv", index=False)
 
     bg, ext = _bg_ext()
