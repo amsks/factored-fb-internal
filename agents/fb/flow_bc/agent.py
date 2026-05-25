@@ -83,7 +83,8 @@ class FBFlowBCAgent(FBAgent):
             actor_in = left_enc if self.actor_encode_obs else obs
             noises = torch.randn_like(x_1, device=action.device, dtype=action.dtype)
             actor_actions = self.model._actor(actor_in, z, noises)
-            Fs = self.model._forward_map(left_enc, z, actor_actions)  # num_parallel x batch x z_dim
+            # one-step FB: F is z-independent (zero-z); Q still dots with the real z.
+            Fs = self.model._forward_map(left_enc, self._fb_z(z), actor_actions)  # num_parallel x batch x z_dim
             Qs = (Fs * z).sum(-1)  # num_parallel x batch
             _, _, Q = self.get_targets_uncertainty(Qs, self.actor_pessimism_penalty)  # batch
             actor_loss = -Q.mean()

@@ -89,6 +89,15 @@ CUDA_VISIBLE_DEVICES=2 TMPDIR=/dev/shm/tmp_fb WANDB_DIR=/dev/shm/wandb_fb \
 ```
 **Pixel FB:** `domain=visual_cube_single` (obs_type=pixels, frame_stack=3; OGBench visual default is `num_train_steps=500000`).
 
+**One-step FB (+ FlowBC actor)** — `onestep=true` makes F z-independent (behavior successor features) and bootstraps with the dataset's next action (SARSA); the FlowBC actor does one improvement step. Default-off (byte-identical FB). Works with the existing extracted dataset (`next.action` is derived at load time):
+```bash
+# state, one-step FB + FlowBC:
+.venv/bin/python train.py domain=cube_single onestep=true seed=0 device=cuda \
+    data_path=/dev/shm/factored-fb/datasets use_wandb=true \
+    hydra.job.chdir=true "hydra.run.dir=/dev/shm/factored-fb/runs/$(date +%H%M%S)__onestepfb__s0"
+# pixel: domain=visual_cube_single onestep=true
+```
+
 ---
 
 ## Reference: launchers in `scripts/`
