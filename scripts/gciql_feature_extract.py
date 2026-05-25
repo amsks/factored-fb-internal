@@ -26,7 +26,19 @@ import numpy as np
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _sample_states(data_path, domain, n, seed, obs_key, max_files=0):
+def _stack_episode(raw, k):
+    """Frame-stack one episode's obs along the channel axis, oldest-first with
+    edge-padding at the start — matches FrameStackWrapper (concat axis=-1; reset
+    fills the deque with the first frame)."""
+    T = len(raw)
+    out = np.empty((T,) + raw.shape[1:-1] + (raw.shape[-1] * k,), raw.dtype)
+    for t in range(T):
+        idxs = [max(0, t - k + 1 + j) for j in range(k)]
+        out[t] = np.concatenate([raw[i] for i in idxs], axis=-1)
+    return out
+
+
+def _sample_states(data_path, domain, n, seed, obs_key, max_files=0, frame_stack=1):
     files = sorted(glob.glob(str(Path(data_path) / domain / "buffer" / "episode_*.npz")))
     if not files:
         raise SystemExit(f"no episodes under {data_path}/{domain}/buffer")
@@ -36,7 +48,10 @@ def _sample_states(data_path, domain, n, seed, obs_key, max_files=0):
     obs_l, phys_l = [], []
     for f in files:
         z = np.load(f)
-        obs_l.append(np.asarray(z[obs_key]))
+        raw = np.asarray(z[obs_key])
+        if frame_stack and frame_stack > 1:
+            raw = _stack_episode(raw, frame_stack)
+        obs_l.append(raw)
         phys_l.append(np.asarray(z["physics"], np.float32))
     obs = np.concatenate(obs_l); phys = np.concatenate(phys_l)
     if len(obs) > n:
@@ -71,6 +86,48 @@ def _find_penultimate(intermediates, width):
     return cands[-1]
 
 
+def _find_encoder_output(intermediates):
+    arrs = []
+    _collect_arrays(intermediates, [], arrs)
+    for p, a in arrs:
+        if p.endswith("gc_encoder/__call__") and np.asarray(a).ndim == 2:
+            return np.asarray(a)
+    return None
+
+
+def _layernorm(x, scale, bias, eps=1e-6):
+    import jax.numpy as jnp
+    m = x.mean(-1, keepdims=True); v = x.var(-1, keepdims=True)
+    return (x - m) / jnp.sqrt(v + eps) * scale + bias
+
+
+def _reconstruct_ensemble_phi(e, vp, penult_idx, full=False):
+    """Manually run the ensembled GCValue.value_net MLP (Dense->gelu->LayerNorm)
+    from the encoder output e, since flax vmap hides its intermediates. Returns
+    the penultimate Dense_{penult_idx} pre-activation (matching GCIQL's captured
+    Dense_2), meaned over the ensemble. full=True continues to the scalar value
+    (for a sanity check vs the real output)."""
+    import jax
+    import jax.numpy as jnp
+    e = jnp.asarray(e)
+    E = np.asarray(vp["Dense_0"]["kernel"]).shape[0]
+    outs = []
+    for k in range(E):
+        h = e
+        for i in range(penult_idx):
+            h = h @ vp[f"Dense_{i}"]["kernel"][k] + vp[f"Dense_{i}"]["bias"][k]
+            h = jax.nn.gelu(h)
+            h = _layernorm(h, vp[f"LayerNorm_{i}"]["scale"][k], vp[f"LayerNorm_{i}"]["bias"][k])
+        phi_k = h @ vp[f"Dense_{penult_idx}"]["kernel"][k] + vp[f"Dense_{penult_idx}"]["bias"][k]
+        if full:
+            g = jax.nn.gelu(phi_k)
+            g = _layernorm(g, vp[f"LayerNorm_{penult_idx}"]["scale"][k],
+                           vp[f"LayerNorm_{penult_idx}"]["bias"][k])
+            phi_k = g @ vp[f"Dense_{penult_idx + 1}"]["kernel"][k] + vp[f"Dense_{penult_idx + 1}"]["bias"][k]
+        outs.append(np.asarray(phi_k))
+    return np.stack(outs, 0).mean(0)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-dir", required=True)
@@ -81,6 +138,7 @@ def main():
     ap.add_argument("--load-episodes", type=int, default=0, help="cap episodes loaded (0=all); use ~50 for pixels (memory)")
     ap.add_argument("--tasks", default="1,2,3,4,5")
     ap.add_argument("--inspect", action="store_true", help="print intermediates tree and exit")
+    ap.add_argument("--inspect-params", action="store_true", help="print value param tree and exit")
     args = ap.parse_args()
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
 
@@ -112,7 +170,8 @@ def main():
     domain = env_name.replace("visual-", "")
 
     obs, phys = _sample_states(args.data_path, domain, args.n_states,
-                               int(flags.get("seed", 0)), obs_key, args.load_episodes)
+                               int(flags.get("seed", 0)), obs_key, args.load_episodes,
+                               int(fs or 1))
     cube = phys[:, 14:17].astype(np.float64)
     grip = phys[:, 6].astype(np.float64)
     lift = phys[:, 16].astype(np.float64)
@@ -129,6 +188,13 @@ def main():
                            np.asarray(ex_obs, np.float32)[None],
                            np.asarray(ex_act, np.float32)[None], config)
         agent = restore_agent(agent, str(args.run_dir), args.step)
+        if args.inspect_params:
+            import jax
+            for kp, v in jax.tree_util.tree_flatten_with_path(agent.network.params)[0]:
+                path = "/".join(getattr(k, "key", str(k)) for k in kp)
+                if "value_net" in path and "target" not in path.lower():
+                    print(path, np.asarray(v).shape)
+            return
         goal = np.asarray(info["goal"])
         u = env.unwrapped
         tb = int(getattr(u, "_target_block", 0) or 0)
@@ -137,13 +203,16 @@ def main():
         env.close()
 
         N = len(obs); bs = 256 if is_pixel else 4096
+        penult_idx = len(config["value_hidden_dims"]) - 1
+        vp = (agent.network.params["modules_value"]["value_net"]
+              if name == "gcivl" else None)
         phis = []
         used_path = None
         for i in range(0, N, bs):
             ob = jnp.asarray(obs[i:i + bs], jnp.float32)
             g = jnp.broadcast_to(jnp.asarray(goal, jnp.float32)[None],
                                  (ob.shape[0],) + goal.shape)
-            _, state = agent.network.select("value")(
+            vout, state = agent.network.select("value")(
                 ob, g, capture_intermediates=True, mutable=["intermediates"])
             inter = state["intermediates"]
             if args.inspect and i == 0:
@@ -152,11 +221,26 @@ def main():
                 for p, a in arrs:
                     print(f"  {p}  {a.shape}")
                 return
-            p, a = _find_penultimate(inter, width)
-            if a is None:
-                raise SystemExit("penultimate not found; rerun with --inspect")
-            used_path = p
-            phis.append(np.asarray(a))
+            if name == "gcivl":
+                # vmap hides value_net intermediates -> reconstruct from params.
+                e = _find_encoder_output(inter)
+                if e is None:
+                    raise SystemExit("gcivl: encoder output not captured")
+                a = _reconstruct_ensemble_phi(e, vp, penult_idx)
+                if i == 0:
+                    fv = _reconstruct_ensemble_phi(e, vp, penult_idx, full=True)
+                    av = np.asarray(vout); av = av.mean(0) if av.ndim == 2 else av
+                    d = float(np.max(np.abs(fv.reshape(-1) - av.reshape(-1))))
+                    used_path = f"manual recon value_net/Dense_{penult_idx} (sanity |dv|={d:.3g})"
+            else:
+                p, a = _find_penultimate(inter, width)
+                if a is None:
+                    raise SystemExit("penultimate not found; rerun with --inspect")
+                a = np.asarray(a)
+                if a.ndim == 3:
+                    a = a.mean(0)
+                used_path = p
+            phis.append(a)
         phi = np.concatenate(phis, 0)
         np.savez(out / f"task{t}.npz", phi=phi, cube=cube, grip=grip, lift=lift,
                  table_z=table_z, goal_xyz=gxyz, agent=name, is_pixel=is_pixel)
