@@ -308,13 +308,28 @@ def main() -> None:
     ap.add_argument("--gciql", default=str(
         REPO_ROOT / "results" / "gciql_20260518_201030"
         / "factored-fb" / "factored-fb-gciql"))
+    ap.add_argument("--crl", default=None,
+                    help="optional CRL eval.csv root (sd*/eval.csv), added as a "
+                         "third method")
+    ap.add_argument("--max-step", type=int, default=None,
+                    help="cap the shared step grid for a matched-budget "
+                         "comparison; the final table is then taken at this step")
     ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "fb_gciql"))
     args = ap.parse_args()
-    fb = load_fb(args.fb)
-    gc = load_gciql(args.gciql)
-    print(f"[fb_gciql_curves] FB seeds={sorted(fb)} "
-          f"GCIQL seeds={sorted(gc)}")
-    render({"FB": fb, "GCIQL": gc}, Path(args.out))
+    methods = {"FB": load_fb(args.fb), "GCIQL": load_gciql(args.gciql)}
+    if args.crl:
+        methods["CRL"] = load_gciql(args.crl)
+    if args.max_step is not None:
+        grid = np.arange(0, args.max_step + 1, 100_000)
+        final_at_grid_end = True
+    else:
+        grid = COMMON_GRID
+        final_at_grid_end = False
+    print("[fb_gciql_curves] " + " ".join(
+        f"{m} seeds={sorted(d)}" for m, d in methods.items())
+        + f" max_step={args.max_step}")
+    render(methods, Path(args.out), grid=grid,
+           final_at_grid_end=final_at_grid_end)
 
 
 if __name__ == "__main__":
