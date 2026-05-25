@@ -29,7 +29,7 @@ save_eval_videos: false     # opt-in: record first episode per task as GIF
 use_wandb: false
 wandb_project: factored-fb
 wandb_run_name: null            # default: ${domain}__${agent}__s${seed}
-wandb_entity: null              # team / username; null -> default workspace
+wandb_entity: amsks             # ALWAYS amsks. NOT the al-laq-fb team default (null -> team). Override only intentionally.
 wandb_group: null               # useful for --multirun (e.g. group=fb_antmaze)
 wandb_tags: []                  # list of strings, e.g. [baseline, antmaze]
 wandb_save_code: true           # snapshot train.py and configs/ into the run
