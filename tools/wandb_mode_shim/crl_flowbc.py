@@ -41,10 +41,15 @@ class CRLFlowBCAgent(CRLAgent):
         pred = self.network.select('actor_vf')(obs, x_t, t, params=grad_params)
         bc_flow_loss = jnp.mean((pred - vel) ** 2)
 
-        # 2) Q-max on one-shot actor's actions (CRL contrastive Q)
+        # 2) Q-max on one-shot actor's actions (CRL contrastive Q).
+        # The critic is evaluated at its FROZEN params (no params=grad_params), as
+        # in OGBench's DDPG+BC actor loss (agents/crl.py): otherwise -q.mean()
+        # backprops into the critic and the single optimizer inflates Q instead of
+        # improving the actor -> contrastive critic collapses (q explodes, logits
+        # pos==neg, categorical_accuracy stuck at chance, 0% eval success).
         noise = jax.random.normal(n_rng, actions.shape)
         actor_actions = self.network.select('actor')(obs, goals, noise, params=grad_params)
-        q1, q2 = self.network.select('critic')(obs, goals, actor_actions, params=grad_params)
+        q1, q2 = self.network.select('critic')(obs, goals, actor_actions)
         q = jnp.minimum(q1, q2)
         actor_loss = -q.mean()
 
