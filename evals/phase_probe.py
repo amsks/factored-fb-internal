@@ -70,6 +70,8 @@ def classify_phases(signals: Dict[str, Any], thr: Thresholds) -> Dict[str, Any]:
             "fail_phase": "none" if success else "reach",
             "min_eff_cube_dist": float("nan"),
             "max_cube_lift": float("nan"),
+            "final_cube_lift": float("nan"),
+            "final_grip": float("nan"),
             "final_cube_goal_dist": float("nan"),
             "length": 0,
         }
@@ -105,6 +107,8 @@ def classify_phases(signals: Dict[str, Any], thr: Thresholds) -> Dict[str, Any]:
         "furthest_phase": furthest, "fail_phase": fail,
         "min_eff_cube_dist": float(eff_cube_dist.min()),
         "max_cube_lift": float(lift.max()),
+        "final_cube_lift": float(lift[-1]),
+        "final_grip": float(grip[-1]),
         "final_cube_goal_dist": float(np.linalg.norm(cube[-1] - goal)),
         "length": int(T),
     }
@@ -320,6 +324,8 @@ def run_phase_probe(
                     "fail_phase": c["fail_phase"],
                     "min_eff_cube_dist": c["min_eff_cube_dist"],
                     "max_cube_lift": c["max_cube_lift"],
+                    "final_cube_lift": c["final_cube_lift"],
+                    "final_grip": c["final_grip"],
                     "final_cube_goal_dist": c["final_cube_goal_dist"],
                     "length": c["length"],
                 })

@@ -79,7 +79,10 @@ def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
         fun_rows.append({"task": ep["task"], "episode": ep["episode"],
                          "furthest_phase": cls["fail_phase"]
                          if not cls["success"] else "success",
-                         "outcome": outcome})
+                         "outcome": outcome,
+                         "final_cube_lift": cls["final_cube_lift"],
+                         "final_grip": cls["final_grip"],
+                         "final_cube_goal_dist": cls["final_cube_goal_dist"]})
         cov_eps.append({"obs": ep["obs"], "outcome": outcome,
                         "grip": ep["grip"], "cube": ep["cube"],
                         "table_z": ep["table_z"],

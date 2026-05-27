@@ -90,6 +90,30 @@ def test_zero_length_episode():
     assert out["furthest_phase"] == "none"
     assert out["fail_phase"] == "reach"
     assert np.isnan(out["min_eff_cube_dist"])
+    assert np.isnan(out["final_cube_lift"])
+    assert np.isnan(out["final_grip"])
+
+
+def test_final_step_signals_when_held():
+    T = 10
+    eff = np.zeros((T, 3)); cube = np.zeros((T, 3)); grip = np.ones(T)
+    cube[:, 2] = 0.10            # cube lifted whole episode (above table_z=0.02)
+    out = pp.classify_phases(_sig(eff, cube, grip, success=False), pp.Thresholds())
+    assert out["secured"] and not out["success"]
+    assert out["final_cube_lift"] == pytest.approx(0.10 - 0.02)
+    assert out["final_grip"] == pytest.approx(1.0)
+
+
+def test_final_step_signals_when_dropped():
+    T = 10
+    eff = np.zeros((T, 3)); cube = np.zeros((T, 3)); grip = np.ones(T)
+    cube[:5, 2] = 0.10           # lifted early
+    cube[5:, 2] = 0.02           # then fell back to table at the end
+    grip[8:] = 0.0               # gripper opened at the end
+    out = pp.classify_phases(_sig(eff, cube, grip, success=False), pp.Thresholds())
+    assert out["secured"] and not out["success"]
+    assert out["final_cube_lift"] == pytest.approx(0.0, abs=1e-6)  # back on table
+    assert out["final_grip"] == pytest.approx(0.0)                  # released
 
 
 import pytest
