@@ -22,6 +22,7 @@ LR_B="${LR_B:-1e-4}"
 STEPS="${STEPS:-1000000}"
 DATA="${DATA:-/dev/shm/factored-fb/datasets}"
 RUN_GROUP="${RUN_GROUP:-factored-fb-onestep-fb}"
+SAVE_EVAL_VIDEOS="${SAVE_EVAL_VIDEOS:-false}"
 WANDB_ENTITY="${WANDB_ENTITY:-amsks}"
 RUNROOT="${RUNROOT:-/dev/shm/factored-fb/runs}"
 STAGGER="${STAGGER:-3}"
@@ -52,6 +53,7 @@ for s in "${SEED_ARR[@]}"; do
             domain=cube_single onestep=true \
             ortho_coef="$ORTHO_COEF" lr_b="$LR_B" num_train_steps="$STEPS" \
             data_path="$DATA" seed="$s" device=cuda \
+            save_eval_videos="$SAVE_EVAL_VIDEOS" \
             use_wandb=true wandb_entity="$WANDB_ENTITY" wandb_group="$RUN_GROUP" \
             wandb_run_name="onestep_fb_s${s}" \
             hydra.job.chdir=true "hydra.run.dir=$run_dir" \
