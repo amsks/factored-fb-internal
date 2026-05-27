@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from evals.representation_profile import _spearman
+from evals._profile_core import _spearman
 
 
 def region_labels(grip: np.ndarray, lift: np.ndarray, thr) -> np.ndarray:

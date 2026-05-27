@@ -128,7 +128,10 @@ def _fake_ep(outcome, d, v_at_d):
     return {
         "obs": obs, "action": np.zeros((max(T - 1, 0), 2), np.float32),
         "d": np.asarray(d, np.float64),
+        "cube": np.zeros((T, 3), np.float64),
         "transport_mask": np.ones(T, bool),
+        "grip": np.ones(T, np.float64),   # real episodes always carry grip
+        "eff": np.zeros((T, 3), np.float64),  # and eff
         "outcome": outcome, "length": T,
     }
 
@@ -149,6 +152,7 @@ def test_value_landscape_rho_success_vs_fail():
     assert s.loc["success"] > 0.99            # strictly monotone -> ~1
     assert np.isnan(s.loc["transport_fail"])  # flat V -> degenerate -> nan
     assert set(per_step.columns) >= {"outcome", "d", "V"}
+    assert {"cube_x", "cube_y"} <= set(per_step.columns)
 
 
 def test_value_landscape_rho_guard_short_episode():
@@ -254,6 +258,34 @@ def test_run_representation_profile_returns_four_frames(monkeypatch):
     assert out["z_decoding"]["task"].nunique() == 2
 
 
+def test_run_representation_profile_cube_coverage():
+    m, ag = _StubModel(), _StubAgent()
+
+    def infer_z(task):
+        return torch.tensor([1.0, 0.0, 0.0]), {
+            "relabel_reward#nonzero": 2.0,
+            "relabel_reward#num_samples": 10.0}
+
+    def make_env(task):
+        return _PhaseEnv()
+
+    def sample_buffer(n):
+        phys = np.zeros((n, 20), np.float32)   # cube ref at origin
+        return {"next_obs": torch.zeros((n, 5)), "physics": phys,
+                "action": np.zeros((n, 2), np.float32)}
+
+    out = rp.run_representation_profile(
+        model=m, agent=ag, infer_z=infer_z, make_env=make_env,
+        sample_buffer=sample_buffer,
+        relabel_fn_for=lambda t: (lambda p, a: np.zeros((len(p), 1),
+                                                        np.float32)),
+        goal_for=lambda t: np.array([0.0, 0.0, 0.20]),
+        tasks=["t1"], n_episodes=1, thr=pp.Thresholds(),
+        buffer_sample=8, topk=4, seed=0, coverage_feature="cube")
+    assert set(out["coverage"].columns) >= {"task", "outcome",
+                                            "region", "nn_dist"}
+
+
 def test_aggregate_builds_tables_and_story(tmp_path):
     import importlib
     import pandas as pd
@@ -355,3 +387,32 @@ def test_aggregate_verdict_helpers():
     syn = agg._synthesis({"T1": ("SUPPORTS", ""), "T2": ("SUPPORTS", ""),
                            "T3": ("WEAK", ""), "T4": ("NEUTRAL", "")})
     assert "T1" in syn and "T2" in syn and syn.startswith("Synthesis:")
+
+
+def test_probe_value_landscape_emits_t_and_region(monkeypatch):
+    from evals.phase_probe import Thresholds
+
+    T = 5
+    ep = {
+        "obs": np.zeros((T, 3), np.float32),
+        "d": np.linspace(1.0, 0.1, T),
+        "transport_mask": np.array([False, False, False, True, True]),
+        "grip": np.array([0.0, 0.0, 0.9, 0.9, 0.9]),
+        "cube": np.column_stack([np.linspace(0, 0.2, T), np.zeros(T),
+                                 np.array([0.02, 0.02, 0.02,
+                                           0.10, 0.10])]),
+        "eff": np.column_stack([np.linspace(0.1, 0.3, T),
+                                np.linspace(-0.1, 0.1, T),
+                                np.full(T, 0.4)]),
+        "table_z": 0.02,
+        "outcome": "success",
+    }
+    monkeypatch.setattr(rp, "v_values",
+                         lambda *a, **k: np.linspace(0.0, 1.0, T))
+    _, per_step = rp.probe_value_landscape(None, None, [ep], None,
+                                           thr=Thresholds())
+    assert list(per_step["t"]) == list(range(T))
+    assert list(per_step["region"]) == ["reach", "reach", "lift",
+                                        "transport", "transport"]
+    assert {"eef_x", "eef_y"} <= set(per_step.columns)
+    assert float(per_step.iloc[0]["eef_x"]) == 0.1

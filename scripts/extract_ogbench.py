@@ -27,9 +27,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from pathlib import Path
 
-os.environ.setdefault("MUJOCO_GL", "egl")
+# Honor an existing MUJOCO_GL; otherwise pick a sane per-platform default
+# (macOS has no EGL — forcing egl there breaks env creation during download).
+os.environ.setdefault("MUJOCO_GL", "glfw" if sys.platform == "darwin" else "egl")
 
 import numpy as np
 from tqdm import tqdm

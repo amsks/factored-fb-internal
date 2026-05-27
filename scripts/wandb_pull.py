@@ -81,10 +81,12 @@ def filter_runs(
     tags: Optional[List[str]],
     hours: int,
     domains: Optional[List[str]],
+    obs_type: Optional[str] = None,
     now: Optional[datetime] = None,
 ) -> List:
     """Pure run filter: group in groups, any tag in tags, within `hours`,
-    config.domain in domains. Empty/None filter means 'do not filter on it'."""
+    config.domain in domains, config.obs_type == obs_type. Empty/None filter
+    means 'do not filter on it'."""
     now = now or datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=hours)
     kept = []
@@ -96,6 +98,8 @@ def filter_runs(
         if _created(r) < cutoff:
             continue
         if domains and r.config.get("domain") not in domains:
+            continue
+        if obs_type and r.config.get("obs_type") != obs_type:
             continue
         kept.append(r)
     return kept
@@ -123,6 +127,7 @@ def pull(
     hours: int,
     domains: Optional[List[str]],
     out_dir: Path,
+    obs_type: Optional[str] = None,
     api=None,
 ) -> int:
     """Pull canonical-schema runs into out_dir. Returns #runs written.
@@ -139,7 +144,8 @@ def pull(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     runs = list(api.runs(project, order="-created_at", per_page=300))
-    kept = filter_runs(runs, groups=groups, tags=tags, hours=hours, domains=domains)
+    kept = filter_runs(runs, groups=groups, tags=tags, hours=hours,
+                       domains=domains, obs_type=obs_type)
 
     meta = []
     written = 0
@@ -185,6 +191,8 @@ def main() -> None:
     ap.add_argument("--tags", default=None, help="comma-separated")
     ap.add_argument("--hours", type=int, default=96)
     ap.add_argument("--domains", default=None, help="comma-separated")
+    ap.add_argument("--obs-type", default=None,
+                    help="filter on config.obs_type, e.g. pixels or state")
     ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "wandb_data"))
     args = ap.parse_args()
     pull(
@@ -194,6 +202,7 @@ def main() -> None:
         tags=_csv(args.tags),
         hours=args.hours,
         domains=_csv(args.domains),
+        obs_type=args.obs_type,
         out_dir=Path(args.out),
     )
 

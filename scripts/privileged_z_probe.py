@@ -24,7 +24,7 @@ import torch
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-from evals.representation_profile import _spearman
+from evals._profile_core import _spearman
 
 CUBE_SLICE = slice(14, 17)
 TASK_TMPL = "cube-single-play-singletask-task{n}-v0"
@@ -81,8 +81,6 @@ def main():
                                  shift_reward=cfg.eval_shift_reward, obs_type=cfg.obs_type,
                                  seed=cfg.seed, device=args.device, use_wandb=False)
     z0, _ = evaluator._infer_z(list(ALL_TASKS[cfg.domain])[args.task - 1])
-    if torch.is_tensor(z0):
-        z0 = z0.detach().cpu().numpy()
     z0 = torch.as_tensor(np.asarray(z0), dtype=torch.float32, device=args.device).reshape(-1)
 
     smp = buffer.sample(min(args.n_states, len(buffer)))
@@ -102,14 +100,8 @@ def main():
         left = m._left_encoder(m._fw_encoder(m._normalize(obs_t)))
         a = m.act(obs_t, z0.reshape(1, -1).expand(len(obs_t), -1), mean=True)
 
-    # one-step FB: F is z-independent (trained with zeros). Feed zeros so we probe the
-    # actual learned F geometry, not F evaluated on an unseen z input.
-    onestep = bool(getattr(agent, "onestep", False))
-
     def value(z):
-        zf = torch.zeros(len(obs_t), z.numel(), dtype=z.dtype, device=z.device) if onestep \
-             else z.reshape(1, -1).expand(len(obs_t), -1)
-        F = m._forward_map(left, zf, a).mean(0)  # [N, z_dim]
+        F = m._forward_map(left, z.reshape(1, -1).expand(len(obs_t), -1), a).mean(0)  # [N, z_dim]
         return (F * z.reshape(1, -1)).sum(-1)
 
     N = len(obs_t); idx = np.random.default_rng(0).permutation(N); cut = N // 2
@@ -134,34 +126,15 @@ def main():
         loss.backward(); opt.step()
     opt_all, opt_near = spear(z.detach())
 
-    # forward-featurizer ceiling (ridge linear of left_enc -> d) for reference.
-    # pandas-optional: skip if unavailable (numpy-only ridge fallback below).
-    ridge_r2 = None
-    try:
-        from evals.factorization_probe import fit_eval_readout
-        L = left.cpu().numpy()
-        le = fit_eval_readout(L[trn], d[tr][trn], L[tst], d[tr][tst], kind="linear", task="regression")
-        ridge_r2 = float(le["score"])
-    except Exception:
-        # numpy ridge: closed-form (X^T X + lam I)^-1 X^T y on train; R^2 on test
-        L = left.cpu().numpy().astype(np.float64)
-        Xtr, Xte = L[trn], L[tst]
-        ytr, yte = d[tr][trn].astype(np.float64), d[tr][tst].astype(np.float64)
-        Xtr1 = np.concatenate([Xtr, np.ones((len(Xtr), 1))], axis=1)
-        Xte1 = np.concatenate([Xte, np.ones((len(Xte), 1))], axis=1)
-        lam = 1.0
-        A = Xtr1.T @ Xtr1 + lam * np.eye(Xtr1.shape[1])
-        b = Xtr1.T @ ytr
-        w = np.linalg.solve(A, b)
-        yhat = Xte1 @ w
-        ss_res = float(((yte - yhat) ** 2).sum())
-        ss_tot = float(((yte - yte.mean()) ** 2).sum())
-        ridge_r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
+    # forward-featurizer ceiling (ridge linear of left_enc -> d) for reference
+    from evals.factorization_probe import fit_eval_readout
+    L = left.cpu().numpy()
+    le = fit_eval_readout(L[trn], d[tr][trn], L[tst], d[tr][tst], kind="linear", task="regression")
 
     print(f"[privileged-z] task{args.task}  transport states n={N}")
     print(f"  Spearman(V, -d)   z=B(g) (actual):  all={base_all:+.3f}  near-goal={base_near:+.3f}")
     print(f"  Spearman(V, -d)   z* (best free z):  all={opt_all:+.3f}  near-goal={opt_near:+.3f}")
-    print(f"  reference: ridge left_enc->d  R^2={ridge_r2:.3f}  (forward featurizer geometry)")
+    print(f"  reference: ridge left_enc->d  R^2={le['score']:.3f}  (forward featurizer geometry)")
     verdict = ("goal-encoding (z=B(g)) is the bottleneck"
                if (opt_near - base_near) > 0.1 else
                "forward path F also can't resolve terminal (deeper than z)")

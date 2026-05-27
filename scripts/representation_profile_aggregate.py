@@ -25,73 +25,9 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 _SEED_RE = re.compile(r"s(\d+)_final")
 
-# --- Readout verdict thresholds (heuristic; tune here) -------------------
-T1_RHO_MIN = 0.15
-T1_RHO_GAP = 0.10
-T2_SPARSE_FRAC = 0.05
-T2_TOPK_AT_GOAL = 0.5
-T3_R2_FAIL = 0.5
-T3_ACC_FAIL = 0.75
-T3_R2_RESOLVE = 0.7
-T3_ACC_RESOLVE = 0.9
-T4_OFFSUPPORT_RATIO = 1.25
-
-
-def _isnan(v) -> bool:
-    try:
-        return bool(np.isnan(v))
-    except TypeError:
-        return True
-
-
-def _verdict_t1(rho_succ, rho_fail):
-    if _isnan(rho_succ) or _isnan(rho_fail):
-        return "INSUFFICIENT DATA", "no valid transport-region episodes"
-    if rho_succ >= T1_RHO_MIN and rho_succ - rho_fail >= T1_RHO_GAP:
-        return "SUPPORTS", "success value rises toward goal; fail flatter"
-    if rho_fail - rho_succ >= T1_RHO_GAP:
-        return "CONTRADICTS", "fail value rises more than success"
-    return "WEAK", "no clear success/fail gradient separation"
-
-
-def _verdict_t2(frac, topk_at_goal):
-    if _isnan(frac) or _isnan(topk_at_goal):
-        return "INSUFFICIENT DATA", "no relabel/z-decoding stats"
-    if frac < T2_SPARSE_FRAC and topk_at_goal < T2_TOPK_AT_GOAL:
-        return "SUPPORTS", "data goal-sparse; z's top states off-goal"
-    return "WEAK", "data not strongly goal-sparse or z points at goal"
-
-
-def _verdict_t3(r2, acc):
-    if _isnan(r2) or _isnan(acc):
-        return "INSUFFICIENT DATA", "no B-resolution stats"
-    if r2 < T3_R2_FAIL and acc < T3_ACC_FAIL:
-        return "SUPPORTS", "B barely resolves placement distance"
-    if r2 >= T3_R2_RESOLVE and acc >= T3_ACC_RESOLVE:
-        return "RESOLVES", "B cleanly resolves placement (contradicts)"
-    return "WEAK", "B partially resolves placement"
-
-
-def _verdict_t4(fail_nn, succ_nn):
-    if _isnan(fail_nn) or _isnan(succ_nn):
-        return "INSUFFICIENT DATA", "missing transport-region coverage"
-    if fail_nn >= T4_OFFSUPPORT_RATIO * succ_nn:
-        return "SUPPORTS", "transport-fails sit further off data support"
-    return "NEUTRAL", "fails not meaningfully more off-support"
-
-
-def _synthesis(verdicts) -> str:
-    supports = [k for k, (v, _) in verdicts.items() if v == "SUPPORTS"]
-    contra = [k for k, (v, _) in verdicts.items()
-              if v in ("CONTRADICTS", "RESOLVES")]
-    if supports:
-        s = (", ".join(supports)
-             + " support the representation-failure hypothesis")
-    else:
-        s = "no probe supports the representation-failure hypothesis"
-    if contra:
-        s += "; " + ", ".join(contra) + " argue against it"
-    return "Synthesis: " + s + "."
+from evals._profile_core import (  # noqa: E402
+    _synthesis, _verdict_t1, _verdict_t2, _verdict_t3, _verdict_t4,
+)
 
 
 def _load(root: Path, name: str) -> pd.DataFrame:

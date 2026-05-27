@@ -14,6 +14,14 @@ from typing import Any, Dict, List
 import numpy as np
 import torch
 
+from evals._profile_core import (  # noqa: E402  (re-exported for callers)
+    _region,
+    _spearman,
+    probe_coverage,
+    transport_mask,
+)
+from evals.phase_probe import Thresholds  # noqa: E402
+
 
 @torch.no_grad()
 def _ensemble_q(F: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
@@ -61,14 +69,6 @@ def v_values(model, agent, obs: torch.Tensor, z: torch.Tensor) -> np.ndarray:
     return q_values(model, obs, action.to(obs.device).float(), zb)
 
 
-def transport_mask(ep: Dict[str, Any], thr) -> np.ndarray:
-    """Per-step boolean: cube lifted above table and gripper closed."""
-    cube = np.asarray(ep["cube"], dtype=np.float64).reshape(-1, 3)
-    grip = np.asarray(ep["grip"], dtype=np.float64).reshape(-1)
-    lift = cube[:, 2] - float(ep["table_z"])
-    return (lift > thr.delta_lift) & (grip > thr.tau_grip)
-
-
 def rollout_for_profile(env, agent, z, n_episodes: int, thr,
                         seed_offset: int = 0) -> List[Dict[str, Any]]:
     """S0 rollouts with obs/action recorded, each tagged with outcome,
@@ -92,6 +92,7 @@ def rollout_for_profile(env, agent, z, n_episodes: int, thr,
         out.append({
             "obs": ep["obs"], "action": ep["action"],
             "cube": cube, "goal": goal, "d": d,
+            "eff": np.asarray(ep["eff"], np.float64).reshape(-1, 3),
             "grip": np.asarray(ep["grip"], np.float64).reshape(-1),
             "table_z": float(ep["table_z"]),
             "transport_mask": transport_mask(ep, thr),
@@ -100,45 +101,13 @@ def rollout_for_profile(env, agent, z, n_episodes: int, thr,
     return out
 
 
-def _spearman(y: np.ndarray, x: np.ndarray) -> float:
-    """Spearman rho (Pearson on average ranks) of y vs x; nan if either
-    side is constant or fewer than 2 points. Outlier-robust and
-    scale-free, unlike an OLS slope on the unnormalised value V."""
-    y = np.asarray(y, np.float64)
-    x = np.asarray(x, np.float64)
-    if len(x) < 2 or np.ptp(x) < 1e-12 or np.ptp(y) < 1e-12:
-        return float("nan")
-
-    def _avg_rank(a: np.ndarray) -> np.ndarray:
-        # numpy-only average-rank (ties get the mean of their positions; pandas-free)
-        order = np.argsort(a, kind="mergesort")
-        ranks = np.empty_like(order, dtype=np.float64)
-        ranks[order] = np.arange(len(a), dtype=np.float64) + 1.0
-        # tie-correction: average ranks within groups of equal values
-        sa = a[order]
-        i = 0
-        n = len(a)
-        while i < n:
-            j = i + 1
-            while j < n and sa[j] == sa[i]:
-                j += 1
-            if j - i > 1:
-                avg = ranks[order[i:j]].mean()
-                ranks[order[i:j]] = avg
-            i = j
-        return ranks
-
-    rx = _avg_rank(x)
-    ry = _avg_rank(y)
-    return float(np.corrcoef(rx, ry)[0, 1])
-
-
-def probe_value_landscape(model, agent, episodes, z):
+def probe_value_landscape(model, agent, episodes, z, thr=None):
     """Per-episode Spearman rho of V vs (-d) over the transport region
     (nan unless >=5 steps with non-degenerate d and V), plus a long-form
     (outcome, d, V) frame for binned plots."""
     import pandas as pd
 
+    thr = thr or Thresholds()
     per_ep_rows, per_step_rows = [], []
     for i, ep in enumerate(episodes):
         obs = torch.as_tensor(np.asarray(ep["obs"]), dtype=torch.float32)
@@ -147,10 +116,20 @@ def probe_value_landscape(model, agent, episodes, z):
         V = v_values(model, agent, obs, z)             # [T]
         d = np.asarray(ep["d"], np.float64)
         m = np.asarray(ep["transport_mask"], bool)
-        for dd, vv, mm in zip(d, V, m):
-            per_step_rows.append({"episode": i, "outcome": ep["outcome"],
+        cube_xy = np.asarray(ep["cube"], np.float64).reshape(-1, 3)[:, :2]
+        eff_xy = np.asarray(ep["eff"], np.float64).reshape(-1, 3)[:, :2]
+        region = _region(ep, thr)
+        for ti, (dd, vv, mm, cxy, exy, rg) in enumerate(
+                zip(d, V, m, cube_xy, eff_xy, region)):
+            per_step_rows.append({"episode": i, "t": int(ti),
+                                  "outcome": ep["outcome"],
+                                  "region": str(rg),
                                   "d": float(dd), "V": float(vv),
-                                  "transport": bool(mm)})
+                                  "transport": bool(mm),
+                                  "cube_x": float(cxy[0]),
+                                  "cube_y": float(cxy[1]),
+                                  "eef_x": float(exy[0]),
+                                  "eef_y": float(exy[1])})
         n_t = int(m.sum())
         if (n_t >= 5 and np.ptp(d[m]) > 1e-9 and np.ptp(V[m]) > 1e-9):
             rho = _spearman(V[m], -d[m])
@@ -247,50 +226,10 @@ def probe_b_resolution(B: np.ndarray, d: np.ndarray,
             "n_placed": int(placed.sum()), "n_near": int(near.sum())}
 
 
-def _region(ep: Dict[str, Any], thr) -> np.ndarray:
-    """Per-step region label: 'transport' if lifted+gripped, else
-    'lift' if gripper closed, else 'reach'."""
-    grip = np.asarray(ep["grip"], np.float64).reshape(-1)
-    tm = np.asarray(ep["transport_mask"], bool)
-    out = np.where(tm, "transport",
-                   np.where(grip > thr.tau_grip, "lift", "reach"))
-    return out
-
-
-def probe_coverage(episodes, ref_obs: np.ndarray, thr,
-                   max_ref: int = 5000, seed: int = 0) -> "Any":
-    """Per-step nearest-neighbour L2 distance to the standardised offline
-    reference, tagged by outcome and region."""
-    import pandas as pd
-
-    ref = np.asarray(ref_obs, np.float64)
-    if len(ref) > max_ref:
-        rng = np.random.default_rng(seed)
-        ref = ref[rng.choice(len(ref), max_ref, replace=False)]
-    mu = ref.mean(0)
-    sd = ref.std(0) + 1e-6
-    refn = (ref - mu) / sd
-    rows = []
-    for ep in episodes:
-        obs = np.asarray(ep["obs"], np.float64)
-        if obs.shape[0] == 0:
-            continue
-        on = (obs - mu) / sd
-        # batched: ||on||^2 + ||refn||^2 - 2 on·refn
-        d2 = (on ** 2).sum(1, keepdims=True) + (refn ** 2).sum(1) \
-            - 2.0 * on @ refn.T
-        nn = np.sqrt(np.maximum(d2.min(1), 0.0))
-        reg = _region(ep, thr)
-        for r, n in zip(reg, nn):
-            rows.append({"outcome": ep["outcome"], "region": str(r),
-                         "nn_dist": float(n)})
-    return pd.DataFrame(rows)
-
-
 def run_representation_profile(*, model, agent, infer_z, make_env,
                                sample_buffer, relabel_fn_for, goal_for,
                                tasks, n_episodes, thr, buffer_sample,
-                               topk, seed):
+                               topk, seed, coverage_feature="obs"):
     """Run the four probes per task. `infer_z(task)->(z,relabel_metrics)`,
     `make_env(task)->env`, `sample_buffer(n)->{next_obs,physics,action}`,
     `relabel_fn_for(task)->fn`, `goal_for(task)->goal[3]`. Returns a dict
@@ -332,10 +271,14 @@ def run_representation_profile(*, model, agent, infer_z, make_env,
         bres["task"] = task
         br.append(bres)
 
-        ref_obs = (smp["next_obs"].detach().cpu().numpy()
-                   if hasattr(smp["next_obs"], "detach")
-                   else np.asarray(smp["next_obs"]))
-        cov = probe_coverage(eps, ref_obs, thr, seed=seed)
+        if coverage_feature == "cube":
+            cov_ref = physics[:, 14:17]
+        else:
+            cov_ref = (smp["next_obs"].detach().cpu().numpy()
+                       if hasattr(smp["next_obs"], "detach")
+                       else np.asarray(smp["next_obs"]))
+        cov = probe_coverage(eps, cov_ref, thr, seed=seed,
+                             feature=coverage_feature)
         cov.insert(0, "task", task)
         cv.append(cov)
 
