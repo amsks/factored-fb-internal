@@ -41,3 +41,6 @@ last_run_gciql.json
 /mnt/
 outputs/
 multirun/
+
+# Claude-generated planning/spec docs — kept local only, never committed
+docs/superpowers/
