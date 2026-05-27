@@ -47,3 +47,6 @@ multirun/
 
 # Claude-generated planning/spec docs — kept local only, never committed
 docs/superpowers/
+
+# macOS Finder metadata
+.DS_Store

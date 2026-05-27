@@ -1,0 +1,24 @@
+\begin{table}[htbp]
+\centering
+\small
+\caption{\textbf{T3 --- $B$-embedding spatial resolution.} Per-task
+ridge-regression $R^2$ for $B(s)\to d$ and binary accuracy separating
+successful placement states from close near-misses
+($\text{mean}\pm\text{std}$ across seeds). $B$ resolves coarse distance
+only weakly and fails to discriminate placement from near-miss.}
+\label{tab:T3_b_resolution}
+\vspace{0.5em}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Task} & \textbf{Ridge $R^2(B \to d)$} & \textbf{Placed-vs-Near-Miss Acc.} \\
+\midrule
+task1 & $0.391 \pm 0.024$ & $0.635 \pm 0.023$ \\
+task2 & $0.267 \pm 0.025$ & $0.678 \pm 0.016$ \\
+task3 & $0.234 \pm 0.016$ & $0.681 \pm 0.016$ \\
+task4 & $0.529 \pm 0.005$ & $0.664 \pm 0.018$ \\
+task5 & $0.545 \pm 0.024$ & $0.668 \pm 0.014$ \\
+\midrule
+\textbf{Mean} & $\mathbf{0.393}$ & $\mathbf{0.665}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
