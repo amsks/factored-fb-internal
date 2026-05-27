@@ -104,14 +104,32 @@ def _spearman(y: np.ndarray, x: np.ndarray) -> float:
     """Spearman rho (Pearson on average ranks) of y vs x; nan if either
     side is constant or fewer than 2 points. Outlier-robust and
     scale-free, unlike an OLS slope on the unnormalised value V."""
-    import pandas as pd
-
     y = np.asarray(y, np.float64)
     x = np.asarray(x, np.float64)
     if len(x) < 2 or np.ptp(x) < 1e-12 or np.ptp(y) < 1e-12:
         return float("nan")
-    rx = pd.Series(x).rank().to_numpy()
-    ry = pd.Series(y).rank().to_numpy()
+
+    def _avg_rank(a: np.ndarray) -> np.ndarray:
+        # numpy-only average-rank (ties get the mean of their positions; pandas-free)
+        order = np.argsort(a, kind="mergesort")
+        ranks = np.empty_like(order, dtype=np.float64)
+        ranks[order] = np.arange(len(a), dtype=np.float64) + 1.0
+        # tie-correction: average ranks within groups of equal values
+        sa = a[order]
+        i = 0
+        n = len(a)
+        while i < n:
+            j = i + 1
+            while j < n and sa[j] == sa[i]:
+                j += 1
+            if j - i > 1:
+                avg = ranks[order[i:j]].mean()
+                ranks[order[i:j]] = avg
+            i = j
+        return ranks
+
+    rx = _avg_rank(x)
+    ry = _avg_rank(y)
     return float(np.corrcoef(rx, ry)[0, 1])
 
 
