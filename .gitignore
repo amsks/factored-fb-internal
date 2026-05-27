@@ -41,6 +41,9 @@ last_run_gciql.json
 /mnt/
 outputs/
 multirun/
+# tmpfs symlinks at repo root (point to /dev/shm/...)
+/outputs
+/wandb
 
 # Claude-generated planning/spec docs — kept local only, never committed
 docs/superpowers/
