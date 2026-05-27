@@ -34,6 +34,7 @@ def load_transitions(
     episode-relative "timestep" for frame-stack clamping.
     """
     obs_list, act_list, next_obs_list, term_list, next_phys_list = [], [], [], [], []
+    next_act_list = []
     ts_list = []
     has_physics = True
 
@@ -60,6 +61,10 @@ def load_transitions(
         obs_list.append(obs_full[:-1])
         act_list.append(act[1:])
         next_obs_list.append(obs_full[1:])
+        # SARSA next-action a' (action taken at next_obs) = act shifted one more; the
+        # episode's last transition has no a', pad with its own action. Aligned with
+        # act[1:] (len T-1). Used only by one-step FB (agent reads batch["next"]["action"]).
+        next_act_list.append(np.concatenate([act[2:], act[-1:]], axis=0))
         n_trans = obs_full.shape[0] - 1
         term_list.append(np.zeros((n_trans, 1), dtype=bool))
         ts_list.append(np.arange(n_trans, dtype=np.int32))
@@ -76,6 +81,7 @@ def load_transitions(
         "next": {
             "observation": np.concatenate(next_obs_list, axis=0),
             "terminated": np.concatenate(term_list, axis=0),
+            "action": np.concatenate(next_act_list, axis=0),
         },
     }
     if obs_type == "pixels":

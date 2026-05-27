@@ -26,6 +26,7 @@ reweight_clip: 10.0                          # per-sample weight cap (clamped to
 reweight_density_path: analysis/cube_density.npz
 weight_diag: false                          # false = pure rho'-FB (diagonal unweighted); true = coverage-PRIORITIZED
 weight_z: false                             # true = resample goal-derived z by w (rare-goal exposure for F/actor)
+onestep: false                              # true = one-step FB (F not z-conditioned + SARSA next-action; behavior successor)
 amp: false
 
 # Per-network architecture (td_jepa OGBench launch defaults)

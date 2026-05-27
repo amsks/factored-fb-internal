@@ -125,6 +125,7 @@ class FBAgent(BaseAgent):
         reweight_density_path: str | None = None,
         weight_diag: bool = False,
         weight_z: bool = False,
+        onestep: bool = False,
         amp: bool = False,
         device: str = "cpu",
     ):
@@ -166,6 +167,11 @@ class FBAgent(BaseAgent):
         self.reweight_clip = float(reweight_clip)
         self.weight_diag = bool(weight_diag)
         self.weight_z = bool(weight_z)
+        # One-step FB (https://github.com/chongyi-zheng/onestep-fb): learn the BEHAVIOR
+        # successor features — F is NOT conditioned on z (see _fb_z) and the FB loss uses
+        # the dataset's own next action (SARSA, batch["next"]["action"]) instead of the
+        # policy's. The actor then does one improvement step on <F(s,a), z>. Default off.
+        self.onestep = bool(onestep)
         self._rho = None
         if self.reweight_alpha > 0:
             if not reweight_density_path:
@@ -290,6 +296,12 @@ class FBAgent(BaseAgent):
         cube = batch["next"]["physics"][:, 14:17].to(self.device).float()  # s+ cube xyz
         return coverage_weights(cube, self._rho, self.reweight_alpha, self.reweight_clip)
 
+    def _fb_z(self, z: torch.Tensor) -> torch.Tensor:
+        """z fed to the forward map. One-step FB: F is z-independent (behavior successor
+        features) => feed zeros. Standard FB: pass z through. The <F, z> dot products keep
+        the real z (it's the reward vector)."""
+        return torch.zeros_like(z) if self.onestep else z
+
     def update(self, batch: Dict, step: int) -> Dict[str, torch.Tensor]:
         obs, action, next_obs, terminated = (
             batch["observation"].to(self.device).float(),
@@ -321,6 +333,11 @@ class FBAgent(BaseAgent):
         q_loss_coef = self.q_loss_coef if self.q_loss_coef > 0 else None
         clip_grad_norm = self.clip_grad_norm if self.clip_grad_norm > 0 else None
 
+        # One-step FB: bootstrap with the dataset's next action (SARSA), not the policy's.
+        next_action_override = None
+        if self.onestep:
+            next_action_override = batch["next"]["action"].to(self.device).float()
+
         metrics = self.update_fb(
             obs=obs,
             action=action,
@@ -332,6 +349,7 @@ class FBAgent(BaseAgent):
             clip_grad_norm=clip_grad_norm,
             w=w,
             weight_diag=self.weight_diag,
+            next_action_override=next_action_override,
         )
         metrics.update(
             self.update_actor(
@@ -369,20 +387,24 @@ class FBAgent(BaseAgent):
         clip_grad_norm: float | None,
         w: torch.Tensor | None = None,
         weight_diag: bool = False,
+        next_action_override: torch.Tensor | None = None,
     ) -> Dict[str, torch.Tensor]:
+        zf = self._fb_z(z)  # one-step FB: zeros (F is z-independent); else z
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             with torch.no_grad():
                 next_left_enc = self.model._target_left_encoder(next_obs)  # batch x L_dim
                 actor_in = next_left_enc if self.actor_encode_obs else next_obs
-                next_action = self.sample_action_from_norm_obs(actor_in, z)
-                target_Fs = self.model._target_forward_map(next_left_enc, z, next_action)  # num_parallel x batch x z_dim
+                # One-step FB uses the dataset's next action (SARSA); else sample from policy.
+                next_action = (next_action_override if next_action_override is not None
+                               else self.sample_action_from_norm_obs(actor_in, z))
+                target_Fs = self.model._target_forward_map(next_left_enc, zf, next_action)  # num_parallel x batch x z_dim
                 target_B = self.model._target_backward_map(goal)  # batch x z_dim
                 target_Ms = torch.matmul(target_Fs, target_B.T)  # num_parallel x batch x batch
                 _, _, target_M = self.get_targets_uncertainty(target_Ms, self.fb_pessimism_penalty)  # batch x batch
 
             # compute FB loss
             left_enc = self.model._left_encoder(obs)  # batch x L_dim
-            Fs = self.model._forward_map(left_enc, z, action)  # num_parallel x batch x z_dim
+            Fs = self.model._forward_map(left_enc, zf, action)  # num_parallel x batch x z_dim
             B = self.model._backward_map(goal)  # batch x z_dim
             Ms = torch.matmul(Fs, B.T)  # num_parallel x batch x batch
 
