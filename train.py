@@ -148,7 +148,11 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         device=cfg.device,
     )
 
-    if cfg.agent == "fb_flowbc":
+    # rldp_flowbc (remote variant: FB + flow-BC actor + a latent predictor)
+    # has no local implementation of its extra `_predictor` head; for
+    # checkpoint re-run analysis it loads as the FB + flow-BC subset, which
+    # is all the representation / value / behaviour probes need.
+    if cfg.agent in ("fb_flowbc", "rldp_flowbc"):
         actor_cfg = NoiseConditionedActorArchiConfig(
             hidden_dim=cfg.actor.hidden_dim,
             hidden_layers=cfg.actor.hidden_layers,

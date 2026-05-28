@@ -329,9 +329,73 @@ def _crl(args) -> None:
     print(f"[training_value:crl] {len(obs)} states x 5 tasks -> {out}")
 
 
+def _rldp(args) -> None:
+    """RLDP+FlowBC (PyTorch, FB-family) policy value V = Q(s, pi(s, z)) on the
+    SAME shared training_states.npz produced by the FB pass. RLDP reuses the FB
+    torch scoring; only the source checkpoint and output filename differ. The
+    extra `_predictor` head is dropped on load (evals.analysis.load_checkpoint)."""
+    import torch
+    import pandas as pd
+    from evals.analysis import build_env_and_agent, load_cfg, load_checkpoint
+    from evals.representation_profile import v_values
+    from evals.ogbench import OGBenchEvaluator
+    from envs.ogbench import ALL_TASKS
+    from data.ogbench import load_ogbench_dataset
+
+    out = Path(args.out)
+    st = np.load(out / "training_states.npz", allow_pickle=True)
+    obs = np.asarray(st["obs"], np.float32)
+    cube = np.asarray(st["cube"], np.float64)
+    region = [str(r) for r in st["region"]]
+    if "outcome" not in st:
+        raise SystemExit("training_states.npz has no 'outcome' — run the FB pass first.")
+    outcome = np.asarray(st["outcome"], dtype=bool)  # [n_states, n_tasks]
+    goals = np.asarray(st["goals"], np.float64)       # [5, 3]
+
+    cfg = load_cfg(args.config, device=args.device)
+    if args.data_path:
+        cfg.data_path = args.data_path
+    env, agent, _, _ = build_env_and_agent(cfg)
+    load_checkpoint(agent, args.checkpoint, map_location=args.device)
+    if hasattr(env, "close"):
+        env.close()
+
+    buffer = load_ogbench_dataset(domain=cfg.domain, data_path=cfg.data_path,
+                                  load_n_episodes=cfg.load_n_episodes,
+                                  device=args.device,
+                                  n_transitions=cfg.n_transitions,
+                                  obs_type=cfg.obs_type)
+    evaluator = OGBenchEvaluator(domain=cfg.domain, agent=agent,
+                                 offline_buffer=buffer,
+                                 relabel_size=cfg.eval_relabel_size,
+                                 n_episodes=1,
+                                 shift_reward=cfg.eval_shift_reward,
+                                 obs_type=cfg.obs_type, seed=cfg.seed,
+                                 device=args.device, use_wandb=False)
+
+    tasks = list(ALL_TASKS.get(cfg.domain, []))
+    obs_t = torch.as_tensor(obs, dtype=torch.float32)
+    rows = []
+    for ti, task in enumerate(tasks, start=1):
+        z, _ = evaluator._infer_z(task)
+        g = goals[ti - 1]
+        d = cube_to_goal_dist(cube, g)
+        v_pol = v_values(agent.model, agent, obs_t, z)
+        oc = outcome[:, ti - 1]
+        for i in range(len(obs)):
+            rows.append({"task": f"task{ti}", "region": region[i],
+                         "d": float(d[i]), "cube_x": float(cube[i, 0]),
+                         "cube_y": float(cube[i, 1]), "V": float(v_pol[i]),
+                         "outcome": "success_bound" if oc[i]
+                         else "fail_bound"})
+    pd.DataFrame(rows).to_parquet(out / "rldp_values.parquet")
+    print(f"[training_value:rldp] {len(obs)} states x {len(tasks)} tasks -> {out}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--method", required=True, choices=["fb", "gciql", "crl"])
+    ap.add_argument("--method", required=True,
+                    choices=["fb", "gciql", "crl", "rldp"])
     ap.add_argument("--out", default="analysis/training_value")
     ap.add_argument("--n-states", type=int, default=20000)
     ap.add_argument("--mujoco-gl", default=None)
@@ -351,6 +415,9 @@ def main() -> None:
     if args.method == "fb":
         assert args.config and args.checkpoint, "fb needs --config/--checkpoint"
         _fb(args)
+    elif args.method == "rldp":
+        assert args.config and args.checkpoint, "rldp needs --config/--checkpoint"
+        _rldp(args)
     elif args.method == "crl":
         assert args.run_dir, "crl needs --run-dir"
         _crl(args)

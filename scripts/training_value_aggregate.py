@@ -56,6 +56,9 @@ def _methods(root: Path):
     cr, _ = _load_pooled(root, "crl_values.parquet")
     if cr is not None:
         out.append((cr, "V", "CRL"))
+    rl, _ = _load_pooled(root, "rldp_values.parquet")
+    if rl is not None:
+        out.append((rl, "V", "RLDP"))
     group_cols = ("pair", "task") if multi else ("task",)
     return out, group_cols
 
