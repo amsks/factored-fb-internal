@@ -1,14 +1,13 @@
 import torch
 import torch.nn.functional as F
 
-from common import math
-from common.scale import RunningScale
-from common.world_model import WorldModel
-from common.layers import api_model_conversion
-from tensordict import TensorDict
+from . import math
+from .scale import RunningScale
+from .world_model import WorldModel
+from .layers import api_model_conversion
 
 
-class TDMPC2(torch.nn.Module):
+class TDMPC2Core(torch.nn.Module):
 	"""
 	TD-MPC2 agent. Implements training + inference.
 	Can be used for both single-task and multi-task experiments,
@@ -18,8 +17,9 @@ class TDMPC2(torch.nn.Module):
 	def __init__(self, cfg):
 		super().__init__()
 		self.cfg = cfg
-		self.device = torch.device('cuda:0')
+		self.device = torch.device(cfg.device)
 		self.model = WorldModel(cfg).to(self.device)
+		_capturable = (self.device.type == 'cuda')
 		self.optim = torch.optim.Adam([
 			{'params': self.model._encoder.parameters(), 'lr': self.cfg.lr*self.cfg.enc_lr_scale},
 			{'params': self.model._dynamics.parameters()},
@@ -28,13 +28,13 @@ class TDMPC2(torch.nn.Module):
 			{'params': self.model._Qs.parameters()},
 			{'params': self.model._task_emb.parameters() if self.cfg.multitask else []
 			 }
-		], lr=self.cfg.lr, capturable=True)
-		self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, eps=1e-5, capturable=True)
+		], lr=self.cfg.lr, capturable=_capturable)
+		self.pi_optim = torch.optim.Adam(self.model._pi.parameters(), lr=self.cfg.lr, eps=1e-5, capturable=_capturable)
 		self.model.eval()
 		self.scale = RunningScale(cfg)
 		self.cfg.iterations += 2*int(cfg.action_dim >= 20) # Heuristic for large action spaces
 		self.discount = torch.tensor(
-			[self._get_discount(ep_len) for ep_len in cfg.episode_lengths], device='cuda:0'
+			[self._get_discount(ep_len) for ep_len in cfg.episode_lengths], device=self.device
 		) if self.cfg.multitask else self._get_discount(cfg.episode_length)
 		print('Episode length:', cfg.episode_length)
 		print('Discount factor:', self.discount)
@@ -230,13 +230,13 @@ class TDMPC2(torch.nn.Module):
 		self.pi_optim.step()
 		self.pi_optim.zero_grad(set_to_none=True)
 
-		info = TensorDict({
+		info = {
 			"pi_loss": pi_loss,
 			"pi_grad_norm": pi_grad_norm,
 			"pi_entropy": info["entropy"],
 			"pi_scaled_entropy": info["scaled_entropy"],
 			"pi_scale": self.scale.value,
-		})
+		}
 		return info
 
 	@torch.no_grad()
@@ -318,18 +318,32 @@ class TDMPC2(torch.nn.Module):
 
 		# Return training statistics
 		self.model.eval()
-		info = TensorDict({
+		info = {
 			"consistency_loss": consistency_loss,
 			"reward_loss": reward_loss,
 			"value_loss": value_loss,
 			"termination_loss": termination_loss,
 			"total_loss": total_loss,
 			"grad_norm": grad_norm,
-		})
+		}
 		if self.cfg.episodic:
 			info.update(math.termination_statistics(torch.sigmoid(termination_pred[-1]), terminated[-1]))
 		info.update(pi_info)
-		return info.detach().mean()
+		return self._reduce_info(info)
+
+	@staticmethod
+	def _reduce_info(info: dict) -> dict:
+		out = {}
+		for k, v in info.items():
+			out[k] = v.detach().mean().item() if torch.is_tensor(v) else float(v)
+		return out
+
+	def update_step(self, obs, action, reward, terminated, task=None):
+		"""Tensor-input entry point (replaces update(buffer)); shapes match _update."""
+		kwargs = {"task": task} if task is not None else {}
+		if self.cfg.compile:
+			torch.compiler.cudagraph_mark_step_begin()
+		return self._update(obs, action, reward, terminated, **kwargs)
 
 	def update(self, buffer):
 		"""
@@ -345,5 +359,6 @@ class TDMPC2(torch.nn.Module):
 		kwargs = {}
 		if task is not None:
 			kwargs["task"] = task
-		torch.compiler.cudagraph_mark_step_begin()
+		if self.cfg.compile:
+			torch.compiler.cudagraph_mark_step_begin()
 		return self._update(obs, action, reward, terminated, **kwargs)
