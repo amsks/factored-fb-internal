@@ -8,13 +8,27 @@ from torch.func import stack_module_state, functional_call
 class Ensemble(nn.Module):
 	"""Vectorized ensemble of identical modules (tensordict-free, torch.func based).
 
-	Stacks member parameters along a leading dim and evaluates all members in a
-	single ``torch.vmap`` call — numerically identical to looping over members.
+	The per-member parameters are stacked along a leading dim and REGISTERED as
+	the ensemble's own learnable parameters (an ``nn.ParameterDict``); forward
+	evaluates all members in one ``torch.vmap`` over ``functional_call`` using
+	those registered params. This is numerically identical to looping over the
+	members AND keeps gradients flowing to ``Ensemble.parameters()`` (which the
+	optimizer sees) — the stacked params ARE the trained params, mirroring the
+	upstream ``from_modules`` design. ``.`` in param names is sanitized to ``__``
+	for ParameterDict keys.
 	"""
 
 	def __init__(self, modules, **kwargs):
 		super().__init__()
-		self._members = nn.ModuleList(modules)
+		params, buffers = stack_module_state(modules)
+		self._pkeys = {k.replace(".", "__"): k for k in params}
+		self.params = nn.ParameterDict(
+			{sk: nn.Parameter(params[ok].detach().clone()) for sk, ok in self._pkeys.items()}
+		)
+		# stacked buffers (MLP members here have none, but stay general): non-learnable
+		self._bkeys = {k.replace(".", "__"): k for k in buffers}
+		for sk, ok in self._bkeys.items():
+			self.register_buffer(f"_buf_{sk}", buffers[ok].detach().clone())
 		self._n = len(modules)
 		self._repr = str(modules[0])
 		# Stateless skeleton for functional_call. Kept OUT of the module registry
@@ -22,20 +36,21 @@ class Ensemble(nn.Module):
 		# meta tensors off the meta device.
 		object.__setattr__(self, "_base", copy.deepcopy(modules[0]).to("meta"))
 
-	def _stacked(self):
-		params, buffers = stack_module_state(list(self._members))
-		return params, buffers
+	def _pdict(self):
+		d = {ok: self.params[sk] for sk, ok in self._pkeys.items()}
+		d.update({ok: getattr(self, f"_buf_{sk}") for sk, ok in self._bkeys.items()})
+		return d
 
 	def __len__(self):
 		return self._n
 
-	def forward(self, *args, **kwargs):
-		params, buffers = self._stacked()
+	def forward(self, x):
+		pdict = self._pdict()
 
-		def fmodel(p, b, *a):
-			return functional_call(self._base, (p, b), a, kwargs)
+		def fmodel(p, xx):
+			return functional_call(self._base, p, (xx,))
 
-		return torch.vmap(fmodel, (0, 0, None), randomness="different")(params, buffers, *args)
+		return torch.vmap(fmodel, (0, None), randomness="different")(pdict, x)
 
 	def __repr__(self):
 		return f"Vectorized {len(self)}x " + self._repr

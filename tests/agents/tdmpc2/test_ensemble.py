@@ -22,3 +22,17 @@ def test_vmap_ensemble_matches_naive_loop():
 def test_ensemble_len():
     members = _make_members(3, 4, 2)
     assert len(Ensemble(members)) == 3
+
+
+def test_ensemble_gradients_reach_parameters():
+    # Regression: the optimizer trains Ensemble.parameters(); backward MUST
+    # populate grads on them (a forward-only vmap over disconnected stacked
+    # params would leave them frozen -> value_loss never moves).
+    members = _make_members(3, 4, 2)
+    ens = Ensemble(members)
+    params = list(ens.parameters())
+    assert len(params) > 0
+    out = ens(torch.randn(5, 4))
+    out.sum().backward()
+    assert all(p.grad is not None for p in params)
+    assert any(p.grad.abs().sum() > 0 for p in params)
