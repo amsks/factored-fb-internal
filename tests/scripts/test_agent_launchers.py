@@ -111,3 +111,25 @@ def test_gcivl_pixel_drq_encoder():
     r = _dry_run("gcivl/pixel.sh", ENCODER="drq")
     assert r.returncode == 0
     assert "--config-name cube_single_visual_gcivl_drq" in r.stdout
+
+
+# ── crl/state.sh ───────────────────────────────────────────────────────────
+def test_crl_state_dry_run():
+    r = _dry_run("crl/state.sh")
+    assert r.returncode == 0, r.stderr
+    assert "--config-name cube_single_state_crl" in r.stdout
+    assert "cube_single_state_crl_flowbc" not in r.stdout
+
+
+# ── crl_flowbc/state.sh ────────────────────────────────────────────────────
+def test_crl_flowbc_state_dry_run():
+    r = _dry_run("crl_flowbc/state.sh")
+    assert r.returncode == 0, r.stderr
+    assert "--config-name cube_single_state_crl_flowbc" in r.stdout
+
+
+# ── crl_flowbc/pixel.sh ────────────────────────────────────────────────────
+def test_crl_flowbc_pixel_dry_run():
+    r = _dry_run("crl_flowbc/pixel.sh")
+    assert r.returncode == 0, r.stderr
+    assert "--config-name cube_single_visual_crl_flowbc_drq" in r.stdout
