@@ -275,7 +275,8 @@ def main(cfg: DictConfig) -> None:
             log_metrics(evaluator.run(step=step), step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
 
         # Update
-        batch = buffer.sample(cfg.batch_size)
+        horizon = getattr(cfg, "horizon", 1)
+        batch = buffer.sample(cfg.batch_size, horizon=horizon)
         metrics = agent.update(batch, step)
 
         # Accumulate (matches td_jepa: copy on first, add on subsequent)
