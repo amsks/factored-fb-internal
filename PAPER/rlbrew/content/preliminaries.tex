@@ -1,0 +1,51 @@
+\section{Problem Setting and Background}
+\label{sec:background}
+
+\subsection{Reward-free pretraining and successor measures}
+
+% Define the reward-free MDP and successor measure used throughout the paper.
+We consider a reward-free Markov decision process $(\Sspace,\Aspace,\Ptrans,\gamma)$ with state space $\Sspace$, action space $\Aspace$, transition kernel $\Ptrans$, and discount factor $\gamma$. For a policy $\pi$, the successor measure from $(s,a)$ to a measurable set $X\subseteq \Sspace$ is
+\begin{equation}
+    M^{\pi}(s,a,X)
+    =
+    \E_{\pi}\left[
+        \sum_{t\geq 0}\gamma^t\ind\{s_{t+1}\in X\}
+        \mid s_0=s,a_0=a
+    \right].
+\end{equation}
+When the state space is discrete, we write $M^{\pi}(s,a,s^+)$ for the discounted occupancy of state $s^+$.
+
+% Successor measures turn reward-conditioned policy evaluation into a linear objective.
+For a state reward $r$, policy evaluation can be written as
+\begin{equation}
+    Q^{\pi}_r(s,a)
+    =
+    \int_{\Sspace} M^{\pi}(s,a,ds^+) r(s^+).
+\end{equation}
+This identity explains why successor measures are useful for URL: a reward-free object that predicts future occupancy can be combined with a downstream reward to evaluate or infer policies \citep{touati-neurips21a,touati-iclr23a,agarwal-rlj25a}.
+
+% Practical methods compress the successor object; this creates the relevant risk.
+The exact successor measure is intractable to represent for a large policy class. Practical URL methods therefore impose parametric structure. \fb{} uses a low-rank approximation,
+\begin{equation}
+    M^{\pi_z}(s,a,s^+)
+    \approx
+    F(s,a,z)^{\top}B(s^+),
+\end{equation}
+where $z$ indexes a reward or policy embedding \citep{touati-neurips21a,touati-iclr23a}. Goal-conditioned and contrastive methods use target-conditioned values, policies, or embeddings instead of explicitly representing the full measure \citep{eysenbach-iclr21a,eysenbach-neurips22a,ma-neurips22a}. \psm{} and related basis methods approximate successor or value objects through learned bases \citep{mahadevan-icml05a,mahadevan-jmlr07a,farebrother-iclr23a,agarwal-arxiv25a}. In each case, the representation must decide which states are equivalent for downstream control.
+
+\subsection{Manipulation as phase-conditioned reachability}
+
+% ontact phase changes the transition kernel.
+We model a manipulation state as \(s=(x,o,g,c),\) where $x$ denotes robot proprioception, $o$ denotes object pose, $g$ denotes goal pose, and $c$ denotes a contact phase.
+The phase variable may be latent in the observation, but it changes how actions affect the object.
+We write the transition kernel as
+\[
+      P(s'\mid s,a) = P_c(x',o',c'\mid x,o,c,a).
+\]
+For cube manipulation, the relevant phases include free approach, contact acquisition, stable grasped transport, unstable contact, and dropped contact.
+% Geometric proximity and controllability are different.
+This formulation separates geometric proximity from controllability.
+When the cube is not grasped, actions that move the gripper need not move the cube.
+When the cube is stably grasped, similar gripper actions transport the cube.
+When contact is lost, the same object-goal distance can correspond to a different set of feasible future trajectories.
+As a result, a representation that preserves only object-goal geometry may merge states whose future occupancy of successful transport states is different.
