@@ -74,32 +74,88 @@ python scripts/extract_ogbench.py --dataset_path /path/to/cache --output_folder 
 
 ---
 
-## Quick start
+## Running an agent
+
+All cube-single agents live under `scripts/agents/<agent>/<obs>.sh`. Each leaf is a multi-seed sweep with sensible defaults; single-seed runs are `SEEDS=0 GPUS=0 bash ...`.
+
+### Matrix (cube-single)
+
+| Agent | State | Pixel |
+|---|---|---|
+| **FB+FlowBC** | `bash scripts/agents/fb/state.sh` | `bash scripts/agents/fb/pixel.sh` |
+| **GCIQL** | `bash scripts/agents/gciql/state.sh` | `bash scripts/agents/gciql/pixel.sh` |
+| **GCIVL** | — *(no config)* | `bash scripts/agents/gcivl/pixel.sh` |
+| **CRL** (plain) | `bash scripts/agents/crl/state.sh` | — *(no config)* |
+| **CRL+FlowBC** | `bash scripts/agents/crl_flowbc/state.sh` | `bash scripts/agents/crl_flowbc/pixel.sh` |
+
+`--help` on any leaf prints its knobs. Example smoke runs:
 
 ```bash
-# Antmaze medium (standard FB)
-make train-ant-medium                                 # or: python train.py domain=antmaze_medium
-
-# Cube manipulation (FlowBC)
-make train-cube                                       # or: python train.py domain=cube_single
-
-# Seeded sweep
-make sweep-ant-medium                                 # or: python train.py --multirun seed=1,2,3 domain=antmaze_medium
-
-# CPU run (no CUDA)
-python train.py domain=antmaze_medium device=cpu
-
-# Override anything on the CLI
-python train.py domain=antmaze_medium ortho_coef=100 lr_b=1e-5 seed=7
-
-# With wandb logging (entity/group help when running sweeps under a shared account)
-python train.py domain=antmaze_medium use_wandb=true \
-    wandb_entity=my-team wandb_group=fb-antmaze wandb_tags='[baseline]'
+bash scripts/agents/fb/state.sh --help
+SEEDS=0 GPUS=0 DRY_RUN=1 bash scripts/agents/gciql/pixel.sh ENCODER=drq
 ```
 
-**Domain configs** live in `configs/domain/*.yaml` and each one selects the right agent via its own `defaults:` list — `domain=antmaze_*` pulls in `fb.yaml`; `domain=cube_*`, `scene`, `puzzle_3x3` pull in `fb_flowbc.yaml`. You normally do not need to pass `agent=` explicitly.
+### Universal env knobs
 
-Available domain config names: `antmaze_medium`, `antmaze_large`, `antmaze_giant`, `cube_single`, `cube_double`, `scene`, `puzzle_3x3`.
+| Knob | Default | What |
+|---|---|---|
+| `SEEDS` | `"0 1 2 3 4"` | Space-separated seeds. Single seed: `SEEDS=0`. |
+| `GPUS` | `"0 1"` | Space-separated GPU ids. Seed *i* → `GPUS[i % nGPU]`. |
+| `TRAIN_STEPS` | `1000000` state / `500000` pixel | Per-seed training steps. |
+| `RUN_GROUP` | `<agent>_<obs>` | wandb group and log dir name. |
+| `DATA_PATH` | `/dev/shm/factored-fb/datasets` | FB stack only. JAX stack uses `~/.ogbench/data`. |
+| `WANDB_MODE` | `online` (JAX) | `online`, `offline`, `disabled`. JAX stack only. |
+| `STORAGE` | `shm` (JAX) | `shm`, `nvme`. JAX stack only. |
+| `DRY_RUN` | `0` | `1` prints commands without launching. |
+
+### Per-agent knobs
+
+| Leaf | Knob | Values |
+|---|---|---|
+| `fb/{state,pixel}.sh` | `MODE` | `vanilla` (default), `onestep` |
+| `fb/state.sh` | `REWEIGHT_ALPHA` | `0` (default, off), `>0` enables coverage-balanced reweight (needs `analysis/cube_density.npz`) |
+| `gciql/pixel.sh`, `gcivl/pixel.sh` | `ENCODER` | `impala` (default), `drq` |
+
+### Prerequisites
+
+```bash
+# JAX/OGBench data (native .npz, present after install): ~/.ogbench/data/<env>.npz
+# FB data (per-episode + physics) — extract once from the OGBench .npz:
+/dev/shm/.venv-jax/bin/python scripts/extract_ogbench.py \
+    --env cube-single-play-v0 --dataset_path ~/.ogbench/data \
+    --output_folder /dev/shm/factored-fb/datasets
+# Coverage-balanced density (only needed for FB REWEIGHT_ALPHA>0):
+.venv/bin/python -m scripts.cube_density \
+    --data /dev/shm/factored-fb/datasets/cube-single-play-v0/buffer \
+    --out analysis/cube_density.npz
+```
+
+### Monitoring
+
+```bash
+tmux ls                                       # tmux sessions
+tail -f /dev/shm/<run_group>_*/seed_*.log     # per-seed logs (each launch prints the dir)
+nvidia-smi --query-gpu=index,memory.used,utilization.gpu --format=csv,noheader
+# wandb: https://wandb.ai/amsks/factored-fb  (filter by run_group)
+```
+
+### Two-stack context (why some agents use `.venv` directly and others spawn a JAX subprocess)
+
+- **PyTorch FB** (FB, FB+FlowBC) runs natively under `.venv/bin/python train.py …`.
+- **JAX/OGBench** (GCIQL, GCIVL, CRL, CRL+FlowBC) runs via `.venv/bin/python run_gciql.py …`, which Hydra-launches the vendored OGBench `third_party/ogbench/impls/main.py` under `/dev/shm/.venv-jax/bin/python`. Configs live in `configs/gciql/*.yaml`.
+- Storage is volatile: durable `/` is full, so everything writes to `/dev/shm`. Copy results out before any reboot.
+- wandb defaults to entity `amsks`, project `factored-fb` for both stacks.
+
+### Antmaze
+
+The new `scripts/agents/` tree is cube-only. For antmaze FB sweeps, use the older launcher:
+
+```bash
+bash scripts/run_sweep.sh           # local
+bash scripts/run_sweep_slurm.sh     # SLURM
+```
+
+Domain configs live in `configs/domain/*.yaml` — `domain=antmaze_*` pulls in `fb.yaml`; `domain=cube_*`, `scene`, `puzzle_3x3` pull in `fb_flowbc.yaml`. You normally do not need to pass `agent=` explicitly. Available domain config names: `antmaze_medium`, `antmaze_large`, `antmaze_giant`, `cube_single`, `cube_double`, `scene`, `puzzle_3x3`.
 
 ---
 
