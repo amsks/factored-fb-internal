@@ -1,0 +1,56 @@
+\section{Phase-Conditioned Successor Diagnosis}
+\label{sec:theory}
+
+\subsection{Phase consistency}
+% A safe abstraction must preserve successor measures for the policy class of interest.
+We use successor consistency to state the representation requirement induced by contact.
+
+\begin{definition}[Phase-consistent successor abstraction]
+An abstraction $\phi:\Sspace\to\mathcal{Z}$ is phase-consistent for a policy class $\Pi$ if $\phi(s_1)=\phi(s_2)$ implies
+\[
+    M^{\pi}(s_1,a,X) = M^{\pi}(s_2,a,X), \qquad \forall \pi\in\Pi,\; a\in\Aspace,\; X\subseteq\Sspace.
+\]
+\end{definition}
+
+% This condition is stronger than preserving object-goal distance.
+The definition is stronger than preserving distances in the observed state.
+It requires preserving whether the cube is controllable, whether the grasp is stable, and whether future actions keep the system in a phase from which transport is possible.
+In contact-rich domains, these properties can change discontinuously at grasp, slip, and drop events.
+
+\subsection{Contact bottlenecks create successor inconsistency}
+
+% A simple proposition shows why phase-blind abstraction can fail.
+\begin{proposition}[Phase-blind abstractions fail at contact bottlenecks]
+Consider a two-phase manipulation MDP with contact phase $c\in\{0,1\}$ and target set
+\[
+ G=\{s:c=1,\|o-g\|\leq\epsilon\}.
+\]
+Suppose two states $s_1=(x_1,o,g,0)$ and $s_2=(x_2,o,g,0)$ have identical object and goal coordinates but differ in the probability of entering the grasped phase under some policy $\pi$:
+\[
+    \Prob_{\pi}(\tau_{c=1}<\infty\mid s_1,a)
+    \neq
+    \Prob_{\pi}(\tau_{c=1}<\infty\mid s_2,a).
+\]
+Then any abstraction $\phi$ that ignores the variables responsible for this difference and maps $\phi(s_1)=\phi(s_2)$ is not successor-consistent for $G$.
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+Reaching $G$ requires entering the grasped phase. Therefore,
+\[
+ M^{\pi}(s_i,a,G) = \E_{\pi}\left[ \gamma^{\tau_{c=1}} M^{\pi}(s_{\tau_{c=1}},a_{\tau_{c=1}},G) \ind\{\tau_{c=1}<\infty\} \mid s_i,a \right]
+\]
+If the probability or timing of entering $c=1$ differs between $s_1$ and $s_2$, the successor mass assigned to $G$ differs unless later transport dynamics exactly cancel the difference. Such cancellation is not generic. Thus $M^{\pi}(s_1,a,G)\neq M^{\pi}(s_2,a,G)$, contradicting successor consistency.
+\end{proof}
+
+% This proposition motivates phase-level evaluation.
+The proposition gives a concrete interpretation of manipulation failures.
+A representation may be useful for broad reachability and still fail if it merges states that differ in contact acquisition, grasp stability, or transport controllability.
+The empirical protocol therefore measures the physical phase at which each rollout first fails.
+
+\subsection{Implications for URL methods}
+
+% Different method families should exhibit different phase-level failures.
+Goal-conditioned value methods such as \gciql{} can succeed when the dataset contains enough bottleneck-crossing trajectories and the value function assigns correct credit to actions that preserve contact \citep{ma-neurips22a,kostrikov-iclr22a,park-iclr25a}.
+Contrastive methods may learn useful reachability geometry, but representation-space closeness to the goal does not guarantee that the policy can cross a contact bottleneck \citep{eysenbach-neurips22a}.
+\fb{} can retarget rewards through a compact successor factorization, but a single low-rank embedding $z=B(g)$ may allocate insufficient capacity to the distinction between approach, grasp, and transport \citep{touati-neurips21a,touati-iclr23a}.
+\psm{} provides a basis-coverage diagnostic: if no proto-policy occupies stable grasped transport, downstream inference cannot easily synthesize reliable transport from the basis \citep{agarwal-arxiv25a}. A model-based method provides an orthogonal diagnostic: if imagined rollouts do not predict lift, slip, or drop transitions, planning fails at the same boundary \citep{hafner-iclr20a,hafner-arxiv23a}.

@@ -1,0 +1,39 @@
+\section{Diagnostic Method}
+\label{sec:method}
+
+\subsection{Evaluation setting}
+% Completed experiments compare FB and GCIQL on state-based OGBench cube-single.
+We study the state-observation version of \ogbench{} \task{} over five held-out evaluation tasks, denoted \textit{task1}-\textit{task5}.
+We focus on state observations to remove visual encoder capacity as the main confound and isolate failures in the learned control representation.
+Our method set covers five unsupervised RL representation classes:
+\gciql{},
+\crl{},
+\fb{},
+\rldp{},
+\psm{},
+and a world-model baseline when available as a diagnostic for explicit dynamics prediction.
+We report interquartile mean (IQM) success with stratified-bootstrap confidence intervals for aggregate performance. We then analyze deterministic closed-loop rollouts using the phase decomposition below.
+
+\subsection{Phase decomposition}
+Each rollout is assigned to exactly one terminal outcome: success, or the first failed phase in the ordered manipulation pipeline. The ordered phases are approach, grasp, maintain grasp, and transport. A transport failure is therefore counted only if the rollout has already satisfied the approach and grasp criteria. This convention turns a scalar success rate into a phase-resolved failure profile.
+
+\begin{table}[htb]
+\centering
+\caption{Operational criteria for assigning the first failure phase in state rollouts.}
+\label{tab:failure_criteria}
+\begin{tabular}{ll}
+\toprule
+\textbf{Phase} & \textbf{Criterion} \\
+\midrule
+Approach & Minimum gripper-to-cube distance $<6$ cm at any point in the episode \\
+Grasp & Cube lifted $>3$ cm above table with gripper closed for at least $5$ consecutive steps \\
+Maintain grasp & Final cube height above table $\geq 3$ cm \\
+Transport & Final cube pose within $5$ cm of the goal pose \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The criteria in Table~\ref{tab} are mechanical and policy-agnostic. They do not use the value function, learned representation, model rollout, contrastive score, or successor-measure estimate. The same decomposition therefore applies to goal-conditioned, contrastive, predictive, successor-measure, and model-based methods.
+
+\subsection{Cross-method failure profile}
+The first diagnostic is the distribution of terminal outcomes under the phase decomposition. For each method, we report the percentage of episodes assigned to success, approach failure, grasp failure, maintain-grasp failure, and transport failure. This table is the main diagnostic object: it distinguishes methods that fail before contact from methods that acquire contact but fail to preserve or exploit it.
