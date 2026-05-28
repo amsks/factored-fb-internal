@@ -97,3 +97,17 @@ def test_gciql_pixel_drq_encoder():
     r = _dry_run("gciql/pixel.sh", ENCODER="drq")
     assert r.returncode == 0
     assert "--config-name cube_single_visual_drq" in r.stdout
+
+
+# ── gcivl/pixel.sh ─────────────────────────────────────────────────────────
+def test_gcivl_pixel_default_impala():
+    r = _dry_run("gcivl/pixel.sh")
+    assert r.returncode == 0, r.stderr
+    assert "--config-name cube_single_visual_gcivl" in r.stdout
+    assert "cube_single_visual_gcivl_drq" not in r.stdout
+
+
+def test_gcivl_pixel_drq_encoder():
+    r = _dry_run("gcivl/pixel.sh", ENCODER="drq")
+    assert r.returncode == 0
+    assert "--config-name cube_single_visual_gcivl_drq" in r.stdout
