@@ -1,36 +1,44 @@
+import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tensordict import from_modules
-from copy import deepcopy
+from torch.func import stack_module_state, functional_call
 
 
 class Ensemble(nn.Module):
-	"""
-	Vectorized ensemble of modules.
+	"""Vectorized ensemble of identical modules (tensordict-free, torch.func based).
+
+	Stacks member parameters along a leading dim and evaluates all members in a
+	single ``torch.vmap`` call — numerically identical to looping over members.
 	"""
 
 	def __init__(self, modules, **kwargs):
 		super().__init__()
-		# combine_state_for_ensemble causes graph breaks
-		self.params = from_modules(*modules, as_module=True)
-		with self.params[0].data.to("meta").to_module(modules[0]):
-			self.module = deepcopy(modules[0])
-		self._repr = str(modules[0])
+		self._members = nn.ModuleList(modules)
 		self._n = len(modules)
+		self._repr = str(modules[0])
+		# Stateless skeleton for functional_call. Kept OUT of the module registry
+		# (via object.__setattr__) so Module.to(device) never tries to copy these
+		# meta tensors off the meta device.
+		object.__setattr__(self, "_base", copy.deepcopy(modules[0]).to("meta"))
+
+	def _stacked(self):
+		params, buffers = stack_module_state(list(self._members))
+		return params, buffers
 
 	def __len__(self):
 		return self._n
 
-	def _call(self, params, *args, **kwargs):
-		with params.to_module(self.module):
-			return self.module(*args, **kwargs)
-
 	def forward(self, *args, **kwargs):
-		return torch.vmap(self._call, (0, None), randomness="different")(self.params, *args, **kwargs)
+		params, buffers = self._stacked()
+
+		def fmodel(p, b, *a):
+			return functional_call(self._base, (p, b), a, kwargs)
+
+		return torch.vmap(fmodel, (0, 0, None), randomness="different")(params, buffers, *args)
 
 	def __repr__(self):
-		return f'Vectorized {len(self)}x ' + self._repr
+		return f"Vectorized {len(self)}x " + self._repr
 
 
 class ShiftAug(nn.Module):

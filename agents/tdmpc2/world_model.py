@@ -3,9 +3,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
-from common import layers, math, init
-from tensordict import TensorDict
-from tensordict.nn import TensorDictParams
+from . import layers, math, init
 
 
 class WorldModel(nn.Module):
@@ -29,28 +27,34 @@ class WorldModel(nn.Module):
 		self._pi = layers.mlp(cfg.latent_dim + cfg.task_dim, 2*[cfg.mlp_dim], 2*cfg.action_dim)
 		self._Qs = layers.Ensemble([layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], max(cfg.num_bins, 1), dropout=cfg.dropout) for _ in range(cfg.num_q)])
 		self.apply(init.weight_init)
-		init.zero_([self._reward[-1].weight, self._Qs.params["2", "weight"]])
+		# zero-init the reward head and each Q-member's final layer
+		init.zero_([self._reward[-1].weight])
+		for q in self._Qs._members:
+			torch.nn.init.zeros_(q[-1].weight)
 
 		self.register_buffer("log_std_min", torch.tensor(cfg.log_std_min))
 		self.register_buffer("log_std_dif", torch.tensor(cfg.log_std_max) - self.log_std_min)
 		self.init()
 
 	def init(self):
-		# Create params
-		self._detach_Qs_params = TensorDictParams(self._Qs.params.data, no_convert=True)
-		self._target_Qs_params = TensorDictParams(self._Qs.params.data.clone(), no_convert=True)
+		# Target ensemble is a plain deep copy; soft-updated via Polyak.
+		self._target_Qs = deepcopy(self._Qs)
+		for p in self._target_Qs.parameters():
+			p.requires_grad_(False)
 
-		# Create modules
-		with self._detach_Qs_params.data.to("meta").to_module(self._Qs.module):
-			self._detach_Qs = deepcopy(self._Qs)
-			self._target_Qs = deepcopy(self._Qs)
+	@staticmethod
+	def _detach_forward(ensemble, z):
+		# Forward through the online ensemble with parameters detached:
+		# gradients flow to the input z (hence to pi) but NOT to Q weights.
+		from torch.func import stack_module_state, functional_call
+		params, buffers = stack_module_state(list(ensemble._members))
+		params = {k: v.detach() for k, v in params.items()}
+		buffers = {k: v.detach() for k, v in buffers.items()}
 
-		# Assign params to modules
-		# We do this strange assignment to avoid having duplicated tensors in the state-dict -- working on a better API for this
-		delattr(self._detach_Qs, "params")
-		self._detach_Qs.__dict__["params"] = self._detach_Qs_params
-		delattr(self._target_Qs, "params")
-		self._target_Qs.__dict__["params"] = self._target_Qs_params
+		def fmodel(p, b, x):
+			return functional_call(ensemble._base, (p, b), (x,))
+
+		return torch.vmap(fmodel, (0, 0, None), randomness="different")(params, buffers, z)
 
 	def __repr__(self):
 		repr = 'TD-MPC2 World Model\n'
@@ -83,7 +87,9 @@ class WorldModel(nn.Module):
 		"""
 		Soft-update target Q-networks using Polyak averaging.
 		"""
-		self._target_Qs_params.lerp_(self._detach_Qs_params, self.cfg.tau)
+		with torch.no_grad():
+			for sp, tp in zip(self._Qs.parameters(), self._target_Qs.parameters()):
+				tp.data.lerp_(sp.data, self.cfg.tau)
 
 	def task_emb(self, x, task):
 		"""
@@ -174,13 +180,13 @@ class WorldModel(nn.Module):
 		mean, action, log_prob = math.squash(mean, action, log_prob)
 
 		entropy_scale = scaled_log_prob / (log_prob + 1e-8)
-		info = TensorDict({
+		info = {
 			"mean": mean,
 			"log_std": log_std,
 			"action_prob": 1.,
 			"entropy": -log_prob,
 			"scaled_entropy": -log_prob * entropy_scale,
-		})
+		}
 		return action, info
 
 	def Q(self, z, a, task, return_type='min', target=False, detach=False):
@@ -199,12 +205,11 @@ class WorldModel(nn.Module):
 
 		z = torch.cat([z, a], dim=-1)
 		if target:
-			qnet = self._target_Qs
+			out = self._target_Qs(z)
 		elif detach:
-			qnet = self._detach_Qs
+			out = self._detach_forward(self._Qs, z)
 		else:
-			qnet = self._Qs
-		out = qnet(z)
+			out = self._Qs(z)
 
 		if return_type == 'all':
 			return out
