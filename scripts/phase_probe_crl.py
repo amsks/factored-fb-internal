@@ -208,6 +208,11 @@ def main() -> int:
                         "fail_phase": c["fail_phase"],
                         "min_eff_cube_dist": c["min_eff_cube_dist"],
                         "max_cube_lift": c["max_cube_lift"],
+                        # final_cube_lift needed to split fail_phase=transport
+                        # into "maintain grasp" (cube on table) vs
+                        # "transport to goal" (cube still held).
+                        "final_cube_lift": c["final_cube_lift"],
+                        "final_grip": c["final_grip"],
                         "final_cube_goal_dist": c["final_cube_goal_dist"],
                         "length": c["length"],
                     })
