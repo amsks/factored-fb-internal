@@ -120,4 +120,8 @@ class RLDPFlowBCAgent(RLDPAgent):
         return torch.clamp(actions, min=-1, max=1)
 
     def act(self, obs: torch.Tensor, z: torch.Tensor, *, eval_mode: bool = True) -> torch.Tensor:
-        return self.model.act(obs, z, mean=eval_mode)
+        obs = obs.to(self.device).float()
+        z = z.to(self.device).float()
+        if z.dim() == 1:
+            z = z.unsqueeze(0)
+        return self.model.act(obs, z, mean=True)
