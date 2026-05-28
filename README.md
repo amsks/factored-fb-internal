@@ -328,15 +328,14 @@ reboot**). For runs that must survive a reboot, use the NVMe override.
 # tmpfs (default, no sudo):
 make install-jax-shm                   # isolated .venv-jax in /dev/shm (run first)
 make smoke-gciql                       # end-to-end check (needs install-jax-shm)
-VARIANT=state  SEEDS="0 1 2" bash scripts/run_gciql.sh
-VARIANT=visual SEEDS="0 1 2" bash scripts/run_gciql.sh
+SEEDS="0 1 2" bash scripts/agents/gciql/state.sh    # see "Running an agent" above for the full matrix
 
 # durable NVMe (one-time, real SSH terminal — needs sudo):
 sudo mkfs.xfs /dev/nvme1n1
 sudo mkdir -p /mnt/scratch1 && sudo mount /dev/nvme1n1 /mnt/scratch1
 sudo chown "$USER":"$USER" /mnt/scratch1
 make install-jax
-python run_gciql.py --config-name cube_single_state storage=nvme
+STORAGE=nvme bash scripts/agents/gciql/state.sh
 ```
 
 Datasets/checkpoints live under the chosen storage root; OGBench's
