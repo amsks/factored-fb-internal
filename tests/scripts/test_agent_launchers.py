@@ -74,3 +74,12 @@ def test_fb_pixel_onestep():
     assert r.returncode == 0
     assert "onestep=true" in r.stdout
     assert "domain=visual_cube_single" in r.stdout
+
+
+# ── gciql/state.sh ─────────────────────────────────────────────────────────
+def test_gciql_state_dry_run():
+    r = _dry_run("gciql/state.sh")
+    assert r.returncode == 0, r.stderr
+    assert "run_gciql.py" in r.stdout
+    assert "--config-name cube_single_state" in r.stdout
+    assert "[DRY]" in r.stdout
