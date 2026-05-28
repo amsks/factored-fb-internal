@@ -25,12 +25,17 @@ class WorldModel(nn.Module):
 		self._reward = layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], max(cfg.num_bins, 1))
 		self._termination = layers.mlp(cfg.latent_dim + cfg.task_dim, 2*[cfg.mlp_dim], 1) if cfg.episodic else None
 		self._pi = layers.mlp(cfg.latent_dim + cfg.task_dim, 2*[cfg.mlp_dim], 2*cfg.action_dim)
-		self._Qs = layers.Ensemble([layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], max(cfg.num_bins, 1), dropout=cfg.dropout) for _ in range(cfg.num_q)])
-		self.apply(init.weight_init)
-		# zero-init the reward head and each Q-member's final layer
+		# Build the Q members, then init + zero their final layer BEFORE stacking:
+		# Ensemble registers the stacked params as its learnable params, so the init
+		# must be applied per-member first (replaces weight_init's old ParameterList
+		# branch that handled the tensordict-stacked params).
+		_q_modules = [layers.mlp(cfg.latent_dim + cfg.action_dim + cfg.task_dim, 2*[cfg.mlp_dim], max(cfg.num_bins, 1), dropout=cfg.dropout) for _ in range(cfg.num_q)]
+		for _q in _q_modules:
+			_q.apply(init.weight_init)
+			torch.nn.init.zeros_(_q[-1].weight)
+		self._Qs = layers.Ensemble(_q_modules)
+		self.apply(init.weight_init)  # inits encoder/dynamics/reward/pi; ParameterDict Q params untouched
 		init.zero_([self._reward[-1].weight])
-		for q in self._Qs._members:
-			torch.nn.init.zeros_(q[-1].weight)
 
 		self.register_buffer("log_std_min", torch.tensor(cfg.log_std_min))
 		self.register_buffer("log_std_dif", torch.tensor(cfg.log_std_max) - self.log_std_min)
@@ -46,15 +51,13 @@ class WorldModel(nn.Module):
 	def _detach_forward(ensemble, z):
 		# Forward through the online ensemble with parameters detached:
 		# gradients flow to the input z (hence to pi) but NOT to Q weights.
-		from torch.func import stack_module_state, functional_call
-		params, buffers = stack_module_state(list(ensemble._members))
-		params = {k: v.detach() for k, v in params.items()}
-		buffers = {k: v.detach() for k, v in buffers.items()}
+		from torch.func import functional_call
+		pdict = {k: v.detach() for k, v in ensemble._pdict().items()}
 
-		def fmodel(p, b, x):
-			return functional_call(ensemble._base, (p, b), (x,))
+		def fmodel(p, x):
+			return functional_call(ensemble._base, p, (x,))
 
-		return torch.vmap(fmodel, (0, 0, None), randomness="different")(params, buffers, z)
+		return torch.vmap(fmodel, (0, None), randomness="different")(pdict, z)
 
 	def __repr__(self):
 		repr = 'TD-MPC2 World Model\n'
