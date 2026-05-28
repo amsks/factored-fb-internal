@@ -3,7 +3,8 @@
 #
 # Changes from original:
 #   - Removed DrQEncoder, Augmentator (pixel modules — add back when needed)
-#   - Removed VForwardMap, VectorField (not used in FB baseline)
+#   - Removed VectorField (not used in FB baseline)
+#   - VForwardMap restored 2026-05-28 for the RLDP port (predictor head module)
 #   - Kept all state-based modules verbatim: BackwardMap, ForwardMap, Actor,
 #     NoiseConditionedActor, DenseParallel, ParallelLayerNorm, TruncatedNormal, Norm
 #   - Kept all config classes for the modules above
@@ -550,3 +551,53 @@ class Augmentator(nn.Module):
         shift *= 2.0 / (h + 2 * self.cfg.pad)
         grid = base_grid + shift
         return F.grid_sample(obs, grid, padding_mode="zeros", align_corners=False)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# RLDP predictor head — restored 2026-05-28 for the RLDP port.
+# Verbatim port from td_jepa metamotivo/nn_models.py lines ~280-310.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class VForwardArchiConfig(BaseConfig):
+    hidden_dim: int = 1024
+    hidden_layers: int = 1
+    embedding_layers: int = 2
+    num_parallel: int = 2
+
+    def build(self, obs_space, z_dim: int, output_dim=None) -> torch.nn.Module:
+        return VForwardMap(obs_space, z_dim, output_dim, self)
+
+
+class VForwardMap(nn.Module):
+    def __init__(
+        self,
+        obs_space,
+        z_dim,
+        output_dim=None,
+        cfg: VForwardArchiConfig = VForwardArchiConfig(),
+    ) -> None:
+        super().__init__()
+
+        assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
+        obs_dim = obs_space.shape[0]
+        self.z_dim = z_dim
+        self.num_parallel = cfg.num_parallel
+        self.hidden_dim = cfg.hidden_dim
+
+        self.embed_z = simple_embedding(obs_dim + z_dim, cfg.hidden_dim, cfg.embedding_layers, cfg.num_parallel)
+        self.embed_s = simple_embedding(obs_dim, cfg.hidden_dim, cfg.embedding_layers, cfg.num_parallel)
+
+        seq = []
+        for _ in range(cfg.hidden_layers):
+            seq += [linear(cfg.hidden_dim, cfg.hidden_dim, cfg.num_parallel), nn.ReLU()]
+        seq += [linear(cfg.hidden_dim, output_dim if output_dim else z_dim, cfg.num_parallel)]
+        self.Fs = nn.Sequential(*seq)
+
+    def forward(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+        if self.num_parallel > 1:
+            obs = obs.expand(self.num_parallel, -1, -1)
+            z = z.expand(self.num_parallel, -1, -1)
+        z_embedding = self.embed_z(torch.cat([obs, z], dim=-1))
+        s_embedding = self.embed_s(obs)
+        return self.Fs(torch.cat([s_embedding, z_embedding], dim=-1))
