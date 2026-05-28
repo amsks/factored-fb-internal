@@ -183,6 +183,9 @@ def main():
     ap.add_argument("--crl", default=None,
                     help="optional CRL per-step parquet (adds CRL to master/summary, "
                          "the aggregate curves, and a standalone CRL scene overlay)")
+    ap.add_argument("--rldp", default=None,
+                    help="optional RLDP per-step parquet (adds RLDP to master/summary "
+                         "and the aggregate curves)")
     ap.add_argument("--effector", default="analysis/traj_value/effector.parquet")
     ap.add_argument("--out-dir", required=True)
     args = ap.parse_args()
@@ -192,6 +195,8 @@ def main():
     frames = [fb, gq]
     if args.crl:
         frames.append(pd.read_parquet(args.crl))
+    if args.rldp:
+        frames.append(pd.read_parquet(args.rldp))
     master = _norm(pd.concat(frames, ignore_index=True))
     # join FK effector + phase (model-independent) by (traj, t)
     eff = pd.read_parquet(args.effector)[["traj", "t", "region", "d_eff_cube",
@@ -208,6 +213,8 @@ def main():
     series = [("fb", "FB", "tab:red"), ("gciql", "GCIQL", "tab:blue")]
     if args.crl:
         series.append(("crl", "CRL", "tab:green"))
+    if args.rldp:
+        series.append(("rldp", "RLDP", "tab:purple"))
 
     # Aggregate value vs distance-to-goal (whole dataset).
     dmax = float(np.percentile(master["d"], 97)); dbins = np.linspace(0, dmax, 18)
@@ -252,7 +259,8 @@ def main():
 
     # Standalone CRL scene overlay (success + failure example), same style as the
     # FB/GCIQL bottom panels — keeps the FB-vs-GCIQL figure above untouched.
-    methods_present = ["fb", "gciql"] + (["crl"] if args.crl else [])
+    methods_present = (["fb", "gciql"] + (["crl"] if args.crl else [])
+                       + (["rldp"] if args.rldp else []))
     if args.crl:
         cs, cf = _select_single(master, summ, "crl")
         cfig, caxes = plt.subplots(1, 2, figsize=(9, 5))
