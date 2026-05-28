@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Per-GPU sequential worker for run_drq_pixel_sweep.sh. Not meant to be run
-# directly: the launcher invokes it (detached, one per GPU) with these env vars:
+# Per-GPU sequential worker for parallel DrQ pixel sweeps (historically used by
+# the removed run_drq_pixel_sweep.sh; kept as a generic per-GPU worker for any
+# multi-config OGBench-pixel campaign). Invoked detached, one per GPU, with:
 #   GPU         physical GPU index to pin (CUDA_VISIBLE_DEVICES)
 #   GJOBS       space-separated "config:seed" jobs for this GPU
 #   TS          shared launch timestamp (for log names)
