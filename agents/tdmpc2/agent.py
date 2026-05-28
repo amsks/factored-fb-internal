@@ -124,10 +124,23 @@ class TDMPC2Agent(BaseAgent):
         raise NotImplementedError("TDMPC2 uses eval_context, not infer_z")
 
     def state_dict(self) -> dict:
-        return {"core": self.core.state_dict()}
+        # Save explicit pieces rather than core.state_dict(): RunningScale has a
+        # custom state_dict() signature (no `destination` kwarg) that breaks the
+        # recursive nn.Module save. WorldModel contains no such custom children.
+        return {
+            "model": self.core.model.state_dict(),
+            "optim": self.core.optim.state_dict(),
+            "pi_optim": self.core.pi_optim.state_dict(),
+            "scale_value": self.core.scale.value,
+            "scale_percentiles": self.core.scale._percentiles,
+        }
 
     def load_state_dict(self, state: dict) -> None:
-        self.core.load_state_dict(state["core"])
+        self.core.model.load_state_dict(state["model"])
+        self.core.optim.load_state_dict(state["optim"])
+        self.core.pi_optim.load_state_dict(state["pi_optim"])
+        self.core.scale.value.copy_(state["scale_value"])
+        self.core.scale._percentiles.copy_(state["scale_percentiles"])
 
     def save(self, path: str) -> None:
         torch.save(self.state_dict(), path)
