@@ -83,3 +83,17 @@ def test_gciql_state_dry_run():
     assert "run_gciql.py" in r.stdout
     assert "--config-name cube_single_state" in r.stdout
     assert "[DRY]" in r.stdout
+
+
+# ── gciql/pixel.sh ─────────────────────────────────────────────────────────
+def test_gciql_pixel_default_impala():
+    r = _dry_run("gciql/pixel.sh")
+    assert r.returncode == 0, r.stderr
+    assert "--config-name cube_single_visual" in r.stdout
+    assert "cube_single_visual_drq" not in r.stdout
+
+
+def test_gciql_pixel_drq_encoder():
+    r = _dry_run("gciql/pixel.sh", ENCODER="drq")
+    assert r.returncode == 0
+    assert "--config-name cube_single_visual_drq" in r.stdout
