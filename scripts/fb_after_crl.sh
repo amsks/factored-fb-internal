@@ -17,9 +17,9 @@ for ((i = 0; i < MAX_POLLS; i++)); do
     echo "[fb-after-crl] $(date +%T) min_free=${minfree:-?} MiB"
     if [ -n "${minfree:-}" ] && [ "$minfree" -ge "$THRESH_MIB" ]; then
         echo "[fb-after-crl] $(date +%T) GPUs free -> launching FB sweep (alpha=$ALPHA)"
-        exec bash scripts/run_fb_reweight.sh
+        exec env REWEIGHT_ALPHA="$ALPHA" bash scripts/agents/fb/state.sh
     fi
     sleep "$POLL"
 done
 echo "[fb-after-crl] gave up after $MAX_POLLS polls; GPUs never freed."
-echo "[fb-after-crl] launch manually with: ALPHA=$ALPHA bash scripts/run_fb_reweight.sh"
+echo "[fb-after-crl] launch manually with: REWEIGHT_ALPHA=$ALPHA bash scripts/agents/fb/state.sh"
