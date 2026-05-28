@@ -9,6 +9,7 @@ USAGE="usage: bash scripts/agents/fb/pixel.sh
     RUN_GROUP=fb_pixel
     DATA_PATH=/dev/shm/factored-fb/datasets
     MODE=vanilla                 vanilla | onestep
+    SAVE_EVAL_VIDEOS=false       forward to train.py as save_eval_videos=<val>
     DRY_RUN=1"
 source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 _maybe_help "$@"

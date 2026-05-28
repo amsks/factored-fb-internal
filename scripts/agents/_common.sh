@@ -76,6 +76,7 @@ _run_fb_sweep() {
     local data="${DATA_PATH:-/dev/shm/factored-fb/datasets}"
     local stagger="${STAGGER:-3}"
     local wandb_entity="${WANDB_ENTITY:-amsks}"
+    local save_eval_videos="${SAVE_EVAL_VIDEOS:-false}"
 
     _setup_dev_shm
     export TMPDIR="${TMPDIR:-/dev/shm/tmp_fb}"
@@ -83,7 +84,7 @@ _run_fb_sweep() {
     _assert_data "$data/cube-single-play-v0/buffer"
 
     echo "[fb-sweep] domain=$domain group=$run_group steps=$steps seeds=[$seeds] gpus=[$gpus]"
-    echo "[fb-sweep] data=$data  extra_args=(${extra_args[*]:-})"
+    echo "[fb-sweep] data=$data  save_eval_videos=$save_eval_videos  extra_args=(${extra_args[*]:-})"
 
     local -a seed_arr; read -ra seed_arr <<< "$seeds"
     local s gpu log run_dir
@@ -96,6 +97,7 @@ _run_fb_sweep() {
             "num_train_steps=$steps"
             "data_path=$data"
             "seed=$s" device=cuda
+            "save_eval_videos=$save_eval_videos"
             use_wandb=true "wandb_entity=$wandb_entity" "wandb_group=$run_group"
             "wandb_run_name=${run_group}_s${s}"
             hydra.job.chdir=true "hydra.run.dir=$run_dir"

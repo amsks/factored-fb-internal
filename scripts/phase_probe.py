@@ -79,16 +79,19 @@ def main() -> None:
     scenarios = [s for s in args.scenarios.split(",") if s]
     thr = Thresholds(eps_reach=args.eps_reach, delta_lift=args.delta_lift,
                      k_steps=args.k_steps, tau_grip=args.tau_grip)
+    frame_stack = int(getattr(cfg, "frame_stack", 1))
 
     buffer = load_ogbench_dataset(
         domain=cfg.domain, data_path=cfg.data_path,
         load_n_episodes=cfg.load_n_episodes, device=args.device,
-        n_transitions=cfg.n_transitions,
+        n_transitions=cfg.n_transitions, obs_type=cfg.obs_type,
+        frame_stack=frame_stack,
     )
     evaluator = OGBenchEvaluator(
         domain=cfg.domain, agent=agent, offline_buffer=buffer,
         relabel_size=cfg.eval_relabel_size, n_episodes=args.n_episodes,
         shift_reward=cfg.eval_shift_reward, obs_type=cfg.obs_type,
+        frame_stack=frame_stack,
         seed=cfg.seed, device=args.device, save_videos=False,
         video_dir=None, use_wandb=False,
     )
@@ -98,7 +101,8 @@ def main() -> None:
         return z
 
     def make_env(task):
-        e, _ = create_ogbench_env(task, seed=cfg.seed, obs_type=cfg.obs_type)
+        e, _ = create_ogbench_env(task, seed=cfg.seed, obs_type=cfg.obs_type,
+                                  frame_stack=frame_stack)
         return e
 
     per_ep, summary, _hist = run_phase_probe(

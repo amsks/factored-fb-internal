@@ -70,6 +70,8 @@ def classify_phases(signals: Dict[str, Any], thr: Thresholds) -> Dict[str, Any]:
             "fail_phase": "none" if success else "reach",
             "min_eff_cube_dist": float("nan"),
             "max_cube_lift": float("nan"),
+            "final_cube_lift": float("nan"),
+            "final_grip": float("nan"),
             "final_cube_goal_dist": float("nan"),
             "length": 0,
         }
@@ -105,6 +107,8 @@ def classify_phases(signals: Dict[str, Any], thr: Thresholds) -> Dict[str, Any]:
         "furthest_phase": furthest, "fail_phase": fail,
         "min_eff_cube_dist": float(eff_cube_dist.min()),
         "max_cube_lift": float(lift.max()),
+        "final_cube_lift": float(lift[-1]),
+        "final_grip": float(grip[-1]),
         "final_cube_goal_dist": float(np.linalg.norm(cube[-1] - goal)),
         "length": int(T),
     }
@@ -202,19 +206,29 @@ def apply_scenario(env, scenario: str) -> None:
     raise ValueError(f"unknown scenario {scenario!r} (expected one of {SCENARIOS})")
 
 
-def _initial_obs(env):
+def _initial_obs(env, reset_obs, scenario: str):
     """Initial observation for the post-reset (post-scenario) state.
 
-    The caller already did exactly one env.reset() this episode; calling
-    env.reset() again would re-randomize the task. OGBench manip envs
-    expose compute_observation() on the unwrapped env, so use that;
-    fall back to a fresh reset's observation only if it is unavailable.
+    State envs: ``compute_observation()`` on the unwrapped env reflects any
+    ``apply_scenario`` physics mutation without a re-randomizing reset.
+
+    Pixel envs (PixelWrapper / FrameStackObservation, obs ndim >= 3): the
+    wrapper only emits correctly stacked CHW frames via reset()/step(), so we
+    use the reset observation. That is valid only for S0 (no mutation); the
+    wrapper cannot re-render a frame stack after an S1/S2 physics mutation, so
+    those are rejected explicitly rather than fed a stale/raw frame.
     """
+    obs0 = np.asarray(reset_obs, dtype=np.float32)
+    if obs0.ndim >= 3:
+        if scenario != "S0":
+            raise NotImplementedError(
+                "pixel counterfactual scenarios (S1/S2) are not supported "
+                "by phase_probe; run with --scenarios S0")
+        return obs0
     u = env.unwrapped
     if hasattr(u, "compute_observation"):
         return np.asarray(u.compute_observation(), dtype=np.float32)
-    obs, _ = env.reset()
-    return np.asarray(obs, dtype=np.float32)
+    return obs0
 
 
 def rollout_with_phase_signals(
@@ -233,7 +247,7 @@ def rollout_with_phase_signals(
     ensure_manip_env(env)
     episodes: List[Dict[str, Any]] = []
     for _ in range(n_episodes):
-        _, info = env.reset()
+        reset_obs, info = env.reset()
         apply_scenario(env, scenario)
         goal = episode_goal(env)
         table_z = episode_table_z(env)
@@ -244,7 +258,7 @@ def rollout_with_phase_signals(
         ep_success = bool(s0["success"])
 
         obs_list, act_list = [], []
-        observation = _initial_obs(env)
+        observation = _initial_obs(env, reset_obs, scenario)
         if record_obs:
             obs_list.append(np.asarray(observation, dtype=np.float32))
         while True:
@@ -310,6 +324,8 @@ def run_phase_probe(
                     "fail_phase": c["fail_phase"],
                     "min_eff_cube_dist": c["min_eff_cube_dist"],
                     "max_cube_lift": c["max_cube_lift"],
+                    "final_cube_lift": c["final_cube_lift"],
+                    "final_grip": c["final_grip"],
                     "final_cube_goal_dist": c["final_cube_goal_dist"],
                     "length": c["length"],
                 })

@@ -13,6 +13,7 @@ USAGE="usage: bash scripts/agents/fb/state.sh
     DATA_PATH=/dev/shm/factored-fb/datasets
     MODE=vanilla        vanilla | onestep
     REWEIGHT_ALPHA=     >0 enables coverage-balanced reweight (needs analysis/cube_density.npz)
+    SAVE_EVAL_VIDEOS=false  forward to train.py as save_eval_videos=<val>
     DRY_RUN=1           print commands instead of launching"
 source "$(dirname "${BASH_SOURCE[0]}")/../_common.sh"
 _maybe_help "$@"

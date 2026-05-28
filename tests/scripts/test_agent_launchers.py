@@ -50,6 +50,18 @@ def test_fb_state_multi_seed():
     assert "seed=0" in r.stdout and "seed=1" in r.stdout and "seed=2" in r.stdout
 
 
+def test_fb_state_save_eval_videos_default_false():
+    r = _dry_run("fb/state.sh")
+    assert r.returncode == 0
+    assert "save_eval_videos=false" in r.stdout
+
+
+def test_fb_state_save_eval_videos_true():
+    r = _dry_run("fb/state.sh", SAVE_EVAL_VIDEOS="true")
+    assert r.returncode == 0
+    assert "save_eval_videos=true" in r.stdout
+
+
 def test_fb_state_help_exits_zero():
     r = subprocess.run(
         ["bash", str(REPO / "scripts/agents/fb/state.sh"), "--help"],

@@ -1,0 +1,25 @@
+\begin{table}[htbp]
+\centering
+\small
+\caption{\textbf{T2 --- Latent sparsity profiling.} Per-task offline
+goal-state fraction (\emph{Goal Frac}), mean cube$\to$goal distance of
+the decoded top-$k$ task representations (\emph{Top-$k$ $d$}), and the
+fraction of those decoded latents actually at the goal
+(\emph{Top-$k$ \% at Goal}); $\text{mean}\pm\text{std}$ across seeds.
+The data is goal-sparse and the decoded latents land off-goal.}
+\label{tab:T2_sparsity}
+\vspace{0.5em}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Task} & \textbf{Goal Frac} & \textbf{Top-$k$ $d$} & \textbf{Top-$k$ \% at Goal} \\
+\midrule
+task1 & $0.0201 \pm 0.0013$ & $0.150 \pm 0.010$ & $0.069 \pm 0.019$ \\
+task2 & $0.0208 \pm 0.0017$ & $0.085 \pm 0.006$ & $0.246 \pm 0.036$ \\
+task3 & $0.0236 \pm 0.0007$ & $0.094 \pm 0.007$ & $0.278 \pm 0.052$ \\
+task4 & $0.0223 \pm 0.0011$ & $0.093 \pm 0.008$ & $0.216 \pm 0.019$ \\
+task5 & $0.0240 \pm 0.0015$ & $0.090 \pm 0.011$ & $0.240 \pm 0.042$ \\
+\midrule
+\textbf{Mean} & $\mathbf{0.0222}$ & $\mathbf{0.103}$ & $\mathbf{0.210}$ \\
+\bottomrule
+\end{tabular}
+\end{table}

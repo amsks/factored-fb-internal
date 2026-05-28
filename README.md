@@ -113,6 +113,7 @@ SEEDS=0 GPUS=0 DRY_RUN=1 bash scripts/agents/gciql/pixel.sh ENCODER=drq
 | Leaf | Knob | Values |
 |---|---|---|
 | `fb/{state,pixel}.sh` | `MODE` | `vanilla` (default), `onestep` |
+| `fb/{state,pixel}.sh` | `SAVE_EVAL_VIDEOS` | `false` (default), `true` — forward to `train.py` as `save_eval_videos=<val>` |
 | `fb/state.sh` | `REWEIGHT_ALPHA` | `0` (default, off), `>0` enables coverage-balanced reweight (needs `analysis/cube_density.npz`) |
 | `gciql/pixel.sh`, `gcivl/pixel.sh` | `ENCODER` | `impala` (default), `drq` |
 
