@@ -58,3 +58,19 @@ def test_fb_state_help_exits_zero():
     )
     assert r.returncode == 0
     assert "fb/state.sh" in r.stderr or "fb/state.sh" in r.stdout
+
+
+# ── fb/pixel.sh ────────────────────────────────────────────────────────────
+def test_fb_pixel_vanilla_dry_run():
+    r = _dry_run("fb/pixel.sh")
+    assert r.returncode == 0, r.stderr
+    assert "train.py" in r.stdout
+    assert "domain=visual_cube_single" in r.stdout
+    assert "[DRY]" in r.stdout
+
+
+def test_fb_pixel_onestep():
+    r = _dry_run("fb/pixel.sh", MODE="onestep")
+    assert r.returncode == 0
+    assert "onestep=true" in r.stdout
+    assert "domain=visual_cube_single" in r.stdout
