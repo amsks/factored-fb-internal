@@ -40,9 +40,20 @@ def _outcome(row) -> str:
 
 
 def main() -> int:
-    parquets = sorted(SRC.glob("s*_final/per_episode.parquet"))
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--src", default=str(SRC),
+                    help="root holding s*_final/per_episode.parquet "
+                         "(default: the CRL+FlowBC run)")
+    ap.add_argument("--label", default="CRL+FlowBC",
+                    help="method name used in the markdown headings")
+    args = ap.parse_args()
+    src = Path(args.src)
+    label = args.label
+
+    parquets = sorted(src.glob("s*_final/per_episode.parquet"))
     if not parquets:
-        print(f"[aggregate] no per-seed parquets under {SRC}", file=sys.stderr)
+        print(f"[aggregate] no per-seed parquets under {src}", file=sys.stderr)
         return 1
 
     frames = []
@@ -54,7 +65,7 @@ def main() -> int:
     big = pd.concat(frames, ignore_index=True)
     big["outcome"] = big.apply(_outcome, axis=1)
 
-    out = SRC / "aggregate"; out.mkdir(exist_ok=True)
+    out = src / "aggregate"; out.mkdir(exist_ok=True)
     big.to_parquet(out / "aggregate_per_episode.parquet")
 
     # Filter to the M1 baseline (S0) for the outcome-distribution table.
@@ -78,7 +89,7 @@ def main() -> int:
     outcome_summary = outcome_pct.agg(["mean", "std"]).T
 
     lines = [
-        "# CRL+FlowBC phase-probe — aggregate",
+        f"# {label} phase-probe — aggregate",
         "",
         f"- per-seed parquets: {len(parquets)}",
         f"- total episodes: {len(big)}",
@@ -108,7 +119,7 @@ def main() -> int:
           ].mean() * 100)
     m2_summary = m2.groupby("scenario").agg(["mean", "std"]).round(2)
     (out / "intervention.md").write_text(
-        "# CRL+FlowBC intervention study (S0/S1/S2) — % episodes\n\n"
+        f"# {label} intervention study (S0/S1/S2) — % episodes\n\n"
         + m2_summary.to_string()
     )
 

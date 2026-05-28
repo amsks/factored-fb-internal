@@ -199,7 +199,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 # rliable-style fixed method colors.
-COLORS = {"FB": "#d62728", "GCIQL": "#1f77b4"}
+COLORS = {"FB": "#d62728", "GCIQL": "#1f77b4", "CRL": "#2ca02c",
+          "RLDP": "#9467bd"}
 
 
 def _plot_curve(ax, pt, ci, title: str, grid: np.ndarray = COMMON_GRID) -> None:
@@ -311,6 +312,9 @@ def main() -> None:
     ap.add_argument("--crl", default=None,
                     help="optional CRL eval.csv root (sd*/eval.csv), added as a "
                          "third method")
+    ap.add_argument("--rldp", default=None,
+                    help="optional RLDP wandb_pull cache dir (same schema as "
+                         "--fb), added as a fourth method")
     ap.add_argument("--max-step", type=int, default=None,
                     help="cap the shared step grid for a matched-budget "
                          "comparison; the final table is then taken at this step")
@@ -319,6 +323,8 @@ def main() -> None:
     methods = {"FB": load_fb(args.fb), "GCIQL": load_gciql(args.gciql)}
     if args.crl:
         methods["CRL"] = load_gciql(args.crl)
+    if args.rldp:
+        methods["RLDP"] = load_fb(args.rldp)
     if args.max_step is not None:
         grid = np.arange(0, args.max_step + 1, 100_000)
         final_at_grid_end = True
