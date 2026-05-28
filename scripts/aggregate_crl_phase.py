@@ -89,15 +89,15 @@ def main() -> int:
         "",
         "## Per-seed overall success (S0)",
         "",
-        seed_overall.to_frame("success_rate").round(3).to_markdown(),
+        seed_overall.round(3).to_string(),
         "",
         "## Per-task success rate (S0, % episodes)",
         "",
-        (seed_per_task * 100).round(1).to_markdown(),
+        (seed_per_task * 100).round(1).to_string(),
         "",
         "## Outcome distribution (S0, mean ± std across seeds, % episodes)",
         "",
-        outcome_summary.round(2).to_markdown(),
+        outcome_summary.round(2).to_string(),
         "",
     ]
     (out / "overall.md").write_text("\n".join(lines))
@@ -109,7 +109,7 @@ def main() -> int:
     m2_summary = m2.groupby("scenario").agg(["mean", "std"]).round(2)
     (out / "intervention.md").write_text(
         "# CRL+FlowBC intervention study (S0/S1/S2) — % episodes\n\n"
-        + m2_summary.to_markdown()
+        + m2_summary.to_string()
     )
 
     print(f"[aggregate] wrote {out}/aggregate_per_episode.parquet")
