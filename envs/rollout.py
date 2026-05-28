@@ -17,6 +17,7 @@ def rollout(
     record: bool = False,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], Optional[List[List[np.ndarray]]]]:
     observation, info = env.reset()
+    agent.reset()
     returns, lengths, infos = [0.0], [0], [[info]]
     ctx = {} if ctx is None else {"z": ctx}
     frames: Optional[List[List[np.ndarray]]] = [[env.render()]] if record else None
@@ -34,6 +35,7 @@ def rollout(
             if len(returns) >= num_episodes:
                 break
             observation, info = env.reset()
+            agent.reset()
             returns.append(0.0)
             lengths.append(0)
             infos.append([info])
