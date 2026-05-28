@@ -48,19 +48,22 @@ def test_fb_parquet_has_expected_columns():
     )
 
 
-def test_crl_parquet_matches_fb_schema():
+def test_crl_parquet_is_fb_superset():
+    """CRL parquet must contain every FB column with matching dtype.
+    CRL may have extra columns (e.g. final_cube_lift) that the FB
+    aggregator dropped — those don't break downstream consumers, which
+    only read FB-named columns."""
     if not (FB_PARQUET.exists() and CRL_AGG.exists()):
         pytest.skip("FB or CRL parquet missing (run phase.sh first)")
     fb = _schema(FB_PARQUET)
     crl = _schema(CRL_AGG)
-    extra = set(crl) - set(fb)
     missing = set(fb) - set(crl)
-    assert not extra and not missing, (
-        f"CRL columns differ from FB: extra={extra} missing={missing}"
+    assert not missing, (
+        f"CRL parquet missing FB columns: {missing}; got {sorted(crl)}"
     )
     bad_dtype = [c for c in fb if fb[c] != crl[c]]
     assert not bad_dtype, (
-        "CRL dtypes differ from FB for columns: "
+        "CRL dtypes differ from FB for shared columns: "
         + ", ".join(f"{c} (FB={fb[c]} CRL={crl[c]})" for c in bad_dtype)
     )
 
