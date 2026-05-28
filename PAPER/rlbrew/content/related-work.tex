@@ -1,0 +1,10 @@
+\section{Related Work}
+
+\paragraph{Unsupervised reinforcement learning.}
+URL methods pretrain in a reward-free or reward-agnostic phase and reuse the learned object for downstream control. Goal-conditioned RL learns policies or values indexed by target states \citep{eysenbach-iclr21a,ma-neurips22a}. Contrastive RL learns state-goal representations using future-positive and random-negative samples \citep{eysenbach-neurips22a}. Forward--backward representations and successor features estimate objects related to future occupancy and use them for reward-conditioned policy inference \citep{dayan-nc93a,barreto-neurips17a,touati-neurips21a,touati-iclr23a}. Recent work has argued that many of these objectives are different tractable approximations to successor measures and that their representations induce state equivalences over future reachability \citep{agarwal-rlj25a}. Our work uses this perspective to analyze a concrete failure mode in manipulation rather than to derive a new URL objective.
+
+\paragraph{Controllable representations.}
+Controllable-representation methods learn abstractions that preserve action-relevant information, often through inverse or multi-step inverse dynamics objectives \citep{efroni-iclr22a,lamb-arxiv22a,levine-arxiv24a,rudolph-rlc24a}. These objectives are closely related to manipulation because contact changes which components of the state are controllable by the robot. We do not introduce a new controllability objective. Instead, we test whether existing state-based URL methods preserve the phase distinctions that such objectives would ideally retain.
+
+\paragraph{Manipulation benchmarks and diagnostics.}
+\ogbench{} provides offline goal-conditioned RL tasks that evaluate long-horizon control and goal reaching \citep{park-iclr25a}. Benchmark success rates are useful for comparing methods, but they do not identify the physical stage at which a policy fails. Our diagnostic decomposes manipulation rollouts into approach, grasp, maintain-grasp, and transport outcomes. This separates failures before contact, failures in contact acquisition, and failures after the object should have become controllable.

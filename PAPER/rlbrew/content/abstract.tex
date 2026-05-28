@@ -1,0 +1,9 @@
+\begin{abstract}
+Many reinforcement learning domains are multi-task under a shared set of dynamics.
+Unsupervised reinforcement learning (URL) methods exploit this structure by pretraining without task rewards, then using the learned representation for downstream policy inference.
+Contact-rich manipulation is a challenging setting for this paradigm because future reachability depends on contact: IN sube manipulation tasks, this amounts to moving to the cube, acquiring a grasp, maintaining the grasp, and transporting the object induce different control regimes.
+This paper investigates whether URL failures in cube manipulation are explained by this phase structure.
+We formalize manipulation as a phase-conditioned successor-measure problem and introduce a rollout diagnostic that assigns each failure to the first unmet physical precondition: approach, grasp, maintain grasp, or transport. On \ogbench{} \task{}, \gciql{} achieves higher aggregate success than \fb{}, but the decomposition reveals the relevant failure mode.
+\fb{} reaches the cube in all analyzed rollouts and has fewer initial grasp failures than \gciql{}, while most of the gap appears after pick-up through grasp-maintenance and transport failures.
+These results suggest that state-based manipulation failures in URL are not primarily failures of reaching the object, but failures to preserve phase-conditioned controllability after contact.
+\end{abstract}
