@@ -84,7 +84,10 @@ def load_transitions(
             "action": np.concatenate(next_act_list, axis=0),
         },
     }
-    if obs_type == "pixels":
+    # timestep is always populated: frame_stack uses it for episode-boundary clamping
+    # (pixel path), and DictBuffer.sample(horizon=h) uses it to enforce
+    # contiguous-within-episode windows (RLDP). Cheap (int64 per transition).
+    if ts_list:
         storage["timestep"] = np.concatenate(ts_list, axis=0)
     if has_physics and next_phys_list:
         storage["next"]["physics"] = np.concatenate(next_phys_list, axis=0)
