@@ -56,32 +56,39 @@ The full per-regime, per-outcome distances are in Appendix~\ref{app:tables}.
 
 \subsection{Learned scores weakly rank controllable futures}
 
-If support does not explain the failure, what is the learned value missing? 
-We run two probes designed to separate value-ranking failure from a pure OOD explanation. 
-The first uses training states directly. The second matches success-bound and fail-bound rollout states by nearest-neighbor observation distance, making the comparison local in observation space.
+If support does not explain the failure, what is the learned representation missing?
+We run two probes designed to separate a representational aliasing failure from a pure OOD explanation.
+The first asks whether the learned representation itself separates success-bound from fail-bound grasps. The second matches success-bound and fail-bound rollout states by nearest-neighbor observation distance, making the comparison local in observation space.
 
-First, geometry can be present in the representation without yielding control. 
-For the methods with an explicit backward embedding, \rldp{}'s $B$ resolves cube-to-goal distance far better than \fb{}'s (nonlinear $R^2$ $0.75$ vs $0.21$), yet \rldp{} has the worse maintain-grasp failure (Appendix~\ref{app:tables}). 
-Second, the extracted value carries no transport signal: in the carry regime, its Spearman correlation with negative cube-to-goal distance is near zero for every method (Figure~\ref{fig:monotonicity}).
+First, geometry can be present in the representation without yielding control.
+For the methods with an explicit backward embedding, \rldp{}'s $B$ resolves cube-to-goal distance far better than \fb{}'s (nonlinear $R^2$ $0.75$ vs $0.21$), yet \rldp{} has the worse maintain-grasp failure (Appendix~\ref{app:tables}).
+Resolving geometry is not the bottleneck.
 
-Most directly, Figure~\ref{fig:aliasing} tests interaction-mode aliasing. 
-For each fail-bound state we find its nearest success-bound state in observation space and ask whether the value ranks the success-bound state higher; a value that separated controllable from about-to-fail states would score near $1$. 
-All methods stay only weakly above chance ($0.48$--$0.60$, with small across-seed spread): \fb{} and \rldp{} carry a weak but consistent signal, while \gciql{} sits at chance.
-Even for observation-near pairs with opposite futures, the learned scores barely separate them. 
+The decisive test is whether the learned representation encodes \emph{which} grasps are bound to succeed (Figure~\ref{fig:repsep}).
+For each method we take the state embedding its score reads---$\phi(s)$ for the \fb{} family, the penultimate value features for \gciql{}, and the state-side contrastive embedding for \crl{}---restrict to in-hand (grasp and carry) states, and fit a linear probe to predict success-bound versus fail-bound, both on independent training states and on held-out rollout episodes (episode-grouped cross-validation, so no trajectory spans folds).
+For the \fb{} family the probe stays at chance (\fb{} $0.57/0.47$, \rldp{} $0.56/0.45$ train/eval AUC): success-bound and fail-bound grasps occupy the same region of representation space.
+\gciql{} and \crl{}, whose embeddings are explicitly trained to rank goals, carry more signal ($0.78$ and $0.70$ eval AUC).
+The contrast is sharpest for \fb{}, which reaches the goal in roughly half of all episodes yet whose representation still cannot tell the two outcomes apart---aliasing intrinsic to the representation, not a competence artifact.
+
+The value-space view agrees (Figure~\ref{fig:aliasing}).
+For each fail-bound state we find its nearest success-bound state in observation space and ask whether the value ranks the success-bound state higher; a value that separated controllable from about-to-fail states would score near $1$.
+All methods stay only weakly above chance ($0.48$--$0.60$, with small across-seed spread).
+Even for observation-near pairs with opposite futures, the learned scores barely separate them.
 This is the empirical signature predicted by the interaction-gap view: the missing object is not coarse cube geometry, but post-contact controllability.
 
 \begin{figure}[htbp]
 \centering
-\begin{minipage}[t]{0.48\linewidth}
-  \centering
-  \includegraphics[width=\linewidth]{fig_monotonicity.png}
-  \caption{Carry-regime value monotonicity.}
-  \label{fig:monotonicity}
-\end{minipage}\hfill
-\begin{minipage}[t]{0.48\linewidth}
+\includegraphics[width=\linewidth]{fig_repsep.png}
+\caption{\textbf{In-hand representations alias success- and fail-bound grasps.} Per-method PCA of the learned state representation, restricted to in-hand (grasp/carry) states, for training states (top) and held-out rollouts (bottom); green is success-bound, orange fail-bound, with class centroids marked. Each panel is annotated with a linear-probe AUC (episode-grouped for eval). The \fb{} family stays at chance both in- and out-of-sample; \gciql{}/\crl{} carry weak signal.}
+\label{fig:repsep}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.6\linewidth}
   \centering
   \includegraphics[width=\linewidth]{fig_aliasing.png}
-  \caption{Matched-observation aliasing profile.}
+  \caption{Matched-observation aliasing profile: success-bound states ranked above their nearest fail-bound neighbor, by regime ($0.5$ is chance).}
   \label{fig:aliasing}
 \end{minipage}
 \end{figure}

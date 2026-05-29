@@ -98,6 +98,24 @@ This appendix holds the detailed tables behind the main-paper figures: per-task 
 \end{tabular}
 \end{table}
 
+\subsection{Representation separability}
+
+\begin{table}[H]
+\centering
+\caption{Linear-probe ROC-AUC for predicting success-bound versus fail-bound from the learned in-hand (grasp/carry) representation, on independent training states and on held-out rollouts (episode-grouped $5$-fold cross-validation, so no trajectory spans folds). $0.5$ is chance. The representation is $\phi(s)$ for the \fb{} family, the penultimate goal-conditioned value features for \gciql{}, and the state-side contrastive embedding for \crl{}. Figure~\ref{fig:repsep} shows the corresponding per-method PCA scatters.}
+\label{tab:repsep}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{Train AUC} & \textbf{Eval AUC} & \textbf{Train$\to$Eval} \\
+\midrule
+\fb{}    & $0.57$ & $0.47$ & $+0.10$ \\
+\gciql{} & $0.65$ & $0.78$ & $-0.12$ \\
+\crl{}   & $0.59$ & $0.70$ & $-0.11$ \\
+\rldp{}  & $0.56$ & $0.45$ & $+0.11$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Matched-observation aliasing}
 
 \begin{table}[H]
