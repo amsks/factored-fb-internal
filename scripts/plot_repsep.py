@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import (StratifiedGroupKFold, StratifiedKFold,
                                      cross_val_score)
@@ -55,7 +56,16 @@ def _load(method):
     y = df["success"].to_numpy(bool)
     split = df["split"].to_numpy()
     episode = df["episode"].to_numpy(int)
-    return X, y, split, episode
+    task = df["task"].to_numpy(int)
+    return X, y, split, episode, task
+
+
+def _auc_per_task(X, y, task):
+    """Mean per-task AUC: success-bound is task-dependent, so probe each task
+    separately (fixed goal) and average -- avoids the contradictory-label
+    pooling across tasks."""
+    aucs = [_auc(X[task == t], y[task == t]) for t in np.unique(task)]
+    return float(np.nanmean(aucs))
 
 
 def _auc(X, y, groups=None):
@@ -91,17 +101,18 @@ def _subsample(idx, y):
     return pos, neg
 
 
-def _panel(ax, Z, y, mask, auc, title=None, ylab=None):
-    idx = np.where(mask)[0]
-    pos, neg = _subsample(idx, y)
-    ax.scatter(Z[neg, 0], Z[neg, 1], s=6, c=FAIL, alpha=0.35,
+def _panel_pts(ax, Z2, y2, auc, title=None, ylab=None):
+    """Scatter already-embedded 2D points Z2 with labels y2."""
+    pos = np.where(y2)[0]
+    neg = np.where(~y2)[0]
+    ax.scatter(Z2[neg, 0], Z2[neg, 1], s=6, c=FAIL, alpha=0.35,
                linewidths=0, label="Fail-bound")
-    ax.scatter(Z[pos, 0], Z[pos, 1], s=6, c=SUCC, alpha=0.45,
+    ax.scatter(Z2[pos, 0], Z2[pos, 1], s=6, c=SUCC, alpha=0.45,
                linewidths=0, label="Success-bound")
     # class centroids make the overlap legible
     for sub, col in ((pos, SUCC), (neg, FAIL)):
         if len(sub):
-            ax.scatter(Z[sub, 0].mean(), Z[sub, 1].mean(), s=160, marker="X",
+            ax.scatter(Z2[sub, 0].mean(), Z2[sub, 1].mean(), s=160, marker="X",
                        c=col, edgecolors="black", linewidths=1.2, zorder=5)
     txt = "AUC n/a" if np.isnan(auc) else f"AUC {auc:.2f}"
     ax.text(0.04, 0.96, txt, transform=ax.transAxes, va="top", ha="left",
@@ -114,25 +125,41 @@ def _panel(ax, Z, y, mask, auc, title=None, ylab=None):
         ax.set_ylabel(ylab, fontsize=12, fontweight="bold")
 
 
-def fig_auc_bars(out, auc_rows):
-    """Grouped train/eval linear-probe AUC bar chart (chance = 0.5)."""
-    names = [r[0] for r in auc_rows]
-    tr = np.array([r[1] for r in auc_rows])
-    ev = np.array([r[2] for r in auc_rows])
-    x = np.arange(len(names)); w = 0.38
-    fig, ax = plt.subplots(figsize=(5.4, 3.8))
-    ax.bar(x - w / 2, tr, w, color=_CB[0], edgecolor="black", linewidth=0.4,
-           label="Train grasps")
-    ax.bar(x + w / 2, ev, w, color=_CB[3], edgecolor="black", linewidth=0.4,
-           label="Eval grasps")
-    ax.axhline(0.5, color="black", ls="--", lw=1.0, label="chance")
-    ax.set_xticks(x); ax.set_xticklabels(names, fontsize=10, fontweight="bold")
-    ax.set_ylabel("Linear-probe AUC\n(success- vs fail-bound)", fontsize=10)
-    ax.set_ylim(0.4, 0.85)
-    ax.legend(fontsize=8, ncol=3, loc="upper center",
-              bbox_to_anchor=(0.5, 1.16), frameon=False, columnspacing=1.2)
-    ax.grid(True, axis="y", alpha=0.3)
-    fig.tight_layout()
+def _embed_subset(X, projection, pca_full=None, sel=None):
+    """Return 2D coords for the selected rows under `projection`.
+
+    PCA: index the precomputed pooled fit (panels share axes). t-SNE: fit on the
+    standardised subset directly (per-panel; t-SNE has no shared transform)."""
+    if projection == "pca":
+        return pca_full[sel]
+    Xs = StandardScaler().fit_transform(X[sel])
+    perp = float(min(30, max(5, (len(sel) - 1) // 3)))
+    return TSNE(n_components=2, perplexity=perp, init="pca",
+                random_state=0).fit_transform(Xs)
+
+
+def _render_grid(out, data, pca, auc_map, projection, title):
+    """2x4 grid (rows train/eval x cols methods) under `projection`."""
+    fig, axes = plt.subplots(2, 4, figsize=(14.5, 7.4))
+    for j, m in enumerate(METHODS):
+        X, y, split, _ = data[m]
+        for r, (sp, ylab) in enumerate((("train", "Train grasps"),
+                                        ("eval", "Eval grasps"))):
+            idx = np.where(split == sp)[0]
+            pos, neg = _subsample(idx, y)
+            sel = np.concatenate([pos, neg])
+            Z2 = _embed_subset(X, projection, pca_full=pca[m], sel=sel)
+            _panel_pts(axes[r, j], Z2, y[sel], auc_map[m][r],
+                       title=LABELS[m] if r == 0 else None,
+                       ylab=ylab if j == 0 else None)
+    handles = [plt.Line2D([], [], marker="o", ls="", ms=7, c=SUCC,
+                          label="Success-bound"),
+               plt.Line2D([], [], marker="o", ls="", ms=7, c=FAIL,
+                          label="Fail-bound")]
+    fig.legend(handles=handles, loc="lower center", ncol=2, frameon=False,
+               fontsize=11, bbox_to_anchor=(0.5, -0.02))
+    fig.suptitle(title, fontsize=13, y=1.0)
+    fig.tight_layout(rect=(0, 0.02, 1, 0.99))
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"[plot] wrote {out}")
@@ -140,41 +167,27 @@ def fig_auc_bars(out, auc_rows):
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    fig, axes = plt.subplots(2, 4, figsize=(14.5, 7.4))
-    auc_rows = []
-    for j, m in enumerate(METHODS):
-        X, y, split, episode = _load(m)
-        tr = split == "train"
-        ev = split == "eval"
+    data, pca, auc_map, auc_rows = {}, {}, {}, []
+    for m in METHODS:
+        X, y, split, episode, task = _load(m)
+        data[m] = (X, y, split, episode)
         # per-method PCA fit on pooled grasps so train/eval share axes
         Xs = StandardScaler().fit_transform(X)
-        Z = PCA(n_components=2, random_state=0).fit_transform(Xs)
-        auc_tr = _auc(X[tr], y[tr])
-        auc_ev = _auc(X[ev], y[ev], groups=episode[ev])
+        pca[m] = PCA(n_components=2, random_state=0).fit_transform(Xs)
+        tr, ev = split == "train", split == "eval"
+        auc_tr = _auc_per_task(X[tr], y[tr], task[tr])  # per-task (robust)
+        auc_ev = _auc(X[ev], y[ev], groups=episode[ev])  # high-variance
+        auc_map[m] = (auc_tr, auc_ev)
         auc_rows.append((LABELS[m], auc_tr, auc_ev))
-        _panel(axes[0, j], Z, y, tr, auc_tr,
-               title=LABELS[m], ylab="Train grasps" if j == 0 else None)
-        _panel(axes[1, j], Z, y, ev, auc_ev,
-               ylab="Eval grasps" if j == 0 else None)
         print(f"[repsep] {LABELS[m]}: train AUC={auc_tr:.3f} "
               f"eval AUC={auc_ev:.3f} (n_tr={tr.sum()}, n_ev={ev.sum()})")
 
-    handles = [plt.Line2D([], [], marker="o", ls="", ms=7, c=SUCC,
-                          label="Success-bound"),
-               plt.Line2D([], [], marker="o", ls="", ms=7, c=FAIL,
-                          label="Fail-bound")]
-    fig.legend(handles=handles, loc="lower center", ncol=2, frameon=False,
-               fontsize=11, bbox_to_anchor=(0.5, -0.02))
-    fig.suptitle("In-hand grasp representations: success-bound vs fail-bound "
-                 "separability (per-method PCA; linear-probe AUC)",
-                 fontsize=13, y=1.0)
-    fig.tight_layout(rect=(0, 0.02, 1, 0.99))
-    out_png = OUT / "fig_repsep.png"
-    fig.savefig(out_png, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"[plot] wrote {out_png}")
-
-    fig_auc_bars(OUT / "fig_repsep_auc.png", auc_rows)
+    _render_grid(OUT / "fig_repsep.png", data, pca, auc_map, "pca",
+                 "In-hand grasp representations: success-bound vs fail-bound "
+                 "separability (per-method PCA; linear-probe AUC)")
+    _render_grid(OUT / "fig_repsep_tsne.png", data, pca, auc_map, "tsne",
+                 "In-hand grasp representations: success-bound vs fail-bound "
+                 "separability (per-method t-SNE; linear-probe AUC)")
 
     # AUC table for the appendix
     lines = ["| Method | Train AUC | Eval AUC | Train$\\to$Eval drop |",
