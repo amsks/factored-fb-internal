@@ -24,6 +24,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 REGIONS = ["reach", "grasp", "transport"]
+# Display names: per-state regimes aligned with the paper (the stored labels
+# reach/grasp/transport predate the {approach, pickup, carry} regime naming).
+REGION_DISPLAY = {"reach": "approach", "grasp": "pickup", "transport": "carry"}
 OUTCOMES = ["success_bound", "fail_bound"]
 HORIZON_DEFAULT = 200    # label provenance (see profile --horizon)
 THRESH_DEFAULT = 0.04    # label provenance (see profile --thresh)
@@ -56,6 +59,9 @@ def _methods(root: Path):
     cr, _ = _load_pooled(root, "crl_values.parquet")
     if cr is not None:
         out.append((cr, "V", "CRL"))
+    rl, _ = _load_pooled(root, "rldp_values.parquet")
+    if rl is not None:
+        out.append((rl, "V", "RLDP"))
     group_cols = ("pair", "task") if multi else ("task",)
     return out, group_cols
 
@@ -105,7 +111,7 @@ def aggregate(root: Path, out: Path) -> None:
             idx = np.clip(np.digitize(sub["d"], edges) - 1, 0, len(ctr) - 1)
             mv = pd.DataFrame({"b": idx, "vz": vz}).groupby("b")["vz"].mean()
             ax.plot(ctr[mv.index], mv.values, marker="o", label=label)
-        ax.set_title(rg)
+        ax.set_title(REGION_DISPLAY.get(rg, rg))
         ax.set_xlabel("cube -> goal distance")
         ax.set_ylabel("z-scored value")
         ax.legend(fontsize=8)

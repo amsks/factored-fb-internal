@@ -1,0 +1,38 @@
+\section{Preliminaries}
+
+We consider a reward-free Markov decision process $(\Sspace,\Aspace,\Ptrans,\gamma)$ with state space $\Sspace$, action space $\Aspace$, transition kernel $\Ptrans$, and discount factor $\gamma$.
+For a policy $\pi$, the successor measure from $(s,a)$ to a measurable set $X\subseteq\Sspace$ is:
+\begin{equation}
+    M^\pi(s,a,X) = \E_\pi\left[ \sum_{t\geq 0}\gamma^t \ind{s_{t+1}\in X} \mid s_0=s,a_0=a \right].
+\end{equation}
+When the state space is discrete, we write $M^\pi(s,a,s^+)$ for the discounted occupancy of state $s^+$.
+For a state reward $r$, policy evaluation can be written as:
+\begin{equation}
+    Q^{\pi}_r(s,a) = \int_{\Sspace} M^\pi(s,a,ds^+) r(s^+).
+\end{equation}
+This identity explains why successor measures are useful for URL: a reward-free object that predicts future occupancy can be combined with a downstream reward to evaluate or infer policies~\citep{dayan-nc93a,touati-neurips21a,touati-iclr23a,agarwal-rlj25a}.
+
+Exact successor measures are intractable for large policy classes, so practical URL methods impose structure.
+For example, \fb{} uses a low-rank approximation:
+\begin{equation}
+    M^{\pi_z}(s,a,s^+) \approx F(s,a,z)^\top B(s^+),
+\end{equation}
+where $z$ indexes a reward or policy embedding~\citep{touati-neurips21a,touati-iclr23a}.
+Goal-conditioned and contrastive methods instead learn target-conditioned values, policies, or embeddings~\citep{eysenbach-iclr21a,eysenbach-neurips22a,ma-neurips22a}.
+Predictive methods learn local transition structure that can be composed into longer-horizon reachability estimates.
+Across these objectives, the learned object must decide which states are equivalent for downstream control.
+
+\subsection{URL objectives as future-reachability scores}
+\label{sec:url_objectives_as_sm}
+
+For a goal $g$, let $G(g)=\{s^+:\|o(s^+)-g\|\leq \epsilon_G\}$ denote the task success set.
+The goal-relevant successor mass is:
+\begin{equation}
+    m^\pi_g(s,a) = M^\pi(s,a,G(g)).
+\end{equation}
+We use this quantity only as a common lens: the evaluated methods do not all estimate it explicitly.
+\gciql{} learns a goal-conditioned value $Q(s,a,g)$, \crl{} learns an inner-product score $f(s,a)^\top b(g)$, \fb{} learns an explicit successor-measure factorization, and \rldp{} learns predictive structure that induces long-horizon scores through rollout or extraction.
+
+In navigation-like domains, a compact future-reachability score can often generalize through smooth geometric structure.
+In manipulation, however, the same observed geometry can correspond to different future occupancies depending on the contact mode.
+A useful score must therefore preserve not only where the cube and gripper are, but also whether the current interaction state allows the cube to remain controllable until it reaches the goal.
