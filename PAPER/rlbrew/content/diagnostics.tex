@@ -1,0 +1,47 @@
+\section{Diagnostic Method}
+\label{sec:method}
+
+\subsection{Evaluation setting}
+
+We study the state-observation version of \ogbench{} \task{} over five held-out evaluation tasks, denoted \textit{task1}--\textit{task5}.
+State observations remove visual encoder capacity as the main confound and isolate failures in the learned control representation.
+Our completed method set contains four state-based URL methods: \gciql{}, \crl{}, \fb{}, and \rldp{}.
+We report interquartile mean (IQM) success with stratified-bootstrap confidence intervals for aggregate performance.
+We then analyze deterministic closed-loop rollouts using the phase diagnostic below.
+
+\subsection{Phase decomposition}
+
+We instantiate the sets from Section~\ref{sec:theory} using the state-only thresholds in Table~\ref{tab:failure_criteria}.
+Each rollout is successful if all criteria are satisfied; otherwise, it is assigned to the first failed criterion in the ordered pipeline.
+This converts scalar success into a phase-resolved failure profile.
+
+\begin{table}[htb]
+\centering
+\caption{Operational criteria for assigning the first failure phase in state rollouts.}
+\label{tab:failure_criteria}
+\begin{tabular}{ll}
+\toprule
+\textbf{Phase event} & \textbf{Criterion} \\
+\midrule
+Approach reached  & Minimum gripper-to-cube distance $<6$ cm at any point in the episode \\ \addlinespace
+Control acquired  & Cube lifted $>3$ cm above table with gripper closed for at least $5$ consecutive steps \\ \addlinespace
+Maintain control  & Final cube height above table $\geq 3$ cm \\ \addlinespace
+Transport success & Final cube pose within $5$ cm of the goal pose \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The criteria are mechanical and policy-agnostic.
+They do not use the value function, learned representation, model rollout, contrastive score, or successor-measure estimate.
+The same decomposition therefore applies to goal-conditioned, contrastive, predictive, successor-measure, and model-based methods.
+
+\subsection{Cross-method failure profile}
+
+For each method, we report the percentage of episodes assigned to success, approach failure, grasp failure, maintain-control failure, and transport failure.
+This distribution distinguishes methods that fail before control acquisition from methods that acquire control but fail to preserve or exploit it.
+
+We also report the post-contact share of failures:
+\begin{equation}
+\text{Post-contact share} = \frac{\text{Maintain fail}+\text{Transport fail}}{100-\text{Success}}.
+\end{equation}
+This quantity asks, conditional on failure, how much failure mass appears after control has been acquired.

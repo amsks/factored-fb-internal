@@ -115,7 +115,8 @@ def _jax(args, goal_obs):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--method", required=True, choices=["fb", "gciql", "crl"])
+    ap.add_argument("--method", required=True,
+                    choices=["fb", "gciql", "crl", "rldp"])
     ap.add_argument("--config"); ap.add_argument("--checkpoint")
     ap.add_argument("--run-dir"); ap.add_argument("--step", type=int, default=1000000)
     ap.add_argument("--traj", type=int, required=True)
@@ -130,7 +131,8 @@ def main():
     obs_ep, act_ep, phys = _episode(args.traj)
     T = len(obs_ep); tg = T - 1 - args.goal_offset
     goal_obs = obs_ep[tg].astype(np.float32); goal_cube = phys[tg, CUBE]
-    q_batch, pi = (_fb if args.method == "fb" else _jax)(args, goal_obs)
+    # rldp is a PyTorch FB-family agent -> the FB critic/policy path.
+    q_batch, pi = (_fb if args.method in ("fb", "rldp") else _jax)(args, goal_obs)
 
     # (A) DATA-state critic ranking: Q(pi) vs Q(data) vs Q(random)
     ts = np.arange(0, tg, 25)
