@@ -319,6 +319,8 @@ def main() -> None:
                     help="cap the shared step grid for a matched-budget "
                          "comparison; the final table is then taken at this step")
     ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "fb_gciql"))
+    ap.add_argument("--title", default="FB vs GCIQL",
+                    help="title prefix for the curve figures")
     args = ap.parse_args()
     methods = {"FB": load_fb(args.fb), "GCIQL": load_gciql(args.gciql)}
     if args.crl:
@@ -335,7 +337,7 @@ def main() -> None:
         f"{m} seeds={sorted(d)}" for m, d in methods.items())
         + f" max_step={args.max_step}")
     render(methods, Path(args.out), grid=grid,
-           final_at_grid_end=final_at_grid_end)
+           final_at_grid_end=final_at_grid_end, title_prefix=args.title)
 
 
 if __name__ == "__main__":
