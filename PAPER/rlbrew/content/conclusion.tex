@@ -1,0 +1,12 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We studied where state-based unsupervised RL methods fail in contact-rich cube manipulation.
+Rather than treating success as a single binary outcome, we decomposed each rollout into approach, grasp, maintained control, and transport.
+Across four URL methods, aggregate success hides a consistent failure profile: policies rarely fail to reach the cube, and often acquire control, but many failures occur after acquisition, when the cube must remain controllable and be transported to the goal.
+Support diagnostics show that contact-regime coverage contributes to this failure mode, but does not fully explain the method ordering.
+Value-ranking diagnostics further suggest that learned scores only weakly distinguish observation-near states with different post-contact futures.
+
+These results point to post-contact controllability as a useful target for future offline URL objectives in manipulation.
+The goal is not only to learn representations that encode where the robot, object, and goal are, but also to preserve the interaction-conditioned distinctions that determine whether control of the object can be maintained.
+We view the phase diagnostic as a simple tool for making these failures visible: it separates coarse reachability, control acquisition, maintained control, and transport, and therefore turns a scalar success rate into a more actionable failure profile.

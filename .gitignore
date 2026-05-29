@@ -50,3 +50,16 @@ docs/superpowers/
 
 # macOS Finder metadata
 .DS_Store
+
+# local LaTeX compile shim (self-referential symlink so RLBrew/ paths resolve locally)
+PAPER/rlbrew/RLBrew
+# LaTeX build artifacts
+PAPER/**/*.pdf
+PAPER/**/*.aux
+PAPER/**/*.log
+PAPER/**/*.out
+PAPER/**/*.fls
+PAPER/**/*.fdb_latexmk
+PAPER/**/*.bbl
+PAPER/**/*.blg
+PAPER/**/*.xdv
