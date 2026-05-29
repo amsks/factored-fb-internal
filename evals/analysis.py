@@ -36,15 +36,36 @@ def build_env_and_agent(cfg):
 
 def load_checkpoint(agent, ckpt_path: str | Path, map_location: str = "cpu") -> None:
     """Load a torch state_dict checkpoint into agent with a clear error
-    message when the checkpoint does not match the agent variant."""
+    message when the checkpoint does not match the agent variant.
+
+    A strict load is tried first. If it fails *only* because the checkpoint
+    carries extra modules the local agent lacks (e.g. rldp_flowbc's
+    `_predictor` head), those keys are ignored and the load proceeds — but
+    every parameter the agent needs must still be present and shape-matched,
+    so a genuine architecture mismatch still raises.
+    """
     state = torch.load(str(ckpt_path), map_location=map_location)
     try:
         agent.load_state_dict(state)
-    except (KeyError, RuntimeError) as e:
+        return
+    except (KeyError, RuntimeError):
+        pass
+    # Fallback for re-run analysis: load only the model weights (optimizers
+    # are irrelevant for inference). Tolerates a checkpoint saved by a
+    # different agent variant — e.g. rldp_flowbc, which carries an extra
+    # `_predictor` head and omits the actor-vf optimizer. Extra checkpoint
+    # modules are ignored, but every parameter the local model needs must be
+    # present and shape-matched, so a genuine architecture mismatch raises.
+    missing, unexpected = agent.model.load_state_dict(state["model"],
+                                                      strict=False)
+    if missing:
         raise RuntimeError(
-            f"checkpoint does not match agent (cfg.agent build). "
-            f"Loading {ckpt_path} failed: {e}"
-        ) from e
+            f"checkpoint does not match agent (cfg.agent build): "
+            f"{len(missing)} model parameter(s) the agent needs are absent "
+            f"from {ckpt_path}, e.g. {missing[:5]}")
+    print(f"[load_checkpoint] loaded model weights only; ignoring "
+          f"{len(unexpected)} extra checkpoint module(s), e.g. "
+          f"{unexpected[:3]}")
 
 
 def rollout_with_trajectory(

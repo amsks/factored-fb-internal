@@ -1,0 +1,11 @@
+\begin{abstract}
+Unsupervised reinforcement learning (URL) methods often learn reusable future-reachability objects, such as goal-conditioned values, contrastive scores, successor measures, or predictive representations.
+We argue that these objects can fail when observation-near states belong to different local interaction regimes with different long-horizon successor measures.
+In such settings, a learned score may preserve coarse geometric reachability while smoothing over the interaction variable that determines future controllability.
+We formalize this failure mode as an interaction-conditioned successor gap and show that observation-smooth scores incur error near such gaps.
+We then instantiate the idea in the state-observation version of \ogbench{} \task{}, where the relevant interaction variable is whether the cube is freely moving, controllably held, slipping, or dropped.
+A phase diagnostic decomposes each rollout into approach, control acquisition, maintained control, and transport.
+Across four state-based URL methods, approach failures are negligible, while most failures occur after control acquisition.
+Support diagnostics show that contact-regime coverage contributes but does not determine the method ordering, and value-ranking probes show that learned scores weakly separate observation-near states with different post-interaction futures.
+These results suggest that the missing object is not grasping-specific, but the preservation of interaction-conditioned successor structure.
+\end{abstract}

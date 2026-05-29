@@ -1,0 +1,94 @@
+\section{Results}
+\label{sec:results}
+
+Our experiments support one chain: state-based URL methods do not mainly fail to reach the cube; they fail after acquiring control, and the learned scores do not reliably distinguish observation-near states with different post-contact futures. 
+We present this in three steps, where policies fail, whether dataset support explains it, and what the learned value is missing. 
+Per-task success, exact outcome counts, and the full diagnostic tables are deferred to Appendix~\ref{app:tables}.
+
+\subsection{Scalar success obscures policy failure}
+
+Aggregate state-based success ranks the methods but says nothing about where they fail. 
+Across $10$ evaluation seeds, the overall Interquartile Mean (IQM)~\citep{agarwal-neurips21a} success rates are \gciql{} ($68.3 \pm 3.7$), \fb{} ($50.0 \pm 7.0$), \crl{} ($25.9 \pm 2.0$), and \rldp{} ($22.7 \pm 6.0$).\protect\footnotemark{}
+Per-task results are deferred to Appendix~\ref{app:tables}.
+\footnotetext{Aggregate success uses the stochastic evaluation policy (IQM over seeds); the phase decomposition uses deterministic closed-loop rollouts, so per-method success differs slightly. We report each metric consistently within its own analysis.}
+
+The phase decomposition (Section~\ref{sec:method}) localizes the failure (Figures~\ref{fig:funnel} and \ref{fig:outcomes}). 
+Every method reaches the cube and most acquire a grasp, but the survival curve collapses \emph{after} control acquisition (Figure~\ref{fig:funnel}), and the terminal-outcome mass sits in maintain-grasp and transport rather than approach (Figure~\ref{fig:outcomes}). 
+Relative to \gciql{}, \fb{}'s $19.8\text{ pp}$ deficit decomposes as $+0.2$ approach, $+2.4$ grasp, $-14.6$ maintain, $-7.8$ transport: almost entirely post-contact. 
+The pattern is not specific to \fb{}; \rldp{} acquires control reliably yet ends without maintained control in $44\%$ of episodes, and across the lower-scoring methods the post-contact share of failures is $69$-$87\%$ (Appendix~\ref{app:tables}). 
+Because the phase labels read no value, representation, or model, the protocol extends unchanged to other methods.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{fig_funnel.png}
+  \caption{Phase funnel: survival rates.}
+  \label{fig:funnel}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{fig_outcomes.png}
+  \caption{Terminal-outcome composition.}
+  \label{fig:outcomes}
+\end{minipage}
+\end{figure}
+
+\subsection{Post-contact failures are not explained by support alone}
+
+The next diagnostics group individual states. 
+Because both the play data and the policy rollouts cycle through pick-and-place many times per trajectory, we pool states into three instantaneous regimes defined by gripper and lift state: \emph{approach} (pre-contact), \emph{pickup} (gripper closed, cube on the table), and \emph{carry} (cube lifted and held). 
+These regimes are distinct from the terminal failure phases: a maintain-grasp failure and a transport failure differ only by how the episode ends, and both originate within the carry regime.
+
+A natural confound is that post-contact failures are simply out-of-distribution. 
+Figure~\ref{fig:support} reports the failure-minus-success nearest-neighbor distance from rollout states to the offline data, by regime and post-contact failure mode. 
+Failed states are often farther from the data in pickup and carry regimes, especially for maintain-control failures (e.g.\ \crl{} pickup, $+1.42$). 
+Dataset support therefore contributes, but the deltas do not track the method success ordering.
+But the same elevation appears for \gciql{}, which mostly succeeds, and the deltas do not track the method success ordering, so support is a contributing factor, not the mechanism. 
+The full per-regime, per-outcome distances are in Appendix~\ref{app:tables}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.62\linewidth]{fig_support.png}
+\caption{Failure-minus-success support gap. Positive (red) means failed states are less supported. The gap is positive almost everywhere, including for \gciql{}, but does not track the success ordering.}
+\label{fig:support}
+\end{figure}
+
+\subsection{Learned scores weakly rank controllable futures}
+
+If support does not explain the failure, what is the learned value missing? 
+We run two probes designed to separate value-ranking failure from a pure OOD explanation. 
+The first uses training states directly. The second matches success-bound and fail-bound rollout states by nearest-neighbor observation distance, making the comparison local in observation space.
+
+First, geometry can be present in the representation without yielding control. 
+For the methods with an explicit backward embedding, \rldp{}'s $B$ resolves cube-to-goal distance far better than \fb{}'s (nonlinear $R^2$ $0.75$ vs $0.21$), yet \rldp{} has the worse maintain-grasp failure (Appendix~\ref{app:tables}). 
+Second, the extracted value carries no transport signal: in the carry regime, its Spearman correlation with negative cube-to-goal distance is near zero for every method (Figure~\ref{fig:monotonicity}).
+
+Most directly, Figure~\ref{fig:aliasing} tests interaction-mode aliasing. 
+For each fail-bound state we find its nearest success-bound state in observation space and ask whether the value ranks the success-bound state higher; a value that separated controllable from about-to-fail states would score near $1$. 
+All methods stay only weakly above chance ($0.48$--$0.60$, with small across-seed spread): \fb{} and \rldp{} carry a weak but consistent signal, while \gciql{} sits at chance.
+Even for observation-near pairs with opposite futures, the learned scores barely separate them. 
+This is the empirical signature predicted by the interaction-gap view: the missing object is not coarse cube geometry, but post-contact controllability.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{fig_monotonicity.png}
+  \caption{Carry-regime value monotonicity.}
+  \label{fig:monotonicity}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{fig_aliasing.png}
+  \caption{Matched-observation aliasing profile.}
+  \label{fig:aliasing}
+\end{minipage}
+\end{figure}
+
+\paragraph{Takeaway.}
+The phase diagnostic changes the interpretation of state-based URL failures in cube manipulation.
+The evaluated methods usually reach the object and often acquire control, but many failures occur after acquisition, when the policy must preserve control and transport the cube.
+Support gaps in pickup and carry regimes contribute to this failure mode, but they do not track the method ordering.
+The learned scores also weakly rank observation-near states with different post-contact futures.
+Together, these results suggest that post-contact controllability is a useful target for future offline URL objectives in manipulation.
