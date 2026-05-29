@@ -83,7 +83,12 @@ def rollout_for_profile(env, agent, z, n_episodes: int, thr,
         if cls["success"]:
             outcome = "success"
         elif cls["fail_phase"] == "transport":
-            outcome = "transport_fail"
+            # split post-contact failure into maintain (cube dropped below the
+            # lift threshold) vs transport (held but not delivered), matching
+            # the terminal failure decomposition.
+            outcome = ("maintain_fail"
+                       if cls["final_cube_lift"] < thr.delta_lift
+                       else "transport_fail")
         else:
             outcome = "other"
         cube = np.asarray(ep["cube"], dtype=np.float64).reshape(-1, 3)
