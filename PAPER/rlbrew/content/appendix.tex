@@ -100,21 +100,67 @@ This appendix holds the detailed tables behind the main-paper figures: per-task 
 
 \subsection{Representation separability}
 
+The aliasing ladder (Figure~\ref{fig:repsep_ladder}) is the per-task linear-probe
+AUC for predicting success-bound versus fail-bound among in-hand (grasp/carry)
+training states, probed separately per task (fixed goal) and averaged over the
+five tasks ($0.5$ is chance). Table~\ref{tab:repsep_raw} gives the raw-state
+ceiling and Table~\ref{tab:repsep_learned} the learned representations: the
+goal-independent state embedding $\phi(s)$ (for \gciql{}, the penultimate
+goal-conditioned value features; for \crl{}, the state-side contrastive
+embedding) and, for the methods with a forward map, the on-policy successor
+representation $F(s,\pi,z)$.
+
 \begin{table}[H]
 \centering
-\caption{Linear-probe ROC-AUC for predicting success-bound versus fail-bound from the learned in-hand (grasp/carry) representation, on independent training states and on held-out rollouts (episode-grouped $5$-fold cross-validation, so no trajectory spans folds). $0.5$ is chance. The representation is $\phi(s)$ for the \fb{} family, the penultimate goal-conditioned value features for \gciql{}, and the state-side contrastive embedding for \crl{}. Figure~\ref{fig:repsep} shows the corresponding per-method PCA scatters.}
-\label{tab:repsep}
-\begin{tabular}{lccc}
+\caption{Raw-state ceiling: per-task linear-probe AUC from raw state sub-vectors (method-independent; the success-bound label is the play-data reach-before-end flag). The instantaneous configuration only weakly determines the outcome, and the gripper alone is at chance.}
+\label{tab:repsep_raw}
+\begin{tabular}{lcc}
 \toprule
-\textbf{Method} & \textbf{Train AUC} & \textbf{Eval AUC} & \textbf{Train$\to$Eval} \\
+\textbf{Raw feature subset} & \textbf{dims} & \textbf{AUC} \\
 \midrule
-\fb{}    & $0.57$ & $0.47$ & $+0.10$ \\
-\gciql{} & $0.65$ & $0.78$ & $-0.12$ \\
-\crl{}   & $0.59$ & $0.70$ & $-0.11$ \\
-\rldp{}  & $0.56$ & $0.45$ & $+0.11$ \\
+Gripper (opening + contact) & $2$  & $0.50$ \\
+Gripper + arm joints        & $14$ & $0.61$ \\
+Full state                  & $28$ & $0.64$ \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{table}[H]
+\centering
+\caption{Learned in-hand representations: per-task train AUC for success- vs fail-bound. $\phi(s)$ matches but never exceeds the raw $0.64$ ceiling, and the forward map $F(s,\pi,z)$---built to predict successor occupancy---does no better. Eval-time probing gives the same picture but is high-variance over ${\sim}50$ episodes (AUC swings ${\pm}0.2$ across rollout draws), so we report the stable per-task training-state probe. Figures~\ref{fig:repsep} and~\ref{fig:repsep_tsne} show the corresponding scatters.}
+\label{tab:repsep_learned}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Method} & \textbf{$\phi(s)$} & \textbf{$F(s,\pi,z)$} \\
+\midrule
+\fb{}    & $0.64$ & $0.59$ \\
+\gciql{} & $0.66$ & --     \\
+\crl{}   & $0.73$ & --     \\
+\rldp{}  & $0.64$ & $0.61$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{fig_repsep.png}
+\caption{Per-method PCA of the learned in-hand representation: training states (top) and held-out rollouts (bottom); green success-bound, orange fail-bound, with class centroids. Train annotations are per-task AUC; the eval row is a single-draw episode-grouped AUC (high-variance, see Table~\ref{tab:repsep_learned}).}
+\label{fig:repsep}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{fig_repsep_tsne.png}
+\caption{As Figure~\ref{fig:repsep} but with a per-panel t-SNE projection (nonlinear; robustness check). Success- and fail-bound grasps remain intermixed for the \fb{} family. The AUC, computed on the full representation, is projection-independent.}
+\label{fig:repsep_tsne}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{fig_value_aliasing.png}
+\caption{Value-function aliasing. Top: per-task $z$-scored value $Q=F(s,\pi,z)\cdot z$ for success-bound vs fail-bound in-hand training grasps---the distributions coincide (AUC $0.51$/$0.54$). Bottom: value at the policy's own in-hand grasps split by terminal outcome (eval; illustrative, high-variance over ${\sim}50$ episodes). The value the policy follows does not separate the grasps.}
+\label{fig:value_aliasing}
+\end{figure}
 
 \subsection{Matched-observation aliasing}
 
