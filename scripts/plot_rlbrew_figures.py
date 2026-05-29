@@ -1,138 +1,171 @@
 #!/usr/bin/env python
-"""scripts/plot_rlbrew_figures.py — generate the cross-method figures for
-PAPER/rlbrew/rlbrew.tex.
+"""scripts/plot_rlbrew_figures.py — main-paper figures for PAPER/rlbrew.
 
-Emits into PAPER/rlbrew/figures/:
-  f1_composition.png        — 4-method 5-bucket outcome stacked bars (Tab. cross_method)
-  f1_funnel.png             — 4-method reach -> secure -> success funnel
-  f3_value_vs_dist.png      — value vs cube-to-goal distance by phase (copied)
+Individual single-panel figures for the experiments section; layout/subcaptions
+are handled in LaTeX (subcaption):
+  fig_funnel.png       — P1: 4-stage phase funnel
+  fig_outcomes.png     — P2: stacked terminal-outcome composition
+  fig_support.png      — P3: (failure - success) nearest-neighbour distance heatmap
+  fig_monotonicity.png — P4: carry-regime value monotonicity
+  fig_aliasing.png     — P4: matched-pair aliasing ranking
 
-The outcome composition and funnel are drawn from PAPER-CANONICAL numbers
-(`OUTCOMES`, matching rlbrew.tex tab:cross_method_template and
-tab:fb_state_outcomes, 10 seeds) so the figures and tables never disagree. The
-funnel rates are derived from the same distribution: with mutually exclusive
-first-failure labels, reached = 100 - approach, secured = reached - grasp, and
-success is the success share.
+Headline numbers are paper-canonical (match the tables in content/results.tex and
+the appendix), so figures and tables cannot disagree. The aliasing panel is read
+from the probe output so its error bars stay in sync.
 """
 from __future__ import annotations
 
-import shutil
 import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 REPO = Path(__file__).resolve().parent.parent
 ANALYSIS = REPO / "analysis"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
-# Paper-canonical S0 outcome distribution (% episodes, mean across 10 seeds).
-# Must match rlbrew.tex tab:cross_method_template.
+METHODS = ["FB", "GCIQL", "CRL", "RLDP"]
+MC = {"FB": "#d62728", "GCIQL": "#1f77b4", "CRL": "#2ca02c", "RLDP": "#9467bd"}
+
+# S0 terminal-outcome distribution (% episodes, mean over seeds).
 OUTCOMES = {
     "FB":    {"success": 49.4, "approach": 0.0, "grasp": 9.8,  "maintain": 23.8, "transport": 17.0},
     "GCIQL": {"success": 69.2, "approach": 0.2, "grasp": 12.2, "maintain": 9.2,  "transport": 9.2},
     "CRL":   {"success": 23.2, "approach": 0.4, "grasp": 23.8, "maintain": 28.6, "transport": 24.0},
     "RLDP":  {"success": 25.4, "approach": 0.2, "grasp": 9.6,  "maintain": 44.0, "transport": 20.8},
 }
-METHODS = ["FB", "GCIQL", "CRL", "RLDP"]
-METHOD_COLORS = {"FB": "#d62728", "GCIQL": "#1f77b4", "CRL": "#2ca02c",
-                 "RLDP": "#9467bd"}
-OUTCOME_COLORS = {
-    "success":   "#2ca02c",
-    "approach":  "#9467bd",
-    "grasp":     "#ff7f0e",
-    "maintain":  "#d62728",
-    "transport": "#1f77b4",
+OUTCOME_KEYS = ["success", "approach", "grasp", "maintain", "transport"]
+OUTCOME_LAB = ["Success", "Approach fail", "Grasp fail", "Maintain fail", "Transport fail"]
+OUTCOME_COL = {"success": "#2ca02c", "approach": "#9467bd", "grasp": "#ff7f0e",
+               "maintain": "#d62728", "transport": "#1f77b4"}
+
+# Failure-minus-success nearest-neighbour distance (paper-canonical; cf. appendix
+# support table). Columns: pickup Mf-S, carry Mf-S, pickup Tf-S, carry Tf-S.
+SUPPORT_DELTA = {
+    "FB":    [0.51, 0.13, 0.19, -0.04],
+    "GCIQL": [0.82, 0.35, 0.75, 0.34],
+    "CRL":   [1.42, 0.12, 0.39, 0.31],
+    "RLDP":  [0.47, 0.41, 0.44, 0.34],
 }
+SUPPORT_COLS = ["Pickup\nMf$-$S", "Carry\nMf$-$S", "Pickup\nTf$-$S", "Carry\nTf$-$S"]
+
+# Carry-regime value monotonicity: Spearman(V, -d), mean +/- std over seed-pairs.
+MONO = {"FB": (0.068, 0.019), "GCIQL": (0.009, 0.021),
+        "CRL": (-0.061, 0.027), "RLDP": (0.022, 0.021)}
+
+PHASES = ["approach", "pickup", "carry"]
 
 
-def plot_composition(out: Path) -> None:
-    """5-bucket outcome stacked bar, one column per method."""
-    buckets = ["success", "approach", "grasp", "maintain", "transport"]
-    labels = ["Success", "Approach fail", "Grasp fail",
-              "Maintain fail", "Transport fail"]
-    fig, ax = plt.subplots(figsize=(6.8, 4.2))
-    x = np.arange(len(METHODS))
-    bottom = np.zeros(len(METHODS))
-    for b, lab in zip(buckets, labels):
-        h = np.array([OUTCOMES[m][b] for m in METHODS])
-        ax.bar(x, h, bottom=bottom, color=OUTCOME_COLORS[b], label=lab,
+def _funnel_stages(o):
+    """Cumulative survival through the pipeline (% episodes)."""
+    reached = 100 - o["approach"]
+    acquired = reached - o["grasp"]
+    maintained = acquired - o["maintain"]
+    return [reached, acquired, maintained, o["success"]]
+
+
+def fig_funnel(out: Path) -> None:
+    """4-stage phase funnel (survival lines), single panel."""
+    fig, ax = plt.subplots(figsize=(5.4, 4.0))
+    stages = ["Reached", "Control\nacquired", "Control\nmaintained", "Goal\nreached"]
+    x = np.arange(4)
+    for m in METHODS:
+        ax.plot(x, _funnel_stages(OUTCOMES[m]), "o-", color=MC[m], lw=2, label=m)
+    ax.set_xticks(x); ax.set_xticklabels(stages, fontsize=9)
+    ax.set_ylabel("% of episodes", fontsize=10); ax.set_ylim(0, 102)
+    ax.grid(True, axis="y", alpha=0.3); ax.legend(fontsize=9)
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    print(f"[plot] wrote {out}")
+
+
+def fig_outcomes(out: Path) -> None:
+    """Stacked terminal-outcome composition, single panel."""
+    fig, ax = plt.subplots(figsize=(5.4, 4.0))
+    xb = np.arange(len(METHODS)); bottom = np.zeros(len(METHODS))
+    for k, lab in zip(OUTCOME_KEYS, OUTCOME_LAB):
+        h = np.array([OUTCOMES[m][k] for m in METHODS])
+        ax.bar(xb, h, bottom=bottom, color=OUTCOME_COL[k], label=lab,
                edgecolor="black", linewidth=0.4)
         for xi, (hi, bi) in enumerate(zip(h, bottom)):
-            if hi >= 3:
-                ax.text(xi, bi + hi / 2, f"{hi:.1f}", ha="center", va="center",
-                        fontsize=8.5, color="white" if hi >= 8 else "black",
-                        fontweight="bold")
+            if hi >= 4:
+                ax.text(xi, bi + hi / 2, f"{hi:.0f}", ha="center", va="center",
+                        fontsize=8, color="white" if hi >= 8 else "black")
         bottom += h
-    ax.set_xticks(x); ax.set_xticklabels(METHODS, fontsize=11, fontweight="bold")
-    ax.set_ylabel("percent of episodes (S0, mean across seeds)", fontsize=10)
-    ax.set_ylim(0, 105)
-    ax.set_title("Outcome composition: where each URL method spends its failures",
-                 fontsize=11)
-    ax.legend(loc="upper right", bbox_to_anchor=(1.34, 1.0), fontsize=8.5,
-              framealpha=0.95)
-    ax.grid(True, axis="y", linewidth=0.3, alpha=0.5)
-    fig.tight_layout()
-    fig.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+    ax.set_xticks(xb); ax.set_xticklabels(METHODS, fontsize=10, fontweight="bold")
+    ax.set_ylabel("% of episodes", fontsize=10); ax.set_ylim(0, 102)
+    ax.legend(fontsize=8, loc="upper right", framealpha=0.95)
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
     print(f"[plot] wrote {out}")
 
 
-def plot_funnel(out: Path) -> None:
-    """reach -> secure -> success funnel, grouped by method.
-
-    Derived from the mutually-exclusive first-failure distribution:
-      reached = 100 - approach;  secured = reached - grasp;  success.
-    """
-    stages = ["reached", "secured", "success"]
-    rates = {}
-    for m in METHODS:
-        o = OUTCOMES[m]
-        reached = 100 - o["approach"]
-        secured = reached - o["grasp"]
-        rates[m] = [reached, secured, o["success"]]
-    fig, ax = plt.subplots(figsize=(6.8, 4.0))
-    x = np.arange(len(stages))
-    width = 0.2
-    for i, m in enumerate(METHODS):
-        off = (i - (len(METHODS) - 1) / 2) * width
-        ax.bar(x + off, rates[m], width, color=METHOD_COLORS[m], label=m,
-               edgecolor="black", linewidth=0.4)
-    ax.set_xticks(x)
-    ax.set_xticklabels(["Reached", "Secured", "Success"], fontsize=10)
-    ax.set_ylabel("percent of episodes (S0)", fontsize=10)
-    ax.set_ylim(0, 105)
-    ax.axhline(100, color="black", linewidth=0.4, linestyle=":")
-    ax.set_title("Phase funnel: methods reach and secure, then collapse at transport",
-                 fontsize=11)
-    ax.legend(loc="upper right", fontsize=9, framealpha=0.95)
-    ax.grid(True, axis="y", linewidth=0.3, alpha=0.5)
-    fig.tight_layout()
-    fig.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+def fig_support(out: Path) -> None:
+    M = np.array([SUPPORT_DELTA[m] for m in METHODS])
+    fig, ax = plt.subplots(figsize=(6.0, 3.6))
+    vmax = np.abs(M).max()
+    im = ax.imshow(M, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
+    ax.set_xticks(range(len(SUPPORT_COLS))); ax.set_xticklabels(SUPPORT_COLS, fontsize=9)
+    ax.set_yticks(range(len(METHODS))); ax.set_yticklabels(METHODS, fontsize=10, fontweight="bold")
+    for i in range(len(METHODS)):
+        for j in range(len(SUPPORT_COLS)):
+            ax.text(j, i, f"{M[i, j]:+.2f}", ha="center", va="center",
+                    fontsize=9, color="black")
+    ax.set_title("Failure $-$ success nearest-neighbour distance", fontsize=11)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="$\\Delta m_{\\mathrm{dist}}$")
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
     print(f"[plot] wrote {out}")
 
 
-def copy_existing() -> None:
-    """Copy the value-vs-distance figure into figures/."""
-    pairs = [
-        (ANALYSIS / "training_value_multiseed/aggregate_rldp/value_vs_dist.png",
-         OUT / "f3_value_vs_dist.png"),
-    ]
-    for src, dst in pairs:
-        if src.exists():
-            shutil.copy2(src, dst)
-            print(f"[plot] copied {src.name} -> {dst.name}")
-        else:
-            print(f"[plot] WARN missing {src}")
+def _aliasing_table():
+    f = ANALYSIS / "training_value_multiseed/aggregate_rldp/aliasing_matched_pairs.parquet"
+    d = pd.read_parquet(f)
+    ml = {"fb": "FB", "gciql": "GCIQL", "crl": "CRL", "rldp": "RLDP"}
+    g = d.groupby(["method", "region"])["rank_acc"].agg(["mean", "std"])
+    return {ml[m]: {ph: (g.loc[(m, ph), "mean"], g.loc[(m, ph), "std"])
+                    for ph in PHASES if (m, ph) in g.index}
+            for m in ml}
+
+
+def fig_monotonicity(out: Path) -> None:
+    """Carry-regime value monotonicity Spearman(V,-d), single panel."""
+    fig, ax = plt.subplots(figsize=(5.4, 3.8))
+    x = np.arange(len(METHODS))
+    means = [MONO[m][0] for m in METHODS]; errs = [MONO[m][1] for m in METHODS]
+    ax.bar(x, means, yerr=errs, color=[MC[m] for m in METHODS], capsize=4,
+           edgecolor="black", linewidth=0.4)
+    ax.axhline(0, color="black", lw=0.8)
+    ax.set_xticks(x); ax.set_xticklabels(METHODS, fontsize=10, fontweight="bold")
+    ax.set_ylabel(r"Spearman$(V,\,-d)$ in carry", fontsize=10)
+    ax.grid(True, axis="y", alpha=0.3)
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    print(f"[plot] wrote {out}")
+
+
+def fig_aliasing(out: Path) -> None:
+    """Matched-pair aliasing ranking by regime, single panel."""
+    fig, ax = plt.subplots(figsize=(5.4, 3.8))
+    x = np.arange(len(METHODS)); al = _aliasing_table(); w = 0.25
+    for i, ph in enumerate(PHASES):
+        vals = [al[m].get(ph, (np.nan, 0))[0] for m in METHODS]
+        errs = [al[m].get(ph, (np.nan, 0))[1] for m in METHODS]
+        ax.bar(x + (i - 1) * w, vals, w, yerr=errs, capsize=3, label=ph.capitalize(),
+               edgecolor="black", linewidth=0.3)
+    ax.axhline(0.5, color="black", ls="--", lw=1.0, label="chance")
+    ax.set_xticks(x); ax.set_xticklabels(METHODS, fontsize=10, fontweight="bold")
+    ax.set_ylabel("success-bound ranked higher", fontsize=10)
+    ax.set_ylim(0.4, 0.7); ax.legend(fontsize=8, ncol=2); ax.grid(True, axis="y", alpha=0.3)
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    print(f"[plot] wrote {out}")
 
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    plot_composition(OUT / "f1_composition.png")
-    plot_funnel(OUT / "f1_funnel.png")
-    copy_existing()
+    fig_funnel(OUT / "fig_funnel.png")
+    fig_outcomes(OUT / "fig_outcomes.png")
+    fig_support(OUT / "fig_support.png")
+    fig_monotonicity(OUT / "fig_monotonicity.png")
+    fig_aliasing(OUT / "fig_aliasing.png")
     return 0
 
 
