@@ -63,7 +63,9 @@ def episodes_to_frames(episodes: List[Dict[str, Any]], thr: Thresholds,
         if cls["success"]:
             outcome = "success"
         elif cls["fail_phase"] == "transport":
-            outcome = "transport_fail"
+            outcome = ("maintain_fail"
+                       if cls["final_cube_lift"] < thr.delta_lift
+                       else "transport_fail")
         else:
             outcome = "other"
         n_t = int(tm.sum())
