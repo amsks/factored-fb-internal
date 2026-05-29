@@ -2,7 +2,7 @@
 \label{sec:results}
 
 Our experiments support one chain: state-based URL methods do not mainly fail to reach the cube; they fail after acquiring control, and the learned scores do not reliably distinguish observation-near states with different post-contact futures. 
-We present this in three steps, where policies fail, whether dataset support explains it, and what the learned value is missing. 
+We present this in three steps: where policies fail, whether dataset support explains it, and whether the learned representation tells success-bound from fail-bound grasps apart.
 Per-task success, exact outcome counts, and the full diagnostic tables are deferred to Appendix~\ref{app:tables}.
 
 \subsection{Scalar success obscures policy failure}
@@ -54,7 +54,7 @@ The full per-regime, per-outcome distances are in Appendix~\ref{app:tables}.
 \label{fig:support}
 \end{figure}
 
-\subsection{Learned scores weakly rank controllable futures}
+\subsection{Learned representations alias success- and fail-bound grasps}
 
 If support does not explain the failure, what is the learned representation missing?
 We run two probes designed to separate a representational aliasing failure from a pure OOD explanation.
@@ -64,10 +64,10 @@ First, geometry can be present in the representation without yielding control.
 For the methods with an explicit backward embedding, \rldp{}'s $B$ resolves cube-to-goal distance far better than \fb{}'s (nonlinear $R^2$ $0.75$ vs $0.21$), yet \rldp{} has the worse maintain-grasp failure (Appendix~\ref{app:tables}).
 Resolving geometry is not the bottleneck.
 
-The decisive test is whether the learned representation encodes \emph{which} grasps are bound to succeed (Figure~\ref{fig:repsep}).
+The decisive test is whether the learned representation encodes \emph{which} grasps are bound to succeed (Figures~\ref{fig:repsep} and~\ref{fig:repsep_auc}).
 For each method we take the state embedding its score reads---$\phi(s)$ for the \fb{} family, the penultimate value features for \gciql{}, and the state-side contrastive embedding for \crl{}---restrict to in-hand (grasp and carry) states, and fit a linear probe to predict success-bound versus fail-bound, both on independent training states and on held-out rollout episodes (episode-grouped cross-validation, so no trajectory spans folds).
 For the \fb{} family the probe stays at chance (\fb{} $0.57/0.47$, \rldp{} $0.56/0.45$ train/eval AUC): success-bound and fail-bound grasps occupy the same region of representation space.
-\gciql{} and \crl{}, whose embeddings are explicitly trained to rank goals, carry more signal ($0.78$ and $0.70$ eval AUC).
+\gciql{} and \crl{}, whose embeddings are explicitly trained to rank goals, carry more signal ($0.78$ and $0.70$ eval AUC; Figure~\ref{fig:repsep_auc}).
 The contrast is sharpest for \fb{}, which reaches the goal in roughly half of all episodes yet whose representation still cannot tell the two outcomes apart---aliasing intrinsic to the representation, not a competence artifact.
 
 The value-space view agrees (Figure~\ref{fig:aliasing}).
@@ -85,7 +85,13 @@ This is the empirical signature predicted by the interaction-gap view: the missi
 
 \begin{figure}[htbp]
 \centering
-\begin{minipage}[t]{0.6\linewidth}
+\begin{minipage}[t]{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{fig_repsep_auc.png}
+  \caption{Linear-probe AUC for success- vs fail-bound in-hand grasps, train and eval ($0.5$ is chance). The \fb{} family sits at chance; \gciql{}/\crl{} separate.}
+  \label{fig:repsep_auc}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\linewidth}
   \centering
   \includegraphics[width=\linewidth]{fig_aliasing.png}
   \caption{Matched-observation aliasing profile: success-bound states ranked above their nearest fail-bound neighbor, by regime ($0.5$ is chance).}
