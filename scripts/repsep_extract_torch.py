@@ -46,7 +46,7 @@ def train_rows(model, states_npz):
     rows = []
     for ti in range(N_TASKS):
         for j, i in enumerate(idx):
-            rows.append(("train", ti + 1, bool(outcome[i, ti]), rep[j]))
+            rows.append(("train", ti + 1, -1, bool(outcome[i, ti]), rep[j]))
     return rows
 
 
@@ -67,6 +67,7 @@ def eval_rows(model, agent, cfg, episodes):
                                  seed=cfg.seed, device=cfg.device, use_wandb=False)
     tasks = list(ALL_TASKS.get(cfg.domain, []))
     rows = []
+    gep = 0                                  # global episode id (unique per rollout)
     for ti, task in enumerate(tasks, start=1):
         z, _ = evaluator._infer_z(task)
         env, _ = create_ogbench_env(task, seed=cfg.seed, obs_type=cfg.obs_type)
@@ -78,11 +79,13 @@ def eval_rows(model, agent, cfg, episodes):
         for ep in eps:
             mask = np.asarray(ep["transport_mask"], bool)
             if mask.sum() == 0:
+                gep += 1
                 continue
             success = ep["outcome"] == "success"
             rep = phi(model, np.asarray(ep["obs"])[mask])
             for r in rep:
-                rows.append(("eval", ti, bool(success), r))
+                rows.append(("eval", ti, gep, bool(success), r))
+            gep += 1
     return rows
 
 
@@ -111,9 +114,9 @@ def main() -> int:
         agent.eval()
 
     rows = train_rows(agent.model, args.states) + eval_rows(agent.model, agent, cfg, args.episodes)
-    df = pd.DataFrame([{"split": s, "task": t, "success": y,
+    df = pd.DataFrame([{"split": s, "task": t, "episode": e, "success": y,
                         **{f"rep_{i}": float(v) for i, v in enumerate(r)}}
-                       for s, t, y, r in rows])
+                       for s, t, e, y, r in rows])
     out = Path(args.out or f"analysis/repsep/{args.method}.parquet")
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out)
