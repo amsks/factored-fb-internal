@@ -1,14 +1,14 @@
 \section{Results}
 \label{sec:results}
 
-\subsection{Aggregate state success shows a gap}
-
 % Aggregate success motivates the diagnosis but does not explain the failure mechanism.
-Table~\ref{tab:overall_state} reports aggregate state-based success. \gciql{} outperforms \fb{} overall, with an IQM of $68.3\%$ compared to $50.0\%$ for \fb{}. The contrastive and predictive representations score lower still: \crl{} reaches $25.9\%$ and \rldp{} $22.7\%$ overall. This ordering motivates the diagnosis, but does not by itself identify whether a method fails before contact, during contact acquisition, or after the cube is lifted.
+We organize the results around four claims: (P1) the failure is concentrated \emph{after} contact, not at reaching; (P2) this post-contact failure is shared across URL methods; (P3) it is not explained by dataset support; and (P4) its cause is interaction-mode aliasing rather than poor geometric resolution.
+
+Table~\ref{tab:overall_state} reports aggregate state-based success. \gciql{} leads at $68.3\%$ IQM, \fb{} reaches $50.0\%$, and the contrastive and predictive representations trail at $25.9\%$ (\crl{}) and $22.7\%$ (\rldp{}). This ordering motivates the diagnosis but does not, by itself, identify whether a method fails before contact, during contact acquisition, or after the cube is lifted.
 
 \begin{table}[htb]
 \centering
-\caption{State-based evaluation performance. Values are IQM $\pm$ half-width of the $95\%$ stratified-bootstrap confidence interval across seeds.}
+\caption{Aggregate state-based evaluation success. Values are IQM $\pm$ half-width of the $95\%$ stratified-bootstrap confidence interval across $10$ seeds.\protect\footnotemark}
 \label{tab:overall_state}
 \begin{tabular}{lcccccc}
 \toprule
@@ -21,142 +21,32 @@ Table~\ref{tab:overall_state} reports aggregate state-based success. \gciql{} ou
 \bottomrule
 \end{tabular}
 \end{table}
+\footnotetext{Aggregate success uses the stochastic evaluation policy (IQM over seeds). The phase decomposition below uses deterministic closed-loop rollouts, so per-method success differs slightly (e.g. \fb{} $49.4\%$, \gciql{} $69.2\%$); we report each metric consistently within its own analysis.}
 
-\subsection{\fb{} failures concentrate after pick-up}
+\subsection{Failures occur after contact, not before it (P1)}
 
-% FB reaches and grasps; its dominant failures are after lift.
-Across the \fb{} state rollouts, approach is solved under our operational criterion and initial grasp failures are relatively rare. The dominant failures occur after the cube has been lifted.
+% Reach-before-drop: maintain/transport failures are loss of control before the goal.
+Our phase labels operationalize the reach-before-drop event of Section~\ref{sec:theory}: an approach or grasp failure means the agent never establishes control, whereas a maintain-grasp or transport failure means the agent established control and then lost it (entered $D$) before reaching the goal $G_g$. Figure~\ref{fig:funnel} traces this funnel. Every method reaches the cube in essentially all episodes and secures a grasp in $76$--$90\%$, but success then collapses. The separation between methods opens \emph{between} the secured and success stages --- that is, after contact has been established, not before it.
 
-\begin{table}[htb]
+\begin{figure}[htb]
 \centering
-\caption{Outcome distribution for state-based \fb{} rollouts across $10$ seeds. Values are percentages of episodes (mean and standard deviation across seeds); the outcome shares sum to $100\%$.}
-\label{tab:fb_state_outcomes}
-\begin{tabular}{lcc}
-\toprule
-\textbf{Outcome} & \textbf{Mean (\% episodes)} & \textbf{Std} \\
-\midrule
-Success                          & $49.4$ & $11.7$ \\
-Failure to approach              & $0.0$  & $0.0$ \\
-Failure to grasp                 & $9.8$  & $4.4$ \\
-Failure to maintain grasp        & $23.8$ & $10.0$ \\
-Failure to transport to goal     & $17.0$ & $6.3$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+\includegraphics[width=0.62\linewidth]{f1_funnel.png}
+\caption{Phase funnel across methods (deterministic rollouts, $10$ seeds). All methods reach the cube and most secure a grasp; success collapses afterwards. The between-method gap opens at the secured-to-success transition, i.e. after contact.}
+\label{fig:funnel}
+\end{figure}
 
-% The phase comparison localizes the FB-GCIQL gap.
-Table~\ref{tab:state_decomp} compares \fb{} and \gciql{} under the same decomposition. The $19.8\pp$ success gap is not explained by approach. It is also not explained by initial grasp, where \fb{} has fewer failures under the operational criterion. The gap is concentrated in maintain-grasp and transport outcomes.
+\subsection{The post-contact failure is shared across URL methods (P2)}
 
-\begin{table}[htb]
-\centering
-\caption{State-regime phase decomposition. Negative values in the final column indicate higher \fb{} failure or lower \fb{} success.}
-\label{tab:state_decomp}
-\begin{tabular}{lccc}
-\toprule
-\textbf{Outcome} & \textbf{\fb{} (\% eps)} & \textbf{\gciql{} (\% eps)} & \textbf{\fb{} $-$ \gciql{} (pp)} \\
-\midrule
-Success                          & $49.4$ & $69.2$ & $\mathbf{-19.8}$ \\
-Failure to approach              & $0.0$  & $0.2$  & $+0.2$ \\
-Failure to grasp                 & $9.8$  & $12.2$ & $+2.4$ \\
-Failure to maintain grasp        & $23.8$ & $9.2$  & $\mathbf{-14.6}$ \\
-Failure to transport to goal     & $17.0$ & $9.2$  & $\mathbf{-7.8}$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The gap decomposes as
+% Cross-method decomposition: the gap is in maintain/transport, not approach.
+Table~\ref{tab:cross_method_template} and Figure~\ref{fig:composition} give the terminal-outcome distribution for each method. Approach failure is negligible everywhere ($\leq 0.4\%$); the methods differ only in how their failures split across grasp, maintain-grasp, and transport. Relative to \gciql{}, the \fb{} success gap of $19.8\pp$ decomposes as
 \begin{equation}
-    -19.8
-    =
-    +0.2_{\text{approach}}
-    +2.4_{\text{grasp}}
-    -14.6_{\text{maintain}}
-    -7.8_{\text{transport}}.
+    -19.8 = \underbrace{+0.2}_{\text{approach}} \; \underbrace{+2.4}_{\text{grasp}} \; \underbrace{-14.6}_{\text{maintain}} \; \underbrace{-7.8}_{\text{transport}},
 \end{equation}
-This is the main empirical finding. \fb{} does not primarily fail by missing the cube. It fails after contact should have made the object controllable.
-
-% Transport failures are not simply small errors near the target.
-A near-miss analysis supports this interpretation. Across the \fb{} and \gciql{} state rollouts, there are no episodes in which the agent finishes while holding the cube within one $5$ cm success radius of the goal. The transport failures are therefore not fine placement errors near the target. They are failures to bring the held object into the target neighborhood.
-
-\subsection{Dataset support does not explain the pattern}
-
-% Failed transport states are not obviously much farther from the offline data.
-The support diagnostic does not indicate a simple out-of-distribution explanation. If transport failures were mainly caused by leaving the dataset manifold, failed transport states should have much larger nearest-neighbor distances than successful transport states. The differences in Table~\ref{tab:state_coverage} are small.
+i.e. it is entirely a post-contact deficit; \fb{} in fact has \emph{fewer} approach and grasp failures than \gciql{}. A near-miss check confirms the interpretation: across the \fb{} and \gciql{} rollouts there are no episodes that finish holding the cube within one $5$~cm success radius of the goal, so transport failures are not fine placement errors but failures to bring the held object to the target.
 
 \begin{table}[htb]
 \centering
-\caption{State observations: dataset-manifold support. $m_{\mathrm{dist}}$ is the nearest-neighbor distance to comparable states in the offline dataset; larger values indicate lower support.}
-\label{tab:state_coverage}
-\begin{tabular}{lcc}
-\toprule
-\textbf{Region} & \textbf{$m_{\mathrm{dist}}$ (Success)} & \textbf{$m_{\mathrm{dist}}$ (Transport-Fail)} \\
-\midrule
-reach     & $2.22 \pm 0.74$ & $2.41 \pm 1.29$ \\
-lift      & $2.44 \pm 1.73$ & $2.54 \pm 1.41$ \\
-transport & $2.12 \pm 0.79$ & $2.25 \pm 1.02$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-This result does not show that support is irrelevant. Nearest-neighbor distance is a coarse statistic, and local action support may still differ between successful and failed rollouts. However, the observed transport failures do not appear to arise simply because failed states are far from the offline dataset.
-
-\subsection{The \fb{} representation gives weak terminal guidance}
-
-% FB value does not monotonically guide the cube toward the goal.
-We next test whether the learned \fb{} value provides a transport signal toward the goal. For each episode, we compute the Spearman correlation between the extracted value $V(s)=Q_z(s,\pi(s))$ and negative cube-to-goal distance $-d(s,g)$. A positive correlation means that value increases as the cube gets closer to the goal. The correlations in Table~\ref{tab:state_value_gradient} are weak for both successful and transport-failed episodes.
-
-\begin{table}[htb]
-\centering
-\caption{State observations: value-landscape gradient for \fb{}. Higher positive $\rho$ means value ranks states closer to the goal as better.}
-\label{tab:state_value_gradient}
-\begin{tabular}{lcc}
-\toprule
-\textbf{Task} & \textbf{$\rho$ (Success)} & \textbf{$\rho$ (Transport-Fail)} \\
-\midrule
-\textit{task1} & $0.258 \pm 0.264$ & $0.327 \pm 0.358$ \\
-\textit{task2} & $0.089 \pm 0.341$ & $0.196 \pm 0.249$ \\
-\textit{task3} & $0.163 \pm 0.332$ & $0.145 \pm 0.213$ \\
-\textit{task4} & $0.113 \pm 0.664$ & $0.189 \pm 0.466$ \\
-\textit{task5} & $0.112 \pm 0.568$ & $0.206 \pm 0.446$ \\
-\midrule
-\textbf{Mean} & $\mathbf{0.147}$ & $\mathbf{0.213}$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-% The backward representation only moderately resolves terminal placement.
-The backward representation $B(s)$ also has limited terminal resolution. A ridge probe from $B(s)$ to cube-goal distance reaches moderate $R^2$, and a classifier separating true placements from close near-misses reaches only moderate accuracy.
-
-\begin{table}[htb]
-\centering
-\caption{State observations: $B$-embedding spatial resolution.}
-\label{tab:state_b_resolution}
-\begin{tabular}{lcc}
-\toprule
-\textbf{Task} & \textbf{Ridge $R^2(B\to d)$} & \textbf{Placed-vs-Near-Miss Acc.} \\
-\midrule
-\textit{task1} & $0.391 \pm 0.024$ & $0.635 \pm 0.023$ \\
-\textit{task2} & $0.267 \pm 0.025$ & $0.678 \pm 0.016$ \\
-\textit{task3} & $0.234 \pm 0.016$ & $0.681 \pm 0.016$ \\
-\textit{task4} & $0.529 \pm 0.005$ & $0.664 \pm 0.018$ \\
-\textit{task5} & $0.545 \pm 0.024$ & $0.668 \pm 0.014$ \\
-\midrule
-\textbf{Mean} & $\mathbf{0.393}$ & $\mathbf{0.665}$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Together, these diagnostics support the contact-bottleneck interpretation. The main issue is not just reaching the cube or entering contact. The representation and policy must distinguish states in which the cube is geometrically close, physically controlled, and stably transportable from states in which only some of these conditions hold.
-
-\section{Extending the Protocol Across URL Methods}
-\label{sec:extensions}
-
-% The evaluation labels are method-agnostic.
-The state-only decomposition is not tied to \fb{} or \gciql{}. The same labels can be applied to \crl{}, \psm{}, and model-based methods without changing the evaluation protocol. The rows below separate completed measurements from planned diagnostics.
-
-\begin{table}[htb]
-\centering
-\caption{State-only cross-method diagnostic table. Values are the outcome distribution as a percentage of episodes (mean across $10$ seeds), and each row sums to $100\%$. The \fb{}, \gciql{}, \crl{}, and \rldp{} rows are completed measurements; \psm{} and \dreamer{} rows indicate planned diagnostics rather than completed empirical results.}
+\caption{Cross-method terminal-outcome distribution (S0, \% of episodes, mean across $10$ seeds; rows sum to $100\%$). \fb{}, \gciql{}, \crl{}, and \rldp{} are completed measurements; \psm{} and \dreamer{} indicate planned diagnostics under the same protocol.}
 \label{tab:cross_method_template}
 \begin{tabular}{lccccc}
 \toprule
@@ -172,6 +62,80 @@ The state-only decomposition is not tied to \fb{} or \gciql{}. The same labels c
 \end{tabular}
 \end{table}
 
-The completed rows show that the post-contact bottleneck is not specific to \fb{}. \rldp{} secures the cube most reliably of any method, with the lowest grasp-failure rate ($9.6\%$), yet it has the highest maintain-grasp failure ($44.0\%$): nearly half of its episodes lift the cube and then drop it. Its failure profile is thus an amplified version of the \fb{} pattern, with the deficit concentrated even more sharply after pick-up. \crl{} fails more uniformly, splitting its failures across grasp ($23.8\%$), maintain ($28.6\%$), and transport ($24.0\%$). In all three lower-scoring methods the success gap relative to \gciql{} is dominated by maintain-grasp and transport outcomes rather than by approach, reinforcing that the shared difficulty is preserving and exploiting contact, not acquiring it.
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.66\linewidth]{f1_composition.png}
+\caption{Outcome composition per method (visual form of Table~\ref{tab:cross_method_template}). The failure mass sits in maintain-grasp and transport for every method.}
+\label{fig:composition}
+\end{figure}
 
-For \crl{}, the key test is whether contrastive state-goal representations mis-rank phase-relevant states. Future-random separation should be computed separately for pre-grasp, lifted, dropped, and transport states, not only over all states. For \psm{}, the key test is basis coverage: whether any proto-policy or proto-basis assigns substantial successor mass to stable grasped transport. For a model-based method, the key test is phase-transition prediction: whether the learned model predicts contact acquisition, lift, slip, and drop transitions accurately enough to support imagined control.
+The pattern is not specific to \fb{}. \rldp{} secures the cube most reliably of any method (lowest grasp failure, $9.6\%$) yet drops it most often (maintain failure $44.0\%$): nearly half of its episodes lift the cube and then lose it. \crl{} fails more uniformly across grasp, maintain, and transport. In all three lower-scoring methods the deficit relative to \gciql{} is dominated by post-contact outcomes. Because the phase labels never read a method's value, representation, or model, the same protocol extends unchanged to \psm{} (test whether any proto-policy covers stable grasped transport) and to model-based methods (test whether the model predicts lift, slip, and drop transitions).
+
+The next two diagnostics group individual states rather than episodes. Because both the play data and the policy rollouts cycle through pick-and-place many times per trajectory, we pool states into three instantaneous regimes defined by gripper and lift state: \emph{approach} (pre-contact), \emph{pickup} (gripper closed, cube on the table), and \emph{carry} (cube lifted and held). These regimes are distinct from the terminal failure phases of Table~\ref{tab:cross_method_template}: a maintain-grasp failure (cube dropped) and a transport failure (cube held but never delivered) are separated only by how an episode ends, and both originate within the carry regime.
+
+\subsection{Dataset support does not explain the failure (P3)}
+
+% Failed states are not uniformly farther from the offline data.
+A natural confound is that post-contact failures are simply out-of-distribution. Table~\ref{tab:state_coverage} reports the nearest-neighbor distance $m_{\mathrm{dist}}$ from rollout states to comparable offline states, by regime and outcome, for all four methods. If failure were a pure coverage effect, failed states should be markedly farther from the data than successful ones in every regime. Instead the gap is small in the approach regime and concentrated in the contact regimes (pickup, carry): failed states are modestly farther for \fb{} and \rldp{}, and more so for \gciql{} and \crl{}. The gap appears even for \gciql{}, which mostly succeeds, so it tracks the under-representation of contact transitions in the play data rather than the failure itself, and it is far too small to account for the $20$--$45\pp$ success deficits in Table~\ref{tab:cross_method_template}. Coverage is therefore at most a contributing factor, not the mechanism.
+
+\begin{table}[htb]
+\centering
+\caption{Dataset-manifold support. $m_{\mathrm{dist}}$ is the nearest-neighbor distance from rollout states to comparable offline states (mean across seeds; larger means lower support). S = success, Tf = transport-fail episodes; regimes are the per-state instantaneous regimes (Section~\ref{sec:results}).}
+\label{tab:state_coverage}
+\begin{tabular}{lcccccc}
+\toprule
+ & \multicolumn{2}{c}{Approach} & \multicolumn{2}{c}{Pickup} & \multicolumn{2}{c}{Carry} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+\textbf{Method} & \textbf{S} & \textbf{Tf} & \textbf{S} & \textbf{Tf} & \textbf{S} & \textbf{Tf} \\
+\midrule
+\fb{}    & $2.23$ & $2.28$ & $2.33$ & $2.69$ & $2.09$ & $2.27$ \\
+\gciql{} & $2.56$ & $2.85$ & $2.67$ & $3.37$ & $2.64$ & $3.20$ \\
+\crl{}   & $2.45$ & $3.02$ & $2.43$ & $3.82$ & $2.54$ & $3.22$ \\
+\rldp{}  & $2.30$ & $2.32$ & $2.38$ & $2.99$ & $2.23$ & $2.66$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The bottleneck is interaction-mode aliasing, not geometry (P4)}
+
+% Geometry resolution is not the bottleneck: RLDP resolves geometry yet drops more.
+Section~\ref{sec:theory} predicts that the failure is an \emph{interaction-mode} gap: observation-close states with different controllability are aliased by an observation-smooth approximator, including the low-rank inner-product $F^\top B$. A natural first guess is that the representation simply fails to resolve where the cube is. Table~\ref{tab:geometry_control} shows this is not the explanation. Probing the backward embedding $B$ for the cube-to-goal distance over carry-regime states, \rldp{}'s $B$ encodes the terminal geometry far better than \fb{}'s (nonlinear $R^2$ $0.75$ vs $0.21$) --- yet \rldp{} fails to \emph{maintain} the grasp nearly twice as often ($44.0\%$ vs $23.8\%$). Geometry in the representation does not translate into control.
+
+\begin{table}[htb]
+\centering
+\caption{Carry-regime resolution of the backward embedding $B$ for cube-to-goal distance $d$, under a linear and a nonlinear (MLP) readout, with the maintain-grasp failure rate. Better geometric resolution (\rldp{}) coincides with \emph{worse} grasp maintenance.}
+\label{tab:geometry_control}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{$R^2(B\to d)$ linear} & \textbf{$R^2(B\to d)$ MLP} & \textbf{Maintain-grasp fail (\%)} \\
+\midrule
+\fb{}   & $0.20$ & $0.21$ & $23.8$ \\
+\rldp{} & $0.55$ & $\mathbf{0.75}$ & $44.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+What the learned value does fail to provide is a transport signal. Figure~\ref{fig:value_vs_dist} plots the extracted value against cube-to-goal distance by phase: a useful critic would rise as the cube approaches the goal, but in the carry regime value is flat or non-monotone for every method. Consistent with the proposition, even when the geometry is present in $B$ (\rldp{}), the bilinear value that reads $B$ linearly cannot exploit it: \rldp{}'s $B$ is linear-$R^2$ $0.55$ but nonlinear-$R^2$ $0.75$, so the inner-product critic is the binding constraint. The diagnosis is therefore not that the cube is hard to locate, but that observation-smooth, low-rank value approximators alias the controllable and about-to-fail contact states that the policy must distinguish to preserve and exploit the grasp. Table~\ref{tab:aliasing} makes the aliasing direct. For each fail-bound state we find its nearest success-bound state \emph{in observation space} and ask whether the value ranks the success-bound one higher; a value that resolved controllability would score near $1$. Every method stays near chance ($0.48$--$0.60$) in every regime, even though the matched states are genuine observation neighbors. The value cannot separate look-alike states that will succeed from those that will fail --- exactly the interaction-mode aliasing the proposition predicts.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=\linewidth]{f3_value_vs_dist.png}
+\caption{Extracted value versus cube-to-goal distance on training states, by phase ($z$-scored per method). A transport signal would rise as distance $\to 0$; instead value is flat or non-monotone in the carry regime for all methods.}
+\label{fig:value_vs_dist}
+\end{figure}
+
+\begin{table}[htb]
+\centering
+\caption{Matched-observation aliasing test: for each fail-bound state, the fraction of nearest success-bound states (in observation space) that the value ranks higher, by regime, across seeds. $0.5$ = the value cannot separate observation-close controllable vs about-to-fail states. Matched pairs lie well within the data spread (standardized distance ${\approx}2.7$ vs ${\approx}7$ median).}
+\label{tab:aliasing}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{Approach} & \textbf{Pickup} & \textbf{Carry} \\
+\midrule
+\fb{}    & $0.59$ & $0.57$ & $0.59$ \\
+\gciql{} & $0.50$ & $0.48$ & $0.50$ \\
+\crl{}   & $0.55$ & $0.55$ & $0.55$ \\
+\rldp{}  & $0.59$ & $0.57$ & $0.60$ \\
+\bottomrule
+\end{tabular}
+\end{table}

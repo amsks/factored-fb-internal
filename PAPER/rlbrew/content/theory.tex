@@ -1,56 +1,98 @@
-\section{Phase-Conditioned Successor Diagnosis}
-\label{sec:theory}
+\section{Interaction-conditioned successor gaps in manipulation}
 
-\subsection{Phase consistency}
-% A safe abstraction must preserve successor measures for the policy class of interest.
-We use successor consistency to state the representation requirement induced by contact.
+\subsection{Manipulation as interaction-conditioned control}
 
-\begin{definition}[Phase-consistent successor abstraction]
-An abstraction $\phi:\Sspace\to\mathcal{Z}$ is phase-consistent for a policy class $\Pi$ if $\phi(s_1)=\phi(s_2)$ implies
-\[
-    M^{\pi}(s_1,a,X) = M^{\pi}(s_2,a,X), \qquad \forall \pi\in\Pi,\; a\in\Aspace,\; X\subseteq\Sspace.
-\]
-\end{definition}
+Let $\tilde{s}\in\widetilde{\mathcal S}$ denote the full physical state and let $y=\Omega(\tilde{s})\in\mathcal Y$ denote the state observation available to the policy. 
+In \texttt{OGBENCH cube-single}, $y$ contains robot proprioception, end-effector pose, gripper opening and contact indicators, and cube pose. 
+However, it does not explicitly encode all physical variables that determine grasp stability, such as the full contact wrench, frictional margin, slip state, or other unobserved contact quantities.
 
-% This condition is stronger than preserving object-goal distance.
-The definition is stronger than preserving distances in the observed state.
-It requires preserving whether the cube is controllable, whether the grasp is stable, and whether future actions keep the system in a phase from which transport is possible.
-In contact-rich domains, these properties can change discontinuously at grasp, slip, and drop events.
+We therefore distinguish the observed state $y$ from an interaction mode $\iota(\tilde{s})\in\mathcal I$, where $\mathcal I$ may include free motion, partial contact, stable grasp, slipping contact, and dropped contact. 
+The interaction mode determines how actions couple robot motion to object motion. 
+We write the full-state transition kernel as interaction-conditioned: $P(d\tilde{s}'\mid \tilde{s},a) = P_{\iota(\tilde{s})}(d\tilde{s}'\mid \Omega(\tilde{s}),a)$.
 
-\subsection{Contact bottlenecks create successor inconsistency}
+This formulation separates observed geometry from controllability. 
+Before grasp, an end-effector motion may leave the cube fixed. 
+During a stable grasp, a similar motion may transport the cube. 
+During unstable contact, the same motion may cause the cube to slip or drop. 
+Thus two states can be close in observed geometry while inducing different effective transition kernels because their interaction modes differ.
 
-% A simple proposition shows why phase-blind abstraction can fail.
-\begin{proposition}[Phase-blind abstractions fail at contact bottlenecks]
-Consider a two-phase manipulation MDP with contact phase $c\in\{0,1\}$ and target set
-\[
- G=\{s:c=1,\|o-g\|\leq\epsilon\}.
-\]
-Suppose two states $s_1=(x_1,o,g,0)$ and $s_2=(x_2,o,g,0)$ have identical object and goal coordinates but differ in the probability of entering the grasped phase under some policy $\pi$:
-\[
-    \Prob_{\pi}(\tau_{c=1}<\infty\mid s_1,a)
-    \neq
-    \Prob_{\pi}(\tau_{c=1}<\infty\mid s_2,a).
-\]
-Then any abstraction $\phi$ that ignores the variables responsible for this difference and maps $\phi(s_1)=\phi(s_2)$ is not successor-consistent for $G$.
+The key implication is that proximity in observation space need not imply proximity in successor-measure space. 
+A stable grasp and a partial grasp may have nearly identical cube pose, gripper pose, and goal distance, but their long-horizon futures can differ sharply.
+
+\subsection{Success before loss of control}
+
+Let $G_g = \{\tilde{s}\in\widetilde{\mathcal S}:\|o(\tilde{s})-g\|\leq \epsilon_G\}$ be the task success set for goal $g$. 
+Let $D\subseteq\widetilde{\mathcal S}$ denote the instantaneous loss-of-control set, for example states in which the cube has been dropped or is no longer controllably held.
+
+Define the hitting times $\tau_{G_g} = \inf\{t\geq 0:\tilde{s}_t\in G_g\}$ and $\tau_D = \inf\{t\geq 0:\tilde{s}_t\in D\}$.
+
+The task-relevant long-horizon quantity is the reach-before-drop probability given by $u^\pi(\tilde{s},a;g) = \Pr^\pi(\tau_{G_g}<\tau_D \mid \tilde{s}_0=\tilde{s},a_0=a)$.
+
+This quantity is not the full successor measure. 
+Rather, it is a task-relevant projection of the successor measure: it asks whether future occupancy reaches the goal before entering a loss-of-control regime. 
+Equivalently, it is the value function of a reach-avoid problem in which reaching $G_g$ before $D$ receives terminal reward $1$, while entering $D$ first receives terminal reward $0$.
+
+A discounted variant can also be defined as $u^\pi_\gamma(\tilde{s},a;g) = \mathbb E^\pi [ \gamma^{\tau_{G_g}} \mathbf 1\{\tau_{G_g}<\tau_D\} \mid \tilde{s}_0=\tilde{s},a_0=a ]$, but the undiscounted probability is the quantity most directly aligned with the phase-decomposition diagnostic used below.
+
+\subsection{Contact creates local successor gaps}
+
+For an observation scale $\epsilon>0$, define the local interaction gap:
+\begin{equation}
+\Delta^\pi_\epsilon(g) = \sup_{\substack{\tilde{s}_1,\tilde{s}_2,a \\ \|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq \epsilon}} \left| u^\pi(\tilde{s}_1,a;g) - u^\pi(\tilde{s}_2,a;g) \right|.
+\end{equation}
+A large value of $\Delta^\pi_\epsilon(g)$ means that nearby observed states can have very different probabilities of successful transport. 
+In manipulation, such gaps arise naturally near contact boundaries. 
+A stable grasp and an unstable grasp may be close in object pose, gripper pose, and goal distance, but differ sharply in whether the cube remains controllable under future actions.
+
+When we want to avoid off-support or physically irrelevant pairs, we use a support-restricted version. 
+For a contact-relevant state-action support set $\mathcal C_g\subseteq \widetilde{\mathcal S}\times\mathcal A$, define:
+\begin{equation}
+\Delta^\pi_{\epsilon,\mathcal C}(g) = \sup_{\substack{(\tilde{s}_1,a),(\tilde{s}_2,a)\in\mathcal C_g \\ \|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq \epsilon}} \left| u^\pi(\tilde{s}_1,a;g) - u^\pi(\tilde{s}_2,a;g) \right|.
+\end{equation}
+This quantity formalizes the central difficulty: the observation metric may treat two states as neighbors even when their long-horizon transport futures are separated by interaction mode.
+
+\begin{proposition}[Observation-smooth approximators incur error at interaction gaps]
+Let $h_\theta(y,a;g)$ be an observation-based approximation to $u^\pi(\tilde{s},a;g)$. 
+Assume that $h_\theta$ is $L$-Lipschitz in $y$ for fixed $a$ and $g$: $|h_\theta(y_1,a;g)-h_\theta(y_2,a;g)| \leq L\|y_1-y_2\|$. 
+If there exist $\tilde{s}_1,\tilde{s}_2$ and $a$ such that $\|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq \epsilon$ and $|u^\pi(\tilde{s}_1,a;g) - u^\pi(\tilde{s}_2,a;g)| = \Delta$, then:
+\begin{equation}
+\max_{i\in\{1,2\}} \left| h_\theta(\Omega(\tilde{s}_i),a;g) - u^\pi(\tilde{s}_i,a;g) \right| \geq \frac{(\Delta-L\epsilon)_+}{2},
+\end{equation}
+where $(x)_+=\max\{x,0\}$.
 \end{proposition}
 
-\begin{proof}[Proof sketch]
-Reaching $G$ requires entering the grasped phase. Therefore,
-\[
- M^{\pi}(s_i,a,G) = \E_{\pi}\left[ \gamma^{\tau_{c=1}} M^{\pi}(s_{\tau_{c=1}},a_{\tau_{c=1}},G) \ind\{\tau_{c=1}<\infty\} \mid s_i,a \right]
-\]
-If the probability or timing of entering $c=1$ differs between $s_1$ and $s_2$, the successor mass assigned to $G$ differs unless later transport dynamics exactly cancel the difference. Such cancellation is not generic. Thus $M^{\pi}(s_1,a,G)\neq M^{\pi}(s_2,a,G)$, contradicting successor consistency.
+\begin{proof}
+Let $y_i=\Omega(\tilde{s}_i)$, $u_i=u^\pi(\tilde{s}_i,a;g)$, and $\hat u_i=h_\theta(y_i,a;g)$. 
+By the triangle inequality, $\Delta = |u_1-u_2| \leq |u_1-\hat u_1| + |\hat u_1-\hat u_2| + |\hat u_2-u_2|$. 
+Since $h_\theta$ is $L$-Lipschitz in $y$, $|\hat u_1-\hat u_2| \leq L\|y_1-y_2\| \leq L\epsilon$. 
+Therefore, $|u_1-\hat u_1| + |u_2-\hat u_2| \geq \Delta-L\epsilon$. 
+Because the left-hand side is nonnegative, it is at least $(\Delta-L\epsilon)_+$. 
+Hence at least one of the two errors must be at least $\frac{(\Delta-L\epsilon)_+}{2}$.
 \end{proof}
 
-% This proposition motivates phase-level evaluation.
-The proposition gives a concrete interpretation of manipulation failures.
-A representation may be useful for broad reachability and still fail if it merges states that differ in contact acquisition, grasp stability, or transport controllability.
-The empirical protocol therefore measures the physical phase at which each rollout first fails.
+The proposition shows that if the true reach-before-drop successor quantity changes sharply inside a small observation ball, then any observation-smooth approximation must make nontrivial error on at least one of the two states. 
+The result is not a claim that exact successor measures cannot represent manipulation. 
+The exact full-state successor measure can represent each interaction mode. 
+The issue is approximation after observation compression: stable and unstable contact states may be aliased or placed close together in the observation metric, even though their future controllability differs.
 
-\subsection{Implications for URL methods}
+A useful limiting case is exact observation aliasing. 
+If $\Omega(\tilde{s}_1)=\Omega(\tilde{s}_2)$ but $|u^\pi(\tilde{s}_1,a;g) - u^\pi(\tilde{s}_2,a;g)| = \Delta$, then any observation-only approximator must incur error at least $\Delta/2$ on one of the two states, regardless of smoothness.
 
-% Different method families should exhibit different phase-level failures.
-Goal-conditioned value methods such as \gciql{} can succeed when the dataset contains enough bottleneck-crossing trajectories and the value function assigns correct credit to actions that preserve contact \citep{ma-neurips22a,kostrikov-iclr22a,park-iclr25a}.
-Contrastive methods may learn useful reachability geometry, but representation-space closeness to the goal does not guarantee that the policy can cross a contact bottleneck \citep{eysenbach-neurips22a}.
-\fb{} can retarget rewards through a compact successor factorization, but a single low-rank embedding $z=B(g)$ may allocate insufficient capacity to the distinction between approach, grasp, and transport \citep{touati-neurips21a,touati-iclr23a}.
-\psm{} provides a basis-coverage diagnostic: if no proto-policy occupies stable grasped transport, downstream inference cannot easily synthesize reliable transport from the basis \citep{agarwal-arxiv25a}. A model-based method provides an orthogonal diagnostic: if imagined rollouts do not predict lift, slip, or drop transitions, planning fails at the same boundary \citep{hafner-iclr20a,hafner-arxiv23a}.
+\subsection{Implication for low-rank inner-product successor models}
+
+Many successor-measure methods use an inner-product approximation. 
+In FB-style methods, for example, the successor measure is approximated by a low-rank product $M^{\pi_z}(s,a,s^+) \approx F_1(s,a,z)^\top B(s^+)$. 
+After projecting the successor measure onto a goal-dependent reach-avoid quantity, this induces approximations of the form $h_\theta(y,a;g) = f_\theta(y,a)^\top b_\theta(g)$.
+
+The previous proposition applies to this class whenever the induced scalar approximation is Lipschitz in $y$. 
+A sufficient condition is bounded goal embedding norm and a Lipschitz state-action embedding. 
+If $\|b_\theta(g)\|_2\leq B$ and $\|f_\theta(y_1,a)-f_\theta(y_2,a)\|_2 \leq L_f\|y_1-y_2\|$, then:
+\begin{equation}
+|h_\theta(y_1,a;g)-h_\theta(y_2,a;g)| = \left| \left(f_\theta(y_1,a)-f_\theta(y_2,a)\right)^\top b_\theta(g) \right| \leq BL_f\|y_1-y_2\|.
+\end{equation}
+Thus $h_\theta$ is $BL_f$-Lipschitz in $y$, and the lower bound becomes $\max_{i\in\{1,2\}} |h_\theta(\Omega(\tilde{s}_i),a;g) - u^\pi(\tilde{s}_i,a;g)| \geq \frac{(\Delta-BL_f\epsilon)_+}{2}$.
+
+This does not mean that low-rank inner-product representations are intrinsically incapable of manipulation. 
+Rather, it identifies a mismatch between their inductive bias and contact-rich dynamics. 
+A single global inner-product geometry must simultaneously represent smooth geometric proximity and sharp interaction-dependent controllability. 
+If it smooths across stable and unstable contact states, it must either underestimate stable transport states or overestimate nearby unstable-contact states.
