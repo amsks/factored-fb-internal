@@ -114,6 +114,30 @@ def _panel(ax, Z, y, mask, auc, title=None, ylab=None):
         ax.set_ylabel(ylab, fontsize=12, fontweight="bold")
 
 
+def fig_auc_bars(out, auc_rows):
+    """Grouped train/eval linear-probe AUC bar chart (chance = 0.5)."""
+    names = [r[0] for r in auc_rows]
+    tr = np.array([r[1] for r in auc_rows])
+    ev = np.array([r[2] for r in auc_rows])
+    x = np.arange(len(names)); w = 0.38
+    fig, ax = plt.subplots(figsize=(5.4, 3.8))
+    ax.bar(x - w / 2, tr, w, color=_CB[0], edgecolor="black", linewidth=0.4,
+           label="Train grasps")
+    ax.bar(x + w / 2, ev, w, color=_CB[3], edgecolor="black", linewidth=0.4,
+           label="Eval grasps")
+    ax.axhline(0.5, color="black", ls="--", lw=1.0, label="chance")
+    ax.set_xticks(x); ax.set_xticklabels(names, fontsize=10, fontweight="bold")
+    ax.set_ylabel("Linear-probe AUC\n(success- vs fail-bound)", fontsize=10)
+    ax.set_ylim(0.4, 0.85)
+    ax.legend(fontsize=8, ncol=3, loc="upper center",
+              bbox_to_anchor=(0.5, 1.16), frameon=False, columnspacing=1.2)
+    ax.grid(True, axis="y", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"[plot] wrote {out}")
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(2, 4, figsize=(14.5, 7.4))
@@ -149,6 +173,8 @@ def main() -> int:
     fig.savefig(out_png, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"[plot] wrote {out_png}")
+
+    fig_auc_bars(OUT / "fig_repsep_auc.png", auc_rows)
 
     # AUC table for the appendix
     lines = ["| Method | Train AUC | Eval AUC | Train$\\to$Eval drop |",
