@@ -1,62 +1,38 @@
-\section{Problem Setting and Background}
-\label{sec:background}
+\section{Preliminaries}
 
-\subsection{Reward-free pretraining and successor measures}
-
-% Define the reward-free MDP and successor measure used throughout the paper.
-We consider a reward-free Markov decision process $(\Sspace,\Aspace,\Ptrans,\gamma)$ with state space $\Sspace$, action space $\Aspace$, transition kernel $\Ptrans$, and discount factor $\gamma$. For a policy $\pi$, the successor measure from $(s,a)$ to a measurable set $X\subseteq\Sspace$ is
-\[
+We consider a reward-free Markov decision process $(\Sspace,\Aspace,\Ptrans,\gamma)$ with state space $\Sspace$, action space $\Aspace$, transition kernel $\Ptrans$, and discount factor $\gamma$.
+For a policy $\pi$, the successor measure from $(s,a)$ to a measurable set $X\subseteq\Sspace$ is:
+\begin{equation}
     M^\pi(s,a,X) = \E_\pi\left[ \sum_{t\geq 0}\gamma^t \ind{s_{t+1}\in X} \mid s_0=s,a_0=a \right].
-\]
-When the state space is discrete, we write $M^{\pi}(s,a,s^+)$ for the discounted occupancy of state $s^+$.
-
-% Successor measures turn reward-conditioned policy evaluation into a linear objective.
-For a state reward $r$, policy evaluation can be written as
-\[
+\end{equation}
+When the state space is discrete, we write $M^\pi(s,a,s^+)$ for the discounted occupancy of state $s^+$.
+For a state reward $r$, policy evaluation can be written as:
+\begin{equation}
     Q^{\pi}_r(s,a) = \int_{\Sspace} M^\pi(s,a,ds^+) r(s^+).
-\]
-This identity explains why successor measures are useful for unsupervised RL: a reward-free object that predicts future occupancy can be combined with a downstream reward to evaluate or infer policies \citep{touati-neurips21a,touati-iclr23a,agarwal-rlj25a}.
+\end{equation}
+This identity explains why successor measures are useful for URL: a reward-free object that predicts future occupancy can be combined with a downstream reward to evaluate or infer policies~\citep{dayan-nc93a,touati-neurips21a,touati-iclr23a,agarwal-rlj25a}.
 
-% Practical methods compress the successor object; this creates the relevant risk.
-The exact successor measure is intractable to represent for a large policy class. Practical URL methods therefore impose parametric structure.
-\fb{} uses a low-rank approximation,
-\[
-    M^{\pi_z}(s,a,s^+) \approx F(s,a,z)^{\top}B(s^+),
-\]
-where $z$ indexes a reward or policy embedding \citep{touati-neurips21a,touati-iclr23a}. Goal-conditioned and contrastive methods use target-conditioned values, policies, or embeddings instead of explicitly representing the full measure \citep{eysenbach-iclr21a,eysenbach-neurips22a,ma-neurips22a}. \psm{} and related basis methods approximate successor or value objects through learned bases \citep{mahadevan-icml05a,mahadevan-jmlr07a,farebrother-iclr23a,agarwal-arxiv25a}. In each case, the representation must decide which states are equivalent for downstream control.
+Exact successor measures are intractable for large policy classes, so practical URL methods impose structure.
+For example, \fb{} uses a low-rank approximation:
+\begin{equation}
+    M^{\pi_z}(s,a,s^+) \approx F(s,a,z)^\top B(s^+),
+\end{equation}
+where $z$ indexes a reward or policy embedding~\citep{touati-neurips21a,touati-iclr23a}.
+Goal-conditioned and contrastive methods instead learn target-conditioned values, policies, or embeddings~\citep{eysenbach-iclr21a,eysenbach-neurips22a,ma-neurips22a}.
+Predictive methods learn local transition structure that can be composed into longer-horizon reachability estimates.
+Across these objectives, the learned object must decide which states are equivalent for downstream control.
 
-\subsection{URL objectives as approximations to future occupancy}
+\subsection{URL objectives as future-reachability scores}
 \label{sec:url_objectives_as_sm}
 
-The methods we evaluate differ in their training objectives, but they all learn objects that are meant to support downstream goal- or reward-conditioned control. 
-We use the successor-measure view to describe the common structure. 
-For a goal $g$, let $G(g)=\{s^+:|o(s^+)-g|\leq \epsilon_G\}$ denote the task success set. 
-The task-relevant quantity is the successor mass assigned to $G(g)$, given by $m^\pi_g(s,a) = M^\pi(s,a,G(g))$. 
-In the manipulation setting, a useful representation must not only assign high mass to geometrically nearby goals, but must also preserve the interaction modes that determine whether the cube remains controllable until it reaches the goal.
+For a goal $g$, let $G(g)=\{s^+:\|o(s^+)-g\|\leq \epsilon_G\}$ denote the task success set.
+The goal-relevant successor mass is:
+\begin{equation}
+    m^\pi_g(s,a) = M^\pi(s,a,G(g)).
+\end{equation}
+We use this quantity only as a common lens: the evaluated methods do not all estimate it explicitly.
+\gciql{} learns a goal-conditioned value $Q(s,a,g)$, \crl{} learns an inner-product score $f(s,a)^\top b(g)$, \fb{} learns an explicit successor-measure factorization, and \rldp{} learns predictive structure that induces long-horizon scores through rollout or extraction.
 
-Table~\ref{tab:url_successor_approximations} summarizes the approximation induced by each method considered in this work. 
-The table identifies the future-occupancy object that each method explicitly estimates, implicitly parameterizes, or induces through rollouts.
-
-\begin{table}[htb]
-\centering
-\small
-\caption{URL methods viewed as approximations to future occupancy ($M^\pi$).}
-\label{tab:url_successor_approximations}
-\begin{tabular}{llp{0.32\linewidth}p{0.32\linewidth}}
-\toprule
-\textbf{Method} & \textbf{Learned Object} & \textbf{Successor-Measure Interpretation} & \textbf{Relevant Manipulation Risk} \\
-\midrule
-\gciql{}   & $Q(s,a,g)$                            & Estimates goal-reaching occupancy under $\pi_g$.                                         & Values rank geometric proximity but ignore grasp stability. \\ \addlinespace
-\crl{}     & $f(s,a)^\top b(g)$                    & Approximates state-goal density ratios via contrastive ranking.                          & Fails to distinguish stable grasps from nearby drops or slips. \\ \addlinespace
-\fb{}      & $F(s,a,z), B(s^+)$                    & Learns an explicit low-rank factorization of $M^\pi$.                                    & Smooth low-rank inner products blur sharp contact transitions. \\ \addlinespace
-\rldp{}    & $\hat{z}_{t+1} = d_\theta(z_t,a_t)$   & Compiles local 1-step transitions to induce long-horizon $M^\pi$.                        & Short-horizon objectives capture initial lift but miss late drops. \\ \addlinespace
-\psm{}     & $\{\phi_i\}_{i=1}^d, w^\pi$           & Spans $M^\pi$ linearly using a learned proto-successor basis.                            & Downstream control fails if the basis lacks stable transport modes. \\ \addlinespace
-\dreamer{} & $p_\theta(z_{t+1}\mid z_t,a_t)$       & Simulates multi-step future occupancy via imagined rollouts.                             & Imagination uncouples gripper-object physical dynamics during transport. \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The table also clarifies why cube manipulation is a useful diagnostic. 
-In navigation-style tasks, a compact reachability representation can often generalize through smooth geometric structure. 
-In manipulation, the same observed geometry can correspond to different future occupancy depending on the interaction mode. 
-Thus, the relevant question is not only whether a method predicts or ranks future states, but whether the learned object preserves the contact-dependent distinctions that determine $M^\pi(s,a,G(g))$.
+In navigation-like domains, a compact future-reachability score can often generalize through smooth geometric structure.
+In manipulation, however, the same observed geometry can correspond to different future occupancies depending on the contact mode.
+A useful score must therefore preserve not only where the cube and gripper are, but also whether the current interaction state allows the cube to remain controllable until it reaches the goal.

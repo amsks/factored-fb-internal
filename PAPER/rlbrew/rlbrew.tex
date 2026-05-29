@@ -3,7 +3,7 @@
 \PassOptionsToPackage{numbers,sort&compress}{natbib}
 
 % Pass the exact package layout for RLJ format
-\usepackage[accepted]{rlj}
+\usepackage{rlj}
 
 % Core formatting and typography
 \usepackage{microtype}
@@ -19,6 +19,8 @@
 \usepackage{array}
 \usepackage{enumitem}
 \usepackage{graphicx}
+\usepackage{paralist}
+\usepackage{float}
 
 % Summary and claim boxes
 \usepackage[most]{tcolorbox}
@@ -26,10 +28,9 @@
 % ---------------------------------------------------------------------
 % Document Metadata & Running Headers
 % ---------------------------------------------------------------------
-\title{Why Is Manipulation Hard for Unsupervised RL?\\
-A State-Based Diagnosis of Contact Bottlenecks in Cube Manipulation}
+\title{Is Manipulation Hard for Unsupervised RL?}
 
-\setrunningtitle{A State-Based Diagnosis of Contact Bottlenecks in Cube Manipulation}
+\setrunningtitle{Is Manipulation Hard for Unsupervised RL?}
 
 \author{%
   Aditya Mohan$^{1}$,
@@ -108,21 +109,20 @@ A State-Based Diagnosis of Contact Bottlenecks in Cube Manipulation}
 
 \maketitle
 
-\input{content/abstract}
+\input{RLBrew/content/abstract}
+\input{RLBrew/content/introduction}
+\input{RLBrew/content/preliminaries}
+\input{RLBrew/content/theory}
+\input{RLBrew/content/diagnostics}
+\input{RLBrew/content/results}
+\input{RLBrew/content/related-work}
+\input{RLBrew/content/conclusion}
 
-\input{content/introduction}
 
-\input{content/related-work}
-
-\input{content/preliminaries}
-
-\input{content/theory}
-
-\input{content/diagnostics}
-
-\input{content/results}
 
 \bibliographystyle{plainnat}
 \bibliography{bib/strings,bib/lib,bib/local,bib/proc}
 
+\appendix
+\input{RLBrew/content/appendix}
 \end{document}

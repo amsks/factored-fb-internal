@@ -1,41 +1,27 @@
 \section{Introduction}
 
-% why is
-One of the central promises of Unsupervised Reinforcement Learning (URL) is reusable control: an agent first learns a task-agnostic representation of an environment, then uses it to solve many downstream tasks. 
-In robotics, this promise is especially appealing. 
-A robot may need to solve many goals in the same workspace, each specified by a different reward function, while collecting new interaction data for every reward can be expensive. 
-URL addresses this problem by learning a representation, policy family, or value structure in a reward-free or reward-agnostic pretraining phase, and then reusing this object for downstream policy inference.
+Unsupervised reinforcement learning (URL) promises reusable control: an agent learns a policy, representation, or value structure without task rewards and later adapts it to downstream goals.
+This is especially appealing in robotics, where the same workspace may contain many possible goals, but collecting new interaction data for every reward is expensive.
+Many URL objectives instantiate this idea by learning some form of future-reachability object, including goal-conditioned values, contrastive state-goal scores, successor measures, or predictive representations~\citep{eysenbach-iclr21a,eysenbach-neurips22a,ma-neurips22a,touati-neurips21a,touati-iclr23a,agarwal-rlj25a}.
 
-
-A wide range of URL algorithms instantiate this idea. Goal-conditioned methods learn policies or values indexed by target states \citep{eysenbach-iclr21a,ma-neurips22a,park-iclr25a}. 
-Contrastive RL methods learn representations that separate future states from negatives \citep{eysenbach-neurips22a,wang-icml23a,park-iclr24a}. 
-Successor-feature and successor-measure methods learn reward-free objects that make downstream policy inference tractable \citep{dayan-nc93a,barreto-neurips17a,touati-neurips21a,touati-iclr23a}. 
-Proto-successor measures, proto-value functions, skill-discovery methods, controllable representations, and world models make different assumptions about what should be represented during pretraining \citep{mahadevan-icml05a,mahadevan-jmlr07a,farebrother-iclr23a,eysenbach-iclr22a,agarwal-arxiv25a,efroni-iclr22a,lamb-arxiv22a,levine-arxiv24a,rudolph-rlc24a,hafner-iclr20a,hafner-arxiv23a}. 
-Although these methods use different losses and inference rules, many of them reason about future state occupancy, state reachability, or action-dependent predictability in some form \citep{agarwal-rlj25a}.
-
-An often underexplored area for such methods has been the domain of manipulation.
-It is a challenging test case for this paradigm because it is not merely navigation in a larger state space. 
-For example, moving a gripper to a cube, closing around it, lifting it, maintaining contact, and transporting it to a goal are different regimes of control. 
-The transition between these regimes is mediated by contact. 
-Before grasp, gripper motion and object motion are weakly coupled; during a stable grasp, they are tightly coupled; after a drop, the system returns to a different controllability regime. 
-A representation that captures coarse reachability can therefore be inadequate if it fails to preserve which interaction regime the system is in and which actions maintain control of the object.
-
-This paper investigates this failure mode in state-observation URL policies for contact-rich cube manipulation. 
-We use manipulation as a diagnostic domain for understanding what existing representations preserve and what they miss. 
-In cube manipulation, two states may be close in object pose, gripper pose, and goal distance, but differ in grasp quality or contact stability. 
-Under the same action, one state may allow the cube to be transported, while the other may lead to slip or drop. 
-Thus contact can create a local gap: a sharp difference in long-horizon future occupancy between states that are close under the observation metric. 
-Low-rank inner-product successor-measure methods are vulnerable to this failure mode because they compress interaction-dependent distinctions into a single global representation geometry.
-
-\begin{hypothesis}[Contact bottleneck hypothesis] 
-Manipulation is hard for state-based URL because the downstream task is not a single smooth reachability problem. It is an interaction-conditioned control problem in which contact states act as bottlenecks. URL methods that compress future reachability without preserving interaction mode may represent broad state reachability while failing to preserve the controllability needed for grasp maintenance and object transport. 
+Despite substantial successes in locomotion and navigation style domains~\citep{touati-iclr23a,trinzoni-iclr25a,agarwal-arxiv25a}, manipulation remains a persistent class of challenging problems for URL methods~\citep{}. 
+In this work, we identify that the non-smooth dynamics of manipulation illustrate a fundamental challenge for smooth, low-rank approximators used in URL methods. In particular:
+\begin{hypothesis}[Interaction-conditioned successor gap hypothesis]
+State-based URL methods can fail when observation-near states belong to different interaction regimes with different long-horizon successor measures.
+In cube manipulation, this means that a policy may solve coarse reachability and acquire control of the object, while still failing to preserve the controlled-object regime and transport the cube to the goal.
 \end{hypothesis}
+We formalize this as a local successor gap: a sharp change in a task-relevant successor functional between observation-near states.
+% We formalize the notion of non-smooth dynamics, and illustrate how inner-product spaces can struggle to capture this property, which may explain poor performance. 
 
+We use cube manipulation as a diagnostic instantiation of this hypothesis.
+The phase structure is physically interpretable: approach tests coarse reachability, control acquisition tests entry into the relevant interaction regime, maintained control tests persistence of that regime, and transport tests whether the policy exploits it to reach the downstream goal.
+Our experiments show that failures are dominated by post-acquisition outcomes, and that learned scores weakly separate observation-near states with different futures.
+This suggests that the failure is not explained by state-support coverage or coarse cube geometry alone.
 
-We present the diagnosis in three steps. 
-\begin{enumerate} 
-\item We formulate manipulation as an interaction-conditioned successor problem. We define a reach-before-drop successor quantity and a local interaction gap, making precise how nearby observed states can have sharply different long-horizon futures when they differ in contact mode. 
-\item We show that observation-smooth approximations incur unavoidable error at such interaction gaps. This gives a formal mechanism by which smooth or bounded-capacity inner-product successor approximations can either underestimate stable transport states or overestimate nearby unstable-contact states. 
-\item We introduce a state-only failure decomposition for \ogbench{} \task{}. Each rollout is assigned to the first failed physical precondition: approach, grasp, maintain grasp, or transport. This converts a scalar success rate into a phase-resolved failure profile. 
-\item We apply this diagnostic to a range of state-based URL methods. Across methods, failures are often concentrated after successful object acquisition, particularly in the maintain-grasp and transport phases rather than in initial approach or contact. Additional support and value-landscape diagnostics indicate that these deficits cannot be explained solely by failures to reach the cube, acquire initial contact, or remain near the offline dataset support.
-\end{enumerate}
+We make three contributions.
+\begin{inparaenum}[(i)]
+    \item we formalize interaction-conditioned successor gaps: local interaction variables can induce sharp changes in task-relevant successor measures even between observation-near states, and observation-smooth scores incur error near such gaps; 
+    \item we instantiate this phenomenon in cube pick-and-place through a phase diagnostic that decomposes failures into approach, control acquisition, maintained control, and transport; and 
+    \item we apply the diagnostic to four state-based URL methods on \ogbench{} \task{}. 
+\end{inparaenum}
+The resulting failure profiles show that the main attrition occurs after control acquisition; support and value-ranking probes further suggest that neither state-support coverage nor coarse cube geometry fully explains the failure pattern.

@@ -1,98 +1,211 @@
-\section{Interaction-conditioned successor gaps in manipulation}
+\section{Interaction-conditioned successor gaps}
+\label{sec:theory}
 
-\subsection{Manipulation as interaction-conditioned control}
+\subsection{Successor measures under local interaction modes}
 
-Let $\tilde{s}\in\widetilde{\mathcal S}$ denote the full physical state and let $y=\Omega(\tilde{s})\in\mathcal Y$ denote the state observation available to the policy. 
-In \texttt{OGBENCH cube-single}, $y$ contains robot proprioception, end-effector pose, gripper opening and contact indicators, and cube pose. 
-However, it does not explicitly encode all physical variables that determine grasp stability, such as the full contact wrench, frictional margin, slip state, or other unobserved contact quantities.
+Successor measures summarize long-horizon future occupancy under a policy.
+Their usefulness depends on whether the learned representation preserves the distinctions that change future occupancy.
+In many control problems, these distinctions are not purely geometric.
+A local interaction variable can change how actions affect the environment, splitting nearby observations into different effective dynamics.
+Local interaction variables have long been studied in structured MDPs and contact-rich control~\citep{boutilier-ijcai95a,kearns-ijcai99a,guestrin-jair03a,mason-ijrr86a,lynch-ijrr96a,posa-ijrr14a,pfrommer-corl20a}.
 
-We therefore distinguish the observed state $y$ from an interaction mode $\iota(\tilde{s})\in\mathcal I$, where $\mathcal I$ may include free motion, partial contact, stable grasp, slipping contact, and dropped contact. 
-The interaction mode determines how actions couple robot motion to object motion. 
-We write the full-state transition kernel as interaction-conditioned: $P(d\tilde{s}'\mid \tilde{s},a) = P_{\iota(\tilde{s})}(d\tilde{s}'\mid \Omega(\tilde{s}),a)$.
 
-This formulation separates observed geometry from controllability. 
-Before grasp, an end-effector motion may leave the cube fixed. 
-During a stable grasp, a similar motion may transport the cube. 
-During unstable contact, the same motion may cause the cube to slip or drop. 
-Thus two states can be close in observed geometry while inducing different effective transition kernels because their interaction modes differ.
+Let $\tilde{s}\in\widetilde{\mathcal S}$ denote the full physical state and let $y=\Omega(\tilde{s})\in\mathcal Y$ denote the observation used by the policy or value function.
+We write $\iota(\tilde{s})\in\mathcal I$ for an interaction mode.
+The mode may encode contact state, object attachment, latch state, foot support phase, possession of an object, or any other local variable that changes how actions couple to future state.
+We write the full-state transition kernel as interaction-conditioned:
+\[
+     P(d\tilde{s}'\mid \tilde{s},a) = P_{\iota(\tilde{s})}(d\tilde{s}'\mid \Omega(\tilde{s}),a).
+\]
+This notation emphasizes that two full states can have nearby observations but different effective transition kernels because their interaction modes differ.
 
-The key implication is that proximity in observation space need not imply proximity in successor-measure space. 
-A stable grasp and a partial grasp may have nearly identical cube pose, gripper pose, and goal distance, but their long-horizon futures can differ sharply.
+For a task indexed by $g$, let $\varphi_g(\tilde{s}_{0:H})\in[0,1]$ denote a finite-horizon success functional.
+It may represent ordinary goal reaching, a reach-avoid event, or a task-specific condition such as reaching a goal while preserving control.
+We define the task-relevant successor functional
+\[
+    u^\pi_H(\tilde{s},a;g) = \mathbb{E}_\pi \left[ \varphi_g(\tilde{s}_{0:H}) \mid \tilde{s}_0=\tilde{s},a_0=a  \right]
+\]
+This is a scalar projection of the successor measure summarizing whether the future occupancy induced by $(\tilde{s},a)$ satisfies the downstream event.
 
-\subsection{Success before loss of control}
+\subsection{Local successor gaps}
+For an observation scale $\epsilon>0$, define the local interaction-conditioned successor gap
+\[
+    \Delta^\pi_{\epsilon,H}(g) = \sup_{\substack{\tilde{s}_1,\tilde{s}_2,a\\ \|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq\epsilon}}  \left | u^\pi_H(\tilde{s}_1,a;g) - u^\pi_H(\tilde{s}_2,a;g) \right |
+\]
+A large value of $\Delta^\pi_{\epsilon,H}(g)$ means that observation-near states have different long-horizon futures.
+This can occur even when the observations are geometrically close, because the interaction mode changes the transition kernel and therefore the successor measure.
+For example, a grasped object and a slipping object may have nearby poses but different transport futures.
+Similarly, a latched and unlatched door may look similar but induce different reachable regions.
+In each case, the relevant successor object is conditioned on a local interaction variable that may be weakly represented or smoothed over by a state-based score.
+Such mode-dependent dynamics are common in contact-rich manipulation and hybrid control~\citep{mason-ijrr86a,lynch-ijrr96a,posa-ijrr14a,manchester-isrr17a,pfrommer-corl20a}.
 
-Let $G_g = \{\tilde{s}\in\widetilde{\mathcal S}:\|o(\tilde{s})-g\|\leq \epsilon_G\}$ be the task success set for goal $g$. 
-Let $D\subseteq\widetilde{\mathcal S}$ denote the instantaneous loss-of-control set, for example states in which the cube has been dropped or is no longer controllably held.
+Ideally, a full-state successor measure should be able to represent the interaction mode.
+The issue is approximation after observation compression: if the learned score is smooth in an observation geometry that does not separate interaction regimes, then it must make error near local successor gaps.
 
-Define the hitting times $\tau_{G_g} = \inf\{t\geq 0:\tilde{s}_t\in G_g\}$ and $\tau_D = \inf\{t\geq 0:\tilde{s}_t\in D\}$.
-
-The task-relevant long-horizon quantity is the reach-before-drop probability given by $u^\pi(\tilde{s},a;g) = \Pr^\pi(\tau_{G_g}<\tau_D \mid \tilde{s}_0=\tilde{s},a_0=a)$.
-
-This quantity is not the full successor measure. 
-Rather, it is a task-relevant projection of the successor measure: it asks whether future occupancy reaches the goal before entering a loss-of-control regime. 
-Equivalently, it is the value function of a reach-avoid problem in which reaching $G_g$ before $D$ receives terminal reward $1$, while entering $D$ first receives terminal reward $0$.
-
-A discounted variant can also be defined as $u^\pi_\gamma(\tilde{s},a;g) = \mathbb E^\pi [ \gamma^{\tau_{G_g}} \mathbf 1\{\tau_{G_g}<\tau_D\} \mid \tilde{s}_0=\tilde{s},a_0=a ]$, but the undiscounted probability is the quantity most directly aligned with the phase-decomposition diagnostic used below.
-
-\subsection{Contact creates local successor gaps}
-
-For an observation scale $\epsilon>0$, define the local interaction gap:
-\begin{equation}
-\Delta^\pi_\epsilon(g) = \sup_{\substack{\tilde{s}_1,\tilde{s}_2,a \\ \|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq \epsilon}} \left| u^\pi(\tilde{s}_1,a;g) - u^\pi(\tilde{s}_2,a;g) \right|.
-\end{equation}
-A large value of $\Delta^\pi_\epsilon(g)$ means that nearby observed states can have very different probabilities of successful transport. 
-In manipulation, such gaps arise naturally near contact boundaries. 
-A stable grasp and an unstable grasp may be close in object pose, gripper pose, and goal distance, but differ sharply in whether the cube remains controllable under future actions.
-
-When we want to avoid off-support or physically irrelevant pairs, we use a support-restricted version. 
-For a contact-relevant state-action support set $\mathcal C_g\subseteq \widetilde{\mathcal S}\times\mathcal A$, define:
-\begin{equation}
-\Delta^\pi_{\epsilon,\mathcal C}(g) = \sup_{\substack{(\tilde{s}_1,a),(\tilde{s}_2,a)\in\mathcal C_g \\ \|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq \epsilon}} \left| u^\pi(\tilde{s}_1,a;g) - u^\pi(\tilde{s}_2,a;g) \right|.
-\end{equation}
-This quantity formalizes the central difficulty: the observation metric may treat two states as neighbors even when their long-horizon transport futures are separated by interaction mode.
-
-\begin{proposition}[Observation-smooth approximators incur error at interaction gaps]
-Let $h_\theta(y,a;g)$ be an observation-based approximation to $u^\pi(\tilde{s},a;g)$. 
-Assume that $h_\theta$ is $L$-Lipschitz in $y$ for fixed $a$ and $g$: $|h_\theta(y_1,a;g)-h_\theta(y_2,a;g)| \leq L\|y_1-y_2\|$. 
-If there exist $\tilde{s}_1,\tilde{s}_2$ and $a$ such that $\|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq \epsilon$ and $|u^\pi(\tilde{s}_1,a;g) - u^\pi(\tilde{s}_2,a;g)| = \Delta$, then:
-\begin{equation}
-\max_{i\in\{1,2\}} \left| h_\theta(\Omega(\tilde{s}_i),a;g) - u^\pi(\tilde{s}_i,a;g) \right| \geq \frac{(\Delta-L\epsilon)_+}{2},
-\end{equation}
-where $(x)_+=\max\{x,0\}$.
+\begin{proposition}[Observation-smooth scores incur error at local successor gaps]
+Let $h_\theta(y,a;g)$ be an observation-based approximation to $u^\pi_H(\tilde{s},a;g)$.
+Assume that $h_\theta$ is $L$-Lipschitz in $y$ for fixed $a$ and $g$:
+\[
+    |h_\theta(y_1,a;g)-h_\theta(y_2,a;g)| \leq L\|y_1-y_2\|.
+\]
+If there exist $\tilde{s}_1,\tilde{s}_2$ and $a$ such that \(\|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq\epsilon\) and 
+\[
+    \left| u^\pi_H(\tilde{s}_1,a;g) - u^\pi_H(\tilde{s}_2,a;g) \right| = \Delta,
+\]
+then
+\[
+    \max_{i\in\{1,2\}} \left| h_\theta(\Omega(\tilde{s}_i),a;g) - u^\pi_H(\tilde{s}_i,a;g) \right| \geq \frac{(\Delta-L\epsilon)_+}{2},
+\]
 \end{proposition}
 
-\begin{proof}
-Let $y_i=\Omega(\tilde{s}_i)$, $u_i=u^\pi(\tilde{s}_i,a;g)$, and $\hat u_i=h_\theta(y_i,a;g)$. 
-By the triangle inequality, $\Delta = |u_1-u_2| \leq |u_1-\hat u_1| + |\hat u_1-\hat u_2| + |\hat u_2-u_2|$. 
-Since $h_\theta$ is $L$-Lipschitz in $y$, $|\hat u_1-\hat u_2| \leq L\|y_1-y_2\| \leq L\epsilon$. 
-Therefore, $|u_1-\hat u_1| + |u_2-\hat u_2| \geq \Delta-L\epsilon$. 
-Because the left-hand side is nonnegative, it is at least $(\Delta-L\epsilon)_+$. 
-Hence at least one of the two errors must be at least $\frac{(\Delta-L\epsilon)_+}{2}$.
-\end{proof}
+The proof is a direct triangle-inequality argument and appears in Appendix~\ref{app:proof_interaction_gap}.
+The proposition says that if the true task-relevant successor functional changes by $\Delta$ inside an $\epsilon$-ball, then an $L$-Lipschitz observation-based score can explain at most $L\epsilon$ of that change.
+The remaining discrepancy must appear as approximation error on at least one of the two states.
 
-The proposition shows that if the true reach-before-drop successor quantity changes sharply inside a small observation ball, then any observation-smooth approximation must make nontrivial error on at least one of the two states. 
-The result is not a claim that exact successor measures cannot represent manipulation. 
-The exact full-state successor measure can represent each interaction mode. 
-The issue is approximation after observation compression: stable and unstable contact states may be aliased or placed close together in the observation metric, even though their future controllability differs.
+\subsection{Implication for learned URL scores}
 
-A useful limiting case is exact observation aliasing. 
-If $\Omega(\tilde{s}_1)=\Omega(\tilde{s}_2)$ but $|u^\pi(\tilde{s}_1,a;g) - u^\pi(\tilde{s}_2,a;g)| = \Delta$, then any observation-only approximator must incur error at least $\Delta/2$ on one of the two states, regardless of smoothness.
+Many URL methods induce a scalar goal-conditioned score $h_\theta(y,a;g)$.
+\gciql{} learns such a score as a neural $Q(y,a,g)$.
+\crl{} and \fb{} instantiate it through inner products.
+\rldp{} induces such a score through rollout or extraction from a predictive representation.
+The proposition applies whenever the induced score is smooth in the observation and does not separately preserve interaction mode.
 
-\subsection{Implication for low-rank inner-product successor models}
-
-Many successor-measure methods use an inner-product approximation. 
-In FB-style methods, for example, the successor measure is approximated by a low-rank product $M^{\pi_z}(s,a,s^+) \approx F_1(s,a,z)^\top B(s^+)$. 
-After projecting the successor measure onto a goal-dependent reach-avoid quantity, this induces approximations of the form $h_\theta(y,a;g) = f_\theta(y,a)^\top b_\theta(g)$.
-
-The previous proposition applies to this class whenever the induced scalar approximation is Lipschitz in $y$. 
-A sufficient condition is bounded goal embedding norm and a Lipschitz state-action embedding. 
-If $\|b_\theta(g)\|_2\leq B$ and $\|f_\theta(y_1,a)-f_\theta(y_2,a)\|_2 \leq L_f\|y_1-y_2\|$, then:
+The inner-product case makes the constraint explicit.
+If
+\[
+    h_\theta(y,a;g)=f_\theta(y,a)^\top b_\theta(g),
+\]
+with $\|b_\theta(g)\|_2\leq B$ and
+\[
+    \|f_\theta(y_1,a)-f_\theta(y_2,a)\|_2 \leq L_f\|y_1-y_2\|,
+\]
+then
 \begin{equation}
-|h_\theta(y_1,a;g)-h_\theta(y_2,a;g)| = \left| \left(f_\theta(y_1,a)-f_\theta(y_2,a)\right)^\top b_\theta(g) \right| \leq BL_f\|y_1-y_2\|.
+|h_\theta(y_1,a;g)-h_\theta(y_2,a;g)| \leq B L_f \|y_1-y_2\|.
 \end{equation}
-Thus $h_\theta$ is $BL_f$-Lipschitz in $y$, and the lower bound becomes $\max_{i\in\{1,2\}} |h_\theta(\Omega(\tilde{s}_i),a;g) - u^\pi(\tilde{s}_i,a;g)| \geq \frac{(\Delta-BL_f\epsilon)_+}{2}$.
+Thus the lower bound becomes
+\[ 
+    \max_{i\in\{1,2\}} \left| h_\theta(\Omega(\tilde{s}_i),a;g) - u^\pi_H(\tilde{s}_i,a;g) \right| \geq \frac{(\Delta-BL_f\epsilon)_+}{2}.
+\]
+This identifies the pressure placed on a single global score geometry: it must represent smooth geometric proximity and sharp interaction-conditioned changes in future occupancy at the same time.
+If the score smooths across interaction regimes, it may underestimate states from which the task remains controllable or overestimate nearby states whose future controllability has already been lost.
 
-This does not mean that low-rank inner-product representations are intrinsically incapable of manipulation. 
-Rather, it identifies a mismatch between their inductive bias and contact-rich dynamics. 
-A single global inner-product geometry must simultaneously represent smooth geometric proximity and sharp interaction-dependent controllability. 
-If it smooths across stable and unstable contact states, it must either underestimate stable transport states or overestimate nearby unstable-contact states.
+\subsection{Cube manipulation as an instantiation}
+
+We instantiate this general phenomenon in \ogbench{} \task{}.
+Here, the interaction mode corresponds to whether the cube is freely moving, controllably held, slipping, or dropped.
+The observation contains gripper pose, cube pose, gripper opening, and contact indicators, but it does not fully specify contact quality, frictional margin, or incipient slip.
+Thus two observations can be close in cube pose and gripper pose while inducing different transport futures.
+
+For goal $g$, we use the task-specific event
+\[
+    \varphi_g(\tilde{s}_{0:H}) = \mathbf{1} \{
+        \tau_A\leq H,\;
+        \tau_C\leq H,\;
+        \tilde{s}_H\in M,\;
+        \tilde{s}_H\in G_g
+    \},
+\]
+where $A$ is the approach set, $C$ is the control-acquired set, $M$ is the final maintained-control set, and $G_g$ is the goal set.
+The resulting scalar functional is
+\begin{equation}
+    u^\pi_H(\tilde{s},a;g) = \Pr_\pi \left(
+        \tau_A\leq H,\;
+        \tau_C\leq H,\;
+        \tilde{s}_H\in M,\;
+        \tilde{s}_H\in G_g
+        \mid
+        \tilde{s}_0=\tilde{s},a_0=a
+    \right).
+\end{equation}
+The diagnostic in the next section decomposes failures of this event into the first unmet precondition.
+In this domain, approach tests coarse reachability, control acquisition tests entry into the relevant interaction regime, maintained control tests persistence of that regime, and transport tests whether the policy exploits the regime to reach the downstream goal.
+
+% In \ogbench{} \task{}, $y$ contains robot proprioception, end-effector pose, gripper opening, and contact indicators, and cube pose.
+% It does not explicitly encode all variables that determine grasp stability, such as contact wrench, frictional margin, or incipient slip.
+
+% We distinguish the observation $y$ from an interaction mode $\iota(\tilde{s})\in\mathcal I$, where $\mathcal I$ may include free motion, partial contact, stable grasp, slipping contact, and dropped contact.
+% The interaction mode determines how actions couple robot motion to object motion.
+% We write the full-state transition kernel as interaction-conditioned:
+% \begin{equation}
+%     P(d\tilde{s}'\mid \tilde{s},a) = P_{\iota(\tilde{s})}(d\tilde{s}'\mid \Omega(\tilde{s}),a).
+% \end{equation}
+% This notation captures the key difficulty: proximity in observation space need not imply proximity in successor-measure space.
+% Two states may have nearly identical cube pose, gripper pose, and goal distance, but differ sharply in whether future actions preserve control of the cube.
+
+% \subsection{Finite-horizon reach-maintain-transport events}
+
+% The phase diagnostic decomposes a rollout into approach, grasp, maintain-control, and transport outcomes.
+% We define the corresponding finite-horizon events in the full physical state.
+% Let $A\subseteq\widetilde{\mathcal S}$ denote the approach set and let $C\subseteq\widetilde{\mathcal S}$ denote the control-acquired set.
+% Let $M = \{\tilde{s}\in\widetilde{\mathcal S}: h_{\mathrm{cube}}(\tilde{s})\geq h_{\min}\}$ denote the maintained-control set, where $h_{\mathrm{cube}}(\tilde{s})$ is cube height above the table and $h_{\min}=3$ cm in our diagnostic.
+% For goal $g$, let $G_g = \{\tilde{s}\in\widetilde{\mathcal S}: \|o(\tilde{s})-g\|\leq \epsilon_G\}$ denote the goal set.
+% For any set $E$, define the hitting time $\tau_E=\inf\{t\geq 0:\tilde{s}_t\in E\}$, with $\tau_E=\infty$ if $E$ is never reached.
+
+% The finite-horizon reach-maintain-transport probability is:
+% \begin{equation}
+%     u^\pi_H(\tilde{s},a;g) = \Pr_\pi\left( \tau_A\leq H,\; \tau_C\leq H,\; \tilde{s}_H\in M,\; \tilde{s}_H\in G_g \mid \tilde{s}_0=\tilde{s},a_0=a \right).
+% \end{equation}
+% This is a task-relevant projection of the successor measure.
+% It asks whether the future trajectory reaches the approach and control-acquisition stages, and whether the final state both maintains control and places the cube at the goal.
+
+% The complement of this event induces the following phase labels:
+% \[
+% \begin{array}{ll}
+% \text{Success}        & \tau_A\leq H,\;\tau_C\leq H,\;\tilde{s}_H\in M,\;\tilde{s}_H\in G_g, \\[3pt]
+% \text{Approach fail}  & \tau_A>H, \\[3pt]
+% \text{Grasp fail}     & \tau_A\leq H\;\text{and}\;\tau_C>H, \\[3pt]
+% \text{Maintain fail}  & \tau_A\leq H,\;\tau_C\leq H,\;\text{and}\;\tilde{s}_H\notin M, \\[3pt]
+% \text{Transport fail} & \tau_A\leq H,\;\tau_C\leq H,\;\tilde{s}_H\in M,\;\text{and}\;\tilde{s}_H\notin G_g.
+% \end{array}
+% \]
+% Thus transport failure is not the same as dropping the cube.
+% It means that the policy acquired control and ended in a maintained-control state, but did not deliver the cube to the goal.
+% Maintain failure is also a final-state criterion: it means that the policy acquired control but did not end with the cube above the height threshold.
+% This diagnostic does not require the cube to avoid all drops after first acquisition; a stricter pathwise no-drop diagnostic would introduce a loss-of-control set $D$, but that is not the diagnostic used for the main phase table.
+
+% \subsection{Local interaction gaps}
+
+% For an observation scale $\epsilon>0$, define the local interaction gap:
+% \begin{equation}
+% \Delta^\pi_{\epsilon,H}(g) = \sup_{\substack{\tilde{s}_1,\tilde{s}_2,a \\ \|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq \epsilon}} \left| u^\pi_H(\tilde{s}_1,a;g) - u^\pi_H(\tilde{s}_2,a;g) \right| .
+% \end{equation}
+% A large value of $\Delta^\pi_{\epsilon,H}(g)$ means that nearby observations can have different probabilities of successful final transport.
+% Such gaps arise near contact boundaries: stable and unstable grasps can look geometrically similar while leading to different post-contact futures.
+
+% The next proposition is a diagnostic lens, not an impossibility theorem.
+% The exact full-state successor measure can represent interaction mode; the issue is approximation after observation compression.
+
+% \begin{proposition}[Observation-smooth scores incur error at interaction gaps]
+% Let $h_\theta(y,a;g)$ be an observation-based approximation to $u^\pi_H(\tilde{s},a;g)$.
+% Assume that $h_\theta$ is $L$-Lipschitz in $y$ for fixed $a$ and $g$: $|h_\theta(y_1,a;g)-h_\theta(y_2,a;g)| \leq L\|y_1-y_2\|$.
+% If there exist $\tilde{s}_1,\tilde{s}_2$ and $a$ such that $\|\Omega(\tilde{s}_1)-\Omega(\tilde{s}_2)\|\leq \epsilon$ and $|u^\pi_H(\tilde{s}_1,a;g)-u^\pi_H(\tilde{s}_2,a;g)|=\Delta$, then:
+% \begin{equation}
+% \max_{i\in\{1,2\}} \left| h_\theta(\Omega(\tilde{s}_i),a;g) - u^\pi_H(\tilde{s}_i,a;g) \right| \geq \frac{(\Delta-L\epsilon)_+}{2},
+% \end{equation}
+% where $(x)_+=\max\{x,0\}$.
+% \end{proposition}
+
+% The proof is a direct triangle-inequality argument and appears in Appendix~\ref{app:proof_interaction_gap}.
+% The proposition says that if the true reach-maintain-transport quantity changes by $\Delta$ inside an $\epsilon$-ball, then an $L$-Lipschitz observation-based score can explain at most $L\epsilon$ of that change.
+% The remaining discrepancy must appear as approximation error on at least one of the two states.
+% In the limiting case of exact observation aliasing, $\Omega(\tilde{s}_1)=\Omega(\tilde{s}_2)$, any observation-only score incurs error at least $\Delta/2$ on one state.
+
+% \subsection{Implication for learned URL scores}
+
+% Many URL methods induce a scalar goal-conditioned score $h_\theta(y,a;g)$.
+% \gciql{} learns this score as a neural $Q(y,a,g)$.
+% \crl{} and \fb{} instantiate it through inner products.
+% \rldp{} induces such a score through rollout or extraction from a predictive representation.
+% The proposition applies whenever the induced score is smooth in the observation and does not separately preserve interaction mode.
+
+% The inner-product case makes the constraint explicit.
+% If $h_\theta(y,a;g)=f_\theta(y,a)^\top b_\theta(g)$, with $\|b_\theta(g)\|_2\leq B$ and $\|f_\theta(y_1,a)-f_\theta(y_2,a)\|_2 \leq L_f\|y_1-y_2\|$, then:
+% \begin{equation}
+% |h_\theta(y_1,a;g)-h_\theta(y_2,a;g)| \leq B L_f \|y_1-y_2\|.
+% \end{equation}
+% Thus the lower bound becomes $\max_{i\in\{1,2\}} \left| h_\theta(\Omega(\tilde{s}_i),a;g) - u^\pi_H(\tilde{s}_i,a;g) \right| \geq \frac{(\Delta-BL_f\epsilon)_+}{2}$.
+
+% This does not imply that low-rank or inner-product representations cannot solve manipulation.
+% It identifies the pressure placed on a single global score geometry: it must represent smooth geometric proximity and sharp interaction-dependent controllability at the same time.
+% If the score smooths across stable and unstable contact states, it may underestimate stable transport states or overestimate nearby unstable-contact states.
