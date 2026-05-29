@@ -122,7 +122,9 @@ def main() -> int:
                 if cls["success"]:
                     outcome = "success"
                 elif cls["fail_phase"] == "transport":
-                    outcome = "transport_fail"
+                    outcome = ("maintain_fail"
+                               if cls["final_cube_lift"] < thr.delta_lift
+                               else "transport_fail")
                 else:
                     outcome = "other"
                 cov_eps.append({
