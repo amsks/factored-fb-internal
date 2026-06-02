@@ -32,6 +32,8 @@ torch.set_float32_matmul_precision("high")
 
 from agents.fb.agent import FBAgent
 from agents.fb.flow_bc.agent import FBFlowBCAgent
+from agents.rldp.agent import RLDPAgent
+from agents.rldp.flow_bc.agent import RLDPFlowBCAgent
 from data.ogbench import load_ogbench_dataset
 from envs.ogbench import create_ogbench_env
 from evals.ogbench import OGBenchEvaluator
@@ -91,6 +93,21 @@ def build_pixel_cfgs(cfg):
 
 
 def make_agent(cfg: DictConfig, obs_space, action_dim: int):
+    if cfg.agent == "tdmpc2":
+        from agents.tdmpc2 import TDMPC2Agent
+        t = cfg.get("tdmpc2", {})
+        return TDMPC2Agent(
+            obs_space,
+            action_dim,
+            device=cfg.device,
+            horizon=cfg.get("horizon", 3),
+            batch_size=cfg.batch_size,
+            random_goal_ratio=t.get("random_goal_ratio", 0.5),
+            success_threshold=t.get("success_threshold", 0.04),
+            **{k: v for k, v in t.items()
+               if k not in ("random_goal_ratio", "success_threshold", "horizon")},
+        )
+
     forward_cfg = ForwardArchiConfig(
         hidden_dim=cfg.forward.hidden_dim,
         hidden_layers=cfg.forward.hidden_layers,
@@ -161,6 +178,53 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         return FBFlowBCAgent(
             actor_cfg=actor_cfg,
             actor_vf_cfg=actor_vf_cfg,
+            flow_steps=cfg.flow_steps,
+            lr_actor_vf=cfg.lr_actor_vf,
+            **shared,
+        )
+
+    if cfg.agent == "rldp":
+        from nn_models import VForwardArchiConfig
+        predictor_cfg = VForwardArchiConfig(
+            hidden_dim=cfg.predictor.hidden_dim,
+            hidden_layers=cfg.predictor.hidden_layers,
+            embedding_layers=cfg.predictor.embedding_layers,
+            num_parallel=cfg.predictor.num_parallel,
+        )
+        actor_cfg = SimpleActorArchiConfig(
+            hidden_dim=cfg.actor.hidden_dim,
+            hidden_layers=cfg.actor.hidden_layers,
+            embedding_layers=cfg.actor.embedding_layers,
+        )
+        return RLDPAgent(
+            actor_cfg=actor_cfg,
+            predictor_cfg=predictor_cfg,
+            horizon=cfg.horizon,
+            **shared,
+        )
+
+    if cfg.agent == "rldp_flowbc":
+        from nn_models import VForwardArchiConfig
+        predictor_cfg = VForwardArchiConfig(
+            hidden_dim=cfg.predictor.hidden_dim,
+            hidden_layers=cfg.predictor.hidden_layers,
+            embedding_layers=cfg.predictor.embedding_layers,
+            num_parallel=cfg.predictor.num_parallel,
+        )
+        actor_cfg = NoiseConditionedActorArchiConfig(
+            hidden_dim=cfg.actor.hidden_dim,
+            hidden_layers=cfg.actor.hidden_layers,
+            embedding_layers=cfg.actor.embedding_layers,
+        )
+        actor_vf_cfg = SimpleVectorFieldArchiConfig(
+            hidden_dim=cfg.actor_vf.hidden_dim,
+            hidden_layers=cfg.actor_vf.hidden_layers,
+        )
+        return RLDPFlowBCAgent(
+            actor_cfg=actor_cfg,
+            actor_vf_cfg=actor_vf_cfg,
+            predictor_cfg=predictor_cfg,
+            horizon=cfg.horizon,
             flow_steps=cfg.flow_steps,
             lr_actor_vf=cfg.lr_actor_vf,
             **shared,
@@ -275,7 +339,8 @@ def main(cfg: DictConfig) -> None:
             log_metrics(evaluator.run(step=step), step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
 
         # Update
-        batch = buffer.sample(cfg.batch_size)
+        horizon = getattr(cfg, "horizon", 1)
+        batch = buffer.sample(cfg.batch_size, horizon=horizon)
         metrics = agent.update(batch, step)
 
         # Accumulate (matches td_jepa: copy on first, add on subsequent)
