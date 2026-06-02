@@ -6,8 +6,10 @@ are handled in LaTeX (subcaption):
   fig_funnel.png       — P1: 4-stage phase funnel
   fig_outcomes.png     — P2: stacked terminal-outcome composition
   fig_support.png      — P3: (failure - success) nearest-neighbour distance heatmap
-  fig_monotonicity.png — P4: carry-regime value monotonicity
   fig_aliasing.png     — P4: matched-pair aliasing ranking
+
+The representation-aliasing figures (fig_repsep, fig_repsep_auc) are generated
+separately by scripts/plot_repsep.py (they need the per-grasp embeddings).
 
 Headline numbers are paper-canonical (match the tables in content/results.tex and
 the appendix), so figures and tables cannot disagree. The aliasing panel is read
@@ -67,16 +69,6 @@ SUPPORT_DELTA = {
     "RLDP":  [0.47, 0.41, 0.44, 0.34],
 }
 SUPPORT_COLS = ["Pickup\nMf$-$S", "Carry\nMf$-$S", "Pickup\nTf$-$S", "Carry\nTf$-$S"]
-
-# Carry-regime value monotonicity: Spearman(V, -d), mean +/- std over seed-pairs.
-# NOTE: TDMPC2 is reward-DRIVEN (sparse cube-to-goal reward), unlike the
-# reward-free URL methods above; its value tracks -d almost by construction, so
-# the high value is evidence that good value geometry is INSUFFICIENT without
-# controllability (TDMPC2 still scores ~0% success), not a like-for-like
-# value-ranking comparison. 10-seed carry-regime Spearman(V,-d) = 0.93 +/- 0.04.
-MONO = {"FB": (0.068, 0.019), "GCIQL": (0.009, 0.021),
-        "CRL": (-0.061, 0.027), "RLDP": (0.022, 0.021),
-        "TDMPC2": (0.933, 0.035)}
 
 PHASES = ["approach", "pickup", "carry"]
 
@@ -155,22 +147,6 @@ def _aliasing_table():
             for m in ml}
 
 
-def fig_monotonicity(out: Path) -> None:
-    """Carry-regime value monotonicity Spearman(V,-d), single panel."""
-    fig, ax = plt.subplots(figsize=(5.4, 3.8))
-    methods = _present(MONO)
-    x = np.arange(len(methods))
-    means = [MONO[m][0] for m in methods]; errs = [MONO[m][1] for m in methods]
-    ax.bar(x, means, yerr=errs, color=[MC[m] for m in methods], capsize=4,
-           edgecolor="black", linewidth=0.4)
-    ax.axhline(0, color="black", lw=0.8)
-    ax.set_xticks(x); ax.set_xticklabels(methods, fontsize=10, fontweight="bold")
-    ax.set_ylabel(r"Spearman$(V,\,-d)$ in carry", fontsize=10)
-    ax.grid(True, axis="y", alpha=0.3)
-    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
-    print(f"[plot] wrote {out}")
-
-
 def fig_aliasing(out: Path) -> None:
     """Matched-pair aliasing ranking by regime, single panel."""
     fig, ax = plt.subplots(figsize=(5.4, 3.8))
@@ -195,7 +171,6 @@ def main() -> int:
     fig_funnel(OUT / "fig_funnel.png")
     fig_outcomes(OUT / "fig_outcomes.png")
     fig_support(OUT / "fig_support.png")
-    fig_monotonicity(OUT / "fig_monotonicity.png")
     fig_aliasing(OUT / "fig_aliasing.png")
     return 0
 

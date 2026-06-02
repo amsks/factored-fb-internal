@@ -1,23 +1,11 @@
-
-\section{Proof of Proposition~1}
-\label{app:proof_interaction_gap}
-
-\begin{proof}
-Let $y_i=\Omega(\tilde{s}_i)$, $u_i=u^\pi_H(\tilde{s}_i,a;g)$, and $\hat u_i=h_\theta(y_i,a;g)$.
-By the triangle inequality, $\Delta = |u_1-u_2| \leq |u_1-\hat u_1| + |\hat u_1-\hat u_2| + |\hat u_2-u_2|$.
-Since $h_\theta$ is $L$-Lipschitz in $y$, $|\hat u_1-\hat u_2| \leq L\|y_1-y_2\| \leq L\epsilon$.
-Therefore, $|u_1-\hat u_1|+|u_2-\hat u_2| \geq \Delta-L\epsilon$.
-The left-hand side is nonnegative, so it is at least $(\Delta-L\epsilon)_+$.
-At least one of the two terms must therefore be at least $(\Delta-L\epsilon)_+/2$.
-\end{proof}
-
-
 \section{Additional results}
 \label{app:tables}
 
-This appendix holds the detailed tables behind the main-paper figures: per-task success, the exact terminal-outcome distribution, the full dataset-support distances, the backward-embedding geometry probe, and the matched-observation aliasing numbers.
+This appendix provides the detailed tables behind the main-paper figures: per-task success, the exact terminal-outcome distribution, the full dataset-support distances, the backward-embedding geometry probe, and the representation/value-ranking diagnostics. 
+We distinguish two kinds of representation probes: offline reach-before-end separability, which asks whether features separate states from successful versus failed offline trajectories, and counterfactual on-policy ranking, which asks whether the learned value ranks in-hand states by the agent's own future success.
 
 \subsection{Per-task success}
+\label{app:pertask}
 
 \begin{table}[H]
 \centering
@@ -36,6 +24,7 @@ This appendix holds the detailed tables behind the main-paper figures: per-task 
 \end{table}
 
 \subsection{Terminal-outcome distribution}
+\label{app:terminal_outcomes}
 
 \begin{table}[H]
 \centering
@@ -54,10 +43,11 @@ This appendix holds the detailed tables behind the main-paper figures: per-task 
 \end{table}
 
 \subsection{Dataset-manifold support}
+\label{app:support}
 
 \begin{table}[H]
 \centering
-\caption{Nearest-neighbor distance $m_{\mathrm{dist}}$ from rollout states to comparable offline states (mean across seeds; larger means lower support), by per-state regime and terminal outcome. S = success, Mf = maintain-grasp failure, Tf = transport failure. Figure~\ref{fig:support} plots the Mf$-$S and Tf$-$S deltas for the contact regimes.}
+\caption{Nearest-neighbor distance $m_{\mathrm{dist}}$ from rollout states to comparable offline states (mean across seeds; larger means lower support), by per-state regime and terminal outcome. S = success, Mf = maintain-control failure, Tf = transport failure. Figure~\ref{fig:support} plots the Mf$-$S and Tf$-$S deltas for the contact regimes.}
 \label{tab:state_coverage}
 \begin{tabular}{llccc}
 \toprule
@@ -83,14 +73,15 @@ This appendix holds the detailed tables behind the main-paper figures: per-task 
 \end{table}
 
 \subsection{Backward-embedding geometry probe}
+\label{app:geometry_probe}
 
 \begin{table}[H]
 \centering
-\caption{Carry-regime resolution of the backward embedding $B$ for cube-to-goal distance $d$, under a linear and a nonlinear (MLP) readout, with the maintain-grasp failure rate. Restricted to the methods with an explicit backward embedding. Better geometric resolution in $B$ does not imply better post-contact control.}
+\caption{Carry-regime resolution of the backward embedding $B$ for cube-to-goal distance $d$, under a linear and a nonlinear (MLP) readout, with the maintain-control failure rate. This probe is restricted to methods with an explicit backward embedding. Better cube-goal geometric resolution in $B$ does not imply better post-contact control.}
 \label{tab:geometry_control}
 \begin{tabular}{lccc}
 \toprule
-\textbf{Method} & \textbf{$R^2(B\to d)$ linear} & \textbf{$R^2(B\to d)$ MLP} & \textbf{Maintain-grasp fail (\%)} \\
+\textbf{Method} & \textbf{$R^2(B\to d)$ linear} & \textbf{$R^2(B\to d)$ MLP} & \textbf{Maintain-control fail (\%)} \\
 \midrule
 \fb{}   & $0.20$ & $0.21$          & $23.8$ \\
 \rldp{} & $0.55$ & $\mathbf{0.75}$ & $44.0$ \\
@@ -98,20 +89,61 @@ This appendix holds the detailed tables behind the main-paper figures: per-task 
 \end{tabular}
 \end{table}
 
-\subsection{Matched-observation aliasing}
+\subsection{Offline representation separability}
+\label{app:offline_repsep}
+
+This diagnostic asks whether learned representations linearly separate in-hand states from offline trajectories that later reach the goal from those that do not. 
+The label is the play-data reach-before-end flag, not the agent's own counterfactual outcome. 
+We therefore use this probe only to assess offline representation separability, not value quality.
 
 \begin{table}[H]
 \centering
-\caption{Matched-observation aliasing test: for each fail-bound state, the fraction of nearest success-bound states (in observation space) that the value ranks higher, by regime (mean $\pm$ std across seeds). $0.5$ is chance. Matched pairs lie within the data spread (standardized distance ${\approx}2.7$ vs ${\approx}7$ median). Figure~\ref{fig:aliasing} plots these values.}
-\label{tab:aliasing}
-\begin{tabular}{lccc}
+\caption{Raw-state linear baseline: per-task linear-probe AUC from raw state sub-vectors using the offline reach-before-end label. The instantaneous configuration only weakly determines the offline outcome, and the gripper-only features are at chance.}
+\label{tab:repsep_raw}
+\begin{tabular}{lcc}
 \toprule
-\textbf{Method} & \textbf{Approach} & \textbf{Pickup} & \textbf{Carry} \\
+\textbf{Raw feature subset} & \textbf{dims} & \textbf{AUC} \\
 \midrule
-\fb{}    & $0.59 \pm 0.01$ & $0.57 \pm 0.01$ & $0.59 \pm 0.01$ \\
-\gciql{} & $0.50 \pm 0.01$ & $0.48 \pm 0.01$ & $0.50 \pm 0.01$ \\
-\crl{}   & $0.55 \pm 0.02$ & $0.55 \pm 0.01$ & $0.55 \pm 0.02$ \\
-\rldp{}  & $0.59 \pm 0.01$ & $0.57 \pm 0.01$ & $0.60 \pm 0.01$ \\
+Gripper (opening + contact) & $2$  & $0.50$ \\
+Gripper + arm joints        & $14$ & $0.61$ \\
+Full state                  & $28$ & $0.64$ \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+For \fb{} and \rldp{}, the successor-style representation stack does not improve separability over the raw full-state linear baseline under this offline label. 
+More importantly, the scalar value $Q=F\cdot z$ is near chance for this offline trajectory-level label. 
+This offline probe should not be confused with the on-policy value-ranking test in Section~\ref{app:counterfactual_ranking}, which uses the agent's own counterfactual success as the target.
+
+\subsection{Counterfactual value and representation ranking}
+\label{app:counterfactual_ranking}
+
+The main value-quality diagnostic uses an on-policy counterfactual label. 
+We reset the simulator to in-hand grasp states, roll out each agent's own policy, and label each state by whether that agent reaches the goal. 
+This directly tests whether the value the policy follows ranks post-acquisition states by their eventual tail outcome.
+
+\begin{table}[H]
+\centering
+\caption{O\textbf{n-policy counterfactual value test.} We reset $200$ in-hand grasps into the simulator, roll out each agent's own policy, and report the per-task rank-AUC of the learned value against the agent's own success, averaged over goals, along with mean counterfactual success rate. This is the value-quality measure used in the main text.}
+\label{tab:cf_value}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Method} & \textbf{Counterfactual value-AUC} & \textbf{Counterfactual success rate} \\
+\midrule
+\gciql{} & $0.89$ & $0.66$ \\
+\crl{}   & $0.68$ & $0.38$ \\
+\fb{}    & $0.61$ & $0.55$ \\
+\rldp{}  & $0.52$ & $0.21$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Figure~\ref{fig:cf_ladder} compares the learned value against a supervised linear readout from the representation that the value uses. 
+This asks whether the representation contains linearly accessible information about the agent's own counterfactual success, and whether the learned scalar value preserves that information in its ranking.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\linewidth,trim={0cm 0cm 0cm 1.1cm},clip]{fig_cf_ladder.png}
+\caption{\textbf{Counterfactual representation-value ladder.} For each method, the probe uses the agent's own counterfactual success as the label. We compare a raw-state linear baseline, the best linear readout of the representation used by the value (\gciql{} penultimate value features; \crl{} $\phi(s,\pi)$; \fb{}/\rldp{} forward map $F(s,\pi,z)$), and the learned value's own ranking. \gciql{} preserves nearly all linearly decodable signal available in its value features; \fb{} contains more signal in $F$ than is reflected in the learned scalar value; \rldp{} contains weaker signal under this probe. The raw baseline is per-agent because counterfactual success depends on each policy, so the cleanest comparison is within method.}
+\label{fig:cf_ladder}
+\end{figure}
