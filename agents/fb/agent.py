@@ -619,12 +619,16 @@ class FBAgent(BaseAgent):
         return {
             "model": self.model.state_dict(),
             "forward_optimizer": self.forward_optimizer.state_dict(),
-            "backward_optimizer": self.backward_optimizer.state_dict(),
+            # fixed-B (e.g. fixed_b=cube_xyz) has no backward params => no optimizer.
+            "backward_optimizer": (
+                self.backward_optimizer.state_dict() if self.backward_optimizer is not None else None
+            ),
             "actor_optimizer": self.actor_optimizer.state_dict(),
         }
 
     def load_state_dict(self, state: dict) -> None:
         self.model.load_state_dict(state["model"])
         self.forward_optimizer.load_state_dict(state["forward_optimizer"])
-        self.backward_optimizer.load_state_dict(state["backward_optimizer"])
+        if self.backward_optimizer is not None and state.get("backward_optimizer") is not None:
+            self.backward_optimizer.load_state_dict(state["backward_optimizer"])
         self.actor_optimizer.load_state_dict(state["actor_optimizer"])
