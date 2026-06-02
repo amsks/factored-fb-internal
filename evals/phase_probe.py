@@ -247,6 +247,11 @@ def rollout_with_phase_signals(
     ensure_manip_env(env)
     episodes: List[Dict[str, Any]] = []
     for _ in range(n_episodes):
+        # Clear per-episode planner state. No-op for FB/RLDP/CRL (BaseAgent
+        # default); stateful planners (TD-MPC2) reset t0 + MPPI warm-start so
+        # every episode plans fresh rather than carrying the previous mean.
+        if hasattr(agent, "reset"):
+            agent.reset()
         reset_obs, info = env.reset()
         apply_scenario(env, scenario)
         goal = episode_goal(env)

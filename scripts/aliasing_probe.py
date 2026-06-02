@@ -43,8 +43,10 @@ REGION_TO_REGIME = {"reach": "approach", "grasp": "pickup", "transport": "carry"
                     "lift": "pickup", "approach": "approach", "pickup": "pickup",
                     "maintain": "carry", "carry": "carry"}
 # value column per method file
-METHOD_VCOL = {"fb": "V_policy", "gciql": "V", "crl": "V", "rldp": "V"}
-METHOD_LABEL = {"fb": "FB", "gciql": "GCIQL", "crl": "CRL", "rldp": "RLDP"}
+METHOD_VCOL = {"fb": "V_policy", "gciql": "V", "crl": "V", "rldp": "V",
+               "tdmpc2": "V"}
+METHOD_LABEL = {"fb": "FB", "gciql": "GCIQL", "crl": "CRL", "rldp": "RLDP",
+                "tdmpc2": "TDMPC2"}
 N_TASKS = 5
 RNG = np.random.default_rng(0)
 
@@ -141,7 +143,7 @@ def main() -> int:
              .agg(["mean", "std"]).reset_index())
     piv = agg.pivot(index="method", columns="region", values="mean")
     piv = piv.reindex(columns=PHASES)
-    piv = piv.reindex(["fb", "gciql", "crl", "rldp"]).dropna(how="all")
+    piv = piv.reindex(["fb", "gciql", "crl", "rldp", "tdmpc2"]).dropna(how="all")
     piv.index = [METHOD_LABEL[m] for m in piv.index]
 
     lines = ["# Matched-observation aliasing test",

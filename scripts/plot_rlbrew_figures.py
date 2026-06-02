@@ -26,8 +26,16 @@ REPO = Path(__file__).resolve().parent.parent
 ANALYSIS = REPO / "analysis"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
-METHODS = ["FB", "GCIQL", "CRL", "RLDP"]
-MC = {"FB": "#d62728", "GCIQL": "#1f77b4", "CRL": "#2ca02c", "RLDP": "#9467bd"}
+METHODS = ["FB", "GCIQL", "CRL", "RLDP", "TDMPC2"]
+MC = {"FB": "#d62728", "GCIQL": "#1f77b4", "CRL": "#2ca02c", "RLDP": "#9467bd",
+      "TDMPC2": "#8c564b"}
+
+
+def _present(d):
+    """Methods (in canonical order) that have an entry in data dict `d`. Lets
+    a newly-added method (e.g. TDMPC2) appear only in the panels whose numbers
+    have been filled in, without breaking panels that still lack it."""
+    return [m for m in METHODS if m in d]
 
 # S0 terminal-outcome distribution (% episodes, mean over seeds).
 OUTCOMES = {
@@ -52,8 +60,14 @@ SUPPORT_DELTA = {
 SUPPORT_COLS = ["Pickup\nMf$-$S", "Carry\nMf$-$S", "Pickup\nTf$-$S", "Carry\nTf$-$S"]
 
 # Carry-regime value monotonicity: Spearman(V, -d), mean +/- std over seed-pairs.
+# NOTE: TDMPC2 is reward-DRIVEN (sparse cube-to-goal reward), unlike the
+# reward-free URL methods above; its value tracks -d almost by construction, so
+# the high value is evidence that good value geometry is INSUFFICIENT without
+# controllability (TDMPC2 still scores ~0% success), not a like-for-like
+# value-ranking comparison. 10-seed carry-regime Spearman(V,-d) = 0.93 +/- 0.04.
 MONO = {"FB": (0.068, 0.019), "GCIQL": (0.009, 0.021),
-        "CRL": (-0.061, 0.027), "RLDP": (0.022, 0.021)}
+        "CRL": (-0.061, 0.027), "RLDP": (0.022, 0.021),
+        "TDMPC2": (0.933, 0.035)}
 
 PHASES = ["approach", "pickup", "carry"]
 
@@ -71,7 +85,7 @@ def fig_funnel(out: Path) -> None:
     fig, ax = plt.subplots(figsize=(5.4, 4.0))
     stages = ["Reached", "Control\nacquired", "Control\nmaintained", "Goal\nreached"]
     x = np.arange(4)
-    for m in METHODS:
+    for m in _present(OUTCOMES):
         ax.plot(x, _funnel_stages(OUTCOMES[m]), "o-", color=MC[m], lw=2, label=m)
     ax.set_xticks(x); ax.set_xticklabels(stages, fontsize=9)
     ax.set_ylabel("% of episodes", fontsize=10); ax.set_ylim(0, 102)
@@ -83,9 +97,10 @@ def fig_funnel(out: Path) -> None:
 def fig_outcomes(out: Path) -> None:
     """Stacked terminal-outcome composition, single panel."""
     fig, ax = plt.subplots(figsize=(5.4, 4.0))
-    xb = np.arange(len(METHODS)); bottom = np.zeros(len(METHODS))
+    methods = _present(OUTCOMES)
+    xb = np.arange(len(methods)); bottom = np.zeros(len(methods))
     for k, lab in zip(OUTCOME_KEYS, OUTCOME_LAB):
-        h = np.array([OUTCOMES[m][k] for m in METHODS])
+        h = np.array([OUTCOMES[m][k] for m in methods])
         ax.bar(xb, h, bottom=bottom, color=OUTCOME_COL[k], label=lab,
                edgecolor="black", linewidth=0.4)
         for xi, (hi, bi) in enumerate(zip(h, bottom)):
@@ -93,7 +108,7 @@ def fig_outcomes(out: Path) -> None:
                 ax.text(xi, bi + hi / 2, f"{hi:.0f}", ha="center", va="center",
                         fontsize=8, color="white" if hi >= 8 else "black")
         bottom += h
-    ax.set_xticks(xb); ax.set_xticklabels(METHODS, fontsize=10, fontweight="bold")
+    ax.set_xticks(xb); ax.set_xticklabels(methods, fontsize=10, fontweight="bold")
     ax.set_ylabel("% of episodes", fontsize=10); ax.set_ylim(0, 102)
     ax.legend(fontsize=8, loc="upper right", framealpha=0.95)
     fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
@@ -101,13 +116,14 @@ def fig_outcomes(out: Path) -> None:
 
 
 def fig_support(out: Path) -> None:
-    M = np.array([SUPPORT_DELTA[m] for m in METHODS])
+    methods = _present(SUPPORT_DELTA)
+    M = np.array([SUPPORT_DELTA[m] for m in methods])
     fig, ax = plt.subplots(figsize=(6.0, 3.6))
     vmax = np.abs(M).max()
     im = ax.imshow(M, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect="auto")
     ax.set_xticks(range(len(SUPPORT_COLS))); ax.set_xticklabels(SUPPORT_COLS, fontsize=9)
-    ax.set_yticks(range(len(METHODS))); ax.set_yticklabels(METHODS, fontsize=10, fontweight="bold")
-    for i in range(len(METHODS)):
+    ax.set_yticks(range(len(methods))); ax.set_yticklabels(methods, fontsize=10, fontweight="bold")
+    for i in range(len(methods)):
         for j in range(len(SUPPORT_COLS)):
             ax.text(j, i, f"{M[i, j]:+.2f}", ha="center", va="center",
                     fontsize=9, color="black")
@@ -120,7 +136,8 @@ def fig_support(out: Path) -> None:
 def _aliasing_table():
     f = ANALYSIS / "training_value_multiseed/aggregate_rldp/aliasing_matched_pairs.parquet"
     d = pd.read_parquet(f)
-    ml = {"fb": "FB", "gciql": "GCIQL", "crl": "CRL", "rldp": "RLDP"}
+    ml = {"fb": "FB", "gciql": "GCIQL", "crl": "CRL", "rldp": "RLDP",
+          "tdmpc2": "TDMPC2"}
     g = d.groupby(["method", "region"])["rank_acc"].agg(["mean", "std"])
     return {ml[m]: {ph: (g.loc[(m, ph), "mean"], g.loc[(m, ph), "std"])
                     for ph in PHASES if (m, ph) in g.index}
@@ -130,12 +147,13 @@ def _aliasing_table():
 def fig_monotonicity(out: Path) -> None:
     """Carry-regime value monotonicity Spearman(V,-d), single panel."""
     fig, ax = plt.subplots(figsize=(5.4, 3.8))
-    x = np.arange(len(METHODS))
-    means = [MONO[m][0] for m in METHODS]; errs = [MONO[m][1] for m in METHODS]
-    ax.bar(x, means, yerr=errs, color=[MC[m] for m in METHODS], capsize=4,
+    methods = _present(MONO)
+    x = np.arange(len(methods))
+    means = [MONO[m][0] for m in methods]; errs = [MONO[m][1] for m in methods]
+    ax.bar(x, means, yerr=errs, color=[MC[m] for m in methods], capsize=4,
            edgecolor="black", linewidth=0.4)
     ax.axhline(0, color="black", lw=0.8)
-    ax.set_xticks(x); ax.set_xticklabels(METHODS, fontsize=10, fontweight="bold")
+    ax.set_xticks(x); ax.set_xticklabels(methods, fontsize=10, fontweight="bold")
     ax.set_ylabel(r"Spearman$(V,\,-d)$ in carry", fontsize=10)
     ax.grid(True, axis="y", alpha=0.3)
     fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
@@ -145,14 +163,16 @@ def fig_monotonicity(out: Path) -> None:
 def fig_aliasing(out: Path) -> None:
     """Matched-pair aliasing ranking by regime, single panel."""
     fig, ax = plt.subplots(figsize=(5.4, 3.8))
-    x = np.arange(len(METHODS)); al = _aliasing_table(); w = 0.25
+    al = _aliasing_table()
+    methods = [m for m in METHODS if al.get(m)]
+    x = np.arange(len(methods)); w = 0.25
     for i, ph in enumerate(PHASES):
-        vals = [al[m].get(ph, (np.nan, 0))[0] for m in METHODS]
-        errs = [al[m].get(ph, (np.nan, 0))[1] for m in METHODS]
+        vals = [al[m].get(ph, (np.nan, 0))[0] for m in methods]
+        errs = [al[m].get(ph, (np.nan, 0))[1] for m in methods]
         ax.bar(x + (i - 1) * w, vals, w, yerr=errs, capsize=3, label=ph.capitalize(),
                edgecolor="black", linewidth=0.3)
     ax.axhline(0.5, color="black", ls="--", lw=1.0, label="chance")
-    ax.set_xticks(x); ax.set_xticklabels(METHODS, fontsize=10, fontweight="bold")
+    ax.set_xticks(x); ax.set_xticklabels(methods, fontsize=10, fontweight="bold")
     ax.set_ylabel("success-bound ranked higher", fontsize=10)
     ax.set_ylim(0.4, 0.7); ax.legend(fontsize=8, ncol=2); ax.grid(True, axis="y", alpha=0.3)
     fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
