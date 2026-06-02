@@ -278,17 +278,18 @@ class NoiseConditionedActorArchiConfig(BaseConfig):
     hidden_layers: int = 1
     embedding_layers: int = 2
 
-    def build(self, obs_space, z_dim: int, action_dim: int) -> "NoiseConditionedActor":
-        return NoiseConditionedActor(obs_space, z_dim, action_dim, self)
+    def build(self, obs_space, z_dim: int, action_dim: int, goal_dim: int = 0) -> "NoiseConditionedActor":
+        return NoiseConditionedActor(obs_space, z_dim, action_dim, self, goal_dim=goal_dim)
 
 
 class NoiseConditionedActor(nn.Module):
-    def __init__(self, obs_space, z_dim, action_dim, cfg: NoiseConditionedActorArchiConfig) -> None:
+    def __init__(self, obs_space, z_dim, action_dim, cfg: NoiseConditionedActorArchiConfig, goal_dim: int = 0) -> None:
         super().__init__()
         assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
         obs_dim = obs_space.shape[0]
         self.cfg: NoiseConditionedActorArchiConfig = cfg
-        self.embed_z = simple_embedding(obs_dim + z_dim + action_dim, cfg.hidden_dim, cfg.embedding_layers)
+        self.goal_dim = goal_dim
+        self.embed_z = simple_embedding(obs_dim + z_dim + action_dim + goal_dim, cfg.hidden_dim, cfg.embedding_layers)
         self.embed_s = simple_embedding(obs_dim + action_dim, cfg.hidden_dim, cfg.embedding_layers)
 
         seq = []
@@ -297,8 +298,9 @@ class NoiseConditionedActor(nn.Module):
         seq += [linear(cfg.hidden_dim, action_dim)]
         self.policy = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor, z: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
-        z_embedding = self.embed_z(torch.cat([obs, z, noise], dim=-1))
+    def forward(self, obs: torch.Tensor, z: torch.Tensor, noise: torch.Tensor, goal: torch.Tensor | None = None) -> torch.Tensor:
+        z_in = [obs, z, noise] if goal is None else [obs, z, noise, goal]
+        z_embedding = self.embed_z(torch.cat(z_in, dim=-1))
         s_embedding = self.embed_s(torch.cat([obs, noise], dim=-1))
         return torch.tanh(self.policy(torch.cat([s_embedding, z_embedding], dim=-1)))
 
