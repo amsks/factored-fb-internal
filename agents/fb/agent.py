@@ -589,6 +589,29 @@ class FBAgent(BaseAgent):
         return self.model.act(obs, z, mean=True)
 
     @torch.no_grad()
+    def eval_context(self, *, env, domain, task, goal_obs=None):
+        """Goal-conditioned eval context. Returns (z, metrics) and, for V1, stashes the
+        NORMALIZED goal observation on self._eval_goal for goal-cond act()."""
+        if not self._use_eval_context:
+            raise AttributeError("baseline uses reward-inference _infer_z")
+        if self.fixed_b == "cube_xyz":
+            from agents.fb.fixed_backward import scale_goal_xyz
+            goal_xyzs = env.unwrapped.cur_task_info["goal_xyzs"]      # [num_cubes,3], metres
+            g = torch.as_tensor(goal_xyzs[0], dtype=torch.float32, device=self.device)
+            z = self.model.project_z(scale_goal_xyz(g).unsqueeze(0)).squeeze(0)
+            self._eval_goal = None
+            return z, {"goal_source": 0.0}
+        # V1: z = B(g*) from a goal OBSERVATION sourced by the evaluator; stash NORMALIZED g*.
+        if goal_obs is None:
+            raise ValueError("goal_cond eval_context requires goal_obs (g*) from the evaluator")
+        g_obs = goal_obs.to(self.device).float()
+        if g_obs.dim() == 1:
+            g_obs = g_obs.unsqueeze(0)
+        z = self.model.project_z(self.model.backward_map(g_obs)).squeeze(0)   # backward_map normalizes raw obs
+        self._eval_goal = self.model._normalize(g_obs)                         # actor goal in normalized space (matches training)
+        return z, {"goal_source": 1.0}
+
+    @torch.no_grad()
     def infer_z(self, obs: Tensor, reward: Tensor) -> Tensor:
         return self.model.reward_inference(obs.to(self.device), reward.to(self.device))
 
