@@ -232,10 +232,10 @@ class FBAgent(BaseAgent):
         self.model.apply(weight_init)
         self.model._prepare_for_train()  # ensure target nets are initialized AFTER applying the weights
 
-        self.backward_optimizer = torch.optim.Adam(
-            list(self.model._backward_map.parameters()) + list(self.model._bw_encoder.parameters()),
-            lr=self.lr_b,
-            weight_decay=self.weight_decay,
+        bw_params = list(self.model._backward_map.parameters()) + list(self.model._bw_encoder.parameters())
+        self.backward_optimizer = (
+            torch.optim.Adam(bw_params, lr=self.lr_b, weight_decay=self.weight_decay)
+            if bw_params else None
         )
         self.forward_optimizer = torch.optim.Adam(
             list(self.model._forward_map.parameters())
@@ -372,7 +372,8 @@ class FBAgent(BaseAgent):
 
         with torch.no_grad():
             _soft_update_params(self._forward_map_paramlist, self._target_forward_map_paramlist, self.f_target_tau)
-            _soft_update_params(self._backward_map_paramlist, self._target_backward_map_paramlist, self.b_target_tau)
+            if len(self._backward_map_paramlist):
+                _soft_update_params(self._backward_map_paramlist, self._target_backward_map_paramlist, self.b_target_tau)
             if len(self._left_encoder_paramlist):
                 _soft_update_params(self._left_encoder_paramlist, self._target_left_encoder_paramlist, self.f_target_tau)
 
@@ -426,12 +427,16 @@ class FBAgent(BaseAgent):
             fb_offdiag, fb_diag = fb_successor_terms(diff, self.off_diag, self.off_diag_sum, w, weight_diag)
             fb_loss = fb_offdiag + fb_diag
 
-            # orthonormality loss for backward embedding (whitened under rho')
-            Cov = ortho_cov(B, w)
-            orth_loss_diag = -Cov.diag().mean()
-            orth_loss_offdiag = 0.5 * (Cov * self.off_diag).pow(2).sum() / self.off_diag_sum
-            orth_loss = orth_loss_offdiag + orth_loss_diag
-            fb_loss += self.ortho_coef * orth_loss
+            # orthonormality loss for backward embedding (whitened under rho').
+            # Disabled for fixed-B (B has no params / is the privileged cube xyz).
+            if self.fixed_b != "cube_xyz":
+                Cov = ortho_cov(B, w)
+                orth_loss_diag = -Cov.diag().mean()
+                orth_loss_offdiag = 0.5 * (Cov * self.off_diag).pow(2).sum() / self.off_diag_sum
+                orth_loss = orth_loss_offdiag + orth_loss_diag
+                fb_loss += self.ortho_coef * orth_loss
+            else:
+                orth_loss = orth_loss_diag = orth_loss_offdiag = torch.zeros(1, device=z.device, dtype=z.dtype)
 
             q_loss = torch.zeros(1, device=z.device, dtype=z.dtype)
             if q_loss_coef is not None:
@@ -457,14 +462,16 @@ class FBAgent(BaseAgent):
 
         # optimize FB
         self.forward_optimizer.zero_grad(set_to_none=True)
-        self.backward_optimizer.zero_grad(set_to_none=True)
+        if self.backward_optimizer is not None:
+            self.backward_optimizer.zero_grad(set_to_none=True)
         fb_loss.backward()
         if clip_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(self.model._forward_map.parameters(), clip_grad_norm)
             torch.nn.utils.clip_grad_norm_(self.model._backward_map.parameters(), clip_grad_norm)
             torch.nn.utils.clip_grad_norm_(self.model._left_encoder.parameters(), clip_grad_norm)
         self.forward_optimizer.step()
-        self.backward_optimizer.step()
+        if self.backward_optimizer is not None:
+            self.backward_optimizer.step()
 
         with torch.no_grad():
             output_metrics = {
