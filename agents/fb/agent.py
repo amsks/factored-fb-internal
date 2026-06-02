@@ -212,6 +212,7 @@ class FBAgent(BaseAgent):
             obs_normalizer_cfg=obs_normalizer_cfg,
             rgb_encoder_cfg=rgb_encoder_cfg,
             augmentator_cfg=augmentator_cfg,
+            fixed_b=self.fixed_b,
             device=device,
         )
         self.setup_training()
