@@ -63,3 +63,8 @@ PAPER/**/*.fdb_latexmk
 PAPER/**/*.bbl
 PAPER/**/*.blg
 PAPER/**/*.xdv
+
+# TD-MPC2 / RLDP local artifacts (live on the NVMe, never committed)
+analysis/
+checkpoints/
+logs/
