@@ -53,11 +53,13 @@ class FBModel(torch.nn.Module):
         rgb_encoder_cfg=None,
         augmentator_cfg=None,
         obs_normalizer_cfg=None,
+        fixed_b: str = "none",
         device: str = "cpu",
     ):
         super().__init__()
         self.obs_space = obs_space
         self.action_dim = action_dim
+        self.fixed_b = str(fixed_b)
         # Store every config attr as a plain instance attribute (stand-in for cfg.archi.X / cfg.X).
         self.z_dim = z_dim
         self.L_dim = L_dim
@@ -92,7 +94,14 @@ class FBModel(torch.nn.Module):
         self._fw_encoder = rgb_encoder_cfg.build(obs_space)
         self._left_encoder = left_encoder_cfg.build(self._fw_encoder.output_space, L_dim)
 
-        self._backward_map = backward_cfg.build(self._bw_encoder.output_space, z_dim)
+        if self.fixed_b == "cube_xyz":
+            from agents.fb.fixed_backward import FixedCubeBackward
+            self._bw_encoder = torch.nn.Identity()           # raw obs -> backward
+            self._backward_map = FixedCubeBackward()          # B(obs) = scaled cube xyz, z_dim=3
+            self.z_dim = 3
+            z_dim = 3                                          # forward map output dim follows
+        else:
+            self._backward_map = backward_cfg.build(self._bw_encoder.output_space, z_dim)
         self._forward_map = forward_cfg.build(self._left_encoder.output_space, z_dim, action_dim)
         self._actor = actor_cfg.build(
             self._left_encoder.output_space if self.actor_encode_obs else self._fw_encoder.output_space,
