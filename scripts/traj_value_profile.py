@@ -175,7 +175,8 @@ def _crl(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--method", required=True, choices=["fb", "gciql", "crl"])
+    ap.add_argument("--method", required=True,
+                    choices=["fb", "gciql", "crl", "rldp"])
     ap.add_argument("--config"); ap.add_argument("--checkpoint")
     ap.add_argument("--run-dir"); ap.add_argument("--step", type=int)
     ap.add_argument("--data-path", default="datasets")
@@ -185,7 +186,9 @@ def main():
     ap.add_argument("--goal-offset", type=int, default=5)
     ap.add_argument("--device", default="cpu")
     args = ap.parse_args()
-    df = {"fb": _fb, "gciql": _gciql, "crl": _crl}[args.method](args)
+    # rldp is a PyTorch FB-family flow-BC agent, so it uses the FB loader;
+    # only the method label differs.
+    df = {"fb": _fb, "rldp": _fb, "gciql": _gciql, "crl": _crl}[args.method](args)
     df["method"] = args.method
     out = Path(args.out); out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out)

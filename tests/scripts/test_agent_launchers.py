@@ -145,3 +145,20 @@ def test_crl_flowbc_pixel_dry_run():
     r = _dry_run("crl_flowbc/pixel.sh")
     assert r.returncode == 0, r.stderr
     assert "--config-name cube_single_visual_crl_flowbc_drq" in r.stdout
+
+
+# ── rldp/state.sh ──────────────────────────────────────────────────────────
+def test_rldp_state_dry_run():
+    r = _dry_run("rldp/state.sh")
+    assert r.returncode == 0, r.stderr
+    assert "train.py" in r.stdout
+    assert "agent=rldp" in r.stdout
+    assert "domain=cube_single" in r.stdout
+    assert "[DRY]" in r.stdout
+
+
+# ── rldp_flowbc/state.sh ───────────────────────────────────────────────────
+def test_rldp_flowbc_state_dry_run():
+    r = _dry_run("rldp_flowbc/state.sh")
+    assert r.returncode == 0, r.stderr
+    assert "agent=rldp_flowbc" in r.stdout

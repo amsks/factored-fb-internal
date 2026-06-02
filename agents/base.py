@@ -51,6 +51,11 @@ class BaseAgent(ABC):
         """Infer goal embedding z from (obs, reward) pairs via the linear
         estimator z = project(sum(r * B(obs)))."""
 
+    def reset(self) -> None:
+        """Called at the start of each eval episode. Default: no-op.
+        Stateful planners (e.g. TD-MPC2) override this to clear per-episode state."""
+        return None
+
     def save(self, path: str) -> None:
         torch.save(self.state_dict(), path)
 

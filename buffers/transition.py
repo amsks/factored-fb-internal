@@ -147,13 +147,25 @@ class DictBuffer:
         arr = np.concatenate(frames, axis=1)
         return torch.as_tensor(arr).to(self.device)
 
-    def sample(self, batch_size: int) -> Dict[str, Any]:
+    def sample(self, batch_size: int, horizon: int = 1) -> Dict[str, Any]:
         """Sample *batch_size* transitions uniformly. Returns nested dict of tensors.
 
         Uses torch.randint (not np.random) so RNG consumption matches td_jepa's
         DictBuffer.sample exactly.
+
+        horizon=1 (default) is the byte-identical legacy path — single
+        transitions, shape [B, ...].
+
+        horizon>1 returns contiguous-within-episode windows, shape [B, horizon, ...].
+        A window starting at index i is valid iff timestep[i:i+horizon] is
+        strictly consecutive (no episode boundary). Raises ValueError if no
+        episode in the buffer is long enough to provide a horizon-h window.
         """
         assert self._size > 0, "Buffer is empty"
+        if horizon < 1:
+            raise ValueError(f"horizon must be >= 1, got {horizon}")
+        if horizon > 1:
+            return self._sample_horizon(batch_size, horizon)
         idx = torch.randint(0, self._size, (batch_size,)).numpy()
 
         if not self._stack:
@@ -178,6 +190,42 @@ class DictBuffer:
             out_flat[k] = torch.as_tensor(v[idx]).to(self.device)
         out_flat["observation"] = self._stack_obs("observation", idx)
         out_flat["next/observation"] = self._stack_next_obs(idx)
+        return _unflatten(out_flat)
+
+    def _sample_horizon(self, batch_size: int, horizon: int) -> Dict[str, Any]:
+        """Return [B, horizon, ...] windows that stay within a single episode."""
+        if "timestep" not in self._storage:
+            raise ValueError(
+                "horizon>1 sampling requires 'timestep' in storage "
+                "(produced by data/ogbench.py loader)."
+            )
+        ts = self._storage["timestep"][: self._size]
+        max_start = self._size - horizon
+        if max_start < 0:
+            raise ValueError(
+                f"buffer size {self._size} < horizon {horizon}; no valid starts"
+            )
+        starts = np.arange(max_start + 1)
+        ts_end = ts[starts + horizon - 1]
+        ts_start = ts[starts]
+        valid_mask = (ts_end - ts_start) == (horizon - 1)
+        valid_starts = starts[valid_mask]
+        if valid_starts.size == 0:
+            raise ValueError(
+                f"no episode in buffer is long enough for horizon={horizon}"
+            )
+        pick_idx = torch.randint(0, valid_starts.size, (batch_size,)).numpy()
+        starts_sampled = valid_starts[pick_idx]
+        offsets = np.arange(horizon)
+        window_idx = starts_sampled[:, None] + offsets[None, :]  # [B, h]
+        flat_idx = window_idx.reshape(-1)  # [B*h]
+        out_flat = {}
+        for k, v in self._storage.items():
+            if k == "timestep":
+                continue
+            gathered = torch.as_tensor(v[flat_idx]).to(self.device)
+            new_shape = (batch_size, horizon) + tuple(gathered.shape[1:])
+            out_flat[k] = gathered.reshape(new_shape)
         return _unflatten(out_flat)
 
     # ------------------------------------------------------------------ #
