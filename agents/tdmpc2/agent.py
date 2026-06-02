@@ -15,6 +15,11 @@ from agents.tdmpc2.core import TDMPC2Core
 GOAL_DIM = 3                 # cube target xyz
 CUBE_SLICE = slice(14, 17)   # physics[..., 14:17] == cube xyz (see envs/ogbench.cube_reward_fn)
 SUCCESS_THRESHOLD = 0.04
+# cube_env state obs layout (verified): effector xyz and cube xyz are both stored
+# as (pos - [0.425,0,0]) * 10, so their difference / 10 == real-metre distance.
+EFF_OBS_SLICE = slice(12, 15)    # effector (gripper) xyz, scaled
+CUBE_OBS_SLICE = slice(19, 22)   # block_0 xyz, scaled
+OBS_XYZ_SCALER = 10.0
 
 
 class TDMPC2Agent(BaseAgent):
@@ -46,6 +51,14 @@ class TDMPC2Agent(BaseAgent):
         self.horizon = int(self.cfg.horizon)
         self.core = TDMPC2Core(self.cfg)
         self._t0 = True
+        # Reward shaping (default "sparse" preserves the original behaviour).
+        # "dense" adds a reach term (gripper->cube) + transport term (cube->goal)
+        # + success bonus, to align the learned reward with cube manipulation so
+        # the planner gets gradient before the cube is at the goal.
+        self.reward_mode = str(self.cfg.get("reward_mode", "sparse"))
+        self.reach_coef = float(self.cfg.get("reach_coef", 0.5))
+        self.dist_scale = float(self.cfg.get("dist_scale", 0.3))
+        self.success_bonus = float(self.cfg.get("success_bonus", 1.0))
 
     # ---- goal / reward helpers ------------------------------------------- #
     def _cube_xyz(self, physics: Tensor) -> Tensor:
@@ -61,11 +74,26 @@ class TDMPC2Agent(BaseAgent):
         perm = torch.randperm(B, device=self.device)
         return torch.where(use_random.unsqueeze(-1), final_cube[perm], final_cube)
 
-    def _reward(self, next_phys_window: Tensor, goal: Tensor) -> Tensor:
-        """[B,H,phys], goal [B,3] -> reward [B,H,1]: 0 if within threshold else -1."""
-        cube = self._cube_xyz(next_phys_window)               # [B,H,3]
+    def _reward(self, next_phys_window: Tensor, goal: Tensor,
+                next_obs_window: Tensor | None = None) -> Tensor:
+        """[B,H,phys], goal [B,3] -> reward [B,H,1].
+
+        sparse: 0 if cube within threshold of goal else -1 (original).
+        dense : -goal_dist_norm - reach_coef*reach_dist_norm + success_bonus*hit,
+                distances normalised by dist_scale and clamped to [0,1] so the
+                reward stays in ~[-(1+reach_coef), success_bonus]."""
+        cube = self._cube_xyz(next_phys_window)                     # [B,H,3]
         dist = torch.linalg.norm(cube - goal.unsqueeze(1), dim=-1)  # [B,H]
-        return torch.where(dist < self.success_threshold, 0.0, -1.0).unsqueeze(-1)
+        if self.reward_mode != "dense":
+            return torch.where(dist < self.success_threshold, 0.0, -1.0).unsqueeze(-1)
+        eff = next_obs_window[..., EFF_OBS_SLICE]                   # [B,H,3] scaled
+        cube_s = next_obs_window[..., CUBE_OBS_SLICE]               # [B,H,3] scaled
+        reach = torch.linalg.norm(eff - cube_s, dim=-1) / OBS_XYZ_SCALER  # [B,H] m
+        gn = (dist / self.dist_scale).clamp(max=1.0)
+        rn = (reach / self.dist_scale).clamp(max=1.0)
+        hit = (dist < self.success_threshold).float()
+        r = -gn - self.reach_coef * rn + self.success_bonus * hit
+        return r.unsqueeze(-1)
 
     @staticmethod
     def _fold(obs: Tensor, goal: Tensor) -> Tensor:
@@ -88,7 +116,7 @@ class TDMPC2Agent(BaseAgent):
             term = term.unsqueeze(-1)
 
         goal = self._sample_goals(next_phys)                        # [B,3]
-        reward = self._reward(next_phys, goal)                      # [B,H,1]
+        reward = self._reward(next_phys, goal, next_obs)            # [B,H,1]
 
         # Build H+1 obs sequence: obs[:,0..H-1] then final next_obs[:,H-1].
         obs_seq = torch.cat([obs, next_obs[:, -1:, :]], dim=1)      # [B,H+1,obs]
