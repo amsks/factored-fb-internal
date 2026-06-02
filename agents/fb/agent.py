@@ -272,18 +272,22 @@ class FBAgent(BaseAgent):
         # rare-goal z=B(g); None => uniform permutation (behavior-marginal, original).
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             z = self.model.sample_z(self.batch_size, device=self.device)
+            g_used = torch.zeros((self.batch_size, train_goal.shape[-1]), device=self.device,
+                                 dtype=train_goal.dtype) \
+                if train_goal is not None else None
             if train_goal is not None:
                 if goal_weights is None:
                     perm = torch.randperm(self.batch_size, device=self.device)
                 else:
                     probs = goal_weights.float() / goal_weights.float().sum().clamp_min(1e-8)
                     perm = torch.multinomial(probs, self.batch_size, replacement=True)
-                train_goal = train_goal[perm]
-                goals = self.model._backward_map(train_goal)
+                tg = train_goal[perm]
+                goals = self.model._backward_map(tg)
                 goals = self.model.project_z(goals)
                 mask = torch.rand((self.batch_size, 1), device=self.device) < self.train_goal_ratio
                 z = torch.where(mask, goals, z)
-        return z
+                g_used = torch.where(mask, tg, g_used)   # zero placeholder where z is random
+        return z, g_used
 
     @torch.no_grad()
     def aug(self, obs, next_obs):
@@ -338,8 +342,10 @@ class FBAgent(BaseAgent):
         # goal-side term. None when alpha=0 => byte-identical. Computed BEFORE z so the
         # goal-derived z's can be resampled by w when weight_z is set.
         w = self._coverage_weights(batch)
-        z = self.sample_mixed_z(train_goal=goal,
-                                goal_weights=(w if self.weight_z else None)).clone()
+        z, g_used = self.sample_mixed_z(train_goal=goal,
+                                        goal_weights=(w if self.weight_z else None))
+        z = z.clone()
+        self._g_used = g_used if self.goal_cond else None   # stashed for update_fb/update_actor
 
         q_loss_coef = self.q_loss_coef if self.q_loss_coef > 0 else None
         clip_grad_norm = self.clip_grad_norm if self.clip_grad_norm > 0 else None
