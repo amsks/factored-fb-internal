@@ -138,11 +138,11 @@ class FBModel(torch.nn.Module):
             return self._forward_map(self._left_encoder(self._fw_encoder(self._normalize(obs))), z, action)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor, z: torch.Tensor, std: float):
+    def actor(self, obs: torch.Tensor, z: torch.Tensor, std: float, goal=None):
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
             obs = self._fw_encoder(self._normalize(obs))
             obs = self._left_encoder(obs) if self.actor_encode_obs else obs
-            return self._actor(obs, z, std)
+            return self._actor(obs, z, std, **({} if goal is None else {"goal": goal}))
 
     def sample_z(self, size: int, device: str = "cpu") -> torch.Tensor:
         z = torch.randn((size, self.z_dim), dtype=torch.float32, device=device)
@@ -153,8 +153,8 @@ class FBModel(torch.nn.Module):
             z = math.sqrt(z.shape[-1]) * F.normalize(z, dim=-1)
         return z
 
-    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
-        dist = self.actor(obs, z, self.actor_std)
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True, goal=None) -> torch.Tensor:
+        dist = self.actor(obs, z, self.actor_std, goal=goal)
         if mean:
             return dist.mean.float()
         return dist.sample().float()

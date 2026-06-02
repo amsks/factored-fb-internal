@@ -136,7 +136,10 @@ class FBFlowBCAgent(FBAgent):
         z = z.to(self.device).float()
         if z.dim() == 1:
             z = z.unsqueeze(0)
-        return self.model.act(obs, z, mean=True)
+        goal = getattr(self, "_eval_goal", None) if self.goal_cond else None
+        if goal is not None:
+            goal = goal.to(self.device).float()
+        return self.model.act(obs, z, mean=True, goal=goal)
 
     def state_dict(self) -> dict:
         s = super().state_dict()

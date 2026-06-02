@@ -18,3 +18,10 @@ def test_v1_update_runs():
     m = a.update(_batch(), step=0)
     # FBAgent.update() converts tensor metrics to python floats for logging.
     assert math.isfinite(m["fb_loss"])
+
+
+def test_v1_act_with_goal():
+    a = _agent(goal_cond=True)
+    a._eval_goal = torch.zeros(1, 40)
+    out = a.act(torch.zeros(1, 40), torch.zeros(50))
+    assert out.shape[-1] == 5
