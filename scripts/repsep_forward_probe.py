@@ -32,10 +32,19 @@ N_TASKS = 5
 
 
 def phi(model, obs_np):
+    """Forward-side state embedding phi(s) = left_encoder(fw_encoder(norm(s)))."""
     import torch
     with torch.no_grad():
         t = torch.as_tensor(np.asarray(obs_np), dtype=torch.float32)
         return model._left_encoder(model._fw_encoder(model._normalize(t))).cpu().numpy()
+
+
+def B_rep(model, obs_np):
+    """Backward/successor embedding B(s) (M = F.B, z = E[B(goal)])."""
+    import torch
+    with torch.no_grad():
+        t = torch.as_tensor(np.asarray(obs_np), dtype=torch.float32)
+        return model.backward_map(t).cpu().numpy()
 
 
 def F_rep(model, agent, obs_np, z):
@@ -133,20 +142,23 @@ def main() -> int:
     idx = np.where(np.isin(region, list(CONTACT)))[0]
     sub = obs[idx]
     phi_tr = phi(model, sub)                         # task-independent
+    B_tr = B_rep(model, sub)                         # task-independent
     from sklearn.metrics import roc_auc_score
-    tr_phi, tr_F, tr_V = [], [], []
+    tr_phi, tr_B, tr_F, tr_V = [], [], [], []
     vtrain = []                                      # (task, success, q, q_z)
     for ti in range(1, N_TASKS + 1):
         y = outcome[idx, ti - 1]
         Frep = F_rep(model, agent, sub, zs[ti])
         q = (Frep * _z_np(zs[ti])).sum(-1)          # scalar value Q = F.z
         tr_phi.append(_auc(phi_tr, y))
+        tr_B.append(_auc(B_tr, y))
         tr_F.append(_auc(Frep, y))
         tr_V.append(roc_auc_score(y.astype(int), q)
                     if len(np.unique(y)) > 1 else np.nan)
         qz = (q - q.mean()) / (q.std() + 1e-8)
         vtrain += [(ti, bool(a), float(b), float(c)) for a, b, c in zip(y, q, qz)]
-    tr_phi, tr_F, tr_V = np.array(tr_phi), np.array(tr_F), np.array(tr_V)
+    tr_phi, tr_B = np.array(tr_phi), np.array(tr_B)
+    tr_F, tr_V = np.array(tr_F), np.array(tr_V)
 
     # ---- EVAL grasps (pooled, episode-grouped) ----
     Xphi, XF, yev, gev, qev = [], [], [], [], []
@@ -180,12 +192,12 @@ def main() -> int:
     ev_F = _auc(XF, yev, groups=gev)
     ev_V = _auc(qev.reshape(-1, 1), yev, groups=gev)
 
-    print(f"\n=== {args.method.upper()}: phi(s) vs F(s,pi,z) vs value Q=F.z "
+    print(f"\n=== {args.method.upper()}: phi(s) | B(s) | F(s,pi,z) | value Q=F.z "
           f"separability (success- vs fail-bound, AUC) ===")
-    print(f"{'':<10}{'phi(s)':>10}{'F(s,pi,z)':>12}{'Q=F.z':>10}")
-    print(f"{'train':<10}{tr_phi.mean():>10.3f}{tr_F.mean():>12.3f}{tr_V.mean():>10.3f}"
-          f"   (per-task mean; V {tr_V.round(2)})")
-    print(f"{'eval':<10}{ev_phi:>10.3f}{ev_F:>12.3f}{ev_V:>10.3f}"
+    print(f"{'':<8}{'phi(s)':>9}{'B(s)':>9}{'F(s,pi,z)':>11}{'Q=F.z':>9}")
+    print(f"{'train':<8}{tr_phi.mean():>9.3f}{tr_B.mean():>9.3f}"
+          f"{tr_F.mean():>11.3f}{tr_V.mean():>9.3f}   (per-task mean)")
+    print(f"{'eval':<8}{ev_phi:>9.3f}{'--':>9}{ev_F:>11.3f}{ev_V:>9.3f}"
           f"   (pooled, episode-grouped; n={len(yev)})")
     print("0.5 = chance.  (eval is high-variance over ~50 episodes; trust train.)")
 
@@ -196,6 +208,7 @@ def main() -> int:
     out.write_text(json.dumps({
         "method": args.method,
         "train": {"phi_mean": float(tr_phi.mean()), "phi_per_task": tr_phi.tolist(),
+                  "B_mean": float(tr_B.mean()), "B_per_task": tr_B.tolist(),
                   "F_mean": float(tr_F.mean()), "F_per_task": tr_F.tolist(),
                   "V_mean": float(np.nanmean(tr_V)), "V_per_task": tr_V.tolist()},
         "eval": {"phi": ev_phi, "F": ev_F, "V": ev_V, "n": int(len(yev))},

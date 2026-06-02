@@ -33,6 +33,10 @@ The goal-relevant successor mass is:
 We use this quantity only as a common lens: the evaluated methods do not all estimate it explicitly.
 \gciql{} learns a goal-conditioned value $Q(s,a,g)$, \crl{} learns an inner-product score $f(s,a)^\top b(g)$, \fb{} learns an explicit successor-measure factorization, and \rldp{} learns predictive structure that induces long-horizon scores through rollout or extraction.
 
-In navigation-like domains, a compact future-reachability score can often generalize through smooth geometric structure.
-In manipulation, however, the same observed geometry can correspond to different future occupancies depending on the contact mode.
-A useful score must therefore preserve not only where the cube and gripper are, but also whether the current interaction state allows the cube to remain controllable until it reaches the goal.
+% In a single-mode domain, future reachability can often be represented by one smooth temporal geometry.
+% The interaction-rich case is different: the same observed geometry can induce different future occupancy because a local interaction variable changes the transition kernel.
+In single-mode domains, a compact future-reachability score can often generalize through smooth geometric structure.
+The interaction-rich case is different.
+The same observed geometry can correspond to different future occupancies when a local interaction variable changes how actions affect the environment.
+For example, an object may be freely moving, controllably held, slipping, or dropped.
+A useful URL score must therefore preserve not only where the agent, object, and goal are, but also which interaction regime determines the future occupancy.

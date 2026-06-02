@@ -1,5 +1,12 @@
 \section{Introduction}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{fig_hero.png}
+\caption{\textbf{The failure, in one picture.} Two in-hand grasps that a forward--backward agent values almost identically ($V{=}3214$ vs $3257$): rolled out under the agent's own policy, one is transported to the goal and the other is dropped. The value the policy follows---an inner product of learned embeddings---cannot tell a controllable grasp from a failing one, so the policy cannot prefer the good grasp. This paper traces that aliasing to the inner-product readout.}
+\label{fig:hero}
+\end{figure}
+
 Unsupervised reinforcement learning (URL) promises reusable control: an agent learns a policy, representation, or value structure without task rewards and later adapts it to downstream goals.
 This is especially appealing in robotics, where the same workspace may contain many possible goals, but collecting new interaction data for every reward is expensive.
 Many URL objectives instantiate this idea by learning some form of future-reachability object, including goal-conditioned values, contrastive state-goal scores, successor measures, or predictive representations~\citep{eysenbach-iclr21a,eysenbach-neurips22a,ma-neurips22a,touati-neurips21a,touati-iclr23a,agarwal-rlj25a}.
