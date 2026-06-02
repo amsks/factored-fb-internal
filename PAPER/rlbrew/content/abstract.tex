@@ -1,11 +1,11 @@
 \begin{abstract}
-Unsupervised reinforcement learning (URL) methods often learn reusable future-reachability objects, such as goal-conditioned values, contrastive scores, successor measures, or predictive representations.
-We argue that these objects can fail when observation-near states belong to different local interaction regimes with different long-horizon successor measures.
-In such settings, a learned score may preserve coarse geometric reachability while smoothing over the interaction variable that determines future controllability.
-We formalize this failure mode as an interaction-conditioned successor gap and show that observation-smooth scores incur error near such gaps.
-We then instantiate the idea in the state-observation version of \ogbench{} \task{}, where the relevant interaction variable is whether the cube is freely moving, controllably held, slipping, or dropped.
+Unsupervised and goal-conditioned reinforcement learning methods often learn reusable future-reachability objects, such as goal-conditioned values, contrastive scores, successor measures, or predictive representations.
+We study a failure mode that arises when the observation or learned representation under-resolves local interaction variables.
+In the full physical state, the successor measure is well defined; the difficulty is that observation-near states can belong to different interaction regimes with different post-interaction futures.
+A learned score may therefore preserve coarse geometric reachability while weakly distinguishing the interaction variable that determines future controllability.
+We formalize this view through interaction-conditioned tail successor structure and instantiate it in the state-based version of \ogbench{} \task{}, where the relevant interaction variable is whether the cube is freely moving, controllably held, slipping, or dropped.
 A phase diagnostic decomposes each rollout into approach, control acquisition, maintained control, and transport.
-Across four state-based URL methods, approach failures are negligible, while most failures occur after control acquisition.
-Support diagnostics show that contact-regime coverage contributes but does not determine the method ordering, and value-ranking probes show that learned scores weakly separate observation-near states with different post-interaction futures.
+Across four state-based future-reachability methods, approach failures are negligible, while most failures occur after control acquisition.
+Support diagnostics show that contact-regime coverage contributes but does not determine the method ordering, and value-ranking probes show that learned scores weakly separate states corresponding to cube in-hand with different post-interaction futures.
 These results suggest that the missing object is not grasping-specific, but the preservation of interaction-conditioned successor structure.
 \end{abstract}

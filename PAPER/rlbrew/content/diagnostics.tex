@@ -1,9 +1,12 @@
 \section{Diagnostic Method}
 \label{sec:method}
 
+We now turn the interaction-conditioned view from Section~\ref{sec:theory} into diagnostics. 
+The goal is to separate failures of coarse reachability from failures that occur after control has been acquired, when the policy must preserve and exploit the post-interaction regime.
+
 \subsection{Evaluation setting}
 
-We study the state-observation version of \ogbench{} \task{} over five held-out evaluation tasks, denoted \textit{task1}--\textit{task5}.
+We study the state-observation version of \ogbench{} \task{} over five held-out evaluation tasks, denoted \textit{task1} - \textit{task5}.
 State observations remove visual encoder capacity as the main confound and isolate failures in the learned control representation.
 Our completed method set contains four state-based URL methods: \gciql{}, \crl{}, \fb{}, and \rldp{}.
 We report interquartile mean (IQM) success with stratified-bootstrap confidence intervals for aggregate performance.
