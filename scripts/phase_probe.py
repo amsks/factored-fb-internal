@@ -97,6 +97,18 @@ def main() -> None:
     )
 
     def infer_z(task):
+        # TD-MPC2 (and any agent exposing eval_context) reads its goal context
+        # from the task env (cube goal xyz), not from the offline buffer; build
+        # a short-lived env to extract it. FB/RLDP/CRL fall back to _infer_z.
+        if hasattr(agent, "eval_context"):
+            e, _ = create_ogbench_env(task, seed=cfg.seed, obs_type=cfg.obs_type,
+                                      frame_stack=frame_stack)
+            try:
+                z, _ = agent.eval_context(env=e, domain=cfg.domain, task=task)
+            finally:
+                if hasattr(e, "close"):
+                    e.close()
+            return z
         z, _ = evaluator._infer_z(task)
         return z
 

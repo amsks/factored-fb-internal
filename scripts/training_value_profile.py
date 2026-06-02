@@ -392,10 +392,113 @@ def _rldp(args) -> None:
     print(f"[training_value:rldp] {len(obs)} states x {len(tasks)} tasks -> {out}")
 
 
+def _tdmpc2(args) -> None:
+    """TD-MPC2 (PyTorch, model-based MPC) policy value on the cube training
+    states. The MPC planner is far too slow to evaluate per state, so we use the
+    learned policy-prior value V = Q(z, pi_mean(z)) — the same quantity the MPPI
+    value target bootstraps from — where z = encode(fold(obs, goal_xyz)). The
+    goal context is the cube goal xyz directly (no _infer_z / backward map).
+
+    Reuses the shared training_states.npz when present (cross-method comparison,
+    like the RLDP pass); otherwise generates it (like the FB pass) so TD-MPC2 can
+    bootstrap the shared state set on its own."""
+    import torch
+    import pandas as pd
+    from evals.analysis import build_env_and_agent, load_cfg, load_checkpoint
+    from evals.ogbench import OGBenchEvaluator  # noqa: F401  (parity w/ other passes)
+    from envs.ogbench import ALL_TASKS, create_ogbench_env
+    from evals.phase_probe import Thresholds
+    from data.ogbench import load_ogbench_dataset
+
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    cfg = load_cfg(args.config, device=args.device)
+    if args.data_path:
+        cfg.data_path = args.data_path
+    env, agent, _, _ = build_env_and_agent(cfg)
+    load_checkpoint(agent, args.checkpoint, map_location=args.device)
+    agent.eval() if hasattr(agent, "eval") else None
+    if hasattr(env, "close"):
+        env.close()
+
+    thr = Thresholds()
+    npz_path = out / "training_states.npz"
+    if npz_path.exists():
+        st = np.load(npz_path, allow_pickle=True)
+        obs = np.asarray(st["obs"], np.float32)
+        cube = np.asarray(st["cube"], np.float64)
+        region = [str(r) for r in st["region"]]
+        if "outcome" not in st:
+            raise SystemExit("training_states.npz has no 'outcome' — run the FB pass first.")
+        outcome = np.asarray(st["outcome"], dtype=bool)
+        goals = np.asarray(st["goals"], np.float64)
+        tasks = list(ALL_TASKS.get(cfg.domain, []))
+    else:
+        # Bootstrap the shared state set ourselves (mirrors the FB pass).
+        e0, _ = create_ogbench_env(TASK_TMPL.format(n=1), seed=cfg.seed,
+                                   obs_type=cfg.obs_type)
+        tb = int(getattr(e0.unwrapped, "_target_block", 0) or 0)
+        table_z = float(e0.unwrapped.cur_task_info["init_xyzs"][tb][2])
+        e0.close()
+        files = _episode_files(cfg.data_path, cfg.domain)
+        obs, phys, act, ep_id, step_id, cube_by_ep = _sample_states(
+            files, args.n_states, seed=cfg.seed)
+        cube = phys[:, CUBE_SLICE]
+        grip = np.clip(phys[:, GRIP_QPOS_IDX] / 0.8, 0, 1)
+        region_arr = region_labels(grip, phys[:, 16] - table_z, thr)
+        region = [str(r) for r in region_arr]
+        tasks = list(ALL_TASKS.get(cfg.domain, []))
+        goals_l, outcome_cols = [], []
+        for ti, task in enumerate(tasks, start=1):
+            e, _ = create_ogbench_env(task, seed=cfg.seed, obs_type=cfg.obs_type)
+            tbk = int(getattr(e.unwrapped, "_target_block", 0) or 0)
+            g = np.asarray(e.unwrapped.cur_task_info["goal_xyzs"][tbk], np.float64)
+            e.close()
+            goals_l.append(g)
+            outcome_cols.append(_outcome_labels(cube_by_ep, ep_id, step_id, g,
+                                                 args.horizon, args.thresh))
+        goals = np.stack(goals_l)                       # [5, 3]
+        outcome = np.stack(outcome_cols, axis=1)        # [n_states, n_tasks]
+        _phase_composition(files, thr, table_z).to_parquet(
+            out / "phase_composition.parquet")
+        np.savez(npz_path, obs=obs, cube=cube,
+                 region=region_arr.astype("U12"), goals=goals, outcome=outcome)
+
+    @torch.no_grad()
+    def tdmpc2_v(obs_np, goal_xyz, chunk=8192):
+        dev = agent.device
+        model = agent.core.model
+        g = torch.as_tensor(goal_xyz, dtype=torch.float32, device=dev).reshape(3)
+        vals = []
+        for i in range(0, len(obs_np), chunk):
+            ob = torch.as_tensor(obs_np[i:i + chunk], dtype=torch.float32,
+                                 device=dev)
+            folded = agent._fold(ob, g.expand(ob.shape[0], 3))
+            z = model.encode(folded, None)
+            _a, info = model.pi(z, None)
+            v = model.Q(z, info["mean"], None, return_type="min")
+            vals.append(v.reshape(-1).cpu().numpy())
+        return np.concatenate(vals)
+
+    rows = []
+    for ti, task in enumerate(tasks, start=1):
+        g = goals[ti - 1]
+        d = cube_to_goal_dist(cube, g)
+        v = tdmpc2_v(obs, g)
+        oc = outcome[:, ti - 1]
+        for i in range(len(obs)):
+            rows.append({"task": f"task{ti}", "region": region[i],
+                         "d": float(d[i]), "cube_x": float(cube[i, 0]),
+                         "cube_y": float(cube[i, 1]), "V": float(v[i]),
+                         "outcome": "success_bound" if oc[i] else "fail_bound"})
+    pd.DataFrame(rows).to_parquet(out / "tdmpc2_values.parquet")
+    print(f"[training_value:tdmpc2] {len(obs)} states x {len(tasks)} tasks -> {out}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--method", required=True,
-                    choices=["fb", "gciql", "crl", "rldp"])
+                    choices=["fb", "gciql", "crl", "rldp", "tdmpc2"])
     ap.add_argument("--out", default="analysis/training_value")
     ap.add_argument("--n-states", type=int, default=20000)
     ap.add_argument("--mujoco-gl", default=None)
@@ -418,6 +521,9 @@ def main() -> None:
     elif args.method == "rldp":
         assert args.config and args.checkpoint, "rldp needs --config/--checkpoint"
         _rldp(args)
+    elif args.method == "tdmpc2":
+        assert args.config and args.checkpoint, "tdmpc2 needs --config/--checkpoint"
+        _tdmpc2(args)
     elif args.method == "crl":
         assert args.run_dir, "crl needs --run-dir"
         _crl(args)

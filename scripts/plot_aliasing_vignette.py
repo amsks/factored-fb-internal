@@ -22,7 +22,7 @@ REPO = Path(__file__).resolve().parent.parent
 PAIR = REPO / "analysis/training_value_multiseed/p0"
 OUT = REPO / "PAPER" / "rlbrew" / "figures" / "fig_vignette.png"
 ML = {"fb": ("FB", "V_policy"), "gciql": ("GCIQL", "V"),
-      "crl": ("CRL", "V"), "rldp": ("RLDP", "V")}
+      "crl": ("CRL", "V"), "rldp": ("RLDP", "V"), "tdmpc2": ("TDMPC2", "V")}
 CONTACT = {"grasp", "transport"}   # pickup + carry regimes
 RNG = np.random.default_rng(0)
 
@@ -38,9 +38,14 @@ def main() -> int:
     oz = (obs - mu) / sd
     contact = np.isin(region, list(CONTACT))
 
-    fig, axes = plt.subplots(1, 4, figsize=(13, 3.4))
+    # one panel per method whose value parquet exists in this pair dir
+    panels = [(m, lv) for m, lv in ML.items()
+              if (PAIR / f"{m}_values.parquet").exists()]
+    fig, axes = plt.subplots(1, len(panels), figsize=(3.25 * len(panels), 3.4))
+    if len(panels) == 1:
+        axes = [axes]
     exemplar = None
-    for ax, (m, (lab, vc)) in zip(axes, ML.items()):
+    for ax, (m, (lab, vc)) in zip(axes, panels):
         V = pd.read_parquet(PAIR / f"{m}_values.parquet")[vc].to_numpy(float)
         n = V.shape[0] // 5
         Vt = V.reshape(5, n).T  # [n_states, 5 tasks]
