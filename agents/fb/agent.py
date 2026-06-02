@@ -213,6 +213,7 @@ class FBAgent(BaseAgent):
             rgb_encoder_cfg=rgb_encoder_cfg,
             augmentator_cfg=augmentator_cfg,
             fixed_b=self.fixed_b,
+            goal_dim=self.goal_dim,
             device=device,
         )
         self.setup_training()
