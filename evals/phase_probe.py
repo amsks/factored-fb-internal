@@ -247,6 +247,11 @@ def rollout_with_phase_signals(
     ensure_manip_env(env)
     episodes: List[Dict[str, Any]] = []
     for _ in range(n_episodes):
+        # Clear per-episode planner state. No-op for FB/RLDP/CRL (BaseAgent
+        # default); stateful planners (TD-MPC2) reset t0 + MPPI warm-start so
+        # every episode plans fresh rather than carrying the previous mean.
+        if hasattr(agent, "reset"):
+            agent.reset()
         reset_obs, info = env.reset()
         apply_scenario(env, scenario)
         goal = episode_goal(env)
@@ -423,3 +428,45 @@ def write_summary_md(summary, path) -> None:
             f"S1={g('S1','success_rate')*100:.0f}% "
             f"S2={g('S2','success_rate')*100:.0f}%")
     Path(path).write_text("\n".join(lines))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TD-MPC2 latent phase-transition-prediction probe (rlbrew MBRL diagnostic)
+# ──────────────────────────────────────────────────────────────────────────────
+def tdmpc2_latent_phase_probe(agent, batch, goal, *, rollout_len=3, ridge=1e-3):
+    """Fit a linear probe z -> cube_xyz on encoded states, then measure how
+    cube-xyz prediction error grows along an imagined rollout (model.next).
+
+    Decoder-free TD-MPC2 cannot reconstruct observations, so we probe the latent.
+    Returns dict with single-step probe MSE and open-loop MSE per imagined step --
+    the "does the model predict lift/slip/drop" signal for the paper's MBRL row.
+    """
+    import torch
+
+    dev = agent.device
+    obs = batch["observation"].to(dev).float()             # [B,H,obs]
+    next_phys = batch["next"]["physics"].to(dev).float()
+    cube = next_phys[..., 14:17]                           # [B,H,3] targets
+    g = goal.to(dev).float()
+
+    with torch.no_grad():
+        folded = agent._fold(obs[:, 0, :], g.expand(obs.shape[0], 3))  # [B,obs+3]
+        z0 = agent.core.model.encode(folded, None)         # [B,latent]
+    # closed-form ridge probe z0 -> cube[:,0]
+    Z = z0
+    Y = cube[:, 0, :]
+    W = torch.linalg.solve(Z.T @ Z + ridge * torch.eye(Z.shape[1], device=dev), Z.T @ Y)
+    pred0 = Z @ W
+    cube_xyz_mse = torch.mean((pred0 - Y) ** 2).item()
+
+    # open-loop imagined rollout error
+    open_loop = []
+    with torch.no_grad():
+        z = z0
+        for t in range(min(rollout_len, cube.shape[1])):
+            pred = z @ W
+            open_loop.append(torch.mean((pred - cube[:, t, :]) ** 2).item())
+            a_t = batch["action"][:, t, :].to(dev).float() if "action" in batch \
+                else torch.zeros(z.shape[0], agent.action_dim, device=dev)
+            z = agent.core.model.next(z, a_t, None)
+    return {"cube_xyz_mse": cube_xyz_mse, "open_loop_cube_mse_by_step": open_loop}

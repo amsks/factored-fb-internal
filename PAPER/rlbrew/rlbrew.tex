@@ -1,0 +1,128 @@
+\documentclass{article}
+
+\PassOptionsToPackage{numbers,sort&compress}{natbib}
+
+% Pass the exact package layout for RLJ format
+\usepackage{rlj}
+
+% Core formatting and typography
+\usepackage{microtype}
+\usepackage{xcolor}
+
+% Mathematical frameworks
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{bm}
+\usepackage{bbm}
+
+% Layout structures
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{paralist}
+\usepackage{float}
+
+% Summary and claim boxes
+\usepackage[most]{tcolorbox}
+
+% ---------------------------------------------------------------------
+% Document Metadata & Running Headers
+% ---------------------------------------------------------------------
+\title{Is Manipulation Hard for Unsupervised RL?}
+
+\setrunningtitle{Is Manipulation Hard for Unsupervised RL?}
+
+\author{%
+  Aditya Mohan$^{1}$,
+  Caleb Chuck$^{2}$,
+  Siddhant Agarwal$^{2}$,
+  Amy Zhang$^{2}$ \\
+  $^{1}$Leibniz University Hannover, L3S Research Center \\
+  $^{2}$University of Texas at Austin \\
+  \texttt{a.mohan@ai.uni-hannover.de}
+}
+
+\emails{a.mohan@ai.uni-hannover.de}
+\affiliations{}
+
+% Figures path layout configuration
+\graphicspath{{figure/}{figures/}}
+
+% ---------------------------------------------------------------------
+% Theorem-like environments & Style Blocks
+% ---------------------------------------------------------------------
+\newtheorem{proposition}{Proposition}
+\newtheorem{definition}{Definition}
+\newtheorem{hypothesis}{Hypothesis}
+\newtheorem{remark}{Remark}
+
+\tcbset{
+    enhanced,
+    sharp corners,
+    boxrule=0.5pt,
+    colback=white,
+    colframe=black,
+    coltitle=black,
+    colbacktitle=white,
+    fonttitle=\bfseries,
+    left=1.5mm,
+    right=1.5mm,
+    top=1mm,
+    bottom=1mm,
+    before skip=8pt,
+    after skip=8pt
+}
+
+\newtcolorbox{claimbox}[1]{title={#1}}
+
+% ---------------------------------------------------------------------
+% Mathematical Operators & Custom Macros
+% ---------------------------------------------------------------------
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+\newcommand{\Sspace}{\mathcal{S}}
+\newcommand{\Aspace}{\mathcal{A}}
+\newcommand{\Ptrans}{P}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\ind}{\mathbf{1}}
+
+\newcommand{\sm}{M^{\pi}}
+\newcommand{\smz}{M^{\pi_z}}
+\newcommand{\gciql}{\textsc{GCIQL}}
+\newcommand{\fb}{\textsc{FB}}
+\newcommand{\crl}{\textsc{CRL}}
+\newcommand{\psm}{\textsc{PSM}}
+\newcommand{\rldp}{\textsc{RLDP}}
+\newcommand{\dreamer}{\textsc{MBRL}}
+\newcommand{\ogbench}{\textsc{OGBench}}
+\newcommand{\task}{\texttt{cube-single}}
+\newcommand{\todo}[1]{\textbf{[TODO: #1]}}
+\newcommand{\pp}{\mathrm{pp}}
+
+% ---------------------------------------------------------------------
+% Main Document Layout
+% ---------------------------------------------------------------------
+\begin{document}
+
+\maketitle
+
+\input{RLBrew/content/abstract}
+\input{RLBrew/content/introduction}
+\input{RLBrew/content/preliminaries}
+\input{RLBrew/content/theory}
+\input{RLBrew/content/diagnostics}
+\input{RLBrew/content/results}
+\input{RLBrew/content/related-work}
+\input{RLBrew/content/conclusion}
+
+
+
+\bibliographystyle{plainnat}
+\bibliography{bib/strings,bib/lib,bib/local,bib/proc}
+
+\appendix
+\input{RLBrew/content/appendix}
+\end{document}

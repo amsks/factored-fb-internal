@@ -76,7 +76,10 @@ class OGBenchEvaluator:
                 frame_stack=self.frame_stack,
             )
             try:
-                z, relabel_metrics = self._infer_z(task)
+                if hasattr(self.agent, "eval_context"):
+                    z, relabel_metrics = self.agent.eval_context(env=env, domain=self.domain, task=task)
+                else:
+                    z, relabel_metrics = self._infer_z(task)
                 stats, infos, frames = rollout(
                     env, self.agent, self.n_episodes, ctx=z, record=self.save_videos
                 )
