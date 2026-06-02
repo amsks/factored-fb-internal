@@ -54,12 +54,14 @@ class FBModel(torch.nn.Module):
         augmentator_cfg=None,
         obs_normalizer_cfg=None,
         fixed_b: str = "none",
+        goal_dim: int = 0,
         device: str = "cpu",
     ):
         super().__init__()
         self.obs_space = obs_space
         self.action_dim = action_dim
         self.fixed_b = str(fixed_b)
+        self.goal_dim = int(goal_dim)
         # Store every config attr as a plain instance attribute (stand-in for cfg.archi.X / cfg.X).
         self.z_dim = z_dim
         self.L_dim = L_dim
@@ -102,11 +104,12 @@ class FBModel(torch.nn.Module):
             z_dim = 3                                          # forward map output dim follows
         else:
             self._backward_map = backward_cfg.build(self._bw_encoder.output_space, z_dim)
-        self._forward_map = forward_cfg.build(self._left_encoder.output_space, z_dim, action_dim)
+        self._forward_map = forward_cfg.build(self._left_encoder.output_space, z_dim, action_dim, goal_dim=self.goal_dim)
         self._actor = actor_cfg.build(
             self._left_encoder.output_space if self.actor_encode_obs else self._fw_encoder.output_space,
             z_dim,
             action_dim,
+            goal_dim=self.goal_dim,
         )
 
         # make sure the model is in eval mode and never computes gradients

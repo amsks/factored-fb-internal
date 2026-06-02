@@ -136,9 +136,9 @@ class ActorArchiConfig(BaseConfig):
     hidden_layers: int = 1
     embedding_layers: int = 2
 
-    def build(self, obs_space, z_dim, action_dim):
+    def build(self, obs_space, z_dim, action_dim, goal_dim: int = 0):
         if self.model == "simple":
-            return Actor(obs_space, z_dim, action_dim, self)
+            return Actor(obs_space, z_dim, action_dim, self, goal_dim=goal_dim)
         raise ValueError(f"Unsupported actor model {self.model}")
 
 
@@ -244,18 +244,19 @@ class SimpleActorArchiConfig(ActorArchiConfig):
     name: tp.Literal["simple"] = "simple"
     model: tp.Literal["simple"] = "simple"
 
-    def build(self, obs_space, z_dim: int, action_dim: int) -> "Actor":
-        return Actor(obs_space, z_dim, action_dim, self)
+    def build(self, obs_space, z_dim: int, action_dim: int, goal_dim: int = 0) -> "Actor":
+        return Actor(obs_space, z_dim, action_dim, self, goal_dim=goal_dim)
 
 
 class Actor(nn.Module):
-    def __init__(self, obs_space, z_dim, action_dim, cfg: SimpleActorArchiConfig) -> None:
+    def __init__(self, obs_space, z_dim, action_dim, cfg: SimpleActorArchiConfig, goal_dim: int = 0) -> None:
         super().__init__()
         assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
         obs_dim = obs_space.shape[0]
         self.cfg: SimpleActorArchiConfig = cfg
+        self.goal_dim = goal_dim
 
-        self.embed_z = simple_embedding(obs_dim + z_dim, cfg.hidden_dim, cfg.embedding_layers)
+        self.embed_z = simple_embedding(obs_dim + z_dim + goal_dim, cfg.hidden_dim, cfg.embedding_layers)
         self.embed_s = simple_embedding(obs_dim, cfg.hidden_dim, cfg.embedding_layers)
 
         seq = []
@@ -264,8 +265,9 @@ class Actor(nn.Module):
         seq += [linear(cfg.hidden_dim, action_dim)]
         self.policy = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor, z: torch.Tensor, std: float) -> "TruncatedNormal":
-        z_embedding = self.embed_z(torch.cat([obs, z], dim=-1))
+    def forward(self, obs: torch.Tensor, z: torch.Tensor, std: float, goal: torch.Tensor | None = None) -> "TruncatedNormal":
+        z_in = torch.cat([obs, z], dim=-1) if goal is None else torch.cat([obs, z, goal], dim=-1)
+        z_embedding = self.embed_z(z_in)
         s_embedding = self.embed_s(obs)
         mu = torch.tanh(self.policy(torch.cat([s_embedding, z_embedding], dim=-1)))
         return TruncatedNormal(mu, torch.ones_like(mu) * std)
