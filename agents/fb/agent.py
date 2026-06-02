@@ -367,6 +367,7 @@ class FBAgent(BaseAgent):
             w=w,
             weight_diag=self.weight_diag,
             next_action_override=next_action_override,
+            goal_obs=self._g_used,
         )
         metrics.update(
             self.update_actor(
@@ -374,6 +375,7 @@ class FBAgent(BaseAgent):
                 action=action,
                 z=z,
                 clip_grad_norm=clip_grad_norm,
+                goal=self._g_used,
             )
         )
 
@@ -387,9 +389,10 @@ class FBAgent(BaseAgent):
         # convert tensor metrics to floats for downstream logging (train.py expects floats)
         return {k: (v.item() if isinstance(v, torch.Tensor) else float(v)) for k, v in metrics.items()}
 
-    def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+    def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor, goal: torch.Tensor | None = None) -> torch.Tensor:
+        gk = {} if goal is None else {"goal": goal}
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
-            dist = self.model._actor(obs, z, self.actor_std)
+            dist = self.model._actor(obs, z, self.actor_std, **gk)
             action = dist.sample(clip=self.stddev_clip)
         return action
 
@@ -406,23 +409,27 @@ class FBAgent(BaseAgent):
         w: torch.Tensor | None = None,
         weight_diag: bool = False,
         next_action_override: torch.Tensor | None = None,
+        goal_obs: torch.Tensor | None = None,
     ) -> Dict[str, torch.Tensor]:
         zf = self._fb_z(z)  # one-step FB: zeros (F is z-independent); else z
+        # V1 goal-conditioning: the forward map AND the policy that picks next_action
+        # also see the (raw) goal observation. goal_obs=None => byte-identical to baseline.
+        fwd_kw = {} if goal_obs is None else {"goal": goal_obs}
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             with torch.no_grad():
                 next_left_enc = self.model._target_left_encoder(next_obs)  # batch x L_dim
                 actor_in = next_left_enc if self.actor_encode_obs else next_obs
                 # One-step FB uses the dataset's next action (SARSA); else sample from policy.
                 next_action = (next_action_override if next_action_override is not None
-                               else self.sample_action_from_norm_obs(actor_in, z))
-                target_Fs = self.model._target_forward_map(next_left_enc, zf, next_action)  # num_parallel x batch x z_dim
+                               else self.sample_action_from_norm_obs(actor_in, z, goal_obs))
+                target_Fs = self.model._target_forward_map(next_left_enc, zf, next_action, **fwd_kw)  # num_parallel x batch x z_dim
                 target_B = self.model._target_backward_map(goal)  # batch x z_dim
                 target_Ms = torch.matmul(target_Fs, target_B.T)  # num_parallel x batch x batch
                 _, _, target_M = self.get_targets_uncertainty(target_Ms, self.fb_pessimism_penalty)  # batch x batch
 
             # compute FB loss
             left_enc = self.model._left_encoder(obs)  # batch x L_dim
-            Fs = self.model._forward_map(left_enc, zf, action)  # num_parallel x batch x z_dim
+            Fs = self.model._forward_map(left_enc, zf, action, **fwd_kw)  # num_parallel x batch x z_dim
             B = self.model._backward_map(goal)  # batch x z_dim
             Ms = torch.matmul(Fs, B.T)  # num_parallel x batch x batch
 
@@ -513,7 +520,10 @@ class FBAgent(BaseAgent):
         action: torch.Tensor,
         z: torch.Tensor,
         clip_grad_norm: float | None,
+        goal: torch.Tensor | None = None,
     ) -> Dict[str, torch.Tensor]:
+        # V1 goal-conditioning lives in the FlowBC actor override; the TD3 path ignores
+        # `goal` (accepted only so the goal-aware update() call doesn't break non-FlowBC FB).
         return self.update_td3_actor(obs=obs, action=action, z=z, clip_grad_norm=clip_grad_norm)
 
     def update_td3_actor(
