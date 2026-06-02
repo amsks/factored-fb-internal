@@ -1,18 +1,17 @@
 #!/usr/bin/env python
-"""scripts/plot_aliasing_ladder.py — the representation aliasing ladder.
+"""scripts/plot_aliasing_ladder.py — the P4 aliasing ladder (single clean figure).
 
-One robust figure for rlbrew P4. Per-task linear-probe AUC (train grasps,
-independent states) for predicting success-bound vs fail-bound at every level of
-representation, from raw state to the learned forward map:
+Per-task linear-probe AUC (train grasps, independent states) for separating
+success-bound from fail-bound in-hand grasps, across the FB-family representation
+stack: the forward-side state embedding phi(s), the backward/successor embedding
+B(s), the forward map F(s,pi,z) (which predicts successor occupancy), and the
+scalar value Q = F.z that the policy follows.
 
-  raw gripper  ->  raw gripper+joints  ->  raw full state (ceiling)
-              ->  phi(s)  ->  F(s, pi, z)   [per method]
-
-If even the raw full state caps at ~0.64 and the forward map F -- which is built
-to predict successor occupancy -- does no better than phi, then no static or
-predicted-future representation separates the grasps: the discriminator is
-post-contact dynamics, the interaction-gap signature. Eval AUC is omitted on
-purpose (high-variance over ~50 episodes); the per-task train probe is stable.
+Two reference lines: chance (0.5) and the raw full-state ceiling (~0.64, the best
+a linear probe does from the ground-truth observation). Every learned rung sits
+between them, and separability decays to chance at the value -- no representation,
+input/backward/forward/value, tells the grasps apart, because the deciding
+variable (post-contact controllability) is not in the instantaneous state.
 
 Reads analysis/repsep/grasp_feature.json and forward_probe_{fb,rldp}.json.
 Run under .venv.
@@ -33,55 +32,50 @@ OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
 sns.set_palette("colorblind")
 _CB = sns.color_palette("colorblind").as_hex()
-RAW, FB, RLDP = "0.55", _CB[0], _CB[3]
+FB_C, RLDP_C = _CB[0], _CB[3]
+
+RUNGS = [("phi_mean", r"$\phi(s)$" + "\ninput"),
+         ("B_mean",   r"$B(s)$" + "\nbackward"),
+         ("F_mean",   r"$F(s,\pi,z)$" + "\nforward"),
+         ("V_mean",   r"$Q{=}F{\cdot}z$" + "\nvalue")]
 
 
 def main() -> int:
     gf = json.loads((REPSEP / "grasp_feature.json").read_text())
-    fb = json.loads((REPSEP / "forward_probe_fb.json").read_text())
-    rl = json.loads((REPSEP / "forward_probe_rldp.json").read_text())
+    fb = json.loads((REPSEP / "forward_probe_fb.json").read_text())["train"]
+    rl = json.loads((REPSEP / "forward_probe_rldp.json").read_text())["train"]
+    ceiling = gf["full state"]["mean"]
 
-    # (label, AUC, color, group) left -> right ladder
-    bars = [
-        ("Gripper\n(raw)",        gf["gripper (open+contact)"]["mean"], RAW,  "Raw state"),
-        ("Gripper+joints\n(raw)", gf["gripper + joints"]["mean"],       RAW,  "Raw state"),
-        ("Full state\n(raw)",     gf["full state"]["mean"],             RAW,  "Raw state"),
-        (r"$\phi(s)$",            fb["train"]["phi_mean"],              FB,   "FB"),
-        (r"$F(s,\pi,z)$",         fb["train"]["F_mean"],                FB,   "FB"),
-        (r"$Q{=}F{\cdot}z$",      fb["train"]["V_mean"],                FB,   "FB"),
-        (r"$\phi(s)$",            rl["train"]["phi_mean"],              RLDP, "RLDP"),
-        (r"$F(s,\pi,z)$",         rl["train"]["F_mean"],                RLDP, "RLDP"),
-        (r"$Q{=}F{\cdot}z$",      rl["train"]["V_mean"],                RLDP, "RLDP"),
-    ]
-    labels = [b[0] for b in bars]
-    vals = np.array([b[1] for b in bars])
-    cols = [b[2] for b in bars]
-    x = np.arange(len(bars))
+    x = np.arange(len(RUNGS)); w = 0.38
+    fbv = [fb[k] for k, _ in RUNGS]
+    rlv = [rl[k] for k, _ in RUNGS]
 
-    fig, ax = plt.subplots(figsize=(10.0, 4.2))
-    ax.bar(x, vals, color=cols, edgecolor="black", linewidth=0.5, width=0.74)
-    for xi, v in zip(x, vals):
-        ax.text(xi, v + 0.012, f"{v:.2f}", ha="center", va="bottom", fontsize=9)
+    fig, ax = plt.subplots(figsize=(8.0, 4.3))
+    b1 = ax.bar(x - w / 2, fbv, w, color=FB_C, edgecolor="black", linewidth=0.5,
+                label="FB")
+    b2 = ax.bar(x + w / 2, rlv, w, color=RLDP_C, edgecolor="black", linewidth=0.5,
+                label="RLDP")
+    for b in (b1, b2):
+        ax.bar_label(b, fmt="%.2f", fontsize=8, padding=2)
+
+    ax.axhline(ceiling, color="0.4", ls="--", lw=1.2)
+    ax.text(len(RUNGS) - 0.5, ceiling + 0.006, f"raw full-state ceiling ({ceiling:.2f})",
+            fontsize=8.5, color="0.3", va="bottom", ha="right")
     ax.axhline(0.5, color="black", ls="--", lw=1.0)
-    ax.text(len(bars) - 0.4, 0.505, "chance", fontsize=8, va="bottom", ha="right")
-    ax.axhline(1.0, color="black", ls=":", lw=1.0)
-    ax.text(len(bars) - 0.4, 0.99, "perfect separation", fontsize=8,
-            va="top", ha="right")
-    ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylim(0.4, 1.05)
-    ax.set_ylabel("Linear-probe AUC\n(success- vs fail-bound, per-task)", fontsize=10)
-    # group labels below the (two-line) tick labels
-    for xpos, name, col in ((1.0, "Raw state", RAW), (4.0, "FB", FB),
-                            (7.0, "RLDP", RLDP)):
-        ax.text(xpos, -0.20, name, ha="center", fontsize=10, fontweight="bold",
-                color=col, transform=ax.get_xaxis_transform(), clip_on=False)
+    ax.text(len(RUNGS) - 0.5, 0.505, "chance", fontsize=8.5, va="bottom", ha="right")
+
+    ax.set_xticks(x); ax.set_xticklabels([lab for _, lab in RUNGS], fontsize=10)
+    ax.set_ylim(0.4, 0.78)
+    ax.set_ylabel("Linear-probe AUC\n(success- vs fail-bound, per task)", fontsize=10)
+    ax.legend(fontsize=10, loc="upper right", frameon=False)
     ax.grid(True, axis="y", alpha=0.3)
-    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    fig.tight_layout()
     out = OUT / "fig_repsep_ladder.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"[plot] wrote {out}")
-    print("ladder:", {l.replace(chr(10), ' '): round(v, 3) for l, v in zip(labels, vals)})
+    print("FB:", {lab.split(chr(10))[0]: round(v, 3) for (_, lab), v in zip(RUNGS, fbv)})
+    print("RLDP:", {lab.split(chr(10))[0]: round(v, 3) for (_, lab), v in zip(RUNGS, rlv)})
     return 0
 
 
