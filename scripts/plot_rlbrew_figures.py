@@ -21,14 +21,21 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
+
+# Colorblind palette (Okabe-Ito), the de-facto standard for RL figures; also set
+# as the default cycle so the by-regime aliasing bars use it.
+sns.set_palette("colorblind")
+_CB = sns.color_palette("colorblind").as_hex()
+# blue, orange, green, vermillion, purple = _CB[0..4]
 
 REPO = Path(__file__).resolve().parent.parent
 ANALYSIS = REPO / "analysis"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
 METHODS = ["FB", "GCIQL", "CRL", "RLDP", "TDMPC2"]
-MC = {"FB": "#d62728", "GCIQL": "#1f77b4", "CRL": "#2ca02c", "RLDP": "#9467bd",
-      "TDMPC2": "#8c564b"}
+MC = {"FB": _CB[0], "GCIQL": _CB[1], "CRL": _CB[2], "RLDP": _CB[3],
+      "TDMPC2": _CB[5]}
 
 
 def _present(d):
@@ -46,8 +53,10 @@ OUTCOMES = {
 }
 OUTCOME_KEYS = ["success", "approach", "grasp", "maintain", "transport"]
 OUTCOME_LAB = ["Success", "Approach fail", "Grasp fail", "Maintain fail", "Transport fail"]
-OUTCOME_COL = {"success": "#2ca02c", "approach": "#9467bd", "grasp": "#ff7f0e",
-               "maintain": "#d62728", "transport": "#1f77b4"}
+# keep the semantics (success=green, maintain=vermillion, transport=blue, ...)
+# but draw from the colorblind palette
+OUTCOME_COL = {"success": _CB[2], "approach": _CB[4], "grasp": _CB[1],
+               "maintain": _CB[3], "transport": _CB[0]}
 
 # Failure-minus-success nearest-neighbour distance (paper-canonical; cf. appendix
 # support table). Columns: pickup Mf-S, carry Mf-S, pickup Tf-S, carry Tf-S.
@@ -110,7 +119,9 @@ def fig_outcomes(out: Path) -> None:
         bottom += h
     ax.set_xticks(xb); ax.set_xticklabels(methods, fontsize=10, fontweight="bold")
     ax.set_ylabel("% of episodes", fontsize=10); ax.set_ylim(0, 102)
-    ax.legend(fontsize=8, loc="upper right", framealpha=0.95)
+    # horizontal legend above the axes so it never overlaps the bars
+    ax.legend(fontsize=7, ncol=5, loc="lower center", bbox_to_anchor=(0.5, 1.01),
+              frameon=False, columnspacing=1.0, handletextpad=0.4)
     fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
     print(f"[plot] wrote {out}")
 
