@@ -126,6 +126,8 @@ class FBAgent(BaseAgent):
         weight_diag: bool = False,
         weight_z: bool = False,
         onestep: bool = False,
+        goal_cond: bool = False,
+        fixed_b: str = "none",
         amp: bool = False,
         device: str = "cpu",
     ):
@@ -172,6 +174,13 @@ class FBAgent(BaseAgent):
         # the dataset's own next action (SARSA, batch["next"]["action"]) instead of the
         # policy's. The actor then does one improvement step on <F(s,a), z>. Default off.
         self.onestep = bool(onestep)
+        self.goal_cond = bool(goal_cond)
+        self.fixed_b = str(fixed_b)
+        # goal_dim: the slice of obs fed to F/actor in V1 (full obs by default).
+        self.goal_dim = int(obs_space.shape[0]) if self.goal_cond else 0
+        # Only the goal variants use eval_context; baseline keeps legacy reward-inference.
+        self._use_eval_context = self.goal_cond or self.fixed_b == "cube_xyz"
+        self._eval_goal = None
         self._rho = None
         if self.reweight_alpha > 0:
             if not reweight_density_path:
