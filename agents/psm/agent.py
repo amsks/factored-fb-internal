@@ -75,8 +75,14 @@ class PSMAgent(BaseAgent):
         m = self.model
         m.train(True)
         m.requires_grad_(True)
-        self.optim_phi = torch.optim.Adam(m.phi.parameters(), lr=self.lr_phi, weight_decay=self.weight_decay)
-        self.optim_sf_psi = torch.optim.Adam(m.sf_psi.parameters(), lr=self.lr_sf, weight_decay=self.weight_decay)
+        # Encoder ownership (pixels only; empty param lists for state Identity encoders):
+        #   _bw_encoder (goal) trained with phi; _fw_encoder (obs) trained with sf_psi.
+        self.optim_phi = torch.optim.Adam(
+            list(m.phi.parameters()) + list(m._bw_encoder.parameters()),
+            lr=self.lr_phi, weight_decay=self.weight_decay)
+        self.optim_sf_psi = torch.optim.Adam(
+            list(m.sf_psi.parameters()) + list(m._fw_encoder.parameters()),
+            lr=self.lr_sf, weight_decay=self.weight_decay)
         self.optim_psm_psi = torch.optim.Adam(m.psm_psi.parameters(), lr=self.lr_sf, weight_decay=self.weight_decay)
         if m.actor is not None:
             self.optim_actor = torch.optim.Adam(m.actor.parameters(), lr=self.lr_actor, weight_decay=self.weight_decay)
@@ -94,7 +100,11 @@ class PSMAgent(BaseAgent):
         self.off_diag = 1 - torch.eye(self.batch_size, self.batch_size, device=self.device)
         self.off_diag_sum = self.off_diag.sum()
 
-    # ── encode helpers (Identity for state; DrQ CNN for pixel) ── #
+    # ── aug/encode helpers (Identity for state; DrQ CNN for pixel) ── #
+    def aug(self, obs: Tensor, next_obs: Tensor):
+        """Augments observations when training from pixels; no-op otherwise (mirror FBAgent.aug)."""
+        return self.model._augmentator(obs), self.model._augmentator(next_obs)
+
     def _enc_obs(self, obs: Tensor) -> Tensor:
         return self.model._fw_encoder(obs)
 
@@ -265,24 +275,43 @@ class PSMAgent(BaseAgent):
             obs_n = self.model._obs_normalizer(obs)
             next_obs_n = self.model._obs_normalizer(next_obs)
 
-        # encode (Identity for state; DrQ CNN for pixel). goal = bw-encoded next_obs (phi_input="s").
-        obs_enc = self._enc_obs(obs_n)
-        next_obs_enc = self._enc_obs(next_obs_n)
-        goal = self._enc_goal(next_obs_n)
+        # augment (Identity for state; random-shift for pixel) then encode. goal =
+        # bw-encoded next_obs (phi_input="s"). Mirrors FBAgent.aug/enc; no-op for state.
+        #
+        # PSM runs THREE separate .backward() calls per step (psm / sf / actor). For
+        # pixels the DrQ encoders carry a grad graph, so a single shared encode would
+        # be backward-ed multiple times (graph freed after the first). We therefore
+        # re-encode per branch (each backward owns its graph) and assign encoder
+        # ownership to a single optimizer to avoid double-stepping:
+        #   _fw_encoder (obs) -> optim_sf_psi ;  _bw_encoder (goal) -> optim_phi.
+        # The psm/actor branches encode obs WITHOUT grad to the fw-encoder; the sf
+        # branch's goal use is already detached/no-grad. For STATE the encoders are
+        # Identity (no params, passthrough) so .detach()/re-encode are no-ops and the
+        # update stays byte-identical.
+        obs_n, next_obs_n = self.aug(obs_n, next_obs_n)
 
         metrics: Dict = {}
 
-        # 1) proto-successor branch: binary z -> _update_psm -> soft-update psm_psi + phi targets
+        # 1) proto-successor branch: binary z -> _update_psm -> soft-update psm_psi + phi targets.
+        #    obs encoded WITHOUT fw-encoder grad (psm_psi-owned); goal encoded WITH bw-encoder grad.
         z_psm = self.model.sample_z_psm(self.batch_size, device=self.device)
-        metrics.update(self._update_psm(obs_enc, action, discount, next_obs_enc, next_obs_hash, goal, z_psm))
+        obs_enc_psm = self._enc_obs(obs_n).detach()
+        next_obs_enc_psm = self._enc_obs(next_obs_n).detach()
+        goal_psm = self._enc_goal(next_obs_n)
+        metrics.update(self._update_psm(obs_enc_psm, action, discount, next_obs_enc_psm,
+                                        next_obs_hash, goal_psm, z_psm))
         with torch.no_grad():
             _soft_update_params(self._psm_psi_paramlist, self._target_psm_psi_paramlist, self.target_tau)
             _soft_update_params(self._phi_paramlist, self._target_phi_paramlist, self.target_tau)
 
-        # 2) SF + actor branch: mixed Gaussian z -> _update_sf -> _update_actor -> soft-update sf_psi
-        z = self.sample_mixed_z(goal)
-        metrics.update(self._update_sf(obs_enc, action, discount, next_obs_enc, goal, z))
-        metrics.update(self._update_actor(obs_enc, z))
+        # 2) SF + actor branch: mixed Gaussian z -> _update_sf -> _update_actor -> soft-update sf_psi.
+        #    SF owns the fw-encoder grad (encode WITH grad); actor uses detached obs.
+        goal_sf = self._enc_goal(next_obs_n).detach()
+        z = self.sample_mixed_z(goal_sf)
+        obs_enc_sf = self._enc_obs(obs_n)
+        next_obs_enc_sf = self._enc_obs(next_obs_n).detach()
+        metrics.update(self._update_sf(obs_enc_sf, action, discount, next_obs_enc_sf, goal_sf, z))
+        metrics.update(self._update_actor(self._enc_obs(obs_n).detach(), z))
         with torch.no_grad():
             _soft_update_params(self._sf_psi_paramlist, self._target_sf_psi_paramlist, self.target_tau)
 

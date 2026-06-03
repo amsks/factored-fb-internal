@@ -125,8 +125,14 @@ class PSMFlowBCAgent(PSMAgent):
         m = self.model
         m.train(True)
         m.requires_grad_(True)
-        self.optim_phi = torch.optim.Adam(m.phi.parameters(), lr=self.lr_phi, weight_decay=self.weight_decay)
-        self.optim_sf_psi = torch.optim.Adam(m.sf_psi.parameters(), lr=self.lr_sf, weight_decay=self.weight_decay)
+        # Encoder ownership (pixels only; empty for state Identity encoders):
+        #   _bw_encoder (goal) trained with phi; _fw_encoder (obs) trained with sf_psi.
+        self.optim_phi = torch.optim.Adam(
+            list(m.phi.parameters()) + list(m._bw_encoder.parameters()),
+            lr=self.lr_phi, weight_decay=self.weight_decay)
+        self.optim_sf_psi = torch.optim.Adam(
+            list(m.sf_psi.parameters()) + list(m._fw_encoder.parameters()),
+            lr=self.lr_sf, weight_decay=self.weight_decay)
         self.optim_psm_psi = torch.optim.Adam(m.psm_psi.parameters(), lr=self.lr_sf, weight_decay=self.weight_decay)
         # actor = the noise-conditioned flow actor head (NOT a TD3 actor)
         self.optim_actor = torch.optim.Adam(m._actor.parameters(), lr=self.lr_actor, weight_decay=self.weight_decay)
@@ -232,28 +238,39 @@ class PSMFlowBCAgent(PSMAgent):
             obs_n = self.model._obs_normalizer(obs)
             next_obs_n = self.model._obs_normalizer(next_obs)
 
-        obs_enc = self._enc_obs(obs_n)
-        next_obs_enc = self._enc_obs(next_obs_n)
-        goal = self._enc_goal(next_obs_n)
+        # augment (Identity for state; random-shift for pixel), then re-encode per branch
+        # so each of the THREE backward calls (psm / sf / actor) owns its grad graph (the
+        # DrQ encoders carry a graph for pixels; a single shared encode would be backward-ed
+        # multiple times). Encoder ownership: _fw_encoder -> optim_sf_psi, _bw_encoder ->
+        # optim_phi. psm/actor branches use detached obs; the SF branch owns fw-encoder grad.
+        # For STATE the encoders are Identity (no params, passthrough) so this is byte-identical.
+        obs_n, next_obs_n = self.aug(obs_n, next_obs_n)
 
         metrics: Dict = {}
 
-        # 1) proto-successor branch (unchanged from PSMAgent)
+        # 1) proto-successor branch (unchanged from PSMAgent): obs detached, goal with bw-grad.
         z_psm = self.model.sample_z_psm(self.batch_size, device=self.device)
-        metrics.update(self._update_psm(obs_enc, action, discount, next_obs_enc, next_obs_hash, goal, z_psm))
+        obs_enc_psm = self._enc_obs(obs_n).detach()
+        next_obs_enc_psm = self._enc_obs(next_obs_n).detach()
+        goal_psm = self._enc_goal(next_obs_n)
+        metrics.update(self._update_psm(obs_enc_psm, action, discount, next_obs_enc_psm,
+                                        next_obs_hash, goal_psm, z_psm))
         with torch.no_grad():
             _soft_update_params(self._psm_psi_paramlist, self._target_psm_psi_paramlist, self.target_tau)
             _soft_update_params(self._phi_paramlist, self._target_phi_paramlist, self.target_tau)
 
-        # 2) SF + FlowBC-actor branch: mixed Gaussian z.
-        z = self.sample_mixed_z(goal)
+        # 2) SF + FlowBC-actor branch: mixed Gaussian z. SF owns the fw-encoder grad.
+        goal_sf = self._enc_goal(next_obs_n).detach()
+        z = self.sample_mixed_z(goal_sf)
+        obs_enc_sf = self._enc_obs(obs_n)
+        next_obs_enc_sf = self._enc_obs(next_obs_n).detach()
         # SF target next-action comes from the FLOW actor (base _update_sf would
         # otherwise call self.model.actor(...), which is None for flowbc).
         with torch.no_grad():
-            sf_next_action = self.sample_action_from_norm_obs(next_obs_enc, z)
-        metrics.update(self._update_sf(obs_enc, action, discount, next_obs_enc, goal, z,
+            sf_next_action = self.sample_action_from_norm_obs(next_obs_enc_sf, z)
+        metrics.update(self._update_sf(obs_enc_sf, action, discount, next_obs_enc_sf, goal_sf, z,
                                        next_action=sf_next_action))
-        metrics.update(self.update_actor(obs_enc, action, z))
+        metrics.update(self.update_actor(self._enc_obs(obs_n).detach(), action, z))
         with torch.no_grad():
             _soft_update_params(self._sf_psi_paramlist, self._target_sf_psi_paramlist, self.target_tau)
 
