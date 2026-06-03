@@ -185,6 +185,8 @@ class PSMFlowBCAgent(PSMAgent):
             "bc_flow_loss": bc_flow_loss.detach(),
             "bc_error": bc_error.detach() if isinstance(bc_error, torch.Tensor) else torch.tensor(bc_error),
             "q": Q.mean().detach(),
+            "z_norm": z.norm(dim=-1).mean().detach(),
+            "actor_action_abs": actor_actions.abs().mean().detach(),  # is the flow actor saturating?
         }
 
     def compute_flow_actions(self, obs: torch.Tensor, noises: torch.Tensor) -> torch.Tensor:
