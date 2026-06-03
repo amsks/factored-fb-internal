@@ -103,6 +103,7 @@ def load_ogbench_dataset(
     n_transitions: int | None = None,
     obs_type: str = "state",
     frame_stack: int = 1,
+    with_index: bool = False,
 ) -> DictBuffer:
     """Load offline OGBench data into a DictBuffer.
 
@@ -115,6 +116,9 @@ def load_ogbench_dataset(
     n_transitions : if set, truncate the buffer to this many transitions
     obs_type : "state" (default) or "pixels"
     frame_stack : number of frames to stack on sample (pixels only; 1 = off)
+    with_index : opt-in (PSM proto-sampler) — when True the built DictBuffer
+        emits the sampled GLOBAL buffer row indices under batch["index"].
+        Default False keeps every other caller (FB, etc.) byte-identical.
     """
     buf_dir = Path(data_path) / domain / "buffer"
     files = sorted(buf_dir.glob("*.npz"))[:load_n_episodes]
@@ -135,7 +139,8 @@ def load_ogbench_dataset(
 
     n = len(storage["observation"])
     buffer = DictBuffer(
-        capacity=n, device=device, frame_stack=frame_stack, obs_type=obs_type
+        capacity=n, device=device, frame_stack=frame_stack, obs_type=obs_type,
+        with_index=with_index,
     )
     buffer.extend(storage)
     return buffer

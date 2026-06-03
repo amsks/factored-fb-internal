@@ -350,6 +350,12 @@ def main(cfg: DictConfig) -> None:
         n_transitions=cfg.n_transitions,
         obs_type=cfg.obs_type,
         frame_stack=cfg.get("frame_stack", 1),
+        # PSM's proto-behavior sampler must key on the GLOBAL buffer row index of
+        # each transition (ref baselines/PSM/agent/psm.py:255 next_observation_hash
+        # = np.arange(N)). Enable the row-index passthrough so sample() emits
+        # batch["index"], which PSM*Agent.update consumes as next_obs_hash.
+        # Default-off for FB/all other agents (byte-identical: no "index" key).
+        with_index=cfg.agent in ("psm", "psm_flowbc"),
     )
     print(f"[train] buffer size: {len(buffer):,}")
 
