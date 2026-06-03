@@ -75,11 +75,16 @@ class DictBuffer:
         device: str = "cpu",
         frame_stack: int = 1,
         obs_type: str = "state",
+        with_index: bool = False,
     ):
         self.capacity = capacity
         self.device = device
         self.frame_stack = frame_stack
         self.obs_type = obs_type
+        # Opt-in (PSM proto-sampler): when True, sample() attaches the sampled
+        # buffer ROW INDICES under batch["index"] ([B] long tensor). Default
+        # False keeps every existing caller byte-identical (no "index" key).
+        self.with_index = with_index
         self._stack = obs_type == "pixels" and frame_stack > 1
         self._size: int = 0
         self._ptr: int = 0
@@ -175,6 +180,8 @@ class DictBuffer:
             }
             out = _unflatten(flat_tensors)
             out.pop("timestep", None)  # internal-only; not part of a batch
+            if self.with_index:
+                out["index"] = torch.as_tensor(idx, dtype=torch.long).to(self.device)
             return out
 
         if "timestep" not in self._storage:
@@ -190,7 +197,10 @@ class DictBuffer:
             out_flat[k] = torch.as_tensor(v[idx]).to(self.device)
         out_flat["observation"] = self._stack_obs("observation", idx)
         out_flat["next/observation"] = self._stack_next_obs(idx)
-        return _unflatten(out_flat)
+        out = _unflatten(out_flat)
+        if self.with_index:
+            out["index"] = torch.as_tensor(idx, dtype=torch.long).to(self.device)
+        return out
 
     def _sample_horizon(self, batch_size: int, horizon: int) -> Dict[str, Any]:
         """Return [B, horizon, ...] windows that stay within a single episode."""
