@@ -115,11 +115,15 @@ class PSMAgent(BaseAgent):
         return z
 
     # ── proto successor net update (reference _update_psm, psm.py:438-477) ── #
-    def _update_psm(self, obs, action, discount, next_obs, next_obs_hash, goal, z):
+    def _update_psm(self, obs, action, discount, next_obs, next_obs_hash, goal, z, next_action=None):
+        # `next_action` is a test-only injection hook (default None = current behavior:
+        # sample from the proto behavior sampler). Used by the bit-exact reference-
+        # equivalence test to bypass stochastic sampling; never set in training.
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             # compute target successor measure
             with torch.no_grad():
-                next_action = self.model.proto_sampler(next_obs_hash, z)
+                if next_action is None:
+                    next_action = self.model.proto_sampler(next_obs_hash, z)
                 target_psm_psis = self.model.target_psm_psi(next_obs, z, next_action)  # P x B x z_dim
                 target_phi = self.model.target_phi(goal)  # B x z_dim
                 target_Ms = torch.matmul(target_psm_psis, target_phi.T)  # P x B x B
@@ -163,12 +167,16 @@ class PSMAgent(BaseAgent):
         }
 
     # ── SF net update (reference _update_sf, psm.py:495-532) ── #
-    def _update_sf(self, obs, action, discount, next_obs, goal, z):
+    def _update_sf(self, obs, action, discount, next_obs, goal, z, next_action=None):
+        # `next_action` is a test-only injection hook (default None = current behavior:
+        # sample the next action from the learned actor). Used by the bit-exact
+        # reference-equivalence test to bypass stochastic sampling; never set in training.
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             # compute target successor measure (target next-action from the LEARNED policy)
             with torch.no_grad():
-                dist = self.model.actor(next_obs, z, self.actor_std)
-                next_action = dist.sample(clip=self.stddev_clip)
+                if next_action is None:
+                    dist = self.model.actor(next_obs, z, self.actor_std)
+                    next_action = dist.sample(clip=self.stddev_clip)
                 target_psis = self.model.target_sf_psi(next_obs, z, next_action)  # P x B x z_dim
                 target_phi = self.model.phi(goal)  # B x z_dim  (NOT target_phi — ref line 499)
                 target_Ms = torch.matmul(target_psis, target_phi.T)  # P x B x B
