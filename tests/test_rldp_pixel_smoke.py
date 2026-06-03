@@ -24,7 +24,8 @@ from nn_models import (
 )
 from normalizers import RGBNormalizerConfig
 
-C, H, W = 9, 32, 32   # frame_stack=3 RGB, square image
+C, H, W = 9, 32, 32   # AGENT obs-space channels: frame_stack=3 RGB, square image
+RGB_C = 3             # raw single-frame channel count stored in the buffer
 FEATURE_DIM = 32
 HORIZON = 3           # pixel-tuned horizon (state default is 5)
 
@@ -44,14 +45,15 @@ def _agent(**kw):
 
 def _pixel_buffer(n_eps=5, ep_len=40):
     total = n_eps * ep_len
-    img = lambda: np.random.randint(0, 256, (total, C, H, W), dtype=np.uint8)
+    # store RAW 3-channel frames; windowed sampling must frame-stack to 9 channels
+    img = lambda: np.random.randint(0, 256, (total, RGB_C, H, W), dtype=np.uint8)
     action = np.tanh(np.random.randn(total, 5)).astype(np.float32)
     reward = np.zeros((total,), dtype=np.float32)
     terminated = np.zeros((total,), dtype=bool)
     for i in range(n_eps):
         terminated[(i + 1) * ep_len - 1] = True
     timestep = np.concatenate([np.arange(ep_len) for _ in range(n_eps)]).astype(np.int64)
-    buf = DictBuffer(capacity=total)
+    buf = DictBuffer(capacity=total, frame_stack=3, obs_type="pixels")
     buf.extend({
         "observation": img(),
         "action": action,

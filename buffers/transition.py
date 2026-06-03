@@ -233,9 +233,20 @@ class DictBuffer:
         for k, v in self._storage.items():
             if k == "timestep":
                 continue
+            # pixels: observation/next-observation are frame-stacked below
+            if self._stack and k in ("observation", "next/observation"):
+                continue
             gathered = torch.as_tensor(v[flat_idx]).to(self.device)
             new_shape = (batch_size, horizon) + tuple(gathered.shape[1:])
             out_flat[k] = gathered.reshape(new_shape)
+        if self._stack:
+            # Frame-stack each of the B*h window positions (same clamped-at-
+            # episode-start logic as the non-windowed pixel path), then fold the
+            # horizon axis back in: [B*h, C*fs, H, W] -> [B, h, C*fs, H, W].
+            obs = self._stack_obs("observation", flat_idx)
+            nobs = self._stack_next_obs(flat_idx)
+            out_flat["observation"] = obs.reshape((batch_size, horizon) + tuple(obs.shape[1:]))
+            out_flat["next/observation"] = nobs.reshape((batch_size, horizon) + tuple(nobs.shape[1:]))
         return _unflatten(out_flat)
 
     # ------------------------------------------------------------------ #
