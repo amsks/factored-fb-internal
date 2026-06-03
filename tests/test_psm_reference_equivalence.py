@@ -346,3 +346,64 @@ def test_sf_update_bit_exact():
     # step the ref optimizer ONCE (ours already stepped inside _update_sf).
     ref_opt.step()
     _assert_params_equal(sf_psi.parameters(), agent.model.sf_psi.parameters(), "sf:sf_psi.param")
+
+
+# ─────────────────── Step C: actor update bit-exactness ────────────────────── #
+
+def _ref_actor_update(actor, sf_psi, nps, actor_pessimism_penalty, opt,
+                      obs, z, action):
+    """VERBATIM transcription of reference _update_td3_actor (psm.py:651-665).
+    `action` is the (already-sampled) injected action routed through the actor
+    dist's straight-through estimator so gradients flow to the actor exactly as
+    in the reference `dist.sample(clip)` path (TruncatedNormal._clamp)."""
+    dist = actor(obs, z, 0.2)                          # stddev unused once action injected
+    action = dist._clamp(dist.loc + (action - dist.loc).detach())
+    psis = sf_psi(obs, z, action)                      # P x B x z_dim
+    Qs = (psis * z).sum(-1)                             # P x B
+    Q_mean, Q_unc = _get_targets_uncertainty(Qs, nps)   # B
+    Q = Q_mean - actor_pessimism_penalty * Q_unc        # B
+    actor_loss = -Q.mean()
+
+    opt.zero_grad(set_to_none=True)
+    actor_loss.backward()
+    return dict(actor_loss=actor_loss, q=Q.mean(), Q=Q)
+
+
+def test_actor_update_bit_exact():
+    refmod = _import_ref()
+    RefActor, RefPsi = refmod.Actor, refmod.PsiMap
+    agent = _build_agent()
+    obs, action_unused, next_obs, goal, next_action, z_psm, z_sf, discount = _fixed_inputs()
+    nps = NPAR ** 2 - NPAR
+    app = agent.actor_pessimism_penalty
+
+    # Build ref actor + sf_psi (float64, CPU) structurally identical to ours and
+    # copy ref weights into ours so both sides start from identical parameters.
+    ref_actor = RefActor(OBS_DIM, Z_DIM, ACT_DIM, HID, 1, 2).to(DEV).double()
+    ref_sf_psi = RefPsi(OBS_DIM, Z_DIM, ACT_DIM, HID, 1, 2, NPAR).to(DEV).double()
+    agent.model.actor.load_state_dict(ref_actor.state_dict())
+    agent.model.sf_psi.load_state_dict(ref_sf_psi.state_dict())
+
+    # Fixed injected action: sampled ONCE from the ref dist (clipped), then detached.
+    # Both sides receive this exact tensor, so no dist.sample RNG enters the compare.
+    with torch.no_grad():
+        a_inj = ref_actor(obs, z_sf, agent.actor_std).sample(clip=agent.stddev_clip).detach()
+
+    # Fresh, identical Adam optimizers on each side (no pre-warmed state).
+    ref_opt = torch.optim.Adam(ref_actor.parameters(), lr=LR, betas=BETAS, eps=EPS, weight_decay=WD)
+    agent.optim_actor = torch.optim.Adam(agent.model.actor.parameters(), lr=LR, betas=BETAS, eps=EPS, weight_decay=WD)
+
+    # Our `_update_actor` does zero_grad + backward + optim.step() INTERNALLY.
+    ours = agent._update_actor(obs, z_sf, action=a_inj)
+    ref = _ref_actor_update(ref_actor, ref_sf_psi, nps, app, ref_opt, obs, z_sf, a_inj)
+
+    # loss + Q bit-exactness
+    assert torch.equal(ref["actor_loss"], ours["actor_loss"]), "actor_loss"
+    assert torch.equal(ref["q"], ours["q"]), "q"
+
+    # gradient bit-exactness (actor only — sf_psi is upstream but not optimized here).
+    _assert_grads_equal(ref_actor.parameters(), agent.model.actor.parameters(), "actor:actor.grad")
+
+    # step the ref optimizer ONCE (ours already stepped inside _update_actor).
+    ref_opt.step()
+    _assert_params_equal(ref_actor.parameters(), agent.model.actor.parameters(), "actor:actor.param")
