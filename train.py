@@ -32,6 +32,8 @@ torch.set_float32_matmul_precision("high")
 
 from agents.fb.agent import FBAgent
 from agents.fb.flow_bc.agent import FBFlowBCAgent
+from agents.psm.agent import PSMAgent
+from agents.psm.flow_bc.agent import PSMFlowBCAgent
 from agents.rldp.agent import RLDPAgent
 from agents.rldp.flow_bc.agent import RLDPFlowBCAgent
 from data.ogbench import load_ogbench_dataset
@@ -107,6 +109,67 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
             **{k: v for k, v in t.items()
                if k not in ("random_goal_ratio", "success_threshold", "horizon")},
         )
+
+    if cfg.agent in ("psm", "psm_flowbc"):
+        _obs_normalizer_cfg, _rgb_encoder_cfg, _augmentator_cfg = build_pixel_cfgs(cfg)
+        psm_shared = dict(
+            obs_space=obs_space,
+            action_dim=action_dim,
+            batch_size=cfg.batch_size,
+            z_dim=cfg.z_dim,
+            max_log_seed=cfg.max_log_seed,
+            norm_z=cfg.norm_z,
+            phi_input=cfg.phi_input,
+            phi_cfg={"hidden_dim": cfg.phi.hidden_dim,
+                     "hidden_layers": cfg.phi.hidden_layers,
+                     "norm": cfg.phi.norm,
+                     "batch_norm": cfg.phi.batch_norm},
+            sf_cfg={"hidden_dim": cfg.sf.hidden_dim,
+                    "hidden_layers": cfg.sf.hidden_layers,
+                    "embedding_layers": cfg.sf.embedding_layers},
+            obs_normalizer_cfg=_obs_normalizer_cfg,
+            rgb_encoder_cfg=_rgb_encoder_cfg,
+            augmentator_cfg=_augmentator_cfg,
+            num_parallel=cfg.sf.num_parallel,
+            discount=cfg.discount,
+            lr_sf=cfg.lr_sf,
+            lr_phi=cfg.lr_phi,
+            lr_actor=cfg.lr_actor,
+            weight_decay=cfg.weight_decay,
+            clip_grad_norm=cfg.clip_grad_norm,
+            target_tau=cfg.target_tau,
+            ortho_coef=cfg.ortho_coef,
+            mix_ratio=cfg.mix_ratio,
+            pessimism_penalty=cfg.pessimism_penalty,
+            actor_pessimism_penalty=cfg.actor_pessimism_penalty,
+            actor_std=cfg.stddev,
+            stddev_clip=cfg.stddev_clip,
+            amp=cfg.get("amp", False),
+            device=cfg.device,
+        )
+        if cfg.agent == "psm_flowbc":
+            actor_cfg = NoiseConditionedActorArchiConfig(
+                hidden_dim=cfg.actor.hidden_dim,
+                hidden_layers=cfg.actor.hidden_layers,
+                embedding_layers=cfg.actor.embedding_layers,
+            )
+            actor_vf_cfg = SimpleVectorFieldArchiConfig(
+                hidden_dim=cfg.actor_vf.hidden_dim,
+                hidden_layers=cfg.actor_vf.hidden_layers,
+            )
+            return PSMFlowBCAgent(
+                actor_cfg=actor_cfg,
+                actor_vf_cfg=actor_vf_cfg,
+                flow_steps=cfg.flow_steps,
+                lr_actor_vf=cfg.lr_actor_vf,
+                bc_coeff=cfg.get("bc_coeff", 0.0),
+                **psm_shared,
+            )
+        # plain psm: TD3 actor built inside PSMModel from the actor_cfg dict
+        psm_shared["actor_cfg"] = {"hidden_dim": cfg.actor.hidden_dim,
+                                   "hidden_layers": cfg.actor.hidden_layers,
+                                   "embedding_layers": cfg.actor.embedding_layers}
+        return PSMAgent(**psm_shared)
 
     forward_cfg = ForwardArchiConfig(
         hidden_dim=cfg.forward.hidden_dim,
