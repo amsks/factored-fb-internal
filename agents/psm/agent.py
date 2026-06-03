@@ -184,6 +184,16 @@ class PSMAgent(BaseAgent):
         self.optim_psm_psi.step()
         self.optim_phi.step()
 
+        # ── diagnostics (pure logging; no grad/RNG effect on the update above) ──
+        with torch.no_grad():
+            diag = {
+                "phi_norm": phi.norm(dim=-1).mean(),                       # basis row norm (orth target ~1)
+                "psm_psi_norm": psis.norm(dim=-1).mean(),                  # proto successor-feature norm
+                "psm_M_diag": torch.diagonal(Ms, dim1=1, dim2=2).mean(),   # measure self-term scale
+                "psm_M_offdiag_abs": (Ms.abs() * self.off_diag).sum() / (Ms.shape[0] * self.off_diag_sum),
+                "psm_targetM_diag": torch.diagonal(target_M).mean(),       # bootstrap target scale
+            }
+
         return {
             "psm_loss": psm_loss.detach(),
             "psm_diag": psm_diag.detach(),
@@ -191,6 +201,7 @@ class PSMAgent(BaseAgent):
             "orth_loss": orth_loss.detach(),
             "orth_loss_diag": orth_loss_diag.detach(),
             "orth_loss_offdiag": orth_loss_offdiag.detach(),
+            **diag,
         }
 
     # ── SF net update (reference _update_sf, psm.py:495-532) ── #
@@ -234,10 +245,21 @@ class PSMAgent(BaseAgent):
             torch.nn.utils.clip_grad_norm_(self.model.sf_psi.parameters(), self.clip_grad_norm)
         self.optim_sf_psi.step()
 
+        # ── diagnostics (pure logging; no grad/RNG effect on the update above) ──
+        with torch.no_grad():
+            diag = {
+                "sf_phi_norm": phi.norm(dim=-1).mean(),                    # (detached proto) basis norm seen by SF
+                "sf_psi_norm": psis.norm(dim=-1).mean(),                   # SF successor-feature norm (drives q)
+                "sf_M_diag": torch.diagonal(Ms, dim1=1, dim2=2).mean(),
+                "sf_M_offdiag_abs": (Ms.abs() * self.off_diag).sum() / (Ms.shape[0] * self.off_diag_sum),
+                "sf_targetM_diag": torch.diagonal(target_M).mean(),
+            }
+
         return {
             "sf_loss": sf_loss.detach(),
             "sf_diag": sf_diag.detach(),
             "sf_offdiag": sf_offdiag.detach(),
+            **diag,
         }
 
     # ── TD3 actor update (reference _update_td3_actor, psm.py:651-667) ── #
@@ -267,7 +289,8 @@ class PSMAgent(BaseAgent):
             torch.nn.utils.clip_grad_norm_(self.model.actor.parameters(), self.clip_grad_norm)
         self.optim_actor.step()
 
-        return {"actor_loss": actor_loss.detach(), "q": Q.mean().detach()}
+        return {"actor_loss": actor_loss.detach(), "q": Q.mean().detach(),
+                "z_norm": z.norm(dim=-1).mean().detach()}
 
     # ── update orchestration (reference update, psm.py:695-773) ── #
     def update(self, batch: Dict, step: int) -> Dict[str, float]:
