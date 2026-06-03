@@ -214,10 +214,19 @@ class PSMAgent(BaseAgent):
         }
 
     # ── TD3 actor update (reference _update_td3_actor, psm.py:651-667) ── #
-    def _update_actor(self, obs, z):
+    def _update_actor(self, obs, z, action=None):
+        # `action` is a test-only injection hook (default None = current behavior:
+        # sample from the learned actor). Used by the bit-exact reference-equivalence
+        # test to bypass the stochastic actor sample; never set in training.
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             dist = self.model.actor(obs, z, self.actor_std)
-            action = dist.sample(clip=self.stddev_clip)
+            if action is None:
+                action = dist.sample(clip=self.stddev_clip)
+            else:
+                # inject a fixed clipped-noise sample while preserving the
+                # reference straight-through estimator: forward = injected value,
+                # grad-to-actor = d(dist.loc) (TruncatedNormal._clamp pass-through).
+                action = dist._clamp(dist.loc + (action - dist.loc).detach())
             psis = self.model.sf_psi(obs, z, action)  # P x B x z_dim
             Qs = (psis * z).sum(-1)  # P x B
             Q_mean, Q_unc = self.model.get_targets_uncertainty(Qs)  # B
