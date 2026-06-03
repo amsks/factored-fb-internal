@@ -14,7 +14,14 @@ class ProtoBehaviorSampler(nn.Module):
         super().__init__()
         self.action_dim = action_dim
         self.device = device
-        self.powers = torch.tensor([2 ** i for i in range(max_log_seed)][::-1]).to(device).repeat(batch_size, 1)
+        # Register as a non-persistent buffer so module.to(device) moves it, while
+        # keeping it OUT of state_dict (it's deterministically rebuilt in __init__;
+        # the reference does not checkpoint it).
+        self.register_buffer(
+            "powers",
+            torch.tensor([2 ** i for i in range(max_log_seed)][::-1]).to(device).repeat(batch_size, 1),
+            persistent=False,
+        )
         self.max_seed = 2 ** max_log_seed + 20000
         seed_to_action = []
         for i in range(self.max_seed):
