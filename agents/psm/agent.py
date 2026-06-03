@@ -57,15 +57,28 @@ class PSMAgent(BaseAgent):
         self.device = device
         self.device_type = str(device).split(":")[0]  # "cuda:0" -> "cuda" for autocast
 
-        self.model = PSMModel(obs_space, action_dim, z_dim, max_log_seed, batch_size, norm_z,
-                              phi_input, phi_cfg, sf_cfg, actor_cfg, actor_kind,
-                              obs_normalizer_cfg, rgb_encoder_cfg, augmentator_cfg,
-                              num_parallel, device, amp)
+        # Build the model via a hook so subclasses (PSMFlowBCAgent) can return
+        # their own variant (PSMFlowBCModel) without re-implementing __init__.
+        self.model = self._build_model(
+            obs_space, action_dim, z_dim, max_log_seed, batch_size, norm_z,
+            phi_input, phi_cfg, sf_cfg, actor_cfg, actor_kind,
+            obs_normalizer_cfg, rgb_encoder_cfg, augmentator_cfg,
+            num_parallel, device, amp)
         # keep the model's fixed actor std/clip in sync with the agent kwargs
         self.model.actor_std = actor_std
         self.model.stddev_clip = stddev_clip
         self.setup_training()
         self.model.to(self.device)
+
+    def _build_model(self, obs_space, action_dim, z_dim, max_log_seed, batch_size, norm_z,
+                     phi_input, phi_cfg, sf_cfg, actor_cfg, actor_kind,
+                     obs_normalizer_cfg, rgb_encoder_cfg, augmentator_cfg,
+                     num_parallel, device, amp):
+        """Construct the model. Subclasses override to return their variant."""
+        return PSMModel(obs_space, action_dim, z_dim, max_log_seed, batch_size, norm_z,
+                        phi_input, phi_cfg, sf_cfg, actor_cfg, actor_kind,
+                        obs_normalizer_cfg, rgb_encoder_cfg, augmentator_cfg,
+                        num_parallel, device, amp)
 
     @property
     def amp_dtype(self):
@@ -84,7 +97,11 @@ class PSMAgent(BaseAgent):
             list(m.sf_psi.parameters()) + list(m._fw_encoder.parameters()),
             lr=self.lr_sf, weight_decay=self.weight_decay)
         self.optim_psm_psi = torch.optim.Adam(m.psm_psi.parameters(), lr=self.lr_sf, weight_decay=self.weight_decay)
-        if m.actor is not None:
+        # TD3: m.actor is an nn.Module (or None). For the flowbc variant the
+        # PSMFlowBCModel exposes actor() as a method (not a Module); the subclass
+        # builds its own actor/vector-field optimizers in its setup_training, so
+        # only create optim_actor here when there is a real TD3 actor module.
+        if isinstance(m.actor, torch.nn.Module):
             self.optim_actor = torch.optim.Adam(m.actor.parameters(), lr=self.lr_actor, weight_decay=self.weight_decay)
 
         # precompute parameter tuples for the in-place _soft_update_params

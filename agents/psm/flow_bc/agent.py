@@ -78,77 +78,57 @@ class PSMFlowBCAgent(PSMAgent):
         if actor_cfg is None:
             actor_cfg = NoiseConditionedActorArchiConfig()
 
-        # store plain attributes (mirror PSMAgent.__init__)
-        self.obs_space = obs_space
-        self.action_dim = action_dim
-        self.batch_size = batch_size
-        self.z_dim = z_dim
-        self.max_log_seed = max_log_seed
-        self.discount = discount
-        self.lr_sf = lr_sf
-        self.lr_phi = lr_phi
-        self.lr_actor = lr_actor
-        self.weight_decay = weight_decay
-        self.clip_grad_norm = clip_grad_norm
-        self.target_tau = target_tau
-        self.ortho_coef = ortho_coef
-        self.mix_ratio = mix_ratio
-        self.pessimism_penalty = pessimism_penalty
-        self.actor_pessimism_penalty = actor_pessimism_penalty
-        self.actor_std = actor_std
-        self.stddev_clip = stddev_clip
-        self.num_parallel = num_parallel
-        self.amp = amp
-        self.device = device
-        self.device_type = str(device).split(":")[0]
-
-        # FlowBC-specific
+        # Stash FlowBC-specific config BEFORE super().__init__ so _build_model
+        # (called inside super().__init__) sees actor_vf_cfg, and setup_training
+        # (also called inside super().__init__) sees flow_steps/lr_actor_vf/bc_coeff.
         self.flow_steps = flow_steps
         self.lr_actor_vf = lr_actor_vf
         self.bc_coeff = bc_coeff
+        self._actor_vf_cfg = actor_vf_cfg
 
-        # actor_kind="flowbc" => PSMModel builds NO TD3 actor; PSMFlowBCModel
-        # attaches _actor (NoiseConditionedActor) + _actor_vf (SimpleVectorField).
-        self.model = PSMFlowBCModel(
-            obs_space, action_dim, actor_cfg=actor_cfg, actor_vf_cfg=actor_vf_cfg,
+        # actor_kind="flowbc" => PSMModel builds NO TD3 actor; _build_model below
+        # returns a PSMFlowBCModel that attaches _actor (NoiseConditionedActor) +
+        # _actor_vf (SimpleVectorField). Everything else (attr assignment, std/clip
+        # sync, setup_training, model.to) is inherited from PSMAgent.__init__.
+        super().__init__(
+            obs_space, action_dim, batch_size=batch_size, z_dim=z_dim,
+            max_log_seed=max_log_seed, phi_cfg=phi_cfg, sf_cfg=sf_cfg,
+            actor_cfg=actor_cfg, norm_z=norm_z, phi_input=phi_input,
+            obs_normalizer_cfg=obs_normalizer_cfg, rgb_encoder_cfg=rgb_encoder_cfg,
+            augmentator_cfg=augmentator_cfg, num_parallel=num_parallel, discount=discount,
+            lr_sf=lr_sf, lr_phi=lr_phi, lr_actor=lr_actor, weight_decay=weight_decay,
+            clip_grad_norm=clip_grad_norm, target_tau=target_tau, ortho_coef=ortho_coef,
+            mix_ratio=mix_ratio, pessimism_penalty=pessimism_penalty,
+            actor_pessimism_penalty=actor_pessimism_penalty, actor_std=actor_std,
+            stddev_clip=stddev_clip, amp=amp, device=device, actor_kind="flowbc",
+        )
+
+    def _build_model(self, obs_space, action_dim, z_dim, max_log_seed, batch_size, norm_z,
+                     phi_input, phi_cfg, sf_cfg, actor_cfg, actor_kind,
+                     obs_normalizer_cfg, rgb_encoder_cfg, augmentator_cfg,
+                     num_parallel, device, amp):
+        """Build PSMFlowBCModel (instead of PSMModel) so the flow actor + vector
+        field are attached. actor_kind is forced to "flowbc" by PSMFlowBCAgent.__init__."""
+        return PSMFlowBCModel(
+            obs_space, action_dim, actor_cfg=actor_cfg, actor_vf_cfg=self._actor_vf_cfg,
             z_dim=z_dim, max_log_seed=max_log_seed, batch_size=batch_size,
             norm_z=norm_z, phi_input=phi_input, phi_cfg=phi_cfg, sf_cfg=sf_cfg,
-            actor_kind="flowbc", obs_normalizer_cfg=obs_normalizer_cfg, rgb_encoder_cfg=rgb_encoder_cfg,
+            actor_kind=actor_kind, obs_normalizer_cfg=obs_normalizer_cfg, rgb_encoder_cfg=rgb_encoder_cfg,
             augmentator_cfg=augmentator_cfg, num_parallel=num_parallel, device=device, amp=amp,
         )
-        self.model.actor_std = actor_std
-        self.model.stddev_clip = stddev_clip
-        self.setup_training()
-        self.model.to(self.device)
 
     def setup_training(self) -> None:
+        # Run base setup (train/requires_grad, phi/sf/psm optimizers, target
+        # paramlists, off_diag). Base PSMAgent.setup_training builds optim_actor
+        # only when m.actor is not None; for flowbc m.actor is None, so the flow
+        # actor + vector-field optimizers are added here.
+        super().setup_training()
         m = self.model
-        m.train(True)
-        m.requires_grad_(True)
-        # Encoder ownership (pixels only; empty for state Identity encoders):
-        #   _bw_encoder (goal) trained with phi; _fw_encoder (obs) trained with sf_psi.
-        self.optim_phi = torch.optim.Adam(
-            list(m.phi.parameters()) + list(m._bw_encoder.parameters()),
-            lr=self.lr_phi, weight_decay=self.weight_decay)
-        self.optim_sf_psi = torch.optim.Adam(
-            list(m.sf_psi.parameters()) + list(m._fw_encoder.parameters()),
-            lr=self.lr_sf, weight_decay=self.weight_decay)
-        self.optim_psm_psi = torch.optim.Adam(m.psm_psi.parameters(), lr=self.lr_sf, weight_decay=self.weight_decay)
         # actor = the noise-conditioned flow actor head (NOT a TD3 actor)
         self.optim_actor = torch.optim.Adam(m._actor.parameters(), lr=self.lr_actor, weight_decay=self.weight_decay)
         self.actor_vf_optimizer = torch.optim.Adam(
             m._actor_vf.parameters(), lr=self.lr_actor_vf, weight_decay=self.weight_decay
         )
-
-        self._phi_paramlist = tuple(m.phi.parameters())
-        self._target_phi_paramlist = tuple(m.target_phi.parameters())
-        self._sf_psi_paramlist = tuple(m.sf_psi.parameters())
-        self._target_sf_psi_paramlist = tuple(m.target_sf_psi.parameters())
-        self._psm_psi_paramlist = tuple(m.psm_psi.parameters())
-        self._target_psm_psi_paramlist = tuple(m.target_psm_psi.parameters())
-
-        self.off_diag = 1 - torch.eye(self.batch_size, self.batch_size, device=self.device)
-        self.off_diag_sum = self.off_diag.sum()
 
     # ── flow actor sampler (replaces the TD3 actor's stochastic sample) ── #
     def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
