@@ -47,6 +47,8 @@ multirun/
 
 # Claude-generated planning/spec docs — kept local only, never committed
 docs/superpowers/
+# Per-repo agent orientation doc — local only, synced to remote out-of-band
+/CLAUDE.md
 
 # macOS Finder metadata
 .DS_Store
