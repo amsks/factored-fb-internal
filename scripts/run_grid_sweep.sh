@@ -20,6 +20,9 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TS="$(date +%Y%m%d_%H%M%S)"
 LOG_DIR="$REPO/logs/grid_$TS"
+# Absolute venv interpreter (mirrors scripts/agents/_common.sh): a tmux/cron
+# non-login shell has no activated env, so bare `python` is not on PATH.
+PY="${PYTHON:-$REPO/.venv/bin/python}"
 
 AGENT="${AGENT:?set AGENT}"
 DOMAIN="${DOMAIN:-cube_single}"
@@ -44,7 +47,7 @@ for a in $KNOB_A_VALS; do
       grp="${RUN_GROUP_BASE}__${KNOB_A_NAME}$(_tag "$a")__${KNOB_B_NAME}$(_tag "$b")"
       name="${grp}__s${s}"
       log="$LOG_DIR/${name}.log"
-      cmd="python train.py agent=$AGENT domain=$DOMAIN \
+      cmd="$PY train.py agent=$AGENT domain=$DOMAIN \
 $KNOB_A_NAME=$a $KNOB_B_NAME=$b seed=$s \
 num_train_steps=$TRAIN_STEPS data_path=$DATA_PATH \
 use_wandb=true wandb_entity=$WANDB_ENTITY wandb_group=$grp wandb_run_name=$name \
@@ -82,7 +85,7 @@ for i in "${!CMDS[@]}"; do
   slot=$(find_free_slot); gpu=$(( slot % N_GPUS ))
   echo "[grid] $(date +%T) launch ${NAMES[$i]} on GPU$gpu (slot $slot)"
   ( cd "$REPO"; CUDA_VISIBLE_DEVICES="$gpu" ${CMDS[$i]} > "${LOGS[$i]}" 2>&1 && rc=0 || rc=$?; \
-    echo "[grid] $(date +%T) DONE ${NAMES[$i]} rc=$rc" ) &
+    echo "[grid] $(date +%T) DONE ${NAMES[$i]} rc=$rc"; exit $rc ) &
   SLOT_PIDS[$slot]="$!"
   ACTIVE_PIDS+=("$!")
 done
