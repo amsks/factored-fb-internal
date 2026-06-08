@@ -11,6 +11,11 @@ substituting our attribute names (self.model.X, self.X). A later test asserts
 bit-exact equivalence, so the diag/offdiag/ortho/Q signs, the `* Ms.shape[0]`
 diagonal scaling, the `phi.detach()` in SF, the SF target using `self.phi` (not
 target_phi), and the `0*ortho_coef` SF-ortho term are preserved exactly.
+
+NOTE: _update_psm's phi-orthonormality term is now `self.ortho_coef * orth_loss`
+(default 1.0 == the reference's hardcoded `1 *`, so the bit-exact equivalence
+test still passes). ortho_coef is an intentional ablation knob BEYOND the paper
+(which fixes the orthonormality weight at 1).
 """
 
 from __future__ import annotations
@@ -172,7 +177,7 @@ class PSMAgent(BaseAgent):
             orth_loss_diag = -Cov.diag().mean()
             orth_loss_offdiag = 0.5 * (Cov * self.off_diag).pow(2).sum() / self.off_diag_sum
             orth_loss = orth_loss_offdiag + orth_loss_diag
-            psm_loss = psm_loss + 1 * orth_loss
+            psm_loss = psm_loss + self.ortho_coef * orth_loss
 
         # optimize PSM (psm_psi + phi)
         self.optim_psm_psi.zero_grad(set_to_none=True)
