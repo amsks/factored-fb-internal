@@ -12,7 +12,7 @@ record the observation distance ||Omega(s1)-Omega(s2)|| and the tail-probability
 gap |v_hat(s1)-v_hat(s2)|. A smooth value would force the gap to 0 as the
 observation distance shrinks; a real interaction gap does not.
 
-Writes analysis/repsep/gap_pairs_<method>.parquet {task, dobs, dv} and
+Writes analysis/value/repsep/gap_pairs_<method>.parquet {task, dobs, dv} and
 gap_points_<method>.parquet {task, vhat, ...}. Run under .venv. MUJOCO_GL=glfw.
 """
 from __future__ import annotations
@@ -111,11 +111,11 @@ def main() -> int:
               f"(n={len(vA)}, K={K}x2)")
 
     pd.DataFrame(pair_rows, columns=["task", "dobs", "dv"]).to_parquet(
-        REPO / f"analysis/repsep/gap_pairs_{args.method}.parquet")
+        REPO / f"analysis/value/repsep/gap_pairs_{args.method}.parquet")
     pd.DataFrame(pt_rows, columns=["task", "vhat"]).to_parquet(
-        REPO / f"analysis/repsep/gap_points_{args.method}.parquet")
+        REPO / f"analysis/value/repsep/gap_points_{args.method}.parquet")
     pd.DataFrame(noise_rows, columns=["task", "noise"]).to_parquet(
-        REPO / f"analysis/repsep/gap_noise_{args.method}.parquet")
+        REPO / f"analysis/value/repsep/gap_noise_{args.method}.parquet")
     print(f"[gap:{args.method}] wrote gap_pairs/gap_points/gap_noise "
           f"({len(pair_rows)} pairs)")
     return 0

@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parent.parent
-STATES = REPO / "analysis/training_value_multiseed/p0/training_states.npz"
+STATES = REPO / "analysis/value/training_value_multiseed/p0/training_states.npz"
 CONTACT = {"grasp", "transport"}
 
 # named column slices over the 28-d state
@@ -79,7 +79,7 @@ def main() -> int:
           "FB 0.57, GCIQL 0.65, CRL 0.59, RLDP 0.56 — see tab:repsep.)")
 
     import json
-    out = REPO / "analysis/repsep/grasp_feature.json"
+    out = REPO / "analysis/value/repsep/grasp_feature.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(
         {name: {"dims": d, "mean": mu, "std": sd}

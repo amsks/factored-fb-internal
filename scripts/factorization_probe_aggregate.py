@@ -2,7 +2,7 @@
 into one cross-seed verdict + R^2 table.
 
   .venv/bin/python -m scripts.factorization_probe_aggregate \
-    --root analysis/factorization_probe --out analysis/factorization_probe/aggregate
+    --root analysis/probes/factorization_probe --out analysis/probes/factorization_probe/aggregate
 """
 import argparse
 import json

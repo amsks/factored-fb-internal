@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """scripts/plot_repsep.py — representation-aliasing figure (rlbrew P4).
 
-Reads the per-method grasp-state representations in analysis/repsep/*.parquet
+Reads the per-method grasp-state representations in analysis/value/repsep/*.parquet
 (columns {split, task, success, rep_0..rep_k}) and renders, as the headline P4
 visual, that the learned representations do NOT separate soon-to-succeed from
 soon-to-fail in-hand states.
@@ -13,7 +13,7 @@ CRL, RLDP}; each point is an in-hand state coloured green=success-bound /
 vermillion=fail-bound, each panel annotated with its linear-probe AUC. AUC ~0.5
 = no linear separation = aliasing; the train->eval AUC drop = overgeneralisation.
 
-Outputs PAPER/rlbrew/figures/fig_repsep.png and analysis/repsep/auc_table.md.
+Outputs PAPER/rlbrew/figures/fig_repsep.png and analysis/value/repsep/auc_table.md.
 
 Run under .venv (sklearn + seaborn).
 """
@@ -35,7 +35,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 REPO = Path(__file__).resolve().parent.parent
-REPSEP = REPO / "analysis" / "repsep"
+REPSEP = REPO / "analysis" / "value" / "repsep"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
 sns.set_palette("colorblind")

@@ -12,12 +12,12 @@ Usage (FB):
         --config RESULTS/Factored-FB-cube-run/<run>/.hydra/config.yaml \
         --checkpoint RESULTS/Factored-FB-cube-run/<run>/checkpoints/final.pt \
         --data-path datasets --mujoco-gl glfw --n-states 20000 \
-        --out analysis/training_value
+        --out analysis/value/training_value
 
 Usage (GCIQL):
     .venv-jax-cpu/bin/python scripts/training_value_profile.py --method gciql \
         --run-dir RESULTS/gciql_.../sd003_... --step 1000000 \
-        --out analysis/training_value --mujoco-gl glfw
+        --out analysis/value/training_value --mujoco-gl glfw
 """
 
 from __future__ import annotations
@@ -499,7 +499,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--method", required=True,
                     choices=["fb", "gciql", "crl", "rldp", "tdmpc2"])
-    ap.add_argument("--out", default="analysis/training_value")
+    ap.add_argument("--out", default="analysis/value/training_value")
     ap.add_argument("--n-states", type=int, default=20000)
     ap.add_argument("--mujoco-gl", default=None)
     # fb

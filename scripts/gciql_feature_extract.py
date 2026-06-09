@@ -10,7 +10,7 @@ i.e. what the final value Dense reads from — the analog of FB's backward map B
 Example:
   .venv-jax-cpu/bin/python -m scripts.gciql_feature_extract \
     --run-dir results/gciql_20260518_201030/factored-fb/factored-fb-gciql/sd001_20260518_201036 \
-    --step 1000000 --data-path datasets --out analysis/gciql_feature/state_sd001 \
+    --step 1000000 --data-path datasets --out analysis/features_raw/gciql_feature/state_sd001 \
     --n-states 6000 --tasks 1,2,3,4,5
 Use --inspect once to print the intermediates tree and confirm the penultimate.
 """

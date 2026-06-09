@@ -12,7 +12,7 @@ Bottom row (eval, illustrative): value at the policy's own in-hand grasps split
 by terminal outcome (success / maintain-fail / transport-fail); high-variance
 over ~50 episodes.
 
-Reads analysis/repsep/value_{train,eval}_{fb,rldp}.parquet and
+Reads analysis/value/repsep/value_{train,eval}_{fb,rldp}.parquet and
 forward_probe_{fb,rldp}.json. Run under .venv.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ import pandas as pd
 import seaborn as sns
 
 REPO = Path(__file__).resolve().parent.parent
-REPSEP = REPO / "analysis" / "repsep"
+REPSEP = REPO / "analysis" / "value" / "repsep"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
 sns.set_palette("colorblind")
