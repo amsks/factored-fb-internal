@@ -1,0 +1,32 @@
+# @package _global_
+# Param-matched state encoder ablation. State FB+FlowBC on cube-single, but with
+# two jointly-trained MLP encoders (fw + bw, ~5.15M each) in place of DrQ's conv
+# encoders, so total trainable online params (~15.54M) match the pixel DrQ run.
+# Isolates the parameter-count / representation-capacity confound — NOT pixels.
+# See PAPER/specs/2026-06-07-encmatch-state-encoder-ablation.md.
+defaults:
+  - /agent: fb_flowbc
+  - _self_
+
+domain: cube-single-play-v0       # state obs (train.yaml default), fb_flowbc agent
+bc_coeff: 3.0
+lr_b: 1.0e-4
+ortho_coef: 1000                  # matches the fb_state launcher (scripts/agents/fb/state.sh)
+
+L_dim: 256
+
+# MLP encoders in the _fw_encoder / _bw_encoder slots (train.build_pixel_cfgs
+# name == "mlp"). feature_dim=256 makes every downstream net param-identical to
+# the pixel run; hidden_dim/hidden_layers carry the ~10.3M matched capacity.
+rgb_encoder:
+  name: mlp
+  feature_dim: 256
+  hidden_dim: 1100
+  hidden_layers: 5
+
+# Thin 0-layer projection like the pixel config — the encoders do the
+# representation work, left_encoder is just 256->256.
+left_encoder:
+  hidden_dim: 512
+  hidden_layers: 0
+  norm: true

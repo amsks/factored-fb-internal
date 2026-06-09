@@ -473,6 +473,54 @@ class IdentityNNConfig(BaseConfig):
         return IdentityNN(obs_space)
 
 
+class MLPEncoderArchiConfig(BaseConfig):
+    """State-side analogue of DrQEncoderArchiConfig.
+
+    Used to give a state FB run two jointly-trained MLP encoders structurally
+    parallel to DrQ's two conv encoders (param-matched ablation). Plugged into
+    the _fw_encoder/_bw_encoder slots via train.build_pixel_cfgs (name == "mlp").
+    """
+
+    name: tp.Literal["mlp"] = "mlp"
+    feature_dim: int = 256
+    hidden_dim: int = 1100
+    hidden_layers: int = 5
+
+    def build(self, obs_space):
+        return MLPEncoder(obs_space, self)
+
+
+class MLPEncoder(nn.Module):
+    """MLP feature encoder: obs -> feature_dim. Mirrors DrQEncoder's interface
+    (forward(obs) -> features; .output_space = Box(feature_dim,)). Trunk is
+    `hidden_layers` x (Linear + ReLU); projection is Linear -> LayerNorm -> Tanh,
+    the same output-normalization DrQEncoder applies in its proj head."""
+
+    def __init__(self, obs_space, cfg: MLPEncoderArchiConfig) -> None:
+        super().__init__()
+        self.cfg = cfg
+        assert len(obs_space.shape) == 1, "MLPEncoder obs_space must have a 1D shape (state)"
+        assert cfg.hidden_layers >= 1, "MLPEncoder needs at least one trunk layer"
+
+        seq = [nn.Linear(obs_space.shape[0], cfg.hidden_dim), nn.ReLU()]
+        for _ in range(cfg.hidden_layers - 1):
+            seq += [nn.Linear(cfg.hidden_dim, cfg.hidden_dim), nn.ReLU()]
+        self.trunk = nn.Sequential(*seq)
+        self.proj = nn.Sequential(
+            nn.Linear(cfg.hidden_dim, cfg.feature_dim),
+            nn.LayerNorm(cfg.feature_dim),
+            nn.Tanh(),
+        )
+        self.repr_dim = cfg.feature_dim
+
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        return self.proj(self.trunk(obs))
+
+    @property
+    def output_space(self):
+        return gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=(self.repr_dim,), dtype=np.float32)
+
+
 ##########################
 # Visual modules (ported verbatim from td_jepa metamotivo/nn_models.py:329-409)
 ##########################
