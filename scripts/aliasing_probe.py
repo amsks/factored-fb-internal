@@ -16,8 +16,8 @@ states). Run under .venv.
 
 Usage:
     .venv/bin/python scripts/aliasing_probe.py \
-        --root analysis/training_value_multiseed \
-        --out analysis/training_value_multiseed/aggregate_rldp
+        --root analysis/value/training_value_multiseed \
+        --out analysis/value/training_value_multiseed/aggregate_rldp
 """
 from __future__ import annotations
 
@@ -89,8 +89,8 @@ def _matched_accuracy(obs_z, V_task, pos_idx, neg_idx, max_neg=2000):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default=str(REPO / "analysis/training_value_multiseed"))
-    ap.add_argument("--out", default=str(REPO / "analysis/training_value_multiseed/aggregate_rldp"))
+    ap.add_argument("--root", default=str(REPO / "analysis/value/training_value_multiseed"))
+    ap.add_argument("--out", default=str(REPO / "analysis/value/training_value_multiseed/aggregate_rldp"))
     args = ap.parse_args()
     root, out = Path(args.root), Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

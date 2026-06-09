@@ -127,7 +127,7 @@ def fig_support(out: Path) -> None:
 
 
 def _aliasing_table():
-    f = ANALYSIS / "training_value_multiseed/aggregate_rldp/aliasing_matched_pairs.parquet"
+    f = ANALYSIS / "value/training_value_multiseed/aggregate_rldp/aliasing_matched_pairs.parquet"
     d = pd.read_parquet(f)
     ml = {"fb": "FB", "gciql": "GCIQL", "crl": "CRL", "rldp": "RLDP"}
     g = d.groupby(["method", "region"])["rank_acc"].agg(["mean", "std"])

@@ -5,7 +5,7 @@ Reads the counterfactual grasp records (obs + agent's own success + value) and
 emits, per grasp, the method's learned state representation so the linear-probe
 ladder can be computed under .venv (sklearn). GCIQL rep = penultimate features of
 the goal-conditioned value net; CRL rep = the contrastive state embedding
-phi(s, pi(s,g)). Writes analysis/repsep/cf_repfeat_<method>.parquet
+phi(s, pi(s,g)). Writes analysis/value/repsep/cf_repfeat_<method>.parquet
 {task, success, value, obs_*, rep_*}. Run under .venv-jax-cpu.
 """
 from __future__ import annotations
@@ -34,7 +34,7 @@ def main() -> int:
     args = ap.parse_args()
 
     import jax
-    rec = pd.read_parquet(REPO / f"analysis/repsep/cf_records_{args.method}.parquet")
+    rec = pd.read_parquet(REPO / f"analysis/value/repsep/cf_records_{args.method}.parquet")
     obs_cols = [c for c in rec.columns if c.startswith("obs_")]
 
     if args.method == "gciql":
@@ -89,7 +89,7 @@ def main() -> int:
                         **{f"obs_{i}": float(o[i]) for i in range(o.shape[0])},
                         **{f"rep_{i}": float(r[i]) for i in range(r.shape[0])}}
                        for t, s, v, o, r in out_rows])
-    out = REPO / f"analysis/repsep/cf_repfeat_{args.method}.parquet"
+    out = REPO / f"analysis/value/repsep/cf_repfeat_{args.method}.parquet"
     df.to_parquet(out)
     print(f"[cf_repfeat:{args.method}] {len(df)} rows, rep dim "
           f"{sum(c.startswith('rep_') for c in df.columns)} -> {out}")

@@ -9,7 +9,7 @@ FB uses z = project_z(B(goal_obs)) — so B's resolution enters directly.
   # FB (.venv):           --method fb  --config <run>/.hydra/config.yaml --checkpoint ...
   # GCIQL (.venv-jax-cpu):--method gciql --run-dir <gciql_run> --step 1000000
   .../python -m scripts.traj_value_profile --method fb ... \
-     --data-path datasets --out analysis/traj_value/fb.parquet --n-traj 1000
+     --data-path datasets --out analysis/value/traj_value/fb.parquet --n-traj 1000
 Writes <out> (per-step) and <out stem>_summary.csv (per-trajectory).
 """
 import argparse

@@ -4,15 +4,15 @@ cycles (= held-segments of >= K_STEPS), then break the distribution down by
 the 4-phase failure mode.
 
 Inputs (per-step eval rollouts + per-episode classification):
-  FB state         : analysis/representation_profile/sN_final/value_steps.parquet
-                     analysis/phase_probe_v2/sN_final/per_episode.parquet
-  GCIQL state      : analysis/gciql_profile_v2/sN_final/{value_steps,phase_funnel}.parquet
-  FB pixel         : analysis/representation_profile_pixel/sN_final/value_steps.parquet
-                     analysis/phase_probe_pixel_v2/sN_final/per_episode.parquet
-  GCIQL pixel DrQ  : analysis/gciql_profile_pixel_drq_v2/sN_final/{value_steps,phase_funnel}.parquet
+  FB state         : analysis/probes/representation_profile/sN_final/value_steps.parquet
+                     analysis/probes/phase_probe_v2/sN_final/per_episode.parquet
+  GCIQL state      : analysis/profiles/gciql_profile_v2/sN_final/{value_steps,phase_funnel}.parquet
+  FB pixel         : analysis/probes/representation_profile_pixel/sN_final/value_steps.parquet
+                     analysis/probes/phase_probe_pixel_v2/sN_final/per_episode.parquet
+  GCIQL pixel DrQ  : analysis/profiles/gciql_profile_pixel_drq_v2/sN_final/{value_steps,phase_funnel}.parquet
 
 Output:
-  analysis/eval_pickup_cycles/summary.md  + per_episode.parquet
+  analysis/misc/eval_pickup_cycles/summary.md  + per_episode.parquet
 """
 
 from __future__ import annotations
@@ -140,18 +140,18 @@ def _summarize(df: pd.DataFrame, name: str) -> tuple[pd.DataFrame, list[str]]:
 
 
 def main() -> None:
-    out = Path("analysis/eval_pickup_cycles")
+    out = Path("analysis/misc/eval_pickup_cycles")
     out.mkdir(parents=True, exist_ok=True)
 
     cells = [
-        ("FB state", "analysis/representation_profile/s*_final/value_steps.parquet",
-         "analysis/phase_probe_v2/s*_final/per_episode.parquet", "fb"),
-        ("GCIQL state", "analysis/gciql_profile_v2/s*_final/value_steps.parquet",
-         "analysis/gciql_profile_v2/s*_final/phase_funnel.parquet", "gciql"),
-        ("FB pixel (DrQ)", "analysis/representation_profile_pixel/s*_final/value_steps.parquet",
-         "analysis/phase_probe_pixel_v2/s*_final/per_episode.parquet", "fb"),
-        ("GCIQL pixel DrQ", "analysis/gciql_profile_pixel_drq_v2/s*_final/value_steps.parquet",
-         "analysis/gciql_profile_pixel_drq_v2/s*_final/phase_funnel.parquet", "gciql"),
+        ("FB state", "analysis/probes/representation_profile/s*_final/value_steps.parquet",
+         "analysis/probes/phase_probe_v2/s*_final/per_episode.parquet", "fb"),
+        ("GCIQL state", "analysis/profiles/gciql_profile_v2/s*_final/value_steps.parquet",
+         "analysis/profiles/gciql_profile_v2/s*_final/phase_funnel.parquet", "gciql"),
+        ("FB pixel (DrQ)", "analysis/probes/representation_profile_pixel/s*_final/value_steps.parquet",
+         "analysis/probes/phase_probe_pixel_v2/s*_final/per_episode.parquet", "fb"),
+        ("GCIQL pixel DrQ", "analysis/profiles/gciql_profile_pixel_drq_v2/s*_final/value_steps.parquet",
+         "analysis/profiles/gciql_profile_pixel_drq_v2/s*_final/phase_funnel.parquet", "gciql"),
     ]
     all_df, all_lines = [], [
         "# Eval pickup-and-place cycle counts (FB vs GCIQL, state vs pixel)",

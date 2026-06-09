@@ -4,9 +4,9 @@ trajectories — the marginalization-free version of "does the value peak at the
 goal". Value is min-max normalized PER TRAJECTORY so FB and GCIQL shapes compare.
 
   .venv/bin/python -m scripts.traj_value_figures \
-    --fb analysis/traj_value/fb_s3.parquet \
-    --gciql analysis/traj_value/gciql_sd001.parquet \
-    --out analysis/traj_value/traj_value.png
+    --fb analysis/value/traj_value/fb_s3.parquet \
+    --gciql analysis/value/traj_value/gciql_sd001.parquet \
+    --out analysis/value/traj_value/traj_value.png
 """
 import argparse
 from pathlib import Path

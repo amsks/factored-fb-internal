@@ -9,7 +9,7 @@ reach-before-end), averaged over the five eval tasks.
   GCIQL: V(s, g) = value(s, g)            (goal = eval-task goal observation)
   CRL:   Q(s, pi(s,g), g) = phi(s,a).psi(g) / sqrt(d)   (on-policy bilinear value)
 
-Writes analysis/repsep/value_probe_<method>.json. Run under .venv-jax-cpu.
+Writes analysis/value/repsep/value_probe_<method>.json. Run under .venv-jax-cpu.
 """
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ def main() -> int:
     ap.add_argument("--step", type=int, default=1000000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--states",
-                    default="analysis/training_value_multiseed/p0/training_states.npz")
+                    default="analysis/value/training_value_multiseed/p0/training_states.npz")
     args = ap.parse_args()
 
     st = np.load(args.states, allow_pickle=True)
@@ -119,7 +119,7 @@ def main() -> int:
             per_task.append(_auc(outcome[idx, ti - 1], v))
 
     per_task = np.array(per_task, float)
-    out = REPO / f"analysis/repsep/value_probe_{args.method}.json"
+    out = REPO / f"analysis/value/repsep/value_probe_{args.method}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"method": args.method,
                                "V_mean": float(np.nanmean(per_task)),

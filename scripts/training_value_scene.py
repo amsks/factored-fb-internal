@@ -6,7 +6,7 @@ outcome, + a dataset-support panel. Pure data
 
 Usage:
     .venv/bin/python scripts/training_value_scene.py \
-        --root analysis/training_value_multiseed --data-path datasets \
+        --root analysis/value/training_value_multiseed --data-path datasets \
         --mujoco-gl glfw
 """
 
@@ -260,7 +260,7 @@ def _render(task, method, vdf, fdf, support_xy, anchors, bg_img, out_dir):
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default="analysis/training_value_multiseed")
+    ap.add_argument("--root", default="analysis/value/training_value_multiseed")
     ap.add_argument("--data-path", default="datasets")
     ap.add_argument("--out", default=None)
     ap.add_argument("--tasks", nargs="*",
@@ -280,7 +280,7 @@ def main() -> None:
     out_dir = Path(args.out) if args.out else root / "aggregate" / "scene"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    sx = REPO_ROOT / "analysis" / "scene"
+    sx = REPO_ROOT / "analysis" / "misc" / "scene"
     cal = json.loads((sx / "calib.json").read_text())
     bg_img = (mpimg.imread(str(sx / "topdown.png"))
               if (sx / "topdown.png").exists() and cal.get("photoreal")
