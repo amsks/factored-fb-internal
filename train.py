@@ -45,11 +45,13 @@ from nn_models import (
     DrQEncoderArchiConfig,
     ForwardArchiConfig,
     IdentityNNConfig,
+    MLPEncoderArchiConfig,
     NoiseConditionedActorArchiConfig,
     SimpleActorArchiConfig,
     SimpleVectorFieldArchiConfig,
 )
 from normalizers import IdentityNormalizerConfig, RGBNormalizerConfig
+from resume import assert_no_clobber, resolve_resume, write_train_state
 
 
 def set_seed(seed: int) -> None:
@@ -82,6 +84,13 @@ def build_pixel_cfgs(cfg):
     rgb_block = cfg.get("rgb_encoder", None)
     if rgb_block is not None and rgb_block.get("name") == "drq":
         rgb_encoder_cfg = DrQEncoderArchiConfig(feature_dim=rgb_block.get("feature_dim"))
+    elif rgb_block is not None and rgb_block.get("name") == "mlp":
+        # State-side param-matched MLP encoder (cube_single_encmatch ablation).
+        rgb_encoder_cfg = MLPEncoderArchiConfig(
+            feature_dim=rgb_block.get("feature_dim", 256),
+            hidden_dim=rgb_block.get("hidden_dim", 1100),
+            hidden_layers=rgb_block.get("hidden_layers", 5),
+        )
     else:
         rgb_encoder_cfg = IdentityNNConfig()
 
@@ -316,10 +325,18 @@ def main(cfg: DictConfig) -> None:
     set_seed(cfg.seed)
     print(OmegaConf.to_yaml(cfg))
 
+    save_dir = Path(cfg.save_dir)
+    plan = resolve_resume(save_dir, cfg.get("resume", False), cfg.get("resume_from"))
+    if plan.ckpt_path is None:
+        assert_no_clobber(save_dir, cfg.get("resume", False), cfg.get("force", False))
+    save_dir.mkdir(parents=True, exist_ok=True)
+    if plan.ckpt_path is not None:
+        print(f"[resume] from {plan.ckpt_path} at step {plan.start_step}")
+
     if cfg.use_wandb:
         import wandb
         run_name = cfg.wandb_run_name or f"{cfg.domain}__{cfg.agent}__s{cfg.seed}"
-        wandb.init(
+        init_kwargs = dict(
             project=cfg.wandb_project,
             entity=cfg.wandb_entity,
             group=cfg.wandb_group,
@@ -329,6 +346,13 @@ def main(cfg: DictConfig) -> None:
             dir=os.getcwd(),
             save_code=cfg.wandb_save_code,
         )
+        if plan.wandb_run_id:
+            init_kwargs["id"] = plan.wandb_run_id
+            init_kwargs["resume"] = "allow"
+        wandb.init(**init_kwargs)
+        wandb_run_id = wandb.run.id
+    else:
+        wandb_run_id = None
 
     print(f"[train] env: {cfg.domain}")
     env, _ = create_ogbench_env(
@@ -362,8 +386,10 @@ def main(cfg: DictConfig) -> None:
     agent = make_agent(cfg, obs_space, action_dim)
     print(f"[train] agent: {type(agent).__name__}")
 
-    save_dir = Path(cfg.save_dir)
-    save_dir.mkdir(parents=True, exist_ok=True)
+    if plan.ckpt_path is not None:
+        agent.load_state_dict(torch.load(plan.ckpt_path, map_location=cfg.device))
+        set_seed(cfg.seed + plan.start_step)   # avoid replaying identical minibatches
+        print(f"[resume] agent state loaded; continuing from step {plan.start_step}")
 
     video_dir = Path(cfg.eval_videos_dir)
     if cfg.save_eval_videos:
@@ -395,11 +421,12 @@ def main(cfg: DictConfig) -> None:
     fps_start_time = time.time()
     total_metrics: Dict[str, float] | None = None
 
-    for step in range(0, cfg.num_train_steps + 1):
+    for step in range(plan.start_step, cfg.num_train_steps + 1):
         # Checkpoint (skip t=0 per td_jepa convention)
         if step > 0 and step % cfg.save_every == 0:
             ckpt = save_dir / f"step_{step}.pt"
             torch.save(agent.state_dict(), ckpt)
+            write_train_state(save_dir, step, wandb_run_id, ckpt.name)
             print(f"[ckpt] {ckpt}")
 
         # Eval (td_jepa's EveryNStepsChecker triggers at t=0 and every N)
