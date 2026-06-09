@@ -289,7 +289,7 @@ def test_run_representation_profile_cube_coverage():
 def test_aggregate_builds_tables_and_story(tmp_path):
     import importlib
     import pandas as pd
-    agg = importlib.import_module("scripts.representation_profile_aggregate")
+    agg = importlib.import_module("scripts.probes.representation_profile_aggregate")
     for s in (3, 7):
         d = tmp_path / f"s{s}_final"
         d.mkdir()
@@ -366,7 +366,7 @@ def test_v_values_broadcasts_global_z_over_batch():
 
 def test_aggregate_verdict_helpers():
     import importlib
-    agg = importlib.import_module("scripts.representation_profile_aggregate")
+    agg = importlib.import_module("scripts.probes.representation_profile_aggregate")
     # T1: success monotone, fail flat -> SUPPORTS
     assert agg._verdict_t1(0.40, 0.02)[0] == "SUPPORTS"
     # T1: fail rises more than success -> CONTRADICTS

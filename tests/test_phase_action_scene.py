@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts import gciql_profile_aggregate as ga
+from scripts.profiles import gciql_profile_aggregate as ga
 
 
 def test_phase_action_fields_basic():

@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts import wandb_pull as wp
+from scripts.eval import wandb_pull as wp
 
 
 def test_metric_keys_cube_includes_canonical_eval_and_train():

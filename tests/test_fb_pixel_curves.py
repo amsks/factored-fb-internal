@@ -8,8 +8,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts import fb_gciql_curves as fc
-from scripts import fb_pixel_curves as fp
+from scripts.figures import fb_gciql_curves as fc
+from scripts.figures import fb_pixel_curves as fp
 
 
 def _write_fb_cache(cache_dir: Path, seeds):

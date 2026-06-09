@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts import gciql_profile as gp
+from scripts.profiles import gciql_profile as gp
 from evals.phase_probe import Thresholds
 
 
@@ -157,7 +157,7 @@ def _seed_dir(root, s):
 
 def test_gciql_aggregate_and_comparison(tmp_path):
     import importlib
-    agg = importlib.import_module("scripts.gciql_profile_aggregate")
+    agg = importlib.import_module("scripts.profiles.gciql_profile_aggregate")
     groot = tmp_path / "gciql"
     for s in (1, 2):
         _seed_dir(groot, s)
@@ -211,7 +211,7 @@ def _seed_steps(_P, root, s, outcome, n=8):
 
 def test_zscore_v_is_per_call_standardised_and_order_preserving():
     import numpy as np
-    from scripts.gciql_profile_aggregate import _zscore_v
+    from scripts.profiles.gciql_profile_aggregate import _zscore_v
     df = pd.DataFrame({"V": [2000.0, 2100.0, 1900.0, 2050.0, 1950.0]})
     out = _zscore_v(df)
     assert abs(float(out["Vz"].mean())) < 1e-9
@@ -225,7 +225,7 @@ def test_zscore_v_is_per_call_standardised_and_order_preserving():
 
 def test_comparison_emits_four_plots(tmp_path):
     import importlib
-    agg = importlib.import_module("scripts.gciql_profile_aggregate")
+    agg = importlib.import_module("scripts.profiles.gciql_profile_aggregate")
     groot = tmp_path / "gciql"
     froot = tmp_path / "repr"
     for s in (1, 2):
@@ -255,7 +255,7 @@ def test_comparison_emits_four_plots(tmp_path):
 
 def test_bin_vz_grid_masks_empty_cells():
     import numpy as np
-    from scripts.gciql_profile_aggregate import _bin_vz_grid
+    from scripts.profiles.gciql_profile_aggregate import _bin_vz_grid
     df = pd.DataFrame({
         "cube_x": [0.31, 0.31, 0.54],
         "cube_y": [-0.24, -0.24, 0.24],
@@ -271,7 +271,7 @@ def test_bin_vz_grid_masks_empty_cells():
 
 def test_medoid_episode_picks_closest_to_mean_path():
     import numpy as np
-    from scripts.gciql_profile_aggregate import _medoid_episode
+    from scripts.profiles.gciql_profile_aggregate import _medoid_episode
     # ep 0 & 1 near y=0; ep 2 far at y=1 -> medoid is 0 or 1, not 2
     rows = []
     for ep, y in ((0, 0.0), (1, 0.01), (2, 1.0)):
@@ -283,7 +283,7 @@ def test_medoid_episode_picks_closest_to_mean_path():
 
 
 def test_episodes_to_frames_emits_t_and_region():
-    from scripts import gciql_profile as gp
+    from scripts.profiles import gciql_profile as gp
     from evals.phase_probe import Thresholds
     import numpy as np
     T = 6
