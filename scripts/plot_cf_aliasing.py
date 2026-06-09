@@ -8,7 +8,7 @@ the value tracked controllability, the value field would line up with the
 success colours. It does for the method that works and not for the ones that
 fail -- the visual form of value aliasing.
 
-Reads analysis/repsep/cf_records_<method>.parquet and cf_value_<method>.json.
+Reads analysis/value/repsep/cf_records_<method>.parquet and cf_value_<method>.json.
 Run under .venv.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 REPO = Path(__file__).resolve().parent.parent
-REPSEP = REPO / "analysis" / "repsep"
+REPSEP = REPO / "analysis" / "value" / "repsep"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
 sns.set_palette("colorblind")

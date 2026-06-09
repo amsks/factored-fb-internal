@@ -11,9 +11,9 @@ GCIQL's step-1 row is treated as ~step 0 on the shared grid.
 
 Usage:
     python scripts/fb_gciql_curves.py \
-        --fb analysis/wandb_data_fbgciql \
+        --fb analysis/wandb/wandb_data_fbgciql \
         --gciql results/gciql_20260518_201030/factored-fb/factored-fb-gciql \
-        --out analysis/fb_gciql
+        --out analysis/curves/fb_gciql
 """
 
 from __future__ import annotations
@@ -305,7 +305,7 @@ def render(methods: Dict[str, Dict[int, pd.DataFrame]], out_dir: Path,
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--fb", default=str(REPO_ROOT / "analysis"
-                                        / "wandb_data_fbgciql"))
+                                        / "wandb" / "wandb_data_fbgciql"))
     ap.add_argument("--gciql", default=str(
         REPO_ROOT / "results" / "gciql_20260518_201030"
         / "factored-fb" / "factored-fb-gciql"))
@@ -318,7 +318,7 @@ def main() -> None:
     ap.add_argument("--max-step", type=int, default=None,
                     help="cap the shared step grid for a matched-budget "
                          "comparison; the final table is then taken at this step")
-    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "fb_gciql"))
+    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "curves" / "fb_gciql"))
     ap.add_argument("--title", default="FB vs GCIQL",
                     help="title prefix for the curve figures")
     args = ap.parse_args()

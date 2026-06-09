@@ -2,12 +2,12 @@
 """scripts/aggregate_cf_multiseed.py — aggregate the counterfactual value probe
 across the 10 training seeds.
 
-Reads analysis/repsep/cf_value_<method>_ms*.json (one per seed) and reports, per
+Reads analysis/value/repsep/cf_value_<method>_ms*.json (one per seed) and reports, per
 method, the across-seed IQM and 95% bootstrap CI half-width of (i) the
 counterfactual value rank-AUC and (ii) the counterfactual success rate -- the
 same IQM +/- half-width convention as the per-task success table.
 
-Writes analysis/repsep/cf_value_multiseed.json and prints a markdown table.
+Writes analysis/value/repsep/cf_value_multiseed.json and prints a markdown table.
 Run under .venv.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ import numpy as np
 from scipy import stats as _st
 
 REPO = Path(__file__).resolve().parent.parent
-REPSEP = REPO / "analysis" / "repsep"
+REPSEP = REPO / "analysis" / "value" / "repsep"
 METHODS = ["gciql", "crl", "fb", "rldp"]
 LABEL = {"gciql": "GCIQL", "crl": "CRL", "fb": "FB", "rldp": "RLDP"}
 

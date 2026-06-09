@@ -14,7 +14,7 @@ USAGE="usage: bash scripts/agents/rldp_flowbc/phase.sh
     SEEDS='0 1 2 3 4 5 6 7 8 9'   seeds to process (default all 10)
     EPISODES=10                    rollouts per (task, scenario)
     SCENARIOS=S0,S1,S2             counterfactual scenarios (M1+M2)
-    OUT_ROOT=analysis/phase_probe_rldp
+    OUT_ROOT=analysis/probes/phase_probe_rldp
     RESULTS_ROOT=results/factored-fb-rldp-flowbc
     DATA_PATH=datasets             offline buffer root (cfg path is a cluster path)
     MUJOCO_GL=glfw                 GL backend (glfw on macOS; egl on Linux)
@@ -26,7 +26,7 @@ _maybe_help "$@"
 SEEDS="${SEEDS:-0 1 2 3 4 5 6 7 8 9}"
 EPISODES="${EPISODES:-10}"
 SCENARIOS="${SCENARIOS:-S0,S1,S2}"
-OUT_ROOT="${OUT_ROOT:-analysis/phase_probe_rldp}"
+OUT_ROOT="${OUT_ROOT:-analysis/probes/phase_probe_rldp}"
 RESULTS_ROOT="${RESULTS_ROOT:-results/factored-fb-rldp-flowbc}"
 DATA_PATH="${DATA_PATH:-datasets}"
 MUJOCO_GL="${MUJOCO_GL:-glfw}"

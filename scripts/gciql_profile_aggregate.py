@@ -240,7 +240,7 @@ def _cube_distribution_scatter(out_dir, gciql_root, fb_seed_root,
     eval_starts = np.vstack([_eval_starts(gciql_root),
                               _eval_starts(fb_seed_root)])
     # Eval goals from env-extracted anchors (5 task targets).
-    sx = REPO_ROOT / "analysis" / "scene"
+    sx = REPO_ROOT / "analysis" / "misc" / "scene"
     anchors_json = sx / "task_anchors.json"
     eval_goals = []
     if anchors_json.exists():
@@ -287,10 +287,10 @@ def _cube_distribution_scatter(out_dir, gciql_root, fb_seed_root,
 
 def _decode_support_xy(gciql_root, fb_seed_root):
     """Decode dataset cube xy once, cached to
-    analysis/dataset_support_cube_xy.npy."""
+    analysis/misc/dataset_support_cube_xy.npy."""
     from evals.dataset_support import dataset_cube_xy
 
-    cache = REPO_ROOT / "analysis" / "dataset_support_cube_xy.npy"
+    cache = REPO_ROOT / "analysis" / "misc" / "dataset_support_cube_xy.npy"
     if cache.exists():
         return np.load(cache)
     ref = None
@@ -359,7 +359,7 @@ def _phase_action_scene(out_dir, gciql_root, fb_seed_root,
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    sx = REPO_ROOT / "analysis" / "scene"
+    sx = REPO_ROOT / "analysis" / "misc" / "scene"
     scene_png, calib_json = sx / "topdown.png", sx / "calib.json"
     bg_img = None
     if scene_png.exists() and calib_json.exists():
@@ -886,8 +886,8 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
     ]))
 
     _value_scene(cdir, gciql_root, fb_seed_root,
-                 REPO_ROOT / "analysis" / "scene" / "topdown.png",
-                 REPO_ROOT / "analysis" / "scene" / "calib.json",
+                 REPO_ROOT / "analysis" / "misc" / "scene" / "topdown.png",
+                 REPO_ROOT / "analysis" / "misc" / "scene" / "calib.json",
                  method_label=gl)
 
     _phase_action_scene(cdir / "phase_scene", gciql_root, fb_seed_root,
@@ -899,13 +899,15 @@ def _comparison(cdir, vl, cvt, fb_aggregate, g_rs, g_rf, g_fnn, g_snn,
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root",
-                    default=str(REPO_ROOT / "analysis" / "gciql_profile"))
+                    default=str(REPO_ROOT / "analysis" / "legacy" / "gciql_profile"))
     ap.add_argument("--out", default=None)
     ap.add_argument("--fb-aggregate",
                     default=str(REPO_ROOT / "analysis"
+                               / "probes"
                                / "representation_profile" / "aggregate"))
     ap.add_argument("--fb-seed-root",
                     default=str(REPO_ROOT / "analysis"
+                               / "probes"
                                / "representation_profile"))
     ap.add_argument("--method-label", default="GCIQL",
                     help="display name for the non-FB method (e.g. GCIVL)")

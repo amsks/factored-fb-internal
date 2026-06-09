@@ -9,7 +9,7 @@ USAGE="usage: bash scripts/agents/crl_flowbc/phase.sh
     SEEDS='0 1 2 3 4 5 6 7 8 9'   seeds to process (default all 10)
     EPISODES=10                    rollouts per (task, scenario)
     SCENARIOS=S0,S1,S2             counterfactual scenarios (M1+M2)
-    OUT_ROOT=analysis/phase_probe_crl
+    OUT_ROOT=analysis/probes/phase_probe_crl
     RESULTS_ROOT=results/factored-fb-crl-flowbc
     JAX_PY=.venv-jax-cpu/bin/python
     DRY_RUN=1                      preview commands only"
@@ -19,7 +19,7 @@ _maybe_help "$@"
 SEEDS="${SEEDS:-0 1 2 3 4 5 6 7 8 9}"
 EPISODES="${EPISODES:-10}"
 SCENARIOS="${SCENARIOS:-S0,S1,S2}"
-OUT_ROOT="${OUT_ROOT:-analysis/phase_probe_crl}"
+OUT_ROOT="${OUT_ROOT:-analysis/probes/phase_probe_crl}"
 RESULTS_ROOT="${RESULTS_ROOT:-results/factored-fb-crl-flowbc}"
 JAX_PY="${JAX_PY:-.venv-jax-cpu/bin/python}"
 

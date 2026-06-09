@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """scripts/aggregate_crl_phase.py — aggregate per-seed CRL phase parquets.
 
-Reads analysis/phase_probe_crl/s*_final/per_episode.parquet, concatenates
+Reads analysis/probes/phase_probe_crl/s*_final/per_episode.parquet, concatenates
 them with a `seed` column, writes aggregate_per_episode.parquet, and
 emits a per-task / per-fail-phase summary (overall.md + funnel.md) that
 the LaTeX integration step consumes.
@@ -19,7 +19,7 @@ from pathlib import Path
 import pandas as pd
 
 REPO = Path(__file__).resolve().parent.parent
-SRC = REPO / "analysis/phase_probe_crl"
+SRC = REPO / "analysis/probes/phase_probe_crl"
 
 # Same delta_lift threshold as evals/phase_probe.py::Thresholds default.
 DELTA_LIFT = 0.03
