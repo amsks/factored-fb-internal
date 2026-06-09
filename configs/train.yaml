@@ -19,6 +19,11 @@ save_every: 200_000
 seed: 42
 device: cuda
 
+# Resume (crash-recovery; see PAPER/specs/2026-06-09-training-resume-design.md)
+resume: false               # true => auto-find latest step_*.pt in save_dir and continue
+resume_from: null           # explicit checkpoint path; takes priority over resume
+force: false                # allow a fresh run to overwrite a non-empty save_dir
+
 # Eval
 eval_n_episodes: 10
 eval_relabel_size: 10_000
@@ -28,7 +33,7 @@ save_eval_videos: false     # opt-in: record first episode per task as GIF
 # Logging
 use_wandb: false
 wandb_project: factored-fb
-wandb_run_name: null            # default: ${domain}__${agent}__s${seed}
+wandb_run_name: ${domain}__${agent}__s${seed}   # also names the output dir (resume needs a stable dir)
 wandb_entity: amsks             # ALWAYS amsks. NOT the al-laq-fb team default (null -> team). Override only intentionally.
 wandb_group: null               # useful for --multirun (e.g. group=fb_antmaze)
 wandb_tags: []                  # list of strings, e.g. [baseline, antmaze]
@@ -40,7 +45,7 @@ eval_videos_dir: ${hydra:runtime.output_dir}/eval_videos
 
 hydra:
   run:
-    dir: outputs/${now:%Y-%m-%d_%H-%M-%S}__${domain}__${agent}__s${seed}
+    dir: outputs/${wandb_run_name}
   sweep:
     dir: outputs/multirun/${now:%Y-%m-%d_%H-%M-%S}
     subdir: ${hydra.job.num}__s${seed}
