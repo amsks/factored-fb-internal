@@ -2,7 +2,7 @@
 """scripts/repsep_extract_jax.py — grasp-state representations for GCIQL / CRL.
 
 Mirror of scripts/repsep_extract_torch.py for the JAX agents. Emits the same
-analysis/repsep/<method>.parquet schema {split, task, success, rep_*} so the
+analysis/value/repsep/<method>.parquet schema {split, task, success, rep_*} so the
 shared plotter (PCA + linear-probe AUC) is method-agnostic.
 
 Representation per method (the learned state embedding its score reads):
@@ -23,10 +23,10 @@ Run under .venv-jax-cpu (jax + vendored OGBench).
 Usage:
     .venv-jax-cpu/bin/python scripts/repsep_extract_jax.py --method gciql \
         --run-dir results/.../<gciql seed dir> --step 1000000 \
-        --out analysis/repsep/gciql.parquet
+        --out analysis/value/repsep/gciql.parquet
     .venv-jax-cpu/bin/python scripts/repsep_extract_jax.py --method crl \
         --checkpoint-dir results/factored-fb-crl-flowbc/<seed dir> \
-        --step 1000000 --seed 0 --out analysis/repsep/crl.parquet
+        --step 1000000 --seed 0 --out analysis/value/repsep/crl.parquet
 """
 from __future__ import annotations
 
@@ -269,7 +269,7 @@ def main() -> int:
     ap.add_argument("--step", type=int, default=1000000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--states",
-                    default="analysis/training_value_multiseed/p0/training_states.npz")
+                    default="analysis/value/training_value_multiseed/p0/training_states.npz")
     ap.add_argument("--tasks", default=None, help="CRL: comma task names")
     ap.add_argument("--episodes", type=int, default=10)
     ap.add_argument("--max-steps", type=int, default=1000)
@@ -339,7 +339,7 @@ def main() -> int:
     df = pd.DataFrame([{"split": s, "task": t, "episode": e, "success": y,
                         **{f"rep_{i}": float(v) for i, v in enumerate(r)}}
                        for s, t, e, y, r in rows])
-    out = Path(args.out or f"analysis/repsep/{args.method}.parquet")
+    out = Path(args.out or f"analysis/value/repsep/{args.method}.parquet")
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out)
     k = sum(c.startswith("rep_") for c in df.columns)

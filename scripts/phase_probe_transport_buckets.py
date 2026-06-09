@@ -7,8 +7,8 @@ Splits `fail_phase == "transport"` episodes into three buckets:
     near_goal : held to end, final_cube_goal_dist <= eps_near
     far_goal  : held to end, final_cube_goal_dist >  eps_near
 
-Inputs : analysis/phase_probe_v2/s*_final/per_episode.parquet
-Outputs: analysis/phase_probe_v2/aggregate/{transport_buckets.parquet, summary.md}
+Inputs : analysis/probes/phase_probe_v2/s*_final/per_episode.parquet
+Outputs: analysis/probes/phase_probe_v2/aggregate/{transport_buckets.parquet, summary.md}
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def bucket_row(row: pd.Series, delta_lift: float, eps_near: float) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default="analysis/phase_probe_v2")
+    ap.add_argument("--root", default="analysis/probes/phase_probe_v2")
     ap.add_argument("--delta-lift", type=float, default=0.03,
                     help="cube above table_z by this -> still lifted")
     ap.add_argument("--eps-near", type=float, default=0.05,

@@ -7,7 +7,7 @@ control: if the value representation RETAINS terminal geometry (high R^2(phi->d)
 where FB's backward map B does not, that explains the performance gap.
 
   .venv/bin/python -m scripts.gciql_feature_readout \
-    --root analysis/gciql_feature/state_sd001 --out analysis/gciql_feature/state_sd001/readout
+    --root analysis/features_raw/gciql_feature/state_sd001 --out analysis/features_raw/gciql_feature/state_sd001/readout
 The root is globbed recursively for task*.npz, so point it at one seed dir or at
 a parent of many seed dirs to pool across seeds.
 """
