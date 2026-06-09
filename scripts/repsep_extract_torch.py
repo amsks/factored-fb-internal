@@ -6,7 +6,7 @@ forward map reads. Train grasps come from the shared training_states.npz
 (labelled success-bound); eval grasps come from deterministic policy rollouts
 (reusing evals.representation_profile.rollout_for_profile) labelled by the episode
 outcome. Restricts to grasp/carry (cube-in-hand) states. Writes
-analysis/repsep/<method>.parquet with columns {split, task, success, rep_*}.
+analysis/value/repsep/<method>.parquet with columns {split, task, success, rep_*}.
 
 Run under .venv (torch). macOS: --mujoco-gl glfw.
 """
@@ -95,7 +95,7 @@ def main() -> int:
     ap.add_argument("--checkpoint", required=True)
     ap.add_argument("--method", required=True, choices=["fb", "rldp"])
     ap.add_argument("--states",
-                    default="analysis/training_value_multiseed/p0/training_states.npz")
+                    default="analysis/value/training_value_multiseed/p0/training_states.npz")
     ap.add_argument("--data-path", default="datasets")
     ap.add_argument("--episodes", type=int, default=10)
     ap.add_argument("--out", default=None)
@@ -117,7 +117,7 @@ def main() -> int:
     df = pd.DataFrame([{"split": s, "task": t, "episode": e, "success": y,
                         **{f"rep_{i}": float(v) for i, v in enumerate(r)}}
                        for s, t, e, y, r in rows])
-    out = Path(args.out or f"analysis/repsep/{args.method}.parquet")
+    out = Path(args.out or f"analysis/value/repsep/{args.method}.parquet")
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out)
     k = sum(c.startswith("rep_") for c in df.columns)

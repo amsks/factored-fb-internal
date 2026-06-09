@@ -9,8 +9,8 @@ them when they exist (the curves + table then include both methods).
 
 Usage:
     python scripts/fb_pixel_curves.py \
-        --fb analysis/wandb_data_fbpixel \
-        --out analysis/fb_pixel
+        --fb analysis/wandb/wandb_data_fbpixel \
+        --out analysis/curves/fb_pixel
 """
 
 from __future__ import annotations
@@ -31,14 +31,14 @@ from scripts.fb_gciql_curves import COMMON_GRID, load_fb, load_gciql, render
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--fb", default=str(REPO_ROOT / "analysis"
-                                        / "wandb_data_fbpixel"))
+                                        / "wandb" / "wandb_data_fbpixel"))
     ap.add_argument("--gciql", default=None,
                     help="optional GCIQL pixel eval.csv root")
     ap.add_argument("--max-step", type=int, default=None,
                     help="cap the shared step grid for a matched-budget "
                          "comparison (e.g. 500000 when GCIQL trains to 500k); "
                          "the final table is then taken at this step too")
-    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "fb_pixel"))
+    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "curves" / "fb_pixel"))
     args = ap.parse_args()
 
     methods = {"FB": load_fb(args.fb)}

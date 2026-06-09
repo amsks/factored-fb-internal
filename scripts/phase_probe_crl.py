@@ -24,7 +24,7 @@ Usage:
         --checkpoint-dir results/factored-fb-crl-flowbc/sd000_20260525_080817 \\
         --checkpoint-step 700000 \\
         --seed 0 \\
-        --out-dir analysis/phase_probe_crl/s0_final \\
+        --out-dir analysis/probes/phase_probe_crl/s0_final \\
         --episodes 10
 """
 from __future__ import annotations

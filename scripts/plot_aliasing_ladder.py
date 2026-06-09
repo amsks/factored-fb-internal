@@ -13,7 +13,7 @@ between them, and separability decays to chance at the value -- no representatio
 input/backward/forward/value, tells the grasps apart, because the deciding
 variable (post-contact controllability) is not in the instantaneous state.
 
-Reads analysis/repsep/grasp_feature.json and forward_probe_{fb,rldp}.json.
+Reads analysis/value/repsep/grasp_feature.json and forward_probe_{fb,rldp}.json.
 Run under .venv.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ import numpy as np
 import seaborn as sns
 
 REPO = Path(__file__).resolve().parent.parent
-REPSEP = REPO / "analysis" / "repsep"
+REPSEP = REPO / "analysis" / "value" / "repsep"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
 sns.set_palette("colorblind")

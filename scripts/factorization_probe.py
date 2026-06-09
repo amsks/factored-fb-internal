@@ -19,7 +19,7 @@ cheaply. Run under .venv (torch). macOS: prefix MUJOCO_GL=glfw. Example:
 
   MUJOCO_GL=glfw .venv/bin/python -m scripts.factorization_probe \
     --config <run>/.hydra/config.yaml --checkpoint <run>/checkpoints/final.pt \
-    --data-path datasets --out analysis/factorization_probe/s3 \
+    --data-path datasets --out analysis/probes/factorization_probe/s3 \
     --n-states 6000 --load-episodes 300 --tasks all --device cpu
 """
 import argparse
