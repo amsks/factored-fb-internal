@@ -319,7 +319,7 @@ def aggregate(root: Path, out: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default="analysis/training_value")
+    ap.add_argument("--root", default="analysis/value/training_value")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     root = Path(args.root)

@@ -15,12 +15,12 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-FB_PARQUET = REPO / "analysis/phase_probe/aggregate/aggregate_per_episode.parquet"
-CRL_AGG = REPO / "analysis/phase_probe_crl/aggregate/aggregate_per_episode.parquet"
+FB_PARQUET = REPO / "analysis/legacy/phase_probe/aggregate/aggregate_per_episode.parquet"
+CRL_AGG = REPO / "analysis/probes/phase_probe_crl/aggregate/aggregate_per_episode.parquet"
 
 
 # Columns actually written by the existing FB pipeline (verified by reading
-# analysis/phase_probe/aggregate/aggregate_per_episode.parquet). The aggregate
+# analysis/legacy/phase_probe/aggregate/aggregate_per_episode.parquet). The aggregate
 # adds `seed`; per-seed parquets don't carry it.
 EXPECTED_COLUMNS = {
     "task", "scenario", "episode",
