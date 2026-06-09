@@ -7,7 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts import outcome_clips as oc
+from scripts.figures import outcome_clips as oc
 
 
 def _frames(val, T=8):

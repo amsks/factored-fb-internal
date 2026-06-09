@@ -7,7 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts import pixel_filmstrips as pf
+from scripts.figures import pixel_filmstrips as pf
 
 
 def test_sample_frames_count_and_endpoints():
