@@ -3,8 +3,8 @@
 # the extended classify_phases output (final_cube_lift, final_grip) so we can
 # split transport-fails into grasp-lost vs misplaced for both methods on pixels.
 # Outputs:
-#   FB pixel:   analysis/phase_probe_pixel_v2/sN_final/
-#   GCIQL DrQ:  analysis/gciql_profile_pixel_drq_v2/sN_final/
+#   FB pixel:   analysis/probes/phase_probe_pixel_v2/sN_final/
+#   GCIQL DrQ:  analysis/profiles/gciql_profile_pixel_drq_v2/sN_final/
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -13,12 +13,12 @@ PY="${PY:-.venv/bin/python}"
 JAX_PY="${JAX_PY:-.venv-jax-cpu/bin/python}"
 
 FB_ROOT="results/fb-pixel-results"
-FB_OUT="analysis/phase_probe_pixel_v2"
+FB_OUT="analysis/probes/phase_probe_pixel_v2"
 FB_CKPT_STEP="600000"
 FB_DATA="datasets_pixel"
 
 GCIQL_ROOT="results/factored-fb-gciql-pixel-drq"
-GCIQL_OUT="analysis/gciql_profile_pixel_drq_v2"
+GCIQL_OUT="analysis/profiles/gciql_profile_pixel_drq_v2"
 GCIQL_STEP="500000"
 GCIQL_DATA="datasets_pixel/cube-single-play-v0"
 

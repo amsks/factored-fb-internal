@@ -9,7 +9,7 @@ whether the value ranks grasps by that counterfactual success.
   GCIQL: V(s, g) = value(s, g)
   CRL:   Q(s, pi(s,g), g) = phi(s,a).psi(g)
 
-Writes analysis/repsep/cf_value_<method>.json and cf_records_<method>.parquet.
+Writes analysis/value/repsep/cf_value_<method>.json and cf_records_<method>.parquet.
 Run under .venv-jax-cpu.
 """
 from __future__ import annotations
@@ -151,9 +151,9 @@ def main() -> int:
     pd.DataFrame([{"task": t, "success": s, "value": v,
                    **{f"obs_{i}": float(o[i]) for i in range(o.shape[0])}}
                   for t, s, v, o in records]).to_parquet(
-        REPO / f"analysis/repsep/cf_records_{args.method}{args.out_tag}.parquet")
+        REPO / f"analysis/value/repsep/cf_records_{args.method}{args.out_tag}.parquet")
     per_task_auc = np.array(per_task_auc, float)
-    out = REPO / f"analysis/repsep/cf_value_{args.method}{args.out_tag}.json"
+    out = REPO / f"analysis/value/repsep/cf_value_{args.method}{args.out_tag}.json"
     out.write_text(json.dumps({
         "method": args.method, "n_states": int(len(obs_g)),
         "cf_value_auc_mean": float(np.nanmean(per_task_auc)),

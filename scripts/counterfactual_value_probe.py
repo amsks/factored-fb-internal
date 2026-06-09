@@ -161,10 +161,10 @@ def main() -> int:
     rec = pd.DataFrame([{"task": t, "success": s, "value": v,
                          **{f"obs_{i}": float(o[i]) for i in range(o.shape[0])}}
                         for t, s, v, o in records])
-    rec.to_parquet(REPO / f"analysis/repsep/cf_records_{args.method}{args.out_tag}.parquet")
+    rec.to_parquet(REPO / f"analysis/value/repsep/cf_records_{args.method}{args.out_tag}.parquet")
 
     per_task_auc = np.array(per_task_auc, float)
-    out = REPO / f"analysis/repsep/cf_value_{args.method}{args.out_tag}.json"
+    out = REPO / f"analysis/value/repsep/cf_value_{args.method}{args.out_tag}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({
         "method": args.method, "n_states": int(len(obs_g)),

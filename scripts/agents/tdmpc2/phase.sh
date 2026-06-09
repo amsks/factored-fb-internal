@@ -18,7 +18,7 @@ USAGE="usage: bash scripts/agents/tdmpc2/phase.sh
     SEEDS='0 1 2 3 4 5 6 7 8 9'   seeds to process (default all 10)
     EPISODES=10                    rollouts per (task, scenario)
     SCENARIOS=S0,S1,S2             counterfactual scenarios (M1+M2)
-    OUT_ROOT=analysis/phase_probe_tdmpc2
+    OUT_ROOT=analysis/probes/phase_probe_tdmpc2
     RESULTS_ROOT=/dev/shm/factored-fb/runs   run root (10-seed group lives here)
     RUN_GLOB='*tdmpc2_state_10seeds*'         per-seed dir glob (before __sN)
     DATA_PATH=/dev/shm/factored-fb/datasets   offline buffer root
@@ -31,7 +31,7 @@ _maybe_help "$@"
 SEEDS="${SEEDS:-0 1 2 3 4 5 6 7 8 9}"
 EPISODES="${EPISODES:-10}"
 SCENARIOS="${SCENARIOS:-S0,S1,S2}"
-OUT_ROOT="${OUT_ROOT:-analysis/phase_probe_tdmpc2}"
+OUT_ROOT="${OUT_ROOT:-analysis/probes/phase_probe_tdmpc2}"
 RESULTS_ROOT="${RESULTS_ROOT:-/dev/shm/factored-fb/runs}"
 RUN_GLOB="${RUN_GLOB:-*tdmpc2_state_10seeds*}"
 DATA_PATH="${DATA_PATH:-/dev/shm/factored-fb/datasets}"

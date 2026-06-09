@@ -3,7 +3,7 @@
 For each cube-single-play task (1..5), reset the OGBench env, query the
 authoritative starting cube xy + goal xy from `cur_task_info`, and read
 the home end-effector xy from the proprio info. Cached to
-analysis/scene/task_anchors.json so figure renderers can plot the three
+analysis/misc/scene/task_anchors.json so figure renderers can plot the three
 positions without needing MuJoCo themselves.
 
 Run in any venv that has the vendored OGBench cube env (.venv works).
@@ -79,7 +79,7 @@ def extract(env_name: str = "cube-single-play-v0",
 
 def main() -> None:
     anchors = extract()
-    out = REPO_ROOT / "analysis" / "scene" / "task_anchors.json"
+    out = REPO_ROOT / "analysis" / "misc" / "scene" / "task_anchors.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(anchors, indent=2))
     print(f"[task_anchors] wrote {len(anchors)} entries -> {out}")

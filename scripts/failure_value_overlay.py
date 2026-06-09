@@ -7,13 +7,13 @@ cube-flow arrows showing where the cube actually moved during the rollout, the
 goal star, and a workspace top-down background.
 
 Inputs (already produced by representation_profile / gciql_profile + phase_probe_v2):
-  FB:    analysis/representation_profile/sN_final/value_steps.parquet
-         analysis/phase_probe_v2/sN_final/per_episode.parquet  (final-step signals)
-  GCIQL: analysis/gciql_profile_v2/sN_final/value_steps.parquet
-         analysis/gciql_profile_v2/sN_final/phase_funnel.parquet
+  FB:    analysis/probes/representation_profile/sN_final/value_steps.parquet
+         analysis/probes/phase_probe_v2/sN_final/per_episode.parquet  (final-step signals)
+  GCIQL: analysis/profiles/gciql_profile_v2/sN_final/value_steps.parquet
+         analysis/profiles/gciql_profile_v2/sN_final/phase_funnel.parquet
 
 Output:
-  analysis/failure_overlays/failure_value_overlays.png
+  analysis/value/failure_overlays/failure_value_overlays.png
 """
 
 from __future__ import annotations
@@ -62,8 +62,8 @@ def _classify(row: pd.Series) -> str:
 
 
 def _load_fb() -> pd.DataFrame:
-    vs_paths = sorted(glob.glob("analysis/representation_profile/s*_final/value_steps.parquet"))
-    pe_paths = sorted(glob.glob("analysis/phase_probe_v2/s*_final/per_episode.parquet"))
+    vs_paths = sorted(glob.glob("analysis/probes/representation_profile/s*_final/value_steps.parquet"))
+    pe_paths = sorted(glob.glob("analysis/probes/phase_probe_v2/s*_final/per_episode.parquet"))
     pe_by_seed = {p.split("/")[-2]: pd.read_parquet(p) for p in pe_paths}
     rows = []
     for vp in vs_paths:
@@ -85,7 +85,7 @@ def _load_fb() -> pd.DataFrame:
 
 
 def _load_gciql() -> pd.DataFrame:
-    vs_paths = sorted(glob.glob("analysis/gciql_profile_v2/s*_final/value_steps.parquet"))
+    vs_paths = sorted(glob.glob("analysis/profiles/gciql_profile_v2/s*_final/value_steps.parquet"))
     rows = []
     for vp in vs_paths:
         seed = vp.split("/")[-2]
@@ -143,7 +143,7 @@ def _norm_one(g: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--out-dir", default="analysis/failure_overlays")
+    ap.add_argument("--out-dir", default="analysis/value/failure_overlays")
     ap.add_argument("--n-per-cell", type=int, default=2)
     args = ap.parse_args()
     out = Path(args.out_dir); out.mkdir(parents=True, exist_ok=True)

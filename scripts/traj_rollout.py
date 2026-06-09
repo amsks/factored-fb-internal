@@ -11,12 +11,12 @@ fixed start, and report how often the cube reaches the goal.
   # FB (.venv):
   MUJOCO_GL=glfw .venv/bin/python -m scripts.traj_rollout --method fb \
     --config <run>/.hydra/config.yaml --checkpoint <run>/checkpoints/final.pt \
-    --traj 236 841 --out analysis/traj_value/rollout.csv
+    --traj 236 841 --out analysis/value/traj_value/rollout.csv
   # GCIQL / CRL (.venv-jax-cpu):
   MUJOCO_GL=glfw PYTHONPATH=tools/wandb_mode_shim:third_party/ogbench/impls \
   .venv-jax-cpu/bin/python -m scripts.traj_rollout --method crl \
     --run-dir <crl_run> --step 1000000 --traj 236 841 \
-    --out analysis/traj_value/rollout.csv
+    --out analysis/value/traj_value/rollout.csv
 """
 import argparse
 import glob
@@ -165,7 +165,7 @@ def main():
     ap.add_argument("--thresh", type=float, default=0.04)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--mujoco-gl", default=None)
-    ap.add_argument("--out", default="analysis/traj_value/rollout.csv")
+    ap.add_argument("--out", default="analysis/value/traj_value/rollout.csv")
     args = ap.parse_args()
     if args.mujoco_gl:
         import os; os.environ["MUJOCO_GL"] = args.mujoco_gl

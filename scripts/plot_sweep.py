@@ -1,6 +1,6 @@
 """scripts/plot_sweep.py — replot wandb cache (canonical schema only).
 
-Reads analysis/wandb_data/*.parquet + _meta.json, groups by
+Reads analysis/wandb/wandb_data/*.parquet + _meta.json, groups by
 (domain, ortho_coef, lr_b), and renders 4 plot types per domain.
 Metric key schema is imported from scripts.wandb_pull (single source).
 """
@@ -187,8 +187,8 @@ def render_all(
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--in", dest="in_dir",
-                    default=str(REPO_ROOT / "analysis" / "wandb_data"))
-    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "plots"))
+                    default=str(REPO_ROOT / "analysis" / "wandb" / "wandb_data"))
+    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "legacy" / "plots"))
     ap.add_argument("--domains", default="cube-single-play-v0,antmaze-medium-navigate-v0",
                     help="comma-separated")
     args = ap.parse_args()

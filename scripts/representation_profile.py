@@ -5,7 +5,7 @@ Usage:
     python scripts/representation_profile.py \\
       --config RESULTS/.../__s3/.hydra/config.yaml \\
       --checkpoint RESULTS/.../__s3/checkpoints/final.pt \\
-      --out analysis/representation_profile/s3_final \\
+      --out analysis/probes/representation_profile/s3_final \\
       --data-path datasets --mujoco-gl glfw
 """
 

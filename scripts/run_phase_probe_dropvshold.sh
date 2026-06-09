@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Re-run state phase_probe on S0 with extended signals (final_cube_lift, final_grip)
 # to disambiguate dropped-cube vs held-but-mispositioned transport failures.
-# Outputs go to analysis/phase_probe_v2/sN_final/ (old runs preserved).
+# Outputs go to analysis/probes/phase_probe_v2/sN_final/ (old runs preserved).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 SEEDS=(3 4 5 6 7 8 10)
 RUN_ROOT="results/Factored-FB-cube-run"
 RUN_PREFIX="2026-05-14_21-44-19__cube-single-play-v0__fb_flowbc__s"
-OUT_ROOT="analysis/phase_probe_v2"
+OUT_ROOT="analysis/probes/phase_probe_v2"
 DATA_PATH="datasets"
 
 mkdir -p "$OUT_ROOT"

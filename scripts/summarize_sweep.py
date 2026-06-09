@@ -2,7 +2,7 @@
 
 Usage:
   PYTHONPATH=. .venv/bin/python scripts/summarize_sweep.py \
-      logs/grid_<TS> --knob-a ortho_coef --knob-b lr_phi --out analysis/sweep/psm_state
+      logs/grid_<TS> --knob-a ortho_coef --knob-b lr_phi --out analysis/misc/sweep/psm_state
 Run logs are named <base>__<knobA><val>__<knobB><val>__s<seed>.log, where value
 tags replace '.' with 'p' (e.g. 0.1 -> 0p1); this reverses that.
 """
