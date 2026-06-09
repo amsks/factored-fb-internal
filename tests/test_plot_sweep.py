@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts import plot_sweep as ps
+from scripts.figures import plot_sweep as ps
 
 
 def _cache(tmp_path):
