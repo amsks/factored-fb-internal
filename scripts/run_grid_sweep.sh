@@ -36,6 +36,7 @@ RUN_GROUP_BASE="${RUN_GROUP_BASE:-${AGENT}_${DOMAIN}_sweep}"
 DATA_PATH="${DATA_PATH:-/dev/shm/factored-fb/datasets}"
 WANDB_ENTITY="${WANDB_ENTITY:-amsks}"
 DRY_RUN="${DRY_RUN:-0}"
+RESUME="${RESUME:-0}"            # 1 => append resume=true to every job (relaunch-continue)
 
 [[ "$DRY_RUN" == "1" ]] || mkdir -p "$LOG_DIR"
 _tag() { echo "${1//./p}"; }   # 1e-4 -> 1e-4 ; 0.1 -> 0p1 (filesystem-safe)
@@ -52,6 +53,7 @@ $KNOB_A_NAME=$a $KNOB_B_NAME=$b seed=$s \
 num_train_steps=$TRAIN_STEPS data_path=$DATA_PATH \
 use_wandb=true wandb_entity=$WANDB_ENTITY wandb_group=$grp wandb_run_name=$name \
 wandb_tags=[grid-$TS] save_eval_videos=false"
+      [[ "$RESUME" == "1" ]] && cmd="$cmd resume=true"
       CMDS+=("$cmd"); LOGS+=("$log"); NAMES+=("$name")
     done
   done
