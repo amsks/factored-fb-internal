@@ -2,14 +2,14 @@
 agent: psm
 
 # representation
-z_dim: 128
+z_dim: 50                 # FB-matched (reference PSM uses 128); aligns measure rank w/ fb.yaml
 norm_z: true
 max_log_seed: 16          # proto (binary) z dimension
 phi_input: s              # s | as | sas | ss  (s => phi(next_obs))
 norm_obs: false
 
 batch_size: 1024
-discount: 0.98            # match the domain default; overridden per-domain if needed
+discount: 0.99            # FB-matched (reference PSM uses 0.98); aligns horizon w/ fb.yaml
 device: cuda
 
 # phi (basis)
@@ -34,11 +34,11 @@ actor:
 
 # optimization
 lr_sf: 1.0e-4
-lr_phi: 1.0e-4
+lr_phi: 1.0e-5            # sweep winner (ortho_coef=1 × lr_phi=1e-5) at FB-matched basis
 lr_actor: 1.0e-4
 weight_decay: 0.0
 clip_grad_norm: 0.0
-target_tau: 0.01
+target_tau: 0.005         # FB-matched (reference PSM uses 0.01); aligns target rate w/ fb.yaml
 ortho_coef: 1.0
 mix_ratio: 0.5
 pessimism_penalty: 0.0
