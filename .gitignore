@@ -70,3 +70,8 @@ PAPER/**/*.xdv
 analysis/
 checkpoints/
 logs/
+
+# Local-only artifacts & docs (never committed; see CLAUDE.md conventions)
+CLAUDE.md
+results/
+datasets*/

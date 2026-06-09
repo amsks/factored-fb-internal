@@ -31,6 +31,14 @@ KNOB_B_NAME="${KNOB_B_NAME:?set KNOB_B_NAME}"; KNOB_B_VALS="${KNOB_B_VALS:?set K
 SEEDS="${SEEDS:-0 1 2}"
 TRAIN_STEPS="${TRAIN_STEPS:-500000}"
 N_GPUS="${N_GPUS:-8}"; JOBS_PER_GPU="${JOBS_PER_GPU:-3}"
+# GPU_IDS: space-separated physical GPU ids to use (e.g. "2 3 4" to skip busy
+# GPUs). Default = 0..N_GPUS-1 (original behavior). Sets N_GPUS to the list length.
+GPU_IDS="${GPU_IDS:-}"
+if [[ -n "$GPU_IDS" ]]; then
+  read -ra GPU_ARR <<< "$GPU_IDS"; N_GPUS=${#GPU_ARR[@]}
+else
+  GPU_ARR=(); for ((g=0;g<N_GPUS;g++)); do GPU_ARR+=("$g"); done
+fi
 N_PAR=$(( N_GPUS * JOBS_PER_GPU ))
 RUN_GROUP_BASE="${RUN_GROUP_BASE:-${AGENT}_${DOMAIN}_sweep}"
 DATA_PATH="${DATA_PATH:-/dev/shm/factored-fb/datasets}"
@@ -65,7 +73,7 @@ echo "[grid] $N_GPUS GPUs x $JOBS_PER_GPU/GPU = $N_PAR parallel  steps=$TRAIN_ST
 
 if [[ "$DRY_RUN" == "1" ]]; then
   for i in "${!CMDS[@]}"; do
-    gpu=$(( i % N_GPUS ))
+    gpu="${GPU_ARR[$(( i % N_GPUS ))]}"
     echo "GPU$gpu  ${NAMES[$i]}"
     echo "   CUDA_VISIBLE_DEVICES=$gpu ${CMDS[$i]}"
   done
@@ -84,7 +92,7 @@ find_free_slot() {
   done
 }
 for i in "${!CMDS[@]}"; do
-  slot=$(find_free_slot); gpu=$(( slot % N_GPUS ))
+  slot=$(find_free_slot); gpu="${GPU_ARR[$(( slot % N_GPUS ))]}"
   echo "[grid] $(date +%T) launch ${NAMES[$i]} on GPU$gpu (slot $slot)"
   ( cd "$REPO"; CUDA_VISIBLE_DEVICES="$gpu" ${CMDS[$i]} > "${LOGS[$i]}" 2>&1 && rc=0 || rc=$?; \
     echo "[grid] $(date +%T) DONE ${NAMES[$i]} rc=$rc"; exit $rc ) &
