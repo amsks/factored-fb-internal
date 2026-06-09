@@ -9,7 +9,7 @@ Usage:
     python scripts/phase_probe.py \\
       --config RESULTS/.../__s3/.hydra/config.yaml \\
       --checkpoint RESULTS/.../__s3/checkpoints/final.pt \\
-      --out analysis/phase_probe/s3_final --mujoco-gl egl
+      --out analysis/legacy/phase_probe/s3_final --mujoco-gl egl
 """
 
 from __future__ import annotations

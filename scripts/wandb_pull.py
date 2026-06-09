@@ -193,7 +193,7 @@ def main() -> None:
     ap.add_argument("--domains", default=None, help="comma-separated")
     ap.add_argument("--obs-type", default=None,
                     help="filter on config.obs_type, e.g. pixels or state")
-    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "wandb_data"))
+    ap.add_argument("--out", default=str(REPO_ROOT / "analysis" / "wandb" / "wandb_data"))
     args = ap.parse_args()
     pull(
         entity=args.entity,

@@ -3,8 +3,8 @@ phase-probe and representation-profile aggregates (full-arc narrative).
 
 Usage:
     python scripts/build_paper_fragment.py \\
-      --phase-root analysis/phase_probe/aggregate \\
-      --repr-root analysis/representation_profile/aggregate \\
+      --phase-root analysis/legacy/phase_probe/aggregate \\
+      --repr-root analysis/probes/representation_profile/aggregate \\
       --paper-subdir fb-cube-failure
 """
 
@@ -22,15 +22,16 @@ if str(REPO_ROOT) not in sys.path:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--phase-root",
-                    default=str(REPO_ROOT / "analysis" / "phase_probe"
+                    default=str(REPO_ROOT / "analysis" / "legacy" / "phase_probe"
                                 / "aggregate"))
     ap.add_argument("--repr-root",
                     default=str(REPO_ROOT / "analysis"
+                                / "probes"
                                 / "representation_profile" / "aggregate"))
     ap.add_argument("--out", default=str(REPO_ROOT / "PAPER"))
     ap.add_argument("--paper-subdir", default="fb-cube-failure")
     ap.add_argument("--gciql-root",
-                    default=str(REPO_ROOT / "analysis" / "gciql_profile"
+                    default=str(REPO_ROOT / "analysis" / "legacy" / "gciql_profile"
                                / "aggregate" / "comparison"))
     args = ap.parse_args()
 

@@ -16,7 +16,7 @@ Usage:
     .venv-jax-cpu/bin/python scripts/crl_coverage.py \
         --checkpoint-dir results/factored-fb-crl-flowbc/sd000_20260525_080817 \
         --checkpoint-step 1000000 --seed 0 \
-        --out analysis/coverage_crl/s0_final --episodes 10
+        --out analysis/probes/coverage_crl/s0_final --episodes 10
 """
 from __future__ import annotations
 
