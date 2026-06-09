@@ -99,7 +99,7 @@ def main() -> int:
     ap.add_argument("--checkpoint", required=True)
     ap.add_argument("--method", required=True)
     ap.add_argument("--states",
-                    default="analysis/training_value_multiseed/p0/training_states.npz")
+                    default="analysis/value/training_value_multiseed/p0/training_states.npz")
     ap.add_argument("--data-path", default="datasets")
     ap.add_argument("--episodes", type=int, default=10)
     ap.add_argument("--mujoco-gl", default="glfw")
@@ -203,7 +203,7 @@ def main() -> int:
 
     import json
     import pandas as pd
-    out = REPO / f"analysis/repsep/forward_probe_{args.method}.json"
+    out = REPO / f"analysis/value/repsep/forward_probe_{args.method}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({
         "method": args.method,
@@ -216,9 +216,9 @@ def main() -> int:
     print(f"[forward_probe] wrote {out}")
 
     pd.DataFrame(vtrain, columns=["task", "success", "q", "q_z"]).to_parquet(
-        REPO / f"analysis/repsep/value_train_{args.method}.parquet")
+        REPO / f"analysis/value/repsep/value_train_{args.method}.parquet")
     pd.DataFrame(veval, columns=["episode", "outcome", "success", "q"]).to_parquet(
-        REPO / f"analysis/repsep/value_eval_{args.method}.parquet")
+        REPO / f"analysis/value/repsep/value_eval_{args.method}.parquet")
     print(f"[forward_probe] wrote value_train/value_eval parquets")
     return 0
 

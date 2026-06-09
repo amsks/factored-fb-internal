@@ -9,7 +9,7 @@ Per (traj, t): effector xyz, cube xyz, grip, lift, phase region (reach/grasp/
 transport), and d_eff_cube = ||effector - cube|| (the approach-phase target).
 
   MUJOCO_GL=glfw .venv/bin/python -m scripts.traj_effector \
-    --data-path datasets --out analysis/traj_value/effector.parquet --n-traj 1000
+    --data-path datasets --out analysis/value/traj_value/effector.parquet --n-traj 1000
 """
 import argparse
 import glob

@@ -171,7 +171,7 @@ def analyse_episode(obs: np.ndarray) -> tuple[dict, list[dict]]:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default="datasets/cube-single-play-v0/buffer")
-    ap.add_argument("--out", default="analysis/training_data_failure_modes")
+    ap.add_argument("--out", default="analysis/value/training_data_failure_modes")
     ap.add_argument("--max-episodes", type=int, default=0,
                     help="0 = all available episodes")
     args = ap.parse_args()

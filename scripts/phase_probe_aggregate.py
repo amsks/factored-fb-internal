@@ -13,7 +13,7 @@ summaries + plots:
 
 Usage:
     python scripts/phase_probe_aggregate.py \\
-      --root analysis/phase_probe --out analysis/phase_probe/aggregate
+      --root analysis/legacy/phase_probe --out analysis/legacy/phase_probe/aggregate
 """
 
 from __future__ import annotations
@@ -161,9 +161,9 @@ def write_overall_md(df: pd.DataFrame, by_seed: pd.DataFrame,
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default=str(REPO_ROOT / "analysis" / "phase_probe"))
+    ap.add_argument("--root", default=str(REPO_ROOT / "analysis" / "legacy" / "phase_probe"))
     ap.add_argument("--out",
-                    default=str(REPO_ROOT / "analysis" / "phase_probe" / "aggregate"))
+                    default=str(REPO_ROOT / "analysis" / "legacy" / "phase_probe" / "aggregate"))
     args = ap.parse_args()
 
     root = Path(args.root)

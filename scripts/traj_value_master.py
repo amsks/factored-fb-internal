@@ -7,8 +7,8 @@ training dataset, hindsight goal) into one master CSV, and renders:
     failure: it does not), value-colored cube paths on the MuJoCo top-down + goal ★.
 
   .venv/bin/python -m scripts.traj_value_master \
-    --fb analysis/traj_value/fb.parquet --gciql analysis/traj_value/gciql.parquet \
-    --out-dir analysis/traj_value
+    --fb analysis/value/traj_value/fb.parquet --gciql analysis/value/traj_value/gciql.parquet \
+    --out-dir analysis/value/traj_value
 """
 import argparse
 import json
@@ -79,7 +79,7 @@ def _binned(x, y, bins):
 
 
 def _bg_ext():
-    sx = REPO_ROOT / "analysis" / "scene"
+    sx = REPO_ROOT / "analysis" / "misc" / "scene"
     cal = json.loads((sx / "calib.json").read_text())
     bg = (mpimg.imread(str(sx / "topdown.png"))
           if (sx / "topdown.png").exists() and cal.get("photoreal") else None)
@@ -186,7 +186,7 @@ def main():
     ap.add_argument("--rldp", default=None,
                     help="optional RLDP per-step parquet (adds RLDP to master/summary "
                          "and the aggregate curves)")
-    ap.add_argument("--effector", default="analysis/traj_value/effector.parquet")
+    ap.add_argument("--effector", default="analysis/value/traj_value/effector.parquet")
     ap.add_argument("--out-dir", required=True)
     args = ap.parse_args()
     out = Path(args.out_dir); out.mkdir(parents=True, exist_ok=True)

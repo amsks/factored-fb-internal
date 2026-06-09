@@ -5,7 +5,7 @@
   fb, rldp  -> torch probe (counterfactual_value_probe.py)      .venv
   crl, gciql -> jax probe  (counterfactual_value_probe_jax.py)  .venv-jax-cpu
 
-Per-seed outputs land at analysis/repsep/cf_value_<method>_ms<NN>.json (+ parquet);
+Per-seed outputs land at analysis/value/repsep/cf_value_<method>_ms<NN>.json (+ parquet);
 existing outputs are skipped so the run resumes. Usage:
     python scripts/run_cf_multiseed.py <fb|rldp|crl|gciql>
 """
@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-REPSEP = REPO / "analysis" / "repsep"
+REPSEP = REPO / "analysis" / "value" / "repsep"
 TORCH_PY = str(REPO / ".venv" / "bin" / "python")
 JAX_PY = str(REPO / ".venv-jax-cpu" / "bin" / "python")
 

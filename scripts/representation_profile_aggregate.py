@@ -178,7 +178,7 @@ def aggregate(root, out) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root",
-                    default=str(REPO_ROOT / "analysis" / "representation_profile"))
+                    default=str(REPO_ROOT / "analysis" / "probes" / "representation_profile"))
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     root = Path(args.root)

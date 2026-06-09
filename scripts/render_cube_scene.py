@@ -98,7 +98,7 @@ def _schematic_topdown(out_png: Path) -> None:
 
 
 def main() -> None:
-    out = REPO_ROOT / "analysis" / "scene"
+    out = REPO_ROOT / "analysis" / "misc" / "scene"
     out.mkdir(parents=True, exist_ok=True)
     png = out / "topdown.png"
     photoreal = _try_mujoco_topdown(png)

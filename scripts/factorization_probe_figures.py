@@ -10,10 +10,10 @@ transport-phase states, for FB state-B vs FB pixel-B vs GCIQL state-value-phi:
                    flat blur = not.
 
   .venv/bin/python -m scripts.factorization_probe_figures \
-    --fb-state analysis/factorization_probe/s3/embeddings.npz \
-    --fb-pixel analysis/factorization_probe_pixel/s0/embeddings.npz \
-    --gciql-state analysis/gciql_feature/state_sd001/task1.npz \
-    --out analysis/factorization_probe/failure_mode.png
+    --fb-state analysis/probes/factorization_probe/s3/embeddings.npz \
+    --fb-pixel analysis/probes/factorization_probe_pixel/s0/embeddings.npz \
+    --gciql-state analysis/features_raw/gciql_feature/state_sd001/task1.npz \
+    --out analysis/probes/factorization_probe/failure_mode.png
 """
 import argparse
 from pathlib import Path

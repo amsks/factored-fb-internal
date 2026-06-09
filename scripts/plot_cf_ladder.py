@@ -7,7 +7,7 @@ representation the value reads (GCIQL penultimate value features; CRL phi(s,pi);
 FB/RLDP forward map F(s,pi,z)), and the value Q's own ranking. The rep->Q gap is
 how much usable signal the value discards.
 
-Reads analysis/repsep/cf_ladder_<method>.json. Run under .venv.
+Reads analysis/value/repsep/cf_ladder_<method>.json. Run under .venv.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ import numpy as np
 import seaborn as sns
 
 REPO = Path(__file__).resolve().parent.parent
-REPSEP = REPO / "analysis" / "repsep"
+REPSEP = REPO / "analysis" / "value" / "repsep"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
 sns.set_palette("colorblind")

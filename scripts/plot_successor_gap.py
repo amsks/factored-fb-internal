@@ -7,7 +7,7 @@ the same goal (binned mean +/- s.e.m.). A smooth value would send the gap to 0
 as observation distance shrinks; the measured gap stays large at the smallest
 distances, directly exhibiting the interaction-conditioned successor gap.
 
-Reads analysis/repsep/gap_pairs_<method>.parquet. Run under .venv.
+Reads analysis/value/repsep/gap_pairs_<method>.parquet. Run under .venv.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ import pandas as pd
 import seaborn as sns
 
 REPO = Path(__file__).resolve().parent.parent
-REPSEP = REPO / "analysis" / "repsep"
+REPSEP = REPO / "analysis" / "value" / "repsep"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
 sns.set_palette("colorblind")

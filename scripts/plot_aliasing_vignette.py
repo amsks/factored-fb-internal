@@ -19,7 +19,7 @@ import pandas as pd
 from scipy.spatial import cKDTree
 
 REPO = Path(__file__).resolve().parent.parent
-PAIR = REPO / "analysis/training_value_multiseed/p0"
+PAIR = REPO / "analysis/value/training_value_multiseed/p0"
 OUT = REPO / "PAPER" / "rlbrew" / "figures" / "fig_vignette.png"
 ML = {"fb": ("FB", "V_policy"), "gciql": ("GCIQL", "V"),
       "crl": ("CRL", "V"), "rldp": ("RLDP", "V")}

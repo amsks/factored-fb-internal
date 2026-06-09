@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 RUN_ROOT="results/gciql_20260518_201030/factored-fb/factored-fb-gciql"
-OUT_ROOT="analysis/gciql_profile_v2"
+OUT_ROOT="analysis/profiles/gciql_profile_v2"
 DATA_PATH="datasets/cube-single-play-v0"
 
 mkdir -p "$OUT_ROOT"

@@ -10,7 +10,7 @@ deciles, and plot the counterfactual success rate per decile.
 A value that tracks controllability rises steeply; an aliased value is flat. The
 slope is the value's usable signal; the annotation is the rank-AUC.
 
-Reads analysis/repsep/cf_records_<method>.parquet and cf_value_<method>.json.
+Reads analysis/value/repsep/cf_records_<method>.parquet and cf_value_<method>.json.
 Run under .venv.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ import pandas as pd
 import seaborn as sns
 
 REPO = Path(__file__).resolve().parent.parent
-REPSEP = REPO / "analysis" / "repsep"
+REPSEP = REPO / "analysis" / "value" / "repsep"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
 sns.set_palette("colorblind")

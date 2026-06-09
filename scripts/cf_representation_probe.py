@@ -49,7 +49,7 @@ def main() -> int:
     from data.ogbench import load_ogbench_dataset
     from scripts.repsep_forward_probe import phi, B_rep, F_rep, _z_np, _auc
 
-    rec = pd.read_parquet(REPO / f"analysis/repsep/cf_records_{args.method}.parquet")
+    rec = pd.read_parquet(REPO / f"analysis/value/repsep/cf_records_{args.method}.parquet")
     obs_cols = [c for c in rec.columns if c.startswith("obs_")]
 
     cfg = load_cfg(args.config, device="cpu"); cfg.data_path = args.data_path
@@ -86,7 +86,7 @@ def main() -> int:
         rows["Q"].append(roc_auc_score(y.astype(int), q))
 
     means = {k: float(np.nanmean(v)) for k, v in rows.items()}
-    out = REPO / f"analysis/repsep/cf_ladder_{args.method}.json"
+    out = REPO / f"analysis/value/repsep/cf_ladder_{args.method}.json"
     out.write_text(json.dumps({"method": args.method,
                                "label": "counterfactual",
                                "means": means,
