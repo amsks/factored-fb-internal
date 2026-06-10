@@ -16,13 +16,13 @@ OUTPUT ?= datasets
 
 ## Download + extract all state-based OGBench domains into ./datasets/ (or OUTPUT=<path>)
 data:
-	python scripts/extract_ogbench.py --output_folder $(OUTPUT)
+	python scripts/data/extract_ogbench.py --output_folder $(OUTPUT)
 
 # ── Pipeline check ────────────────────────────────────────────────────────── #
 
 ## Synthetic-data pipeline smoke (~20s, NO OGBench dataset needed)
 smoke:
-	python scripts/smoke.py
+	python scripts/dev/smoke.py
 
 # ── Training (requires extracted OGBench data under ./datasets/) ─────────── #
 
@@ -46,19 +46,19 @@ sweep-ant-medium:
 
 ## Verify ortho_coef=100 prevents FB collapse on antmaze (~10 min on GPU)
 verify-ortho-fix:
-	python scripts/verify_ortho_fix.py
+	python scripts/dev/verify_ortho_fix.py
 
 ## Reproduce the collapse with the broken config (ortho_coef=1.0, no clip)
 verify-ortho-broken:
-	python scripts/verify_ortho_fix.py --ortho-coef 1.0 --clip-grad-norm 0
+	python scripts/dev/verify_ortho_fix.py --ortho-coef 1.0 --clip-grad-norm 0
 
 ## Verify lr_b=1e-5 prevents FB collapse on antmaze (~10 min on GPU)
 verify-lr-b-fix:
-	python scripts/verify_lr_b_fix.py
+	python scripts/dev/verify_lr_b_fix.py
 
 ## Reproduce the collapse with the broken lr_b=1e-4 (other knobs identical)
 verify-lr-b-broken:
-	python scripts/verify_lr_b_fix.py --lr-b 1.0e-4
+	python scripts/dev/verify_lr_b_fix.py --lr-b 1.0e-4
 
 ## Run both verifications back-to-back; ortho first, then lr_b
 verify-both: verify-ortho-fix verify-lr-b-fix
@@ -121,11 +121,11 @@ install-jax:
 
 ## Argv / isolation unit test for the GCIQL launcher
 test-gciql:
-	python scripts/test_run_gciql.py
+	python scripts/dev/test_run_gciql.py
 
 ## Unit test for the wandb shim video GIF + re-key behavior
 test-wandb-shim:
-	/dev/shm/.venv-jax/bin/python scripts/test_wandb_shim_video.py
+	/dev/shm/.venv-jax/bin/python scripts/dev/test_wandb_shim_video.py
 
 ## Launch GCIQL with cube_single_state config
 run-gciql:
@@ -141,4 +141,4 @@ run-gciql-state-sweep:
 
 ## End-to-end smoke test for GCIQL (state + visual)
 smoke-gciql:
-	bash scripts/smoke_test_gciql.sh
+	bash scripts/dev/smoke_test_gciql.sh

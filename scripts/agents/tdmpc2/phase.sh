@@ -3,7 +3,7 @@
 #
 # TD-MPC2 is a PyTorch model-based (MPC) agent exposing the same .act(obs, z)
 # interface as FB/RLDP, so it reuses the generic torch phase-probe driver
-# (scripts/phase_probe.py). Two TD-MPC2-specific paths are handled inside that
+# (scripts/probes/phase_probe.py). Two TD-MPC2-specific paths are handled inside that
 # driver and evals/phase_probe.py, both gated on capability (FB-safe):
 #   * goal context comes from eval_context(env=...) (cube goal xyz), not the
 #     offline buffer's _infer_z;
@@ -50,7 +50,7 @@ for s in $SEEDS; do
         echo "[phase] seed=$s: missing ckpt/config in $sdir — skipping"; continue
     fi
     out="${OUT_ROOT}/s${s}_final"
-    cmd=("$PY" scripts/phase_probe.py
+    cmd=("$PY" scripts/probes/phase_probe.py
          --config "$cfg" --checkpoint "$ckpt"
          --seed "$s" --out "$out" --n-episodes "$EPISODES"
          --scenarios "$SCENARIOS" --data-path "$DATA_PATH"

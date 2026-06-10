@@ -202,7 +202,7 @@ def build_fragment(phase_root, repr_root, out_dir, subdir: str,
 
     doc = [
         "% Auto-generated self-contained document; regenerate via "
-        "scripts/build_paper_fragment.py",
+        "scripts/figures/build_paper_fragment.py",
         r"\documentclass[11pt]{article}",
         r"\usepackage[margin=1in]{geometry}",
         r"\usepackage{graphicx}",
