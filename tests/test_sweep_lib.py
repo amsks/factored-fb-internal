@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-# Load scripts/sweep_lib.py directly by file path. A plain `from scripts.sweep_lib
+# Load scripts/train/sweep_lib.py directly by file path. A plain `from scripts.train.sweep_lib
 # import ...` is unreliable under full-suite collection: tests/scripts/__init__.py
 # makes `tests/scripts` importable as top-level `scripts`, shadowing the repo-root
 # `scripts/` package. File-path loading sidesteps that name collision entirely.
-_SWEEP_LIB = Path(__file__).resolve().parents[1] / "scripts" / "sweep_lib.py"
+_SWEEP_LIB = Path(__file__).resolve().parents[1] / "scripts" / "train" / "sweep_lib.py"
 _spec = importlib.util.spec_from_file_location("_sweep_lib_under_test", _SWEEP_LIB)
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)

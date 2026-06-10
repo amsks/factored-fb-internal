@@ -2,7 +2,7 @@
 # scripts/agents/rldp_flowbc/phase.sh — phase-probe over all RLDP+FlowBC seeds.
 #
 # RLDP is a PyTorch FB-family flow-BC agent, so it reuses the FB phase-probe
-# driver (scripts/phase_probe.py, which calls agent.act(obs, z)) — unlike CRL,
+# driver (scripts/probes/phase_probe.py, which calls agent.act(obs, z)) — unlike CRL,
 # which needs the JAX driver. For each __sN run under RESULTS_ROOT it picks the
 # final checkpoint and that run's saved .hydra/config.yaml.
 #
@@ -44,7 +44,7 @@ for s in $SEEDS; do
         echo "[phase] seed=$s: missing ckpt/config in $sdir — skipping"; continue
     fi
     out="${OUT_ROOT}/s${s}_final"
-    cmd=("$PY" scripts/phase_probe.py
+    cmd=("$PY" scripts/probes/phase_probe.py
          --config "$cfg" --checkpoint "$ckpt"
          --seed "$s" --out "$out" --n-episodes "$EPISODES"
          --scenarios "$SCENARIOS" --data-path "$DATA_PATH"

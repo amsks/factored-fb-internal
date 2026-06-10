@@ -48,7 +48,7 @@ _dry_run_preview() {
 }
 
 _assert_data() {
-    [[ -d "$1" ]] || { echo "MISSING dataset $1 — run scripts/extract_ogbench.py" >&2; exit 1; }
+    [[ -d "$1" ]] || { echo "MISSING dataset $1 — run scripts/data/extract_ogbench.py" >&2; exit 1; }
 }
 
 _setup_dev_shm() {
