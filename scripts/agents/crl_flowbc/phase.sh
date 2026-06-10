@@ -2,7 +2,7 @@
 # scripts/agents/crl_flowbc/phase.sh — phase-probe over all CRL+FlowBC seeds.
 #
 # For each sdNNN_* under RESULTS_ROOT, picks the highest-step params_*.pkl
-# and invokes scripts/phase_probe_crl.py with the paper's 10-rollout
+# and invokes scripts/probes/phase_probe_crl.py with the paper's 10-rollout
 # deterministic protocol.
 USAGE="usage: bash scripts/agents/crl_flowbc/phase.sh
   knobs (env vars):
@@ -36,7 +36,7 @@ for s in $SEEDS; do
         echo "[phase] seed=$s: NO CHECKPOINT in $sdir — skipping"; continue
     fi
     out="${OUT_ROOT}/s${s}_final"
-    cmd=("$JAX_PY" scripts/phase_probe_crl.py
+    cmd=("$JAX_PY" scripts/probes/phase_probe_crl.py
          --checkpoint-dir "$sdir" --checkpoint-step "$step"
          --seed "$s" --out-dir "$out" --episodes "$EPISODES"
          --scenarios "$SCENARIOS")
