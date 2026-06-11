@@ -48,6 +48,22 @@ def coverage_weights(cube_xyz: Tensor, rho, alpha: float, clip: float) -> Tensor
     return (w / w.mean().clamp_min(1e-8)).detach()
 
 
+def interaction_weights(eff_xyz: Tensor, cube_xyz: Tensor,
+                        c: float, sigma: float, eps: float) -> Tensor:
+    """IWR-style interaction-proximity weights w(g) (goal-agnostic, data-only).
+
+    Ports Interaction-Weighted Resampling (Factored_URL_in_Manipulation) to the FB
+    goal measure: w peaks where the effector-cube distance d(g) is at the contact
+    threshold c (the interaction boundary), with window sigma and floor eps>0 so
+    rho' keeps full support. Mean-normalized (E[w]=1) so loss scales are preserved;
+    only the measure over goals tilts. Both inputs in the SAME (obs) frame.
+    See PAPER/specs/2026-06-11-interaction-weighted-fb.md.
+    """
+    d = (eff_xyz - cube_xyz).norm(dim=-1)
+    w = eps + torch.exp(-((d - c).pow(2)) / (2 * sigma ** 2))
+    return (w / w.mean().clamp_min(1e-8)).detach()
+
+
 def fb_successor_terms(diff: Tensor, off_diag: Tensor, off_diag_sum,
                        w: Tensor | None = None, weight_diag: bool = False):
     """FB successor loss split into (off-diagonal, diagonal).
@@ -123,8 +139,13 @@ class FBAgent(BaseAgent):
         reweight_alpha: float = 0.0,
         reweight_clip: float = 10.0,
         reweight_density_path: str | None = None,
+        reweight_mode: str = "coverage",
+        iwr_c: float = 0.03,
+        iwr_sigma: float = 0.05,
+        iwr_eps: float = 0.1,
         weight_diag: bool = False,
         weight_z: bool = False,
+        train_goal_mode: str = "perm",
         onestep: bool = False,
         goal_cond: bool = False,
         fixed_b: str = "none",
@@ -167,8 +188,21 @@ class FBAgent(BaseAgent):
         # docs/superpowers/specs/2026-05-25-coverage-balanced-fb.md.
         self.reweight_alpha = float(reweight_alpha)
         self.reweight_clip = float(reweight_clip)
+        # reweight_mode: "coverage" = inverse cube-position density (original covbal);
+        # "interaction" = IWR-style contact-proximity bump (interaction_weights).
+        # alpha>0 remains the master switch for BOTH modes.
+        self.reweight_mode = str(reweight_mode)
+        self.iwr_c = float(iwr_c)
+        self.iwr_sigma = float(iwr_sigma)
+        self.iwr_eps = float(iwr_eps)
         self.weight_diag = bool(weight_diag)
         self.weight_z = bool(weight_z)
+        # train_goal_mode: "perm" = goal-derived z's from batch-permuted next-states
+        # (uniform buffer goals, original); "traj" = zHER: z = B(s_{t+k}) for the SAME
+        # trajectory's discounted future (requires batch["future"], i.e. the buffer
+        # sampled with future_gamma). The actor/F then practice tasks actually
+        # reachable from their states. Spec: 2026-06-11-interaction-weighted-fb.md §1.4.
+        self.train_goal_mode = str(train_goal_mode)
         # One-step FB (https://github.com/chongyi-zheng/onestep-fb): learn the BEHAVIOR
         # successor features — F is NOT conditioned on z (see _fb_z) and the FB loss uses
         # the dataset's own next action (SARSA, batch["next"]["action"]) instead of the
@@ -265,11 +299,15 @@ class FBAgent(BaseAgent):
 
     @torch.no_grad()
     def sample_mixed_z(self, train_goal: torch.Tensor | None = None,
-                       goal_weights: torch.Tensor | None = None, *args, **kwargs):
+                       goal_weights: torch.Tensor | None = None,
+                       permute: bool = True, *args, **kwargs):
         # samples a batch from the z distribution used to update the networks.
         # goal_weights (mean-normalized w over batch goals): when given, the goal-derived
         # z's are resampled ~ w (rare goals over-represented) so F and the actor also see
         # rare-goal z=B(g); None => uniform permutation (behavior-marginal, original).
+        # permute=False (zHER/traj goals): keep train_goal ALIGNED with the batch — each
+        # element's task is its own trajectory future. Only honored when goal_weights is
+        # None (weights imply resampling).
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             z = self.model.sample_z(self.batch_size, device=self.device)
             g_used = torch.zeros((self.batch_size, train_goal.shape[-1]), device=self.device,
@@ -277,11 +315,12 @@ class FBAgent(BaseAgent):
                 if train_goal is not None else None
             if train_goal is not None:
                 if goal_weights is None:
-                    perm = torch.randperm(self.batch_size, device=self.device)
+                    # permute=False (zHER/traj goals): keep train_goal aligned with the batch.
+                    perm = torch.randperm(self.batch_size, device=self.device) if permute else None
                 else:
                     probs = goal_weights.float() / goal_weights.float().sum().clamp_min(1e-8)
                     perm = torch.multinomial(probs, self.batch_size, replacement=True)
-                tg = train_goal[perm]
+                tg = train_goal[perm] if perm is not None else train_goal
                 goals = self.model._backward_map(tg)
                 goals = self.model.project_z(goals)
                 mask = torch.rand((self.batch_size, 1), device=self.device) < self.train_goal_ratio
@@ -303,10 +342,18 @@ class FBAgent(BaseAgent):
         return obs, next_obs, goal
 
     def _coverage_weights(self, batch) -> torch.Tensor | None:
-        """Inverse-density weight w(g) over cube xyz of the next-state (the rho_G
-        variable). Goal-agnostic: reads ONLY the precomputed offline density + physics
-        (never eval/task goals). Returns None when reweighting is off => byte-identical."""
-        if self.reweight_alpha <= 0 or self._rho is None:
+        """Goal-measure weight w(g) over the next-state (the rho_G variable), per
+        reweight_mode: "coverage" = inverse cube-xyz density; "interaction" = IWR-style
+        contact-proximity bump (effector-cube distance in the obs frame, slices 12:15 /
+        19:22). Goal-agnostic in both modes (offline data only, never eval/task goals).
+        Returns None when reweighting is off => byte-identical."""
+        if self.reweight_alpha <= 0:
+            return None
+        if self.reweight_mode == "interaction":
+            nobs = batch["next"]["observation"].to(self.device).float()
+            return interaction_weights(nobs[:, 12:15], nobs[:, 19:22],
+                                       self.iwr_c, self.iwr_sigma, self.iwr_eps)
+        if self._rho is None:
             return None
         cube = batch["next"]["physics"][:, 14:17].to(self.device).float()  # s+ cube xyz
         return coverage_weights(cube, self._rho, self.reweight_alpha, self.reweight_clip)
@@ -342,7 +389,14 @@ class FBAgent(BaseAgent):
         # goal-side term. None when alpha=0 => byte-identical. Computed BEFORE z so the
         # goal-derived z's can be resampled by w when weight_z is set.
         w = self._coverage_weights(batch)
-        z, g_used = self.sample_mixed_z(train_goal=goal,
+        train_goal, permute = goal, True
+        if self.train_goal_mode == "traj" and "future" in batch:
+            # zHER: each element's task z = B(its own discounted trajectory future).
+            fut = batch["future"]["observation"].to(self.device).float()
+            with torch.no_grad(), eval_mode(self.model._obs_normalizer):
+                fut = self.model._obs_normalizer(fut)
+            train_goal, permute = self.model._bw_encoder(fut), False
+        z, g_used = self.sample_mixed_z(train_goal=train_goal, permute=permute,
                                         goal_weights=(w if self.weight_z else None))
         z = z.clone()
         self._g_used = g_used if self.goal_cond else None   # stashed for update_fb/update_actor

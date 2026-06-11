@@ -24,8 +24,13 @@ q_loss_coef: 0.0         # td_jepa's optional aux Q-MSE loss (off by default)
 reweight_alpha: 0.0                          # 0 = off (current FB exactly); try 0.25, 0.5
 reweight_clip: 10.0                          # per-sample weight cap (clamped to [1/clip, clip])
 reweight_density_path: analysis/cube_density.npz
+reweight_mode: coverage                      # coverage = inverse cube-density; interaction = IWR contact bump (spec 2026-06-11)
+iwr_c: 0.03                                  # contact distance, obs frame (median hand-cube d of grasped states)
+iwr_sigma: 0.05                              # interaction window (grasped p95 ~ 0.067)
+iwr_eps: 0.1                                 # coverage floor (rho' > 0 on all of rho's support)
 weight_diag: false                          # false = pure rho'-FB (diagonal unweighted); true = coverage-PRIORITIZED
 weight_z: false                             # true = resample goal-derived z by w (rare-goal exposure for F/actor)
+train_goal_mode: perm                       # perm = uniform buffer goals (original); traj = zHER (z = B(own trajectory future))
 onestep: false                              # true = one-step FB (F not z-conditioned + SARSA next-action; behavior successor)
 goal_cond: false        # V1: feed the explicit goal obs into forward map + actor
 fixed_b: none           # V2: 'none' (learned B) | 'cube_xyz' (fixed USFA featurizer, z_dim->3)
