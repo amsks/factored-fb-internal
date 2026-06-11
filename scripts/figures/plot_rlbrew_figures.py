@@ -35,9 +35,9 @@ REPO = Path(__file__).resolve().parent.parent.parent
 ANALYSIS = REPO / "analysis"
 OUT = REPO / "PAPER" / "rlbrew" / "figures"
 
-METHODS = ["FB", "GCIQL", "CRL", "RLDP", "TDMPC2"]
+METHODS = ["FB", "GCIQL", "CRL", "RLDP", "PSM", "TDMPC2"]
 MC = {"FB": _CB[0], "GCIQL": _CB[1], "CRL": _CB[2], "RLDP": _CB[3],
-      "TDMPC2": _CB[5]}
+      "PSM": _CB[6], "TDMPC2": _CB[5]}
 
 
 def _present(d):
@@ -52,6 +52,7 @@ OUTCOMES = {
     "GCIQL": {"success": 69.2, "approach": 0.2, "grasp": 12.2, "maintain": 9.2,  "transport": 9.2},
     "CRL":   {"success": 23.2, "approach": 0.4, "grasp": 23.8, "maintain": 28.6, "transport": 24.0},
     "RLDP":  {"success": 25.4, "approach": 0.2, "grasp": 9.6,  "maintain": 44.0, "transport": 20.8},
+    "PSM":   {"success": 38.4, "approach": 1.0, "grasp": 19.2, "maintain": 35.4, "transport": 6.0},
 }
 OUTCOME_KEYS = ["success", "approach", "grasp", "maintain", "transport"]
 OUTCOME_LAB = ["Success", "Approach fail", "Grasp fail", "Maintain fail", "Transport fail"]

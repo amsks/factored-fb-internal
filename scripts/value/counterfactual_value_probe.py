@@ -47,7 +47,12 @@ def _zb(z, B):
 
 
 def value_q(model, agent, obs_np, z):
-    """V(s|z) = Q(s, pi(s,z), z) = F(s,pi,z) . z."""
+    """V(s|z) = Q(s, pi(s,z), z) = F(s,pi,z) . z.
+
+    FB-family (fb/rldp) expose forward_map; PSM has no forward_map and instead
+    computes Q via successor features sf_psi (mirrors agents/psm/flow_bc/agent.py:
+    fw-encode+normalize obs, sf_psi -> [P,B,z_dim], dot with z, mean over heads).
+    """
     import torch
     with torch.no_grad():
         obs = torch.as_tensor(np.asarray(obs_np), dtype=torch.float32)
@@ -55,10 +60,15 @@ def value_q(model, agent, obs_np, z):
         a = agent.act(obs, zb)
         if isinstance(a, np.ndarray):
             a = torch.as_tensor(a, dtype=torch.float32)
-        F = model.forward_map(obs, zb, a.float())
-        if F.dim() == 3:
-            F = F.mean(0)
-        return (F * zb).sum(-1).cpu().numpy()
+        if hasattr(model, "forward_map"):
+            F = model.forward_map(obs, zb, a.float())
+            if F.dim() == 3:
+                F = F.mean(0)
+            return (F * zb).sum(-1).cpu().numpy()
+        # PSM successor-feature value
+        enc = model._fw_encoder(model._normalize(obs))
+        Fs = model.sf_psi(enc, zb, a.float())   # [P, B, z_dim]
+        return (Fs * zb).sum(-1).mean(0).cpu().numpy()
 
 
 def sample_grasps(data_path, domain, n, lift_thr=0.05, seed=0):

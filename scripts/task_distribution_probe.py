@@ -44,6 +44,7 @@ OUT = Path("analysis/task_distribution")
 METHODS = {
     "fb_state_plain": ("20260607_070225__fb_state_plain", "fb"),
     "psm_flowbc_state": ("20260603_071856__psm_flowbc_state", "psm"),
+    "psm_o1000": ("psm_o1000", "psm"),  # tuned PSM ortho_coef=1000 (symlinked into RUNS)
 }
 
 

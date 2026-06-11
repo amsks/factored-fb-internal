@@ -69,6 +69,32 @@ def v_values(model, agent, obs: torch.Tensor, z: torch.Tensor) -> np.ndarray:
     return q_values(model, obs, action.to(obs.device).float(), zb)
 
 
+@torch.no_grad()
+def psm_q_values(model, obs: torch.Tensor, action: torch.Tensor,
+                 z: torch.Tensor) -> np.ndarray:
+    """PSM successor-feature value Q(s,a,z) = mean_heads (sf_psi(s,z,a) . z).
+
+    Mirrors agents/psm/flow_bc/agent.py exactly: the obs is fw-encoded +
+    normalized (Identity for state), sf_psi returns [num_parallel, B, z_dim],
+    we dot each head with z and average heads (get_targets_uncertainty mean).
+    PSM has no forward_map/backward_map, so it cannot use q_values/v_values.
+    """
+    zb = _tile_z(z, obs.shape[0]).to(obs.device).float()
+    enc = model._fw_encoder(model._normalize(obs.to(obs.device).float()))
+    Fs = model.sf_psi(enc, zb, action.to(obs.device).float())  # [P, B, z_dim]
+    Qs = (Fs * zb).sum(-1)                                      # [P, B]
+    return Qs.mean(0).cpu().numpy()                             # [B]
+
+
+@torch.no_grad()
+def psm_v_values(model, agent, obs: torch.Tensor, z: torch.Tensor) -> np.ndarray:
+    zb = _tile_z(z, obs.shape[0]).to(obs.device).float()
+    action = agent.act(obs, zb)
+    if isinstance(action, np.ndarray):
+        action = torch.as_tensor(action, dtype=torch.float32)
+    return psm_q_values(model, obs, action.to(obs.device).float(), zb)
+
+
 def rollout_for_profile(env, agent, z, n_episodes: int, thr,
                         seed_offset: int = 0) -> List[Dict[str, Any]]:
     """S0 rollouts with obs/action recorded, each tagged with outcome,
