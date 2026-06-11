@@ -1,0 +1,29 @@
+# GCIQL + FB FlowBC actor on state cube-single. Actor-only ablation of GCIQL:
+# the IQL expectile value + double critic are inherited unchanged; only the
+# Gaussian DDPG+BC actor is swapped for FQL's flow actor (bc-flow + one-step
+# distillation + Q-max on the frozen IQL critic). agent_name=gciql_flow is
+# registered, and the agent file resolved to an absolute path, by
+# tools/wandb_mode_shim (see run_gciql._resolve_agent_file). State => no encoder.
+# Directly comparable to cube_single_state.yaml (run_group factored-fb-gciql ->
+# GCIQL-State-DDPGBC). bc_coeff (3.0) is the key actor knob.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 1000000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 1000000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow
+# Resume support (all null = fresh run); see cube_single_state_crl_flowbc.yaml.
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+wandb_mode: online            # online | offline | disabled

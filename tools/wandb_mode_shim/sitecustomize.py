@@ -161,6 +161,17 @@ try:
 except Exception:
     pass
 
+# --- GCIQL+FlowBC agent injection (GCIQL IQL critic + FQL flow actor) ---
+# Register GCIQLFlowAgent so configs may select agent_name='gciql_flow' via
+# --agent=tools/wandb_mode_shim/gciql_flow.py. Guarded like the block above.
+try:
+    import agents as _ogb_agents
+    from gciql_flow import GCIQLFlowAgent as _GCIQLFlowAgent
+
+    _ogb_agents.agents.setdefault("gciql_flow", _GCIQLFlowAgent)
+except Exception:
+    pass
+
 # --- Resume support (opt-in via env; set by run_gciql for restore_* runs) ---
 # Vendored main.py always counts the loop i=1..train_steps and writes params_{i},
 # truncates train.csv/eval.csv, and logs wandb step=i. To make a run resumed from
