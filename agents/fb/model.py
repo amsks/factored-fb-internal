@@ -53,11 +53,15 @@ class FBModel(torch.nn.Module):
         rgb_encoder_cfg=None,
         augmentator_cfg=None,
         obs_normalizer_cfg=None,
+        fixed_b: str = "none",
+        goal_dim: int = 0,
         device: str = "cpu",
     ):
         super().__init__()
         self.obs_space = obs_space
         self.action_dim = action_dim
+        self.fixed_b = str(fixed_b)
+        self.goal_dim = int(goal_dim)
         # Store every config attr as a plain instance attribute (stand-in for cfg.archi.X / cfg.X).
         self.z_dim = z_dim
         self.L_dim = L_dim
@@ -92,12 +96,20 @@ class FBModel(torch.nn.Module):
         self._fw_encoder = rgb_encoder_cfg.build(obs_space)
         self._left_encoder = left_encoder_cfg.build(self._fw_encoder.output_space, L_dim)
 
-        self._backward_map = backward_cfg.build(self._bw_encoder.output_space, z_dim)
-        self._forward_map = forward_cfg.build(self._left_encoder.output_space, z_dim, action_dim)
+        if self.fixed_b == "cube_xyz":
+            from agents.fb.fixed_backward import FixedCubeBackward
+            self._bw_encoder = torch.nn.Identity()           # raw obs -> backward
+            self._backward_map = FixedCubeBackward()          # B(obs) = scaled cube xyz, z_dim=3
+            self.z_dim = 3
+            z_dim = 3                                          # forward map output dim follows
+        else:
+            self._backward_map = backward_cfg.build(self._bw_encoder.output_space, z_dim)
+        self._forward_map = forward_cfg.build(self._left_encoder.output_space, z_dim, action_dim, goal_dim=self.goal_dim)
         self._actor = actor_cfg.build(
             self._left_encoder.output_space if self.actor_encode_obs else self._fw_encoder.output_space,
             z_dim,
             action_dim,
+            goal_dim=self.goal_dim,
         )
 
         # make sure the model is in eval mode and never computes gradients
@@ -126,11 +138,11 @@ class FBModel(torch.nn.Module):
             return self._forward_map(self._left_encoder(self._fw_encoder(self._normalize(obs))), z, action)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor, z: torch.Tensor, std: float):
+    def actor(self, obs: torch.Tensor, z: torch.Tensor, std: float, goal=None):
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
             obs = self._fw_encoder(self._normalize(obs))
             obs = self._left_encoder(obs) if self.actor_encode_obs else obs
-            return self._actor(obs, z, std)
+            return self._actor(obs, z, std, **({} if goal is None else {"goal": goal}))
 
     def sample_z(self, size: int, device: str = "cpu") -> torch.Tensor:
         z = torch.randn((size, self.z_dim), dtype=torch.float32, device=device)
@@ -141,8 +153,8 @@ class FBModel(torch.nn.Module):
             z = math.sqrt(z.shape[-1]) * F.normalize(z, dim=-1)
         return z
 
-    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
-        dist = self.actor(obs, z, self.actor_std)
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True, goal=None) -> torch.Tensor:
+        dist = self.actor(obs, z, self.actor_std, goal=goal)
         if mean:
             return dist.mean.float()
         return dist.sample().float()

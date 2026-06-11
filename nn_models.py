@@ -117,15 +117,15 @@ class ForwardArchiConfig(BaseConfig):
     num_parallel: int = 2
     ensemble_mode: tp.Literal["batch"] = "batch"
 
-    def build(self, obs_space, z_dim: int, action_dim, output_dim=None) -> torch.nn.Module:
+    def build(self, obs_space, z_dim: int, action_dim, output_dim=None, goal_dim: int = 0) -> torch.nn.Module:
         if self.ensemble_mode == "batch":
-            return _build_batch_forward(self, obs_space, z_dim, action_dim, output_dim)
+            return _build_batch_forward(self, obs_space, z_dim, action_dim, output_dim, goal_dim)
         raise ValueError(f"Unsupported ensemble_mode {self.ensemble_mode}")
 
 
-def _build_batch_forward(cfg, obs_space, z_dim, action_dim, output_dim=None):
+def _build_batch_forward(cfg, obs_space, z_dim, action_dim, output_dim=None, goal_dim=0):
     if cfg.model == "simple":
-        return ForwardMap(obs_space, z_dim, action_dim, cfg, output_dim=output_dim)
+        return ForwardMap(obs_space, z_dim, action_dim, cfg, output_dim=output_dim, goal_dim=goal_dim)
     raise ValueError(f"Unsupported forward_map model {cfg.model}")
 
 
@@ -136,9 +136,9 @@ class ActorArchiConfig(BaseConfig):
     hidden_layers: int = 1
     embedding_layers: int = 2
 
-    def build(self, obs_space, z_dim, action_dim):
+    def build(self, obs_space, z_dim, action_dim, goal_dim: int = 0):
         if self.model == "simple":
-            return Actor(obs_space, z_dim, action_dim, self)
+            return Actor(obs_space, z_dim, action_dim, self, goal_dim=goal_dim)
         raise ValueError(f"Unsupported actor model {self.model}")
 
 
@@ -207,16 +207,17 @@ def simple_embedding(input_dim, hidden_dim, hidden_layers, num_parallel=1):
 
 
 class ForwardMap(nn.Module):
-    def __init__(self, obs_space, z_dim, action_dim, cfg: ForwardArchiConfig, output_dim=None) -> None:
+    def __init__(self, obs_space, z_dim, action_dim, cfg: ForwardArchiConfig, output_dim=None, goal_dim: int = 0) -> None:
         super().__init__()
         assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
         obs_dim = obs_space.shape[0]
         self.cfg = cfg
         self.z_dim = z_dim
+        self.goal_dim = goal_dim
         self.num_parallel = cfg.num_parallel
         self.hidden_dim = cfg.hidden_dim
 
-        self.embed_z = simple_embedding(obs_dim + z_dim, cfg.hidden_dim, cfg.embedding_layers, cfg.num_parallel)
+        self.embed_z = simple_embedding(obs_dim + z_dim + goal_dim, cfg.hidden_dim, cfg.embedding_layers, cfg.num_parallel)
         self.embed_sa = simple_embedding(obs_dim + action_dim, cfg.hidden_dim, cfg.embedding_layers, cfg.num_parallel)
 
         seq = []
@@ -225,13 +226,16 @@ class ForwardMap(nn.Module):
         seq += [linear(cfg.hidden_dim, output_dim if output_dim else z_dim, cfg.num_parallel)]
         self.Fs = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor, z: torch.Tensor, action: torch.Tensor):
+    def forward(self, obs: torch.Tensor, z: torch.Tensor, action: torch.Tensor, goal: torch.Tensor | None = None):
         # Returns [num_parallel, B, z_dim] when num_parallel > 1, else [B, z_dim]
         if self.num_parallel > 1:
             obs = obs.expand(self.num_parallel, -1, -1)
             z = z.expand(self.num_parallel, -1, -1)
             action = action.expand(self.num_parallel, -1, -1)
-        z_embedding = self.embed_z(torch.cat([obs, z], dim=-1))
+            if goal is not None:
+                goal = goal.expand(self.num_parallel, -1, -1)
+        z_in = torch.cat([obs, z], dim=-1) if goal is None else torch.cat([obs, z, goal], dim=-1)
+        z_embedding = self.embed_z(z_in)
         sa_embedding = self.embed_sa(torch.cat([obs, action], dim=-1))
         return self.Fs(torch.cat([sa_embedding, z_embedding], dim=-1))
 
@@ -240,18 +244,19 @@ class SimpleActorArchiConfig(ActorArchiConfig):
     name: tp.Literal["simple"] = "simple"
     model: tp.Literal["simple"] = "simple"
 
-    def build(self, obs_space, z_dim: int, action_dim: int) -> "Actor":
-        return Actor(obs_space, z_dim, action_dim, self)
+    def build(self, obs_space, z_dim: int, action_dim: int, goal_dim: int = 0) -> "Actor":
+        return Actor(obs_space, z_dim, action_dim, self, goal_dim=goal_dim)
 
 
 class Actor(nn.Module):
-    def __init__(self, obs_space, z_dim, action_dim, cfg: SimpleActorArchiConfig) -> None:
+    def __init__(self, obs_space, z_dim, action_dim, cfg: SimpleActorArchiConfig, goal_dim: int = 0) -> None:
         super().__init__()
         assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
         obs_dim = obs_space.shape[0]
         self.cfg: SimpleActorArchiConfig = cfg
+        self.goal_dim = goal_dim
 
-        self.embed_z = simple_embedding(obs_dim + z_dim, cfg.hidden_dim, cfg.embedding_layers)
+        self.embed_z = simple_embedding(obs_dim + z_dim + goal_dim, cfg.hidden_dim, cfg.embedding_layers)
         self.embed_s = simple_embedding(obs_dim, cfg.hidden_dim, cfg.embedding_layers)
 
         seq = []
@@ -260,8 +265,9 @@ class Actor(nn.Module):
         seq += [linear(cfg.hidden_dim, action_dim)]
         self.policy = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor, z: torch.Tensor, std: float) -> "TruncatedNormal":
-        z_embedding = self.embed_z(torch.cat([obs, z], dim=-1))
+    def forward(self, obs: torch.Tensor, z: torch.Tensor, std: float, goal: torch.Tensor | None = None) -> "TruncatedNormal":
+        z_in = torch.cat([obs, z], dim=-1) if goal is None else torch.cat([obs, z, goal], dim=-1)
+        z_embedding = self.embed_z(z_in)
         s_embedding = self.embed_s(obs)
         mu = torch.tanh(self.policy(torch.cat([s_embedding, z_embedding], dim=-1)))
         return TruncatedNormal(mu, torch.ones_like(mu) * std)
@@ -274,17 +280,18 @@ class NoiseConditionedActorArchiConfig(BaseConfig):
     hidden_layers: int = 1
     embedding_layers: int = 2
 
-    def build(self, obs_space, z_dim: int, action_dim: int) -> "NoiseConditionedActor":
-        return NoiseConditionedActor(obs_space, z_dim, action_dim, self)
+    def build(self, obs_space, z_dim: int, action_dim: int, goal_dim: int = 0) -> "NoiseConditionedActor":
+        return NoiseConditionedActor(obs_space, z_dim, action_dim, self, goal_dim=goal_dim)
 
 
 class NoiseConditionedActor(nn.Module):
-    def __init__(self, obs_space, z_dim, action_dim, cfg: NoiseConditionedActorArchiConfig) -> None:
+    def __init__(self, obs_space, z_dim, action_dim, cfg: NoiseConditionedActorArchiConfig, goal_dim: int = 0) -> None:
         super().__init__()
         assert len(obs_space.shape) == 1, "obs_space must have a 1D shape"
         obs_dim = obs_space.shape[0]
         self.cfg: NoiseConditionedActorArchiConfig = cfg
-        self.embed_z = simple_embedding(obs_dim + z_dim + action_dim, cfg.hidden_dim, cfg.embedding_layers)
+        self.goal_dim = goal_dim
+        self.embed_z = simple_embedding(obs_dim + z_dim + action_dim + goal_dim, cfg.hidden_dim, cfg.embedding_layers)
         self.embed_s = simple_embedding(obs_dim + action_dim, cfg.hidden_dim, cfg.embedding_layers)
 
         seq = []
@@ -293,8 +300,9 @@ class NoiseConditionedActor(nn.Module):
         seq += [linear(cfg.hidden_dim, action_dim)]
         self.policy = nn.Sequential(*seq)
 
-    def forward(self, obs: torch.Tensor, z: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
-        z_embedding = self.embed_z(torch.cat([obs, z, noise], dim=-1))
+    def forward(self, obs: torch.Tensor, z: torch.Tensor, noise: torch.Tensor, goal: torch.Tensor | None = None) -> torch.Tensor:
+        z_in = [obs, z, noise] if goal is None else [obs, z, noise, goal]
+        z_embedding = self.embed_z(torch.cat(z_in, dim=-1))
         s_embedding = self.embed_s(torch.cat([obs, noise], dim=-1))
         return torch.tanh(self.policy(torch.cat([s_embedding, z_embedding], dim=-1)))
 

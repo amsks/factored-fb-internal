@@ -23,9 +23,15 @@ MODE="${MODE:-vanilla}"
 REWEIGHT_ALPHA="${REWEIGHT_ALPHA:-0}"
 ORTHO_COEF="${ORTHO_COEF:-1000}"
 LR_B="${LR_B:-1e-4}"
+L_DIM="${L_DIM:-}"            # empty = config default (50); set 256 for the capacity ablation
+GOAL_COND="${GOAL_COND:-false}"
+FIXED_B="${FIXED_B:-none}"    # none | cube_xyz
 
 extra=("ortho_coef=$ORTHO_COEF" "lr_b=$LR_B")
 [[ "$MODE" == "onestep" ]] && extra+=("onestep=true")
+[[ -n "$L_DIM" ]] && extra+=("L_dim=$L_DIM")
+[[ "$GOAL_COND" == "true" ]] && extra+=("goal_cond=true")
+[[ "$FIXED_B" != "none" ]] && extra+=("fixed_b=$FIXED_B")
 if [[ "$REWEIGHT_ALPHA" != "0" ]]; then
     DENSITY="${DENSITY:-$REPO/analysis/cube_density.npz}"
     extra+=("reweight_alpha=$REWEIGHT_ALPHA"

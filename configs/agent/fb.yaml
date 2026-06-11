@@ -27,6 +27,8 @@ reweight_density_path: analysis/cube_density.npz
 weight_diag: false                          # false = pure rho'-FB (diagonal unweighted); true = coverage-PRIORITIZED
 weight_z: false                             # true = resample goal-derived z by w (rare-goal exposure for F/actor)
 onestep: false                              # true = one-step FB (F not z-conditioned + SARSA next-action; behavior successor)
+goal_cond: false        # V1: feed the explicit goal obs into forward map + actor
+fixed_b: none           # V2: 'none' (learned B) | 'cube_xyz' (fixed USFA featurizer, z_dim->3)
 amp: false
 
 # Per-network architecture (td_jepa OGBench launch defaults)

@@ -44,14 +44,14 @@ class FBFlowBCModel(FBModel):
         self.to(self.device)
 
     @torch.no_grad()
-    def actor(self, obs: torch.Tensor, z: torch.Tensor, **kwargs) -> torch.Tensor:
+    def actor(self, obs: torch.Tensor, z: torch.Tensor, goal: torch.Tensor | None = None, **kwargs) -> torch.Tensor:
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
             obs = self._fw_encoder(self._normalize(obs))
             obs = self._left_encoder(obs) if self.actor_encode_obs else obs
             noises = torch.randn((z.shape[0], self.action_dim), device=z.device, dtype=z.dtype)
-            actions = self._actor(obs, z, noises)
+            actions = self._actor(obs, z, noises, **({} if goal is None else {"goal": goal}))
         return actions
 
-    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True) -> torch.Tensor:
+    def act(self, obs: torch.Tensor, z: torch.Tensor, mean: bool = True, goal=None) -> torch.Tensor:
         del mean  # not used
-        return self.actor(obs, z)
+        return self.actor(obs, z, goal=goal)
