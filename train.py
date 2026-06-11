@@ -438,7 +438,11 @@ def main(cfg: DictConfig) -> None:
 
         # Update
         horizon = getattr(cfg, "horizon", 1)
-        batch = buffer.sample(cfg.batch_size, horizon=horizon)
+        # zHER (train_goal_mode=traj): attach each transition's discounted
+        # trajectory-future next-state as batch["future"] for goal-derived z's.
+        future_gamma = (float(cfg.discount)
+                        if str(getattr(cfg, "train_goal_mode", "perm")) == "traj" else None)
+        batch = buffer.sample(cfg.batch_size, horizon=horizon, future_gamma=future_gamma)
         metrics = agent.update(batch, step)
 
         # Accumulate (matches td_jepa: copy on first, add on subsequent)
