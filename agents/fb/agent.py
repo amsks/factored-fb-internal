@@ -126,6 +126,8 @@ class FBAgent(BaseAgent):
         weight_diag: bool = False,
         weight_z: bool = False,
         onestep: bool = False,
+        goal_cond: bool = False,
+        fixed_b: str = "none",
         amp: bool = False,
         device: str = "cpu",
     ):
@@ -172,6 +174,13 @@ class FBAgent(BaseAgent):
         # the dataset's own next action (SARSA, batch["next"]["action"]) instead of the
         # policy's. The actor then does one improvement step on <F(s,a), z>. Default off.
         self.onestep = bool(onestep)
+        self.goal_cond = bool(goal_cond)
+        self.fixed_b = str(fixed_b)
+        # goal_dim: the slice of obs fed to F/actor in V1 (full obs by default).
+        self.goal_dim = int(obs_space.shape[0]) if self.goal_cond else 0
+        # Only the goal variants use eval_context; baseline keeps legacy reward-inference.
+        self._use_eval_context = self.goal_cond or self.fixed_b == "cube_xyz"
+        self._eval_goal = None
         self._rho = None
         if self.reweight_alpha > 0:
             if not reweight_density_path:
@@ -203,6 +212,8 @@ class FBAgent(BaseAgent):
             obs_normalizer_cfg=obs_normalizer_cfg,
             rgb_encoder_cfg=rgb_encoder_cfg,
             augmentator_cfg=augmentator_cfg,
+            fixed_b=self.fixed_b,
+            goal_dim=self.goal_dim,
             device=device,
         )
         self.setup_training()
@@ -222,10 +233,10 @@ class FBAgent(BaseAgent):
         self.model.apply(weight_init)
         self.model._prepare_for_train()  # ensure target nets are initialized AFTER applying the weights
 
-        self.backward_optimizer = torch.optim.Adam(
-            list(self.model._backward_map.parameters()) + list(self.model._bw_encoder.parameters()),
-            lr=self.lr_b,
-            weight_decay=self.weight_decay,
+        bw_params = list(self.model._backward_map.parameters()) + list(self.model._bw_encoder.parameters())
+        self.backward_optimizer = (
+            torch.optim.Adam(bw_params, lr=self.lr_b, weight_decay=self.weight_decay)
+            if bw_params else None
         )
         self.forward_optimizer = torch.optim.Adam(
             list(self.model._forward_map.parameters())
@@ -261,18 +272,22 @@ class FBAgent(BaseAgent):
         # rare-goal z=B(g); None => uniform permutation (behavior-marginal, original).
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             z = self.model.sample_z(self.batch_size, device=self.device)
+            g_used = torch.zeros((self.batch_size, train_goal.shape[-1]), device=self.device,
+                                 dtype=train_goal.dtype) \
+                if train_goal is not None else None
             if train_goal is not None:
                 if goal_weights is None:
                     perm = torch.randperm(self.batch_size, device=self.device)
                 else:
                     probs = goal_weights.float() / goal_weights.float().sum().clamp_min(1e-8)
                     perm = torch.multinomial(probs, self.batch_size, replacement=True)
-                train_goal = train_goal[perm]
-                goals = self.model._backward_map(train_goal)
+                tg = train_goal[perm]
+                goals = self.model._backward_map(tg)
                 goals = self.model.project_z(goals)
                 mask = torch.rand((self.batch_size, 1), device=self.device) < self.train_goal_ratio
                 z = torch.where(mask, goals, z)
-        return z
+                g_used = torch.where(mask, tg, g_used)   # zero placeholder where z is random
+        return z, g_used
 
     @torch.no_grad()
     def aug(self, obs, next_obs):
@@ -327,8 +342,10 @@ class FBAgent(BaseAgent):
         # goal-side term. None when alpha=0 => byte-identical. Computed BEFORE z so the
         # goal-derived z's can be resampled by w when weight_z is set.
         w = self._coverage_weights(batch)
-        z = self.sample_mixed_z(train_goal=goal,
-                                goal_weights=(w if self.weight_z else None)).clone()
+        z, g_used = self.sample_mixed_z(train_goal=goal,
+                                        goal_weights=(w if self.weight_z else None))
+        z = z.clone()
+        self._g_used = g_used if self.goal_cond else None   # stashed for update_fb/update_actor
 
         q_loss_coef = self.q_loss_coef if self.q_loss_coef > 0 else None
         clip_grad_norm = self.clip_grad_norm if self.clip_grad_norm > 0 else None
@@ -350,6 +367,7 @@ class FBAgent(BaseAgent):
             w=w,
             weight_diag=self.weight_diag,
             next_action_override=next_action_override,
+            goal_obs=self._g_used,
         )
         metrics.update(
             self.update_actor(
@@ -357,21 +375,24 @@ class FBAgent(BaseAgent):
                 action=action,
                 z=z,
                 clip_grad_norm=clip_grad_norm,
+                goal=self._g_used,
             )
         )
 
         with torch.no_grad():
             _soft_update_params(self._forward_map_paramlist, self._target_forward_map_paramlist, self.f_target_tau)
-            _soft_update_params(self._backward_map_paramlist, self._target_backward_map_paramlist, self.b_target_tau)
+            if len(self._backward_map_paramlist):
+                _soft_update_params(self._backward_map_paramlist, self._target_backward_map_paramlist, self.b_target_tau)
             if len(self._left_encoder_paramlist):
                 _soft_update_params(self._left_encoder_paramlist, self._target_left_encoder_paramlist, self.f_target_tau)
 
         # convert tensor metrics to floats for downstream logging (train.py expects floats)
         return {k: (v.item() if isinstance(v, torch.Tensor) else float(v)) for k, v in metrics.items()}
 
-    def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+    def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor, goal: torch.Tensor | None = None) -> torch.Tensor:
+        gk = {} if goal is None else {"goal": goal}
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
-            dist = self.model._actor(obs, z, self.actor_std)
+            dist = self.model._actor(obs, z, self.actor_std, **gk)
             action = dist.sample(clip=self.stddev_clip)
         return action
 
@@ -388,23 +409,27 @@ class FBAgent(BaseAgent):
         w: torch.Tensor | None = None,
         weight_diag: bool = False,
         next_action_override: torch.Tensor | None = None,
+        goal_obs: torch.Tensor | None = None,
     ) -> Dict[str, torch.Tensor]:
         zf = self._fb_z(z)  # one-step FB: zeros (F is z-independent); else z
+        # V1 goal-conditioning: the forward map AND the policy that picks next_action
+        # also see the (raw) goal observation. goal_obs=None => byte-identical to baseline.
+        fwd_kw = {} if goal_obs is None else {"goal": goal_obs}
         with autocast(device_type=self.device_type, dtype=self.amp_dtype, enabled=self.amp):
             with torch.no_grad():
                 next_left_enc = self.model._target_left_encoder(next_obs)  # batch x L_dim
                 actor_in = next_left_enc if self.actor_encode_obs else next_obs
                 # One-step FB uses the dataset's next action (SARSA); else sample from policy.
                 next_action = (next_action_override if next_action_override is not None
-                               else self.sample_action_from_norm_obs(actor_in, z))
-                target_Fs = self.model._target_forward_map(next_left_enc, zf, next_action)  # num_parallel x batch x z_dim
+                               else self.sample_action_from_norm_obs(actor_in, z, goal_obs))
+                target_Fs = self.model._target_forward_map(next_left_enc, zf, next_action, **fwd_kw)  # num_parallel x batch x z_dim
                 target_B = self.model._target_backward_map(goal)  # batch x z_dim
                 target_Ms = torch.matmul(target_Fs, target_B.T)  # num_parallel x batch x batch
                 _, _, target_M = self.get_targets_uncertainty(target_Ms, self.fb_pessimism_penalty)  # batch x batch
 
             # compute FB loss
             left_enc = self.model._left_encoder(obs)  # batch x L_dim
-            Fs = self.model._forward_map(left_enc, zf, action)  # num_parallel x batch x z_dim
+            Fs = self.model._forward_map(left_enc, zf, action, **fwd_kw)  # num_parallel x batch x z_dim
             B = self.model._backward_map(goal)  # batch x z_dim
             Ms = torch.matmul(Fs, B.T)  # num_parallel x batch x batch
 
@@ -416,12 +441,16 @@ class FBAgent(BaseAgent):
             fb_offdiag, fb_diag = fb_successor_terms(diff, self.off_diag, self.off_diag_sum, w, weight_diag)
             fb_loss = fb_offdiag + fb_diag
 
-            # orthonormality loss for backward embedding (whitened under rho')
-            Cov = ortho_cov(B, w)
-            orth_loss_diag = -Cov.diag().mean()
-            orth_loss_offdiag = 0.5 * (Cov * self.off_diag).pow(2).sum() / self.off_diag_sum
-            orth_loss = orth_loss_offdiag + orth_loss_diag
-            fb_loss += self.ortho_coef * orth_loss
+            # orthonormality loss for backward embedding (whitened under rho').
+            # Disabled for fixed-B (B has no params / is the privileged cube xyz).
+            if self.fixed_b != "cube_xyz":
+                Cov = ortho_cov(B, w)
+                orth_loss_diag = -Cov.diag().mean()
+                orth_loss_offdiag = 0.5 * (Cov * self.off_diag).pow(2).sum() / self.off_diag_sum
+                orth_loss = orth_loss_offdiag + orth_loss_diag
+                fb_loss += self.ortho_coef * orth_loss
+            else:
+                orth_loss = orth_loss_diag = orth_loss_offdiag = torch.zeros(1, device=z.device, dtype=z.dtype)
 
             q_loss = torch.zeros(1, device=z.device, dtype=z.dtype)
             if q_loss_coef is not None:
@@ -447,14 +476,16 @@ class FBAgent(BaseAgent):
 
         # optimize FB
         self.forward_optimizer.zero_grad(set_to_none=True)
-        self.backward_optimizer.zero_grad(set_to_none=True)
+        if self.backward_optimizer is not None:
+            self.backward_optimizer.zero_grad(set_to_none=True)
         fb_loss.backward()
         if clip_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(self.model._forward_map.parameters(), clip_grad_norm)
             torch.nn.utils.clip_grad_norm_(self.model._backward_map.parameters(), clip_grad_norm)
             torch.nn.utils.clip_grad_norm_(self.model._left_encoder.parameters(), clip_grad_norm)
         self.forward_optimizer.step()
-        self.backward_optimizer.step()
+        if self.backward_optimizer is not None:
+            self.backward_optimizer.step()
 
         with torch.no_grad():
             output_metrics = {
@@ -489,7 +520,10 @@ class FBAgent(BaseAgent):
         action: torch.Tensor,
         z: torch.Tensor,
         clip_grad_norm: float | None,
+        goal: torch.Tensor | None = None,
     ) -> Dict[str, torch.Tensor]:
+        # V1 goal-conditioning lives in the FlowBC actor override; the TD3 path ignores
+        # `goal` (accepted only so the goal-aware update() call doesn't break non-FlowBC FB).
         return self.update_td3_actor(obs=obs, action=action, z=z, clip_grad_norm=clip_grad_norm)
 
     def update_td3_actor(
@@ -555,6 +589,29 @@ class FBAgent(BaseAgent):
         return self.model.act(obs, z, mean=True)
 
     @torch.no_grad()
+    def eval_context(self, *, env, domain, task, goal_obs=None):
+        """Goal-conditioned eval context. Returns (z, metrics) and, for V1, stashes the
+        NORMALIZED goal observation on self._eval_goal for goal-cond act()."""
+        if not self._use_eval_context:
+            raise AttributeError("baseline uses reward-inference _infer_z")
+        if self.fixed_b == "cube_xyz":
+            from agents.fb.fixed_backward import scale_goal_xyz
+            goal_xyzs = env.unwrapped.cur_task_info["goal_xyzs"]      # [num_cubes,3], metres
+            g = torch.as_tensor(goal_xyzs[0], dtype=torch.float32, device=self.device)
+            z = self.model.project_z(scale_goal_xyz(g).unsqueeze(0)).squeeze(0)
+            self._eval_goal = None
+            return z, {"goal_source": 0.0}
+        # V1: z = B(g*) from a goal OBSERVATION sourced by the evaluator; stash NORMALIZED g*.
+        if goal_obs is None:
+            raise ValueError("goal_cond eval_context requires goal_obs (g*) from the evaluator")
+        g_obs = goal_obs.to(self.device).float()
+        if g_obs.dim() == 1:
+            g_obs = g_obs.unsqueeze(0)
+        z = self.model.project_z(self.model.backward_map(g_obs)).squeeze(0)   # backward_map normalizes raw obs
+        self._eval_goal = self.model._normalize(g_obs)                         # actor goal in normalized space (matches training)
+        return z, {"goal_source": 1.0}
+
+    @torch.no_grad()
     def infer_z(self, obs: Tensor, reward: Tensor) -> Tensor:
         return self.model.reward_inference(obs.to(self.device), reward.to(self.device))
 
@@ -562,12 +619,16 @@ class FBAgent(BaseAgent):
         return {
             "model": self.model.state_dict(),
             "forward_optimizer": self.forward_optimizer.state_dict(),
-            "backward_optimizer": self.backward_optimizer.state_dict(),
+            # fixed-B (e.g. fixed_b=cube_xyz) has no backward params => no optimizer.
+            "backward_optimizer": (
+                self.backward_optimizer.state_dict() if self.backward_optimizer is not None else None
+            ),
             "actor_optimizer": self.actor_optimizer.state_dict(),
         }
 
     def load_state_dict(self, state: dict) -> None:
         self.model.load_state_dict(state["model"])
         self.forward_optimizer.load_state_dict(state["forward_optimizer"])
-        self.backward_optimizer.load_state_dict(state["backward_optimizer"])
+        if self.backward_optimizer is not None and state.get("backward_optimizer") is not None:
+            self.backward_optimizer.load_state_dict(state["backward_optimizer"])
         self.actor_optimizer.load_state_dict(state["actor_optimizer"])
