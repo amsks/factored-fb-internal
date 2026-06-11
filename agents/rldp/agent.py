@@ -95,7 +95,8 @@ class RLDPAgent(FBAgent):
             next_obs_fw = self.model._fw_encoder(next_obs)
             future_obs_bw = self.model._bw_encoder(future_obs_flat) if future_obs_flat is not None else None
 
-        z = self.sample_mixed_z(train_goal=goal).clone()
+        z, _ = self.sample_mixed_z(train_goal=goal)
+        z = z.clone()
 
         clip_grad_norm = self.clip_grad_norm if self.clip_grad_norm > 0 else None
         q_loss_coef = self.q_loss_coef if self.q_loss_coef > 0 else None

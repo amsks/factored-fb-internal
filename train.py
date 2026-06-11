@@ -233,6 +233,8 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         weight_diag=cfg.get("weight_diag", False),
         weight_z=cfg.get("weight_z", False),
         onestep=cfg.get("onestep", False),
+        goal_cond=cfg.get("goal_cond", False),
+        fixed_b=cfg.get("fixed_b", "none"),
         amp=cfg.get("amp", False),
         device=cfg.device,
     )
