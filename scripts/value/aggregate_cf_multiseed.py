@@ -22,8 +22,8 @@ from scipy import stats as _st
 
 REPO = Path(__file__).resolve().parent.parent.parent
 REPSEP = REPO / "analysis" / "value" / "repsep"
-METHODS = ["gciql", "crl", "fb", "rldp"]
-LABEL = {"gciql": "GCIQL", "crl": "CRL", "fb": "FB", "rldp": "RLDP"}
+METHODS = ["gciql", "crl", "fb", "rldp", "psm"]
+LABEL = {"gciql": "GCIQL", "crl": "CRL", "fb": "FB", "rldp": "RLDP", "psm": "PSM"}
 
 
 def _iqm_ci(samples, reps=5000, seed=0):

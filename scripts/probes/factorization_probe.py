@@ -89,10 +89,20 @@ def main():
     region = [str(r) for r in region_labels(grip, physics[:, 16] - table_z, thr)]
 
     # Frozen GOAL-INDEPENDENT embeddings: backward map B and forward left-encoder.
+    # FB-family (fb/rldp) expose backward_map + _left_encoder. PSM has neither:
+    # its backward embedding is B = phi(bw_encoder(normalize(obs))) (mirrors
+    # PSMModel.reward_inference) and it has no separate forward left-encoder
+    # (the forward branch is sf_psi(obs, z, a), goal+action dependent), so the
+    # honest goal-independent forward feature is the fw-encoded obs (Identity for
+    # state) — the input sf_psi sees.
     m = agent.model
     with torch.no_grad():
-        B = m.backward_map(next_obs).cpu().numpy()
-        left = m._left_encoder(m._fw_encoder(m._normalize(next_obs))).cpu().numpy()
+        if hasattr(m, "backward_map"):
+            B = m.backward_map(next_obs).cpu().numpy()
+            left = m._left_encoder(m._fw_encoder(m._normalize(next_obs))).cpu().numpy()
+        else:  # PSM
+            B = m.phi(m._bw_encoder(m._normalize(next_obs))).cpu().numpy()
+            left = m._fw_encoder(m._normalize(next_obs)).cpu().numpy()
     # "raw" reference = full obs vector (state) or ground-truth cube xyz (pixels:
     # raw images are not a fair flat-MLP baseline). Both establish "geometry is
     # available in principle" so that a low B-score isolates B (not B1/data).
