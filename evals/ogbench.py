@@ -76,8 +76,9 @@ class OGBenchEvaluator:
                 frame_stack=self.frame_stack,
             )
             try:
-                if hasattr(self.agent, "eval_context"):
-                    z, relabel_metrics = self.agent.eval_context(env=env, domain=self.domain, task=task)
+                if getattr(self.agent, "_use_eval_context", False):
+                    goal_obs = self._goal_observation(task) if getattr(self.agent, "goal_cond", False) else None
+                    z, relabel_metrics = self.agent.eval_context(env=env, domain=self.domain, task=task, goal_obs=goal_obs)
                 else:
                     z, relabel_metrics = self._infer_z(task)
                 stats, infos, frames = rollout(
@@ -130,11 +131,17 @@ class OGBenchEvaluator:
                 step=step,
             )
 
-    def _infer_z(self, task: str) -> Tuple[Tensor, Dict[str, float]]:
+    def _relabel_subsample(self, task: str):
+        """Shared sample+relabel used by _infer_z (baseline) and _goal_observation (V1).
+
+        Returns (batch, rewards, relabel_metrics). When the buffer holds fewer than 8
+        samples, returns (None, None, {}) so callers can apply their own small-n fallback.
+        rewards is a [N,1] float32 Tensor on self.device (already shifted by shift_reward).
+        """
         relabel_fn = get_relabel_fn(self.domain, task)  # builds + closes a temp env internally
         n = min(self.relabel_size, len(self.offline_buffer))
         if n < 8:
-            return self.agent.model.sample_z(1).squeeze(0), {}
+            return None, None, {}
 
         batch = self.offline_buffer.sample(n)
 
@@ -159,9 +166,32 @@ class OGBenchEvaluator:
             "relabel_reward#zero": float(rewards_np.size - non_zero),
             "relabel_reward#num_samples": float(rewards_np.size),
         }
+        return batch, rewards, relabel_metrics
+
+    def _infer_z(self, task: str) -> Tuple[Tensor, Dict[str, float]]:
+        batch, rewards, relabel_metrics = self._relabel_subsample(task)
+        if batch is None:
+            return self.agent.model.sample_z(1).squeeze(0), {}
 
         z = self.agent.model.reward_inference(
             next_obs=batch["next"]["observation"].to(self.device),
             reward=rewards,
         )
         return z, relabel_metrics
+
+    def _goal_observation(self, task: str) -> Tensor:
+        """Source g* for V1 (goal_cond): the highest-reward next-obs from the relabel
+        subsample, returned as a [1, obs_dim] raw (unnormalized) Tensor on self.device.
+
+        NOTE: not unit-tested here — it needs a real buffer + mujoco relabel env. It is
+        exercised by the Task 4.2 2k-step GPU sanity run.
+        """
+        batch, rewards, _ = self._relabel_subsample(task)
+        next_obs = (batch["next"]["observation"] if batch is not None
+                    else self.offline_buffer.sample(1)["next"]["observation"])
+        next_obs = next_obs.to(self.device).float()
+        if rewards is None:
+            idx = 0                                   # small-n fallback: any valid obs
+        else:
+            idx = int(torch.argmax(rewards.reshape(-1)).item())
+        return next_obs[idx].unsqueeze(0)             # [1, obs_dim]
