@@ -48,6 +48,30 @@ def _unflatten(flat: Dict[str, Any]) -> Dict:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Trajectory-future (HER-style) goal indices
+# ──────────────────────────────────────────────────────────────────────────────
+
+def episode_last_index(timestep: np.ndarray) -> np.ndarray:
+    """For each flat transition i, the flat index of the LAST transition of its
+    episode. Episodes are contiguous blocks where `timestep` runs 0..L-1."""
+    ts = np.asarray(timestep).reshape(-1)
+    n = len(ts)
+    starts = np.flatnonzero(ts == 0)
+    ends = np.append(starts[1:], n) - 1          # last flat idx per episode
+    ep_id = np.cumsum(ts == 0) - 1               # episode id per transition
+    return ends[ep_id]
+
+
+def sample_future_idx(idx: np.ndarray, ep_last: np.ndarray, gamma: float,
+                      rng: np.random.Generator) -> np.ndarray:
+    """j = min(i + k, ep_last[i]) with k >= 1 geometric(1-gamma) — the discounted
+    trajectory-future goal index, truncated at the episode end (HER-future)."""
+    idx = np.asarray(idx).reshape(-1)
+    k = rng.geometric(p=max(1.0 - gamma, 1e-6), size=len(idx))
+    return np.minimum(idx + k, ep_last[idx])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # DictBuffer
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -93,6 +117,20 @@ class DictBuffer:
     # ------------------------------------------------------------------ #
     # Adding data
     # ------------------------------------------------------------------ #
+
+    def _episode_last(self) -> np.ndarray:
+        """Cached episode_last_index over current storage (offline buffers are
+        filled once; invalidated by extend())."""
+        if getattr(self, "_ep_last_cache", None) is None or \
+                self._ep_last_cache_size != self._size:
+            self._ep_last_cache = episode_last_index(self._storage["timestep"][: self._size])
+            self._ep_last_cache_size = self._size
+        return self._ep_last_cache
+
+    def _future_rng(self) -> np.random.Generator:
+        if getattr(self, "_future_rng_inst", None) is None:
+            self._future_rng_inst = np.random.default_rng(0)
+        return self._future_rng_inst
 
     def extend(self, data: Dict) -> None:
         """Add a batch of transitions.  ``data`` may contain nested dicts."""
@@ -152,7 +190,8 @@ class DictBuffer:
         arr = np.concatenate(frames, axis=1)
         return torch.as_tensor(arr).to(self.device)
 
-    def sample(self, batch_size: int, horizon: int = 1) -> Dict[str, Any]:
+    def sample(self, batch_size: int, horizon: int = 1,
+               future_gamma: float | None = None) -> Dict[str, Any]:
         """Sample *batch_size* transitions uniformly. Returns nested dict of tensors.
 
         Uses torch.randint (not np.random) so RNG consumption matches td_jepa's
@@ -165,6 +204,12 @@ class DictBuffer:
         A window starting at index i is valid iff timestep[i:i+horizon] is
         strictly consecutive (no episode boundary). Raises ValueError if no
         episode in the buffer is long enough to provide a horizon-h window.
+
+        future_gamma (opt-in, state path only): additionally attach
+        batch["future"]["observation"] = next-state at a trajectory-future index
+        j = min(i+k, episode_end), k ~ Geom(1-future_gamma) — the HER-style
+        discounted-future goal aligned with each transition (zHER, spec
+        2026-06-11-interaction-weighted-fb.md §1.4). None => byte-identical.
         """
         assert self._size > 0, "Buffer is empty"
         if horizon < 1:
@@ -182,6 +227,11 @@ class DictBuffer:
             out.pop("timestep", None)  # internal-only; not part of a batch
             if self.with_index:
                 out["index"] = torch.as_tensor(idx, dtype=torch.long).to(self.device)
+            if future_gamma is not None:
+                j = sample_future_idx(idx, self._episode_last(), future_gamma,
+                                      self._future_rng())
+                out["future"] = {"observation": torch.as_tensor(
+                    self._storage["next/observation"][j]).to(self.device)}
             return out
 
         if "timestep" not in self._storage:
