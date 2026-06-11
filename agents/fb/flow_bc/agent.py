@@ -54,9 +54,10 @@ class FBFlowBCAgent(FBAgent):
             weight_decay=self.weight_decay,
         )
 
-    def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+    def sample_action_from_norm_obs(self, obs: torch.Tensor, z: torch.Tensor, goal: torch.Tensor | None = None) -> torch.Tensor:
         noises = torch.randn((z.shape[0], self.action_dim), device=z.device, dtype=z.dtype)
-        action = self.model._actor(obs, z, noises)
+        gk = {} if goal is None else {"goal": goal}
+        action = self.model._actor(obs, z, noises, **gk)
         return action
 
     def update_actor(
@@ -65,6 +66,7 @@ class FBFlowBCAgent(FBAgent):
         action: torch.Tensor,
         z: torch.Tensor,
         clip_grad_norm: float | None,
+        goal: torch.Tensor | None = None,
     ) -> Dict[str, torch.Tensor]:
         with autocast(device_type=self.device, dtype=self.amp_dtype, enabled=self.amp):
             x_1 = action
@@ -82,9 +84,12 @@ class FBFlowBCAgent(FBAgent):
                 left_enc = self.model._left_encoder(obs)
             actor_in = left_enc if self.actor_encode_obs else obs
             noises = torch.randn_like(x_1, device=action.device, dtype=action.dtype)
-            actor_actions = self.model._actor(actor_in, z, noises)
+            # V1 goal-conditioning: the Q-driven actor head and F see the goal; the BC flow
+            # vector field (_actor_vf above) stays goal-UNconditioned. goal=None => baseline.
+            gk = {} if goal is None else {"goal": goal}
+            actor_actions = self.model._actor(actor_in, z, noises, **gk)
             # one-step FB: F is z-independent (zero-z); Q still dots with the real z.
-            Fs = self.model._forward_map(left_enc, self._fb_z(z), actor_actions)  # num_parallel x batch x z_dim
+            Fs = self.model._forward_map(left_enc, self._fb_z(z), actor_actions, **gk)  # num_parallel x batch x z_dim
             Qs = (Fs * z).sum(-1)  # num_parallel x batch
             _, _, Q = self.get_targets_uncertainty(Qs, self.actor_pessimism_penalty)  # batch
             actor_loss = -Q.mean()
@@ -131,7 +136,10 @@ class FBFlowBCAgent(FBAgent):
         z = z.to(self.device).float()
         if z.dim() == 1:
             z = z.unsqueeze(0)
-        return self.model.act(obs, z, mean=True)
+        goal = getattr(self, "_eval_goal", None) if self.goal_cond else None
+        if goal is not None:
+            goal = goal.to(self.device).float()
+        return self.model.act(obs, z, mean=True, goal=goal)
 
     def state_dict(self) -> dict:
         s = super().state_dict()
