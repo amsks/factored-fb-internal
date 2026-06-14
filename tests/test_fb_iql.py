@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import torch
 
-from agents.fb.agent import expectile_loss
+from agents.fb.agent import expectile_loss, iql_goal_target
 
 
 # --- expectile loss: the IQL asymmetry (pure function) -----------------------------
@@ -108,7 +108,7 @@ def test_iql_requires_future_goals():
 
 
 def test_iql_reward_is_goal_reaching_on_cube_xyz():
-    # next cube xyz == physics[:,14:17]; r = 1[||next - goal|| < iql_thresh].
+    # next cube xyz == physics[:,14:17]; success = 1[||next - goal|| < iql_thresh].
     a = _tiny_flowbc(critic_mode="iql", train_goal_mode="traj", iql_thresh=0.04)
     B = 16
     pn = torch.zeros(B, 20)
@@ -116,3 +116,41 @@ def test_iql_reward_is_goal_reaching_on_cube_xyz():
     pf[B // 2:, 14] = 1.0                       # half reached (dist 0), half far (dist 1)
     m = a.update(_batch(B=B, phys_next=pn, phys_fut=pf), step=0)
     assert np.isclose(m["iql_r_pos"], 0.5, atol=1e-6)
+
+
+# --- GCIQL goal-conditioned Bellman target (the divergence root cause) --------------
+# Faithful to OGBench: masks = 1 - success, rewards = success - 1 (gc_negative),
+# q = rewards + discount * masks * V_next. The bug was an unmasked {0,+1} bootstrap.
+
+def test_iql_goal_target_masks_bootstrap_at_goal():
+    # When the goal is reached (success=1) the bootstrap must be cut: target == reward == 0,
+    # INDEPENDENT of V_next. The old code (r + discount*V_next) gave 1 + discount*V_next here,
+    # an unbounded accumulation -> V -> 1/(1-gamma) -> collapse.
+    success = torch.ones(8)
+    Vn = torch.full((8,), 1000.0)              # huge V_next must not leak through the mask
+    t = iql_goal_target(success, Vn, discount=0.99)
+    assert torch.allclose(t, torch.zeros(8))
+
+
+def test_iql_goal_target_bootstraps_when_not_at_goal():
+    # success=0 -> reward=-1, mask=1 -> target = -1 + discount * V_next (bounded, negative).
+    success = torch.zeros(8)
+    Vn = torch.full((8,), -5.0)
+    t = iql_goal_target(success, Vn, discount=0.99)
+    assert torch.allclose(t, torch.full((8,), -1.0 + 0.99 * -5.0))
+
+
+def test_iql_value_stays_bounded_over_many_updates():
+    # Regression for the divergence: with the goal-masked gc_negative target, V/Q must NOT
+    # ramp toward 1/(1-gamma). A batch that is half at-goal would, under the old convention,
+    # inflate V monotonically; here it stays bounded in magnitude.
+    torch.manual_seed(0)
+    a = _tiny_flowbc(critic_mode="iql", train_goal_mode="traj", iql_thresh=0.04)
+    B = 16
+    pn = torch.zeros(B, 20)
+    pf = torch.zeros(B, 20)
+    pf[B // 2:, 14] = 1.0
+    for s in range(200):
+        m = a.update(_batch(B=B, phys_next=pn, phys_fut=pf), step=s)
+    assert np.isfinite(m["V_mean"]) and np.isfinite(m["Q_mean"])
+    assert abs(m["V_mean"]) < 50.0 and abs(m["Q_mean"]) < 50.0   # nowhere near 1/(1-0.99)=100
