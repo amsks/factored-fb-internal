@@ -31,6 +31,9 @@ iwr_eps: 0.1                                 # coverage floor (rho' > 0 on all o
 weight_diag: false                          # false = pure rho'-FB (diagonal unweighted); true = coverage-PRIORITIZED
 weight_z: false                             # true = resample goal-derived z by w (rare-goal exposure for F/actor)
 train_goal_mode: perm                       # perm = uniform buffer goals (original); traj = zHER (z = B(own trajectory future))
+critic_mode: measure                        # measure = stock FB; iql = goal-conditioned expectile critic on F.z (needs train_goal_mode=traj)
+iql_expectile: 0.9                          # IQL expectile (matches GCIQL)
+iql_thresh: 0.04                            # goal-reaching reward radius (cube xyz, world m)
 onestep: false                              # true = one-step FB (F not z-conditioned + SARSA next-action; behavior successor)
 goal_cond: false        # V1: feed the explicit goal obs into forward map + actor
 fixed_b: none           # V2: 'none' (learned B) | 'cube_xyz' (fixed USFA featurizer, z_dim->3)
