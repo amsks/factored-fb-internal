@@ -113,6 +113,19 @@ def expectile_loss(diff: Tensor, expectile: float) -> Tensor:
     return (weight * diff.pow(2)).mean()
 
 
+def iql_goal_target(success: Tensor, Vn: Tensor, discount: float) -> Tensor:
+    """Goal-conditioned IQL Bellman target, byte-faithful to OGBench GCIQL
+    (utils/datasets.py: masks = 1 - success, rewards = success - 1 with gc_negative=True;
+    gciql.py: q = rewards + discount * masks * V_next). The bootstrap is MASKED OFF once
+    the relabeled goal is reached (mask = 1 - success), anchoring V to 0 at the goal so the
+    value is a bounded negative distance-to-go. Using the env `terminated` flag as the mask
+    (never set in cube offline data) and a {0,+1} reward instead lets the goal state collect
+    reward + gamma*V forever -> fixed point 1/(1-gamma) -> V/Q inflate and the actor collapses."""
+    reward = success - 1.0          # {-1, 0}  (gc_negative)
+    mask = 1.0 - success            # cut the bootstrap at the goal
+    return reward + discount * mask * Vn
+
+
 class FBAgent(BaseAgent):
     def __init__(
         self,
@@ -418,13 +431,17 @@ class FBAgent(BaseAgent):
         value_loss.backward()
         self.value_optimizer.step()
 
-        # (2) critic Q(s,a,z) <- r(s',g) + gamma*(1-term)*V(s',z). Goal-reaching reward.
+        # (2) critic Q(s,a,z) <- GCIQL goal-conditioned Bellman target. success = reached the
+        # relabeled goal (cube xyz within iql_thresh); the bootstrap is masked OFF at the goal
+        # (see iql_goal_target) so V stays a bounded negative distance-to-go. NOTE: the goal
+        # mask, NOT the env `terminated` flag (which is never set in cube offline data), is what
+        # cuts the bootstrap.
         nphys = batch["next"]["physics"][:, 14:17].to(self.device).float()
         gphys = batch["future"]["physics"][:, 14:17].to(self.device).float()
-        r = (nphys - gphys).norm(dim=-1).lt(self.iql_thresh).float()  # [B]
+        success = (nphys - gphys).norm(dim=-1).lt(self.iql_thresh).float()  # [B]
         with torch.no_grad():
             Vn = self._value_mlp(torch.cat([next_obs, z.detach()], dim=-1)).squeeze(-1)
-            target_Q = r + discount.squeeze(-1) * Vn
+            target_Q = iql_goal_target(success, Vn, self.discount)
         Q = _Q(self.model._left_encoder(obs), z, action, self.model._forward_map)
         q_loss = (Q - target_Q).pow(2).mean()
 
@@ -440,7 +457,7 @@ class FBAgent(BaseAgent):
         self.forward_optimizer.step()
         self.backward_optimizer.step()
         return {"q_loss": q_loss.detach(), "value_loss": value_loss.detach(),
-                "orth_loss": orth_loss.detach(), "iql_r_pos": r.mean(),
+                "orth_loss": orth_loss.detach(), "iql_r_pos": success.mean(),
                 "Q_mean": Q.mean().detach(), "V_mean": V.mean().detach(),
                 "B_norm": B.norm(dim=-1).mean().detach()}
 
