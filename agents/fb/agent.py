@@ -104,6 +104,15 @@ def ortho_cov(B: Tensor, w: Tensor | None = None) -> Tensor:
     return torch.matmul(Bw, Bw.T)
 
 
+def expectile_loss(diff: Tensor, expectile: float) -> Tensor:
+    """Asymmetric L2 (IQL value loss, https://arxiv.org/abs/2110.06169). `diff` is the
+    residual target - V; positive residuals (target above V) are weighted by `expectile`,
+    negative by (1 - expectile). expectile>0.5 pushes V toward an upper expectile of the
+    target distribution; expectile=0.5 reduces to 0.5*MSE."""
+    weight = torch.where(diff > 0, expectile, 1.0 - expectile)
+    return (weight * diff.pow(2)).mean()
+
+
 class FBAgent(BaseAgent):
     def __init__(
         self,
@@ -146,6 +155,9 @@ class FBAgent(BaseAgent):
         weight_diag: bool = False,
         weight_z: bool = False,
         train_goal_mode: str = "perm",
+        critic_mode: str = "measure",
+        iql_expectile: float = 0.9,
+        iql_thresh: float = 0.04,
         onestep: bool = False,
         goal_cond: bool = False,
         fixed_b: str = "none",
@@ -203,6 +215,16 @@ class FBAgent(BaseAgent):
         # sampled with future_gamma). The actor/F then practice tasks actually
         # reachable from their states. Spec: 2026-06-11-interaction-weighted-fb.md §1.4.
         self.train_goal_mode = str(train_goal_mode)
+        # FB-IQL: replace the measure loss with a goal-conditioned IQL critic on the
+        # bilinear value Q=F.z (spec 2026-06-11-interaction-weighted-fb.md). 'measure'
+        # = stock FB (byte-identical). Requires train_goal_mode='traj' (the goals).
+        self.critic_mode = str(critic_mode)
+        self.iql_expectile = float(iql_expectile)
+        self.iql_thresh = float(iql_thresh)
+        try:
+            self._obs_dim = int(obs_space.shape[-1])
+        except Exception:
+            self._obs_dim = None
         # One-step FB (https://github.com/chongyi-zheng/onestep-fb): learn the BEHAVIOR
         # successor features — F is NOT conditioned on z (see _fb_z) and the FB loss uses
         # the dataset's own next action (SARSA, batch["next"]["action"]) instead of the
@@ -297,6 +319,18 @@ class FBAgent(BaseAgent):
         self.off_diag = 1 - torch.eye(self.batch_size, self.batch_size, device=self.device)
         self.off_diag_sum = self.off_diag.sum()
 
+        # FB-IQL critic: a goal-conditioned expectile value V(s, z) trained by IQL,
+        # replacing the measure loss (critic_mode='iql'). The bilinear Q=F(s,a,z).z is
+        # then a goal-reaching value (GCIQL's signal through FB's inner-product form).
+        if self.critic_mode == "iql":
+            obs_dim = self._obs_dim
+            self._value_mlp = torch.nn.Sequential(
+                torch.nn.Linear(obs_dim + self.z_dim, 512), torch.nn.LayerNorm(512), torch.nn.GELU(),
+                torch.nn.Linear(512, 512), torch.nn.GELU(),
+                torch.nn.Linear(512, 1),
+            ).to(self.device)
+            self.value_optimizer = torch.optim.Adam(self._value_mlp.parameters(), lr=self.lr_f)
+
     @torch.no_grad()
     def sample_mixed_z(self, train_goal: torch.Tensor | None = None,
                        goal_weights: torch.Tensor | None = None,
@@ -364,6 +398,52 @@ class FBAgent(BaseAgent):
         the real z (it's the reward vector)."""
         return torch.zeros_like(z) if self.onestep else z
 
+    def _update_fb_iql(self, obs, action, next_obs, discount, goal_enc, z, batch):
+        """FB-IQL critic: train the bilinear value Q=F(s,a,z).z as a goal-reaching value
+        by IQL (expectile V) on trajectory-future goals, replacing the measure loss.
+        z is goal-conditioned (= B(future)), so grad flows into B end-to-end. The FB
+        identity is kept usable by the same ortho whitening on B. obs/next_obs are the
+        fw-encoded normalized states (Identity for state). discount already carries
+        (1-terminated). goal_enc is the bw-encoded future goal (z's source)."""
+        # mean over the num_parallel forward heads (matches actor's Q reduction at penalty 0)
+        def _Q(left, z_, a, fmap):
+            return (fmap(left, self._fb_z(z_), a) * z_).sum(-1).mean(0)
+
+        # (1) IQL value V(s,z) <- expectile of the TARGET Q (frozen). V owns its optimizer.
+        with torch.no_grad():
+            tQ = _Q(self.model._target_left_encoder(obs), z, action, self.model._target_forward_map)
+        V = self._value_mlp(torch.cat([obs, z.detach()], dim=-1)).squeeze(-1)
+        value_loss = expectile_loss(tQ - V, self.iql_expectile)
+        self.value_optimizer.zero_grad(set_to_none=True)
+        value_loss.backward()
+        self.value_optimizer.step()
+
+        # (2) critic Q(s,a,z) <- r(s',g) + gamma*(1-term)*V(s',z). Goal-reaching reward.
+        nphys = batch["next"]["physics"][:, 14:17].to(self.device).float()
+        gphys = batch["future"]["physics"][:, 14:17].to(self.device).float()
+        r = (nphys - gphys).norm(dim=-1).lt(self.iql_thresh).float()  # [B]
+        with torch.no_grad():
+            Vn = self._value_mlp(torch.cat([next_obs, z.detach()], dim=-1)).squeeze(-1)
+            target_Q = r + discount.squeeze(-1) * Vn
+        Q = _Q(self.model._left_encoder(obs), z, action, self.model._forward_map)
+        q_loss = (Q - target_Q).pow(2).mean()
+
+        # ortho whitening on B keeps it a valid goal embedding for zero-shot inference.
+        B = self.model._backward_map(goal_enc)
+        Cov = ortho_cov(B, None)
+        orth_loss = 0.5 * (Cov * self.off_diag).pow(2).sum() / self.off_diag_sum - Cov.diag().mean()
+        fb_loss = q_loss + self.ortho_coef * orth_loss
+
+        self.forward_optimizer.zero_grad(set_to_none=True)
+        self.backward_optimizer.zero_grad(set_to_none=True)
+        fb_loss.backward()
+        self.forward_optimizer.step()
+        self.backward_optimizer.step()
+        return {"q_loss": q_loss.detach(), "value_loss": value_loss.detach(),
+                "orth_loss": orth_loss.detach(), "iql_r_pos": r.mean(),
+                "Q_mean": Q.mean().detach(), "V_mean": V.mean().detach(),
+                "B_norm": B.norm(dim=-1).mean().detach()}
+
     def update(self, batch: Dict, step: int) -> Dict[str, torch.Tensor]:
         obs, action, next_obs, terminated = (
             batch["observation"].to(self.device).float(),
@@ -396,13 +476,29 @@ class FBAgent(BaseAgent):
             with torch.no_grad(), eval_mode(self.model._obs_normalizer):
                 fut = self.model._obs_normalizer(fut)
             train_goal, permute = self.model._bw_encoder(fut), False
+        clip_grad_norm = self.clip_grad_norm if self.clip_grad_norm > 0 else None
+
+        # --- FB-IQL: goal-conditioned expectile critic on the bilinear value, replacing
+        # the measure loss (z = B(trajectory future), all goal-conditioned). ---
+        if self.critic_mode == "iql":
+            assert "future" in batch, "critic_mode='iql' requires train_goal_mode='traj'"
+            z = self.model.project_z(self.model._backward_map(train_goal))  # grad => trains B
+            metrics = self._update_fb_iql(obs, action, next_obs, discount, train_goal, z, batch)
+            metrics.update(self.update_actor(obs=obs.detach(), action=action,
+                                             z=z.detach(), clip_grad_norm=clip_grad_norm))
+            with torch.no_grad():
+                _soft_update_params(self._forward_map_paramlist, self._target_forward_map_paramlist, self.f_target_tau)
+                _soft_update_params(self._backward_map_paramlist, self._target_backward_map_paramlist, self.b_target_tau)
+                if len(self._left_encoder_paramlist):
+                    _soft_update_params(self._left_encoder_paramlist, self._target_left_encoder_paramlist, self.f_target_tau)
+            return {k: (v.item() if isinstance(v, torch.Tensor) else float(v)) for k, v in metrics.items()}
+
         z, g_used = self.sample_mixed_z(train_goal=train_goal, permute=permute,
                                         goal_weights=(w if self.weight_z else None))
         z = z.clone()
         self._g_used = g_used if self.goal_cond else None   # stashed for update_fb/update_actor
 
         q_loss_coef = self.q_loss_coef if self.q_loss_coef > 0 else None
-        clip_grad_norm = self.clip_grad_norm if self.clip_grad_norm > 0 else None
 
         # One-step FB: bootstrap with the dataset's next action (SARSA), not the policy's.
         next_action_override = None

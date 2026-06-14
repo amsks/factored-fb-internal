@@ -230,8 +230,12 @@ class DictBuffer:
             if future_gamma is not None:
                 j = sample_future_idx(idx, self._episode_last(), future_gamma,
                                       self._future_rng())
-                out["future"] = {"observation": torch.as_tensor(
+                fut = {"observation": torch.as_tensor(
                     self._storage["next/observation"][j]).to(self.device)}
+                if "next/physics" in self._storage:   # for goal-reaching reward (FB-IQL)
+                    fut["physics"] = torch.as_tensor(
+                        self._storage["next/physics"][j]).to(self.device)
+                out["future"] = fut
             return out
 
         if "timestep" not in self._storage:
