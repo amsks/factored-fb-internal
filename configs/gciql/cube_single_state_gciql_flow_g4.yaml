@@ -1,0 +1,28 @@
+# G4 (success-level objective isolation): GCIQL bilinear IQL value/critic + FB
+# FlowBC actor conditioned on z=stop_grad(value.psi(goal)) (actor_cond=z), eval
+# zero-shot. Mirrors the G3 bilinear bridge run (GCIQL-State-Flow-Bilinear) but
+# swaps exact-goal actor conditioning for FB's z-conditioned actor. State => no
+# encoder. See PAPER/specs/2026-06-16-g4-success-level-objective-isolation.md.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: gciql_g4_zcond
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 512
+  actor_cond: z
+wandb_mode: online
