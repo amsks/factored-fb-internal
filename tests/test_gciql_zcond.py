@@ -24,6 +24,48 @@ def test_actor_cond_defaults_to_goal():
     assert "OK" in proc.stdout
 
 
+def test_zcond_trains_finite():
+    code = f"""
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config()); cfg['encoder'] = None; cfg['frame_stack'] = None
+        cfg['actor_cond'] = 'z'; cfg['value_arch'] = 'bilinear'; cfg['value_latent_dim'] = 16
+        ex_obs = jnp.zeros((2, 11)); ex_act = jnp.zeros((2, 5))
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        batch = {_full_batch()}
+        for _ in range(5):
+            agent, info = agent.update(batch)
+        for k in ('actor/actor_loss', 'actor/q_mean', 'value/value_loss', 'critic/critic_loss'):
+            assert jnp.isfinite(info[k]), (k, info[k])
+        print('OK')
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_zcond_actor_loss_no_grad_into_value():
+    code = f"""
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config()); cfg['encoder'] = None; cfg['frame_stack'] = None
+        cfg['actor_cond'] = 'z'; cfg['value_arch'] = 'bilinear'; cfg['value_latent_dim'] = 16
+        ex_obs = jnp.ones((2, 11)); ex_act = jnp.ones((2, 5)) * 0.3
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        batch = {_full_batch()}
+        def aloss(p):
+            l, _ = agent.actor_loss(batch, p, rng=jax.random.PRNGKey(0))
+            return l
+        g = jax.grad(aloss)(agent.network.params)
+        vnorm = sum(float(jnp.sum(x ** 2)) for x in jax.tree_util.tree_leaves(g['modules_value']))
+        assert vnorm == 0.0, vnorm  # stop_grad keeps the rep purely IQL-trained
+        print('OK')
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
 def test_zcond_requires_bilinear():
     code = """
         import jax.numpy as jnp
