@@ -39,12 +39,14 @@ CUBE_QPOS = slice(14, 17)   # privileged cube xyz (matches infer_ablation_gciql)
 THRESH = 0.04
 
 
-def rollout(agent, env, z, goal_xyz, episodes, max_steps=200, seed0=0):
-    """Roll the z-cond actor (z passed as the actor's goals arg). Return
-    per-step next_obs, cube_xyz, and per-EPISODE success (cube within THRESH of
-    goal at any step). z is a fixed d-vector for the task."""
+def rollout(agent, env, cond, goal_xyz, episodes, mode, max_steps=200, seed0=0):
+    """Roll the z-cond actor. mode='exact' => cond is the RAW goal obs and the
+    actor maps it through value.psi internally (sample_actions); mode='inferred'
+    => cond is a PRECOMPUTED d-dim z fed straight to the actor
+    (sample_actions_with_z). Return per-step next_obs, cube_xyz, and per-EPISODE
+    success (cube within THRESH of goal at any step)."""
     import jax
-    z = np.asarray(z, np.float32)                    # (d,) -> passed straight to the actor
+    cond = np.asarray(cond, np.float32)
     rng = jax.random.PRNGKey(seed0)
     obss, cubes, succ = [], [], []
     for ep in range(episodes):
@@ -52,9 +54,13 @@ def rollout(agent, env, z, goal_xyz, episodes, max_steps=200, seed0=0):
         ep_hit = False
         for _t in range(max_steps):
             rng, sub = jax.random.split(rng)
-            a = np.asarray(agent.sample_actions(
-                observations=np.asarray(obs, np.float32), goals=z,
-                seed=sub, temperature=0.0))
+            o = np.asarray(obs, np.float32)
+            if mode == "exact":
+                a = np.asarray(agent.sample_actions(observations=o, goals=cond,
+                                                    seed=sub, temperature=0.0))
+            else:
+                a = np.asarray(agent.sample_actions_with_z(observations=o, z=cond,
+                                                           seed=sub, temperature=0.0))
             obs, _r, term, trunc, _info = env.step(np.clip(a, -1, 1))
             cube = env.unwrapped.data.qpos[CUBE_QPOS].copy()
             obss.append(np.asarray(obs, np.float32)); cubes.append(cube)
@@ -99,16 +105,19 @@ def main() -> int:
         goal_obs = np.asarray(info["goal"], np.float32)
         goal_xyz = np.asarray(env.unwrapped.cur_task_info["goal_xyzs"]).reshape(-1)[:3]
 
-        # exact-z: z = psi(goal_obs)
-        z_exact = psi(goal_obs[None])[0]
-        nobs, _cube, succ_exact = rollout(agent, env, z_exact, goal_xyz, args.episodes)
+        # exact-z: actor maps the raw goal through value.psi internally.
+        _nobs, _cube, succ_exact = rollout(
+            agent, env, goal_obs, goal_xyz, args.episodes, mode="exact")
 
         # inferred-z: gather a fresh relabel batch (states + privileged cube xyz)
-        # under exact-z, score with the faithful reward, z = sum r*psi(s').
-        rb_obs, rb_cube, _ = rollout(agent, env, z_exact, goal_xyz, args.infer_episodes)
+        # under the exact-z policy, score with the faithful reward, z = sum r*psi(s'),
+        # then roll the actor on that precomputed z.
+        rb_obs, rb_cube, _ = rollout(
+            agent, env, goal_obs, goal_xyz, args.infer_episodes, mode="exact")
         rb_r = (np.linalg.norm(rb_cube - goal_xyz[None, :], axis=-1) < THRESH).astype(np.float32)
         z_inf = (rb_r[:, None] * psi(rb_obs)).sum(0)        # L0: z = E[r.B]
-        _nobs2, _cube2, succ_inf = rollout(agent, env, z_inf, goal_xyz, args.episodes)
+        _nobs2, _cube2, succ_inf = rollout(
+            agent, env, z_inf, goal_xyz, args.episodes, mode="inferred")
 
         if hasattr(env, "close"):
             env.close()

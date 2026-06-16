@@ -124,7 +124,9 @@ def test_zcond_requires_bilinear():
     assert "OK" in proc.stdout
 
 
-def test_zcond_builds_and_actor_takes_d_dim_z():
+def test_zcond_sample_actions_maps_raw_goal_to_z():
+    # The eval harness hands sample_actions the RAW goal obs (11-dim); the z-actor
+    # maps it through value.psi internally, so the call must succeed end to end.
     code = """
         import jax, jax.numpy as jnp
         from gciql_flow import GCIQLFlowAgent, get_config
@@ -132,10 +134,32 @@ def test_zcond_builds_and_actor_takes_d_dim_z():
         cfg['actor_cond'] = 'z'; cfg['value_arch'] = 'bilinear'; cfg['value_latent_dim'] = 16
         ex_obs = jnp.zeros((2, 11)); ex_act = jnp.zeros((2, 5))
         agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
-        # actor now consumes a d-dim z as its 'goals' arg (not the 11-dim obs).
-        z = jnp.zeros((2, 16))
-        a = agent.sample_actions(ex_obs, z, seed=jax.random.PRNGKey(0))
+        goal = jnp.zeros((2, 11))  # raw goal obs, NOT a z
+        a = agent.sample_actions(ex_obs, goal, seed=jax.random.PRNGKey(0))
         assert a.shape == (2, 5), a.shape
+        assert jnp.all(jnp.abs(a) <= 1.0 + 1e-5)
+        # unbatched (single obs/goal), the eval-loop calling convention
+        a1 = agent.sample_actions(ex_obs[0], goal[0], seed=jax.random.PRNGKey(1))
+        assert a1.shape == (5,), a1.shape
+        print('OK')
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_zcond_sample_actions_with_z_takes_d_dim_z():
+    # The inferred-z arm feeds a precomputed d-dim z straight to the actor.
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config()); cfg['encoder'] = None; cfg['frame_stack'] = None
+        cfg['actor_cond'] = 'z'; cfg['value_arch'] = 'bilinear'; cfg['value_latent_dim'] = 16
+        ex_obs = jnp.zeros((2, 11)); ex_act = jnp.zeros((2, 5))
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        z = jnp.zeros((16,))  # precomputed task vector, single
+        a = agent.sample_actions_with_z(ex_obs[0], z, seed=jax.random.PRNGKey(0))
+        assert a.shape == (5,), a.shape
         assert jnp.all(jnp.abs(a) <= 1.0 + 1e-5)
         print('OK')
     """

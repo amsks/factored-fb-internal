@@ -124,7 +124,24 @@ class GCIQLFlowAgent(GCIQLAgent):
         event_rank = 1 if self.config['encoder'] is None else 3
         batch_shape = observations.shape[:-event_rank]
         noise = jax.random.normal(seed, (*batch_shape, self.config['action_dim']))
+        # z-conditioning (G4): the eval harness (and the in-training eval loop)
+        # hands the RAW goal obs; map it through B := value.psi to the task vector
+        # the z-actor expects. This makes in-training eval report exact-z success.
+        # For an arbitrary precomputed z, use sample_actions_with_z (no mapping).
+        if self.config['actor_cond'] == 'z':
+            goals = self.network.select('value')(goals, goals, info=True)[2]
         actions = self.network.select('actor')(observations, goals, noise)
+        return jnp.clip(actions, -1.0, 1.0)
+
+    @jax.jit
+    def sample_actions_with_z(self, observations, z, seed=None, temperature=1.0):
+        """Roll the z-actor from a PRECOMPUTED task vector z (no psi mapping).
+        Used by the G4 eval script's inferred-z arm (z = E[r.psi(s')])."""
+        del temperature
+        event_rank = 1 if self.config['encoder'] is None else 3
+        batch_shape = observations.shape[:-event_rank]
+        noise = jax.random.normal(seed, (*batch_shape, self.config['action_dim']))
+        actions = self.network.select('actor')(observations, z, noise)
         return jnp.clip(actions, -1.0, 1.0)
 
     @classmethod
