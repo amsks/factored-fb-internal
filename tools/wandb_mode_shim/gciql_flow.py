@@ -18,7 +18,7 @@ import optax
 from agents.gciql import GCIQLAgent, get_config as _gciql_get_config
 from utils.encoders import GCEncoder, encoder_modules
 from utils.flax_utils import ModuleDict, TrainState
-from utils.networks import GCValue
+from utils.networks import GCValue, GCBilinearValue
 
 from ogbench_flow import GCNoiseActor, GCVectorField
 
@@ -122,6 +122,16 @@ class GCIQLFlowAgent(GCIQLAgent):
         config = dict(config)
         config['action_dim'] = action_dim
 
+        # Actor goal-input example. In z-conditioning (G4) the actor consumes a
+        # d-dim task vector z=psi(goal) (B := value net's psi), not the raw goal
+        # observation, so its goal-leg params must be sized to value_latent_dim.
+        if config.get('actor_cond', 'goal') == 'z':
+            assert config.get('value_arch', 'mlp') == 'bilinear', \
+                "actor_cond='z' requires value_arch='bilinear' (B := value net's psi)"
+            ex_actor_goals = jnp.zeros((ex_observations.shape[0], config['value_latent_dim']))
+        else:
+            ex_actor_goals = ex_goals
+
         # Encoders: IQL value/critic use the GCEncoder wrapper (as in gciql.py);
         # the flow nets take the raw encoder module (as in crl_flowbc.py).
         encoders = {}
@@ -132,18 +142,34 @@ class GCIQLFlowAgent(GCIQLAgent):
             encoders['actor_obs'] = em()
             encoders['actor_goal'] = em()
 
-        value_def = GCValue(
-            hidden_dims=config['value_hidden_dims'],
-            layer_norm=config['layer_norm'],
-            ensemble=False,
-            gc_encoder=encoders.get('value'),
-        )
-        critic_def = GCValue(
-            hidden_dims=config['value_hidden_dims'],
-            layer_norm=config['layer_norm'],
-            ensemble=True,
-            gc_encoder=encoders.get('critic'),
-        )
+        # value_arch: 'mlp' = canonical GCIQL GCValue (concat MLP over [s,g,a]);
+        # 'bilinear' = inner-product value V=phi(s).psi(g)/sqrt(d), Q=phi(s,a).psi(g)/sqrt(d)
+        # (Direction A: GCIQL's IQL training poured through an FB-style rank-d head).
+        if config.get('value_arch', 'mlp') == 'bilinear':
+            d = config['value_latent_dim']
+            value_def = GCBilinearValue(
+                hidden_dims=config['value_hidden_dims'], latent_dim=d,
+                layer_norm=config['layer_norm'], ensemble=False,
+                state_encoder=encoders.get('value'), goal_encoder=encoders.get('value'),
+            )
+            critic_def = GCBilinearValue(
+                hidden_dims=config['value_hidden_dims'], latent_dim=d,
+                layer_norm=config['layer_norm'], ensemble=True,
+                state_encoder=encoders.get('critic'), goal_encoder=encoders.get('critic'),
+            )
+        else:
+            value_def = GCValue(
+                hidden_dims=config['value_hidden_dims'],
+                layer_norm=config['layer_norm'],
+                ensemble=False,
+                gc_encoder=encoders.get('value'),
+            )
+            critic_def = GCValue(
+                hidden_dims=config['value_hidden_dims'],
+                layer_norm=config['layer_norm'],
+                ensemble=True,
+                gc_encoder=encoders.get('critic'),
+            )
         actor_vf_def = GCVectorField(
             hidden_dim=config['actor_vf_hidden_dim'],
             hidden_layers=config['actor_vf_hidden_layers'],
@@ -164,7 +190,7 @@ class GCIQLFlowAgent(GCIQLAgent):
             critic=(critic_def, (ex_observations, ex_goals, ex_actions)),
             target_critic=(copy.deepcopy(critic_def), (ex_observations, ex_goals, ex_actions)),
             actor_vf=(actor_vf_def, (ex_observations, ex_actions, ex_t)),
-            actor=(actor_def, (ex_observations, ex_goals, ex_noise)),
+            actor=(actor_def, (ex_observations, ex_actor_goals, ex_noise)),
         )
         networks = {k: v[0] for k, v in network_info.items()}
         network_args = {k: v[1] for k, v in network_info.items()}
@@ -183,6 +209,13 @@ def get_config():
     config = _gciql_get_config()
     with config.unlocked():
         config.agent_name = 'gciql_flow'
+        # Value architecture: 'mlp' (canonical GCIQL) or 'bilinear' (inner-product, Direction A).
+        config.value_arch = 'mlp'
+        config.value_latent_dim = 512
+        # Actor conditioning identity (G4 objective-isolation arm):
+        # 'goal' = raw goal obs (stock); 'z' = z=stop_grad(value.psi(goal)),
+        # FB-style single backward map. 'z' requires value_arch='bilinear'.
+        config.actor_cond = 'goal'
         # Flow actor hyperparameters.
         config.flow_steps = 10  # Euler steps for the BC flow rollout / distillation.
         config.bc_coeff = 3.0  # Distillation (BC) coefficient; the key actor knob.
