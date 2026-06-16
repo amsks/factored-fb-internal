@@ -36,6 +36,12 @@ class GCIQLFlowAgent(GCIQLAgent):
             actions = actions + vels / fs
         return jnp.clip(actions, -1.0, 1.0)
 
+    def _value_psi(self, goals, params):
+        """B := the value net's psi (action-free GCBilinearValue). psi depends
+        only on the goal arg; the obs arg is a placeholder for phi(s)."""
+        _v, _phi, psi = self.network.select('value')(goals, goals, info=True, params=params)
+        return psi
+
     def actor_loss(self, batch, grad_params, rng=None):
         obs, goals, actions = batch['observations'], batch['actor_goals'], batch['actions']
         rng = rng if rng is not None else self.rng
@@ -55,7 +61,15 @@ class GCIQLFlowAgent(GCIQLAgent):
         # -q.mean() backprops into the critic and the single optimizer inflates Q
         # instead of improving the actor (see crl-actor-loss-critic-gradient).
         noise = jax.random.normal(n_rng, actions.shape)
-        actor_actions = self.network.select('actor')(obs, goals, noise, params=grad_params)
+        # z-conditioning (G4): the actor conditions on z=stop_grad(psi(goal))
+        # (B := value net's psi). stop_grad keeps the representation purely
+        # IQL-trained. The critic Q-term keeps the raw goal obs -- it computes
+        # its own psi internally.
+        if self.config['actor_cond'] == 'z':
+            actor_cond_input = jax.lax.stop_gradient(self._value_psi(goals, grad_params))
+        else:
+            actor_cond_input = goals
+        actor_actions = self.network.select('actor')(obs, actor_cond_input, noise, params=grad_params)
         q1, q2 = self.network.select('critic')(obs, goals, actor_actions)
         q = jnp.minimum(q1, q2)
         actor_loss = -q.mean()
