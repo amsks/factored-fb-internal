@@ -66,6 +66,25 @@ def test_zcond_actor_loss_no_grad_into_value():
     assert "OK" in proc.stdout
 
 
+def test_load_agent_accepts_actor_cond():
+    # Signature-level guard: load_agent must expose an actor_cond param so the
+    # eval script can rebuild a z-cond template before restore.
+    code = """
+        import inspect, sys
+        from pathlib import Path
+        REPO = Path.cwd().parents[2]  # third_party/ogbench/impls -> repo root
+        sys.path.insert(0, str(REPO))
+        from scripts.phase_probe_gciql import load_agent
+        params = inspect.signature(load_agent).parameters
+        assert 'actor_cond' in params, list(params)
+        assert params['actor_cond'].default == 'goal', params['actor_cond'].default
+        print('OK')
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
 def test_zcond_requires_bilinear():
     code = """
         import jax.numpy as jnp
