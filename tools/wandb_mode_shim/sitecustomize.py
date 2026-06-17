@@ -103,6 +103,7 @@ if _forced in ("offline", "disabled") or _fb_env or _project or _entity:
                 for k, v in list(data.items()):
                     if k == "evaluation/overall_success":
                         extra["eval/reward/eval/success"] = v
+                        extra["success/overall"] = v  # unified cross-codebase key
                         continue
                     if k == "video":
                         extra["eval_video/all_tasks"] = v
@@ -113,6 +114,7 @@ if _forced in ("offline", "disabled") or _fb_env or _project or _entity:
                         extra[
                             f"eval/reward/{_env_base}-singletask-task{n}-v0/success"
                         ] = v
+                        extra[f"success/task{n}"] = v  # unified per-task key
                 return extra
 
             @functools.wraps(_orig_log)

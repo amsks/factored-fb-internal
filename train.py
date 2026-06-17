@@ -10,6 +10,7 @@ Examples
 from __future__ import annotations
 
 import os
+import re
 
 # Headless OpenGL backend for MuJoCo (needed when env.render() is called
 # without an X display, e.g. during eval-video capture on a remote host).
@@ -232,6 +233,14 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         reweight_density_path=cfg.get("reweight_density_path", None),
         weight_diag=cfg.get("weight_diag", False),
         weight_z=cfg.get("weight_z", False),
+        reweight_mode=cfg.get("reweight_mode", "coverage"),
+        iwr_c=cfg.get("iwr_c", 0.03),
+        iwr_sigma=cfg.get("iwr_sigma", 0.05),
+        iwr_eps=cfg.get("iwr_eps", 0.1),
+        train_goal_mode=cfg.get("train_goal_mode", "perm"),
+        critic_mode=cfg.get("critic_mode", "measure"),
+        iql_expectile=cfg.get("iql_expectile", 0.9),
+        iql_thresh=cfg.get("iql_thresh", 0.04),
         onestep=cfg.get("onestep", False),
         goal_cond=cfg.get("goal_cond", False),
         fixed_b=cfg.get("fixed_b", "none"),
@@ -434,14 +443,28 @@ def main(cfg: DictConfig) -> None:
         # Eval (td_jepa's EveryNStepsChecker triggers at t=0 and every N)
         if cfg.eval_every > 0 and (step == 0 or step % cfg.eval_every == 0):
             print(f"[eval] step={step}")
-            log_metrics(evaluator.run(step=step), step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
+            eval_out = evaluator.run(step=step)
+            log_metrics(eval_out, step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
+            # Unified eval keys shared with the jax/OGBench runs (success/overall,
+            # success/taskN) so both codebases land on the same wandb panels; see
+            # the mirror in tools/wandb_mode_shim/sitecustomize.py.
+            unified: Dict[str, float] = {}
+            if "eval/success" in eval_out:
+                unified["success/overall"] = eval_out["eval/success"]
+            for _k, _v in eval_out.items():
+                _m = re.search(r"singletask-task(\d+)-v0/success$", _k)
+                if _m:
+                    unified[f"success/task{_m.group(1)}"] = _v
+            if unified:
+                log_metrics(unified, step, use_wandb=cfg.use_wandb)
 
         # Update
         horizon = getattr(cfg, "horizon", 1)
         # zHER (train_goal_mode=traj): attach each transition's discounted
         # trajectory-future next-state as batch["future"] for goal-derived z's.
         future_gamma = (float(cfg.discount)
-                        if str(getattr(cfg, "train_goal_mode", "perm")) == "traj" else None)
+                        if (str(getattr(cfg, "train_goal_mode", "perm")) == "traj"
+                            or str(getattr(cfg, "critic_mode", "measure")) == "iql") else None)
         batch = buffer.sample(cfg.batch_size, horizon=horizon, future_gamma=future_gamma)
         metrics = agent.update(batch, step)
 
