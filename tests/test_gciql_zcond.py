@@ -66,6 +66,47 @@ def test_zcond_actor_loss_no_grad_into_value():
     assert "OK" in proc.stdout
 
 
+def test_double_q_false_trains_finite():
+    code = f"""
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config()); cfg['encoder'] = None; cfg['frame_stack'] = None
+        cfg['value_arch'] = 'bilinear'; cfg['value_latent_dim'] = 16; cfg['double_q'] = False
+        ex_obs = jnp.zeros((2, 11)); ex_act = jnp.zeros((2, 5))
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        batch = {_full_batch()}
+        for _ in range(3):
+            agent, info = agent.update(batch)
+        assert jnp.isfinite(info['value/value_loss']) and jnp.isfinite(info['actor/actor_loss'])
+        print('OK')
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_actor_kind_ddpgbc_builds_and_trains():
+    code = f"""
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config()); cfg['encoder'] = None; cfg['frame_stack'] = None
+        cfg['value_arch'] = 'bilinear'; cfg['value_latent_dim'] = 16
+        cfg['actor_kind'] = 'ddpgbc'; cfg['actor_loss'] = 'ddpgbc'
+        ex_obs = jnp.zeros((2, 11)); ex_act = jnp.zeros((2, 5))
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        a = agent.sample_actions(ex_obs[0], ex_obs[0], seed=jax.random.PRNGKey(0))
+        assert a.shape == (5,), a.shape
+        batch = {_full_batch()}
+        for _ in range(3):
+            agent, info = agent.update(batch)
+        assert jnp.isfinite(info['actor/actor_loss']) and jnp.isfinite(info['critic/critic_loss'])
+        print('OK')
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
 def test_eval_script_imports():
     # The eval script must import cleanly (path wiring + helpers resolve) without
     # a checkpoint. Full eval is a manual GPU/CPU run, not a unit test.
