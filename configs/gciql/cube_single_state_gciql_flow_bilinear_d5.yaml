@@ -1,0 +1,26 @@
+# Rank-sweep extreme: GCIQL bilinear bridge at value_latent_dim=5 (~100x below the
+# d=512 anchor). Exact-goal actor (actor_cond=goal, the bridge default), NOT
+# z-conditioned. Mirrors GCIQL-State-Flow-Bilinear-d{50,128}; tests whether an
+# extreme low rank finally breaks the IQL-trained bilinear value.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Bilinear-d5
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 5
+wandb_mode: online
