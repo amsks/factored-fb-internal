@@ -18,7 +18,7 @@ import optax
 from agents.gciql import GCIQLAgent, get_config as _gciql_get_config
 from utils.encoders import GCEncoder, encoder_modules
 from utils.flax_utils import ModuleDict, TrainState
-from utils.networks import GCValue, GCBilinearValue
+from utils.networks import GCValue, GCBilinearValue, GCActor
 
 from ogbench_flow import GCNoiseActor, GCVectorField
 
@@ -42,7 +42,21 @@ class GCIQLFlowAgent(GCIQLAgent):
         _v, _phi, psi = self.network.select('value')(goals, goals, info=True, params=params)
         return psi
 
+    def value_loss(self, batch, grad_params):
+        """IQL expectile value loss; ablate clipped double-Q (double_q=False => q1)."""
+        q1, q2 = self.network.select('target_critic')(
+            batch['observations'], batch['value_goals'], batch['actions'])
+        q = jnp.minimum(q1, q2) if self.config['double_q'] else q1
+        v = self.network.select('value')(batch['observations'], batch['value_goals'], params=grad_params)
+        value_loss = self.expectile_loss(q - v, q - v, self.config['expectile']).mean()
+        return value_loss, {'value_loss': value_loss, 'v_mean': v.mean(),
+                            'v_max': v.max(), 'v_min': v.min()}
+
     def actor_loss(self, batch, grad_params, rng=None):
+        # actor_kind='ddpgbc' => fall back to GCIQL's stock gaussian DDPG+BC actor
+        # (bilinear critic kept); only the flow-actor path is custom below.
+        if self.config['actor_kind'] == 'ddpgbc':
+            return GCIQLAgent.actor_loss(self, batch, grad_params, rng)
         obs, goals, actions = batch['observations'], batch['actor_goals'], batch['actions']
         rng = rng if rng is not None else self.rng
         rng, x0_rng, t_rng, n_rng = jax.random.split(rng, 4)
@@ -71,7 +85,7 @@ class GCIQLFlowAgent(GCIQLAgent):
             actor_cond_input = goals
         actor_actions = self.network.select('actor')(obs, actor_cond_input, noise, params=grad_params)
         q1, q2 = self.network.select('critic')(obs, goals, actor_actions)
-        q = jnp.minimum(q1, q2)
+        q = jnp.minimum(q1, q2) if self.config['double_q'] else q1
         actor_loss = -q.mean()
 
         # 3) BC-distillation: one-shot actor -> frozen multi-step flow rollout (FQL
@@ -117,6 +131,10 @@ class GCIQLFlowAgent(GCIQLAgent):
 
     @jax.jit
     def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
+        # actor_kind='ddpgbc' => stock GCIQL gaussian actor sampling.
+        if self.config['actor_kind'] == 'ddpgbc':
+            dist = self.network.select('actor')(observations, goals, temperature=temperature)
+            return jnp.clip(dist.sample(seed=seed), -1.0, 1.0)
         del temperature  # flow actor is noise-driven
         # Noise must share the obs batch shape. Eval passes a single, unbatched
         # observation; training/tests pass batches. Event rank is 1 for state and
@@ -201,28 +219,38 @@ class GCIQLFlowAgent(GCIQLAgent):
                 ensemble=True,
                 gc_encoder=encoders.get('critic'),
             )
-        actor_vf_def = GCVectorField(
-            hidden_dim=config['actor_vf_hidden_dim'],
-            hidden_layers=config['actor_vf_hidden_layers'],
-            obs_encoder=encoders.get('actor_obs'),
-        )
-        actor_def = GCNoiseActor(
-            hidden_dim=config['actor_hidden_dim'],
-            hidden_layers=config['actor_hidden_layers'],
-            embedding_layers=config['actor_embedding_layers'],
-            obs_encoder=encoders.get('actor_obs'),
-            goal_encoder=encoders.get('actor_goal'),
-        )
-
-        ex_noise = jnp.zeros_like(ex_actions)
-        ex_t = jnp.zeros((ex_actions.shape[0], 1))
         network_info = dict(
             value=(value_def, (ex_observations, ex_goals)),
             critic=(critic_def, (ex_observations, ex_goals, ex_actions)),
             target_critic=(copy.deepcopy(critic_def), (ex_observations, ex_goals, ex_actions)),
-            actor_vf=(actor_vf_def, (ex_observations, ex_actions, ex_t)),
-            actor=(actor_def, (ex_observations, ex_actor_goals, ex_noise)),
         )
+        if config.get('actor_kind', 'flow') == 'ddpgbc':
+            # Stock GCIQL gaussian DDPG+BC actor on the (possibly bilinear) critic.
+            actor_def = GCActor(
+                hidden_dims=config['actor_hidden_dims'],
+                action_dim=action_dim,
+                state_dependent_std=False,
+                const_std=config['const_std'],
+                gc_encoder=encoders.get('actor_obs'),
+            )
+            network_info['actor'] = (actor_def, (ex_observations, ex_goals))
+        else:
+            actor_vf_def = GCVectorField(
+                hidden_dim=config['actor_vf_hidden_dim'],
+                hidden_layers=config['actor_vf_hidden_layers'],
+                obs_encoder=encoders.get('actor_obs'),
+            )
+            actor_def = GCNoiseActor(
+                hidden_dim=config['actor_hidden_dim'],
+                hidden_layers=config['actor_hidden_layers'],
+                embedding_layers=config['actor_embedding_layers'],
+                obs_encoder=encoders.get('actor_obs'),
+                goal_encoder=encoders.get('actor_goal'),
+            )
+            ex_noise = jnp.zeros_like(ex_actions)
+            ex_t = jnp.zeros((ex_actions.shape[0], 1))
+            network_info['actor_vf'] = (actor_vf_def, (ex_observations, ex_actions, ex_t))
+            network_info['actor'] = (actor_def, (ex_observations, ex_actor_goals, ex_noise))
         networks = {k: v[0] for k, v in network_info.items()}
         network_args = {k: v[1] for k, v in network_info.items()}
         network_def = ModuleDict(networks)
@@ -247,6 +275,11 @@ def get_config():
         # 'goal' = raw goal obs (stock); 'z' = z=stop_grad(value.psi(goal)),
         # FB-style single backward map. 'z' requires value_arch='bilinear'.
         config.actor_cond = 'goal'
+        # Clipped double-Q: True = min(q1,q2) (stock); False = q1 only (pessimism ablation).
+        config.double_q = True
+        # Actor family: 'flow' (FlowBC, the custom actor) or 'ddpgbc' (stock GCIQL
+        # gaussian actor, for the no-flow-actor control). 'ddpgbc' needs actor_loss=ddpgbc.
+        config.actor_kind = 'flow'
         # Flow actor hyperparameters.
         config.flow_steps = 10  # Euler steps for the BC flow rollout / distillation.
         config.bc_coeff = 3.0  # Distillation (BC) coefficient; the key actor knob.
