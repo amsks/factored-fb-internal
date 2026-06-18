@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Repo convention: never include a Claude Co-Authored-By trailer or
+# "Generated with Claude Code" marker in commit messages.
+# This hook strips them automatically from every commit.
+#
+# Shared via git's core.hooksPath. Each fresh clone must run once:
+#   git config core.hooksPath .githooks
+msg_file="$1"
+perl -0777 -i -pe '
+  s/\s*^Co-authored-by:[^\n]*claude[^\n]*$//gmi;     # Claude co-author trailer
+  s/\s*^.*generated with .*claude[^\n]*$//gmi;        # "Generated with Claude Code"
+  s/\s*^\xf0\x9f\xa4\x96[^\n]*$//gm;                  # leading robot-emoji line
+  s/\n{3,}/\n\n/g;                                     # collapse blank runs
+  s/\s+\z/\n/;                                         # trim trailing whitespace
+' "$msg_file"
