@@ -19,9 +19,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Union
 
-import numpy as np
-
 from buffers.transition import DictBuffer
+from data.episodes import load_episode_dataset, load_episode_transitions
 
 
 def load_transitions(
@@ -33,66 +32,11 @@ def load_transitions(
     path reads the "pixels" key, stores per-frame CHW uint8, and emits an
     episode-relative "timestep" for frame-stack clamping.
     """
-    obs_list, act_list, next_obs_list, term_list, next_phys_list = [], [], [], [], []
-    next_act_list = []
-    ts_list = []
-    has_physics = True
-
-    for f in npz_files:
-        ep = np.load(f)
-        act = ep["action"].astype(np.float32)
-
-        if obs_type == "pixels":
-            if "pixels" not in ep:
-                raise KeyError(
-                    f"obs_type='pixels' but episode {f} has no 'pixels' key "
-                    f"(keys: {list(ep.keys())})"
-                )
-            # [T, H, W, C] uint8 -> [T, C, H, W] uint8 (CHW per frame)
-            pix = np.moveaxis(ep["pixels"], -1, 1)
-            obs_full = np.ascontiguousarray(pix)
-        elif obs_type == "state":
-            obs_full = ep["observation"].astype(np.float32)
-        else:
-            raise ValueError(f"Unsupported obs_type {obs_type!r}")
-
-        # EXORL-style shift (see module docstring / td_jepa base.py): action[t]
-        # is the action that LED to obs[t], action[0]=0, so undo via act[1:].
-        obs_list.append(obs_full[:-1])
-        act_list.append(act[1:])
-        next_obs_list.append(obs_full[1:])
-        # SARSA next-action a' (action taken at next_obs) = act shifted one more; the
-        # episode's last transition has no a', pad with its own action. Aligned with
-        # act[1:] (len T-1). Used only by one-step FB (agent reads batch["next"]["action"]).
-        next_act_list.append(np.concatenate([act[2:], act[-1:]], axis=0))
-        n_trans = obs_full.shape[0] - 1
-        term_list.append(np.zeros((n_trans, 1), dtype=bool))
-        ts_list.append(np.arange(n_trans, dtype=np.int32))
-
-        if has_physics and "physics" in ep:
-            phys = ep["physics"].astype(np.float32)
-            next_phys_list.append(phys[1:])
-        else:
-            has_physics = False
-
-    storage: Dict = {
-        "observation": np.concatenate(obs_list, axis=0),
-        "action": np.concatenate(act_list, axis=0),
-        "next": {
-            "observation": np.concatenate(next_obs_list, axis=0),
-            "terminated": np.concatenate(term_list, axis=0),
-            "action": np.concatenate(next_act_list, axis=0),
-        },
-    }
-    # timestep is always populated: frame_stack uses it for episode-boundary clamping
-    # (pixel path), and DictBuffer.sample(horizon=h) uses it to enforce
-    # contiguous-within-episode windows (RLDP). Cheap (int64 per transition).
-    if ts_list:
-        storage["timestep"] = np.concatenate(ts_list, axis=0)
-    if has_physics and next_phys_list:
-        storage["next"]["physics"] = np.concatenate(next_phys_list, axis=0)
-
-    return storage
+    return load_episode_transitions(
+        npz_files,
+        obs_type=obs_type,
+        action_alignment="exorl",
+    )
 
 
 def load_ogbench_dataset(
@@ -124,18 +68,11 @@ def load_ogbench_dataset(
             "Download the OGBench dataset or check your data_path."
         )
 
-    storage = load_transitions(files, obs_type=obs_type)
-
-    if n_transitions is not None:
-        for k, v in list(storage.items()):
-            if isinstance(v, dict):
-                storage[k] = {kk: vv[:n_transitions] for kk, vv in v.items()}
-            else:
-                storage[k] = v[:n_transitions]
-
-    n = len(storage["observation"])
-    buffer = DictBuffer(
-        capacity=n, device=device, frame_stack=frame_stack, obs_type=obs_type
+    return load_episode_dataset(
+        files,
+        device=device,
+        n_transitions=n_transitions,
+        obs_type=obs_type,
+        frame_stack=frame_stack,
+        action_alignment="exorl",
     )
-    buffer.extend(storage)
-    return buffer

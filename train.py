@@ -34,9 +34,7 @@ from agents.fb.agent import FBAgent
 from agents.fb.flow_bc.agent import FBFlowBCAgent
 from agents.rldp.agent import RLDPAgent
 from agents.rldp.flow_bc.agent import RLDPFlowBCAgent
-from data.ogbench import load_ogbench_dataset
-from envs.ogbench import create_ogbench_env
-from evals.ogbench import OGBenchEvaluator
+from envs.registry import get_backend
 from nn_models import (
     AugmentatorArchiConfig,
     BackwardArchiConfig,
@@ -269,9 +267,13 @@ def main(cfg: DictConfig) -> None:
             save_code=cfg.wandb_save_code,
         )
 
-    print(f"[train] env: {cfg.domain}")
-    env, _ = create_ogbench_env(
+    env_family = cfg.get("env_family", "ogbench")
+    backend = get_backend(env_family)
+
+    print(f"[train] env_family={env_family} env={cfg.domain}")
+    env, _ = backend.create_env(
         cfg.domain,
+        cfg=cfg,
         obs_type=cfg.obs_type,
         seed=cfg.seed,
         frame_stack=cfg.get("frame_stack", 1),
@@ -281,7 +283,7 @@ def main(cfg: DictConfig) -> None:
     print(f"[train] obs_space={obs_space.shape}  action_dim={action_dim}")
 
     print(f"[train] loading dataset for {cfg.domain}")
-    buffer = load_ogbench_dataset(
+    buffer = backend.load_dataset(
         domain=cfg.domain,
         data_path=cfg.data_path,
         load_n_episodes=cfg.load_n_episodes,
@@ -302,7 +304,7 @@ def main(cfg: DictConfig) -> None:
     if cfg.save_eval_videos:
         video_dir.mkdir(parents=True, exist_ok=True)
 
-    evaluator = OGBenchEvaluator(
+    evaluator = backend.make_evaluator(
         domain=cfg.domain,
         agent=agent,
         offline_buffer=buffer,
@@ -316,6 +318,7 @@ def main(cfg: DictConfig) -> None:
         save_videos=cfg.save_eval_videos,
         video_dir=video_dir,
         use_wandb=cfg.use_wandb,
+        cfg=cfg,
     )
 
     print(f"[train] {cfg.num_train_steps:,} steps")

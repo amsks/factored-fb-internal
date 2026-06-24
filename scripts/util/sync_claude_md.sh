@@ -2,6 +2,7 @@
 # sync_claude_md.sh — push the local-only (gitignored) CLAUDE.md to the AWS box.
 # CLAUDE.md is not committed, so it has to travel out-of-band. Run this after
 # editing CLAUDE.md so the remote agent sessions see the same orientation doc.
+# Bootstrap from the committed template: cp CLAUDE.md.example CLAUDE.md
 #
 # Usage: bash scripts/util/sync_claude_md.sh
 set -euo pipefail

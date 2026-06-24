@@ -29,7 +29,7 @@ def test_state_path_unchanged(tmp_path):
     s = load_transitions([f])  # default obs_type="state"
     assert s["observation"].dtype == np.float32
     assert s["observation"].shape == (5, 4)
-    assert "timestep" not in s
+    np.testing.assert_array_equal(s["timestep"], np.arange(5, dtype=np.int32))
 
 
 def test_pixel_path_chw_uint8_with_timestep(tmp_path):

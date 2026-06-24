@@ -1,0 +1,19 @@
+# @package _global_
+defaults:
+  - /agent: fb
+  - _self_
+
+env_family: rlmini
+domain: rlmini-box2d-goal-target
+data_path: datasets
+obs_type: state
+
+rlmini_env: Box2D
+rlmini_variant: goal-ctrl-target
+rlmini_horizon: 50
+rlmini_render: false
+rlmini_obs_keys: null
+rlmini_extra:
+  continuous: true
+
+eval_shift_reward: 0.0

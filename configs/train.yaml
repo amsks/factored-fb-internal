@@ -4,11 +4,21 @@ defaults:
   - override hydra/launcher: basic
 
 # Domain (overridden by domain/*.yaml)
+env_family: ogbench
 domain: antmaze-medium-navigate-v0
 obs_type: state
 data_path: datasets
 n_transitions: null         # null = load full dataset
 load_n_episodes: 1000
+
+# rlmini_envs backend options (used only when env_family=rlmini)
+rlmini_env: null
+rlmini_variant: default
+rlmini_horizon: 1000
+rlmini_render: false
+rlmini_obs_keys: null
+rlmini_obs_slices: null
+rlmini_extra: {}
 
 # Training
 num_train_steps: 1_000_000
