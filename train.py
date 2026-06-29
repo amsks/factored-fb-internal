@@ -245,6 +245,7 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         onestep=cfg.get("onestep", False),
         decondition_F=cfg.get("decondition_F", False),
         d_norm=cfg.get("d_norm", False),
+        bilinear_v=cfg.get("bilinear_v", False),
         critic_goal_mix=cfg.get("critic_goal_mix", (1.0, 0.0, 0.0)),
         actor_goal_mix=cfg.get("actor_goal_mix", (1.0, 0.0, 0.0)),
         iql_reward=cfg.get("iql_reward", "cube_xyz"),

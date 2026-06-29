@@ -175,6 +175,7 @@ class FBAgent(BaseAgent):
         onestep: bool = False,
         decondition_F: bool = False,
         d_norm: bool = False,
+        bilinear_v: bool = False,
         critic_goal_mix: tuple = (1.0, 0.0, 0.0),
         actor_goal_mix: tuple = (1.0, 0.0, 0.0),
         iql_reward: str = "cube_xyz",
@@ -257,6 +258,8 @@ class FBAgent(BaseAgent):
         self.decondition_F = bool(decondition_F)
         # d_norm: scale the bilinear value F.z by 1/sqrt(z_dim) (GCIQL's phi.psi/sqrt(d)).
         self.d_norm = bool(d_norm)
+        # bilinear_v: FB-IQL value head V=<phi_V(s),z>/sqrt(d) instead of MLP([s,z]) (matches Q's form).
+        self.bilinear_v = bool(bilinear_v)
         # OGBench GCDataset goal mix [p_traj, p_cur, p_random] for the IQL critic / actor,
         # and iql_reward: 'cube_xyz' (privileged threshold) or 'goal_match' (GCIQL: success=goal is cur).
         self.critic_goal_mix = tuple(float(x) for x in critic_goal_mix)
@@ -359,12 +362,20 @@ class FBAgent(BaseAgent):
         # then a goal-reaching value (GCIQL's signal through FB's inner-product form).
         if self.critic_mode == "iql":
             obs_dim = self._obs_dim
-            self._value_mlp = torch.nn.Sequential(
-                torch.nn.Linear(obs_dim + self.z_dim, 512), torch.nn.LayerNorm(512), torch.nn.GELU(),
-                torch.nn.Linear(512, 512), torch.nn.GELU(),
-                torch.nn.Linear(512, 1),
-            ).to(self.device)
-            self.value_optimizer = torch.optim.Adam(self._value_mlp.parameters(), lr=self.lr_f)
+            if self.bilinear_v:   # V(s,z) = <phi_V(s), z>/sqrt(d) -- matches the bilinear Q's form
+                self._value_phi = torch.nn.Sequential(
+                    torch.nn.Linear(obs_dim, 512), torch.nn.LayerNorm(512), torch.nn.GELU(),
+                    torch.nn.Linear(512, 512), torch.nn.GELU(),
+                    torch.nn.Linear(512, self.z_dim),
+                ).to(self.device)
+                self.value_optimizer = torch.optim.Adam(self._value_phi.parameters(), lr=self.lr_f)
+            else:
+                self._value_mlp = torch.nn.Sequential(
+                    torch.nn.Linear(obs_dim + self.z_dim, 512), torch.nn.LayerNorm(512), torch.nn.GELU(),
+                    torch.nn.Linear(512, 512), torch.nn.GELU(),
+                    torch.nn.Linear(512, 1),
+                ).to(self.device)
+                self.value_optimizer = torch.optim.Adam(self._value_mlp.parameters(), lr=self.lr_f)
 
     @torch.no_grad()
     def sample_mixed_z(self, train_goal: torch.Tensor | None = None,
@@ -444,6 +455,13 @@ class FBAgent(BaseAgent):
         Centralizes decondition_F (via _fb_z) and d_norm (via _value_scale) for critic + actor."""
         return (fmap(left, self._fb_z(z), action) * z).sum(-1) * self._value_scale
 
+    def _V(self, obs, z):
+        """IQL expectile value V(s,z). bilinear_v: <phi_V(s), z>/sqrt(d) (matches the bilinear
+        Q's form); else the legacy MLP([s, z])."""
+        if self.bilinear_v:
+            return (self._value_phi(obs) * z).sum(-1) * self._value_scale
+        return self._value_mlp(torch.cat([obs, z], dim=-1)).squeeze(-1)
+
     def _sample_goal_mix(self, cur_obs, traj_obs, mix):
         """OGBench GCDataset goal sampling. mix=[p_traj, p_cur, p_random]; returns
         (goal_obs, is_cur). is_cur (goal IS the current state) is the GCIQL success/reach
@@ -472,7 +490,7 @@ class FBAgent(BaseAgent):
         # (1) IQL value V(s,z) <- expectile of the TARGET Q (frozen). V owns its optimizer.
         with torch.no_grad():
             tQ = _Q(self.model._target_left_encoder(obs), z, action, self.model._target_forward_map)
-        V = self._value_mlp(torch.cat([obs, z.detach()], dim=-1)).squeeze(-1)
+        V = self._V(obs, z.detach())
         value_loss = expectile_loss(tQ - V, self.iql_expectile)
         self.value_optimizer.zero_grad(set_to_none=True)
         value_loss.backward()
@@ -490,7 +508,7 @@ class FBAgent(BaseAgent):
             gphys = batch["future"]["physics"][:, 14:17].to(self.device).float()
             success = (nphys - gphys).norm(dim=-1).lt(self.iql_thresh).float()  # [B]
         with torch.no_grad():
-            Vn = self._value_mlp(torch.cat([next_obs, z.detach()], dim=-1)).squeeze(-1)
+            Vn = self._V(next_obs, z.detach())
             target_Q = iql_goal_target(success, Vn, self.discount)
         Q = _Q(self.model._left_encoder(obs), z, action, self.model._forward_map)
         q_loss = (Q - target_Q).pow(2).mean()

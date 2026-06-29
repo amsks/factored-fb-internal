@@ -107,26 +107,76 @@ class GCIQLFlowAgent(GCIQLAgent):
             'q_abs_mean': jnp.abs(q).mean(),
         }
 
+    def measure_loss(self, batch, grad_params, rng):
+        """FB successor-measure loss grafted onto GCIQL's bilinear features. FB's update_fb
+        split: off-diagonal TD over random goals + diagonal attraction to the observed
+        successor. measure_coef=0 reproduces stock GCIQL exactly.
+
+        measure_legs='critic' (default, FB-FAITHFUL): the state-ACTION measure on the CRITIC
+        legs -- M(s,a,s')=<phi(s,a),psi(s')>/sqrt(d) (phi=F, psi=B), bootstrap a+ ~ pi(s+,g)
+        (stop-grad) via the target_critic. Per-head loss then averaged. Shares phi/psi with the
+        IQL critic the actor maximizes. 'value': the state-only measure on the value legs."""
+        obs, nobs = batch['observations'], batch['next_observations']
+        d = self.config['value_latent_dim']; sqd = jnp.sqrt(d); gamma = self.config['discount']
+        B = obs.shape[0]; off = 1.0 - jnp.eye(B)
+        if self.config.get('measure_legs', 'critic') == 'value':
+            _, phi, psi = self.network.select('value')(obs, nobs, info=True, params=grad_params)
+            M = (phi @ psi.T) / sqd
+            _, tphi, tpsi = self.network.select('value')(nobs, nobs, info=True, params=grad_params)
+            tM = jax.lax.stop_gradient((tphi @ tpsi.T) / sqd)
+            diff = M - gamma * tM
+            offdiag = 0.5 * jnp.sum((diff * off) ** 2) / jnp.sum(off)
+            diagt = -jnp.mean(jnp.diag(diff))
+            loss = offdiag + diagt
+        else:  # critic legs: state-action successor measure (the FB-faithful intervention)
+            acts, vgoals = batch['actions'], batch['value_goals']
+            _, phi, psi = self.network.select('critic')(obs, nobs, acts, info=True, params=grad_params)
+            M = jnp.einsum('hid,hjd->hij', phi, psi) / sqd                # [2, B, B]
+            noise = jax.random.normal(rng, acts.shape)
+            a_next = jax.lax.stop_gradient(self.network.select('actor')(nobs, vgoals, noise))  # a+ ~ pi(s+,g)
+            _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, info=True)
+            tM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi) / sqd)            # [2, B, B]
+            diff = M - gamma * tM                                          # [2, B, B]
+            offdiag = 0.5 * jnp.sum((diff * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)        # [2]
+            diagt = -jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2), axis=1)                     # [2]
+            loss = jnp.mean(offdiag + diagt)                               # per-head, then average
+            offdiag, diagt = jnp.mean(offdiag), jnp.mean(diagt)
+        return loss, {'measure_loss': loss, 'measure_offdiag': offdiag, 'measure_diag': diagt}
+
     @jax.jit
     def total_loss(self, batch, grad_params, rng=None):
-        """IQL value + critic (inherited) + flow actor loss."""
+        """IQL value + critic + flow actor (+ optional FB measure). measure_only=True drops the
+        IQL value/critic losses entirely: the critic phi/psi are trained ONLY by the successor
+        measure (so Q=<phi(s,a),psi(g)> becomes the FB measure M(s,a,g)), and the flow actor goes
+        greedy on it -- i.e. FB's objective on GCIQL's bilinear architecture."""
         info = {}
         rng = rng if rng is not None else self.rng
-
-        value_loss, value_info = self.value_loss(batch, grad_params)
-        for k, v in value_info.items():
-            info[f'value/{k}'] = v
-
-        critic_loss, critic_info = self.critic_loss(batch, grad_params)
-        for k, v in critic_info.items():
-            info[f'critic/{k}'] = v
 
         rng, actor_rng = jax.random.split(rng)
         actor_loss, actor_info = self.actor_loss(batch, grad_params, actor_rng)
         for k, v in actor_info.items():
             info[f'actor/{k}'] = v
 
+        if self.config.get('measure_only', False):     # SM-ONLY critic (no IQL): FB objective
+            rng, m_rng = jax.random.split(rng)
+            m_loss, m_info = self.measure_loss(batch, grad_params, m_rng)
+            for k, v in m_info.items():
+                info[f'measure/{k}'] = v
+            return self.config.get('measure_coef', 1.0) * m_loss + actor_loss, info
+
+        value_loss, value_info = self.value_loss(batch, grad_params)
+        for k, v in value_info.items():
+            info[f'value/{k}'] = v
+        critic_loss, critic_info = self.critic_loss(batch, grad_params)
+        for k, v in critic_info.items():
+            info[f'critic/{k}'] = v
         loss = value_loss + critic_loss + actor_loss
+        if self.config.get('measure_coef', 0.0) > 0:   # graft FB measure onto GCIQL's rep
+            rng, m_rng = jax.random.split(rng)
+            m_loss, m_info = self.measure_loss(batch, grad_params, m_rng)
+            loss = loss + self.config['measure_coef'] * m_loss
+            for k, v in m_info.items():
+                info[f'measure/{k}'] = v
         return loss, info
 
     @jax.jit
@@ -288,4 +338,7 @@ def get_config():
         config.actor_hidden_dim = 512
         config.actor_hidden_layers = 2
         config.actor_embedding_layers = 2
+        config.measure_coef = 0.0  # FB measure loss weight grafted onto GCIQL's value rep (0 = stock GCIQL)
+        config.measure_legs = 'critic'  # 'critic' = state-action SM on Q legs (FB-faithful) | 'value' = state SM on V legs
+        config.measure_only = False  # True = drop IQL value/critic losses; critic trained ONLY by the SM (FB objective)
     return config

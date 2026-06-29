@@ -38,6 +38,7 @@ iql_thresh: 0.04                            # goal-reaching reward radius (cube 
 onestep: false                              # true = one-step FB (F not z-conditioned + SARSA next-action; behavior successor)
 decondition_F: false                        # true = zeros to F's task slot => phi(s,a) task-agnostic (bilinear-GCIQL direction)
 d_norm: false                               # true = scale bilinear value F.z by 1/sqrt(z_dim) (GCIQL's phi.psi/sqrt(d))
+bilinear_v: false                           # true = FB-IQL value head V=<phi_V(s),z>/sqrt(d) (matches Q) instead of MLP([s,z])
 critic_goal_mix: [1.0, 0.0, 0.0]            # IQL value-goal mix [p_traj, p_cur, p_random] (GCIQL=[0.5,0.2,0.3]); needs iql_reward=goal_match
 actor_goal_mix: [1.0, 0.0, 0.0]             # IQL actor-goal mix [p_traj, p_cur, p_random] (GCIQL=[1,0,0] traj-only)
 iql_reward: cube_xyz                         # cube_xyz (privileged thresh) | goal_match (GCIQL: success = goal is current state)
