@@ -101,6 +101,28 @@ def _crl_phi_fn(agent):
     return _phi
 
 
+def _gciql_bilinear_phi_fn(agent):
+    """Return fn(obs[B,O], goal[O], act[B,A]) -> bilinear critic state-action
+    embedding phi(s, a) [B, d] (mean over the critic ensemble).
+
+    This is the GCIQL analogue of CRL's phi(s,a): the action-conditioned leg of
+    Q(s,a,g) = phi(s,a).psi(g)/sqrt(d). Unlike CRL's state-only embedding, the
+    action carries affordance, so we pass the policy action pi(s,g) (not zeros).
+    """
+    import jax
+    import jax.numpy as jnp
+
+    @jax.jit
+    def _phi(obs, goal, act):
+        g = jnp.broadcast_to(goal[None], (obs.shape[0], goal.shape[-1]))
+        _q, phi, _psi = agent.network.select("critic")(obs, g, act, info=True)
+        if phi.ndim == 3:          # [ensemble, B, d] -> mean over ensemble
+            phi = phi.mean(axis=0)
+        return phi
+
+    return _phi
+
+
 # ---------------------------------------------------------------------------
 # Agent / env loading
 # ---------------------------------------------------------------------------
@@ -117,7 +139,14 @@ def _load_gciql(run_dir: str, step: int):
     flags = parse_flags(run_dir)
     saved = flags.get("agent")
     name = (saved.get("agent_name") if isinstance(saved, dict) else None) or "gciql"
-    if name == "gcivl":
+    if name == "gciql_flow":
+        # Bilinear/flow bridge agent (Q = phi(s,a).psi(g)/sqrt(d)); the class lives
+        # in the wandb_mode_shim dir, registered there via sitecustomize.
+        shim = str(REPO_ROOT / "tools" / "wandb_mode_shim")
+        if shim not in sys.path:
+            sys.path.insert(0, shim)
+        from gciql_flow import GCIQLFlowAgent as AgentCls, get_config
+    elif name == "gcivl":
         from agents.gcivl import GCIVLAgent as AgentCls, get_config
     else:
         from agents.gciql import GCIQLAgent as AgentCls, get_config

@@ -19,6 +19,7 @@ We distinguish two kinds of representation probes: offline reach-before-end sepa
 \gciql{} & $73.7 \pm 5.9$  & $70.0 \pm 7.0$  & $73.0 \pm 7.0$  & $58.0 \pm 5.2$  & $64.3 \pm 7.0$  & $68.3 \pm 3.7$ \\
 \crl{}   & $24.0 \pm 3.3$  & $28.0 \pm 6.7$  & $28.0 \pm 4.8$  & $24.3 \pm 3.5$  & $26.3 \pm 5.8$  & $25.9 \pm 2.0$ \\
 \rldp{}  & $28.3 \pm 10.8$ & $16.7 \pm 6.7$  & $35.0 \pm 15.9$ & $13.3 \pm 12.5$ & $18.3 \pm 10.0$ & $22.7 \pm 6.0$ \\
+\psm{}   & $50.0 \pm 11.7$ & $38.3 \pm 16.7$ & $73.3 \pm 12.5$ & $1.7 \pm 4.2$   & $11.7 \pm 9.2$  & $36.7 \pm 4.5$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -38,6 +39,7 @@ We distinguish two kinds of representation probes: offline reach-before-end sepa
 \gciql{} & $69.2$ & $0.2$ & $12.2$ & $9.2$  & $9.2$  & $59.7\%$ \\
 \crl{}   & $23.2$ & $0.4$ & $23.8$ & $28.6$ & $24.0$ & $68.5\%$ \\
 \rldp{}  & $25.4$ & $0.2$ & $9.6$  & $44.0$ & $20.8$ & $86.9\%$ \\
+\psm{}   & $38.4$ & $1.0$ & $19.2$ & $35.4$ & $6.0$  & $67.2\%$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -84,7 +86,8 @@ We distinguish two kinds of representation probes: offline reach-before-end sepa
 \textbf{Method} & \textbf{$R^2(B\to d)$ linear} & \textbf{$R^2(B\to d)$ MLP} & \textbf{Maintain-control fail (\%)} \\
 \midrule
 \fb{}   & $0.20$ & $0.21$          & $23.8$ \\
-\rldp{} & $0.55$ & $\mathbf{0.75}$ & $44.0$ \\
+\rldp{} & $0.55$ & $0.75$          & $44.0$ \\
+\psm{}  & $0.90$ & $\mathbf{0.90}$ & $35.4$ \\
 \bottomrule
 \end{tabular}
 \end{table}

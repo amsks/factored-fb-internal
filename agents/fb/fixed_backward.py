@@ -34,6 +34,26 @@ class FixedCubeBackward(nn.Module):
         return obs[..., self.cube_slice]
 
 
+class FixedIdentityBackward(nn.Module):
+    """B(obs) = obs  (the full, already-normalized observation). z = g LITERALLY:
+    the task vector IS the goal observation, with NO learned backward map and NO
+    sphere projection (the model sets norm_z=False for this map). Strips the FB
+    bottleneck entirely so Q = F(s,a,z)·z becomes a BVN-style bilinear value with
+    the goal fed in raw. Parameter-free; z_dim = obs_dim."""
+
+    def __init__(self, obs_dim: int) -> None:
+        super().__init__()
+        self.obs_dim = int(obs_dim)
+        self._output_space = Box(low=-np.inf, high=np.inf, shape=(self.obs_dim,), dtype=np.float32)
+
+    @property
+    def output_space(self):
+        return self._output_space
+
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        return obs
+
+
 def scale_goal_xyz(goal_xyz: torch.Tensor) -> torch.Tensor:
     """Map a real-metre goal cube xyz into the scaled obs space FixedCubeBackward sees."""
     offset = torch.tensor(OBS_XYZ_OFFSET, dtype=goal_xyz.dtype, device=goal_xyz.device)

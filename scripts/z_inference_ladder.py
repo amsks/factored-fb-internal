@@ -39,6 +39,10 @@ METHODS = {
     "fb_plain": ("/dev/shm/factored-fb/runs/20260607_070225__fb_state_plain__s{s}", "fb"),
     "psm_o1000": ("/dev/shm/factored-fb_outputs/psm_state_orthohi__ortho_coef1000__lr_phi1e-5__s{s}", "psm"),
     "psm_tuned": ("/dev/shm/factored-fb_outputs/psm_state_tuned__ortho_coef1__lr_phi1e-5__s{s}", "psm"),
+    # IWR runs: B whitened under rho' but eval relabeling samples rho -> the L1/GLS
+    # correction is the targeted test for the IWR success drop (fb-iwr.tex §5.3).
+    "fb_state_iwr": ("/dev/shm/factored-fb/runs/fb_state_iwr__s{s}", "fb"),
+    "fb_state_iwr_wz": ("/dev/shm/factored-fb/runs/fb_state_iwr_wz__s{s}", "fb"),
 }
 
 

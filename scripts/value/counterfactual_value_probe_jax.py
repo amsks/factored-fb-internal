@@ -48,7 +48,8 @@ def _establish_grasp(u, qpos, mujoco):
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--method", required=True, choices=["gciql", "crl"])
+    ap.add_argument("--method", required=True,
+                    choices=["gciql", "crl", "gciql_flow_bilinear"])
     ap.add_argument("--run-dir")
     ap.add_argument("--checkpoint-dir")
     ap.add_argument("--step", type=int, default=1000000)
@@ -78,6 +79,28 @@ def main() -> int:
         @jax.jit
         def value(O, G):
             v = jnp.asarray(agent.network.select("value")(O, G))
+            return v.mean(0) if v.ndim > 1 else v
+
+        def make_task_env(ti):
+            e = ogbench.make_env_and_datasets(env_name, env_only=True)
+            _o, info = e.reset(options=dict(task_id=ti))
+            return e, np.asarray(info["goal"], np.float32)
+
+        def reset_task(e, ti):
+            e.reset(options=dict(task_id=ti))
+
+    elif args.method == "gciql_flow_bilinear":
+        # Bilinear bridge: V(s|g) = Q(s, pi(s,g), g) = phi(s,a).psi(g)/sqrt(d),
+        # read off the action-conditioned critic (like CRL) but with the
+        # GCIQL-style goal-observation env.
+        assert args.run_dir
+        import ogbench
+        from scripts.value.repsep_extract_jax import _load_gciql
+        agent, _cfg, env_name = _load_gciql(args.run_dir, args.step)
+
+        @jax.jit
+        def qcrit(O, G, A):
+            v = jnp.asarray(agent.network.select("critic")(O, G, A))
             return v.mean(0) if v.ndim > 1 else v
 
         def make_task_env(ti):

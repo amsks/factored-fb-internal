@@ -31,12 +31,18 @@ iwr_eps: 0.1                                 # coverage floor (rho' > 0 on all o
 weight_diag: false                          # false = pure rho'-FB (diagonal unweighted); true = coverage-PRIORITIZED
 weight_z: false                             # true = resample goal-derived z by w (rare-goal exposure for F/actor)
 train_goal_mode: perm                       # perm = uniform buffer goals (original); traj = zHER (z = B(own trajectory future))
+decouple_actor_z: false                     # GCIQL-style: critic keeps broad z, actor trains on B(on-traj future) only (measure mode)
 critic_mode: measure                        # measure = stock FB; iql = goal-conditioned expectile critic on F.z (needs train_goal_mode=traj)
 iql_expectile: 0.9                          # IQL expectile (matches GCIQL)
 iql_thresh: 0.04                            # goal-reaching reward radius (cube xyz, world m)
 onestep: false                              # true = one-step FB (F not z-conditioned + SARSA next-action; behavior successor)
+decondition_F: false                        # true = zeros to F's task slot => phi(s,a) task-agnostic (bilinear-GCIQL direction)
+d_norm: false                               # true = scale bilinear value F.z by 1/sqrt(z_dim) (GCIQL's phi.psi/sqrt(d))
+critic_goal_mix: [1.0, 0.0, 0.0]            # IQL value-goal mix [p_traj, p_cur, p_random] (GCIQL=[0.5,0.2,0.3]); needs iql_reward=goal_match
+actor_goal_mix: [1.0, 0.0, 0.0]             # IQL actor-goal mix [p_traj, p_cur, p_random] (GCIQL=[1,0,0] traj-only)
+iql_reward: cube_xyz                         # cube_xyz (privileged thresh) | goal_match (GCIQL: success = goal is current state)
 goal_cond: false        # V1: feed the explicit goal obs into forward map + actor
-fixed_b: none           # V2: 'none' (learned B) | 'cube_xyz' (fixed USFA featurizer, z_dim->3)
+fixed_b: none           # V2: 'none' (learned B) | 'cube_xyz' (USFA, z_dim->3) | 'identity' (z=g, B=I, norm_z off) | 'identity_norm' (B=I but z=sqrt(d)*g/||g||)
 amp: false
 
 # Per-network architecture (td_jepa OGBench launch defaults)

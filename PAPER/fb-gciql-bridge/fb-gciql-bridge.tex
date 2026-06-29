@@ -1,0 +1,672 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{enumitem}
+
+\newcommand{\B}[1]{\textbf{#1}}
+\newcommand{\cfauc}{\mbox{cf-AUC}}
+
+\title{\bf Isolating why future-reachability values fail on cube manipulation\\[3pt]
+\large An FB\,$\leftrightarrow$\,GCIQL bridge --- experiment log}
+\author{Factored-FB}
+\date{2026-06-29 \quad(\emph{living document}; two tiers --- Part~1 development
+(500k, 3 seeds; the goal-matching ladder) and Part~2 final (1M, 10 seeds). Spine
+revised: FB-IQL critic is $\sim$59 at sane lr/ortho, not value-blind at $24$.)}
+
+\begin{document}
+\maketitle
+
+\section{Starting point: the updated performance table}
+
+All methods use the FlowBC actor (the only actor we study); each is its tuned
+configuration after a hyperparameter study. \B{The table below reports each method's
+best eval over training} (peak IQM over steps $\ge$500k --- most methods peak before
+1M and several degrade after); \B{the later ablation sections report success at 1M}
+($n{=}8$--$10$ seeds), where the FB-side interventions and G4 live. ($\pm$ is a $95\%$ CI, $1.96\times$ the
+bootstrap standard error over $n{=}10$ seeds; success is IQM over seeds, in \%, from
+wandb \texttt{amsks/factored-fb}.)
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Method (state, FlowBC, best $\ge$500k) & IQM success ($\pm$\,95\% CI) \\
+\midrule
+GCIQL & $78 \pm 4$ \\
+FB    & $52 \pm 6$ \\
+PSM   & $42 \pm 8$ \\
+CRL   & $31 \pm 3$ \\
+RLDP  & $27 \pm 6$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent (Peak step per method.)
+
+\noindent Every future-reachability method (FB / PSM / CRL / RLDP) sits far below
+GCIQL. The rest of this log is the set of experiments we ran to find \emph{which}
+ingredient of the FB family causes that gap.
+
+\section{The two objectives, and the modifications they motivate}
+
+\subsection{FB objective}
+FB represents the discounted successor measure of a \emph{policy family} $\{\pi_z\}$.
+With data distribution $\rho$ and a task vector $z$,
+\[
+M^{\pi_z}(s,a,\mathrm{d}s') := \sum_{t\ge 0}\gamma^{t}\,
+\Pr\!\big(s_{t+1}\in\mathrm{d}s'\mid s_0{=}s,a_0{=}a,\pi_z\big)
+\;\approx\; F(s,a,z)^\top B(s')\,\rho(\mathrm{d}s').
+\]
+$F,B$ are fit by the residual of the measure Bellman equation
+$M = P + \gamma P^{\pi_z} M$ --- a TD over \emph{random} goals $s'\sim\rho$ plus a
+diagonal term, under the orthonormality constraint $\mathbb{E}_\rho[BB^\top]=I$
+(coefficient $\lambda$ $=$ our \texttt{ortho\_coef}); schematically,
+\begin{align}
+\mathcal{L}_{\mathrm{FB}}
+&= \mathbb{E}_{\substack{(s,a,s^{+})\sim\rho\\ s'\sim\rho,\ z}}
+\Big[\big(F(s,a,z)^\top B(s')
+   - \gamma\,\mathrm{sg}\big[\bar F(s^{+},\pi_z(s^{+}),z)^\top \bar B(s')\big]\big)^2\Big]
+\nonumber\\[-2pt]
+&\quad\;-\;2\,\mathbb{E}_{(s,a,s^{+})\sim\rho,\ z}\big[F(s,a,z)^\top B(s^{+})\big]
+\;+\;\lambda\,\big\|\mathbb{E}_\rho[BB^\top]-I\big\|_F^2 .
+\end{align}
+The reward never enters training. A task is specified \emph{post hoc} by a linear
+readout, and the policy is greedy on a bilinear $Q$:
+\[
+z_r=\mathbb{E}_{s'\sim\rho}\big[r(s')\,B(s')\big],\qquad
+Q_z(s,a)=F(s,a,z)^\top z,\qquad
+\pi_z(s)=\arg\max_a Q_z(s,a).
+\]
+
+\subsection{GCIQL objective}
+GCIQL learns a \emph{goal-conditioned optimal} value by Implicit Q-Learning on the
+sparse goal-reaching reward $r(s,g)=\mathbb{1}[s\!\approx\!g]-1\in\{-1,0\}$
+(episode ends at the goal; $d=\mathbb{1}[s\!\approx\!g]$). An expectile value
+approximates the in-support $\max_a$, and $Q$ bootstraps on it:
+\begin{align}
+\mathcal{L}_V &= \mathbb{E}_{(s,a,g)\sim\rho}\big[L_2^{\tau}\!\big(\bar Q(s,a,g)-V(s,g)\big)\big],
+\qquad L_2^{\tau}(u)=\big|\tau-\mathbb{1}[u<0]\big|\,u^2,\ \ \tau>\tfrac12,\\
+\mathcal{L}_Q &= \mathbb{E}_{(s,a,s^{+},g)\sim\rho}\Big[\big(\,
+\underbrace{r(s,g)+\gamma(1-d)\,V(s^{+},g)}_{=\;(\mathrm{succ}-1)+\gamma(1-\mathrm{succ})\,V(s^{+},g)}
+\;-\;Q(s,a,g)\big)^2\Big].
+\end{align}
+The goal $g$ is a \emph{network input}; the reward enters the backup at \emph{train}
+time; the expectile $L_2^{\tau}$ is an implicit policy-improvement (greedy) operator.
+The underbrace is exactly the bug/fix from the FB-IQL experiment below: masking the
+bootstrap by goal-reached, not by the env \texttt{terminated} flag.
+
+\subsection{Key differences}
+\begin{enumerate}[nosep]
+\item \B{Backup signal --- density vs reward.} FB regresses the \emph{occupancy
+  measure} (every $s'\sim\rho$ is a goal at once); GCIQL regresses the \emph{value} of
+  one goal's reward. ($\bar F^\top\bar B$ over random $s'$ vs $r+\gamma V$ for $g$.)
+\item \B{Improvement operator --- none vs expectile-max.} FB's measure backup is
+  \emph{policy evaluation} of $\{\pi_z\}$ --- no $\max$ appears in the residual.
+  GCIQL's $L_2^{\tau}$ drives $V$ to an upper expectile of $Q$, an \emph{implicit
+  $\max_a$}, so the backup is greedy/optimal.
+\item \B{Task entry --- post-hoc linear $z$ vs train-time input $g$.} FB infers
+  $z=\mathbb{E}[rB]$ at test; GCIQL conditions on $g$ throughout training.
+\end{enumerate}
+
+\subsection{The modifications (each isolates one difference)}
+
+\paragraph{M1 --- objective: measure $\to$ goal-conditioned value-TD.}
+Replace $\mathcal{L}_{\mathrm{FB}}$ by $\mathcal{L}_V+\mathcal{L}_Q$ on FB's \emph{own}
+bilinear $Q=F\!\cdot\!z$ (the \emph{FB-IQL critic}). This injects both the reward
+backup and the expectile max (differences 1\,\&\,2) while holding the form and
+inference fixed:
+\[
+\mathcal{L}_{\mathrm{FB}}\ \longmapsto\
+\mathbb{E}\big[L_2^{\tau}(\bar Q-V)\big]
++\mathbb{E}\big[(r+\gamma(1-d)V' - Q)^2\big],\qquad Q=F(s,a,z)^\top z .
+\]
+\emph{Result: 24 --- a correct value on the measure-trained bilinear stays
+value-blind.}
+
+\paragraph{M2 --- form: bilinear, IQL-trained, exact goal.}
+Keep the inner-product parameterization but train it by M1's objective with the exact
+goal as input:
+\[
+Q(s,a,g)=\frac{\phi(s,a)^\top\psi(g)}{\sqrt d},\qquad
+V(s,g)=\frac{\phi_V(s)^\top\psi_V(g)}{\sqrt d},
+\]
+plugged into $\mathcal{L}_V,\mathcal{L}_Q$. This is the \emph{bilinear bridge}: FB's
+form and rank, GCIQL's objective and conditioning. \emph{Result: 94.}
+
+\paragraph{M3 --- conditioning: $z$-condition the actor under FB's inference.}
+On the IQL-trained value of M2, set $B:=\psi$ and condition the policy on a task
+vector rather than the raw goal,
+\[
+z=\psi(g)\ \ (\text{exact})\qquad\text{or}\qquad
+z=\mathbb{E}_{s'\sim\rho}\big[r(s')\,\psi(s')\big]\ \ (\text{FB's L0 rule}),
+\qquad \pi(\cdot\mid s,z),\ \ Q=\phi(s,a)^\top z .
+\]
+For a sparse single-goal reward $r(s')=\mathbb{1}[s'\!\approx\!g]$ the readout collapses
+to $z=\mathbb{E}[r\,\psi(s')]\propto\psi(g)$, exactly recovering FB's linear inference
+--- but now $\psi$ is IQL-trained, not measure-trained. This is \emph{G4}: the
+success-level test of whether the \emph{objective alone}, under FB's full zero-shot
+pipeline, suffices (\S\,G4 below: yes with exact $z$, no with inferred $z$).
+
+\medskip
+\noindent In short: the FB$\to$GCIQL gap is three structural differences (signal,
+improvement operator, task entry); M1 changes the first two together (the decisive
+one), M2 the form they ride on, M3 the third. The experiments below are these three
+modifications and the controls around them.
+
+\section{Two reporting tiers}
+\noindent The results split into two tiers; read them apart. \textbf{Part~1 --- development
+(500k steps, 3 seeds $\{0,1,2\}$):} the fast tier where we \emph{figure things out}; the
+headline is the goal-matching ladder, and conclusions are provisional ($n{=}3$, wide CIs).
+\textbf{Part~2 --- final (1M steps, 10 seeds):} the slow, confirmed tier (the full ablation
+grid + the elimination experiments at scale). \emph{Where the two disagree, Part~1 is the
+current best evidence and Part~2 is being re-run at the corrected configuration} --- most
+importantly the FB-IQL critic (Part~2 grid: $24$; Part~1 ladder at sane lr/ortho: $\sim$59;
+see the Revision note in ``Importing the value objective\ldots'' in Part~2).
+
+\section{Part~1 --- Development (500k, 3 seeds): the goal-matching ladder}
+The fast-iteration tier --- the full FB$\to$GCIQL morph at \textbf{500k} steps,
+3 seeds $\{0,1,2\}$, the \emph{flow actor held fixed across every row}, with the
+GCIQL \emph{dataset goal-matching} reward (success $=$ goal is the current state).
+Critic and actor use \emph{separate} goal sampling: critic mix
+$[p_{\text{traj}},p_{\text{cur}},p_{\text{rand}}]=[0.5,0.2,0.3]$ (the $0.2$ cur-goals
+are the reached anchors that pin $V$ to $0$ at the goal), actor trajectory-only
+$[1,0,0]$ --- exactly GCIQL's value/actor split. $\pm$ is the 95\% CI (Student-$t$, $n{=}3$).
+\begin{center}\small
+\begin{tabular}{lc}
+\toprule
+Method / step (all FlowBC actor, @500k) & success ($\pm$\,95\% CI) \\
+\midrule
+\multicolumn{2}{l}{\emph{Future-reachability baselines}}\\
+CRL (flowbc, contrastive) & $30 \pm 5$ \\
+plain FB (measure) & $34 \pm 15$ \\
+\midrule
+\multicolumn{2}{l}{\emph{FB-IQL (objective swapped: measure $\to$ goal-matching value)}}\\
+FB-IQL, goal-match $+$ GCIQL mix & $\mathbf{59 \pm 15}$ \\
+\quad $+$ de-condition $F\!\to\!\phi$ & $58 \pm 26$ \\
+\quad $+$ $\sqrt d$ normalization & $65 \pm 11$ \\
+\quad $+$ both & $57 \pm 4$ \\
+\midrule
+\multicolumn{2}{l}{\emph{GCIQL targets}}\\
+stock GCIQL $+$ flow & $71 \pm 6$ \\
+bilinear-GCIQL ($d{=}50$) & $\mathbf{90 \pm 6}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent\textbf{Reading it.} The \emph{objective} is the lever: swapping FB's measure
+backup for the IQL goal-matching value nearly \emph{doubles} success (CRL/plain FB
+$\sim$30--34 $\to$ FB-IQL $59$), with the flow actor and the bilinear/learned-$B$ form
+held fixed. The \emph{structural} knobs --- de-conditioning the forward map ($F\!\to\!\phi$)
+and the $\sqrt d$ scaling --- are \emph{flat} (57--65, all overlapping at $n{=}3$). A real
+gap to GCIQL remains ($59\to71\to90$) that these knobs do not close (candidates: a bilinear
+$V$ head, the clipped-double-$Q$ minimum, a learned $\psi$). \textbf{This revises the
+$\S$\,``importing the value objective doesn't help'' result in Part~2:} that section's FB-IQL
+critic $=24$ used $\mathrm{lr}{=}1e\text{-}4$ and ortho$=1000$ and collapsed on 2/3 seeds;
+at $\mathrm{lr}{=}3e\text{-}4$, ortho$=0$, and the dataset goal-match reward, FB-IQL is
+\emph{stable at} $\sim$59 --- so the original $24$ was substantially an lr/ortho
+training-stability artifact, not evidence the bilinear value is intrinsically value-blind.
+\emph{Caveats:} $n{=}3$ @500k; plain FB is still climbing at 500k (its @1M $=48$); lr and
+ortho are not yet isolated from each other.
+
+\section{Part~2 --- Final (1M, 10 seeds): the morph bridge at scale}
+We use a two-directional ``morph bridge'': start from FB and import GCIQL's value
+objective; and start from GCIQL and impose FB's restrictions one at a time. Each
+subsection is one experiment: what we changed, and what success it produced. \emph{These
+are the 1M/10-seed results; the Part~1 ladder supersedes any that conflict (FB-IQL critic).}
+
+\subsection{The actor is not the cause}
+\textbf{Did:} held the FlowBC actor \emph{constant} and varied only the critic it
+steers on. The same flow actor sits on FB's measure-trained representation, on
+GCIQL's MLP critic, and on the IQL-trained bilinear critic (\S3.2). \\
+\textbf{Found:} with one fixed actor, success spans \B{$48\pm5$} (FB rep) $\to$
+\B{$73\pm4$} (GCIQL MLP critic) $\to$ \B{$94\pm1$} (IQL bilinear). \\
+\textbf{Implies:} the FB-family deficit lives in the \emph{value path}
+(representation $\times$ readout $\times$ inference), not the actor --- the actor is
+identical across the whole range. This is the constant baseline for all experiments
+below.
+
+\subsection{The bilinear form is not the cause (the bridge)}
+\textbf{Did:} replaced GCIQL's MLP critic with an FB-shaped \emph{bilinear} value
+$Q=\phi(s,a)^\top\psi(g)/\sqrt{d}$ --- the same factorization FB/PSM use --- still
+IQL-trained, still handed the exact goal, with the flow actor. (Group
+\texttt{GCIQL-State-Flow-Bilinear}, $d{=}512$.) \\
+\textbf{Found:} success \B{$94\pm1$} ($n{=}8$) --- \emph{above} the MLP critic
+($73\pm4$), and an FB-shaped value essentially solves the task. \\
+\textbf{Implies:} the bilinear factorization $Q=F\cdot z$ is \B{not} the wall. An
+inner-product value can carry full controllability when trained the right way.
+
+\subsection{Rank is not the cause (down to a far-below-FB floor)}
+\textbf{Did:} re-ran the bilinear bridge across ranks $d\in\{5,50,128,512\}$. \\
+\textbf{Found:} $d{=}50$: $\mathbf{93\pm1}$; $d{=}128$: $\mathbf{94\pm1}$;
+$d{=}512$: $\mathbf{94\pm1}$ --- \emph{flat} across this $10\times$ range; but
+$d{=}5$: $\mathbf{14\pm3}$ --- a \emph{collapse} (already $\sim5\%$ at 100k
+vs.\ $\sim70\%$ for $d{\ge}50$). \\
+\textbf{Implies:} there is a capacity cliff between $d{=}5$ and $d{=}50$, but it sits
+\B{far below FB's operating range} ($d{=}50$--$128$). So rank is \B{not} FB's crutch:
+at FB-parity rank the IQL-trained bilinear already scores $\sim93$, and only an
+extreme $d{=}5$ (where the inner-product can no longer represent the goal-reaching
+structure) breaks it.
+
+\subsection{Full ablation grid}
+The complete set of single-knob modifications, starting from stock GCIQL and morphing
+one ingredient at a time toward FB's bilinear measure-matching form. All numbers are
+success at \textbf{1M} (state, FlowBC actor unless noted). We report the grid at
+\emph{two tiers}: a \textbf{development set} (Grid~A) of the \emph{same three
+preliminary seeds} (0,1,2) used to scope each ablation, and the \textbf{final}
+10-seed campaign (Grid~B). The development tier is where new ablations enter --- a row
+is run on seeds 0--2 first and added to Grid~A, then graduated to Grid~B once the
+remaining seeds (3--9) complete. Grid~A's seeds are a \emph{strict subset} of Grid~B's,
+so the two tiers are directly comparable; Grid~B simply tightens every interval
+(e.g.\ single-$Q$ $90.5\pm4.0$ at $n{=}3 \to 90.2\pm1.5$ at $n{=}10$). $\pm$ is the
+\textbf{95\% CI} (Student-$t$, $n{-}1$ df; $t{=}4.30$ at $n{=}3$, so the 3-seed
+intervals are wide by design).
+
+\paragraph{Grid~A --- development set (3 seeds @1M).} Every ablation on seeds
+$\{0,1,2\}$, the apples-to-apples tier for incoming ablations.
+\begin{center}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Modification} & \textbf{Success @1M (95\% CI)} & \textbf{$n$} \\
+\midrule
+\multicolumn{3}{l}{\emph{Baselines (MLP critic)}}\\
+\textit{none} --- stock GCIQL (MLP critic, Gaussian DDPG+BC actor) & ---$^{\ddagger}$ & --- \\
+actor $\to$ \textbf{flow (FQL)} actor (``GCIQL--FlowBC'')          & $73.6 \pm 8.1$ & 3 \\
+\midrule
+\multicolumn{3}{l}{\emph{Critic form --- the key lever}}\\
+critic $\to$ \textbf{bilinear} $Q{=}\phi\!\cdot\!\psi/\sqrt d$, $d{=}50$ ($+$flow) & $\mathbf{91.6 \pm 5.1}$ & 3 \\
+\midrule
+\multicolumn{3}{l}{\emph{GCIQL design knobs (on bilinear $d{=}50$ $+$ flow)}}\\
+\textbf{Gaussian} DDPG+BC actor (no flow)            & $56.1 \pm 15.1$ & 3 \\
+expectile $\tau{=}0.5$ (no pessimism)                & $88.7 \pm 1.7$  & 3 \\
+expectile $\tau{=}0.95$ (strong pessimism)           & $90.3 \pm 3.6$  & 3 \\
+\textbf{single-}$Q$ (no double-$Q$ minimum)          & $90.5 \pm 4.0$ & 3 \\
+actor on $z{=}\psi(g)$, not raw goal (G4 exact-$z$)   & $92.4 \pm 3.8$ & 3 \\
+\midrule
+\multicolumn{3}{l}{\emph{Rank sweep (bilinear $+$ flow)}}\\
+rank $d{=}5$    & $13.3 \pm 7.1$  & 3 \\
+rank $d{=}50$   & $91.6 \pm 5.1$ & 3 \\
+rank $d{=}128$  & $93.1 \pm 1.1$ & 3 \\
+rank $d{=}512$  & $94.3 \pm 3.0$ & 3 \\
+\midrule
+\multicolumn{3}{l}{\emph{FB objective --- the bridge back}}\\
+plain FB --- bilinear $+$ flow, measure-matching, zero-shot $z$ & $48.0 \pm 5.0$ & 3 \\
+FB, measure-matching, trajectory-$z$ (zHER)         & $29.3 \pm 18.5$ & 3 \\
+FB--IQL, goal-cond.\ IQL critic \emph{replaces} measure loss & $\mathbf{18.0 \pm 26.5}$ & 3 \\
+FB--IQL, goal-TD $q$-loss added (measure kept, $q\_loss\_coef{=}1$) & $30.7 \pm 16.6$ & 3 \\
+\midrule
+\multicolumn{3}{l}{\emph{CRL (contrastive future-reachability baseline)}}\\
+CRL, flow actor               & $27.6 \pm 4.6$ & 3 \\
+CRL, Gaussian DDPG+BC actor   & $15.1 \pm 3.1$ & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent\footnotesize $^{\ddagger}$ Stock GCIQL is a 12-seed reuse from an earlier
+campaign; its per-seed values for the $\{0,1,2\}$ subset were not relocated, so only the
+Grid~B aggregate ($67.4$) is available. G4 inferred-$z$ ($6.7$) is a dedicated 50-episode
+zero-shot eval and lives only in Grid~B. \normalsize
+
+\paragraph{Grid~B --- final (10 seeds @1M).} The full campaign (campaign spec
+\texttt{2026-06-22-bridge-table-10seed-1M}), $n{=}8$--$10$ seeds per row; each block is
+expanded in the surrounding sections.
+\begin{center}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Modification} & \textbf{Success @1M (95\% CI)} & \textbf{$n$} \\
+\midrule
+\multicolumn{3}{l}{\emph{Baselines (MLP critic)}}\\
+\textit{none} --- stock GCIQL (MLP critic, Gaussian DDPG+BC actor) & $67.4 \pm 4.6$ & 10 \\
+actor $\to$ \textbf{flow (FQL)} actor (``GCIQL--FlowBC'')          & $72.8 \pm 4.3$ & 9 \\
+\midrule
+\multicolumn{3}{l}{\emph{Critic form --- the key lever}}\\
+critic $\to$ \textbf{bilinear} $Q{=}\phi\!\cdot\!\psi/\sqrt d$, $d{=}50$ ($+$flow) & $\mathbf{92.6 \pm 1.3}$ & 10 \\
+\midrule
+\multicolumn{3}{l}{\emph{GCIQL design knobs (on bilinear $d{=}50$ $+$ flow)}}\\
+\textbf{Gaussian} DDPG+BC actor (no flow)            & $56.6 \pm 5.3$ & 10 \\
+expectile $\tau{=}0.5$ (no pessimism)                & $88.9 \pm 2.3$  & 10 \\
+expectile $\tau{=}0.95$ (strong pessimism)           & $90.6 \pm 1.2$  & 10 \\
+\textbf{single-}$Q$ (no double-$Q$ minimum)          & $90.2 \pm 1.5$ & 10 \\
+actor on $z{=}\psi(g)$, not raw goal (G4 exact-$z$)$^{\dagger}$ & $93.0 \pm 1.9$ & 9 \\
+\quad same, zero-shot $z{=}\mathbb{E}[r\psi(s')]$ (G4 inferred-$z$) & $6.7 \pm 3.1$ & 9 \\
+\midrule
+\multicolumn{3}{l}{\emph{Rank sweep (bilinear $+$ flow)}}\\
+rank $d{=}5$    & $14.3 \pm 3.0$  & 10 \\
+rank $d{=}50$   & $92.6 \pm 1.3$ & 10 \\
+rank $d{=}128$  & $93.9 \pm 1.3$ & 10 \\
+rank $d{=}512$  & $94.5 \pm 1.3$ & 8 \\
+\midrule
+\multicolumn{3}{l}{\emph{FB objective --- the bridge back}}\\
+plain FB --- bilinear $+$ flow, measure-matching, zero-shot $z$ & $48 \pm 5$ & 10 \\
+FB, measure-matching, trajectory-$z$ (zHER)         & $32.0 \pm 5.3$ & 10 \\
+FB--IQL, goal-cond.\ IQL critic \emph{replaces} measure loss & $\mathbf{23.6 \pm 6.8}$ & 10 \\
+FB--IQL, goal-TD $q$-loss added (measure kept, $q\_loss\_coef{=}1$) & $38.8 \pm 6.2$ & 10 \\
+\midrule
+\multicolumn{3}{l}{\emph{CRL (contrastive future-reachability baseline)}}\\
+CRL, flow actor               & $25.8 \pm 2.4$ & 9 \\
+CRL, Gaussian DDPG+BC actor   & $16.8 \pm 2.7$ & 10 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent\footnotesize $^{\dagger}$ G4 row is the dedicated 50-episode zero-shot
+evaluation (\S\,G4), $n{=}9$ seeds at 1M; exact-$z$ $93.0\pm1.9$, inferred-$z$
+$6.7\pm3.1$. At 1M the dedicated exact-$z$ eval agrees with the in-training eval
+($93.4$), unlike at 500k where the vendored loop's raw-goal feed made them diverge.
+$\pm$ is the 95\% CI (Student-$t$, $n{-}1$ df); the per-seed values are in the
+verification log. \normalsize
+
+\smallskip
+\noindent\textbf{Reading the grid.} The bridge's $\sim$93 is \emph{robust} to GCIQL's
+pessimism knobs --- removing the expectile max ($\tau{=}0.5$, $89$) or the double-$Q$
+minimum ($90$) barely moves it. The one design choice that matters is the
+\emph{actor}: a Gaussian DDPG+BC actor on the \emph{same} bilinear value drops to $57$,
+and the same flow$\to$Gaussian swap costs CRL $\sim9$ points ($26\!\to\!17$) --- so the
+flow actor is needed to \emph{realize} a good bilinear value, but it is held
+\emph{fixed} across every FB-vs-GCIQL comparison (\S3.4) and does not explain the gap.
+CRL, a future-reachability method like FB/PSM/RLDP, sits with them far below the bridge
+under \emph{either} actor.
+
+\subsection{Zero-shot inference is not the cause (value level)}
+\textbf{Did:} on the bilinear bridge value, ranked goal-reaching states by
+$V_z(s)=\phi(s)^\top z$ using (i) the exact goal embedding $z{=}\psi(g)$ vs.\ (ii)
+FB's own zero-shot rule $z{=}\mathbb{E}[r\,\psi(s')]$. We measured rank-AUC of the
+value over reached vs.\ not-reached states (\cfauc{}; scale-invariant in $z$, so no
+sphere-projection ambiguity). 4 seeds. \\
+\textbf{Found:} \cfauc{} \B{$0.922{\pm}.020$ (exact) vs.\ $0.915{\pm}.019$
+(inferred)} --- identical. The same inference rule leaves FB's own value near chance
+($\approx0.5$). \\
+\textbf{Implies:} FB-style zero-shot inference is \B{not} the differentiator. The
+IQL-trained value ranks goal-reaching states equally well under FB's own inference;
+the difference must be upstream, in the representation the objective builds.
+
+\subsection{Importing the value objective into FB's framework does not help}
+\textbf{\textcolor{red}{Revision (see the 500k development ladder above).}} The headline of
+this section --- ``FB-IQL critic $=24$, value-blind'' --- is \textbf{superseded}. Those runs
+used $\mathrm{lr}{=}1e\text{-}4$, ortho$=1000$, and the privileged cube-xyz reward, and collapsed
+on 2/3 seeds. With $\mathrm{lr}{=}3e\text{-}4$, ortho$=0$, and the GCIQL dataset goal-matching
+reward, the \emph{same} IQL-critic objective is \textbf{stable at $\sim$59} (@500k, $n{=}3$) ---
+\emph{above} plain FB, doubling the future-reachability baselines. So the $24$ was largely an
+lr/ortho training-stability artifact, \emph{not} evidence the bilinear value is intrinsically
+value-blind. The corrected reading: the \emph{objective} (measure $\to$ goal-matching value-TD)
+\emph{is} the lever; it just stops short of GCIQL ($59 \to 90$), and the structural knobs we
+tried (de-condition $F\!\to\!\phi$, $\sqrt d$) do not close that residual. The $@1M$ numbers in
+the table below are retained as the \emph{old} measure-framework interventions (Part~2 will
+re-confirm them at the corrected incidentals).
+
+\medskip
+\textbf{Did:} four ways to give FB the value objective while keeping its
+bilinear/measure framework:
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Intervention & success ($\pm$\,95\% CI) \\
+\midrule
+plain FB (anchor, $n{=}10$) & $48 \pm 5$ \\
+$q\_loss\_coef{=}1$ (up-weight goal-TD on $Q{=}F\!\cdot\!z$) & $39 \pm 6$ \\
+zHER (trajectory-future task sampling) & $32 \pm 5$ \\
+IWR (interaction-weighted measure, $n{=}3$) & $23 \pm 23$ \\
+FB-IQL critic (measure loss \B{replaced} by goal-cond.\ IQL) & $\mathbf{24 \pm 7}$ \\
+decouple actor-$z$ (reachable-$z$ actor, perm critic goals; $n{=}3$) & $39 \pm 34$ \\
+decouple actor-$z$ (reachable-$z$ actor, traj critic goals; $n{=}3$) & $18 \pm 13$ \\
+\midrule
+\multicolumn{2}{l}{\emph{+ drop the learned backward map ($z{=}g$, $B{=}I$, on-traj $z$; $n{=}3$, @1M):}}\\
+\quad FB-IQL critic, $z{=}g$ & $\mathbf{44 \pm 13}$ \\
+\quad zHER, $z{=}g$ (measure loss; confounded) & $19 \pm 22$ \\
+\midrule
+\multicolumn{2}{l}{\emph{single-variable controls for the $z{=}g$ rows ($n{=}3$, @1M):}}\\
+\quad FB-IQL critic, learned $B$, ratio${=}1$ & $21 \pm 40$ \\
+\quad zHER, $z{=}g$, $z$ re-normalized & $20 \pm 5$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent (interventions $n{=}10$ except IWR, the decouple rows, the $z{=}g$ rows, and
+the controls, all $n{=}3$.)
+\textbf{Found:} every intervention \emph{that keeps the learned backward map} lands
+\emph{below} plain FB (the $z{=}g$ rows are the exception, below). The FB-IQL critic is
+the sharpest: a first version diverged (V/Q ramped to the $1/(1{-}\gamma){=}100$
+fixed point, actor collapsed to $3$) because the Bellman bootstrap was masked by the
+env \texttt{terminated} flag (never set in cube offline data) instead of by
+goal-reached. With the GCIQL-faithful target
+$y=(\text{succ}{-}1)+\gamma(1{-}\text{succ})V'$ the value becomes bounded and stable
+--- and success is still only \B{24}. \\
+\textbf{Implies:} a \emph{correctly-trained} goal-conditioned IQL value on FB's
+\emph{measure-trained} bilinear is value-blind. The value-target form is not the
+lever; the representation the measure objective builds is the problem.\\
+\textbf{Dropping the learned backward map ($z{=}g$, $n{=}3$, @1M).} Pushing further, we
+\emph{drop the learned backward map entirely} and feed the goal directly as the task
+vector ($B{=}I$, $z{=}g$), with all task sampling on-trajectory (\texttt{train\_goal\_ratio}${=}1$).
+With the goal-conditioned IQL critic this recovers to \B{$44\pm13$} --- statistically
+indistinguishable from plain FB ($48\pm5$) and well above the learned-$B$ FB-IQL critic
+($24$). So the FB-IQL critic's collapse is substantially the \emph{bilinear backward-map
+bottleneck}, not the value target: remove $B$ and the value objective is no longer
+value-blind. Crucially this only \emph{recovers the FB ceiling} ($\sim$48); it does not
+approach GCIQL ($\sim$90), so the broader gap stands. The measure-loss variant with
+$z{=}g$ instead \emph{degrades} ($19\pm22$) and is confounded --- with $B{=}I$ the
+measure's implied reward $z^\top B(s){=}g^\top s$ is linear, not goal-reaching, and the
+successor measure diverges.
+
+\textbf{The two single-variable controls (now run) isolate the backward map.} The $z{=}g$
+intervention changes two things at once relative to the FB-IQL critic row (drops $B$ \emph{and}
+moves task sampling to on-trajectory at ratio${=}1$). The controls split them. (i) Learned-$B$
+FB-IQL critic at \texttt{train\_goal\_ratio}${=}1$ scores \B{$21\pm40$} --- essentially the same
+as the ratio$\,{=}0.5$ FB-IQL critic ($24$), so the sampling ratio is \emph{not} the lever; the
+$24\!\to\!44$ jump is attributable to dropping $B$. (Indeed, under \texttt{critic\_mode=iql} both
+the decouple-actor-$z$ knob and \texttt{train\_goal\_ratio} are inert: the learned-$B$ ratio$\,{=}1$
+run is byte-identical to the decouple-IQL run across all eval checkpoints, confirming they collapse
+to one configuration.) (ii) Re-normalizing $z$ in the $z{=}g$ measure variant gives \B{$20\pm5$},
+no better than the un-normalized $19\pm22$ --- bounding $z$ does not rescue the measure blow-up, so
+that row's weakness is the linear implied reward, not an unbounded-$z$ artifact. Together: the
+learned backward map $B$ is the bottleneck the $z{=}g$ rows expose, cleanly separated from the
+sampling and normalization changes.
+
+\textbf{Decoupling the actor's $z$ from the critic's also does not help.} A natural in-framework fix
+is to let the critic keep its broad task distribution (random directions $+$ off-diagonal negatives)
+while the \emph{actor} trains only on reachable tasks $z{=}B(\text{on-traj future})$ --- mirroring
+GCIQL's separation of what the value learns about from what the actor practices. In measure mode this
+lands at \B{$39\pm34$} (perm critic goals) and \B{$18\pm13$} (trajectory critic goals), both below
+plain FB ($48$); under the IQL critic the knob is inert (above). So decoupling the actor's task
+distribution does not recover controllability either --- consistent with the rest of this table:
+nothing that keeps the learned backward map and the measure framework lifts FB above its own ceiling.
+
+\subsection{``Improving the representation'' backfires}
+\textbf{Did:} measured how well each method's backward map / basis encodes the
+interaction variable (nonlinear lift-$R^2$, separability) and compared to success;
+plus the PSM/RLDP HP sweeps and the $d{=}128$ FB run. \\
+\textbf{Found:} success \B{anti-correlates} with interaction-encoding:
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Config & basis lift-$R^2$ & separability & success ($\pm$\,95\% CI) \\
+\midrule
+plain FB ($d{=}50$) & 0.02 & 0.74 & $\mathbf{48 \pm 5}$ \\
+FB ($d{=}128$)      & 0.30 & 0.905 & $28 \pm 4$ \\
+PSM (ortho1000)     & 0.81 & --   & $35 \pm 4$ \\
+IWR ($d{=}50$)      & 0.79 & 0.89 & $23 \pm 23$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+IWR does exactly what its derivation predicts --- it re-orders the spectrum so the
+basis concentrates on the interaction variable (lift $0.02\!\to\!0.79$) --- and
+success \emph{drops}. The training-task-distribution probe agrees: PSM resolves the
+interaction variable far better than FB (AUC $0.94$ vs.\ $0.75$), yet scores lower.
+(Part of IWR's drop is an inference/measure mismatch --- $B$ whitened under the
+reweighted $\rho'$ but the task inferred under $\rho$; the matched GLS inference rule
+recovers $+13$--$20$ points, but still below plain FB.) \\
+\textbf{Implies:} inside the FB family there is \B{no value-consumer} for interaction
+information. Improving the representation alone only perturbs the working
+behavior-cloned position policy.
+
+\subsection{G4: success-level objective isolation --- a dissociation}
+\textbf{Did:} the inference result above is value-level; the bridge's $94$ uses the
+\emph{exact goal} fed to the network. G4 closes the loop at the \emph{policy} level
+under FB's \emph{full zero-shot pipeline}: bilinear IQL critic $+$ a flow actor
+conditioned on $z{=}\text{stop\_grad}(\psi(g))$ (single shared $B$; stop-grad keeps
+the representation purely IQL-trained), 9 seeds @1M, evaluated two ways --- exact
+$z{=}\psi(g)$ and zero-shot $z{=}\mathbb{E}[r\,\psi(s')]$ (FB's L0 rule). \\
+\textbf{Found:} a sharp \B{dissociation} ($n{=}9$; success with $95\%$ CI):
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+representation objective & actor conditioning & success ($\pm$\,95\% CI) \\
+\midrule
+measure (plain FB)      & zero-shot $z$ & $48 \pm 5$ \\
+measure (FB-IQL critic) & zero-shot $z$ & $24 \pm 7$ \\
+\B{IQL (G4)}            & \B{exact $z=\psi(g)$} & $\mathbf{93 \pm 2}$ \\
+\B{IQL (G4)}            & \B{zero-shot $z=\mathbb{E}[r\psi(s')]$} & $\mathbf{7 \pm 3}$ \\
+IQL (bridge)            & exact goal (raw) & $94 \pm 1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\textbf{Implies:} with the \emph{exact} goal embedding, the IQL-trained representation
+$+$ $z$-conditioned actor essentially matches the raw-goal bridge ($93$ vs.\ $94$; at
+1M the cost of routing the goal through the low-rank $\psi$ bottleneck and conditioning
+the actor on $z$ rather than $g$ has all but vanished --- it was $\sim9$ pts at 500k).
+So the objective, form, rank, and
+$z$-conditioning all \emph{compose} at the policy level. But FB's zero-shot inference
+rule \B{collapses the policy} ($6.7$), even though the same rule leaves the
+\emph{value's ranking} intact (\cfauc{} $0.92$, \S\,inference above). This is the
+predicted ``success-level conditioning effect invisible to value-ranking'': a value
+that ranks goal-reaching states well under an inferred $z$ does not yield a policy
+that \emph{acts} well under it. The breaking point of FB's pipeline at the success
+level is the inference\,$\to$\,actor path, not the objective, form, or rank.
+
+\paragraph{Caveat on the inferred-$z$ collapse.} The actor was trained only on
+exact-goal embeddings $z=\psi(g)$, so at eval the inferred
+$z=\mathbb{E}[r\psi(s')]$ is \emph{out of the actor's training $z$-distribution}; the
+relabel batches were also sparse (positive fraction $\approx2\%$). The $6.7$ therefore
+conflates ``FB inference is fragile'' with ``this actor never saw inferred-style
+$z$.'' A clean attribution needs an actor trained across the inferred-$z$ distribution
+(as canonical FB does, sampling $z$ from random-reward readouts) --- the natural next
+control. What G4 \emph{does} establish cleanly is the exact-$z$ result: the value
+objective suffices end-to-end at the policy level when the task vector is in
+distribution.
+
+\section{Cross-domain controls: does the actor/critic story transfer?}
+The morphing grid above is entirely on \texttt{cube-single} (state). The natural
+control is whether the same knobs behave the same way on other OGBench domains.
+We re-ran the key critic$\times$actor cells on \textbf{AntMaze-medium}
+(locomotion-navigation, no object) and \textbf{Scene} (multi-object manipulation).
+These are shorter, lighter controls than the main grid --- $n{=}3$ seeds at
+\textbf{500k} steps (vs.\ $n{=}8$--$10$ at 1M) --- so the intervals are wide;
+$\pm$ is the 95\% CI (Student-$t$, $n{-}1$ df). The headline is a
+\textbf{domain-dependent reversal}: the flow actor that is \emph{best} on cube is
+\emph{worst} on AntMaze.
+
+\subsection{AntMaze-medium}
+The full $2\times2$ of critic form (MLP vs.\ bilinear $d{=}50$) $\times$ actor
+(Gaussian DDPG+BC vs.\ flow), plus FB, on \texttt{antmaze-medium-navigate-v0}:
+\begin{center}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Critic $\times$ actor} & \textbf{Success @500k (95\% CI)} & \textbf{$n$} \\
+\midrule
+bilinear $d{=}50$ $+$ \textbf{DDPG+BC} actor & $\mathbf{83.7 \pm 2.1}$ & 3 \\
+MLP (stock GCIQL) $+$ DDPG+BC actor          & $69.5 \pm 13.4$ & 3 \\
+MLP $+$ \textbf{flow} actor                  & $33.3 \pm 16.0$ & 3 \\
+bilinear $d{=}50$ $+$ \textbf{flow} actor    & $23.9 \pm 4.9$  & 3 \\
+\midrule
+FB (flow actor, measure-matching)            & $59.3 \pm 25.0$ & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent\textbf{Reading it.} On cube the flow actor is what \emph{realizes} the
+bilinear value (bilinear$+$flow $92.6$, bilinear$+$Gaussian $56.6$). On AntMaze the
+ordering \emph{flips}: the flow actor is the worst choice under \emph{either} critic
+(bilinear $24$, MLP $33$), while DDPG+BC is best under both (bilinear $84$, MLP $70$).
+So the cube finding ``the flow actor is needed and held fixed, hence not the cause''
+does not generalize --- on navigation the actor parametrization \emph{is} a
+first-order lever, in the opposite direction. FB ($59$) sits between the two flow
+cells and the DDPG+BC cells, consistent with its flow actor being a real handicap
+here rather than the measure objective alone.
+
+\subsection{Scene}
+Multi-object manipulation (\texttt{scene-play-v0}), the cells we ran:
+\begin{center}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Critic $\times$ actor} & \textbf{Success @500k (95\% CI)} & \textbf{$n$} \\
+\midrule
+MLP (stock GCIQL) $+$ DDPG+BC actor       & $\mathbf{51.6 \pm 8.9}$ & 3 \\
+bilinear $d{=}50$ $+$ flow actor          & $29.2 \pm 7.9$ & 3 \\
+\midrule
+FB (flow actor, measure-matching)         & $4.7 \pm 5.7$  & 3 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent\textbf{Reading it.} Scene echoes AntMaze on the actor axis (bilinear$+$flow
+$29 <$ stock DDPG+BC $52$) and echoes \emph{cube} on the FB axis: FB collapses to
+near-zero ($4.7$), its worst showing on any domain here. The successor-measure
+objective with a flow actor degrades hardest exactly where the interaction variable
+is richest (more objects), consistent with the under-resolution story that motivates
+the parent draft, while the IQL-trained GCIQL critic stays well above water.
+
+\section{What this says about what could be going on}
+
+Stacking the eliminations:
+\begin{enumerate}[nosep]
+  \item \B{Actor} --- exonerated (FB's flow actor on a good critic: $73\pm4$).
+  \item \B{Bilinear form} --- exonerated (bilinear GCIQL: 94).
+  \item \B{Rank} --- exonerated ($d{=}50$: 92.6).
+  \item \B{Zero-shot inference} --- exonerated at the value level (\cfauc{}
+    $0.92\approx0.92$).
+  \item \B{Value-target form} --- exonerated (a correct IQL value on FB's bilinear:
+    still 24).
+\end{enumerate}
+
+\noindent By elimination, the binding ingredient is the \B{learning objective}:
+end-to-end IQL value-TD versus measure-matching. The two directions agree:
+\begin{itemize}[nosep]
+  \item \emph{IQL\,$\to$\,FB}: pour IQL value-TD through FB's exact form and rank
+    (exact goal) and you get $\sim94$ ($93$ once the actor is $z$-conditioned).
+  \item \emph{FB\,$\to$\,IQL}: pour the IQL value-target onto FB's bilinear and you
+    get $24$ \emph{at the old incidentals} (lr 1e-4, ortho 1000, cube-xyz reward) ---
+    \textcolor{red}{but $\sim$59 at sane incidentals (lr 3e-4, ortho 0, goal-matching
+    reward; Part~1 ladder)}, so this direction is \emph{not} a flat value-blind wall:
+    the objective lifts FB well above the future-reachability baselines, it just stops
+    short of GCIQL ($59\to90$). Making it a \emph{better measure} representation (IWR,
+    PSM, $d{=}128$) still makes success \emph{worse}.
+\end{itemize}
+
+\noindent \B{The proposed mechanism.} Measure-matching objectives shape the
+representation to reconstruct the discounted state-occupancy density. On manipulation
+this density is dominated by where the \emph{arm} goes and by the gross geometry of
+the cube; the thin, interaction-conditioned successor structure that decides whether
+a grasp will be \emph{kept} through transport is a low-mass correction the density
+objective has no incentive to resolve into the value. A value-TD objective, by
+contrast, propagates the goal-reaching signal backward through exactly those
+transitions, so the value becomes sensitive to the keep-vs-drop distinction even in
+the same bilinear, low-rank form. The fix is therefore not a better basis but an
+\B{end-to-end value-TD coupling} of representation, value, and task.
+
+\noindent \B{What G4 adds.} The success-level test confirms this end-to-end at the
+policy level when the task vector is \emph{in distribution}: an IQL-trained bilinear
+$+$ $z$-conditioned actor reaches $93$ with the exact goal embedding (vs.\ FB's $48$
+and FB-IQL's $24$). But it also exposes a \emph{second, separable} failure mode that
+the value-level probes missed: under FB's \emph{zero-shot} inference the policy
+collapses to $7$ even though the value still ranks correctly (\cfauc{} $0.92$). So the
+full story has two layers --- (i) the \B{objective} sets whether the representation's
+value is controllable at all (the $48\!\to\!93$ jump), and (ii) the
+\B{inference\,$\to$\,actor} path is an independent success-level bottleneck once you
+go zero-shot. Value-ranking robustness to inferred $z$ does not transfer to policy
+robustness. The clean next control is an actor trained across the inferred-$z$
+distribution, to separate ``FB inference is fragile'' from ``this actor was never
+trained on inferred $z$.''
+
+\paragraph{Caveats.} The starting-point table (\S1) is each method's \emph{best} eval over
+steps $\ge$500k (peak step varies by method; the $\ge$500k floor drops early transients
+like CRL's 200k spike). \emph{The ablation grid and FB-side interventions are now
+reported at 1M} ($n{=}8$--$10$ seeds; the 10-seed\,$\times$\,1M refresh, campaign spec
+\texttt{2026-06-22-bridge-table-10seed-1M}); a few auxiliary rows (IWR, FB $d{=}128$,
+PSM) remain at their original snapshot and are flagged inline. The 1M grid is what the
+bridge controls against --- e.g.\ GCIQL is $78$ at its peak but $73$ at 1M. $n{=}10$
+for most rows ($n{=}8$ for $d{=}512$, $n{=}9$ for FlowBC/G4/CRL-flow), $n{=}3$ for the
+few remaining auxiliary rows (mean, not IQM, with a correspondingly wide $\pm$).
+\cfauc{}/lift are value-level probes on the bilinear
+checkpoints (representation properties, step-robust); G4 closes the success-level /
+on-$\rho$ arm. Faithful reward uses privileged cube qpos (the observation cube xy has
+unrecoverable per-axis scale/offset; the offline dataset lacks qpos).
+
+\end{document}

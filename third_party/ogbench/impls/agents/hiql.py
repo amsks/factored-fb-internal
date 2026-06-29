@@ -8,7 +8,31 @@ import ml_collections
 import optax
 from utils.encoders import GCEncoder, encoder_modules
 from utils.flax_utils import ModuleDict, TrainState, nonpytree_field
-from utils.networks import MLP, GCActor, GCDiscreteActor, GCValue, Identity, LengthNormalize
+from utils.networks import MLP, GCActor, GCDiscreteActor, GCValue, Identity, LengthNormalize, ensemblize
+
+
+class _BilinearRepValue(nn.Module):
+    """HIQL bilinear value (option A): V(s,g) = <phi(s), psi(rep)> / sqrt(d), where
+    rep = goal_rep([s; g]) is HIQL's state-dependent, length-normalized subgoal rep.
+    Keeps the subgoal representation (trained end-to-end through psi), unlike a plain
+    GCBilinearValue whose psi only sees the raw goal. State-input path (no visual encoder)."""
+
+    goal_rep: nn.Module
+    hidden_dims: Any
+    latent_dim: int
+    layer_norm: bool = True
+    ensemble: bool = True
+
+    def setup(self):
+        mlp = ensemblize(MLP, 2) if self.ensemble else MLP
+        self.phi = mlp((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+        self.psi = mlp((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+
+    def __call__(self, observations, goals):
+        rep = self.goal_rep(jnp.concatenate([observations, goals], axis=-1))
+        phi = self.phi(observations)
+        psi = self.psi(rep)
+        return (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
 
 
 class HIQLAgent(flax.struct.PyTreeNode):
@@ -259,18 +283,28 @@ class HIQLAgent(flax.struct.PyTreeNode):
             high_actor_encoder_def = None
 
         # Define value and actor networks.
-        value_def = GCValue(
-            hidden_dims=config['value_hidden_dims'],
-            layer_norm=config['layer_norm'],
-            ensemble=True,
-            gc_encoder=value_encoder_def,
-        )
-        target_value_def = GCValue(
-            hidden_dims=config['value_hidden_dims'],
-            layer_norm=config['layer_norm'],
-            ensemble=True,
-            gc_encoder=target_value_encoder_def,
-        )
+        # value_arch='bilinear' (option A): V(s,g)=<phi(s),psi(goal_rep([s;g]))>/sqrt(d),
+        # keeping HIQL's state-dependent subgoal rep. 'mlp' = canonical concat-MLP GCValue.
+        if config.get('value_arch', 'mlp') == 'bilinear':
+            value_def = _BilinearRepValue(
+                goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
+                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'], ensemble=True)
+            target_value_def = _BilinearRepValue(
+                goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
+                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'], ensemble=True)
+        else:
+            value_def = GCValue(
+                hidden_dims=config['value_hidden_dims'],
+                layer_norm=config['layer_norm'],
+                ensemble=True,
+                gc_encoder=value_encoder_def,
+            )
+            target_value_def = GCValue(
+                hidden_dims=config['value_hidden_dims'],
+                layer_norm=config['layer_norm'],
+                ensemble=True,
+                gc_encoder=target_value_encoder_def,
+            )
 
         if config['discrete']:
             low_actor_def = GCDiscreteActor(
@@ -325,6 +359,8 @@ def get_config():
             batch_size=1024,  # Batch size.
             actor_hidden_dims=(512, 512, 512),  # Actor network hidden dimensions.
             value_hidden_dims=(512, 512, 512),  # Value network hidden dimensions.
+            value_arch='mlp',  # 'mlp' (canonical concat-MLP) or 'bilinear' (V=<phi(s),psi(goal_rep([s;g]))>/sqrt(d)).
+            value_latent_dim=512,  # Bilinear latent dimension (only used when value_arch='bilinear').
             layer_norm=True,  # Whether to use layer normalization.
             discount=0.99,  # Discount factor.
             tau=0.005,  # Target network update rate.

@@ -45,6 +45,9 @@ METHODS = {
     "fb_state_plain": ("20260607_070225__fb_state_plain", "fb"),
     "psm_flowbc_state": ("20260603_071856__psm_flowbc_state", "psm"),
     "psm_o1000": ("psm_o1000", "psm"),  # tuned PSM ortho_coef=1000 (symlinked into RUNS)
+    "fb_z128": ("fb_z128", "fb"),       # 2x2 capacity control: FB at z_dim=128 (symlinked)
+    "fb_state_iwr": ("fb_state_iwr", "fb"),        # IWR rho' tilt (3 seeds @500k)
+    "fb_state_iwr_wz": ("fb_state_iwr_wz", "fb"),  # IWR + weight_z
 }
 
 

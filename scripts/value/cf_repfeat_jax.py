@@ -26,7 +26,8 @@ N_TASKS = 5
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--method", required=True, choices=["gciql", "crl"])
+    ap.add_argument("--method", required=True,
+                    choices=["gciql", "crl", "gciql_flow_bilinear"])
     ap.add_argument("--run-dir")
     ap.add_argument("--checkpoint-dir")
     ap.add_argument("--step", type=int, default=1000000)
@@ -50,6 +51,26 @@ def main() -> int:
 
         def rep_of(obs, ti):
             return np.asarray(phi_fn(obs, goals[ti]))
+    elif args.method == "gciql_flow_bilinear":
+        assert args.run_dir
+        import ogbench
+        from scripts.value.repsep_extract_jax import _load_gciql, _gciql_bilinear_phi_fn
+        agent, _config, env_name = _load_gciql(args.run_dir, args.step)
+        phi_fn = _gciql_bilinear_phi_fn(agent)
+        goals = {}
+        for ti in range(1, N_TASKS + 1):
+            e = ogbench.make_env_and_datasets(env_name, env_only=True)
+            _o, info = e.reset(options=dict(task_id=ti)); goals[ti] = np.asarray(info["goal"], np.float32); e.close()
+        rng = jax.random.PRNGKey(args.seed)
+
+        def rep_of(obs, ti):
+            nonlocal rng
+            G = np.broadcast_to(goals[ti][None], obs.shape).astype(np.float32)
+            rng, k = jax.random.split(rng)
+            a = np.clip(np.asarray(agent.sample_actions(observations=obs, goals=G,
+                        seed=k, temperature=0.0)), -1, 1).astype(np.float32)
+            # phi(s, pi(s,g)): the action-conditioned bilinear-critic embedding.
+            return np.asarray(phi_fn(obs, goals[ti], a))
     else:
         assert args.checkpoint_dir
         from scripts.probes.phase_probe_crl import EVAL_TASKS, load_agent, make_env
