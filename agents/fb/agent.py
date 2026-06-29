@@ -168,10 +168,16 @@ class FBAgent(BaseAgent):
         weight_diag: bool = False,
         weight_z: bool = False,
         train_goal_mode: str = "perm",
+        decouple_actor_z: bool = False,
         critic_mode: str = "measure",
         iql_expectile: float = 0.9,
         iql_thresh: float = 0.04,
         onestep: bool = False,
+        decondition_F: bool = False,
+        d_norm: bool = False,
+        critic_goal_mix: tuple = (1.0, 0.0, 0.0),
+        actor_goal_mix: tuple = (1.0, 0.0, 0.0),
+        iql_reward: str = "cube_xyz",
         goal_cond: bool = False,
         fixed_b: str = "none",
         amp: bool = False,
@@ -228,6 +234,10 @@ class FBAgent(BaseAgent):
         # sampled with future_gamma). The actor/F then practice tasks actually
         # reachable from their states. Spec: 2026-06-11-interaction-weighted-fb.md §1.4.
         self.train_goal_mode = str(train_goal_mode)
+        # GCIQL-style decoupling: train the actor ONLY on reachable on-trajectory goals
+        # z_actor=B(s_future) while the critic keeps the broad sample_mixed_z. Needs
+        # batch["future"] (future_gamma). Measure-mode only; default off => byte-identical.
+        self.decouple_actor_z = bool(decouple_actor_z)
         # FB-IQL: replace the measure loss with a goal-conditioned IQL critic on the
         # bilinear value Q=F.z (spec 2026-06-11-interaction-weighted-fb.md). 'measure'
         # = stock FB (byte-identical). Requires train_goal_mode='traj' (the goals).
@@ -243,12 +253,21 @@ class FBAgent(BaseAgent):
         # the dataset's own next action (SARSA, batch["next"]["action"]) instead of the
         # policy's. The actor then does one improvement step on <F(s,a), z>. Default off.
         self.onestep = bool(onestep)
+        # decondition_F: feed zeros to F's task slot => phi(s,a) task-agnostic (bilinear-GCIQL).
+        self.decondition_F = bool(decondition_F)
+        # d_norm: scale the bilinear value F.z by 1/sqrt(z_dim) (GCIQL's phi.psi/sqrt(d)).
+        self.d_norm = bool(d_norm)
+        # OGBench GCDataset goal mix [p_traj, p_cur, p_random] for the IQL critic / actor,
+        # and iql_reward: 'cube_xyz' (privileged threshold) or 'goal_match' (GCIQL: success=goal is cur).
+        self.critic_goal_mix = tuple(float(x) for x in critic_goal_mix)
+        self.actor_goal_mix = tuple(float(x) for x in actor_goal_mix)
+        self.iql_reward = str(iql_reward)
         self.goal_cond = bool(goal_cond)
         self.fixed_b = str(fixed_b)
         # goal_dim: the slice of obs fed to F/actor in V1 (full obs by default).
         self.goal_dim = int(obs_space.shape[0]) if self.goal_cond else 0
         # Only the goal variants use eval_context; baseline keeps legacy reward-inference.
-        self._use_eval_context = self.goal_cond or self.fixed_b == "cube_xyz"
+        self._use_eval_context = self.goal_cond or self.fixed_b in ("cube_xyz", "identity", "identity_norm")
         self._eval_goal = None
         self._rho = None
         if self.reweight_alpha > 0:
@@ -285,6 +304,9 @@ class FBAgent(BaseAgent):
             goal_dim=self.goal_dim,
             device=device,
         )
+        # fixed_b in {cube_xyz, identity} overrides z_dim inside the model
+        # (3 / obs_dim); sync so downstream (e.g. the FB-IQL value MLP) sizes match.
+        self.z_dim = self.model.z_dim
         self.setup_training()
         self.model.to(self.device)
 
@@ -405,13 +427,38 @@ class FBAgent(BaseAgent):
         cube = batch["next"]["physics"][:, 14:17].to(self.device).float()  # s+ cube xyz
         return coverage_weights(cube, self._rho, self.reweight_alpha, self.reweight_clip)
 
-    def _fb_z(self, z: torch.Tensor) -> torch.Tensor:
-        """z fed to the forward map. One-step FB: F is z-independent (behavior successor
-        features) => feed zeros. Standard FB: pass z through. The <F, z> dot products keep
-        the real z (it's the reward vector)."""
-        return torch.zeros_like(z) if self.onestep else z
+    @property
+    def _value_scale(self) -> float:
+        """Bilinear-value normalizer: 1/sqrt(d) when d_norm (GCIQL's phi.psi/sqrt(d)),
+        else 1 (stock FB's unscaled <F,z>). d = z_dim = the inner-product dimension."""
+        return float(self.z_dim) ** -0.5 if self.d_norm else 1.0
 
-    def _update_fb_iql(self, obs, action, next_obs, discount, goal_enc, z, batch):
+    def _fb_z(self, z: torch.Tensor) -> torch.Tensor:
+        """z fed to the forward map. F is made z-independent (=> phi(s,a), task-agnostic)
+        for one-step FB (behavior successor features) or decondition_F (bilinear-GCIQL) =>
+        feed zeros. Otherwise pass z through. The <F, z> dot products keep the real z."""
+        return torch.zeros_like(z) if (self.onestep or self.decondition_F) else z
+
+    def _fb_Q_heads(self, left, z, action, fmap):
+        """Per-head bilinear value <F(s,a,_fb_z(z)), z> * value_scale -> [num_parallel, batch].
+        Centralizes decondition_F (via _fb_z) and d_norm (via _value_scale) for critic + actor."""
+        return (fmap(left, self._fb_z(z), action) * z).sum(-1) * self._value_scale
+
+    def _sample_goal_mix(self, cur_obs, traj_obs, mix):
+        """OGBench GCDataset goal sampling. mix=[p_traj, p_cur, p_random]; returns
+        (goal_obs, is_cur). is_cur (goal IS the current state) is the GCIQL success/reach
+        flag (datasets.py: successes = idxs==goal_idxs). random goal = a batch permutation
+        (a random buffer state). cur/traj/random selected per-row from the categorical mix."""
+        B = cur_obs.shape[0]
+        p = torch.as_tensor(mix, device=cur_obs.device, dtype=torch.float32)  # [traj, cur, rand]
+        types = torch.multinomial(p.expand(B, -1), 1).squeeze(-1)             # 0=traj,1=cur,2=rand
+        rand_obs = cur_obs[torch.randperm(B, device=cur_obs.device)]
+        is_cur = types == 1
+        goal = torch.where(is_cur.unsqueeze(-1), cur_obs,
+                           torch.where((types == 2).unsqueeze(-1), rand_obs, traj_obs))
+        return goal, is_cur
+
+    def _update_fb_iql(self, obs, action, next_obs, discount, goal_enc, z, batch, success_override=None):
         """FB-IQL critic: train the bilinear value Q=F(s,a,z).z as a goal-reaching value
         by IQL (expectile V) on trajectory-future goals, replacing the measure loss.
         z is goal-conditioned (= B(future)), so grad flows into B end-to-end. The FB
@@ -420,7 +467,7 @@ class FBAgent(BaseAgent):
         (1-terminated). goal_enc is the bw-encoded future goal (z's source)."""
         # mean over the num_parallel forward heads (matches actor's Q reduction at penalty 0)
         def _Q(left, z_, a, fmap):
-            return (fmap(left, self._fb_z(z_), a) * z_).sum(-1).mean(0)
+            return self._fb_Q_heads(left, z_, a, fmap).mean(0)
 
         # (1) IQL value V(s,z) <- expectile of the TARGET Q (frozen). V owns its optimizer.
         with torch.no_grad():
@@ -436,9 +483,12 @@ class FBAgent(BaseAgent):
         # (see iql_goal_target) so V stays a bounded negative distance-to-go. NOTE: the goal
         # mask, NOT the env `terminated` flag (which is never set in cube offline data), is what
         # cuts the bootstrap.
-        nphys = batch["next"]["physics"][:, 14:17].to(self.device).float()
-        gphys = batch["future"]["physics"][:, 14:17].to(self.device).float()
-        success = (nphys - gphys).norm(dim=-1).lt(self.iql_thresh).float()  # [B]
+        if success_override is not None:                # GCIQL goal_match: success = goal is cur
+            success = success_override.to(self.device).float()  # [B]
+        else:                                           # legacy cube_xyz threshold
+            nphys = batch["next"]["physics"][:, 14:17].to(self.device).float()
+            gphys = batch["future"]["physics"][:, 14:17].to(self.device).float()
+            success = (nphys - gphys).norm(dim=-1).lt(self.iql_thresh).float()  # [B]
         with torch.no_grad():
             Vn = self._value_mlp(torch.cat([next_obs, z.detach()], dim=-1)).squeeze(-1)
             target_Q = iql_goal_target(success, Vn, self.discount)
@@ -452,10 +502,12 @@ class FBAgent(BaseAgent):
         fb_loss = q_loss + self.ortho_coef * orth_loss
 
         self.forward_optimizer.zero_grad(set_to_none=True)
-        self.backward_optimizer.zero_grad(set_to_none=True)
+        if self.backward_optimizer is not None:        # None for fixed_b=identity (param-free B)
+            self.backward_optimizer.zero_grad(set_to_none=True)
         fb_loss.backward()
         self.forward_optimizer.step()
-        self.backward_optimizer.step()
+        if self.backward_optimizer is not None:
+            self.backward_optimizer.step()
         return {"q_loss": q_loss.detach(), "value_loss": value_loss.detach(),
                 "orth_loss": orth_loss.detach(), "iql_r_pos": success.mean(),
                 "Q_mean": Q.mean().detach(), "V_mean": V.mean().detach(),
@@ -499,13 +551,32 @@ class FBAgent(BaseAgent):
         # the measure loss (z = B(trajectory future), all goal-conditioned). ---
         if self.critic_mode == "iql":
             assert "future" in batch, "critic_mode='iql' requires train_goal_mode='traj'"
-            z = self.model.project_z(self.model._backward_map(train_goal))  # grad => trains B
-            metrics = self._update_fb_iql(obs, action, next_obs, discount, train_goal, z, batch)
+            if self.iql_reward == "goal_match":
+                # OGBench GCDataset: value/actor goals from {cur, traj, random} mix; success =
+                # goal IS the current state (cur-goal anchor). z = B(goal); grad => trains B.
+                cur_raw = batch["observation"].to(self.device).float()
+                traj_raw = batch["future"]["observation"].to(self.device).float()
+                vgoal_raw, is_cur = self._sample_goal_mix(cur_raw, traj_raw, self.critic_goal_mix)
+                agoal_raw, _ = self._sample_goal_mix(cur_raw, traj_raw, self.actor_goal_mix)
+                with torch.no_grad(), eval_mode(self.model._obs_normalizer):
+                    vgoal_n = self.model._obs_normalizer(vgoal_raw)
+                    agoal_n = self.model._obs_normalizer(agoal_raw)
+                goal_enc = self.model._bw_encoder(vgoal_n)            # grad -> trains B end-to-end
+                z = self.model.project_z(self.model._backward_map(goal_enc))
+                z_actor = self.model.project_z(self.model._backward_map(self.model._bw_encoder(agoal_n)))
+                success_override = is_cur
+            else:
+                goal_enc = train_goal
+                z = self.model.project_z(self.model._backward_map(train_goal))  # grad => trains B
+                z_actor, success_override = z, None
+            metrics = self._update_fb_iql(obs, action, next_obs, discount, goal_enc, z, batch,
+                                          success_override=success_override)
             metrics.update(self.update_actor(obs=obs.detach(), action=action,
-                                             z=z.detach(), clip_grad_norm=clip_grad_norm))
+                                             z=z_actor.detach(), clip_grad_norm=clip_grad_norm))
             with torch.no_grad():
                 _soft_update_params(self._forward_map_paramlist, self._target_forward_map_paramlist, self.f_target_tau)
-                _soft_update_params(self._backward_map_paramlist, self._target_backward_map_paramlist, self.b_target_tau)
+                if len(self._backward_map_paramlist):   # empty for fixed_b=identity (param-free B)
+                    _soft_update_params(self._backward_map_paramlist, self._target_backward_map_paramlist, self.b_target_tau)
                 if len(self._left_encoder_paramlist):
                     _soft_update_params(self._left_encoder_paramlist, self._target_left_encoder_paramlist, self.f_target_tau)
             return {k: (v.item() if isinstance(v, torch.Tensor) else float(v)) for k, v in metrics.items()}
@@ -536,11 +607,22 @@ class FBAgent(BaseAgent):
             next_action_override=next_action_override,
             goal_obs=self._g_used,
         )
+        # GCIQL-style value/actor decoupling: the critic (measure) keeps the broad z above
+        # (random dirs + B(buffer goals) + off-diag negatives); the actor instead practices
+        # ONLY reachable on-trajectory goals z_actor = B(s_future), like GCIQL's
+        # actor_p_trajgoal=1.0. Default off => z_actor is z (byte-identical).
+        z_actor = z
+        if self.decouple_actor_z and "future" in batch:
+            fut = batch["future"]["observation"].to(self.device).float()
+            with torch.no_grad(), eval_mode(self.model._obs_normalizer):
+                fut = self.model._obs_normalizer(fut)
+            z_actor = self.model.project_z(
+                self.model._backward_map(self.model._bw_encoder(fut))).detach()
         metrics.update(
             self.update_actor(
                 obs=obs.detach(),
                 action=action,
-                z=z,
+                z=z_actor,
                 clip_grad_norm=clip_grad_norm,
                 goal=self._g_used,
             )
@@ -609,8 +691,8 @@ class FBAgent(BaseAgent):
             fb_loss = fb_offdiag + fb_diag
 
             # orthonormality loss for backward embedding (whitened under rho').
-            # Disabled for fixed-B (B has no params / is the privileged cube xyz).
-            if self.fixed_b != "cube_xyz":
+            # Disabled for any fixed-B (B has no params: privileged cube xyz, or identity).
+            if self.fixed_b == "none":
                 Cov = ortho_cov(B, w)
                 orth_loss_diag = -Cov.diag().mean()
                 orth_loss_offdiag = 0.5 * (Cov * self.off_diag).pow(2).sum() / self.off_diag_sum
@@ -702,8 +784,7 @@ class FBAgent(BaseAgent):
             actor_in = left_enc if self.actor_encode_obs else obs
             dist = self.model._actor(actor_in, z, self.actor_std)
             actor_action = dist.sample(clip=self.stddev_clip)
-            Fs = self.model._forward_map(left_enc, z, actor_action)  # num_parallel x batch x z_dim
-            Qs = (Fs * z).sum(-1)  # num_parallel x batch
+            Qs = self._fb_Q_heads(left_enc, z, actor_action, self.model._forward_map)  # num_parallel x batch
             _, _, Q = self.get_targets_uncertainty(Qs, self.actor_pessimism_penalty)  # batch
             actor_loss = -Q.mean()
 
@@ -768,6 +849,17 @@ class FBAgent(BaseAgent):
             z = self.model.project_z(scale_goal_xyz(g).unsqueeze(0)).squeeze(0)
             self._eval_goal = None
             return z, {"goal_source": 0.0}
+        if self.fixed_b in ("identity", "identity_norm"):
+            # z = the goal observation via B=identity. 'identity' => z=g (norm_z off);
+            # 'identity_norm' => z=sqrt(d)*g/||g|| (project_z normalizes). No actor goal-cond.
+            if goal_obs is None:
+                raise ValueError(f"fixed_b='{self.fixed_b}' eval_context requires goal_obs (g*) from the evaluator")
+            g_obs = goal_obs.to(self.device).float()
+            if g_obs.dim() == 1:
+                g_obs = g_obs.unsqueeze(0)
+            z = self.model.project_z(self.model.backward_map(g_obs)).squeeze(0)
+            self._eval_goal = None
+            return z, {"goal_source": 1.0}
         # V1: z = B(g*) from a goal OBSERVATION sourced by the evaluator; stash NORMALIZED g*.
         if goal_obs is None:
             raise ValueError("goal_cond eval_context requires goal_obs (g*) from the evaluator")

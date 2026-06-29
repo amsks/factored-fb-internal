@@ -238,10 +238,16 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         iwr_sigma=cfg.get("iwr_sigma", 0.05),
         iwr_eps=cfg.get("iwr_eps", 0.1),
         train_goal_mode=cfg.get("train_goal_mode", "perm"),
+        decouple_actor_z=cfg.get("decouple_actor_z", False),
         critic_mode=cfg.get("critic_mode", "measure"),
         iql_expectile=cfg.get("iql_expectile", 0.9),
         iql_thresh=cfg.get("iql_thresh", 0.04),
         onestep=cfg.get("onestep", False),
+        decondition_F=cfg.get("decondition_F", False),
+        d_norm=cfg.get("d_norm", False),
+        critic_goal_mix=cfg.get("critic_goal_mix", (1.0, 0.0, 0.0)),
+        actor_goal_mix=cfg.get("actor_goal_mix", (1.0, 0.0, 0.0)),
+        iql_reward=cfg.get("iql_reward", "cube_xyz"),
         goal_cond=cfg.get("goal_cond", False),
         fixed_b=cfg.get("fixed_b", "none"),
         amp=cfg.get("amp", False),
@@ -464,7 +470,8 @@ def main(cfg: DictConfig) -> None:
         # trajectory-future next-state as batch["future"] for goal-derived z's.
         future_gamma = (float(cfg.discount)
                         if (str(getattr(cfg, "train_goal_mode", "perm")) == "traj"
-                            or str(getattr(cfg, "critic_mode", "measure")) == "iql") else None)
+                            or str(getattr(cfg, "critic_mode", "measure")) == "iql"
+                            or bool(getattr(cfg, "decouple_actor_z", False))) else None)
         batch = buffer.sample(cfg.batch_size, horizon=horizon, future_gamma=future_gamma)
         metrics = agent.update(batch, step)
 

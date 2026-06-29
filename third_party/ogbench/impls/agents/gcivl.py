@@ -8,7 +8,7 @@ import ml_collections
 import optax
 from utils.encoders import GCEncoder, encoder_modules
 from utils.flax_utils import ModuleDict, TrainState, nonpytree_field
-from utils.networks import GCActor, GCDiscreteActor, GCValue
+from utils.networks import GCActor, GCBilinearValue, GCDiscreteActor, GCValue
 
 
 class GCIVLAgent(flax.struct.PyTreeNode):
@@ -178,13 +178,24 @@ class GCIVLAgent(flax.struct.PyTreeNode):
             encoders['value'] = GCEncoder(concat_encoder=encoder_module())
             encoders['actor'] = GCEncoder(concat_encoder=encoder_module())
 
-        # Define value and actor networks.
-        value_def = GCValue(
-            hidden_dims=config['value_hidden_dims'],
-            layer_norm=config['layer_norm'],
-            ensemble=True,
-            gc_encoder=encoders.get('value'),
-        )
+        # Define value and actor networks. value_arch='bilinear' swaps the concat-MLP value
+        # for the inner-product form V(s,g)=phi(s).psi(g)/sqrt(d) (same head as GCIQL/FB).
+        if config.get('value_arch', 'mlp') == 'bilinear':
+            value_def = GCBilinearValue(
+                hidden_dims=config['value_hidden_dims'],
+                latent_dim=config['value_latent_dim'],
+                layer_norm=config['layer_norm'],
+                ensemble=True,
+                state_encoder=encoders.get('value'),
+                goal_encoder=encoders.get('value'),
+            )
+        else:
+            value_def = GCValue(
+                hidden_dims=config['value_hidden_dims'],
+                layer_norm=config['layer_norm'],
+                ensemble=True,
+                gc_encoder=encoders.get('value'),
+            )
 
         if config['discrete']:
             actor_def = GCDiscreteActor(
@@ -229,6 +240,8 @@ def get_config():
             batch_size=1024,  # Batch size.
             actor_hidden_dims=(512, 512, 512),  # Actor network hidden dimensions.
             value_hidden_dims=(512, 512, 512),  # Value network hidden dimensions.
+            value_arch='mlp',  # 'mlp' (canonical GCValue) or 'bilinear' (V=phi(s).psi(g)/sqrt(d)).
+            value_latent_dim=512,  # Bilinear latent dimension (only used when value_arch='bilinear').
             layer_norm=True,  # Whether to use layer normalization.
             discount=0.99,  # Discount factor.
             tau=0.005,  # Target network update rate.

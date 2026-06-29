@@ -11,14 +11,14 @@ Per-task success, exact counts, and the full diagnostic tables are in Appendix~\
 \subsection{Scalar success obscures policy failure}
 
 Aggregate state-based success ranks the methods but says nothing about where they fail. 
-Across $10$ evaluation seeds, the overall Inter-quartile Mean (IQM)~\citep{agarwal-neurips21a} success rates are \gciql{} ($68.3 \pm 3.7$), \fb{} ($50.0 \pm 7.0$), \crl{} ($25.9 \pm 2.0$), and \rldp{} ($22.7 \pm 6.0$).\protect\footnotemark{}
+Across $10$ evaluation seeds, the overall Inter-quartile Mean (IQM)~\citep{agarwal-neurips21a} success rates are \gciql{} ($68.3 \pm 3.7$), \fb{} ($50.0 \pm 7.0$), \psm{} ($36.7 \pm 4.5$), \crl{} ($25.9 \pm 2.0$), and \rldp{} ($22.7 \pm 6.0$).\protect\footnotemark{}
 Per-task results are deferred to Appendix~\ref{app:tables}.
 \footnotetext{Aggregate success uses the stochastic evaluation policy (IQM over seeds); the phase decomposition uses deterministic closed-loop rollouts, so per-method success differs slightly. We report each metric consistently within its own analysis.}
 
 The phase decomposition (Section~\ref{sec:method}) localizes the failure (Figures~\ref{fig:funnel} and \ref{fig:outcomes}). 
 Every method reaches the cube and most acquire a grasp, but the survival curve collapses \emph{after} control acquisition (Figure~\ref{fig:funnel}), and the terminal-outcome mass sits in maintain-control and transport rather than approach (Figure~\ref{fig:outcomes}). 
 Relative to \gciql{}, \fb{}'s $19.8\text{ pp}$ deficit decomposes as $+0.2$ approach, $+2.4$ grasp, $-14.6$ maintain, $-7.8$ transport: almost entirely post-contact. 
-The pattern is not specific to \fb{}; \rldp{} acquires control reliably yet ends without maintained control in $44\%$ of episodes, and across the lower-scoring methods the post-contact share of failures is $69$--$87\%$ (Appendix~\ref{app:tables}). 
+The pattern is not specific to \fb{}; \psm{} and \rldp{} acquire control yet end without maintained control in $35\%$ and $44\%$ of episodes, and across the lower-scoring methods the post-contact share of failures is $67$--$87\%$ (Appendix~\ref{app:tables}).
 Because the phase labels read no value, representation, or model, the protocol extends unchanged to other methods.
 
 \begin{figure}[htbp]
@@ -65,20 +65,21 @@ If support does not explain the failure, what is the learned value missing?
 To answer this, we investigate whether that value ranks in-hand grasps by the agent's true probability of success from them.
 
 First, geometry is not the bottleneck.
-For the methods with an explicit backward embedding, \rldp{}'s $B$ resolves cube-to-goal distance far better than \fb{}'s (nonlinear $R^2$ $0.75$ vs $0.21$), yet \rldp{} has the worse maintain-control failure (Appendix~\ref{app:tables}).
+For the methods with an explicit backward embedding, \psm{}'s and \rldp{}'s $B$ resolve cube-to-goal distance far better than \fb{}'s (nonlinear $R^2$ $0.90$ and $0.75$ vs $0.21$), yet both have worse maintain-control failures than \fb{} (Appendix~\ref{app:tables}).
 A representation can hold the geometry and still not yield control.
 
 We construct the value test as a direct counterfactual (Figure~\ref{fig:cf_value}).
 We reset the simulator to each of $200$ in-hand grasps drawn from the offline data, roll out the agent's \emph{own} policy, and label each grasp by whether the agent reaches the goal, an on-policy outcome computed independently per grasp, so there is no shared-episode leakage and the grasps span the data distribution rather than only the agent's self-generated states.
 Plotting counterfactual success against the grasp's value percentile splits the methods sharply.
 \gciql{}'s value is strongly predictive (rank-AUC $0.89$): its top-value grasps succeed ${\approx}99\%$ of the time, its bottom-value grasps ${\approx}27\%$.
-The failing methods are not: \rldp{}'s curve is flat (AUC $0.52$), ascending its value buys no additional success even though it grasps reliably, \fb{}'s is only weakly sloped (AUC ${\approx}0.6$), and \crl{} is intermediate ($0.68$).
+The failing methods are not: \rldp{}'s and \psm{}'s curves are flat (AUC $0.52$ and $0.49$), ascending their value buys no additional success even though they grasp, \fb{}'s is only weakly sloped (AUC ${\approx}0.6$), and \crl{} is intermediate ($0.68$).
 For the \fb{} family, the very quantity the policy maximizes is nearly blind to whether a grasp will be kept.
 
 Where does this blindness come from? We localize it by repeating the probe with the agent's own counterfactual label on the learned representations, and comparing the best linear readout of the representation against the value's own ranking (Appendix~\ref{app:tables}, Figure~\ref{fig:cf_ladder}).
 \fb{} and \rldp{} fail differently.
 \fb{}'s representation \emph{does} encode controllability, a linear readout of its forward map reaches AUC $0.70$, above the raw-state ceiling, but its bilinear value $F\cdot z$ reads only $0.61$ of it: a readout failure.
 \rldp{}'s representation barely encodes it at all (best readout $0.61$, at the raw ceiling), so its value has nothing to read ($0.55$): a representation failure.
+\psm{} is the sharpest readout failure of the three: its backward map resolves the geometry best of any method (nonlinear $R^2$ $0.90$), yet its bilinear value $\psi\cdot z$ ranks counterfactual grasps at chance ($0.49$)---the signal is present in the representation but the value cannot read it.
 \gciql{}, whose value is a goal-conditioned MLP rather than an inner product, reads essentially all the available signal ($0.89$).
 
 These probes are consistent with a representation/readout bottleneck, but they do not isolate readout form as the sole cause.

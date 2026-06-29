@@ -102,6 +102,17 @@ class FBModel(torch.nn.Module):
             self._backward_map = FixedCubeBackward()          # B(obs) = scaled cube xyz, z_dim=3
             self.z_dim = 3
             z_dim = 3                                          # forward map output dim follows
+        elif self.fixed_b in ("identity", "identity_norm"):
+            from agents.fb.fixed_backward import FixedIdentityBackward
+            obs_dim = int(obs_space.shape[-1])
+            self._bw_encoder = torch.nn.Identity()           # raw (normalized) obs -> backward
+            self._backward_map = FixedIdentityBackward(obs_dim)  # B(obs) = obs
+            self.z_dim = obs_dim
+            z_dim = obs_dim                                    # forward map output dim follows
+            # 'identity'      : z = g literally (norm_z off).
+            # 'identity_norm' : z = sqrt(d)*g/||g|| (keep sphere projection) — bounds the
+            #                   measure-mode pseudo-reward z.B(s) so it can't blow up.
+            self.norm_z = (self.fixed_b == "identity_norm")
         else:
             self._backward_map = backward_cfg.build(self._bw_encoder.output_space, z_dim)
         self._forward_map = forward_cfg.build(self._left_encoder.output_space, z_dim, action_dim, goal_dim=self.goal_dim)

@@ -77,7 +77,11 @@ class OGBenchEvaluator:
             )
             try:
                 if getattr(self.agent, "_use_eval_context", False):
-                    goal_obs = self._goal_observation(task) if getattr(self.agent, "goal_cond", False) else None
+                    # V1 (goal_cond) and fixed_b=identity both need g* (a goal observation);
+                    # fixed_b=cube_xyz sources its goal from the env, so goal_obs stays None.
+                    needs_goal_obs = (getattr(self.agent, "goal_cond", False)
+                                      or getattr(self.agent, "fixed_b", "none") in ("identity", "identity_norm"))
+                    goal_obs = self._goal_observation(task) if needs_goal_obs else None
                     z, relabel_metrics = self.agent.eval_context(env=env, domain=self.domain, task=task, goal_obs=goal_obs)
                 else:
                     z, relabel_metrics = self._infer_z(task)
