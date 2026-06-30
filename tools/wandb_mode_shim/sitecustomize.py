@@ -183,6 +183,15 @@ try:
 except Exception:
     pass
 
+# --- HIQL+FlowBC agent injection (HIQL IVL value + AWR-weighted flow BC actor(s)) ---
+try:
+    import agents as _ogb_agents
+    from hiql_flow import HIQLFlowAgent as _HIQLFlowAgent
+
+    _ogb_agents.agents.setdefault("hiql_flow", _HIQLFlowAgent)
+except Exception:
+    pass
+
 # --- Resume support (opt-in via env; set by run_gciql for restore_* runs) ---
 # Vendored main.py always counts the loop i=1..train_steps and writes params_{i},
 # truncates train.csv/eval.csv, and logs wandb step=i. To make a run resumed from
