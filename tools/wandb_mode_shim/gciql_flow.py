@@ -18,9 +18,51 @@ import optax
 from agents.gciql import GCIQLAgent, get_config as _gciql_get_config
 from utils.encoders import GCEncoder, encoder_modules
 from utils.flax_utils import ModuleDict, TrainState
-from utils.networks import GCValue, GCBilinearValue, GCActor
+from utils.networks import GCValue, GCBilinearValue, GCActor, MLP, ensemblize
 
 from ogbench_flow import GCNoiseActor, GCVectorField
+
+
+class GCFBValue(GCBilinearValue):
+    """FB-style bilinear critic with a TASK-CONDITIONED forward map.
+
+    GCIQL's GCBilinearValue factorizes Q(s,a,g)=phi(s,a).psi(g)/sqrt(d): the forward
+    leg phi(s,a) has NO task index, so a grafted FB successor measure collapses to the
+    measure of a single (goal-randomized) policy. FB's defining structure is
+    M(s,a,g)=F(s,a,z).B(g) -- a z-INDEXED family. This module restores that by feeding
+    a stop-gradded task vector z=psi(z_goals) into the forward map:
+
+        phi = phi([s, a, z]),  psi = B = psi(b_goals),  M = phi.psi/sqrt(d)
+
+    z is detached (B and z share the psi MLP, but z is a frozen task input, per FB).
+    When ensembled, z is the head-mean of psi (a single task vector per sample).
+    """
+
+    def setup(self):
+        mlp_module = MLP
+        if self.ensemble:
+            mlp_module = ensemblize(mlp_module, 2)
+        self.phi = mlp_module((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+        self.psi = mlp_module((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+
+    def _psi(self, goals):
+        if self.goal_encoder is not None:
+            goals = self.goal_encoder(goals)
+        return self.psi(goals)
+
+    def __call__(self, observations, b_goals, actions, z_goals, info=False):
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        z = self._psi(z_goals)                      # task embedding (ensembled => [2,B,d])
+        if self.ensemble:
+            z = z.mean(axis=0)                      # single task vector per sample [B,d]
+        z = jax.lax.stop_gradient(z)
+        phi = self.phi(jnp.concatenate([observations, actions, z], axis=-1))
+        psi = self._psi(b_goals)                    # backward map B = psi(b_goals)
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if info:
+            return v, phi, psi
+        return v
 
 
 class GCIQLFlowAgent(GCIQLAgent):
@@ -84,7 +126,9 @@ class GCIQLFlowAgent(GCIQLAgent):
         else:
             actor_cond_input = goals
         actor_actions = self.network.select('actor')(obs, actor_cond_input, noise, params=grad_params)
-        q1, q2 = self.network.select('critic')(obs, goals, actor_actions)
+        # fb_forward_z: q = F(s,a,z).B(g)/sqrt(d) with z=sg(psi(g)) -> the FB greedy readout.
+        zarg = (goals,) if self.config.get('fb_forward_z', False) else ()
+        q1, q2 = self.network.select('critic')(obs, goals, actor_actions, *zarg)
         q = jnp.minimum(q1, q2) if self.config['double_q'] else q1
         actor_loss = -q.mean()
 
@@ -127,21 +171,32 @@ class GCIQLFlowAgent(GCIQLAgent):
             diff = M - gamma * tM
             offdiag = 0.5 * jnp.sum((diff * off) ** 2) / jnp.sum(off)
             diagt = -jnp.mean(jnp.diag(diff))
-            loss = offdiag + diagt
+            Cov = psi @ psi.T                                            # FB ortho on B:=psi (grads on)
+            orth = 0.5 * jnp.sum((Cov * off) ** 2) / jnp.sum(off) - jnp.mean(jnp.diag(Cov))
+            loss = offdiag + diagt + self.config.get('measure_ortho_coef', 0.0) * orth
         else:  # critic legs: state-action successor measure (the FB-faithful intervention)
             acts, vgoals = batch['actions'], batch['value_goals']
-            _, phi, psi = self.network.select('critic')(obs, nobs, acts, info=True, params=grad_params)
+            # fb_forward_z: forward map is task-conditioned phi(s,a,z), z=sg(psi(vgoals)),
+            # so M[i,j]=F(s_i,a_i,z_i).B(s'_j) is a genuine z-indexed family. Else phi(s,a).
+            zarg = (vgoals,) if self.config.get('fb_forward_z', False) else ()
+            _, phi, psi = self.network.select('critic')(obs, nobs, acts, *zarg, info=True, params=grad_params)
             M = jnp.einsum('hid,hjd->hij', phi, psi) / sqd                # [2, B, B]
             noise = jax.random.normal(rng, acts.shape)
             a_next = jax.lax.stop_gradient(self.network.select('actor')(nobs, vgoals, noise))  # a+ ~ pi(s+,g)
-            _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, info=True)
+            _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, *zarg, info=True)
             tM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi) / sqd)            # [2, B, B]
             diff = M - gamma * tM                                          # [2, B, B]
             offdiag = 0.5 * jnp.sum((diff * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)        # [2]
             diagt = -jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2), axis=1)                     # [2]
-            loss = jnp.mean(offdiag + diagt)                               # per-head, then average
-            offdiag, diagt = jnp.mean(offdiag), jnp.mean(diagt)
-        return loss, {'measure_loss': loss, 'measure_offdiag': offdiag, 'measure_diag': diagt}
+            Cov = jnp.einsum('hid,hjd->hij', psi, psi)                    # FB ortho on B:=psi(s') (grads on)
+            o_off = 0.5 * jnp.sum((Cov * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
+            o_diag = -jnp.mean(jnp.diagonal(Cov, axis1=1, axis2=2), axis=1)
+            orth = o_off + o_diag                                          # [2]
+            lam = self.config.get('measure_ortho_coef', 0.0)
+            loss = jnp.mean(offdiag + diagt + lam * orth)                  # per-head, then average
+            offdiag, diagt, orth = jnp.mean(offdiag), jnp.mean(diagt), jnp.mean(orth)
+        return loss, {'measure_loss': loss, 'measure_offdiag': offdiag, 'measure_diag': diagt,
+                      'measure_orth': orth}
 
     @jax.jit
     def total_loss(self, batch, grad_params, rng=None):
@@ -251,7 +306,15 @@ class GCIQLFlowAgent(GCIQLAgent):
                 layer_norm=config['layer_norm'], ensemble=False,
                 state_encoder=encoders.get('value'), goal_encoder=encoders.get('value'),
             )
-            critic_def = GCBilinearValue(
+            # fb_forward_z: task-condition the critic's forward map -> phi(s,a,z), the
+            # FB-faithful F(s,a,z).B(s'). Only valid as a measure-only critic (its
+            # extra z arg would break the IQL value/critic Bellman losses).
+            critic_cls = GCBilinearValue
+            if config.get('fb_forward_z', False):
+                assert config.get('measure_only', False), \
+                    "fb_forward_z requires measure_only=True (z-arg breaks the IQL critic loss)"
+                critic_cls = GCFBValue
+            critic_def = critic_cls(
                 hidden_dims=config['value_hidden_dims'], latent_dim=d,
                 layer_norm=config['layer_norm'], ensemble=True,
                 state_encoder=encoders.get('critic'), goal_encoder=encoders.get('critic'),
@@ -269,10 +332,14 @@ class GCIQLFlowAgent(GCIQLAgent):
                 ensemble=True,
                 gc_encoder=encoders.get('critic'),
             )
+        # z-conditioned critic takes an extra z_goals arg (raw goal obs -> task vector z).
+        critic_ex = ((ex_observations, ex_goals, ex_actions, ex_goals)
+                     if config.get('fb_forward_z', False)
+                     else (ex_observations, ex_goals, ex_actions))
         network_info = dict(
             value=(value_def, (ex_observations, ex_goals)),
-            critic=(critic_def, (ex_observations, ex_goals, ex_actions)),
-            target_critic=(copy.deepcopy(critic_def), (ex_observations, ex_goals, ex_actions)),
+            critic=(critic_def, critic_ex),
+            target_critic=(copy.deepcopy(critic_def), critic_ex),
         )
         if config.get('actor_kind', 'flow') == 'ddpgbc':
             # Stock GCIQL gaussian DDPG+BC actor on the (possibly bilinear) critic.
@@ -341,4 +408,6 @@ def get_config():
         config.measure_coef = 0.0  # FB measure loss weight grafted onto GCIQL's value rep (0 = stock GCIQL)
         config.measure_legs = 'critic'  # 'critic' = state-action SM on Q legs (FB-faithful) | 'value' = state SM on V legs
         config.measure_only = False  # True = drop IQL value/critic losses; critic trained ONLY by the SM (FB objective)
+        config.measure_ortho_coef = 0.0  # FB orthonormality coef lambda on psi (||E[psi psi^T]-I||); FB uses 1000
+        config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear + measure_only)
     return config
