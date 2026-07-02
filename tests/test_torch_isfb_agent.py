@@ -112,6 +112,18 @@ def _batch_traj(B=16):
     }
 
 
+def test_awr_weights_scale_invariant():
+    # AWR weight normalizes advantage by std, so scaling A leaves weights unchanged
+    # (fixes the re-saturation as <F,z> inflates over training).
+    from agents.fb.isfb.agent import isfb_awr_weights
+    A = torch.tensor([-2.0, -0.5, 0.5, 3.0])
+    w1 = isfb_awr_weights(A, beta=1.0, wmax=100.0)
+    w2 = isfb_awr_weights(10.0 * A, beta=1.0, wmax=100.0)   # 10x scale
+    assert torch.allclose(w1, w2, atol=1e-5)
+    assert (w1 <= 100.0).all() and (w1 >= 0.0).all()
+    assert w1[3] > w1[0]                                     # higher advantage -> higher weight
+
+
 def test_goal_success_mask_helper():
     from agents.fb.isfb.agent import isfb_goal_success
     nphys = torch.zeros(4, 20)

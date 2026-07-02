@@ -24,6 +24,14 @@ def isfb_hard_weights(A: torch.Tensor, tau: float) -> torch.Tensor:
                        torch.as_tensor(1.0 - tau, dtype=A.dtype, device=A.device))
 
 
+def isfb_awr_weights(A: torch.Tensor, beta: float, wmax: float) -> torch.Tensor:
+    """AWR weights on the STD-NORMALIZED advantage: w = clip(exp(beta * A/std(A)), 0, wmax).
+    The FB scalar <F,z> inflates over training (adv_std grows), so a fixed beta on raw A
+    re-saturates the clip; normalizing by batch std makes beta scale-invariant/stationary."""
+    An = A / (A.std() + 1e-6)
+    return torch.clamp(torch.exp(beta * An), 0.0, wmax)
+
+
 def isfb_goal_success(next_physics: torch.Tensor, future_physics: torch.Tensor,
                       thresh: float) -> torch.Tensor:
     """GCIQL goal-reaching success: 1[||next_cube_xyz - goal_cube_xyz|| < thresh].
@@ -121,7 +129,7 @@ class ISFBAgent(FBFlowBCAgent):
                 L_N = P * expectile_loss(M.detach() - N, tau)      # elementwise expectile of M
             else:
                 if self.measure_insample == "scalar_gate_awr":
-                    wgt = torch.clamp(torch.exp(self.awr_beta * A), 0.0, self.awr_wmax)
+                    wgt = isfb_awr_weights(A, self.awr_beta, self.awr_wmax)
                 else:  # scalar_gate_hard
                     wgt = isfb_hard_weights(A, tau)
                 wbar = wgt / (wgt.mean() + 1e-6)                   # [B]

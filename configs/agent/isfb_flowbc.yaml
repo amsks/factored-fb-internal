@@ -34,5 +34,5 @@ measure_insample: scalar_gate_hard   # coord | scalar_gate_hard | scalar_gate_aw
 isfb_goal_mask: true       # cut the measure-TD bootstrap at goal-success (GCIQL-consistent)
 alpha_n: 1.0
 alpha_m: 1.0
-awr_beta: 0.3              # calibrated: adv_std~4.5 (unnormalized <F,z>), so beta*std~O(1); beta=3 saturated the wmax clip
+awr_beta: 1.0              # on STD-NORMALIZED advantage (scale-invariant); <F,z> inflates over training so a fixed beta on raw A re-saturates
 awr_wmax: 100.0
