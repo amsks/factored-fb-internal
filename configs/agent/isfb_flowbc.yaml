@@ -1,13 +1,26 @@
 # @package _global_
-# SG-ISFB (PAPER/fb-modified/isfb.tex) on the torch FB agent. Inherits the flow-actor
-# fb_flowbc config and adds the ISFB knobs. Exp1 = exact-goal (train_goal_ratio=1.0).
+# SG-ISFB (PAPER/fb-modified/isfb.tex) on the torch FB agent. Mirrors fb_flowbc
+# (flow actor + actor_vf) and adds the ISFB knobs. Inherits `fb` DIRECTLY (one level;
+# chaining through fb_flowbc mis-orders _self_ and lets fb_flowbc override us).
+# Exp1 = exact-goal (train_goal_ratio=1.0).
 defaults:
-  - fb_flowbc    # inherit fb + flow actor (actor_vf, flow_steps, lr_actor_vf)
+  - fb           # inherit everything from configs/agent/fb.yaml
   - _self_
 
 agent: isfb_flowbc
 
-bc_coeff: 3.0              # cube default (fb_flowbc inherits 0.3 antmaze default)
+# --- FlowBC actor (copied from configs/agent/fb_flowbc.yaml), cube bc_coeff ---
+bc_coeff: 3.0
+flow_steps: 10
+lr_actor_vf: 3.0e-4
+actor:
+  name: noise_conditioned_actor
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+actor_vf:
+  hidden_dim: 512
+  hidden_layers: 4
 
 # --- standard-FB knobs pinned for ISFB Exp1 ---
 critic_mode: measure       # ISFB overrides update_fb; stays on the measure branch of update()
