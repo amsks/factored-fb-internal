@@ -22,15 +22,17 @@ actor_vf:
   hidden_dim: 512
   hidden_layers: 4
 
-# --- standard-FB knobs pinned for ISFB Exp1 ---
+# --- standard-FB knobs pinned for ISFB Exp1 (exact-goal) ---
 critic_mode: measure       # ISFB overrides update_fb; stays on the measure branch of update()
 ortho_coef: 1.0            # isfb.tex: harmless FB scale, NOT 1000
-train_goal_ratio: 1.0      # Exp1 exact-goal: z = B(goal) always
+train_goal_mode: traj      # z_i = B(s_i^future): each row's OWN reachable goal (NOT perm's random goal)
+train_goal_ratio: 1.0      # all task-z from the aligned future goal (permute=False), no random-sphere half
 iql_expectile: 0.9         # tau for L_V and the coord path
 
 # --- ISFB additions ---
 measure_insample: scalar_gate_hard   # coord | scalar_gate_hard | scalar_gate_awr
+isfb_goal_mask: true       # cut the measure-TD bootstrap at goal-success (GCIQL-consistent)
 alpha_n: 1.0
 alpha_m: 1.0
-awr_beta: 3.0
+awr_beta: 0.3              # calibrated: adv_std~4.5 (unnormalized <F,z>), so beta*std~O(1); beta=3 saturated the wmax clip
 awr_wmax: 100.0

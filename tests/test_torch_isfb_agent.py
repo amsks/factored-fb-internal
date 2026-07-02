@@ -95,3 +95,58 @@ def test_value_forward_params_change_after_update():
     _run(a, steps=3)
     after = list(a.model._value_forward_map.parameters())
     assert any(not torch.allclose(b, x) for b, x in zip(before, after))
+
+
+# --- review fixes: goal-success mask, adv logging, asserts -------------------------
+
+def _batch_traj(B=16):
+    """traj-mode batch: adds future + physics (cube xyz at [14:17]) the goal mask needs."""
+    nphys = torch.zeros(B, 20)
+    fphys = torch.zeros(B, 20)
+    fphys[B // 2:, 14] = 1.0   # first half reached (dist 0), second half far (dist 1)
+    return {
+        "observation": torch.randn(B, 4),
+        "action": torch.rand(B, 2) * 2 - 1,
+        "next": {"observation": torch.randn(B, 4), "terminated": torch.zeros(B, 1), "physics": nphys},
+        "future": {"observation": torch.randn(B, 4), "physics": fphys},
+    }
+
+
+def test_goal_success_mask_helper():
+    from agents.fb.isfb.agent import isfb_goal_success
+    nphys = torch.zeros(4, 20)
+    fphys = torch.zeros(4, 20)
+    fphys[2:, 14] = 1.0                          # rows 0,1 reached (dist 0); rows 2,3 far (dist 1)
+    s = isfb_goal_success(nphys, fphys, thresh=0.04)
+    assert torch.allclose(s, torch.tensor([1., 1., 0., 0.]))
+
+
+def test_goal_mask_update_runs_and_reports():
+    a = _tiny_isfb(measure_insample="scalar_gate_hard", isfb_goal_mask=True, train_goal_mode="traj")
+    m = a.update(_batch_traj(), step=0)
+    for k in ("L_M", "adv_std", "adv_min", "adv_max"):
+        assert k in m and np.isfinite(m[k]), k
+
+
+def test_update_reports_adv_stats():
+    a = _tiny_isfb()
+    m = _run(a)
+    for k in ("adv_std", "adv_min", "adv_max"):
+        assert k in m and np.isfinite(m[k])
+
+
+def test_asserts_block_ignored_fb_options():
+    # ISFB ignores reweighting / goal_cond / onestep bootstrap; passing them must raise
+    # (prevents silent mixed experiments). Asserts sit at the top of update_fb.
+    import pytest
+    a = _tiny_isfb()
+    B = 16
+    kw = dict(obs=torch.randn(B, 4), action=torch.rand(B, 2), discount=torch.ones(B, 1),
+              next_obs=torch.randn(B, 4), goal=torch.randn(B, 4), z=torch.randn(B, 8),
+              q_loss_coef=None, clip_grad_norm=None)
+    with pytest.raises(AssertionError):
+        a.update_fb(w=torch.ones(B), **kw)
+    with pytest.raises(AssertionError):
+        a.update_fb(goal_obs=torch.randn(B, 4), **kw)
+    with pytest.raises(AssertionError):
+        a.update_fb(next_action_override=torch.rand(B, 2), **kw)
