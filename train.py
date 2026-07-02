@@ -273,6 +273,30 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
             **shared,
         )
 
+    if cfg.agent == "isfb_flowbc":
+        from agents.fb.isfb.agent import ISFBAgent
+        actor_cfg = NoiseConditionedActorArchiConfig(
+            hidden_dim=cfg.actor.hidden_dim,
+            hidden_layers=cfg.actor.hidden_layers,
+            embedding_layers=cfg.actor.embedding_layers,
+        )
+        actor_vf_cfg = SimpleVectorFieldArchiConfig(
+            hidden_dim=cfg.actor_vf.hidden_dim,
+            hidden_layers=cfg.actor_vf.hidden_layers,
+        )
+        return ISFBAgent(
+            actor_cfg=actor_cfg,
+            actor_vf_cfg=actor_vf_cfg,
+            flow_steps=cfg.flow_steps,
+            lr_actor_vf=cfg.lr_actor_vf,
+            measure_insample=cfg.get("measure_insample", "scalar_gate_hard"),
+            alpha_n=cfg.get("alpha_n", 1.0),
+            alpha_m=cfg.get("alpha_m", 1.0),
+            awr_beta=cfg.get("awr_beta", 3.0),
+            awr_wmax=cfg.get("awr_wmax", 100.0),
+            **shared,
+        )
+
     if cfg.agent == "rldp":
         from nn_models import VForwardArchiConfig
         predictor_cfg = VForwardArchiConfig(
