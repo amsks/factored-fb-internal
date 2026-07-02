@@ -1,0 +1,23 @@
+# @package _global_
+# SG-ISFB (PAPER/fb-modified/isfb.tex) on the torch FB agent. Inherits the flow-actor
+# fb_flowbc config and adds the ISFB knobs. Exp1 = exact-goal (train_goal_ratio=1.0).
+defaults:
+  - fb_flowbc    # inherit fb + flow actor (actor_vf, flow_steps, lr_actor_vf)
+  - _self_
+
+agent: isfb_flowbc
+
+bc_coeff: 3.0              # cube default (fb_flowbc inherits 0.3 antmaze default)
+
+# --- standard-FB knobs pinned for ISFB Exp1 ---
+critic_mode: measure       # ISFB overrides update_fb; stays on the measure branch of update()
+ortho_coef: 1.0            # isfb.tex: harmless FB scale, NOT 1000
+train_goal_ratio: 1.0      # Exp1 exact-goal: z = B(goal) always
+iql_expectile: 0.9         # tau for L_V and the coord path
+
+# --- ISFB additions ---
+measure_insample: scalar_gate_hard   # coord | scalar_gate_hard | scalar_gate_awr
+alpha_n: 1.0
+alpha_m: 1.0
+awr_beta: 3.0
+awr_wmax: 100.0
