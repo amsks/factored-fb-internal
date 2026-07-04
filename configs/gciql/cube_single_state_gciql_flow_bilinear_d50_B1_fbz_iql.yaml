@@ -1,0 +1,32 @@
+# B1: a GENUINE z-conditioned forward map F(s,a,z) trained under the IQL backup.
+# The audit found B4 uses fwd_two_tower (D2), NOT fb_forward_z (D3) -- so a real
+# z-indexed forward family under IQL was never tested (the assert measure_only blocked
+# it). Now relaxed: value_loss/critic_loss thread z_goals so Q(s,a,g)=<F(s,a,psi(g)),psi(g)>.
+# Discriminates: does a real z-forward help when the backup actually improves (vs the
+# 25.5 we only have under the measure objective)? Compare vs bilinear-d50 ~90 and B4 87.1.
+# 3 seeds @500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Bilinear-d50-B1-FBzIQL
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  fb_forward_z: true
+  measure_only: false
+  measure_coef: 0.0
+wandb_mode: online

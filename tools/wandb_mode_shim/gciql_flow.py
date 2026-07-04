@@ -12,6 +12,7 @@ in the critic: GCIQL's IQL (expectile V + advantage) instead of FQL's plain TD.
 import copy
 
 import flax
+import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import optax
@@ -21,6 +22,12 @@ from utils.flax_utils import ModuleDict, TrainState
 from utils.networks import GCValue, GCBilinearValue, GCActor, MLP, ensemblize
 
 from ogbench_flow import GCNoiseActor, GCVectorField
+
+
+def _sphere(x, d):
+    """Project x onto the sphere of radius sqrt(d) along the last axis -- FB pins
+    ||B||=||z||=sqrt(d) via a Norm layer (agents/fb/model.py)."""
+    return x * jnp.sqrt(d * 1.0) / (jnp.linalg.norm(x, axis=-1, keepdims=True) + 1e-6)
 
 
 class GCFBValue(GCBilinearValue):
@@ -36,7 +43,9 @@ class GCFBValue(GCBilinearValue):
 
     z is detached (B and z share the psi MLP, but z is a frozen task input, per FB).
     When ensembled, z is the head-mean of psi (a single task vector per sample).
+    `project_z` hard-projects z and B onto the sqrt(d) sphere (FB's normalization).
     """
+    project_z: bool = False
 
     def setup(self):
         mlp_module = MLP
@@ -57,8 +66,194 @@ class GCFBValue(GCBilinearValue):
         if self.ensemble:
             z = z.mean(axis=0)                      # single task vector per sample [B,d]
         z = jax.lax.stop_gradient(z)
+        if self.project_z:
+            z = _sphere(z, self.latent_dim)
         phi = self.phi(jnp.concatenate([observations, actions, z], axis=-1))
         psi = self._psi(b_goals)                    # backward map B = psi(b_goals)
+        if self.project_z:
+            psi = _sphere(psi, self.latent_dim)
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if info:
+            return v, phi, psi
+        return v
+
+
+class _TwoTowerPhi(nn.Module):
+    """FB-style two-tower forward map: F = trunk( MLP[s,a] , MLP[s,z] ).
+
+    Mirrors agents/fb/model.py's ForwardMap (embed_sa over [s,a], embed_z over [s,z],
+    combined by a trunk) -- the structural alternative to GCBilinearValue's flat
+    phi=MLP([s,a]). The two embedding towers end activated (ReLU-like, activate_final);
+    the trunk is linear to latent_dim. Submodules are named so the wiring is testable.
+    """
+    hidden_dims: tuple
+    latent_dim: int
+    layer_norm: bool = True
+
+    @nn.compact
+    def __call__(self, obs, actions, z):
+        h = self.hidden_dims
+        sa = obs if actions is None else jnp.concatenate([obs, actions], axis=-1)
+        e_sa = MLP((*h, h[-1]), activate_final=True, layer_norm=self.layer_norm, name='embed_sa')(sa)
+        e_sz = MLP((*h, h[-1]), activate_final=True, layer_norm=self.layer_norm, name='embed_sz')(
+            jnp.concatenate([obs, z], axis=-1))
+        return MLP((*h, self.latent_dim), activate_final=False, layer_norm=self.layer_norm, name='trunk')(
+            jnp.concatenate([e_sa, e_sz], axis=-1))
+
+
+class GCTwoTowerCritic(GCBilinearValue):
+    """Bilinear critic whose forward leg is FB's two-tower F(s,a,z), with z=sg(psi(g))
+    the goal embedding (#4). Q(s,a,g)=<F(s,a,z), psi(g)>/sqrt(d). Drop-in for
+    GCBilinearValue -- same (observations, goals, actions) signature, z computed
+    INTERNALLY from the goal -- so the IQL value/critic losses are unchanged. This is
+    the architecture-only ablation of the ~90 bilinear-GCIQL (NOT the measure objective):
+    does porting FB's two-tower forward map cost the IQL bilinear anything?
+
+    psi doubles as the task source (z = stop_grad(head-mean psi(g))) exactly as FB's
+    forward map embeds (s,a) and (s,z) in separate towers off the same backward map.
+    `project_z` hard-projects z and B onto the sqrt(d) sphere (FB's normalization)."""
+    project_z: bool = False
+
+    def setup(self):
+        two_tower, psi_mlp = _TwoTowerPhi, MLP
+        if self.ensemble:
+            two_tower = ensemblize(two_tower, 2)
+            psi_mlp = ensemblize(psi_mlp, 2)
+        self.phi = two_tower(hidden_dims=tuple(self.hidden_dims), latent_dim=self.latent_dim,
+                             layer_norm=self.layer_norm)
+        self.psi = psi_mlp((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+
+    def _psi(self, goals):
+        if self.goal_encoder is not None:
+            goals = self.goal_encoder(goals)
+        return self.psi(goals)
+
+    def __call__(self, observations, goals, actions=None, info=False):
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        psi = self._psi(goals)
+        if self.project_z:
+            psi = _sphere(psi, self.latent_dim)
+        z = psi.mean(axis=0) if self.ensemble else psi   # single task vector per sample
+        z = jax.lax.stop_gradient(z)
+        if self.project_z:
+            z = _sphere(z, self.latent_dim)              # re-project after head-mean
+        phi = self.phi(observations, actions, z)
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if self.value_exp:
+            v = jnp.exp(v)
+        if info:
+            return v, phi, psi
+        return v
+
+
+class GCISFBValue(GCBilinearValue):
+    """FB critic with a SECOND forward leg for the value successor measure (SG-ISFB,
+    PAPER/fb-modified/isfb.tex). Shares the backward map B=psi between:
+        M(s,a,s') = <F(s,a,z),   B(s')>/sqrt(d)   (action measure; z=sg(psi(z_goals)))
+        N(s,s')   = <F_V(s,z),   B(s')>/sqrt(d)   (value measure; state/z only)
+    so the IQL (Q,V) decoupling is done at the measure level over ONE shared B. Same
+    (obs, b_goals, actions, z_goals) signature as GCFBValue; `return_fv=True` with
+    `info=True` additionally exposes (fv, z) for the ISFB loss. `project_z` pins
+    ||z||=||B||=sqrt(d)."""
+    project_z: bool = False
+
+    def setup(self):
+        m = MLP
+        if self.ensemble:
+            m = ensemblize(m, 2)
+        self.phi = m((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+        self.fv = m((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+        self.psi = m((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+
+    def _psi(self, goals):
+        if self.goal_encoder is not None:
+            goals = self.goal_encoder(goals)
+        return self.psi(goals)
+
+    def __call__(self, observations, b_goals, actions, z_goals, info=False, return_fv=False):
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        z = self._psi(z_goals)
+        if self.ensemble:
+            z = z.mean(axis=0)                       # single task vector per sample [B,d]
+        z = jax.lax.stop_gradient(z)
+        if self.project_z:
+            z = _sphere(z, self.latent_dim)
+        phi = self.phi(jnp.concatenate([observations, actions, z], axis=-1))   # F(s,a,z)
+        fv = self.fv(jnp.concatenate([observations, z], axis=-1))               # F_V(s,z)
+        psi = self._psi(b_goals)                                               # B(s')
+        if self.project_z:
+            psi = _sphere(psi, self.latent_dim)
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if info and return_fv:
+            return v, phi, psi, fv, z
+        if info:
+            return v, phi, psi
+        return v
+
+
+class GCIdentityBValue(GCBilinearValue):
+    """Bilinear critic with an IDENTITY base/goal leg, for successor-FEATURE learning:
+
+        Q(s,a,g) = <phi(s,a), g>/sqrt(d),   psi(g) = b(g) = g  (param-free)
+
+    phi(s,a) is the successor-feature vector -- the ONLY learned leg; the base map b=psi is the
+    identity (raw obs), so latent_dim MUST equal the goal/obs dim. The SF vector TD that trains
+    phi (phi(s,a) <- b(s)+gamma*phi(s',a')) lives in the agent's `sf_loss`, NOT here -- this
+    module only defines the bilinear readout. Mirrors agents/fb/fixed_backward.py's
+    FixedIdentityBackward (B(obs)=obs)."""
+
+    def setup(self):
+        m = MLP
+        if self.ensemble:
+            m = ensemblize(m, 2)
+        self.phi = m((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+
+    def _psi(self, goals):
+        return goals   # identity base, param-free (raw; no goal_encoder)
+
+    def __call__(self, observations, b_goals, actions=None, info=False):
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        inp = observations if actions is None else jnp.concatenate([observations, actions], axis=-1)
+        phi = self.phi(inp)                                    # [2,B,d] (ensembled) or [B,d]
+        psi = jnp.broadcast_to(self._psi(b_goals), phi.shape)  # b(g)=g, matched to phi's shape
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if info:
+            return v, phi, psi
+        return v
+
+
+class GCFrozenBValue(GCBilinearValue):
+    """Bilinear critic with a FROZEN RANDOM base/goal leg psi, for successor-FEATURE learning
+    at a FREE rank d (e.g. 50, matching FB / bilinear-GCIQL):
+
+        Q(s,a,g) = <phi(s,a), psi(g)>/sqrt(d),   psi = stop_grad(MLP)  (random init, never trained)
+
+    phi(s,a) is the trained successor-feature vector; the base feature is b(s)=psi(s), the frozen
+    random features of the state. Freezing psi (stop_grad on every use -> zero gradient -> params
+    stay at init) is the standard SF anti-collapse fix (a random encoder) and DECOUPLES the
+    representation rank d from the obs dim, so d can match the FB / bilinear-GCIQL 50."""
+
+    def setup(self):
+        m = MLP
+        if self.ensemble:
+            m = ensemblize(m, 2)
+        self.phi = m((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+        self.psi = m((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+
+    def _psi(self, goals):
+        if self.goal_encoder is not None:
+            goals = self.goal_encoder(goals)
+        return jax.lax.stop_gradient(self.psi(goals))   # FROZEN: zero grad -> stays at random init
+
+    def __call__(self, observations, b_goals, actions=None, info=False):
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        inp = observations if actions is None else jnp.concatenate([observations, actions], axis=-1)
+        phi = self.phi(inp)                             # [2,B,d] (ensembled) or [B,d]
+        psi = self._psi(b_goals)                        # frozen random features, same shape as phi
         v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
         if info:
             return v, phi, psi
@@ -78,21 +273,70 @@ class GCIQLFlowAgent(GCIQLAgent):
             actions = actions + vels / fs
         return jnp.clip(actions, -1.0, 1.0)
 
-    def _value_psi(self, goals, params):
+    def _value_psi(self, goals, params=None):
         """B := the value net's psi (action-free GCBilinearValue). psi depends
         only on the goal arg; the obs arg is a placeholder for phi(s)."""
-        _v, _phi, psi = self.network.select('value')(goals, goals, info=True, params=params)
+        kw = {'info': True}
+        if params is not None:
+            kw['params'] = params
+        _v, _phi, psi = self.network.select('value')(goals, goals, **kw)
         return psi
+
+    def _critic_psi(self, goals, params=None):
+        """B := the CRITIC net's psi (audit #2 / D1). Under measure_only the value net
+        is never trained, so the actor's z must come from the critic psi (=B, trained by
+        the measure loss). Actions are a placeholder (psi is action-free); z_goals is
+        passed when fb_forward_z. Ensembled critic psi -> head-mean [B,d]."""
+        # placeholder actions match goals' leading (batch) dims -- goals may be a single
+        # unbatched observation at eval, so key off shape[:-1], not shape[0].
+        ex_a = jnp.zeros((*goals.shape[:-1], self.config['action_dim']))
+        zarg = (goals,) if self.config.get('fb_forward_z', False) else ()
+        kw = {'info': True}
+        if params is not None:
+            kw['params'] = params
+        _v, _phi, psi = self.network.select('critic')(goals, goals, ex_a, *zarg, **kw)
+        return psi.mean(axis=0)   # critic is ensembled: head-mean over axis 0 -> [..., d]
+
+    def _actor_z(self, goals, params=None):
+        """Task vector the flow actor conditions on: critic psi if actor_z_from_critic,
+        else the value net psi (the G4 zcond default)."""
+        if self.config.get('actor_z_from_critic', False):
+            return self._critic_psi(goals, params)
+        return self._value_psi(goals, params)
+
+    def _infer_actor_z(self, psi, rng):
+        """exp4: the INFERRED task vector z=E[r*psi] per sample. Draw a random sparse
+        reward over the batch's goal embeddings psi [B,d] (each row keeps its own goal
+        plus a random ~10% subset of the others), read out z=sum_j r_ij psi_j, and
+        sphere-Norm to sqrt(d) -- the noisy inferred task distribution the actor is
+        evaluated on (z=E[r psi(s')]), as opposed to the exact embedding psi(g)."""
+        B = psi.shape[0]
+        mask = (jax.random.uniform(rng, (B, B)) < 0.1).astype(psi.dtype) + jnp.eye(B, dtype=psi.dtype)
+        z = mask @ psi
+        return _sphere(z, self.config['value_latent_dim'])
 
     def value_loss(self, batch, grad_params):
         """IQL expectile value loss; ablate clipped double-Q (double_q=False => q1)."""
+        zarg = (batch['value_goals'],) if self.config.get('fb_forward_z', False) else ()
         q1, q2 = self.network.select('target_critic')(
-            batch['observations'], batch['value_goals'], batch['actions'])
+            batch['observations'], batch['value_goals'], batch['actions'], *zarg)
         q = jnp.minimum(q1, q2) if self.config['double_q'] else q1
         v = self.network.select('value')(batch['observations'], batch['value_goals'], params=grad_params)
         value_loss = self.expectile_loss(q - v, q - v, self.config['expectile']).mean()
         return value_loss, {'value_loss': value_loss, 'v_mean': v.mean(),
                             'v_max': v.max(), 'v_min': v.min()}
+
+    def critic_loss(self, batch, grad_params):
+        """IQL critic loss; thread z_goals when fb_forward_z (B1): the z-conditioned
+        forward map takes an extra task arg, so Q(s,a,g)=<F(s,a,psi(g)),psi(g)>/sqrt(d)."""
+        next_v = self.network.select('value')(batch['next_observations'], batch['value_goals'])
+        q = batch['rewards'] + self.config['discount'] * batch['masks'] * next_v
+        zarg = (batch['value_goals'],) if self.config.get('fb_forward_z', False) else ()
+        q1, q2 = self.network.select('critic')(
+            batch['observations'], batch['value_goals'], batch['actions'], *zarg, params=grad_params)
+        critic_loss = ((q1 - q) ** 2 + (q2 - q) ** 2).mean()
+        return critic_loss, {'critic_loss': critic_loss, 'q_mean': q.mean(),
+                             'q_max': q.max(), 'q_min': q.min()}
 
     def actor_loss(self, batch, grad_params, rng=None):
         # actor_kind='ddpgbc' => fall back to GCIQL's stock gaussian DDPG+BC actor
@@ -101,7 +345,7 @@ class GCIQLFlowAgent(GCIQLAgent):
             return GCIQLAgent.actor_loss(self, batch, grad_params, rng)
         obs, goals, actions = batch['observations'], batch['actor_goals'], batch['actions']
         rng = rng if rng is not None else self.rng
-        rng, x0_rng, t_rng, n_rng = jax.random.split(rng, 4)
+        rng, x0_rng, t_rng, n_rng, z_rng = jax.random.split(rng, 5)
 
         # 1) flow-matching loss trains actor_vf (the BC flow policy).
         x_1 = actions
@@ -121,14 +365,27 @@ class GCIQLFlowAgent(GCIQLAgent):
         # (B := value net's psi). stop_grad keeps the representation purely
         # IQL-trained. The critic Q-term keeps the raw goal obs -- it computes
         # its own psi internally.
-        if self.config['actor_cond'] == 'z':
-            actor_cond_input = jax.lax.stop_gradient(self._value_psi(goals, grad_params))
+        z_infer = None
+        if self.config.get('actor_z_infer', False):
+            # exp4: condition on the INFERRED task distribution z=E[r*psi] (sparse-reward
+            # readout over the batch), not the exact goal embedding psi(g).
+            psi_b = jax.lax.stop_gradient(self._actor_z(goals, grad_params))
+            z_infer = self._infer_actor_z(psi_b, z_rng)
+            actor_cond_input = z_infer
+        elif self.config['actor_cond'] == 'z':
+            actor_cond_input = jax.lax.stop_gradient(self._actor_z(goals, grad_params))
         else:
             actor_cond_input = goals
         actor_actions = self.network.select('actor')(obs, actor_cond_input, noise, params=grad_params)
-        # fb_forward_z: q = F(s,a,z).B(g)/sqrt(d) with z=sg(psi(g)) -> the FB greedy readout.
-        zarg = (goals,) if self.config.get('fb_forward_z', False) else ()
-        q1, q2 = self.network.select('critic')(obs, goals, actor_actions, *zarg)
+        if z_infer is not None:
+            # Q_z(s,a)=<phi(s,a), z>/sqrt(d): greedy readout on the inferred task vector.
+            _, phi, _ = self.network.select('critic')(obs, goals, actor_actions, info=True)
+            q = (phi * z_infer[None]).sum(-1) / jnp.sqrt(self.config['value_latent_dim'])
+            q1, q2 = q[0], q[1]
+        else:
+            # fb_forward_z: q = F(s,a,z).B(g)/sqrt(d) with z=sg(psi(g)) -> the FB greedy readout.
+            zarg = (goals,) if self.config.get('fb_forward_z', False) else ()
+            q1, q2 = self.network.select('critic')(obs, goals, actor_actions, *zarg)
         q = jnp.minimum(q1, q2) if self.config['double_q'] else q1
         actor_loss = -q.mean()
 
@@ -182,7 +439,10 @@ class GCIQLFlowAgent(GCIQLAgent):
             _, phi, psi = self.network.select('critic')(obs, nobs, acts, *zarg, info=True, params=grad_params)
             M = jnp.einsum('hid,hjd->hij', phi, psi) / sqd                # [2, B, B]
             noise = jax.random.normal(rng, acts.shape)
-            a_next = jax.lax.stop_gradient(self.network.select('actor')(nobs, vgoals, noise))  # a+ ~ pi(s+,g)
+            # a+ ~ pi(s+,g); under actor_cond='z' the actor's goal-leg is the d-dim task
+            # vector, so map the raw vgoals through _actor_z (critic/value psi) first.
+            a_goals = self._actor_z(vgoals, grad_params) if self.config['actor_cond'] == 'z' else vgoals
+            a_next = jax.lax.stop_gradient(self.network.select('actor')(nobs, a_goals, noise))
             _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, *zarg, info=True)
             tM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi) / sqd)            # [2, B, B]
             diff = M - gamma * tM                                          # [2, B, B]
@@ -198,6 +458,48 @@ class GCIQLFlowAgent(GCIQLAgent):
         return loss, {'measure_loss': loss, 'measure_offdiag': offdiag, 'measure_diag': diagt,
                       'measure_orth': orth}
 
+    def sf_loss(self, batch, grad_params, rng):
+        """Successor-FEATURE vector TD on phi (SF-style, à la simple_successor_features), with
+        an IDENTITY base b(s)=s. Trains ONLY phi (the goal/base leg psi=b is param-free):
+
+            phi(s,a) <- b(s) + gamma * mask * phi_target(s',a'),   a' ~ pi(s',g)
+            L_SF = mean_i || phi(s_i,a_i) - sg[ b(s_i) + gamma m_i phi_target(s'_i,a'_i) ] ||^2
+
+        A PER-SAMPLE vector regression -- NOT the B x B successor-measure matrix. The readout
+        Q(s,a,g)=<phi(s,a), psi(g)> drives the greedy flow actor. Base b(s): 'identity' -> b(s)=s
+        (d==obs dim); 'frozen' -> b(s)=psi(s), the critic's frozen random features (d free)."""
+        obs, nobs, acts = batch['observations'], batch['next_observations'], batch['actions']
+        vgoals, mask = batch['value_goals'], batch['masks']
+        gamma = self.config['discount']
+        _, phi, _psi = self.network.select('critic')(obs, vgoals, acts, info=True, params=grad_params)  # [2,B,d]
+        if self.config.get('sf_base', 'identity') == 'frozen':
+            # b(s) = psi(s): the frozen random features of the CURRENT state (call psi via b_goals=obs).
+            _, _, b = self.network.select('critic')(obs, obs, acts, info=True, params=grad_params)  # [2,B,d]
+            b = jax.lax.stop_gradient(b)
+        else:
+            b = obs[None]                                             # identity base b(s)=s -> [1,B,d]
+        noise = jax.random.normal(rng, acts.shape)
+        a_next = jax.lax.stop_gradient(self.network.select('actor')(nobs, vgoals, noise))   # a' ~ pi(s',g)
+        _, tphi, _ = self.network.select('target_critic')(nobs, vgoals, a_next, info=True)  # [2,B,d]
+        target = jax.lax.stop_gradient(b + gamma * mask[None, :, None] * tphi)               # [2,B,d]
+        loss = jnp.mean((phi - target) ** 2)
+        return loss, {'sf_loss': loss, 'phi_absmax': jnp.max(jnp.abs(phi)),
+                      'target_absmax': jnp.max(jnp.abs(target))}
+
+    def ortho_loss(self, batch, grad_params):
+        """FB orthonormality penalty ||E[psi psi^T]-I|| on the IQL critic's backward
+        map psi(value_goals) -- with NO measure bootstrap. Isolates the ortho constraint
+        on the ~90 IQL bilinear ('bilinear GCIQL + ortho only, nothing else from FB').
+        Same per-head formula as measure_loss's critic-leg ortho."""
+        obs, vgoals, acts = batch['observations'], batch['value_goals'], batch['actions']
+        _, _, psi = self.network.select('critic')(obs, vgoals, acts, info=True, params=grad_params)
+        B = obs.shape[0]; off = 1.0 - jnp.eye(B)
+        Cov = jnp.einsum('hid,hjd->hij', psi, psi)                    # [2, B, B]
+        o_off = 0.5 * jnp.sum((Cov * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
+        o_diag = -jnp.mean(jnp.diagonal(Cov, axis1=1, axis2=2), axis=1)
+        orth = jnp.mean(o_off + o_diag)
+        return orth, {'ortho_loss': orth}
+
     @jax.jit
     def total_loss(self, batch, grad_params, rng=None):
         """IQL value + critic + flow actor (+ optional FB measure). measure_only=True drops the
@@ -211,6 +513,13 @@ class GCIQLFlowAgent(GCIQLAgent):
         actor_loss, actor_info = self.actor_loss(batch, grad_params, actor_rng)
         for k, v in actor_info.items():
             info[f'actor/{k}'] = v
+
+        if self.config.get('sf_feature_td', False):    # SF-ONLY critic (no IQL): successor-feature vector TD on phi
+            rng, sf_rng = jax.random.split(rng)
+            sf_l, sf_info = self.sf_loss(batch, grad_params, sf_rng)
+            for k, v in sf_info.items():
+                info[f'sf/{k}'] = v
+            return self.config.get('sf_coef', 1.0) * sf_l + actor_loss, info
 
         if self.config.get('measure_only', False):     # SM-ONLY critic (no IQL): FB objective
             rng, m_rng = jax.random.split(rng)
@@ -232,6 +541,11 @@ class GCIQLFlowAgent(GCIQLAgent):
             loss = loss + self.config['measure_coef'] * m_loss
             for k, v in m_info.items():
                 info[f'measure/{k}'] = v
+        if self.config.get('iql_ortho_coef', 0.0) > 0:  # FB orthonormality ONLY (no measure)
+            o_loss, o_info = self.ortho_loss(batch, grad_params)
+            loss = loss + self.config['iql_ortho_coef'] * o_loss
+            for k, v in o_info.items():
+                info[f'ortho/{k}'] = v
         return loss, info
 
     @jax.jit
@@ -252,7 +566,7 @@ class GCIQLFlowAgent(GCIQLAgent):
         # the z-actor expects. This makes in-training eval report exact-z success.
         # For an arbitrary precomputed z, use sample_actions_with_z (no mapping).
         if self.config['actor_cond'] == 'z':
-            goals = self.network.select('value')(goals, goals, info=True)[2]
+            goals = self._actor_z(goals)
         actions = self.network.select('actor')(observations, goals, noise)
         return jnp.clip(actions, -1.0, 1.0)
 
@@ -276,12 +590,24 @@ class GCIQLFlowAgent(GCIQLAgent):
         config = dict(config)
         config['action_dim'] = action_dim
 
+        if config.get('sf_feature_td', False):
+            # phi = the ONLY learned leg (trained by sf_loss); goal enters via the readout, so
+            # force actor_cond='goal' (avoids the z-dim guard below). Base leg:
+            #   'identity' -> psi(g)=g, so latent_dim MUST == goal dim (d pinned to obs dim).
+            #   'frozen'   -> psi = frozen random MLP, d is FREE (e.g. 50 to match FB/GCIQL).
+            assert config.get('value_arch', 'mlp') == 'bilinear', "sf_feature_td requires value_arch='bilinear'"
+            if config.get('sf_base', 'identity') == 'identity':
+                goal_dim = ex_goals.shape[-1]
+                assert config['value_latent_dim'] == goal_dim, \
+                    f"sf_feature_td sf_base='identity' requires value_latent_dim==goal_dim ({goal_dim}), got {config['value_latent_dim']}"
+            config['actor_cond'] = 'goal'
+
         # Actor goal-input example. In z-conditioning (G4) the actor consumes a
         # d-dim task vector z=psi(goal) (B := value net's psi), not the raw goal
         # observation, so its goal-leg params must be sized to value_latent_dim.
-        if config.get('actor_cond', 'goal') == 'z':
+        if config.get('actor_cond', 'goal') == 'z' or config.get('actor_z_infer', False):
             assert config.get('value_arch', 'mlp') == 'bilinear', \
-                "actor_cond='z' requires value_arch='bilinear' (B := value net's psi)"
+                "actor_cond='z'/actor_z_infer requires value_arch='bilinear' (B := value net's psi)"
             ex_actor_goals = jnp.zeros((ex_observations.shape[0], config['value_latent_dim']))
         else:
             ex_actor_goals = ex_goals
@@ -310,15 +636,28 @@ class GCIQLFlowAgent(GCIQLAgent):
             # FB-faithful F(s,a,z).B(s'). Only valid as a measure-only critic (its
             # extra z arg would break the IQL value/critic Bellman losses).
             critic_cls = GCBilinearValue
-            if config.get('fb_forward_z', False):
-                assert config.get('measure_only', False), \
-                    "fb_forward_z requires measure_only=True (z-arg breaks the IQL critic loss)"
-                critic_cls = GCFBValue
-            critic_def = critic_cls(
+            if config.get('sf_feature_td', False):
+                # phi = successor-feature vector trained by sf_loss. Base leg: 'frozen' -> frozen
+                # random psi (d free); 'identity' -> psi(g)=g (d==obs dim).
+                critic_cls = GCFrozenBValue if config.get('sf_base', 'identity') == 'frozen' else GCIdentityBValue
+            elif config.get('fb_forward_z', False):
+                # z-conditioned forward map F(s,a,z), z=sg(psi(g)). Runs under the measure
+                # loss (FB objective) OR the IQL backup (B1): value_loss/critic_loss below
+                # thread z_goals=value_goals so Q(s,a,g)=<F(s,a,psi(g)),psi(g)>/sqrt(d).
+                # isfb: GCISFBValue adds the value-measure leg F_V(s,z) for SG-ISFB.
+                critic_cls = GCISFBValue if config.get('isfb', False) else GCFBValue
+            elif config.get('fwd_two_tower', False):
+                # FB-style two-tower forward map F(s,a,z), z=sg(psi(g)), computed
+                # internally -> drop-in for the IQL critic (architecture-only ablation).
+                critic_cls = GCTwoTowerCritic
+            crit_kwargs = dict(
                 hidden_dims=config['value_hidden_dims'], latent_dim=d,
                 layer_norm=config['layer_norm'], ensemble=True,
                 state_encoder=encoders.get('critic'), goal_encoder=encoders.get('critic'),
             )
+            if critic_cls in (GCFBValue, GCTwoTowerCritic, GCISFBValue):
+                crit_kwargs['project_z'] = config.get('project_z', False)
+            critic_def = critic_cls(**crit_kwargs)
         else:
             value_def = GCValue(
                 hidden_dims=config['value_hidden_dims'],
@@ -409,5 +748,13 @@ def get_config():
         config.measure_legs = 'critic'  # 'critic' = state-action SM on Q legs (FB-faithful) | 'value' = state SM on V legs
         config.measure_only = False  # True = drop IQL value/critic losses; critic trained ONLY by the SM (FB objective)
         config.measure_ortho_coef = 0.0  # FB orthonormality coef lambda on psi (||E[psi psi^T]-I||); FB uses 1000
-        config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear + measure_only)
+        config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)
+        config.sf_feature_td = False  # SUCCESSOR-FEATURE vector TD on phi: phi(s,a)<-b(s)+gamma*phi(s',a'), Q=<phi,psi(g)> (train ONLY phi; needs bilinear)
+        config.sf_coef = 1.0          # weight on the SF vector-TD loss (sf_feature_td)
+        config.sf_base = 'identity'   # SF base feature b: 'identity' -> b(s)=s (d==obs dim); 'frozen' -> b(s)=psi(s) frozen random MLP (d free, e.g. 50)
+        config.fwd_two_tower = False  # FB-style two-tower forward map F=trunk(MLP[s,a],MLP[s,z]) on the IQL bilinear critic (z=sg(psi(g)); architecture-only ablation, no measure loss)
+        config.iql_ortho_coef = 0.0  # FB orthonormality ||E[psi psi^T]-I|| on the IQL bilinear critic's psi, with NO measure loss (isolates the ortho constraint on the ~90 IQL bilinear)
+        config.project_z = False  # hard-project z and B=psi onto the sqrt(d) sphere (FB's ||B||=||z||=sqrt(d) Norm); applies to GCFBValue/GCTwoTowerCritic
+        config.actor_z_from_critic = False  # source the flow actor's z from the CRITIC psi (=B, measure-trained), not the value net (audit #2 / D1); needs actor_cond='z'
+        config.actor_z_infer = False  # exp4: train the flow actor on the INFERRED task dist z=E[r*psi] (sparse-reward readout over the batch), not exact psi(g); needs bilinear
     return config

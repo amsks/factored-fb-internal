@@ -1,0 +1,23 @@
+# HIQL comparison (correct OGBench HPs). cube flow MLP baseline
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/hiql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: HIQL-State-Flow-both-MLP-sg10
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  flow_levels: both
+  subgoal_steps: 10
+  value_arch: mlp
+wandb_mode: online
