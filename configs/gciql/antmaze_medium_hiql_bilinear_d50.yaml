@@ -1,0 +1,22 @@
+# HIQL comparison (correct OGBench HPs). antmaze native-actor bilinear-d50 (the test: does bilinear hurt a WORKING HIQL?)
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: antmaze-medium-navigate-v0
+agent_file: agents/hiql.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 0
+run_group: HIQL-AntMaze-Medium-Bilinear-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  value_arch: bilinear
+  value_latent_dim: 50
+wandb_mode: online

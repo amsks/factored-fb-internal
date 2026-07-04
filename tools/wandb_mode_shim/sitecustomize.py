@@ -174,6 +174,17 @@ try:
 except Exception:
     pass
 
+# --- ISFB agent injection (scalar-gated in-sample Forward-Backward measure) ---
+# Register ISFBAgent so configs may select agent_name='isfb_flow' via
+# --agent=tools/wandb_mode_shim/isfb_flow.py. Guarded like the block above.
+try:
+    import agents as _ogb_agents
+    from isfb_flow import ISFBAgent as _ISFBAgent
+
+    _ogb_agents.agents.setdefault("isfb_flow", _ISFBAgent)
+except Exception:
+    pass
+
 # --- GCIVL+FlowBC agent injection (GCIVL IVL value + AWR-weighted flow BC actor) ---
 try:
     import agents as _ogb_agents

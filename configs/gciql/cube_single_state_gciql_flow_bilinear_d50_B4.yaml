@@ -1,0 +1,30 @@
+# Cluster-B endpoint (B4): ALL of FB's structure imposed on the ~90 IQL bilinear d50.
+# Two-tower forward map F=trunk(MLP[s,a],MLP[s,z]) + sphere-Norm(z,B)=sqrt(d) + FB
+# orthonormality at FB's true coef 1.0 -- still the pure IQL objective (NO measure loss).
+# Tests: does FB's full structure survive on a strong (IQL) base? two-tower alone = 86.4;
+# if B4 stays ~86-90, the whole FB<->GCIQL gap is objective, not structure. 3 seeds @500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Bilinear-d50-B4-FBstruct
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  fwd_two_tower: true
+  project_z: true
+  iql_ortho_coef: 1.0
+wandb_mode: online

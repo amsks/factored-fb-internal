@@ -1,0 +1,32 @@
+# sf_feature_td: successor-FEATURE vector TD on phi with an IDENTITY base b(s)=s.
+# On the bilinear critic Q(s,a,g)=<phi(s,a), g>/sqrt(d), keep the base/goal leg = identity
+# (NOT trained) and train ONLY phi with the per-sample SF vector TD:
+#     phi(s,a) <- b(s) + gamma * mask * phi_target(s',a'),   a' ~ pi(s',g),   b(s)=s
+# (à la raymondchua/simple_successor_features). This is NOT the successor-MEASURE loss.
+# value_latent_dim MUST == cube-single obs dim (28). Anchors: FB zg_iql 0.44 / zg_her 0.19
+# (confounded -- identity b makes reward linear g.s). Diagnostic: phi health / q-blowup.
+# 3 seeds @500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-SF-FeatureTD-IdentityB
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 28
+  sf_feature_td: true
+  sf_coef: 1.0
+wandb_mode: online

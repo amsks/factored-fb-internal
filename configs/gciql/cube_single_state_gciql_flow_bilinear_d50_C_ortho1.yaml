@@ -1,0 +1,28 @@
+# C ablation: fb_forward_z + ortho1.0, NO project_z (C4 minus the sphere-Norm; isolates the ortho 1000->1.0 change).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Bilinear-d50-C-FBz-O1
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  fb_forward_z: true
+  measure_ortho_coef: 1.0
+wandb_mode: online
