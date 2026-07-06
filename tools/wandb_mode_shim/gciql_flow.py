@@ -202,7 +202,9 @@ class GCIdentityBValue(GCBilinearValue):
     identity (raw obs), so latent_dim MUST equal the goal/obs dim. The SF vector TD that trains
     phi (phi(s,a) <- b(s)+gamma*phi(s',a')) lives in the agent's `sf_loss`, NOT here -- this
     module only defines the bilinear readout. Mirrors agents/fb/fixed_backward.py's
-    FixedIdentityBackward (B(obs)=obs)."""
+    FixedIdentityBackward (B(obs)=obs). With `fb_forward_z` the forward map is TASK-CONDITIONED
+    phi([s,a,z=g]) (the reference SF net input cat([obs, task]))."""
+    fb_forward_z: bool = False
 
     def setup(self):
         m = MLP
@@ -213,10 +215,15 @@ class GCIdentityBValue(GCBilinearValue):
     def _psi(self, goals):
         return goals   # identity base, param-free (raw; no goal_encoder)
 
-    def __call__(self, observations, b_goals, actions=None, info=False):
+    def __call__(self, observations, b_goals, actions=None, z_goals=None, info=False):
         if self.state_encoder is not None:
             observations = self.state_encoder(observations)
         inp = observations if actions is None else jnp.concatenate([observations, actions], axis=-1)
+        if self.fb_forward_z:                                  # task-condition phi([s,a,z=psi(g)])
+            z = self._psi(z_goals)
+            if z.ndim == 3:                                    # head-mean if ensembled
+                z = z.mean(axis=0)
+            inp = jnp.concatenate([inp, jax.lax.stop_gradient(z)], axis=-1)
         phi = self.phi(inp)                                    # [2,B,d] (ensembled) or [B,d]
         psi = jnp.broadcast_to(self._psi(b_goals), phi.shape)  # b(g)=g, matched to phi's shape
         v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
@@ -234,7 +241,9 @@ class GCFrozenBValue(GCBilinearValue):
     phi(s,a) is the trained successor-feature vector; the base feature is b(s)=psi(s), the frozen
     random features of the state. Freezing psi (stop_grad on every use -> zero gradient -> params
     stay at init) is the standard SF anti-collapse fix (a random encoder) and DECOUPLES the
-    representation rank d from the obs dim, so d can match the FB / bilinear-GCIQL 50."""
+    representation rank d from the obs dim, so d can match the FB / bilinear-GCIQL 50. With
+    `fb_forward_z` the forward map is TASK-CONDITIONED phi([s,a,z=psi(g)]) (frozen features)."""
+    fb_forward_z: bool = False
 
     def setup(self):
         m = MLP
@@ -248,10 +257,15 @@ class GCFrozenBValue(GCBilinearValue):
             goals = self.goal_encoder(goals)
         return jax.lax.stop_gradient(self.psi(goals))   # FROZEN: zero grad -> stays at random init
 
-    def __call__(self, observations, b_goals, actions=None, info=False):
+    def __call__(self, observations, b_goals, actions=None, z_goals=None, info=False):
         if self.state_encoder is not None:
             observations = self.state_encoder(observations)
         inp = observations if actions is None else jnp.concatenate([observations, actions], axis=-1)
+        if self.fb_forward_z:                           # task-condition phi([s,a,z=psi(g)]) (frozen z)
+            z = self._psi(z_goals)                      # frozen features of the goal
+            if z.ndim == 3:
+                z = z.mean(axis=0)                      # head-mean if ensembled
+            inp = jnp.concatenate([inp, z], axis=-1)    # already stop-gradded in _psi
         phi = self.phi(inp)                             # [2,B,d] (ensembled) or [B,d]
         psi = self._psi(b_goals)                        # frozen random features, same shape as phi
         v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
@@ -342,7 +356,27 @@ class GCIQLFlowAgent(GCIQLAgent):
         # actor_kind='ddpgbc' => fall back to GCIQL's stock gaussian DDPG+BC actor
         # (bilinear critic kept); only the flow-actor path is custom below.
         if self.config['actor_kind'] == 'ddpgbc':
-            return GCIQLAgent.actor_loss(self, batch, grad_params, rng)
+            if not self.config.get('fb_forward_z', False):
+                return GCIQLAgent.actor_loss(self, batch, grad_params, rng)
+            # fb_forward_z: the SF critic is task-conditioned and takes the z=goal leg
+            # (obs, goals, actions, z_goals). Stock GCIQL calls it with 3 args, so mirror
+            # its DDPG+BC loss here but pass the z arg (à la the flow path's zarg).
+            obs, goals, actions = batch['observations'], batch['actor_goals'], batch['actions']
+            rng = rng if rng is not None else self.rng
+            dist = self.network.select('actor')(obs, goals, params=grad_params)
+            q_actions = dist.mode() if self.config['const_std'] else dist.sample(seed=rng)
+            q_actions = jnp.clip(q_actions, -1, 1)
+            q1, q2 = self.network.select('critic')(obs, goals, q_actions, goals)
+            q = jnp.minimum(q1, q2)
+            q_loss = -q.mean() / jax.lax.stop_gradient(jnp.abs(q).mean() + 1e-6)
+            log_prob = dist.log_prob(actions)
+            bc_loss = -(self.config['alpha'] * log_prob).mean()
+            actor_loss = q_loss + bc_loss
+            return actor_loss, {
+                'actor_loss': actor_loss, 'q_loss': q_loss, 'bc_loss': bc_loss,
+                'q_mean': q.mean(), 'bc_log_prob': log_prob.mean(),
+                'mse': jnp.mean((dist.mode() - actions) ** 2),
+            }
         obs, goals, actions = batch['observations'], batch['actor_goals'], batch['actions']
         rng = rng if rng is not None else self.rng
         rng, x0_rng, t_rng, n_rng, z_rng = jax.random.split(rng, 5)
@@ -471,20 +505,41 @@ class GCIQLFlowAgent(GCIQLAgent):
         obs, nobs, acts = batch['observations'], batch['next_observations'], batch['actions']
         vgoals, mask = batch['value_goals'], batch['masks']
         gamma = self.config['discount']
-        _, phi, _psi = self.network.select('critic')(obs, vgoals, acts, info=True, params=grad_params)  # [2,B,d]
+        # fb_forward_z: task-condition phi([s,a,z=psi(g)]) -> thread z_goals=vgoals through the
+        # phi, base-feature, and target-critic calls (same task g on both sides of the SF backup).
+        zarg = (vgoals,) if self.config.get('fb_forward_z', False) else ()
+        _, phi, _psi = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
         if self.config.get('sf_base', 'identity') == 'frozen':
             # b(s) = psi(s): the frozen random features of the CURRENT state (call psi via b_goals=obs).
-            _, _, b = self.network.select('critic')(obs, obs, acts, info=True, params=grad_params)  # [2,B,d]
+            _, _, b = self.network.select('critic')(obs, obs, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
             b = jax.lax.stop_gradient(b)
         else:
             b = obs[None]                                             # identity base b(s)=s -> [1,B,d]
-        noise = jax.random.normal(rng, acts.shape)
-        a_next = jax.lax.stop_gradient(self.network.select('actor')(nobs, vgoals, noise))   # a' ~ pi(s',g)
-        _, tphi, _ = self.network.select('target_critic')(nobs, vgoals, a_next, info=True)  # [2,B,d]
+        if self.config['actor_kind'] == 'ddpgbc':
+            # stock gaussian actor: a' = mode of pi(.|s',g) (or a sample if learned std).
+            dist = self.network.select('actor')(nobs, vgoals)
+            a_next = dist.mode() if self.config['const_std'] else dist.sample(seed=rng)
+        else:
+            noise = jax.random.normal(rng, acts.shape)
+            a_next = self.network.select('actor')(nobs, vgoals, noise)          # a' ~ pi(s',g)
+        a_next = jax.lax.stop_gradient(jnp.clip(a_next, -1, 1))
+        _, tphi, _ = self.network.select('target_critic')(nobs, vgoals, a_next, *zarg, info=True)  # [2,B,d]
         target = jax.lax.stop_gradient(b + gamma * mask[None, :, None] * tphi)               # [2,B,d]
-        loss = jnp.mean((phi - target) ** 2)
-        return loss, {'sf_loss': loss, 'phi_absmax': jnp.max(jnp.abs(phi)),
-                      'target_absmax': jnp.max(jnp.abs(target))}
+        td = jnp.mean((phi - target) ** 2)
+        loss = td
+        info = {'sf_loss': td, 'phi_absmax': jnp.max(jnp.abs(phi)), 'target_absmax': jnp.max(jnp.abs(target))}
+        lam = self.config.get('sf_ortho_coef', 0.0)
+        if lam > 0:
+            # anti-collapse aux reg: orthonormality ||E[phi phi^T]-I|| on the SF vector phi
+            # (sf_laplacian-style), per-head then averaged. Same form as measure_loss's ortho.
+            Bn = obs.shape[0]; off = 1.0 - jnp.eye(Bn)
+            Cov = jnp.einsum('hid,hjd->hij', phi, phi)                    # [2,B,B]
+            o_off = 0.5 * jnp.sum((Cov * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
+            o_diag = -jnp.mean(jnp.diagonal(Cov, axis1=1, axis2=2), axis=1)
+            orth = jnp.mean(o_off + o_diag)
+            loss = td + lam * orth
+            info['orth'] = orth
+        return loss, info
 
     def ortho_loss(self, batch, grad_params):
         """FB orthonormality penalty ||E[psi psi^T]-I|| on the IQL critic's backward
@@ -657,6 +712,8 @@ class GCIQLFlowAgent(GCIQLAgent):
             )
             if critic_cls in (GCFBValue, GCTwoTowerCritic, GCISFBValue):
                 crit_kwargs['project_z'] = config.get('project_z', False)
+            if critic_cls in (GCIdentityBValue, GCFrozenBValue):
+                crit_kwargs['fb_forward_z'] = config.get('fb_forward_z', False)
             critic_def = critic_cls(**crit_kwargs)
         else:
             value_def = GCValue(
@@ -752,6 +809,7 @@ def get_config():
         config.sf_feature_td = False  # SUCCESSOR-FEATURE vector TD on phi: phi(s,a)<-b(s)+gamma*phi(s',a'), Q=<phi,psi(g)> (train ONLY phi; needs bilinear)
         config.sf_coef = 1.0          # weight on the SF vector-TD loss (sf_feature_td)
         config.sf_base = 'identity'   # SF base feature b: 'identity' -> b(s)=s (d==obs dim); 'frozen' -> b(s)=psi(s) frozen random MLP (d free, e.g. 50)
+        config.sf_ortho_coef = 0.0    # aux orthonormality reg ||E[phi phi^T]-I|| on the SF vector phi (anti-collapse; sf_feature_td only)
         config.fwd_two_tower = False  # FB-style two-tower forward map F=trunk(MLP[s,a],MLP[s,z]) on the IQL bilinear critic (z=sg(psi(g)); architecture-only ablation, no measure loss)
         config.iql_ortho_coef = 0.0  # FB orthonormality ||E[psi psi^T]-I|| on the IQL bilinear critic's psi, with NO measure loss (isolates the ortho constraint on the ~90 IQL bilinear)
         config.project_z = False  # hard-project z and B=psi onto the sqrt(d) sphere (FB's ||B||=||z||=sqrt(d) Norm); applies to GCFBValue/GCTwoTowerCritic

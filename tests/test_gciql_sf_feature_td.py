@@ -154,6 +154,151 @@ def test_sf_frozen_base_feature_is_psi_of_state_gamma0():
     assert "OK" in proc.stdout
 
 
+def test_sf_task_conditioned_phi_depends_on_goal():
+    """With fb_forward_z, the SF forward map is task-conditioned phi([s,a,z=psi(g)]) (à la the
+    reference SF net input cat([obs, task])): phi must DIFFER for different goals (same s,a)."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config())
+        cfg["encoder"] = None; cfg["frame_stack"] = None
+        cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = 11
+        cfg["sf_feature_td"] = True; cfg["sf_base"] = "identity"; cfg["fb_forward_z"] = True
+        ex_obs = jnp.zeros((4, 11)); ex_act = jnp.zeros((4, 5))
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        gfix = jax.random.normal(jax.random.PRNGKey(1), (4, 11))
+        gA = jax.random.normal(jax.random.PRNGKey(2), (4, 11))
+        gB = jax.random.normal(jax.random.PRNGKey(3), (4, 11))
+        # critic(obs, b_goals, actions, z_goals, info): b_goals fixed, vary z_goals -> phi must change
+        _, phiA, _ = agent.network.select("critic")(ex_obs, gfix, ex_act, gA, info=True)
+        _, phiB, _ = agent.network.select("critic")(ex_obs, gfix, ex_act, gB, info=True)
+        assert not jnp.allclose(phiA, phiB), "phi must depend on z_goals (task-conditioned)"
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_sf_task_conditioned_trains_finite():
+    """sf_feature_td + fb_forward_z (task-conditioned phi) trains finite for both bases."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        for base, d in [("identity", 11), ("frozen", 50)]:
+            cfg = dict(get_config())
+            cfg["encoder"] = None; cfg["frame_stack"] = None
+            cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = d
+            cfg["sf_feature_td"] = True; cfg["sf_base"] = base; cfg["fb_forward_z"] = True
+            ex_obs = jax.random.normal(jax.random.PRNGKey(0), (8, 11))
+            ex_act = jax.random.normal(jax.random.PRNGKey(1), (8, 5))
+            agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+            batch = dict(observations=ex_obs, next_observations=ex_obs, actions=ex_act,
+                         rewards=jnp.zeros((8,)), masks=jnp.ones((8,)),
+                         value_goals=ex_obs, actor_goals=ex_obs)
+            for _ in range(5):
+                agent, info = agent.update(batch)
+            assert jnp.isfinite(info["sf/sf_loss"]), (base, info["sf/sf_loss"])
+            assert jnp.isfinite(info["actor/actor_loss"]), (base, info["actor/actor_loss"])
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_sf_ddpgbc_actor_with_conditioned_critic_trains_finite():
+    """actor_kind='ddpgbc' (stock GCIQL gaussian actor, no-flow-actor control) must compose with
+    the TASK-CONDITIONED SF critic (fb_forward_z=True): the ddpgbc Q-term has to pass the z=goal
+    leg to the critic (which expects (obs, goals, actions, z_goals)), else the 3-arg stock call
+    crashes. Training stays finite for both bases."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        for base, d in [("identity", 11), ("frozen", 50)]:
+            cfg = dict(get_config())
+            cfg["encoder"] = None; cfg["frame_stack"] = None
+            cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = d
+            cfg["sf_feature_td"] = True; cfg["sf_base"] = base; cfg["fb_forward_z"] = True
+            cfg["actor_kind"] = "ddpgbc"
+            ex_obs = jax.random.normal(jax.random.PRNGKey(0), (8, 11))
+            ex_act = jax.random.normal(jax.random.PRNGKey(1), (8, 5))
+            agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+            batch = dict(observations=ex_obs, next_observations=ex_obs, actions=ex_act,
+                         rewards=jnp.zeros((8,)), masks=jnp.ones((8,)),
+                         value_goals=ex_obs, actor_goals=ex_obs)
+            for _ in range(5):
+                agent, info = agent.update(batch)
+            assert jnp.isfinite(info["sf/sf_loss"]), (base, info["sf/sf_loss"])
+            assert jnp.isfinite(info["actor/actor_loss"]), (base, info["actor/actor_loss"])
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_sf_ortho_regularizer_adds_finite_term():
+    """sf_ortho_coef>0 adds an orthonormality penalty ||E[phi phi^T]-I|| on the SF vector phi
+    (the sf_laplacian-style anti-collapse aux reg) to the task-conditioned SF loss: it must be
+    reported (sf/orth) and training stays finite. With coef=0 (default) no orth term appears."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        # default: no ortho term
+        cfg0 = dict(get_config()); cfg0["encoder"]=None; cfg0["frame_stack"]=None
+        cfg0["value_arch"]="bilinear"; cfg0["value_latent_dim"]=11
+        cfg0["sf_feature_td"]=True; cfg0["sf_base"]="identity"; cfg0["fb_forward_z"]=True
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (8, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (8, 5))
+        a0 = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg0)
+        batch = dict(observations=ex_obs, next_observations=ex_obs, actions=ex_act,
+                     rewards=jnp.zeros((8,)), masks=jnp.ones((8,)),
+                     value_goals=ex_obs, actor_goals=ex_obs)
+        a0, i0 = a0.update(batch)
+        assert "sf/orth" not in i0, list(i0)
+        # coef=10000: ortho term present + finite training
+        cfg = dict(cfg0); cfg["sf_ortho_coef"]=10000.0
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        for _ in range(5):
+            agent, info = agent.update(batch)
+        assert "sf/orth" in info, list(info)
+        assert jnp.isfinite(info["sf/orth"]) and jnp.isfinite(info["sf/sf_loss"]), info
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_sf_ortho_without_conditioning_trains_finite():
+    """The ortho aux reg composes with the TASK-AGNOSTIC SF (fb_forward_z=False) too -- both
+    bases train finite with sf_ortho_coef=10000 and no task-conditioning."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        for base, d in [("identity", 11), ("frozen", 50)]:
+            cfg = dict(get_config()); cfg["encoder"]=None; cfg["frame_stack"]=None
+            cfg["value_arch"]="bilinear"; cfg["value_latent_dim"]=d
+            cfg["sf_feature_td"]=True; cfg["sf_base"]=base
+            cfg["fb_forward_z"]=False; cfg["sf_ortho_coef"]=10000.0   # AGNOSTIC + ortho
+            ex_obs = jax.random.normal(jax.random.PRNGKey(0), (8, 11))
+            ex_act = jax.random.normal(jax.random.PRNGKey(1), (8, 5))
+            agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+            batch = dict(observations=ex_obs, next_observations=ex_obs, actions=ex_act,
+                         rewards=jnp.zeros((8,)), masks=jnp.ones((8,)),
+                         value_goals=ex_obs, actor_goals=ex_obs)
+            for _ in range(5):
+                agent, info = agent.update(batch)
+            assert "sf/orth" in info, (base, list(info))
+            assert jnp.isfinite(info["sf/orth"]) and jnp.isfinite(info["sf/sf_loss"]), (base, info)
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
 def test_sf_trains_finite():
     """Full agent with sf_feature_td trains finite; total_loss reports sf/sf_loss (the SF
     vector TD) and NOT measure/measure_loss, and the flow actor loss stays finite."""
