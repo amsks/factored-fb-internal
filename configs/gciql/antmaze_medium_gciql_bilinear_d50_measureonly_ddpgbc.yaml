@@ -1,0 +1,36 @@
+# Occupancy-hypothesis discriminator (2026-07-07, follows the E2 psi cross-eval): is the
+# measure-objective failure cube-specific (arm-dominated occupancy => rho-weighted L2 fits
+# the wrong states) or intrinsic to the objective pair? Cube measure-only = 9.9 (flow actor,
+# working-actor domain). This is the antmaze analogue with the DOMAIN-APPROPRIATE actor:
+# DDPGBC (antmaze IQL-bilinear-ddpgbc anchor = 0.88; the flow actor is the antmaze killer,
+# 0.22, and would confound). Measure settings match the cube MeasureOnly cell exactly
+# (coef 1.0, critic legs, no ortho, no scale_norm). 3 seeds @500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: antmaze-medium-navigate-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-AntMaze-Medium-Bilinear-d50-MeasureOnly-DDPGBC
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_kind: ddpgbc
+  actor_loss: ddpgbc
+  alpha: 0.3
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+wandb_mode: online

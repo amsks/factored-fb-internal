@@ -500,11 +500,18 @@ class GCIQLFlowAgent(GCIQLAgent):
             _, phi, psi = self.network.select('critic')(obs, nobs, acts, *zarg, info=True, params=grad_params)
             if sg_phi: phi = jax.lax.stop_gradient(phi)
             M = jnp.einsum('hid,hjd->hij', phi, psi) / sqd                # [2, B, B]
-            noise = jax.random.normal(rng, acts.shape)
             # a+ ~ pi(s+,g); under actor_cond='z' the actor's goal-leg is the d-dim task
             # vector, so map the raw vgoals through _actor_z (critic/value psi) first.
             a_goals = self._actor_z(vgoals, grad_params) if self.config['actor_cond'] == 'z' else vgoals
-            a_next = jax.lax.stop_gradient(self.network.select('actor')(nobs, a_goals, noise))
+            if self.config['actor_kind'] == 'ddpgbc':
+                # stock gaussian actor returns a distribution: a+ = mode (or a sample if learned std)
+                dist = self.network.select('actor')(nobs, a_goals)
+                a_next = dist.mode() if self.config['const_std'] else dist.sample(seed=rng)
+                a_next = jnp.clip(a_next, -1, 1)
+            else:
+                noise = jax.random.normal(rng, acts.shape)
+                a_next = self.network.select('actor')(nobs, a_goals, noise)
+            a_next = jax.lax.stop_gradient(a_next)
             _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, *zarg, info=True)
             tM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi) / sqd)            # [2, B, B]
             offdiag, diagt = self._measure_terms(M, tM, gamma, scale_norm)                      # [2]
