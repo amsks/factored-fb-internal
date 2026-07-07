@@ -1,0 +1,31 @@
+# v4 both-bilinear under flow-both actors (follow-up to the hiql-bilinear mechanism
+# spec). Same value stack as the native bothbil cell (Schaul bilinear main V +
+# stop-grad Schaul bilinear high head, low_actor_rep_grad trains goal_rep) with both
+# AWR actors replaced by flow policies. Compare: flow highbil (v3) ~0.41, flow MLP
+# 0.23, flow option-A bilinear 0.14.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/hiql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 0
+run_group: HIQL-State-Flow-both-BothBil-d50-sg10
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  flow_levels: both
+  value_arch: bilinear
+  bilinear_form: goal
+  value_split: high_bilinear
+  value_latent_dim: 50
+  low_actor_rep_grad: true
+  subgoal_steps: 10
+wandb_mode: online
