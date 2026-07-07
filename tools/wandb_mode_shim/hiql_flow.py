@@ -80,8 +80,9 @@ class HIQLFlowAgent(HIQLAgent):
     def high_actor_loss(self, batch, grad_params, rng=None):
         if not self._high_is_flow():
             return HIQLAgent.high_actor_loss(self, batch, grad_params)
-        v1, v2 = self.network.select('value')(batch['observations'], batch['high_actor_goals'])
-        nv1, nv2 = self.network.select('value')(batch['high_actor_targets'], batch['high_actor_goals'])
+        head = 'high_value' if self.config.get('value_split', 'shared') == 'high_bilinear' else 'value'
+        v1, v2 = self.network.select(head)(batch['observations'], batch['high_actor_goals'])
+        nv1, nv2 = self.network.select(head)(batch['high_actor_targets'], batch['high_actor_goals'])
         adv = (nv1 + nv2) / 2 - (v1 + v2) / 2
         exp_a = jnp.minimum(jnp.exp(adv * self.config['high_alpha']), 100.0)
 
@@ -116,7 +117,12 @@ class HIQLFlowAgent(HIQLAgent):
         high_loss, high_info = self.high_actor_loss(batch, grad_params, high_rng)
         for k, v in high_info.items():
             info[f'high_actor/{k}'] = v
-        return value_loss + low_loss + high_loss, info
+        high_value_loss = 0.0
+        if self.config.get('value_split', 'shared') == 'high_bilinear':
+            high_value_loss, high_value_info = self.high_value_loss(batch, grad_params)
+            for k, v in high_value_info.items():
+                info[f'high_value/{k}'] = v
+        return value_loss + low_loss + high_loss + high_value_loss, info
 
     @jax.jit
     def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
@@ -198,6 +204,18 @@ class HIQLFlowAgent(HIQLAgent):
             value=(value_def, (ex_observations, ex_goals)),
             target_value=(target_value_def, (ex_observations, ex_goals)),
         )
+        if config.get('value_split', 'shared') == 'high_bilinear':
+            use_rep_high = config.get('bilinear_form', 'rep') == 'rep'
+            high_value_def = _BilinearRepValue(
+                goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
+                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'],
+                ensemble=True, use_rep=use_rep_high, stop_rep_grad=True)
+            target_high_value_def = _BilinearRepValue(
+                goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
+                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'],
+                ensemble=True, use_rep=use_rep_high, stop_rep_grad=True)
+            network_info['high_value'] = (high_value_def, (ex_observations, ex_goals))
+            network_info['target_high_value'] = (target_high_value_def, (ex_observations, ex_goals))
 
         low_is_flow = config['flow_levels'] in ('low', 'both')
         high_is_flow = config['flow_levels'] in ('high', 'both')
@@ -236,6 +254,8 @@ class HIQLFlowAgent(HIQLAgent):
         network = TrainState.create(network_def, network_params, tx=network_tx)
         params = network_params
         params['modules_target_value'] = params['modules_value']
+        if config.get('value_split', 'shared') == 'high_bilinear':
+            params['modules_target_high_value'] = params['modules_high_value']
         return cls(rng, network=network, config=flax.core.FrozenDict(**config))
 
 
