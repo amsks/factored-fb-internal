@@ -1,0 +1,303 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{multirow}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue]{hyperref}
+\usepackage{enumitem}
+
+\newcommand{\B}[1]{\textbf{#1}}
+% colour code: local (our runs) = green, published OGBench = orange
+\definecolor{locgreen}{rgb}{0.00,0.50,0.20}
+\definecolor{puborange}{rgb}{0.85,0.45,0.00}
+\newcommand{\loc}[1]{\textcolor{locgreen}{#1}}
+\newcommand{\pub}[1]{\textcolor{puborange}{#1}}
+\newcommand{\win}[1]{\B{\loc{#1}}}   % local number that beats published SOTA
+\newcommand{\nr}{\textcolor{gray}{\emph{not run}}}
+\newcommand{\inflight}[1]{\loc{#1}\,\textcolor{gray}{$^{\circ}$}} % @400k, run still finishing
+
+\title{\bf Is bilinear value factorization a new SOTA on OGBench?}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We swap the monolithic MLP value head of three OGBench reference agents
+(\B{GCIQL}, \B{HIQL}, \B{GCIVL}) for a rank-$d$ bilinear factorization
+$Q(s,a,g)=\phi(s,a)^{\!\top}\psi(g)/\sqrt{d}$ and evaluate on \B{cube-single},
+\B{antmaze-medium}, and \B{scene} (state obs). On cube, bilinear beats the
+published SOTA for \emph{all three} methods once wired correctly (GCIQL
+\win{90.4} vs \pub{68}, GCIVL \win{79.2} vs \pub{53}, HIQL \win{41.3} vs
+\pub{15}); on antmaze the win is method-relative only, and on scene bilinear
+loses with every actor. The main failure mode is identified: the bilinear TD
+loss must not become the trainer of a representation the policy shares;
+HIQL recovers exactly when $\psi$ is routed around its subgoal representation
+$\zeta$.
+\end{abstract}
+
+\section{The factorization, per algorithm}
+\label{sec:setup}
+Offline GCRL setting per OGBench~\cite{park2025ogbench}: reward-free dataset
+$\mathcal{D}$, hindsight-relabelled goals $g\sim p(g\mid\tau)$ (current / future
+/ random mixture, OGBench defaults), sparse reward
+$r(s,g)=\mathbf{1}[s\in S_g]-1$, termination mask $m=\mathbf{1}[s\notin S_g]$.
+All value losses use the expectile loss~\cite{kostrikov2022iql}
+$\ell^2_\tau(x)=|\tau-\mathbf{1}[x<0]|\,x^2$, $\tau\in[0.5,1)$; targets $\bar
+V,\bar Q$; 2-ensembles throughout.\footnote{OGBench stabilizes the expectile
+regression with a double-DQN-style split (expectile weight from the target-net
+advantage, regressed difference from the online net); we keep it verbatim in
+every variant.} We replace each value MLP with a rank-$d$ ($d{=}50$) two-tower
+inner product, leaving losses, targets, and subgoal machinery untouched.
+
+\B{GCIVL} (action-free goal-conditioned IQL~\cite{park2023hiql}; AWR~\cite{peng2019awr} actor):
+\begin{equation}
+\mathcal{L}_{V}^{\text{IVL}}
+=\mathbb{E}\Bigl[\ell^2_\tau\bigl(r+\gamma m\,
+\textstyle\min_i \bar V_i(s',g)-V(s,g)\bigr)\Bigr],
+\qquad\text{factorized: }\;
+V(s,g)=\tfrac{1}{\sqrt d}\,\phi(s)^{\!\top}\psi(g).
+\label{eq:ivl}
+\end{equation}
+
+\B{GCIQL} (goal-conditioned IQL~\cite{kostrikov2022iql}; DDPG+BC~\cite{fujimoto2021td3bc} actor):
+\begin{equation}
+\mathcal{L}_{V}^{\text{IQL}}
+=\mathbb{E}\Bigl[\ell^2_\tau\bigl(\textstyle\min_i\bar Q_i(s,a,g)-V(s,g)\bigr)\Bigr],
+\qquad
+\mathcal{L}_{Q}
+=\mathbb{E}\Bigl[\textstyle\sum_{i}\bigl(Q_i(s,a,g)-r-\gamma m V(s',g)\bigr)^{2}\Bigr],
+\label{eq:iql}
+\end{equation}
+factorized in \emph{both} heads:
+$Q_i(s,a,g)=\tfrac{1}{\sqrt d}\phi_i(s,a)^{\!\top}\psi_i(g)$,
+$V(s,g)=\tfrac{1}{\sqrt d}\phi_V(s)^{\!\top}\psi_V(g)$.
+
+\B{HIQL}~\cite{park2023hiql} trains one value with Eq.~\eqref{eq:ivl} but reads
+the goal through a learned, length-normalized subgoal representation
+$\zeta:\mathcal{S}\times\mathcal{G}\to\mathbb{R}^k$ ($k{=}10$,
+$\|\zeta\|=\sqrt k$):\footnote{The HIQL paper analyzes $V(s,\varphi(g))$ but
+adopts the state-conditioned $\varphi([g,s])$ (our $\zeta(s,g)$) as the
+empirically better variant; OGBench and we use exactly that.}
+\begin{equation}
+V(s,g)=f_\theta\bigl(s,\zeta(s,g)\bigr).
+\label{eq:hiqlstock}
+\end{equation}
+$\zeta$ is HIQL's ``latent states as actions'': the high-level policy is trained
+by AWR on $A^{h}=V(s_{t+n},g)-V(s_t,g)$ to output $z=\zeta(s_t,s_{t+n})$, and the
+low-level policy consumes $z$. On state observations the low-level gradient into
+$\zeta$ is off by default, so \B{the value loss is $\zeta$'s sole trainer}. This
+makes the factorization ambiguous ($\psi$ may eat $g$ or $\zeta(s,g)$); we test
+three forms:
+\begin{align}
+\text{(a) via shared rep (BVN-style~\cite{hong2023bvn}):}\quad
+& V(s,g) = \tfrac{1}{\sqrt d}\,\phi(s)^{\!\top}\psi\bigl(\zeta(s,g)\bigr),
+\label{eq:hiqlrep}\\
+\text{(b) Schaul form~\cite{schaul2015uvfa}:}\quad
+& V(s,g) = \tfrac{1}{\sqrt d}\,\phi(s)^{\!\top}\psi(g),
+\label{eq:hiqlschaul}\\
+\text{(c) two-head split:}\quad
+& V = \text{stock Eq.~\eqref{eq:hiqlstock}}, \quad
+V^{h}(s,g) = \tfrac{1}{\sqrt d}\,\phi(s)^{\!\top}
+\psi(g)\big|_{\,\mathrm{sg}(\zeta)}.
+\label{eq:hiqlsplit}
+\end{align}
+In (a) the bilinear loss \emph{replaces} the stock loss as $\zeta$'s trainer; in
+(b) $\zeta$ gets no value gradient (the low-level gradient is re-enabled to keep
+it trained); in (c) the stock $V$ keeps TD, low level, and $\zeta$-training,
+while a stop-gradient bilinear head serves only the high-level advantage. The
+GCIQL/GCIVL factorizations are Schaul-form by construction; HIQL's (a) is the
+exception, and it matters (\S\ref{sec:hiqlmech}).
+
+Besides each method's stock actor we test a distilled \emph{flow} actor
+(one-step flow-matching BC + $Q$-max distillation, \`a la
+FQL~\cite{park2025fql}); the actor turns out to be a first-order confound, so it
+gets separate rows.
+
+\section{What we evaluated}
+\label{sec:results}
+Table~\ref{tab:main} is the evaluation record; protocol in the caption. Cube:
+bilinear beats the published SOTA for all three methods: GCIQL flow
+\win{90.4} (\loc{93.1} @1M; $d{=}128/512$: 94.2/94.6; a \emph{domain} SOTA,
+best published across all eight OGBench methods is \pub{68}), GCIVL \win{67.5}
+(AWR) / \win{79.2} (flow), HIQL \win{32.8}--\win{41.3} via forms
+(b)/(c). Rank is not the knob: $d\in\{50,128,512\}$ is flat and $d{=}5$
+cliffs to 12--15. Antmaze: \win{83.7} vs \pub{71} is \emph{method-relative}
+(published HIQL owns the domain at \pub{96}). Scene: bilinear loses with
+\emph{both} actors: the one domain where the factorized value itself fails.
+Which actor unlocks bilinear flips by domain, so any claim must name
+(method, actor, domain):
+\begin{center}\small
+\begin{tabular}{@{}l ccc@{}}
+\toprule
+GCIQL bilinear $d{=}50$ & flow actor & DDPG+BC actor & stock MLP (best) \\
+\midrule
+cube-single  & \win{$90.4$} & \loc{$51.3$}\,$^{\alpha}$ & \loc{$71.7$} \\
+antmaze-med  & \loc{$23.9$} & \win{$83.7$} & \loc{$69.5$} \\
+scene        & \loc{$29.2$} & \loc{$25.4$} & \loc{$51.6$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{@{}l l l ccc@{}}
+\toprule
+Method & Value head & Actor & cube-single & antmaze-med & scene \\
+\midrule
+\multirow{6}{*}{\B{GCIQL}}
+ & \pub{OGBench (pub.)} & native      & \pub{$68\pm6$}   & \pub{$71\pm4$}   & \pub{$51\pm4$} \\
+ & MLP (native)         & DDPG+BC     & \loc{$70.3\pm4.7$}& \loc{$69.5\pm4.4$}& \loc{$51.6\pm3.6$} \\
+ & MLP (native)         & flow        & \loc{$71.7\pm4.9$}& \loc{$33.3\pm5.2$}& \nr \\
+ & \B{bilinear} $d{=}50$& flow        & \win{$90.4\pm3.4$}& \loc{$23.9\pm1.6$}& \loc{$29.2\pm3.2$} \\
+ & \B{bilinear} $d{=}50$& DDPG+BC     & \loc{$51.3\pm8.0$}\,$^{\alpha}$& \win{$83.7\pm0.7$}& \loc{$25.4\pm0.3$}\,$^{s}$ \\
+\midrule
+\multirow{6}{*}{\B{HIQL}}
+ & \pub{OGBench (pub.)} & native          & \pub{$15\pm3$}   & \pub{$96\pm1$}   & \pub{$38\pm3$} \\
+ & MLP (native)         & hier.\ AWR      & \loc{$16.7\pm5.8$}& \loc{$95.3\pm0.6$}\,$^{m}$ & \nr \\
+ & \B{bilinear} Eq.~\eqref{eq:hiqlrep} & hier.\ AWR & \loc{$18.5\pm0.2$}& \loc{$95.9\pm0.5$}\,$^{m}$ & \nr \\
+ & \B{bilinear} Eq.~\eqref{eq:hiqlschaul} & hier.\ AWR & \win{$32.8\pm0.4$}& \nr & \nr \\
+ & \B{bilinear} Eq.~\eqref{eq:hiqlsplit} & hier.\ AWR & \win{\inflight{$34.3\pm5.4$}}& \nr & \nr \\
+ & \B{bilinear} Eq.~\eqref{eq:hiqlsplit} & flow       & \win{\inflight{$41.3\pm2.3$}}& \nr & \nr \\
+\midrule
+\multirow{5}{*}{\B{GCIVL}}
+ & \pub{OGBench (pub.)} & native      & \pub{$53\pm4$}   & \pub{$72\pm8$}   & \pub{$42\pm4$} \\
+ & MLP (native)         & AWR         & \loc{$49.6\pm2.0$}& \nr & \nr \\
+ & MLP (native)         & flow        & \loc{$59.1\pm4.2$}& \nr & \nr \\
+ & \B{bilinear} $d{=}50$& AWR         & \win{$67.5\pm8.7$}& \nr & \nr \\
+ & \B{bilinear} $d{=}50$& flow        & \win{$79.2\pm0.4$}\,$^\dagger$& \nr & \nr \\
+\bottomrule
+\end{tabular}
+\caption{\B{Does bilinear factorization beat SOTA?} State obs;
+\texttt{evaluation/overall\_success} (\%) over 5 eval goals, mean\,$\pm$\,SD,
+$n{=}3$ seeds @500k unless noted. \loc{Green}=local, \pub{orange}=OGBench
+paper (8 seeds @1M); \B{bold green} = beats the published number for that
+method/domain. $^{m}$matched protocol: 8 seeds, 1M, avg last-3 evals.
+$^{\circ}$read @400k, runs finishing. $^{\alpha}$$\alpha{=}0.3$ vs stock
+$\alpha{=}1.0$ (confounded, rerun owed). $^{s}$$n{=}2$ (third seed @300k:
+20.8). $^\dagger$healthy batch; an earlier batch died at init and had
+contaminated this cell as ``$47.5\pm38.8$''. HIQL cube cells use the tuned
+\texttt{subgoal\_steps}${=}10$. \nr\ = not run.}
+\label{tab:main}
+\end{table}
+
+\section{Why: the shared-representation mechanism}
+\label{sec:hiqlmech}
+The same factorization that buys GCIQL $+22$ and GCIVL $+18$--$30$ on cube moved
+HIQL by $+1.8$ and \emph{hurt} its flow variant. The reason is in the algebra of
+\S\ref{sec:setup}: $\zeta$ is at once the value's goal encoder, the high-level
+action space, and the low-level goal input, and form~\eqref{eq:hiqlrep}
+silently swaps its only training signal from the stock TD loss to the bilinear
+one. GCIQL/GCIVL have no such shared module. A linear probe of $\zeta$ @500k
+confirms: no rank collapse (participation ratio rises), but global geometry
+degrades under~\eqref{eq:hiqlrep} (goal-xyz $R^2$ on random pairs
+$0.14\!\to\!0.08$, rep-vs-goal-distance Spearman $0.115\!\to\!0.06$) while
+subgoal-scale structure is spared. Cutting the value$\to\zeta$ path,
+by~\eqref{eq:hiqlschaul} or~\eqref{eq:hiqlsplit}, is the fix
+(Table~\ref{tab:hiqlmech}): every cell where the bilinear loss trains $\zeta$ is
+flat-to-worse and capacity ($k\,10\!\to\!50$) does not rescue it; every cell
+where it does not is a $2$--$2.7\times$ win over the published \pub{15}, and the
+flow cell flips from bilinear's worst (14.5) to its best (41.3$^{\circ}$). The
+matched-protocol antmaze control (MLP \loc{95.3} vs form-(a) \loc{95.9}, 8
+seeds @1M) shows the warp costs nothing at that domain's ceiling, which is why
+it was invisible where HIQL shines. The design rule: \B{the bilinear head must
+not train a representation the policy shares}; when in doubt, give it a
+stop-gradient path. Scene, where bilinear fails for GCIQL with both actors,
+plausibly needs the value to compose multiple object-to-object interactions,
+the one setting where a rank-50 product of a state tower and a goal tower is the
+wrong bias; the~\eqref{eq:hiqlschaul}-vs-\eqref{eq:hiqlrep} axis is untested
+there and is the obvious next probe.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{@{}l l l c@{}}
+\toprule
+Cell & who trains $\zeta$ & high-level advantage from & success \\
+\midrule
+MLP (baseline), Eq.~\eqref{eq:hiqlstock}\footnotemark & MLP value & MLP $V$ & \loc{$16.7\pm5.8$} \\
+bilinear via shared rep, Eq.~\eqref{eq:hiqlrep} & \B{bilinear value} & bilinear $V$ & \loc{$18.5\pm0.2$} \\
+\quad + $\zeta$ dim $k\!:10\!\to\!50$ & \B{bilinear value} & bilinear $V$   & \inflight{$24.3\pm1.0$} \\
+bilinear, Schaul $\psi(g)$, Eq.~\eqref{eq:hiqlschaul} & low actor & bilinear $V$ & \win{$32.8\pm0.4$} \\
+two-head split, Eq.~\eqref{eq:hiqlsplit} & MLP value & stop-grad bilinear head & \win{\inflight{$34.3\pm5.4$}} \\
+\midrule
+flow actors: MLP          & MLP value             & MLP $V$        & \loc{$22.7\pm5.2$} \\
+flow, bilinear via shared rep & \B{bilinear value} & bilinear $V$  & \loc{$14.5\pm2.6$} \\
+flow, two-head split      & MLP value             & stop-grad bilinear head & \win{\inflight{$41.3\pm2.3$}} \\
+\bottomrule
+\end{tabular}
+\caption{\B{HIQL mechanism ladder} (cube-single, \texttt{subgoal\_steps}=10,
+$d{=}50$, 3 seeds @500k; $^{\circ}$=@400k, finishing). \B{Bold ``who trains
+$\zeta$''} = the bilinear TD loss shapes the shared subgoal representation.}
+\label{tab:hiqlmech}
+\end{table}
+\footnotetext{Earlier drafts ran \texttt{subgoal\_steps}${=}25$ (MLP 24.6,
+bilinear 15.9) and concluded ``bilinear doesn't help HIQL''; at the tuned
+sg${=}10$ the baseline reproduces the published \pub{15} and that conclusion is
+retired.}
+
+\paragraph{Caveats.}
+\begin{itemize}[nosep,leftmargin=1.4em]
+\item Local = 500k/3 seeds vs published 1M/8 seeds; where both exist 500k
+\emph{under}states bilinear ($90.4\!\to\!93.1$), but the winning cells still owe
+a matched 8-seed 1M confirmation.
+\item $^{\circ}$ cells are @400k with runs finishing; the ordering is already
+fixed by the fully-final Schaul cell (32.8 @500k).
+\item Confounds: bilinear $d{=}50$ has $2.06\times$ the value-head params of the
+MLP (control owed); cube DDPG+BC ran $\alpha{=}0.3$ ($^{\alpha}$); scene is
+untested on the~\eqref{eq:hiqlschaul}-vs-\eqref{eq:hiqlrep} axis.
+\item Not run: GCIVL beyond cube, HIQL mechanism cells beyond cube, pixels.
+\end{itemize}
+
+\B{Provenance.} wandb \texttt{amsks/factored-fb} (pulled 2026-07-06, refreshed
+from run-local \texttt{eval.csv} 2026-07-07), metric
+\texttt{evaluation/overall\_success}; published numbers from
+OGBench~\cite{park2025ogbench}, Table~2.
+
+\begin{thebibliography}{9}
+\bibitem{park2025ogbench}
+S.~Park, K.~Frans, B.~Eysenbach, and S.~Levine.
+\newblock OGBench: Benchmarking offline goal-conditioned RL.
+\newblock In \emph{ICLR}, 2025. arXiv:2410.20092.
+
+\bibitem{park2023hiql}
+S.~Park, D.~Ghosh, B.~Eysenbach, and S.~Levine.
+\newblock HIQL: Offline goal-conditioned RL with latent states as actions.
+\newblock In \emph{NeurIPS}, 2023. arXiv:2307.11949.
+
+\bibitem{kostrikov2022iql}
+I.~Kostrikov, A.~Nair, and S.~Levine.
+\newblock Offline reinforcement learning with implicit Q-learning.
+\newblock In \emph{ICLR}, 2022. arXiv:2110.06169.
+
+\bibitem{peng2019awr}
+X.~B. Peng, A.~Kumar, G.~Zhang, and S.~Levine.
+\newblock Advantage-weighted regression: Simple and scalable off-policy
+reinforcement learning.
+\newblock arXiv:1910.00177, 2019.
+
+\bibitem{fujimoto2021td3bc}
+S.~Fujimoto and S.~S. Gu.
+\newblock A minimalist approach to offline reinforcement learning.
+\newblock In \emph{NeurIPS}, 2021. arXiv:2106.06860.
+
+\bibitem{schaul2015uvfa}
+T.~Schaul, D.~Horgan, K.~Gregor, and D.~Silver.
+\newblock Universal value function approximators.
+\newblock In \emph{ICML}, 2015.
+
+\bibitem{hong2023bvn}
+Z.-W. Hong, G.~Yang, and P.~Agrawal.
+\newblock Bilinear value networks.
+\newblock In \emph{ICLR}, 2023. arXiv:2204.13695.
+
+\bibitem{park2025fql}
+S.~Park, Q.~Li, and S.~Levine.
+\newblock Flow Q-learning.
+\newblock In \emph{ICML}, 2025. arXiv:2502.02538.
+\end{thebibliography}
+
+\end{document}
