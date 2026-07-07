@@ -137,3 +137,36 @@ def test_measure_knobs_compose_with_iql_finite_and_bounded():
     proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
     assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     assert "OK" in proc.stdout
+
+
+def test_measure_ddpgbc_actor_next_action_trains_finite():
+    """actor_kind='ddpgbc' must compose with measure_loss (critic legs): the bootstrap
+    a+ ~ pi(s+,g) has to come from the gaussian actor's mode/sample, not the flow-actor
+    noise call — the stock call returns a distrax distribution and the target_critic
+    concat crashes on it (hit on the antmaze MeasureOnly-DDPGBC cell, 2026-07-07).
+    Covers both measure_only=True (sole objective) and the measure-mix graft."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        for measure_only in (True, False):
+            cfg = dict(get_config())
+            cfg["encoder"] = None; cfg["frame_stack"] = None
+            cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = 11
+            cfg["measure_only"] = measure_only; cfg["measure_coef"] = 1.0
+            cfg["measure_legs"] = "critic"
+            cfg["actor_kind"] = "ddpgbc"; cfg["actor_loss"] = "ddpgbc"
+            ex_obs = jax.random.normal(jax.random.PRNGKey(0), (8, 11))
+            ex_act = jax.random.normal(jax.random.PRNGKey(1), (8, 5))
+            agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+            batch = dict(observations=ex_obs, next_observations=ex_obs, actions=ex_act,
+                         rewards=jnp.zeros((8,)), masks=jnp.ones((8,)),
+                         value_goals=ex_obs, actor_goals=ex_obs)
+            for _ in range(3):
+                agent, info = agent.update(batch)
+            assert jnp.isfinite(info["measure/measure_loss"]), (measure_only, info)
+            assert jnp.isfinite(info["actor/actor_loss"]), (measure_only, info)
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
