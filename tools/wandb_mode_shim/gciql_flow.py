@@ -442,6 +442,27 @@ class GCIQLFlowAgent(GCIQLAgent):
             'q_abs_mean': jnp.abs(q).mean(),
         }
 
+    @staticmethod
+    def _measure_terms(M, tM, gamma, scale_norm, eps=1e-6):
+        """Reduce the online measure M and stop-gradded target tM into the FB (offdiag, diag)
+        TD terms over the last two (BxB) axes (leading head axes preserved):
+            diff = M - gamma*tM;  offdiag = 0.5*sum((diff*off)^2)/sum(off);  diag = -mean(diag(diff))
+        With measure_scale_norm, divide by a stop-gradded measure scale so the gradient is
+        DIMENSIONLESS -- the same trick the actor q_loss uses (q/sg[|q|]) -- which stops the
+        unbounded <F,z> inflation from blowing up the shared critic (audit-20260706 §1):
+            offdiag /= sg[mean(M^2)+eps];  diag /= sg[sqrt(mean(M^2))+eps].
+        Ortho term is handled by the caller (already scale-bounded by psi)."""
+        B = M.shape[-1]
+        off = 1.0 - jnp.eye(B)
+        diff = M - gamma * tM
+        offdiag = 0.5 * jnp.sum((diff * off) ** 2, axis=(-2, -1)) / jnp.sum(off)
+        diagt = -jnp.mean(jnp.diagonal(diff, axis1=-2, axis2=-1), axis=-1)
+        if scale_norm:
+            msq = jax.lax.stop_gradient(jnp.mean(M ** 2))
+            offdiag = offdiag / (msq + eps)
+            diagt = diagt / (jnp.sqrt(msq) + eps)
+        return offdiag, diagt
+
     def measure_loss(self, batch, grad_params, rng):
         """FB successor-measure loss grafted onto GCIQL's bilinear features. FB's update_fb
         split: off-diagonal TD over random goals + diagonal attraction to the observed
@@ -450,18 +471,24 @@ class GCIQLFlowAgent(GCIQLAgent):
         measure_legs='critic' (default, FB-FAITHFUL): the state-ACTION measure on the CRITIC
         legs -- M(s,a,s')=<phi(s,a),psi(s')>/sqrt(d) (phi=F, psi=B), bootstrap a+ ~ pi(s+,g)
         (stop-grad) via the target_critic. Per-head loss then averaged. Shares phi/psi with the
-        IQL critic the actor maximizes. 'value': the state-only measure on the value legs."""
+        IQL critic the actor maximizes. 'value': the state-only measure on the value legs.
+
+        Two default-OFF scale-control knobs (audit-20260706 §1 / E2 spec):
+          measure_scale_norm  -> dimensionless TD terms (see _measure_terms).
+          measure_stopgrad_phi-> stop-grad phi so the measure gradient shapes only psi (the
+                                 readout/backward leg), quarantined from the forward leg."""
         obs, nobs = batch['observations'], batch['next_observations']
         d = self.config['value_latent_dim']; sqd = jnp.sqrt(d); gamma = self.config['discount']
         B = obs.shape[0]; off = 1.0 - jnp.eye(B)
+        scale_norm = self.config.get('measure_scale_norm', False)
+        sg_phi = self.config.get('measure_stopgrad_phi', False)
         if self.config.get('measure_legs', 'critic') == 'value':
             _, phi, psi = self.network.select('value')(obs, nobs, info=True, params=grad_params)
+            if sg_phi: phi = jax.lax.stop_gradient(phi)
             M = (phi @ psi.T) / sqd
             _, tphi, tpsi = self.network.select('value')(nobs, nobs, info=True, params=grad_params)
             tM = jax.lax.stop_gradient((tphi @ tpsi.T) / sqd)
-            diff = M - gamma * tM
-            offdiag = 0.5 * jnp.sum((diff * off) ** 2) / jnp.sum(off)
-            diagt = -jnp.mean(jnp.diag(diff))
+            offdiag, diagt = self._measure_terms(M, tM, gamma, scale_norm)
             Cov = psi @ psi.T                                            # FB ortho on B:=psi (grads on)
             orth = 0.5 * jnp.sum((Cov * off) ** 2) / jnp.sum(off) - jnp.mean(jnp.diag(Cov))
             loss = offdiag + diagt + self.config.get('measure_ortho_coef', 0.0) * orth
@@ -471,6 +498,7 @@ class GCIQLFlowAgent(GCIQLAgent):
             # so M[i,j]=F(s_i,a_i,z_i).B(s'_j) is a genuine z-indexed family. Else phi(s,a).
             zarg = (vgoals,) if self.config.get('fb_forward_z', False) else ()
             _, phi, psi = self.network.select('critic')(obs, nobs, acts, *zarg, info=True, params=grad_params)
+            if sg_phi: phi = jax.lax.stop_gradient(phi)
             M = jnp.einsum('hid,hjd->hij', phi, psi) / sqd                # [2, B, B]
             noise = jax.random.normal(rng, acts.shape)
             # a+ ~ pi(s+,g); under actor_cond='z' the actor's goal-leg is the d-dim task
@@ -479,9 +507,7 @@ class GCIQLFlowAgent(GCIQLAgent):
             a_next = jax.lax.stop_gradient(self.network.select('actor')(nobs, a_goals, noise))
             _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, *zarg, info=True)
             tM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi) / sqd)            # [2, B, B]
-            diff = M - gamma * tM                                          # [2, B, B]
-            offdiag = 0.5 * jnp.sum((diff * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)        # [2]
-            diagt = -jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2), axis=1)                     # [2]
+            offdiag, diagt = self._measure_terms(M, tM, gamma, scale_norm)                      # [2]
             Cov = jnp.einsum('hid,hjd->hij', psi, psi)                    # FB ortho on B:=psi(s') (grads on)
             o_off = 0.5 * jnp.sum((Cov * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
             o_diag = -jnp.mean(jnp.diagonal(Cov, axis1=1, axis2=2), axis=1)
@@ -805,6 +831,8 @@ def get_config():
         config.measure_legs = 'critic'  # 'critic' = state-action SM on Q legs (FB-faithful) | 'value' = state SM on V legs
         config.measure_only = False  # True = drop IQL value/critic losses; critic trained ONLY by the SM (FB objective)
         config.measure_ortho_coef = 0.0  # FB orthonormality coef lambda on psi (||E[psi psi^T]-I||); FB uses 1000
+        config.measure_scale_norm = False  # E2: divide the measure TD terms by sg[mean(M^2)] so the gradient is dimensionless (stops the <F,z> inflation that crashed 18/18 mc* runs; audit §1)
+        config.measure_stopgrad_phi = False  # E2: stop-grad phi inside measure_loss so the measure gradient shapes ONLY psi (readout/backward leg), quarantined from the value-critical forward leg
         config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)
         config.sf_feature_td = False  # SUCCESSOR-FEATURE vector TD on phi: phi(s,a)<-b(s)+gamma*phi(s',a'), Q=<phi,psi(g)> (train ONLY phi; needs bilinear)
         config.sf_coef = 1.0          # weight on the SF vector-TD loss (sf_feature_td)
