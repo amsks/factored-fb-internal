@@ -1,0 +1,28 @@
+# Coverage cell: HIQL v3 (two-head split, stop-grad Schaul bilinear high head) under
+# flow-both actors on antmaze. AWR-flow-BC has no bc_coeff; OGBench antmaze HIQL HPs
+# (high/low alpha 3.0, subgoal_steps 25) equal the agent defaults, so only the
+# bilinear/flow knobs are set. Cube flow-v3 = 41.3; published antmaze HIQL = 96.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: antmaze-medium-navigate-v0
+agent_file: tools/wandb_mode_shim/hiql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 0
+run_group: HIQL-AntMaze-Medium-Flow-both-HighBil-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  flow_levels: both
+  value_arch: mlp
+  value_split: high_bilinear
+  value_latent_dim: 50
+  bilinear_form: goal
+wandb_mode: online
