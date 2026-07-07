@@ -118,3 +118,58 @@ a = agent.sample_actions(ex_obs, ex_obs, seed=jax.random.PRNGKey(0))
 assert a.shape == (4, 5)
 print("OK")
 """)
+
+
+def test_v4_both_levels_bilinear_composition():
+    """v4 (both-bilinear): value_arch=bilinear+bilinear_form=goal (Schaul low/TD head)
+    composed with value_split=high_bilinear (separate Schaul high head). Neither head
+    may train goal_rep; low_actor_rep_grad=True must be its sole trainer."""
+    _run(_BATCH + """
+from agents.hiql import HIQLAgent, get_config
+def make(low_rep_grad):
+    cfg = dict(get_config()); cfg["encoder"] = None; cfg["frame_stack"] = None
+    cfg["value_arch"] = "bilinear"; cfg["bilinear_form"] = "goal"
+    cfg["value_split"] = "high_bilinear"; cfg["value_latent_dim"] = 16
+    cfg["low_actor_rep_grad"] = low_rep_grad
+    return HIQLAgent.create(0, ex_obs, ex_act, cfg)
+agent = make(True)
+assert "modules_high_value" in agent.network.params
+p0 = agent.network.params["modules_goal_rep"]
+v0 = agent.network.params["modules_value"]
+hv0 = agent.network.params["modules_high_value"]
+for _ in range(2):
+    agent, info = agent.update(batch)
+assert jnp.isfinite(info["value/value_loss"])
+assert jnp.isfinite(info["high_value/value_loss"]), sorted(info)
+assert moved(v0, agent.network.params["modules_value"]), "main bilinear V must TD-train"
+assert moved(hv0, agent.network.params["modules_high_value"]), "high head must TD-train"
+assert moved(p0, agent.network.params["modules_goal_rep"]), "low actor must train goal_rep"
+agent = make(False); p0 = agent.network.params["modules_goal_rep"]
+ag2, _ = agent.update(batch)
+assert not moved(p0, ag2.network.params["modules_goal_rep"]), \
+    "both heads Schaul + no low rep grad: goal_rep must be FROZEN (neither head trains it)"
+print("OK")
+""")
+
+
+def test_v4_flow_both_levels_bilinear_composition():
+    """v4 under flow-both actors: builds, trains finite, goal_rep trained by the flow
+    low actor (low_actor_rep_grad=True), sampling works."""
+    _run(_BATCH + """
+from hiql_flow import HIQLFlowAgent, get_config
+cfg = dict(get_config()); cfg["encoder"] = None; cfg["frame_stack"] = None
+cfg["flow_levels"] = "both"; cfg["value_arch"] = "bilinear"; cfg["bilinear_form"] = "goal"
+cfg["value_split"] = "high_bilinear"; cfg["value_latent_dim"] = 16
+cfg["low_actor_rep_grad"] = True
+agent = HIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+assert "modules_high_value" in agent.network.params
+p0 = agent.network.params["modules_goal_rep"]
+for _ in range(2):
+    agent, info = agent.update(batch)
+assert jnp.isfinite(info["value/value_loss"])
+assert jnp.isfinite(info["high_value/value_loss"]), sorted(info)
+assert moved(p0, agent.network.params["modules_goal_rep"]), "flow low actor must train goal_rep"
+a = agent.sample_actions(ex_obs, ex_obs, seed=jax.random.PRNGKey(0))
+assert a.shape == (4, 5)
+print("OK")
+""")

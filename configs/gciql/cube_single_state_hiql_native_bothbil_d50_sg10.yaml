@@ -1,0 +1,31 @@
+# v4 both-bilinear (follow-up to the hiql-bilinear mechanism spec): factorize BOTH
+# levels' values. Main V = Schaul bilinear (TD + low-level advantage; gives goal_rep
+# no gradient, low_actor_rep_grad=true trains it) PLUS the separate stop-grad Schaul
+# bilinear high head. Compare: v2 schaul 0.33 (one bilinear, both levels) and v3
+# highbil 0.34 (MLP low + bilinear high). v4 asks: does the low level ALSO want
+# bilinear once eta's trainer is safe?
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: agents/hiql.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 0
+run_group: HIQL-State-Native-BothBil-d50-sg10
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  value_arch: bilinear
+  bilinear_form: goal
+  value_split: high_bilinear
+  value_latent_dim: 50
+  low_actor_rep_grad: true
+  subgoal_steps: 10
+wandb_mode: online
