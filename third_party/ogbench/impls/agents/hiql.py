@@ -12,16 +12,21 @@ from utils.networks import MLP, GCActor, GCDiscreteActor, GCValue, Identity, Len
 
 
 class _BilinearRepValue(nn.Module):
-    """HIQL bilinear value (option A): V(s,g) = <phi(s), psi(rep)> / sqrt(d), where
-    rep = goal_rep([s; g]) is HIQL's state-dependent, length-normalized subgoal rep.
-    Keeps the subgoal representation (trained end-to-end through psi), unlike a plain
-    GCBilinearValue whose psi only sees the raw goal. State-input path (no visual encoder)."""
+    """HIQL bilinear value. bilinear_form='rep' (option A, use_rep=True):
+    V(s,g) = <phi(s), psi(goal_rep([s;g]))> / sqrt(d) — keeps the subgoal rep, trained
+    end-to-end through psi. bilinear_form='goal' (Schaul, use_rep=False):
+    V(s,g) = <phi(s), psi(g)> / sqrt(d) — genuine low-rank over (s,g); goal_rep gets NO
+    gradient from the value (pair with low_actor_rep_grad=True to keep it trained).
+    stop_rep_grad detaches the rep input (value_split high head: never trains goal_rep).
+    State-input path (no visual encoder)."""
 
     goal_rep: nn.Module
     hidden_dims: Any
     latent_dim: int
     layer_norm: bool = True
     ensemble: bool = True
+    use_rep: bool = True
+    stop_rep_grad: bool = False
 
     def setup(self):
         mlp = ensemblize(MLP, 2) if self.ensemble else MLP
@@ -29,7 +34,12 @@ class _BilinearRepValue(nn.Module):
         self.psi = mlp((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
 
     def __call__(self, observations, goals):
-        rep = self.goal_rep(jnp.concatenate([observations, goals], axis=-1))
+        if self.use_rep:
+            rep = self.goal_rep(jnp.concatenate([observations, goals], axis=-1))
+            if self.stop_rep_grad:
+                rep = jax.lax.stop_gradient(rep)
+        else:
+            rep = goals
         phi = self.phi(observations)
         psi = self.psi(rep)
         return (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
@@ -286,12 +296,15 @@ class HIQLAgent(flax.struct.PyTreeNode):
         # value_arch='bilinear' (option A): V(s,g)=<phi(s),psi(goal_rep([s;g]))>/sqrt(d),
         # keeping HIQL's state-dependent subgoal rep. 'mlp' = canonical concat-MLP GCValue.
         if config.get('value_arch', 'mlp') == 'bilinear':
+            use_rep = config.get('bilinear_form', 'rep') == 'rep'
             value_def = _BilinearRepValue(
                 goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
-                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'], ensemble=True)
+                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'],
+                ensemble=True, use_rep=use_rep)
             target_value_def = _BilinearRepValue(
                 goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
-                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'], ensemble=True)
+                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'],
+                ensemble=True, use_rep=use_rep)
         else:
             value_def = GCValue(
                 hidden_dims=config['value_hidden_dims'],
@@ -361,6 +374,8 @@ def get_config():
             value_hidden_dims=(512, 512, 512),  # Value network hidden dimensions.
             value_arch='mlp',  # 'mlp' (canonical concat-MLP) or 'bilinear' (V=<phi(s),psi(goal_rep([s;g]))>/sqrt(d)).
             value_latent_dim=512,  # Bilinear latent dimension (only used when value_arch='bilinear').
+            bilinear_form='rep',  # psi input when value_arch='bilinear': 'rep' (goal_rep([s;g]), option A) or 'goal' (raw g, Schaul).
+            value_split='shared',  # 'shared' (one V both levels) or 'high_bilinear' (bilinear head for the high-actor advantage only; MLP V keeps TD/low and trains goal_rep).
             layer_norm=True,  # Whether to use layer normalization.
             discount=0.99,  # Discount factor.
             tau=0.005,  # Target network update rate.

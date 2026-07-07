@@ -180,10 +180,13 @@ class HIQLFlowAgent(HIQLAgent):
             vf_obs_encoder = None
 
         if config.get('value_arch', 'mlp') == 'bilinear':
+            use_rep = config.get('bilinear_form', 'rep') == 'rep'
             value_def = _BilinearRepValue(goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
-                                          latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'], ensemble=True)
+                                          latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'],
+                                          ensemble=True, use_rep=use_rep)
             target_value_def = _BilinearRepValue(goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
-                                                 latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'], ensemble=True)
+                                                 latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'],
+                                                 ensemble=True, use_rep=use_rep)
         else:
             value_def = GCValue(hidden_dims=config['value_hidden_dims'], layer_norm=config['layer_norm'],
                                 ensemble=True, gc_encoder=value_encoder_def)
