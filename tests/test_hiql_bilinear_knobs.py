@@ -100,3 +100,21 @@ ag2, info = agent.update(batch)
 assert not any(k.startswith("high_value/") for k in info), sorted(info)
 print("OK")
 """)
+
+
+def test_hiql_flow_value_split_trains_finite_flow_both():
+    _run(_BATCH + """
+from hiql_flow import HIQLFlowAgent, get_config
+cfg = dict(get_config()); cfg["encoder"] = None; cfg["frame_stack"] = None
+cfg["flow_levels"] = "both"; cfg["value_split"] = "high_bilinear"
+cfg["value_latent_dim"] = 16; cfg["bilinear_form"] = "goal"
+agent = HIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+assert "modules_high_value" in agent.network.params
+for _ in range(2):
+    agent, info = agent.update(batch)
+assert jnp.isfinite(info["high_value/value_loss"]), sorted(info)
+assert jnp.isfinite(info["high_actor/actor_loss"])
+a = agent.sample_actions(ex_obs, ex_obs, seed=jax.random.PRNGKey(0))
+assert a.shape == (4, 5)
+print("OK")
+""")
