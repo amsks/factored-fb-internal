@@ -4,6 +4,28 @@
 This appendix provides the detailed tables behind the main-paper figures: per-task success, the exact terminal-outcome distribution, the full dataset-support distances, the backward-embedding geometry probe, and the representation/value-ranking diagnostics. 
 We distinguish two kinds of representation probes: offline reach-before-end separability, which asks whether features separate states from successful versus failed offline trajectories, and counterfactual on-policy ranking, which asks whether the learned value ranks in-hand states by the agent's own future success.
 
+\subsection{Training and hyperparameters}
+\label{app:hyperparams}
+
+All methods are trained offline on the same \texttt{cube-single-play-v0} dataset with a flow-matching actor of $10$ integration steps. Table~\ref{tab:hyperparams} lists the training hyperparameters for the three successor-measure methods; the goal-conditioned baselines (\gciql{}, \crl{}) follow the OGBench defaults (Adam $3\times10^{-4}$, batch $1024$, $\gamma=0.99$, layer-normalized $[512,512,512]$ MLPs; \gciql{} uses IQL expectile $0.9$).
+
+Two hyperparameters received per-method tuning and matter for the comparison. First, the orthonormality weight $\lambda_{\mathrm{ortho}}$ on the backward embedding: \fb{} and \psm{} both require \emph{strong} orthogonalization ($\lambda_{\mathrm{ortho}}=10^{3}$)---for \psm{}, raising it from $1$ to $10^{3}$ improves success from $30.7$ to $36.7$---whereas \rldp{} collapses under strong orthogonalization and uses $\lambda_{\mathrm{ortho}}=10^{-2}$, letting its encoder absorb the regularization. Second, \psm{} trains its $\phi$-map at a $10\times$ smaller learning rate than its successor-feature map, which stabilizes the tuned run.
+
+\begin{table}[H]
+\centering
+\caption{Training hyperparameters for the successor-measure methods. ``fwd lr'' is the forward/successor-feature map learning rate ($\mathrm{lr}_f$ for \fb{}/\rldp{}, $\mathrm{lr}_{sf}$ for \psm{}); ``bwd lr'' is the backward/$\phi$-map rate ($\mathrm{lr}_b$ / $\mathrm{lr}_\phi$); $\lambda_{\mathrm{ortho}}$ is the orthonormality weight. All use a $10$-step flow actor. \rldp{} additionally uses a windowed horizon of $5$; \psm{} uses a target EMA $\tau=0.01$ and proto-measure mix ratio $0.5$.}
+\label{tab:hyperparams}
+\begin{tabular}{lcccccccc}
+\toprule
+\textbf{Method} & $z$ & \textbf{fwd lr} & \textbf{bwd lr} & $\boldsymbol{\lambda_{\mathrm{ortho}}}$ & \textbf{actor lr} & $\boldsymbol{\gamma}$ & \textbf{batch} & \textbf{steps} \\
+\midrule
+\fb{}   & $50$  & $10^{-4}$ & $10^{-4}$ & $10^{3}$  & $10^{-4}$ & $0.99$ & $256$  & $10^{6}$ \\
+\rldp{} & $50$  & $10^{-4}$ & $10^{-4}$ & $10^{-2}$ & $10^{-4}$ & $0.99$ & $256$  & $10^{6}$ \\
+\psm{}  & $128$ & $10^{-4}$ & $10^{-5}$ & $10^{3}$  & $10^{-4}$ & $0.98$ & $1024$ & $1.5{\times}10^{6}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Per-task success}
 \label{app:pertask}
 
