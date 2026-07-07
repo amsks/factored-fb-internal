@@ -58,8 +58,8 @@ class HIQLAgent(flax.struct.PyTreeNode):
         weight = jnp.where(adv >= 0, expectile, (1 - expectile))
         return weight * (diff**2)
 
-    def value_loss(self, batch, grad_params):
-        """Compute the IVL value loss.
+    def _ivl_value_loss(self, batch, grad_params, head):
+        """IVL expectile TD loss for the named V head ('value' or 'high_value').
 
         This value loss is similar to the original IQL value loss, but involves additional tricks to stabilize training.
         For example, when computing the expectile loss, we separate the advantage part (which is used to compute the
@@ -67,17 +67,17 @@ class HIQLAgent(flax.struct.PyTreeNode):
         compute the former and the current value function to compute the latter. This is similar to how double DQN
         mitigates overestimation bias.
         """
-        (next_v1_t, next_v2_t) = self.network.select('target_value')(batch['next_observations'], batch['value_goals'])
+        (next_v1_t, next_v2_t) = self.network.select(f'target_{head}')(batch['next_observations'], batch['value_goals'])
         next_v_t = jnp.minimum(next_v1_t, next_v2_t)
         q = batch['rewards'] + self.config['discount'] * batch['masks'] * next_v_t
 
-        (v1_t, v2_t) = self.network.select('target_value')(batch['observations'], batch['value_goals'])
+        (v1_t, v2_t) = self.network.select(f'target_{head}')(batch['observations'], batch['value_goals'])
         v_t = (v1_t + v2_t) / 2
         adv = q - v_t
 
         q1 = batch['rewards'] + self.config['discount'] * batch['masks'] * next_v1_t
         q2 = batch['rewards'] + self.config['discount'] * batch['masks'] * next_v2_t
-        (v1, v2) = self.network.select('value')(batch['observations'], batch['value_goals'], params=grad_params)
+        (v1, v2) = self.network.select(head)(batch['observations'], batch['value_goals'], params=grad_params)
         v = (v1 + v2) / 2
 
         value_loss1 = self.expectile_loss(adv, q1 - v1, self.config['expectile']).mean()
@@ -90,6 +90,14 @@ class HIQLAgent(flax.struct.PyTreeNode):
             'v_max': v.max(),
             'v_min': v.min(),
         }
+
+    def value_loss(self, batch, grad_params):
+        """Compute the IVL value loss."""
+        return self._ivl_value_loss(batch, grad_params, 'value')
+
+    def high_value_loss(self, batch, grad_params):
+        """IVL TD loss for the high-level bilinear head (value_split='high_bilinear')."""
+        return self._ivl_value_loss(batch, grad_params, 'high_value')
 
     def low_actor_loss(self, batch, grad_params):
         """Compute the low-level actor loss."""
@@ -132,8 +140,9 @@ class HIQLAgent(flax.struct.PyTreeNode):
 
     def high_actor_loss(self, batch, grad_params):
         """Compute the high-level actor loss."""
-        v1, v2 = self.network.select('value')(batch['observations'], batch['high_actor_goals'])
-        nv1, nv2 = self.network.select('value')(batch['high_actor_targets'], batch['high_actor_goals'])
+        head = 'high_value' if self.config.get('value_split', 'shared') == 'high_bilinear' else 'value'
+        v1, v2 = self.network.select(head)(batch['observations'], batch['high_actor_goals'])
+        nv1, nv2 = self.network.select(head)(batch['high_actor_targets'], batch['high_actor_goals'])
         v = (v1 + v2) / 2
         nv = (nv1 + nv2) / 2
         adv = nv - v
@@ -174,7 +183,13 @@ class HIQLAgent(flax.struct.PyTreeNode):
         for k, v in high_actor_info.items():
             info[f'high_actor/{k}'] = v
 
-        loss = value_loss + low_actor_loss + high_actor_loss
+        high_value_loss = 0.0
+        if self.config.get('value_split', 'shared') == 'high_bilinear':
+            high_value_loss, high_value_info = self.high_value_loss(batch, grad_params)
+            for k, v in high_value_info.items():
+                info[f'high_value/{k}'] = v
+
+        loss = value_loss + low_actor_loss + high_actor_loss + high_value_loss
         return loss, info
 
     def target_update(self, network, module_name):
@@ -196,6 +211,8 @@ class HIQLAgent(flax.struct.PyTreeNode):
 
         new_network, info = self.network.apply_loss_fn(loss_fn=loss_fn)
         self.target_update(new_network, 'value')
+        if self.config.get('value_split', 'shared') == 'high_bilinear':
+            self.target_update(new_network, 'high_value')
 
         return self.replace(network=new_network, rng=new_rng), info
 
@@ -319,6 +336,17 @@ class HIQLAgent(flax.struct.PyTreeNode):
                 gc_encoder=target_value_encoder_def,
             )
 
+        if config.get('value_split', 'shared') == 'high_bilinear':
+            use_rep_high = config.get('bilinear_form', 'rep') == 'rep'
+            high_value_def = _BilinearRepValue(
+                goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
+                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'],
+                ensemble=True, use_rep=use_rep_high, stop_rep_grad=True)
+            target_high_value_def = _BilinearRepValue(
+                goal_rep=goal_rep_def, hidden_dims=config['value_hidden_dims'],
+                latent_dim=config['value_latent_dim'], layer_norm=config['layer_norm'],
+                ensemble=True, use_rep=use_rep_high, stop_rep_grad=True)
+
         if config['discrete']:
             low_actor_def = GCDiscreteActor(
                 hidden_dims=config['actor_hidden_dims'],
@@ -349,6 +377,9 @@ class HIQLAgent(flax.struct.PyTreeNode):
             low_actor=(low_actor_def, (ex_observations, ex_goals)),
             high_actor=(high_actor_def, (ex_observations, ex_goals)),
         )
+        if config.get('value_split', 'shared') == 'high_bilinear':
+            network_info['high_value'] = (high_value_def, (ex_observations, ex_goals))
+            network_info['target_high_value'] = (target_high_value_def, (ex_observations, ex_goals))
         networks = {k: v[0] for k, v in network_info.items()}
         network_args = {k: v[1] for k, v in network_info.items()}
 
@@ -359,6 +390,8 @@ class HIQLAgent(flax.struct.PyTreeNode):
 
         params = network.params
         params['modules_target_value'] = params['modules_value']
+        if config.get('value_split', 'shared') == 'high_bilinear':
+            params['modules_target_high_value'] = params['modules_high_value']
 
         return cls(rng, network=network, config=flax.core.FrozenDict(**config))
 

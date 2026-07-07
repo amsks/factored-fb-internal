@@ -66,3 +66,37 @@ assert keys == {"modules_goal_rep", "modules_value", "modules_target_value",
                 "modules_low_actor", "modules_high_actor"}, keys
 print("OK")
 """)
+
+
+def test_value_split_high_bilinear_builds_trains_and_keeps_rep_trainer():
+    _run(_BATCH + """
+from agents.hiql import HIQLAgent, get_config
+cfg = dict(get_config()); cfg["encoder"] = None; cfg["frame_stack"] = None
+cfg["value_split"] = "high_bilinear"; cfg["value_latent_dim"] = 16
+cfg["bilinear_form"] = "goal"   # E-D cell: Schaul high head, zero rep coupling
+agent = HIQLAgent.create(0, ex_obs, ex_act, cfg)
+assert "modules_high_value" in agent.network.params
+assert "modules_target_high_value" in agent.network.params
+p0 = agent.network.params["modules_goal_rep"]
+hv0 = agent.network.params["modules_high_value"]
+for _ in range(2):
+    agent, info = agent.update(batch)
+assert jnp.isfinite(info["value/value_loss"])
+assert jnp.isfinite(info["high_value/value_loss"]), sorted(info)
+assert jnp.isfinite(info["high_actor/actor_loss"])
+assert moved(p0, agent.network.params["modules_goal_rep"]), "MLP V must still train goal_rep"
+assert moved(hv0, agent.network.params["modules_high_value"]), "high head must train by TD"
+print("OK")
+""")
+
+
+def test_value_split_default_shared_no_extra_modules():
+    _run(_BATCH + """
+from agents.hiql import HIQLAgent, get_config
+cfg = dict(get_config()); cfg["encoder"] = None; cfg["frame_stack"] = None
+agent = HIQLAgent.create(0, ex_obs, ex_act, cfg)
+assert "modules_high_value" not in agent.network.params
+ag2, info = agent.update(batch)
+assert not any(k.startswith("high_value/") for k in info), sorted(info)
+print("OK")
+""")
