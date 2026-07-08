@@ -128,18 +128,21 @@ def main():
             if v is None and r['overall_success'] is None and r['success_overall'] is None:
                 partial.append(f"{r['name']}(no-metric)")
                 continue
+            def seed_label(val, s):
+                # step marker only when the extracted point is NOT the nominal 500k
+                return f"{val:.3f}" if s == 500_000 else f"{val:.3f}@{s}"
             if step is not None and STEP_LO <= step <= STEP_HI:
-                vals.append(v); seeds.append(f"{v:.3f}@{step}")
+                vals.append(v); seeds.append(seed_label(v, step))
             elif step is not None and step > STEP_HI:
                 hv, hs = hist_value_at_500k(r['id'], wkey)
                 if hv is not None:
-                    vals.append(hv); seeds.append(f"{hv:.3f}@{hs}")
+                    vals.append(hv); seeds.append(seed_label(hv, hs))
                 else:
                     partial.append(f"{r['name']}(no-500k-point)")
             else:  # died early or step unknown -> try history anyway
                 hv, hs = hist_value_at_500k(r['id'], wkey)
                 if hv is not None and hs >= STEP_LO:
-                    vals.append(hv); seeds.append(f"{hv:.3f}@{hs}")
+                    vals.append(hv); seeds.append(seed_label(hv, hs))
                 else:
                     partial.append(f"{r['name']}(died@{step})")
         m = round(sum(vals) / len(vals), 4) if vals else None
