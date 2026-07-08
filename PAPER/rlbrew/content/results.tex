@@ -11,14 +11,14 @@ Per-task success, exact counts, and the full diagnostic tables are in Appendix~\
 \subsection{Scalar success obscures policy failure}
 
 Aggregate state-based success ranks the methods but says nothing about where they fail. 
-Across $10$ evaluation seeds, the overall Inter-quartile Mean (IQM)~\citep{agarwal-neurips21a} success rates are \gciql{} ($68.3 \pm 3.7$), \fb{} ($50.0 \pm 7.0$), \psm{} ($36.7 \pm 4.5$), \crl{} ($25.9 \pm 2.0$), and \rldp{} ($22.7 \pm 6.0$).\protect\footnotemark{}
+Across $10$ evaluation seeds ($9$ for \gciql{} and \crl{}), the overall Inter-quartile Mean (IQM)~\citep{agarwal-neurips21a} success rates are \gciql{} ($71.8 \pm 4.1$), \fb{} ($52.0 \pm 5.5$), \psm{} ($36.7 \pm 4.5$), \crl{} ($25.8 \pm 2.3$), and \rldp{} ($22.7 \pm 6.0$).\protect\footnotemark{}
 Per-task results are deferred to Appendix~\ref{app:tables}.
 \footnotetext{Aggregate success uses the stochastic evaluation policy (IQM over seeds); the phase decomposition uses deterministic closed-loop rollouts, so per-method success differs slightly. We report each metric consistently within its own analysis.}
 
 The phase decomposition (Section~\ref{sec:method}) localizes the failure (Figures~\ref{fig:funnel} and \ref{fig:outcomes}). 
 Every method reaches the cube and most acquire a grasp, but the survival curve collapses \emph{after} control acquisition (Figure~\ref{fig:funnel}), and the terminal-outcome mass sits in maintain-control and transport rather than approach (Figure~\ref{fig:outcomes}). 
-Relative to \gciql{}, \fb{}'s $19.8\text{ pp}$ deficit decomposes as $+0.2$ approach, $+2.4$ grasp, $-14.6$ maintain, $-7.8$ transport: almost entirely post-contact. 
-The pattern is not specific to \fb{}; \psm{} and \rldp{} acquire control yet end without maintained control in $35\%$ and $44\%$ of episodes, and across the lower-scoring methods the post-contact share of failures is $67$--$87\%$ (Appendix~\ref{app:tables}).
+Relative to \gciql{}, \fb{}'s $24.3\text{ pp}$ deficit decomposes as $0.0$ approach, $+3.2$ grasp, $-17.1$ maintain, $-10.3$ transport: almost entirely post-contact.
+The pattern is not specific to \fb{}; \psm{} and \rldp{} acquire control yet end without maintained control in $36\%$ and $44\%$ of episodes, and across the lower-scoring methods the post-contact share of failures is $65$--$83\%$ (Appendix~\ref{app:tables}).
 Because the phase labels read no value, representation, or model, the protocol extends unchanged to other methods.
 
 \begin{figure}[htbp]
