@@ -46,13 +46,13 @@ scene,GCIQL,ddpgbc,bilinear-d50,0.26,0.012,3,0.272 0.252 0.256,,GCIQL-Scene-Bili
 scene,GCIQL,ddpgbc,mlp,0.516,0.0407,3,0.516 0.480 0.552,,GCIQL-Scene-Stock-DDPGBC,
 scene,GCIQL,fql_flow,bilinear-d50,0.292,0.0362,3,0.292 0.260 0.324,,GCIQL-Scene-Flow-Bilinear-d50,
 antmaze,FB,flowbc,plain,0.5933,0.1139,3,0.500 0.700 0.580,,fb_antmaze_medium_500k,
-antmaze,GCIQL,awr_flow,bilinear-d50,0.64,0.0157,2,0.632 0.648,antmaze_medium_gciql_awrflow_bilinear_d50_s1(no-metric),GCIQL-AntMaze-Medium-AWRFlow-Bilinear-d50,may be running
+antmaze,GCIQL,awr_flow,bilinear-d50,0.64,0.0157,2,0.632 0.648,s1:mid-first-eval(running),GCIQL-AntMaze-Medium-AWRFlow-Bilinear-d50,may be running
 antmaze,GCIQL,ddpgbc,bilinear-d50,0.8373,0.0094,3,0.844 0.840 0.828,,GCIQL-AntMaze-Medium-Bilinear-d50-DDPGBC,0.837 is the anchor (SOTA config comment 83.7); earlier 0.88 citations were imprecise
 antmaze,GCIQL,ddpgbc,mlp,0.6947,0.0611,3,0.748 0.640 0.696,sd001_20260625_062452(died@95000) sd000_20260625_062452(died@95000) sd002_20260625_062452(died@95000),GCIQL-AntMaze-Medium-Stock-DDPGBC,
 antmaze,GCIQL,fql_flow,bilinear-d50,0.2387,0.0223,3,0.252 0.248 0.216,sd001_20260624_221417(died@1) sd002_20260624_221417(died@1) sd000_20260624_221417(died@1) sd001_20260624_222659(no-metric) sd000_20260624_222659(no-metric) sd002_20260624_222659(no-metric) sd002_20260624_223802(died@10000) sd000_20260624_223802(died@10000) sd001_20260624_223802(died@10000),GCIQL-AntMaze-Medium-Flow-Bilinear-d50,
-antmaze,GCIQL,fql_flow,bilinear-d50-bc03,,,0,,antmaze_medium_gciql_flow_bilinear_d50_bc03_s0(died@195000) antmaze_medium_gciql_flow_bilinear_d50_bc03_s1(died@195000) antmaze_medium_gciql_flow_bilinear_d50_bc03_s2(died@195000),GCIQL-AntMaze-Medium-Flow-Bilinear-d50-bc03,may be running
+antmaze,GCIQL,fql_flow,bilinear-d50-bc03,,,0,,s0:0.31@300k s1:0.26@200k s2:0.30@200k,GCIQL-AntMaze-Medium-Flow-Bilinear-d50-bc03,"RUNNING (died@195k note was stale; procs alive, evals through 300k); tracking old collapse level"
 antmaze,GCIQL,fql_flow,mlp,0.3333,0.0728,3,0.360 0.380 0.260,sd001_20260625_062452(died@95000) sd002_20260625_062452(died@95000) sd000_20260625_062452(died@95000),GCIQL-AntMaze-Medium-Flow-MLP,
-antmaze,GCIQL,fql_flow,mlp-bc03,0.354,0.0902,2,0.400 0.308,antmaze_medium_gciql_flow_mlp_bc03_s1(died@195000),GCIQL-AntMaze-Medium-Flow-MLP-bc03,td_jepa-correct bc_coeff=0.3 rerun (parallel session); may be running
+antmaze,GCIQL,fql_flow,mlp-bc03,0.354,0.0902,2,0.400 0.308,s1:0.29@100k(running),GCIQL-AntMaze-Medium-Flow-MLP-bc03,td_jepa-correct bc0.3; no rescue vs bc3.0 (33.3)
 antmaze,GCIVL,fql_flow,bilinear-d50,0.838,0.0039,2,0.840 0.836,antmaze_medium_gcivl_flow_bilinear_d50_s2(died@195000),GCIVL-AntMaze-Medium-Flow-Bilinear-d50,may be running
 antmaze,HIQL,awr,bilinear-d50,0.958,0.0059,8,0.952 0.952 0.952 0.976 0.956 0.952 0.964 0.960,,HIQL-AntMaze-Medium-Bilinear-d50,
 antmaze,HIQL,awr,mlp,0.965,0.0086,8,0.980 0.968 0.956 0.980 0.960 0.944 0.972 0.960,,HIQL-AntMaze-Medium-MLP,
