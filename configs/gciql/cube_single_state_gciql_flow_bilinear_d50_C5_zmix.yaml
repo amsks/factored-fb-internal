@@ -1,0 +1,36 @@
+# C5a — FB-fidelity rescue, arm 1 (z-coverage only): C4's full FB rebuild (measure_only +
+# fb_forward_z + sphere-Norm project_z + ortho at FB's true 1.0) + measure_z_random_frac 0.5
+# = metamotivo's sample_mixed_z (50% sqrt(d)-sphere gaussian directions, 50% psi(goal-mix)).
+# The audited last fidelity gap: the z-indexed forward family was only ever trained ON the
+# psi(goal) manifold, while inference-time moment-z lives off-manifold. Actor unchanged
+# (actor_cond=goal) to isolate the z-coverage effect from the actor-conditioning effect (C5b).
+# Read against: C4 (no zmix), measure band 9.9-25.5, torch plain-FB 48. 3 seeds @500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Bilinear-d50-C5-Zmix
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  fb_forward_z: true
+  project_z: true
+  measure_ortho_coef: 1.0
+  measure_z_random_frac: 0.5
+wandb_mode: online

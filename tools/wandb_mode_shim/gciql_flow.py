@@ -59,15 +59,20 @@ class GCFBValue(GCBilinearValue):
             goals = self.goal_encoder(goals)
         return self.psi(goals)
 
-    def __call__(self, observations, b_goals, actions, z_goals, info=False):
+    def __call__(self, observations, b_goals, actions, z_goals, info=False, z_vec=None):
         if self.state_encoder is not None:
             observations = self.state_encoder(observations)
-        z = self._psi(z_goals)                      # task embedding (ensembled => [2,B,d])
-        if self.ensemble:
-            z = z.mean(axis=0)                      # single task vector per sample [B,d]
-        z = jax.lax.stop_gradient(z)
-        if self.project_z:
-            z = _sphere(z, self.latent_dim)
+        if z_vec is not None:
+            # explicit task vector (measure_z_random_frac mixed-z path); caller owns
+            # any sphere projection -- z is a frozen task input either way.
+            z = jax.lax.stop_gradient(z_vec)
+        else:
+            z = self._psi(z_goals)                  # task embedding (ensembled => [2,B,d])
+            if self.ensemble:
+                z = z.mean(axis=0)                  # single task vector per sample [B,d]
+            z = jax.lax.stop_gradient(z)
+            if self.project_z:
+                z = _sphere(z, self.latent_dim)
         phi = self.phi(jnp.concatenate([observations, actions, z], axis=-1))
         psi = self._psi(b_goals)                    # backward map B = psi(b_goals)
         if self.project_z:
@@ -497,12 +502,37 @@ class GCIQLFlowAgent(GCIQLAgent):
             # fb_forward_z: forward map is task-conditioned phi(s,a,z), z=sg(psi(vgoals)),
             # so M[i,j]=F(s_i,a_i,z_i).B(s'_j) is a genuine z-indexed family. Else phi(s,a).
             zarg = (vgoals,) if self.config.get('fb_forward_z', False) else ()
-            _, phi, psi = self.network.select('critic')(obs, nobs, acts, *zarg, info=True, params=grad_params)
+            # measure_z_random_frac: FB's mixed z-sampling (metamotivo sample_mixed_z) --
+            # a per-sample fraction of the task vectors is drawn as sqrt(d)-sphere gaussian
+            # DIRECTIONS instead of psi(vgoals), so the z-indexed family is trained across
+            # z-space (where inference-time moment-z lives), not only on the psi(goal) manifold.
+            # Same z on both TD sides (FB backup is at fixed z). frac=0 => bit-exact stock path.
+            zfrac = self.config.get('measure_z_random_frac', 0.0)
+            zkw = {}
+            z_mix = None
+            if zarg and zfrac > 0:
+                rng, zrng, prng = jax.random.split(rng, 3)
+                _, _, psi_vg = self.network.select('critic')(vgoals, vgoals, acts, vgoals,
+                                                             info=True, params=grad_params)
+                z_goal = jax.lax.stop_gradient(psi_vg.mean(axis=0))       # head-mean [B,d]
+                if self.config.get('project_z', False):
+                    z_goal = _sphere(z_goal, d)
+                z_rand = _sphere(jax.random.normal(zrng, (B, d)), d)
+                pick = jax.random.bernoulli(prng, zfrac, (B, 1))
+                z_mix = jnp.where(pick, z_rand, z_goal)
+                zkw = {'z_vec': z_mix}
+            _, phi, psi = self.network.select('critic')(obs, nobs, acts, *zarg, info=True,
+                                                        params=grad_params, **zkw)
             if sg_phi: phi = jax.lax.stop_gradient(phi)
             M = jnp.einsum('hid,hjd->hij', phi, psi) / sqd                # [2, B, B]
             # a+ ~ pi(s+,g); under actor_cond='z' the actor's goal-leg is the d-dim task
             # vector, so map the raw vgoals through _actor_z (critic/value psi) first.
-            a_goals = self._actor_z(vgoals, grad_params) if self.config['actor_cond'] == 'z' else vgoals
+            # With the mixed z active, the bootstrap policy must be z-CONSISTENT: a+ ~ pi(s+, z_i)
+            # at the SAME z the TD is evaluated at (FB: the measure of the z-greedy policy).
+            if self.config['actor_cond'] == 'z':
+                a_goals = z_mix if z_mix is not None else self._actor_z(vgoals, grad_params)
+            else:
+                a_goals = vgoals
             if self.config['actor_kind'] == 'ddpgbc':
                 # stock gaussian actor returns a distribution: a+ = mode (or a sample if learned std)
                 dist = self.network.select('actor')(nobs, a_goals)
@@ -512,7 +542,7 @@ class GCIQLFlowAgent(GCIQLAgent):
                 noise = jax.random.normal(rng, acts.shape)
                 a_next = self.network.select('actor')(nobs, a_goals, noise)
             a_next = jax.lax.stop_gradient(a_next)
-            _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, *zarg, info=True)
+            _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, *zarg, info=True, **zkw)
             tM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi) / sqd)            # [2, B, B]
             offdiag, diagt = self._measure_terms(M, tM, gamma, scale_norm)                      # [2]
             Cov = jnp.einsum('hid,hjd->hij', psi, psi)                    # FB ortho on B:=psi(s') (grads on)
@@ -840,6 +870,7 @@ def get_config():
         config.measure_ortho_coef = 0.0  # FB orthonormality coef lambda on psi (||E[psi psi^T]-I||); FB uses 1000
         config.measure_scale_norm = False  # E2: divide the measure TD terms by sg[mean(M^2)] so the gradient is dimensionless (stops the <F,z> inflation that crashed 18/18 mc* runs; audit §1)
         config.measure_stopgrad_phi = False  # E2: stop-grad phi inside measure_loss so the measure gradient shapes ONLY psi (readout/backward leg), quarantined from the value-critical forward leg
+        config.measure_z_random_frac = 0.0  # FB-fidelity: fraction of measure-loss task vectors z drawn as sqrt(d)-sphere gaussian directions (metamotivo sample_mixed_z) instead of psi(vgoals); needs fb_forward_z
         config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)
         config.sf_feature_td = False  # SUCCESSOR-FEATURE vector TD on phi: phi(s,a)<-b(s)+gamma*phi(s',a'), Q=<phi,psi(g)> (train ONLY phi; needs bilinear)
         config.sf_coef = 1.0          # weight on the SF vector-TD loss (sf_feature_td)
