@@ -358,6 +358,31 @@ class GCIQLFlowAgent(GCIQLAgent):
                              'q_max': q.max(), 'q_min': q.min()}
 
     def actor_loss(self, batch, grad_params, rng=None):
+        # actor_kind='awr_flow' => IQL's canonical AWR extraction on a flow policy:
+        # goal-conditioned flow-matching BC weighted per-sample by
+        # exp(awr_alpha * (min_i Q_i(s,a,g) - V(s,g))) -- the gcivl_flow/hiql_flow
+        # readout, but with GCIQL's sharper Q-V advantage. No Q-max, no distillation,
+        # no one-step actor: actions are sampled by Euler-integrating actor_vf.
+        if self.config['actor_kind'] == 'awr_flow':
+            obs, goals, actions = batch['observations'], batch['actor_goals'], batch['actions']
+            q1, q2 = self.network.select('critic')(obs, goals, actions)
+            q = jnp.minimum(q1, q2)
+            v = self.network.select('value')(obs, goals)
+            adv = q - v
+            exp_a = jnp.minimum(jnp.exp(adv * self.config['awr_alpha']), 100.0)
+
+            rng = rng if rng is not None else self.rng
+            rng, x0_rng, t_rng = jax.random.split(rng, 3)
+            x_0 = jax.random.normal(x0_rng, actions.shape)
+            t = jax.random.uniform(t_rng, (actions.shape[0], 1))
+            x_t = (1 - t) * x_0 + t * actions
+            vel = actions - x_0
+            obs_goal = jnp.concatenate([obs, goals], axis=-1)
+            pred = self.network.select('actor_vf')(obs_goal, x_t, t, params=grad_params)
+            fm = jnp.mean((pred - vel) ** 2, axis=-1)
+            actor_loss = jnp.mean(exp_a * fm)
+            return actor_loss, {'actor_loss': actor_loss, 'adv': adv.mean(),
+                                'flow_bc': fm.mean(), 'exp_a': exp_a.mean()}
         # actor_kind='ddpgbc' => fall back to GCIQL's stock gaussian DDPG+BC actor
         # (bilinear critic kept); only the flow-actor path is custom below.
         if self.config['actor_kind'] == 'ddpgbc':
@@ -672,6 +697,18 @@ class GCIQLFlowAgent(GCIQLAgent):
         if self.config['actor_kind'] == 'ddpgbc':
             dist = self.network.select('actor')(observations, goals, temperature=temperature)
             return jnp.clip(dist.sample(seed=seed), -1.0, 1.0)
+        if self.config['actor_kind'] == 'awr_flow':
+            # Euler-rollout of the goal-conditioned velocity field (no one-step actor).
+            del temperature
+            batch_shape = observations.shape[:-1]
+            noise = jax.random.normal(seed, (*batch_shape, self.config['action_dim']))
+            obs_goal = jnp.concatenate([observations, goals], axis=-1)
+            fs = self.config['flow_steps']
+            actions = noise
+            for i in range(fs):
+                t = jnp.full((*batch_shape, 1), i / fs)
+                actions = actions + self.network.select('actor_vf')(obs_goal, actions, t) / fs
+            return jnp.clip(actions, -1.0, 1.0)
         del temperature  # flow actor is noise-driven
         # Noise must share the obs batch shape. Eval passes a single, unbatched
         # observation; training/tests pass batches. Event rank is 1 for state and
@@ -810,6 +847,21 @@ class GCIQLFlowAgent(GCIQLAgent):
                 gc_encoder=encoders.get('actor_obs'),
             )
             network_info['actor'] = (actor_def, (ex_observations, ex_goals))
+        elif config.get('actor_kind', 'flow') == 'awr_flow':
+            # AWR flow readout: a single GOAL-CONDITIONED velocity field (goal
+            # concatenated into the vf's obs input, as in gcivl_flow). State-only;
+            # no one-step actor, no distillation.
+            assert config['encoder'] is None, "awr_flow supports state obs only"
+            assert config.get('actor_cond', 'goal') == 'goal' and not config.get('fb_forward_z', False), \
+                "awr_flow is incompatible with z-conditioning paths"
+            actor_vf_def = GCVectorField(
+                hidden_dim=config['actor_vf_hidden_dim'],
+                hidden_layers=config['actor_vf_hidden_layers'],
+                obs_encoder=None,
+            )
+            ex_t = jnp.zeros((ex_actions.shape[0], 1))
+            ex_obs_goal = jnp.concatenate([ex_observations, ex_goals], axis=-1)
+            network_info['actor_vf'] = (actor_vf_def, (ex_obs_goal, ex_actions, ex_t))
         else:
             actor_vf_def = GCVectorField(
                 hidden_dim=config['actor_vf_hidden_dim'],
@@ -853,12 +905,15 @@ def get_config():
         config.actor_cond = 'goal'
         # Clipped double-Q: True = min(q1,q2) (stock); False = q1 only (pessimism ablation).
         config.double_q = True
-        # Actor family: 'flow' (FlowBC, the custom actor) or 'ddpgbc' (stock GCIQL
-        # gaussian actor, for the no-flow-actor control). 'ddpgbc' needs actor_loss=ddpgbc.
+        # Actor family: 'flow' (FlowBC + Q-max distillation, the custom actor),
+        # 'ddpgbc' (stock GCIQL gaussian actor, no-flow-actor control; needs
+        # actor_loss=ddpgbc), or 'awr_flow' (goal-conditioned flow-BC weighted by
+        # exp(awr_alpha*(minQ - V)) -- IQL's AWR extraction on a flow policy).
         config.actor_kind = 'flow'
         # Flow actor hyperparameters.
         config.flow_steps = 10  # Euler steps for the BC flow rollout / distillation.
         config.bc_coeff = 3.0  # Distillation (BC) coefficient; the key actor knob.
+        config.awr_alpha = 10.0  # AWR temperature for actor_kind='awr_flow' (OGBench GCIVL value).
         config.actor_vf_hidden_dim = 512
         config.actor_vf_hidden_layers = 4
         config.actor_hidden_dim = 512
