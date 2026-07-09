@@ -73,9 +73,11 @@ def hist_series(run_id, metric):
     the overall metric directly; torch logs only per-task eval/reward/<task>/success rows —
     their mean IS success/overall (verified exact on fb_state_plain). Cached per run id.
 
-    NOTE the cache is keyed by run id ALONE, so a run still training is frozen at whatever
-    history it had when first fetched. `--refresh` refetches the dump but NOT these; delete
-    analysis/results_cache/hist/<id>.json (or pass --refresh-hist) to repull a live run."""
+    The cache is keyed by run id ALONE, so it is only written for runs that have STOPPED
+    (finished/crashed/failed). Caching a still-training run would freeze it at whatever partial
+    history it had when first fetched, and every later compile would silently report that stale
+    curve -- a run that has since reached 500k would keep showing up as a partial. `--refresh`
+    refetches the dump but not these; `--refresh-hist` drops them all."""
     HIST_CACHE.mkdir(parents=True, exist_ok=True)
     cf = HIST_CACHE / f'{run_id}.json'
     if cf.exists():
@@ -97,7 +99,8 @@ def hist_series(run_id, metric):
         pts = [[row['_step'], row[metric]]
                for row in run.history(keys=[metric], samples=2000, pandas=False)
                if row.get(metric) is not None]
-    json.dump(pts, open(cf, 'w'))
+    if run.state != 'running':          # never freeze a live run's partial curve into the cache
+        json.dump(pts, open(cf, 'w'))
     return pts
 
 
