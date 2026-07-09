@@ -299,6 +299,144 @@ def test_sf_ortho_without_conditioning_trains_finite():
     assert "OK" in proc.stdout
 
 
+def test_sf_learned_base_reward_regression_semantics():
+    """E3 (corrected SF cell): sf_base='learned' + sf_reward_regress grounds the base in the
+    ACTUAL reward -- a bilinear reward model r_hat(s',g)=<psi(s'),psi(g)>/sqrt(d) trained by
+    regression on batch rewards. DECISIVE at gamma=0: total SF loss must equal
+    mean((phi - psi(s))^2) + coef * mean((r_hat - r)^2), both terms computed by hand."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config())
+        cfg["encoder"] = None; cfg["frame_stack"] = None
+        cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = 50
+        cfg["sf_feature_td"] = True; cfg["sf_base"] = "learned"
+        cfg["sf_reward_regress"] = True; cfg["sf_reward_coef"] = 2.0
+        cfg["discount"] = 0.0
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (6, 11))
+        ex_nobs = jax.random.normal(jax.random.PRNGKey(3), (6, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (6, 5))
+        goals = jax.random.normal(jax.random.PRNGKey(4), (6, 11))
+        rewards = jax.random.normal(jax.random.PRNGKey(5), (6,))
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        batch = dict(observations=ex_obs, next_observations=ex_nobs, actions=ex_act,
+                     rewards=rewards, masks=jnp.ones((6,)),
+                     value_goals=goals, actor_goals=goals)
+        loss, info = agent.sf_loss(batch, agent.network.params, jax.random.PRNGKey(2))
+        p = agent.network.params
+        _, phi, _ = agent.network.select("critic")(ex_obs, goals, ex_act, info=True, params=p)
+        _, _, psi_s = agent.network.select("critic")(ex_obs, ex_obs, ex_act, info=True, params=p)
+        _, _, psi_ns = agent.network.select("critic")(ex_nobs, ex_nobs, ex_act, info=True, params=p)
+        _, _, psi_g = agent.network.select("critic")(ex_obs, goals, ex_act, info=True, params=p)
+        exp_td = jnp.mean((phi - psi_s) ** 2)                       # target = b(s)=psi(s) at gamma=0
+        r_hat = (psi_ns * psi_g).sum(-1) / jnp.sqrt(50.0)
+        exp_rew = jnp.mean((r_hat - rewards[None]) ** 2)
+        assert jnp.allclose(loss, exp_td + 2.0 * exp_rew, atol=1e-5), \\
+            (float(loss), float(exp_td), float(exp_rew))
+        assert "sf_reward_loss" in info and jnp.allclose(info["sf_reward_loss"], exp_rew, atol=1e-5)
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_sf_learned_base_psi_trains():
+    """With sf_reward_regress the psi leg is LEARNED: its params must CHANGE under training
+    (the reward regression is its grad path) -- the exact opposite of the frozen-base test --
+    and training stays finite (sf/sf_loss, sf/sf_reward_loss, actor)."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config())
+        cfg["encoder"] = None; cfg["frame_stack"] = None
+        cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = 50
+        cfg["sf_feature_td"] = True; cfg["sf_base"] = "learned"; cfg["sf_reward_regress"] = True
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (8, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (8, 5))
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        def psi_params(a):
+            flat = jax.tree_util.tree_flatten_with_path(a.network.params["modules_critic"])[0]
+            return {".".join(str(getattr(k,'key',k)) for k in p): v for p, v in flat if "psi" in
+                    ".".join(str(getattr(k,'key',k)) for k in p)}
+        before = psi_params(agent)
+        assert before, "expected a learnable psi leg"
+        batch = dict(observations=ex_obs, next_observations=ex_obs, actions=ex_act,
+                     rewards=-jnp.ones((8,)), masks=jnp.ones((8,)),
+                     value_goals=ex_obs, actor_goals=ex_obs)
+        for _ in range(5):
+            agent, info = agent.update(batch)
+        after = psi_params(agent)
+        changed = any(not jnp.allclose(before[k], after[k]) for k in before)
+        assert changed, "psi params never changed -> reward regression not training the base"
+        assert jnp.isfinite(info["sf/sf_loss"]) and jnp.isfinite(info["sf/sf_reward_loss"]), info
+        assert jnp.isfinite(info["actor/actor_loss"]), info
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_sf_reward_regress_config_guards():
+    """sf_reward_regress on a FIXED base is the known confound (a linear-in-s reward proxy
+    cannot express the goal indicator) -> create() must refuse it. Symmetrically,
+    sf_base='learned' without sf_reward_regress leaves psi with no training signal -> refuse."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        ex_obs = jnp.zeros((4, 11)); ex_act = jnp.zeros((4, 5))
+        def make(base, regress, d):
+            cfg = dict(get_config())
+            cfg["encoder"] = None; cfg["frame_stack"] = None
+            cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = d
+            cfg["sf_feature_td"] = True; cfg["sf_base"] = base; cfg["sf_reward_regress"] = regress
+            return GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        for base, d in [("frozen", 50), ("identity", 11)]:
+            try:
+                make(base, True, d); raise SystemExit(f"regress on {base} base must be refused")
+            except AssertionError:
+                pass
+        try:
+            make("learned", False, 50); raise SystemExit("learned base without regress must be refused")
+        except AssertionError:
+            pass
+        make("learned", True, 50)   # the valid E3 combination builds
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_sf_learned_base_task_conditioned_trains_finite():
+    """sf_base='learned' composes with fb_forward_z (task-conditioned phi([s,a,z=psi(g)]));
+    the z fed to phi is stop-gradded so the TD cannot train psi through phi's input."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config())
+        cfg["encoder"] = None; cfg["frame_stack"] = None
+        cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = 50
+        cfg["sf_feature_td"] = True; cfg["sf_base"] = "learned"; cfg["sf_reward_regress"] = True
+        cfg["fb_forward_z"] = True
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (8, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (8, 5))
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        batch = dict(observations=ex_obs, next_observations=ex_obs, actions=ex_act,
+                     rewards=-jnp.ones((8,)), masks=jnp.ones((8,)),
+                     value_goals=ex_obs, actor_goals=ex_obs)
+        for _ in range(5):
+            agent, info = agent.update(batch)
+        assert jnp.isfinite(info["sf/sf_loss"]) and jnp.isfinite(info["sf/sf_reward_loss"]), info
+        assert jnp.isfinite(info["actor/actor_loss"]), info
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
 def test_sf_trains_finite():
     """Full agent with sf_feature_td trains finite; total_loss reports sf/sf_loss (the SF
     vector TD) and NOT measure/measure_loss, and the flow actor loss stays finite."""

@@ -279,6 +279,40 @@ class GCFrozenBValue(GCBilinearValue):
         return v
 
 
+class GCLearnedBValue(GCFrozenBValue):
+    """Bilinear critic with a LEARNED base/goal leg psi, for the CORRECTED successor-feature
+    cell (E3, audit-20260706): psi is trained ONLY by reward regression (`sf_reward_regress`,
+    the reference's reward-prediction basis, sf_simple.py:322)
+
+        r_hat(s',g) = <psi(s'), psi(g)>/sqrt(d)  ->  regress on batch rewards
+
+    so the goal indicator becomes linearly READABLE in the base (the identity/frozen cells'
+    semantic confound: r=<s,g> is linear in s, argmax != goal). The SF vector TD still trains
+    ONLY phi (sf_loss stop-grads b(s)=psi(s) in its target): psi makes the reward expressible,
+    phi accumulates it. Division of labor, one shared psi network."""
+
+    def _psi(self, goals):
+        if self.goal_encoder is not None:
+            goals = self.goal_encoder(goals)
+        return self.psi(goals)   # LEARNED (vs GCFrozenBValue): grads arrive via sf_reward_regress
+
+    def __call__(self, observations, b_goals, actions=None, z_goals=None, info=False):
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        inp = observations if actions is None else jnp.concatenate([observations, actions], axis=-1)
+        if self.fb_forward_z:                           # task-condition phi([s,a,z=psi(g)])
+            z = self._psi(z_goals)
+            if z.ndim == 3:
+                z = z.mean(axis=0)                      # head-mean if ensembled
+            inp = jnp.concatenate([inp, jax.lax.stop_gradient(z)], axis=-1)  # no grad into psi via phi's input
+        phi = self.phi(inp)                             # [2,B,d] (ensembled) or [B,d]
+        psi = self._psi(b_goals)                        # learned base features
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if info:
+            return v, phi, psi
+        return v
+
+
 class GCIQLFlowAgent(GCIQLAgent):
     """GCIQL with FB's FlowBC actor. Inherits value_loss/critic_loss/update."""
 
@@ -597,8 +631,10 @@ class GCIQLFlowAgent(GCIQLAgent):
         # phi, base-feature, and target-critic calls (same task g on both sides of the SF backup).
         zarg = (vgoals,) if self.config.get('fb_forward_z', False) else ()
         _, phi, _psi = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
-        if self.config.get('sf_base', 'identity') == 'frozen':
-            # b(s) = psi(s): the frozen random features of the CURRENT state (call psi via b_goals=obs).
+        if self.config.get('sf_base', 'identity') in ('frozen', 'learned'):
+            # b(s) = psi(s): the base features of the CURRENT state (call psi via b_goals=obs).
+            # Stop-gradded either way: the TD trains ONLY phi ('learned' psi trains solely via
+            # the sf_reward_regress term below).
             _, _, b = self.network.select('critic')(obs, obs, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
             b = jax.lax.stop_gradient(b)
         else:
@@ -627,6 +663,19 @@ class GCIQLFlowAgent(GCIQLAgent):
             orth = jnp.mean(o_off + o_diag)
             loss = td + lam * orth
             info['orth'] = orth
+        if self.config.get('sf_reward_regress', False):
+            # E3 (corrected SF cell): ground the base in the ACTUAL reward -- bilinear reward
+            # model r_hat(s',g) = <psi(s'), psi(g)>/sqrt(d) regressed on batch rewards (received
+            # on ARRIVING at s', matching the SF telescope Q=sum gamma^t <b(s_t),w>). This is
+            # psi's ONLY grad path (the TD target stop-grads b; the actor Q-term takes no critic
+            # grads), and it is what makes the goal indicator linearly readable in the base.
+            _, _, psi_ns = self.network.select('critic')(nobs, nobs, acts, *zarg, info=True, params=grad_params)  # psi(s')
+            _, _, psi_g = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True, params=grad_params)  # psi(g)
+            r_hat = (psi_ns * psi_g).sum(axis=-1) / jnp.sqrt(psi_ns.shape[-1])   # [2,B]
+            rew = jnp.mean((r_hat - batch['rewards'][None]) ** 2)
+            loss = loss + self.config.get('sf_reward_coef', 1.0) * rew
+            info['sf_reward_loss'] = rew
+            info['sf_rhat_mean'] = jnp.mean(r_hat)
         return loss, info
 
     def ortho_loss(self, batch, grad_params):
@@ -755,6 +804,15 @@ class GCIQLFlowAgent(GCIQLAgent):
                 goal_dim = ex_goals.shape[-1]
                 assert config['value_latent_dim'] == goal_dim, \
                     f"sf_feature_td sf_base='identity' requires value_latent_dim==goal_dim ({goal_dim}), got {config['value_latent_dim']}"
+            # E3 guards: reward regression on a FIXED base is the audited confound (the linear
+            # proxy r=<s,g> cannot express the goal indicator) -> refuse; a learned base without
+            # the regression leaves psi with zero training signal -> refuse.
+            if config.get('sf_reward_regress', False):
+                assert config.get('sf_base', 'identity') == 'learned', \
+                    "sf_reward_regress requires sf_base='learned' (fixed bases can't express the goal indicator)"
+            if config.get('sf_base', 'identity') == 'learned':
+                assert config.get('sf_reward_regress', False), \
+                    "sf_base='learned' requires sf_reward_regress=True (else psi has no training signal)"
             config['actor_cond'] = 'goal'
 
         # Actor goal-input example. In z-conditioning (G4) the actor consumes a
@@ -793,8 +851,10 @@ class GCIQLFlowAgent(GCIQLAgent):
             critic_cls = GCBilinearValue
             if config.get('sf_feature_td', False):
                 # phi = successor-feature vector trained by sf_loss. Base leg: 'frozen' -> frozen
-                # random psi (d free); 'identity' -> psi(g)=g (d==obs dim).
-                critic_cls = GCFrozenBValue if config.get('sf_base', 'identity') == 'frozen' else GCIdentityBValue
+                # random psi (d free); 'identity' -> psi(g)=g (d==obs dim); 'learned' -> psi
+                # trained by reward regression (sf_reward_regress, E3).
+                critic_cls = {'identity': GCIdentityBValue, 'frozen': GCFrozenBValue,
+                              'learned': GCLearnedBValue}[config.get('sf_base', 'identity')]
             elif config.get('fb_forward_z', False):
                 # z-conditioned forward map F(s,a,z), z=sg(psi(g)). Runs under the measure
                 # loss (FB objective) OR the IQL backup (B1): value_loss/critic_loss below
@@ -812,7 +872,7 @@ class GCIQLFlowAgent(GCIQLAgent):
             )
             if critic_cls in (GCFBValue, GCTwoTowerCritic, GCISFBValue):
                 crit_kwargs['project_z'] = config.get('project_z', False)
-            if critic_cls in (GCIdentityBValue, GCFrozenBValue):
+            if critic_cls in (GCIdentityBValue, GCFrozenBValue, GCLearnedBValue):
                 crit_kwargs['fb_forward_z'] = config.get('fb_forward_z', False)
             critic_def = critic_cls(**crit_kwargs)
         else:
@@ -929,7 +989,9 @@ def get_config():
         config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)
         config.sf_feature_td = False  # SUCCESSOR-FEATURE vector TD on phi: phi(s,a)<-b(s)+gamma*phi(s',a'), Q=<phi,psi(g)> (train ONLY phi; needs bilinear)
         config.sf_coef = 1.0          # weight on the SF vector-TD loss (sf_feature_td)
-        config.sf_base = 'identity'   # SF base feature b: 'identity' -> b(s)=s (d==obs dim); 'frozen' -> b(s)=psi(s) frozen random MLP (d free, e.g. 50)
+        config.sf_base = 'identity'   # SF base feature b: 'identity' -> b(s)=s (d==obs dim); 'frozen' -> b(s)=psi(s) frozen random MLP (d free, e.g. 50); 'learned' -> psi trained by reward regression (needs sf_reward_regress)
+        config.sf_reward_regress = False  # E3 corrected SF: learn the base by reward regression r_hat(s',g)=<psi(s'),psi(g)>/sqrt(d) on batch rewards (requires sf_base='learned')
+        config.sf_reward_coef = 1.0   # weight on the reward-regression loss (sf_reward_regress)
         config.sf_ortho_coef = 0.0    # aux orthonormality reg ||E[phi phi^T]-I|| on the SF vector phi (anti-collapse; sf_feature_td only)
         config.fwd_two_tower = False  # FB-style two-tower forward map F=trunk(MLP[s,a],MLP[s,z]) on the IQL bilinear critic (z=sg(psi(g)); architecture-only ablation, no measure loss)
         config.iql_ortho_coef = 0.0  # FB orthonormality ||E[psi psi^T]-I|| on the IQL bilinear critic's psi, with NO measure loss (isolates the ortho constraint on the ~90 IQL bilinear)
