@@ -284,7 +284,7 @@ class GCLearnedBValue(GCFrozenBValue):
     cell (E3, audit-20260706): psi is trained ONLY by reward regression (`sf_reward_regress`,
     the reference's reward-prediction basis, sf_simple.py:322)
 
-        r_hat(s',g) = <psi(s'), psi(g)>/sqrt(d)  ->  regress on batch rewards
+        r_hat(s,g) = <psi(s), psi(g)>/sqrt(d)  ->  regress on batch rewards
 
     so the goal indicator becomes linearly READABLE in the base (the identity/frozen cells'
     semantic confound: r=<s,g> is linear in s, argmax != goal). The SF vector TD still trains
@@ -665,13 +665,18 @@ class GCIQLFlowAgent(GCIQLAgent):
             info['orth'] = orth
         if self.config.get('sf_reward_regress', False):
             # E3 (corrected SF cell): ground the base in the ACTUAL reward -- bilinear reward
-            # model r_hat(s',g) = <psi(s'), psi(g)>/sqrt(d) regressed on batch rewards (received
-            # on ARRIVING at s', matching the SF telescope Q=sum gamma^t <b(s_t),w>). This is
+            # model r_hat(s,g) = <psi(s), psi(g)>/sqrt(d) regressed on batch rewards. This is
             # psi's ONLY grad path (the TD target stop-grads b; the actor Q-term takes no critic
             # grads), and it is what makes the goal indicator linearly readable in the base.
-            _, _, psi_ns = self.network.select('critic')(nobs, nobs, acts, *zarg, info=True, params=grad_params)  # psi(s')
+            # CURRENT-state convention, forced by GCDataset: successes = (idxs == value_goal_idxs)
+            # ties BOTH rewards (=successes-1) and masks (=1-successes) to the CURRENT index, and
+            # the SF target's immediate feature is b(s). Regressing on psi(s') instead would be
+            # off-by-one against reward, mask, and base alike (an arriving-state convention would
+            # additionally require retargeting the TD to b(s') and relabelling on idxs+1).
+            # At the goal s=g this pins <psi(g),psi(g)> = ||psi(g)||^2 = r_at_goal + shift.
+            _, _, psi_s = self.network.select('critic')(obs, obs, acts, *zarg, info=True, params=grad_params)  # psi(s)
             _, _, psi_g = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True, params=grad_params)  # psi(g)
-            r_hat = (psi_ns * psi_g).sum(axis=-1) / jnp.sqrt(psi_ns.shape[-1])   # [2,B]
+            r_hat = (psi_s * psi_g).sum(axis=-1) / jnp.sqrt(psi_s.shape[-1])   # [2,B]
             # sf_reward_shift: regress on r+shift. Raw OGBench rewards {-1 off-goal, 0 at-goal}
             # collapse the SYMMETRIC bilinear model to the psi=0 saddle (grad of a bilinear form
             # vanishes at psi=0, where the majority class is already fit); shift=1 gives {0, 1}
@@ -821,6 +826,22 @@ class GCIQLFlowAgent(GCIQLAgent):
                     "sf_base='learned' requires sf_reward_regress=True (else psi has no training signal)"
             config['actor_cond'] = 'goal'
 
+        if config.get('psi_base', 'learned') != 'learned':
+            # Readout-vs-TD crux (sf-design-space 1b): cripple the goal leg EXACTLY as the SF
+            # cells do, but keep GCIQL's scalar expectile TD. Only meaningful for the plain
+            # bilinear critic -- every other branch below picks its own critic class and would
+            # silently override psi_base, and sf_base already owns the base under sf_feature_td.
+            assert config.get('value_arch', 'mlp') == 'bilinear', \
+                "psi_base requires value_arch='bilinear' (an mlp critic has no goal leg to freeze)"
+            assert not config.get('sf_feature_td', False), \
+                "psi_base is for the SCALAR-TD control; under sf_feature_td use sf_base instead"
+            for knob in ('fb_forward_z', 'fwd_two_tower', 'isfb'):
+                assert not config.get(knob, False), f"psi_base is incompatible with {knob} (it selects its own critic class)"
+            if config['psi_base'] == 'identity':
+                goal_dim = ex_goals.shape[-1]
+                assert config['value_latent_dim'] == goal_dim, \
+                    f"psi_base='identity' requires value_latent_dim==goal_dim ({goal_dim}), got {config['value_latent_dim']}"
+
         # Actor goal-input example. In z-conditioning (G4) the actor consumes a
         # d-dim task vector z=psi(goal) (B := value net's psi), not the raw goal
         # observation, so its goal-leg params must be sized to value_latent_dim.
@@ -846,7 +867,12 @@ class GCIQLFlowAgent(GCIQLAgent):
         # (Direction A: GCIQL's IQL training poured through an FB-style rank-d head).
         if config.get('value_arch', 'mlp') == 'bilinear':
             d = config['value_latent_dim']
-            value_def = GCBilinearValue(
+            # psi_base: cripple the goal leg under the NORMAL scalar IQL TD (1b control).
+            # Applied SYMMETRICALLY to the value net and the critic -- freezing only the critic
+            # would leave V(s,g) a fully-trained bilinear head and confound the readout.
+            value_cls = {'learned': GCBilinearValue, 'frozen': GCFrozenBValue,
+                         'identity': GCIdentityBValue}[config.get('psi_base', 'learned')]
+            value_def = value_cls(
                 hidden_dims=config['value_hidden_dims'], latent_dim=d,
                 layer_norm=config['layer_norm'], ensemble=False,
                 state_encoder=encoders.get('value'), goal_encoder=encoders.get('value'),
@@ -854,7 +880,7 @@ class GCIQLFlowAgent(GCIQLAgent):
             # fb_forward_z: task-condition the critic's forward map -> phi(s,a,z), the
             # FB-faithful F(s,a,z).B(s'). Only valid as a measure-only critic (its
             # extra z arg would break the IQL value/critic Bellman losses).
-            critic_cls = GCBilinearValue
+            critic_cls = value_cls
             if config.get('sf_feature_td', False):
                 # phi = successor-feature vector trained by sf_loss. Base leg: 'frozen' -> frozen
                 # random psi (d free); 'identity' -> psi(g)=g (d==obs dim); 'learned' -> psi
@@ -993,10 +1019,11 @@ def get_config():
         config.measure_stopgrad_phi = False  # E2: stop-grad phi inside measure_loss so the measure gradient shapes ONLY psi (readout/backward leg), quarantined from the value-critical forward leg
         config.measure_z_random_frac = 0.0  # FB-fidelity: fraction of measure-loss task vectors z drawn as sqrt(d)-sphere gaussian directions (metamotivo sample_mixed_z) instead of psi(vgoals); needs fb_forward_z
         config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)
+        config.psi_base = 'learned'   # goal leg psi(g) under the SCALAR IQL TD (readout-vs-TD control, sf-design-space 1b): 'learned' -> trained (stock bilinear GCIQL) | 'frozen' -> frozen random MLP (d free) | 'identity' -> psi(g)=g (d==goal dim). Applied to value net AND critic; needs bilinear, excludes sf_feature_td/fb_forward_z/fwd_two_tower
         config.sf_feature_td = False  # SUCCESSOR-FEATURE vector TD on phi: phi(s,a)<-b(s)+gamma*phi(s',a'), Q=<phi,psi(g)> (train ONLY phi; needs bilinear)
         config.sf_coef = 1.0          # weight on the SF vector-TD loss (sf_feature_td)
         config.sf_base = 'identity'   # SF base feature b: 'identity' -> b(s)=s (d==obs dim); 'frozen' -> b(s)=psi(s) frozen random MLP (d free, e.g. 50); 'learned' -> psi trained by reward regression (needs sf_reward_regress)
-        config.sf_reward_regress = False  # E3 corrected SF: learn the base by reward regression r_hat(s',g)=<psi(s'),psi(g)>/sqrt(d) on batch rewards (requires sf_base='learned')
+        config.sf_reward_regress = False  # E3 corrected SF: learn the base by reward regression r_hat(s,g)=<psi(s),psi(g)>/sqrt(d) on batch rewards (current-state convention: GCDataset ties reward+mask to idxs==value_goal_idxs); requires sf_base='learned'
         config.sf_reward_coef = 1.0   # weight on the reward-regression loss (sf_reward_regress)
         config.sf_reward_shift = 0.0  # regress on r+shift; use 1.0 with OGBench {-1,0} rewards to escape the psi=0 saddle of the symmetric bilinear reward model (argmax-invariant)
         config.sf_ortho_coef = 0.0    # aux orthonormality reg ||E[phi phi^T]-I|| on the SF vector phi (anti-collapse; sf_feature_td only)

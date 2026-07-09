@@ -1,0 +1,34 @@
+# Readout-vs-TD crux, arm 2 (sf-design-space.md 1b). The bilinear flow cell with the goal
+# leg replaced by the RAW GOAL: Q(s,a,g)=<phi(s,a), g>/sqrt(d), V(s,g)=<phi(s), g>/sqrt(d),
+# param-free psi on both nets. Same scalar IQL expectile TD, same flow actor.
+#
+# value_latent_dim MUST == cube-single obs dim (28), so this also drops the rank from 50->28
+# (unavoidable: the identity map pins d). Read it against the frozen-psi arm (d=50, also
+# untrained) to separate "psi untrained" from "psi = raw obs coordinates".
+#
+# Torch priors on the same substitution: idB_dnorm 65.3 (z=g but F still goal-conditioned)
+# vs idB_decond_dnorm 2.7 COLLAPSE (true phi(s,a).g/sqrt(d) under scalar TD) -- this cell is
+# the decond variant, so a collapse here would replicate the torch result in jax/GCIQL.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Bilinear-IdentityPsi
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 28
+  psi_base: identity
+wandb_mode: online
