@@ -681,7 +681,13 @@ class GCIQLFlowAgent(GCIQLAgent):
             # collapse the SYMMETRIC bilinear model to the psi=0 saddle (grad of a bilinear form
             # vanishes at psi=0, where the majority class is already fit); shift=1 gives {0, 1}
             # targets -- majority class 0 is saddle-consistent, goal pairs demand <psi,psi>=1
-            # (a peaked kernel). A constant reward offset never changes the actor's argmax.
+            # (a peaked kernel). Note r+1 == successes == 1-masks, i.e. the goal INDICATOR.
+            # Argmax-invariance is NOT "a constant offset telescopes away" -- it does not, since
+            # the mask makes the goal absorbing so the horizon is the hitting time T. It holds
+            # because both readouts are strictly increasing in gamma^T:
+            #   r_hat = 1[s=g]      -> Q = gamma^T
+            #   r_hat = 1[s=g] - 1  -> Q = -(1 - gamma^T)/(1 - gamma)
+            # so they induce the same ordering over actions and the same greedy policy.
             r_tgt = batch['rewards'] + self.config.get('sf_reward_shift', 0.0)
             rew = jnp.mean((r_hat - r_tgt[None]) ** 2)
             loss = loss + self.config.get('sf_reward_coef', 1.0) * rew
