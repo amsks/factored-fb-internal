@@ -12,6 +12,12 @@ Protocol: per-run success at the 500k evaluation point. If a run trained past 50
 analysis/results_cache/); runs that died before 490k are listed as partial and EXCLUDED
 from the mean. mean +- ci95 (1.96*sd/sqrt(n)) over the surviving seeds.
 
+Both CSVs additionally carry the LEARNING CURVE: mean_{100,200,300,400}k / n_*k / per_seed_*k,
+always history-sourced (the wandb summary only holds the last eval). These are collected even
+for runs dropped as partial @500k -- a run killed at 333k still has a citable 100k-300k curve.
+per_seed_*k is ordered by run name (== seed order), so a fresh run can be compared seed-by-seed
+against an existing baseline at the same step.
+
 Metrics: jax agents log evaluation/overall_success; torch FB-family logs success/overall.
 
 Update discipline: after any new campaign, add its group to scripts/results_map.py and
@@ -38,6 +44,12 @@ OUT_SUMMARY = REPO / 'results' / 'summary_agents.csv'
 OUT_BRIDGE = REPO / 'results' / 'bridge_grafts.csv'
 OUT_AUDIT = REPO / 'results' / 'compile_audit.txt'
 STEP_LO, STEP_HI = 490_000, 510_000
+# Intermediate eval points, reported alongside the canonical @500k figure so a cell's
+# LEARNING CURVE (not just its endpoint) is citable -- and so a freshly launched run can be
+# sanity-checked against an existing baseline at the same step, same seed. Runs eval every
+# 100k; TOL absorbs the off-by-a-few-steps of the logged eval point.
+CKPTS = (100_000, 200_000, 300_000, 400_000)
+CKPT_TOL = 10_000
 
 
 def fetch_dump():
@@ -55,40 +67,57 @@ def fetch_dump():
     return dump
 
 
-def hist_value_at_500k(run_id, metric):
-    """Value of `metric` at the eval step closest to (and <=) 510k, from run history
-    (sampled history(); eval series are <=100 points so samples=2000 loses nothing).
-    _step is the training step in both stacks. jax logs the overall metric directly;
-    torch logs only per-task eval/reward/<task>/success rows — their mean IS
-    success/overall (verified exact on fb_state_plain). Cached per run id.
-    None if no logged point in [1, 510k] (e.g. resumed runs whose history starts >500k)."""
+def hist_series(run_id, metric):
+    """Full [[step, value]] eval history of `metric` (sampled history(); eval series are <=100
+    points so samples=2000 loses nothing). _step is the training step in both stacks. jax logs
+    the overall metric directly; torch logs only per-task eval/reward/<task>/success rows —
+    their mean IS success/overall (verified exact on fb_state_plain). Cached per run id.
+
+    NOTE the cache is keyed by run id ALONE, so a run still training is frozen at whatever
+    history it had when first fetched. `--refresh` refetches the dump but NOT these; delete
+    analysis/results_cache/hist/<id>.json (or pass --refresh-hist) to repull a live run."""
     HIST_CACHE.mkdir(parents=True, exist_ok=True)
     cf = HIST_CACHE / f'{run_id}.json'
     if cf.exists():
-        pts = json.load(open(cf))
+        return json.load(open(cf))
+    import wandb
+    api = wandb.Api(timeout=120)
+    run = api.run(f'{ENTITY_PROJECT}/{run_id}')
+    if metric == 'success/overall':
+        keys = [k for k in run.summary.keys()
+                if k.startswith('eval/reward/') and k.endswith('/success')
+                and not k.endswith('/eval/success')]
+        pts = []
+        if keys:
+            for row in run.history(keys=keys, samples=2000, pandas=False):
+                vals = [row[k] for k in keys if row.get(k) is not None]
+                if vals:
+                    pts.append([row['_step'], sum(vals) / len(vals)])
     else:
-        import wandb
-        api = wandb.Api(timeout=120)
-        run = api.run(f'{ENTITY_PROJECT}/{run_id}')
-        if metric == 'success/overall':
-            keys = [k for k in run.summary.keys()
-                    if k.startswith('eval/reward/') and k.endswith('/success')
-                    and not k.endswith('/eval/success')]
-            pts = []
-            if keys:
-                for row in run.history(keys=keys, samples=2000, pandas=False):
-                    vals = [row[k] for k in keys if row.get(k) is not None]
-                    if vals:
-                        pts.append([row['_step'], sum(vals) / len(vals)])
-        else:
-            pts = [[row['_step'], row[metric]]
-                   for row in run.history(keys=[metric], samples=2000, pandas=False)
-                   if row.get(metric) is not None]
-        json.dump(pts, open(cf, 'w'))
-    below = [(s, v) for s, v in pts if 1 <= s <= STEP_HI]
+        pts = [[row['_step'], row[metric]]
+               for row in run.history(keys=[metric], samples=2000, pandas=False)
+               if row.get(metric) is not None]
+    json.dump(pts, open(cf, 'w'))
+    return pts
+
+
+def hist_value_at_500k(run_id, metric):
+    """Value at the eval step closest to (and <=) 510k. None if no logged point in [1, 510k]
+    (e.g. resumed runs whose history starts >500k)."""
+    below = [(s, v) for s, v in hist_series(run_id, metric) if 1 <= s <= STEP_HI]
     if not below:
         return None, None
     s, v = max(below, key=lambda t: t[0])
+    return v, s
+
+
+def hist_value_at(run_id, metric, target, tol=CKPT_TOL):
+    """Value at the logged eval point NEAREST `target` within +-tol. Returns (None, None) if the
+    run never logged an eval there (died early, or eval_interval doesn't land on it)."""
+    near = [(s, v) for s, v in hist_series(run_id, metric) if abs(s - target) <= tol]
+    if not near:
+        return None, None
+    s, v = min(near, key=lambda t: abs(t[0] - target))
     return v, s
 
 
@@ -103,7 +132,15 @@ def ci95(vals):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--refresh', action='store_true', help='refetch the wandb run dump')
+    ap.add_argument('--refresh-hist', action='store_true',
+                    help='also drop the per-run history cache (needed for runs still training)')
     args = ap.parse_args()
+
+    if args.refresh_hist and HIST_CACHE.exists():
+        n = 0
+        for f in HIST_CACHE.glob('*.json'):
+            f.unlink(); n += 1
+        print(f'[compile] dropped {n} cached run histories')
 
     dump = fetch_dump() if args.refresh or not DUMP.exists() else json.load(open(DUMP))
     by_group = {}
@@ -123,7 +160,9 @@ def main():
         metric = 'overall_success' if any(r['overall_success'] is not None for r in runs) else 'success_overall'
         wkey = 'evaluation/overall_success' if metric == 'overall_success' else 'success/overall'
         vals, seeds, partial = [], [], []
-        for r in runs:
+        ck_vals = {t: [] for t in CKPTS}      # intermediate learning-curve points
+        ck_seeds = {t: [] for t in CKPTS}
+        for r in sorted(runs, key=lambda r: r['name'] or ''):   # stable per-seed column order
             v, step = r[metric], r['step']
             if v is None and r['overall_success'] is None and r['success_overall'] is None:
                 partial.append(f"{r['name']}(no-metric)")
@@ -145,22 +184,38 @@ def main():
                     vals.append(hv); seeds.append(seed_label(hv, hs))
                 else:
                     partial.append(f"{r['name']}(died@{step})")
+            # Intermediate points are ALWAYS history-sourced (summary only holds the last eval),
+            # and are collected even for runs dropped as partial @500k -- a run killed at 333k
+            # still has a valid, citable 100k/200k/300k curve.
+            for t in CKPTS:
+                cv, cs = hist_value_at(r['id'], wkey, t)
+                if cv is not None:
+                    ck_vals[t].append(cv)
+                    ck_seeds[t].append(f"{cv:.3f}" if cs == t else f"{cv:.3f}@{cs}")
         m = round(sum(vals) / len(vals), 4) if vals else None
         c = round(ci95(vals), 4) if vals else None
-        rows[spec['csv']].append({
+        row = {
             'env': spec['env'], 'agent': spec['agent'], 'actor': spec['actor'],
             'variant': spec.get('variant', ''), 'graft': spec.get('graft', ''),
             'mean': m, 'ci95': c, 'n_seeds': len(vals),
             'per_seed': ' '.join(seeds), 'partial_seeds': ' '.join(partial),
             'wandb_group': grp, 'notes': spec.get('notes', ''),
-        })
+        }
+        for t in CKPTS:
+            k = t // 1000
+            cvs = ck_vals[t]
+            row[f'mean_{k}k'] = round(sum(cvs) / len(cvs), 4) if cvs else None
+            row[f'n_{k}k'] = len(cvs)
+            row[f'per_seed_{k}k'] = ' '.join(ck_seeds[t])
+        rows[spec['csv']].append(row)
         if partial:
             audit.append(f"PARTIAL {grp}: {len(vals)} used, dropped: {', '.join(partial)}")
 
+    ck_cols = [c for t in CKPTS for c in (f'mean_{t // 1000}k', f'n_{t // 1000}k', f'per_seed_{t // 1000}k')]
     order = {'cube': 0, 'scene': 1, 'antmaze': 2, 'cube-pixel': 3}
     for key, out, cols in (
-        ('summary', OUT_SUMMARY, ['env', 'agent', 'actor', 'variant', 'mean', 'ci95', 'n_seeds', 'per_seed', 'partial_seeds', 'wandb_group', 'notes']),
-        ('bridge', OUT_BRIDGE, ['env', 'agent', 'actor', 'variant', 'graft', 'mean', 'ci95', 'n_seeds', 'per_seed', 'partial_seeds', 'wandb_group', 'notes']),
+        ('summary', OUT_SUMMARY, ['env', 'agent', 'actor', 'variant', 'mean', 'ci95', 'n_seeds', 'per_seed'] + ck_cols + ['partial_seeds', 'wandb_group', 'notes']),
+        ('bridge', OUT_BRIDGE, ['env', 'agent', 'actor', 'variant', 'graft', 'mean', 'ci95', 'n_seeds', 'per_seed'] + ck_cols + ['partial_seeds', 'wandb_group', 'notes']),
     ):
         rs = sorted(rows[key], key=lambda r: (order.get(r['env'], 9), r['agent'], r['actor'], r['variant']))
         out.parent.mkdir(parents=True, exist_ok=True)

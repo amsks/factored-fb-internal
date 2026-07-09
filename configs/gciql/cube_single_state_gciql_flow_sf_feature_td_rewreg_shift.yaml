@@ -22,7 +22,10 @@ eval_interval: 100000
 save_interval: 500000
 eval_episodes: 50
 eval_on_cpu: 1
-run_group: GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift
+# NOTE the -Fix suffix: the pre-fix v2 runs (crashed @~330k) already occupy the plain
+# ...-RewReg-Shift group, and results_map keys on the group. Reusing it would silently average
+# buggy and corrected seeds together.
+run_group: GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Fix
 restore_path: null
 restore_epoch: null
 exp_name: null
