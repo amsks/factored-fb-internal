@@ -672,7 +672,13 @@ class GCIQLFlowAgent(GCIQLAgent):
             _, _, psi_ns = self.network.select('critic')(nobs, nobs, acts, *zarg, info=True, params=grad_params)  # psi(s')
             _, _, psi_g = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True, params=grad_params)  # psi(g)
             r_hat = (psi_ns * psi_g).sum(axis=-1) / jnp.sqrt(psi_ns.shape[-1])   # [2,B]
-            rew = jnp.mean((r_hat - batch['rewards'][None]) ** 2)
+            # sf_reward_shift: regress on r+shift. Raw OGBench rewards {-1 off-goal, 0 at-goal}
+            # collapse the SYMMETRIC bilinear model to the psi=0 saddle (grad of a bilinear form
+            # vanishes at psi=0, where the majority class is already fit); shift=1 gives {0, 1}
+            # targets -- majority class 0 is saddle-consistent, goal pairs demand <psi,psi>=1
+            # (a peaked kernel). A constant reward offset never changes the actor's argmax.
+            r_tgt = batch['rewards'] + self.config.get('sf_reward_shift', 0.0)
+            rew = jnp.mean((r_hat - r_tgt[None]) ** 2)
             loss = loss + self.config.get('sf_reward_coef', 1.0) * rew
             info['sf_reward_loss'] = rew
             info['sf_rhat_mean'] = jnp.mean(r_hat)
@@ -992,6 +998,7 @@ def get_config():
         config.sf_base = 'identity'   # SF base feature b: 'identity' -> b(s)=s (d==obs dim); 'frozen' -> b(s)=psi(s) frozen random MLP (d free, e.g. 50); 'learned' -> psi trained by reward regression (needs sf_reward_regress)
         config.sf_reward_regress = False  # E3 corrected SF: learn the base by reward regression r_hat(s',g)=<psi(s'),psi(g)>/sqrt(d) on batch rewards (requires sf_base='learned')
         config.sf_reward_coef = 1.0   # weight on the reward-regression loss (sf_reward_regress)
+        config.sf_reward_shift = 0.0  # regress on r+shift; use 1.0 with OGBench {-1,0} rewards to escape the psi=0 saddle of the symmetric bilinear reward model (argmax-invariant)
         config.sf_ortho_coef = 0.0    # aux orthonormality reg ||E[phi phi^T]-I|| on the SF vector phi (anti-collapse; sf_feature_td only)
         config.fwd_two_tower = False  # FB-style two-tower forward map F=trunk(MLP[s,a],MLP[s,z]) on the IQL bilinear critic (z=sg(psi(g)); architecture-only ablation, no measure loss)
         config.iql_ortho_coef = 0.0  # FB orthonormality ||E[psi psi^T]-I|| on the IQL bilinear critic's psi, with NO measure loss (isolates the ortho constraint on the ~90 IQL bilinear)
