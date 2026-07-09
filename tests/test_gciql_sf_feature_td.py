@@ -341,6 +341,46 @@ def test_sf_learned_base_reward_regression_semantics():
     assert "OK" in proc.stdout
 
 
+def test_sf_reward_shift_regresses_on_shifted_reward():
+    """sf_reward_shift: regress the bilinear reward model on r+shift. With OGBench's
+    {-1 off-goal, 0 at-goal} rewards the raw regression collapses to the psi=0 saddle
+    (a bilinear form's gradient vanishes at psi=0, and the majority class IS 0 there);
+    shift=1 makes the majority class the saddle-consistent 0 and the goal pairs demand
+    <psi(s'),psi(g)>=1, a peaked kernel. Constant shift leaves the actor argmax unchanged.
+    DECISIVE: sf_reward_loss must equal mean((r_hat - (r+shift))^2) computed by hand."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        cfg = dict(get_config())
+        cfg["encoder"] = None; cfg["frame_stack"] = None
+        cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = 50
+        cfg["sf_feature_td"] = True; cfg["sf_base"] = "learned"
+        cfg["sf_reward_regress"] = True; cfg["sf_reward_shift"] = 1.0
+        cfg["discount"] = 0.0
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (6, 11))
+        ex_nobs = jax.random.normal(jax.random.PRNGKey(3), (6, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (6, 5))
+        goals = jax.random.normal(jax.random.PRNGKey(4), (6, 11))
+        rewards = -jnp.ones((6,)).at[0].set(0.0)          # OGBench convention: {-1, 0}
+        agent = GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        batch = dict(observations=ex_obs, next_observations=ex_nobs, actions=ex_act,
+                     rewards=rewards, masks=jnp.ones((6,)),
+                     value_goals=goals, actor_goals=goals)
+        loss, info = agent.sf_loss(batch, agent.network.params, jax.random.PRNGKey(2))
+        p = agent.network.params
+        _, _, psi_ns = agent.network.select("critic")(ex_nobs, ex_nobs, ex_act, info=True, params=p)
+        _, _, psi_g = agent.network.select("critic")(ex_obs, goals, ex_act, info=True, params=p)
+        r_hat = (psi_ns * psi_g).sum(-1) / jnp.sqrt(50.0)
+        exp_rew = jnp.mean((r_hat - (rewards[None] + 1.0)) ** 2)
+        assert jnp.allclose(info["sf_reward_loss"], exp_rew, atol=1e-5), \\
+            (float(info["sf_reward_loss"]), float(exp_rew))
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
 def test_sf_learned_base_psi_trains():
     """With sf_reward_regress the psi leg is LEARNED: its params must CHANGE under training
     (the reward regression is its grad path) -- the exact opposite of the frozen-base test --
