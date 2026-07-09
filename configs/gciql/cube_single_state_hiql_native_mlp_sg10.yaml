@@ -1,0 +1,25 @@
+# HIQL debug (correct OGBench HP): native AWR HIQL, MLP value, subgoal_steps=10.
+# This is the OGBench-canonical HIQL and should reproduce the published ~15.
+# Pairs with cube_single_state_hiql_native_bilinear_d50_sg10 to isolate the
+# bilinear head at the *tuned* subgoal horizon (all prior HIQL runs used sg=25).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: agents/hiql.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 0
+run_group: HIQL-State-Native-MLP-sg10
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  value_arch: mlp
+  subgoal_steps: 10
+wandb_mode: online

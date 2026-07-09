@@ -1,0 +1,268 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=0.75in]{geometry}
+\usepackage{amsmath,amssymb,booktabs,xcolor,enumitem}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\newcommand{\sg}{\operatorname{sg}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\inner}[2]{\langle #1,\, #2\rangle}
+\newcommand{\Fmap}{F}
+\newcommand{\Vmap}{F_V}
+\newcommand{\Bmap}{B}
+\newcommand{\Lexp}{L^{\tau}_2}
+\newcommand{\ind}{\mathbf{1}}
+\newcommand{\off}{\operatorname{off}}
+\newcommand{\clip}{\operatorname{clip}}
+
+\title{\textbf{In-Sample Forward--Backward}\\[3pt]\large Adding IQL-style improvement to successor-measure learning}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Core idea}
+
+Forward--Backward learns a successor measure.
+
+\begin{equation}
+M(s,a,s';z)=\frac{1}{\sqrt d}\inner{\Fmap(s,a,z)}{\Bmap(s')}.
+\end{equation}
+
+This quantity says how much future occupancy of state $s'$ is predicted after taking action $a$ in state $s$ under task direction $z$.
+The actor uses the scalar projection of this measure onto the task direction.
+
+\begin{equation}
+Q_z(s,a)=\frac{1}{\sqrt d}\inner{\Fmap(s,a,z)}{z}.
+\end{equation}
+
+For goal reaching, one typically sets $z=\Bmap(g)$.
+The actor then chooses actions whose predicted future occupancy points toward the goal embedding.
+Standard FB trains this measure with a policy-evaluation backup.
+
+\begin{equation}
+M(s,a,\cdot;z)\leftarrow \delta_{s'}+\gamma M(s',a^+,\cdot;z),\qquad a^+\sim\pi_z(\cdot\mid s').
+\end{equation}
+
+This asks FB to evaluate the future occupancy of the current policy.
+It does not explicitly ask which dataset-supported actions are better for the task.
+The bridge experiments suggest that this missing improvement operator is the central difference between FB and IQL.
+
+\begin{center}
+\begin{tabular}{@{}lll r@{}}
+\toprule
+\textbf{Configuration} & \textbf{Objective} & \textbf{Architecture} & \textbf{Success} \\
+\midrule
+GCIQL bilinear base & IQL & bilinear $\phi^\top\psi/\sqrt d$ & ${\sim}90\%$ \\
+B4 & IQL & full FB skeleton & ${\sim}87\%$ \\
+C4 & measure & full FB skeleton & ${\sim}16\%$ \\
+Measure variants & measure & bilinear/FB variants & ${\sim}9$--$25\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The bilinear architecture works well under the IQL objective.
+The point is that IQL performs in-sample policy improvement, while standard FB mostly performs successor-measure evaluation.
+
+\section{The addition}
+
+The addition is a state-only value successor measure.
+
+\begin{equation}
+N(s,s';z)=\frac{1}{\sqrt d}\inner{\Vmap(s,z)}{\Bmap(s')}.
+\end{equation}
+
+This mirrors the relationship between $Q$ and $V$ in IQL.
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Role} & \textbf{IQL} & \textbf{ISFB} \\
+\midrule
+State-action object & $Q(s,a,g)$ & $M(s,a,\cdot;z)$ \\
+State value object & $V(s,g)$ & $N(s,\cdot;z)$ \\
+Improvement step & $V$ favors better dataset actions & $N$ favors better dataset actions \\
+Bootstrap & $Q\leftarrow r+\gamma V'$ & $M\leftarrow \delta_{s'}+\gamma N'$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The new FB backup replaces the sampled next action with the value successor measure.
+
+\begin{equation}
+M(s,a,\cdot;z)\leftarrow \delta_{s'}+\gamma N(s',\cdot;z).
+\end{equation}
+
+So standard FB asks what future follows the current actor.
+ISFB asks what future follows after an improved in-sample choice.
+For a minibatch $\{(s_i,a_i,s'_i)\}_{i=1}^B$, define the action and value measures as follows.
+
+\begin{equation}
+M_{ij}=\frac{1}{\sqrt d}\inner{\Fmap(s_i,a_i,z_i)}{\Bmap(s'_j)},\qquad N_{ij}=\frac{1}{\sqrt d}\inner{\Vmap(s_i,z_i)}{\Bmap(s'_j)}.
+\end{equation}
+
+The three versions differ only in how they make $N$ represent an improved state-level successor measure.
+
+\section{Version 1: coordinatewise ISFB}
+
+Coordinatewise ISFB applies the expectile directly to each successor coordinate.
+
+\begin{equation}
+\mathcal L_N^{\mathrm{coord}}=\frac{1}{B^2}\sum_{i,j}\Lexp\!\left(\sg M_{ij}-N_{ij}\right).
+\end{equation}
+
+This is the most direct measure-level analogue of IQL.
+
+\begin{equation}
+V(s)\approx \operatorname{Expectile}_\tau Q(s,a)\quad\Longrightarrow\quad N(s,s';z)\approx \operatorname{Expectile}_\tau M(s,a,s';z).
+\end{equation}
+
+The issue is that the improvement decision is made separately for every successor coordinate.
+Different coordinates may prefer different actions.
+Thus $N(s,\cdot;z)$ can become an optimistic vector that no single action or policy can realize.
+This makes coordinatewise ISFB a useful baseline, but not the cleanest policy-improvement object.
+
+\section{Version 2: scalar-gated ISFB}
+
+Scalar-gated ISFB first makes the improvement decision in the scalar value space used by the actor.
+
+\begin{equation}
+q_i=Q_z(s_i,a_i)=\frac{1}{\sqrt d}\inner{\Fmap(s_i,a_i,z_i)}{z_i}.
+\end{equation}
+
+\begin{equation}
+v_i=V_z(s_i)=\frac{1}{\sqrt d}\inner{\Vmap(s_i,z_i)}{z_i}.
+\end{equation}
+
+The scalar value leg is trained with the usual IQL expectile.
+
+\begin{equation}
+\mathcal L_V^{\mathrm{scalar}}=\frac{1}{B}\sum_i\Lexp\!\left(\sg q_i-v_i\right).
+\end{equation}
+
+The scalar advantage is then used as the action-selection signal.
+
+\begin{equation}
+A_i=\sg(q_i-v_i).
+\end{equation}
+
+The hard scalar gate uses the expectile weights directly.
+
+\begin{equation}
+w_i^{\mathrm{hard}}=\tau\ind[A_i>0]+(1-\tau)\ind[A_i\le 0].
+\end{equation}
+
+The whole successor vector is then copied strongly or weakly depending on whether the action looks good for task $z_i$.
+
+\begin{equation}
+\mathcal L_N^{\mathrm{hard}}=\frac{1}{B^2}\sum_{i,j}\bar w_i^{\mathrm{hard}}\left(\sg M_{ij}-N_{ij}\right)^2,\qquad \bar w_i^{\mathrm{hard}}=\frac{w_i^{\mathrm{hard}}}{\frac{1}{B}\sum_k w_k^{\mathrm{hard}}+\epsilon}.
+\end{equation}
+
+The key difference from coordinatewise ISFB is that action selection happens once per transition, after projecting onto the task direction.
+If an action is good for the task, its entire successor measure is used.
+This is more policy-coherent than choosing winners independently for each future coordinate.
+
+\section{Version 3: AWR-gated ISFB}
+
+AWR-gated ISFB uses the same scalar advantage but replaces the hard gate with a smooth exponential weight.
+
+\begin{equation}
+w_i^{\mathrm{AWR}}=\clip\!\left(\exp(\beta A_i),0,w_{\max}\right).
+\end{equation}
+
+The value-measure regression is then weighted by this smooth advantage weight.
+
+\begin{equation}
+\mathcal L_N^{\mathrm{AWR}}=\frac{1}{B^2}\sum_{i,j}\bar w_i^{\mathrm{AWR}}\left(\sg M_{ij}-N_{ij}\right)^2,\qquad \bar w_i^{\mathrm{AWR}}=\frac{w_i^{\mathrm{AWR}}}{\frac{1}{B}\sum_k w_k^{\mathrm{AWR}}+\epsilon}.
+\end{equation}
+
+The hard gate only uses the sign of the advantage.
+AWR also uses the magnitude of the advantage.
+This can make the improvement step sharper.
+It also makes the method sensitive to the scale of $A_i$.
+If advantages are too small, all weights become nearly uniform.
+If advantages are too large, a few samples dominate after clipping.
+
+\section{Shared ISFB measure TD}
+
+All three versions use the same measure TD update for $M$.
+
+\begin{equation}
+N^{-}_{ij}=\frac{1}{\sqrt d}\inner{\Vmap^{-}(s'_i,z_i)}{\Bmap^{-}(s'_j)}.
+\end{equation}
+
+\begin{equation}
+\Delta_{ij}^{\mathrm{ISFB}}=M_{ij}-\gamma\sg N^{-}_{ij}.
+\end{equation}
+
+With a termination or goal-success mask $m_i$, the residual becomes masked row-wise.
+
+\begin{equation}
+\Delta_{ij}^{\mathrm{ISFB}}=M_{ij}-\gamma m_i\sg N^{-}_{ij}.
+\end{equation}
+
+The measure loss keeps the FB off-diagonal and diagonal structure.
+
+\begin{equation}
+\mathcal L_M^{\mathrm{ISFB}}=\frac{1}{2|\off|}\sum_{i\ne j}\left(\Delta_{ij}^{\mathrm{ISFB}}\right)^2-\frac{1}{B}\sum_i\Delta_{ii}^{\mathrm{ISFB}}.
+\end{equation}
+
+The backward embedding keeps the standard FB orthonormality loss.
+
+\begin{equation}
+\mathcal L_\perp=\frac{1}{2|\off|}\sum_{i\ne j}\inner{\Bmap(s'_i)}{\Bmap(s'_j)}^2-\frac{1}{B}\sum_i\|\Bmap(s'_i)\|^2.
+\end{equation}
+
+\section{Complete objectives}
+
+The coordinatewise objective is as follows.
+
+\begin{equation}
+\boxed{\mathcal L_{\mathrm{Coord\text{-}ISFB}}=\alpha_N\mathcal L_N^{\mathrm{coord}}+\alpha_M\mathcal L_M^{\mathrm{ISFB}}+\lambda\mathcal L_\perp.}
+\end{equation}
+
+The hard scalar-gated objective is as follows.
+
+\begin{equation}
+\boxed{\mathcal L_{\mathrm{Hard\text{-}ISFB}}=\mathcal L_V^{\mathrm{scalar}}+\alpha_N\mathcal L_N^{\mathrm{hard}}+\alpha_M\mathcal L_M^{\mathrm{ISFB}}+\lambda\mathcal L_\perp.}
+\end{equation}
+
+The AWR-gated objective is as follows.
+
+\begin{equation}
+\boxed{\mathcal L_{\mathrm{AWR\text{-}ISFB}}=\mathcal L_V^{\mathrm{scalar}}+\alpha_N\mathcal L_N^{\mathrm{AWR}}+\alpha_M\mathcal L_M^{\mathrm{ISFB}}+\lambda\mathcal L_\perp.}
+\end{equation}
+
+We should begin with the FB-scale orthonormality coefficient, such as $\lambda=1$, rather than large cube-scale values such as $\lambda=1000$.
+
+% ============================================================================
+\section*{Measured result: FB vs.\ SG-ISFB on cube ($\lambda=1$)}
+% ============================================================================
+
+Cube-single state, flow (FQL) actor throughout, orthonormality $\lambda=1$ for
+every row, 3 seeds @ 500k (torch FB agent; wandb \texttt{amsks/factored-fb}).
+
+\begin{center}
+\begin{tabular}{@{}l l r@{}}
+\toprule
+\textbf{Config} (ortho $\lambda{=}1$, flow actor) & \textbf{Objective} & \textbf{Succ.} \\
+\midrule
+FB $+$ flow (C4: z-fwd $+$ sphere)   & measure, no in-sample operator          & \bad{16.5} \\
+\midrule
+ISFB $+$ flow, coord                 & measure $+$ coordinatewise expectile    & \good{33.3} \\
+ISFB $+$ flow, scalar-gate AWR       & measure $+$ scalar gate, $e^{\beta A}$   & 26.7 \\
+ISFB $+$ flow, scalar-gate hard      & measure $+$ scalar gate, hard expectile & \bad{8.0} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent\footnotesize
+The FB baseline is the $\lambda{=}1$ FB-measure config (C4); the plain-FB anchor
+itself uses $\lambda{=}1000$ ($\sim$48\% @1M). At matched ortho, the in-sample
+operator roughly doubles the FB-measure floor ($16.5\to33.3$, coord) but stays far
+below the IQL band ($\sim$87). The scalar-gate refinement underperforms the
+coordinatewise baseline ($33.3\to26.7$ AWR $/\,8.0$ hard).
+\normalsize
+
+\end{document}

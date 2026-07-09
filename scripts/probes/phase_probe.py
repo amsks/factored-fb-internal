@@ -105,10 +105,12 @@ def main() -> None:
                                       frame_stack=frame_stack)
             try:
                 z, _ = agent.eval_context(env=e, domain=cfg.domain, task=task)
+                return z
+            except AttributeError:
+                pass  # baseline uses reward-inference _infer_z; fall through
             finally:
                 if hasattr(e, "close"):
                     e.close()
-            return z
         z, _ = evaluator._infer_z(task)
         return z
 
