@@ -32,14 +32,29 @@ Two agent variants:
 
 ## Installation
 
-**Python ≥ 3.11** required. The repo is set up for [`uv`](https://github.com/astral-sh/uv) (a `.venv/` is committed via `pyvenv.cfg`), but plain `pip` works too.
+**Python 3.11–3.13** required (`Box2D` has no 3.14 wheels yet). The repo uses
+[`uv`](https://github.com/astral-sh/uv) with a project `.venv/`.
 
 ```bash
 git clone <repo-url> Factored-FB
 cd Factored-FB
-uv venv --python 3.11             # creates .venv/
+uv venv --python 3.11
 source .venv/bin/activate
-make install                      # uv pip install -r requirements.txt
+make install                      # core + rlmini-envs (see docs/install.md)
+```
+
+On **TACC Vista / linux aarch64**, Box2D must be built from source — see
+[`docs/install.md`](docs/install.md) for `module load gcc swig`, `CC=gcc
+CXX=g++`, and `make install-vista`.
+
+OGBench training is optional and heavier (`make install-ogbench`; needs bazel
+for `labmaze` on some hosts). Default `make install` is enough for rlmini /
+Air Hockey / CRL+IWS scripts.
+
+Run entrypoints with `python …` or `uv run …` interchangeably:
+
+```bash
+uv run python scripts/data/run_crl_iws_train.py --help
 ```
 
 CUDA is the default device; CPU users should pass `device=cpu` on the CLI.

@@ -70,3 +70,4 @@ PAPER/**/*.xdv
 analysis/
 checkpoints/
 logs/
+runs/

@@ -1,3 +1,4 @@
+# Legacy pip requirements. Prefer `make install` / `uv sync` (see docs/install.md).
 # Core
 torch>=2.3
 numpy>=1.26

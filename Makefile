@@ -1,10 +1,21 @@
-.PHONY: install install-pip smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql test-wandb-shim run-gciql run-gciql-state run-gciql-state-sweep smoke-gciql
+.PHONY: install install-vista install-pip install-ogbench smoke train-ant-medium train-ant-large train-cube sweep-ant-medium verify-ortho-fix verify-ortho-broken verify-lr-b-fix verify-lr-b-broken verify-both data clean help install-jax-shm install-jax test-gciql test-wandb-shim run-gciql run-gciql-state run-gciql-state-sweep smoke-gciql
 
 # ── Installation ──────────────────────────────────────────────────────────── #
+# Full guide: docs/install.md
 
-## Install dependencies with uv (recommended; uses .venv/)
+## Install dependencies with uv (recommended; uses .venv/, includes rlmini-envs)
 install:
-	uv pip install -r requirements.txt
+	uv sync --python 3.11
+
+## Vista / linux-aarch64: load gcc+swig first, then run this (see docs/install.md)
+install-vista:
+	@test -n "$$CC" || export CC=gcc; \
+	test -n "$$CXX" || export CXX=g++; \
+	uv sync --python 3.11
+
+## Install with OGBench (needs bazel for labmaze on some platforms)
+install-ogbench:
+	uv sync --python 3.11 --extra ogbench
 
 ## Install dependencies with plain pip
 install-pip:

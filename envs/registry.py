@@ -48,4 +48,6 @@ def get_backend(env_family: str) -> EnvBackend:
         case "rlmini":
             return _rlmini_backend()
         case _:
-            raise ValueError(f"Unknown env_family {env_family!r}; expected 'ogbench' or 'rlmini'")
+            raise ValueError(
+                f"Unknown env_family {env_family!r}; expected 'ogbench' or 'rlmini'"
+            )

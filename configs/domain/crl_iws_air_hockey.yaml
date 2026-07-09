@@ -1,0 +1,21 @@
+# @package _global_
+defaults:
+  - /agent: fb
+  - _self_
+
+env_family: rlmini
+domain: crl-iws-air-hockey
+data_path: datasets
+obs_type: state
+
+# Online CRL+IWS training defaults aligned with Unsupervised_Manipulation
+# puck_goal_position_random_paddle_goal_tiny_history_real_transfer_s4.yaml
+rlmini_env: AirHockey
+rlmini_variant: default
+air_hockey_config: configs/air_hockey/puck_goal_real_transfer_s4.yaml
+rlmini_horizon: 250
+rlmini_render: false
+rlmini_extra:
+  continuous: true
+
+eval_shift_reward: 0.0
