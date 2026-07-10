@@ -631,20 +631,31 @@ class GCIQLFlowAgent(GCIQLAgent):
         Q(s,a,g)=<phi(s,a), psi(g)> drives the greedy flow actor. Base b(s): 'identity' -> b(s)=s
         (d==obs dim); 'frozen' -> b(s)=psi(s), the critic's frozen random features (d free)."""
         obs, nobs, acts = batch['observations'], batch['next_observations'], batch['actions']
-        vgoals, mask = batch['value_goals'], batch['masks']
+        vgoals = batch['value_goals']
         gamma = self.config['discount']
+        # sf_mask: 'goal' -> batch['masks'] = 1[s != g], an ABSORBING goal (Q = gamma^T, a
+        # first-hitting value). 'none' -> m == 1, no absorption (Q = sum_t gamma^t 1[s_t=g], a
+        # visitation DENSITY -- FB's object; measure_loss has no mask at all).
+        mask = batch['masks'] if self.config.get('sf_mask', 'goal') == 'goal' else jnp.ones_like(batch['masks'])
+        # sf_base_index: 'current' -> b(s)=psi(s), forced by GCDataset tying rewards AND masks to
+        # the current index. 'next' -> b(s)=psi(s'), FB's arriving-state convention (its measure
+        # counts arrival at s'). Never mix the two (guard 4).
+        base_next = self.config.get('sf_base_index', 'current') == 'next'
+        joint = self.config.get('sf_joint_psi', False)
         # fb_forward_z: task-condition phi([s,a,z=psi(g)]) -> thread z_goals=vgoals through the
         # phi, base-feature, and target-critic calls (same task g on both sides of the SF backup).
         zarg = (vgoals,) if self.config.get('fb_forward_z', False) else ()
         _, phi, _psi = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
         if self.config.get('sf_base', 'identity') in ('frozen', 'learned'):
-            # b(s) = psi(s): the base features of the CURRENT state (call psi via b_goals=obs).
-            # Stop-gradded either way: the TD trains ONLY phi ('learned' psi trains solely via
-            # the sf_reward_regress term below).
-            _, _, b = self.network.select('critic')(obs, obs, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
-            b = jax.lax.stop_gradient(b)
+            # b = psi(s) or psi(s'): call psi via b_goals. Stop-gradded UNLESS sf_joint_psi, in
+            # which case the TD residual trains psi through the base (held non-degenerate by
+            # sf_psi_ortho_coef -- without it phi=0, psi=0 is a global minimum).
+            b_goals = nobs if base_next else obs
+            _, _, b = self.network.select('critic')(obs, b_goals, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
+            if not joint:
+                b = jax.lax.stop_gradient(b)
         else:
-            b = obs[None]                                             # identity base b(s)=s -> [1,B,d]
+            b = (nobs if base_next else obs)[None]                    # identity base b(s)=s -> [1,B,d]
         if self.config['actor_kind'] == 'ddpgbc':
             # stock gaussian actor: a' = mode of pi(.|s',g) (or a sample if learned std).
             dist = self.network.select('actor')(nobs, vgoals)
@@ -654,10 +665,14 @@ class GCIQLFlowAgent(GCIQLAgent):
             a_next = self.network.select('actor')(nobs, vgoals, noise)          # a' ~ pi(s',g)
         a_next = jax.lax.stop_gradient(jnp.clip(a_next, -1, 1))
         _, tphi, _ = self.network.select('target_critic')(nobs, vgoals, a_next, *zarg, info=True)  # [2,B,d]
-        target = jax.lax.stop_gradient(b + gamma * mask[None, :, None] * tphi)               # [2,B,d]
+        boot = gamma * mask[None, :, None] * jax.lax.stop_gradient(tphi)                      # [2,B,d]
+        # b carries gradient iff sf_joint_psi; the bootstrap is always semi-gradient (FB does the
+        # same). With joint=False this is identical to the old sg[b + gamma*m*tphi] target.
+        target = b + boot
         td = jnp.mean((phi - target) ** 2)
         loss = td
-        info = {'sf_loss': td, 'phi_absmax': jnp.max(jnp.abs(phi)), 'target_absmax': jnp.max(jnp.abs(target))}
+        info = {'sf_loss': td, 'phi_absmax': jnp.max(jnp.abs(phi)),
+                'target_absmax': jnp.max(jnp.abs(jax.lax.stop_gradient(target)))}
         lam = self.config.get('sf_ortho_coef', 0.0)
         if lam > 0:
             # anti-collapse aux reg: orthonormality ||E[phi phi^T]-I|| on the SF vector phi
@@ -853,7 +868,7 @@ class GCIQLFlowAgent(GCIQLAgent):
                 assert config.get('sf_base', 'identity') == 'learned', \
                     "sf_reward_regress requires sf_base='learned' (fixed bases can't express the goal indicator)"
             if config.get('sf_base', 'identity') == 'learned':
-                assert config.get('sf_reward_regress', False), \
+                assert config.get('sf_reward_regress', False) or config.get('sf_joint_psi', False), \
                     "sf_base='learned' requires sf_reward_regress=True (else psi has no training signal)"
             config['actor_cond'] = 'goal'
 
@@ -1063,6 +1078,9 @@ def get_config():
         config.sf_reward_shift = 0.0  # regress on r+shift; use 1.0 with OGBench {-1,0} rewards to escape the psi=0 saddle of the symmetric bilinear reward model (argmax-invariant)
         config.sf_ortho_coef = 0.0    # aux orthonormality reg ||E[phi phi^T]-I|| on the SF vector phi (anti-collapse; sf_feature_td only)
         config.sf_psi_ortho_coef = 0.0  # FB orthonormality ||E_rho[psi psi^T]-I|| on the BASE leg psi(s') (FB uses 1000). DISTINCT from sf_ortho_coef, which penalizes phi. Required by sf_joint_psi (else phi=0,psi=0 is a global min of the SF TD)
+        config.sf_joint_psi = False   # train psi by the SF vector TD itself (un-stop-grad the base b). Requires sf_base='learned' + sf_psi_ortho_coef>0; mutually exclusive with sf_reward_regress
+        config.sf_base_index = 'current'  # immediate feature: 'current' -> b(s)=psi(s) (GCDataset ties rewards+masks to the current index) | 'next' -> b(s)=psi(s') (FB's arriving-state measure convention). Never mix 'next' with sf_mask='goal'
+        config.sf_mask = 'goal'       # bootstrap gate: 'goal' -> batch['masks'], absorbing goal (Q=gamma^T, hitting time) | 'none' -> m==1 (Q=sum gamma^t 1[s_t=g], visitation density; FB's measure_loss has no mask)
         config.fwd_two_tower = False  # FB-style two-tower forward map F=trunk(MLP[s,a],MLP[s,z]) on the IQL bilinear critic (z=sg(psi(g)); architecture-only ablation, no measure loss)
         config.iql_ortho_coef = 0.0  # FB orthonormality ||E[psi psi^T]-I|| on the IQL bilinear critic's psi, with NO measure loss (isolates the ortho constraint on the ~90 IQL bilinear)
         config.project_z = False  # hard-project z and B=psi onto the sqrt(d) sphere (FB's ||B||=||z||=sqrt(d) Norm); applies to GCFBValue/GCTwoTowerCritic
