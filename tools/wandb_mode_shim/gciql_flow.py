@@ -913,7 +913,17 @@ class GCIQLFlowAgent(GCIQLAgent):
         critic_loss, critic_info = self.critic_loss(batch, grad_params)
         for k, v in critic_info.items():
             info[f'critic/{k}'] = v
-        loss = value_loss + critic_loss + actor_loss
+        # anneal_iql_fade: crossfade the IQL value+critic losses OUT (weight 1 -> 0) as the measure
+        # ramps IN, so the endpoint is measure-only, warm-started. Tests whether the good basin the
+        # mixture holds is a genuine fixed point or was propped up by L_IQL. The actor loss is NOT
+        # faded -- the flow policy must keep tracking whatever Q the fading critic produces.
+        iql_w = 1.0
+        if self.config.get('anneal_iql_fade', False):
+            t = jnp.asarray(self.network.step, jnp.float32)
+            ramp = float(self.config.get('anneal_ramp', 300_000))
+            iql_w = 1.0 - jnp.clip(t / ramp, 0.0, 1.0)
+            info['anneal/iql_w'] = iql_w
+        loss = iql_w * (value_loss + critic_loss) + actor_loss
         if self.config.get('simplesf_ground_psi', False):
             # rung 3 (the paper's cell): psi(g) is detached inside value/critic (GCSimpleSFValue),
             # so this regression is its ONLY gradient. The trunk still learns from the TD, which
@@ -1003,6 +1013,11 @@ class GCIQLFlowAgent(GCIQLAgent):
         config = dict(config)
         config['action_dim'] = action_dim
 
+        if config.get('anneal_iql_fade', False):
+            # the crossfade only makes sense paired with the lambda ramp: fading IQL out with no
+            # measure ramping in would leave only the actor loss.
+            assert config.get('anneal_measure', False), \
+                "anneal_iql_fade requires anneal_measure (it crossfades IQL out as the measure ramps in)"
         if config.get('anneal_measure', False):
             # (1) we graft the SM loss onto the IQL losses; measure_only would replace them.
             assert not config.get('measure_only', False), \
@@ -1344,6 +1359,7 @@ def get_config():
         config.anneal_measure = False    # ramp the SM loss weight instead of holding it constant: lam(t) = measure_coef * clip(step/anneal_ramp, 0, 1), then HOLD. measure_coef is reinterpreted as lam_max. Warm-start finetuning only (see scripts/prepare_anneal_ckpt.py, which resets network.step to 0)
         config.anneal_ramp = 300_000     # linear ramp length in updates; lam holds at lam_max afterwards
         config.anneal_lr_warmup = 0      # linear LR warmup length in updates (0 = constant LR, today's behaviour). NOTE: a nonzero value changes the optax opt_state tree, so such a run can only restore from a checkpoint written by prepare_anneal_ckpt.py
+        config.anneal_iql_fade = False   # crossfade the IQL value+critic losses OUT (weight 1->0 over anneal_ramp) as the measure ramps IN -> endpoint is measure-only, warm-started. Tests fixed-point vs IQL-propping. Requires anneal_measure
         config.measure_test_states = 'rho'   # distribution the measure residual is TESTED against: 'rho' -> psi(next_observations), FB-faithful | 'goals' -> psi(value_goals), the task distribution nu (the research note's task norm). The ortho and the Dirac term ALWAYS stay on psi(next_observations)
         config.measure_test_rank = 'full'    # test set rank: 'full' -> B x B cross-pairs (i != j) | 'task' -> diagonal, project each residual onto its OWN task vector z_i = psi(g_i) (rank 1). 'task' requires measure_test_states='goals'
         config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)

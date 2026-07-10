@@ -258,3 +258,69 @@ def test_anneal_guards_reject_invalid_combinations():
     proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
     assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     assert "OK" in proc.stdout
+
+
+def test_iql_fade_crossfades_iql_out_as_lambda_ramps_in():
+    """anneal_iql_fade multiplies the IQL value+critic losses by (1 - clip(t/ramp,0,1)) while the
+    measure term ramps IN. At t=ramp the IQL weight is 0, so the loss is measure+actor only -- a
+    crossfade from the warm IQL geometry toward measure-only, testing whether the good basin was
+    held by L_IQL or is a genuine fixed point. DECISIVE test: the VALUE NET is trained ONLY by the
+    IQL value loss (the measure uses the critic legs; the flow actor uses Q, not V), so at t=ramp
+    its gradient must be exactly 0; at t=0 it must be nonzero."""
+    code = PREAMBLE + """
+        def vnet_grad(step):
+            cfg = dict(get_config())
+            cfg["encoder"] = None; cfg["frame_stack"] = None
+            cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = 50
+            cfg["measure_only"] = False; cfg["measure_coef"] = 10.0
+            cfg["measure_legs"] = "critic"; cfg["measure_scale_norm"] = True
+            cfg["measure_stopgrad_phi"] = True
+            cfg["anneal_measure"] = True; cfg["anneal_ramp"] = 100
+            cfg["anneal_iql_fade"] = True
+            B = 12
+            obs  = jax.random.normal(jax.random.PRNGKey(0), (B, 11))
+            nobs = jax.random.normal(jax.random.PRNGKey(4), (B, 11))
+            act  = jax.random.normal(jax.random.PRNGKey(1), (B, 5))
+            goals= jax.random.normal(jax.random.PRNGKey(3), (B, 11))
+            rew  = jnp.where(jax.random.uniform(jax.random.PRNGKey(5), (B,)) < 0.2, 0.0, -1.0)
+            ag = GCIQLFlowAgent.create(0, obs, act, cfg)
+            ag = ag.replace(network=ag.network.replace(step=step))
+            batch = dict(observations=obs, next_observations=nobs, actions=act,
+                         rewards=rew, masks=1.0 + rew, value_goals=goals, actor_goals=goals)
+            g = jax.grad(lambda p: ag.total_loss(batch, p, jax.random.PRNGKey(7))[0])(ag.network.params)
+            leaves = jax.tree_util.tree_leaves(g["modules_value"])
+            _, info = ag.total_loss(batch, ag.network.params, jax.random.PRNGKey(7))
+            return sum(float(jnp.sum(jnp.abs(l))) for l in leaves), float(info["anneal/iql_w"])
+        g0, w0 = vnet_grad(0)
+        gh, wh = vnet_grad(50)
+        gr, wr = vnet_grad(100)
+        assert abs(w0 - 1.0) < 1e-6 and abs(wh - 0.5) < 1e-6 and abs(wr - 0.0) < 1e-6, (w0, wh, wr)
+        assert g0 > 1e-3, ("t=0: value net must get full IQL gradient", g0)
+        assert gr < 1e-8, ("t=ramp: IQL faded to 0 => value net gets NO gradient", gr)
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_iql_fade_requires_anneal_measure():
+    """The crossfade only makes sense paired with the lambda ramp -- fading IQL out with no measure
+    ramping in would just be training on the actor alone."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (6, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (6, 5))
+        cfg = dict(get_config()); cfg["encoder"]=None; cfg["frame_stack"]=None
+        cfg["value_arch"]="bilinear"; cfg["value_latent_dim"]=50
+        cfg["anneal_iql_fade"] = True  # but NOT anneal_measure
+        try:
+            GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        except AssertionError:
+            print("OK"); raise SystemExit(0)
+        raise SystemExit("guard missing: anneal_iql_fade without anneal_measure")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
