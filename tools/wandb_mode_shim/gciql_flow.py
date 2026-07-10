@@ -609,6 +609,7 @@ class GCIQLFlowAgent(GCIQLAgent):
         B = obs.shape[0]; off = 1.0 - jnp.eye(B)
         scale_norm = self.config.get('measure_scale_norm', False)
         sg_phi = self.config.get('measure_stopgrad_phi', False)
+        qz_mean = None   # set only by the rank-1 ('task') test set, in the critic branch
         if self.config.get('measure_legs', 'critic') == 'value':
             _, phi, psi = self.network.select('value')(obs, nobs, info=True, params=grad_params)
             if sg_phi: phi = jax.lax.stop_gradient(phi)
@@ -666,7 +667,39 @@ class GCIQLFlowAgent(GCIQLAgent):
             a_next = jax.lax.stop_gradient(a_next)
             _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, *zarg, info=True, **zkw)
             tM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi) / sqd)            # [2, B, B]
-            offdiag, diagt = self._measure_terms(M, tM, gamma, scale_norm)                      # [2]
+            test_states = self.config.get('measure_test_states', 'rho')
+            test_rank = self.config.get('measure_test_rank', 'full')
+            if test_states == 'rho' and test_rank == 'full':
+                # Legacy FB path, untouched: offdiag and diag are the two halves of ONE matrix,
+                # which only works because the test states ARE the next-states.
+                offdiag, diagt = self._measure_terms(M, tM, gamma, scale_norm)                  # [2]
+            else:
+                # Task norm. The test set moves to nu=psi(value_goals); the DIRAC term (the reward,
+                # -E_i M(s_i,a_i,s'_i)) stays on psi(s'_i), and the ortho below stays on psi(nobs).
+                # Letting the Dirac follow the test set would make the diagonal Q_i - gamma*Qbar_i
+                # and delete the reward. phi depends on (obs,acts,z) only -- b_goals feeds psi
+                # alone -- so we reuse phi/tphi and take only the psi legs from the extra calls.
+                _, _, psi_t = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True,
+                                                            params=grad_params, **zkw)
+                _, _, tpsi_t = self.network.select('target_critic')(nobs, vgoals, a_next, *zarg,
+                                                                    info=True, **zkw)
+                M_t = jnp.einsum('hid,hjd->hij', phi, psi_t) / sqd                              # [2,B,B]
+                tM_t = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi_t) / sqd)
+                diff_t = M_t - gamma * tM_t
+                if test_rank == 'full':
+                    offdiag = 0.5 * jnp.sum((diff_t * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
+                else:  # 'task': rank-1 projection of each residual onto its OWN z_i = psi(g_i)
+                    qz = jnp.diagonal(diff_t, axis1=1, axis2=2)                                 # [2,B]
+                    offdiag = 0.5 * jnp.mean(qz ** 2, axis=1)                                   # [2]
+                    qz_mean = jnp.mean(qz)
+                # Dirac term: the rho diagonal, computed directly (never via the test matrix).
+                dir_i = (jnp.einsum('hid,hid->hi', phi, psi)
+                         - gamma * jax.lax.stop_gradient(jnp.einsum('hid,hid->hi', tphi, tpsi))) / sqd
+                diagt = -jnp.mean(dir_i, axis=1)                                                # [2]
+                if scale_norm:
+                    msq = jax.lax.stop_gradient(jnp.mean(M_t ** 2))
+                    offdiag = offdiag / (msq + 1e-6)
+                    diagt = diagt / (jnp.sqrt(msq) + 1e-6)
             Cov = jnp.einsum('hid,hjd->hij', psi, psi)                    # FB ortho on B:=psi(s') (grads on)
             o_off = 0.5 * jnp.sum((Cov * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
             o_diag = -jnp.mean(jnp.diagonal(Cov, axis1=1, axis2=2), axis=1)
@@ -674,8 +707,11 @@ class GCIQLFlowAgent(GCIQLAgent):
             lam = self.config.get('measure_ortho_coef', 0.0)
             loss = jnp.mean(offdiag + diagt + lam * orth)                  # per-head, then average
             offdiag, diagt, orth = jnp.mean(offdiag), jnp.mean(diagt), jnp.mean(orth)
-        return loss, {'measure_loss': loss, 'measure_offdiag': offdiag, 'measure_diag': diagt,
-                      'measure_orth': orth}
+        info = {'measure_loss': loss, 'measure_offdiag': offdiag, 'measure_diag': diagt,
+                'measure_orth': orth}
+        if qz_mean is not None:
+            info['measure_qz_mean'] = qz_mean
+        return loss, info
 
     def sf_loss(self, batch, grad_params, rng):
         """Successor-FEATURE vector TD on phi (SF-style, à la simple_successor_features), with
@@ -1222,6 +1258,8 @@ def get_config():
         config.measure_scale_norm = False  # E2: divide the measure TD terms by sg[mean(M^2)] so the gradient is dimensionless (stops the <F,z> inflation that crashed 18/18 mc* runs; audit §1)
         config.measure_stopgrad_phi = False  # E2: stop-grad phi inside measure_loss so the measure gradient shapes ONLY psi (readout/backward leg), quarantined from the value-critical forward leg
         config.measure_z_random_frac = 0.0  # FB-fidelity: fraction of measure-loss task vectors z drawn as sqrt(d)-sphere gaussian directions (metamotivo sample_mixed_z) instead of psi(vgoals); needs fb_forward_z
+        config.measure_test_states = 'rho'   # distribution the measure residual is TESTED against: 'rho' -> psi(next_observations), FB-faithful | 'goals' -> psi(value_goals), the task distribution nu (the research note's task norm). The ortho and the Dirac term ALWAYS stay on psi(next_observations)
+        config.measure_test_rank = 'full'    # test set rank: 'full' -> B x B cross-pairs (i != j) | 'task' -> diagonal, project each residual onto its OWN task vector z_i = psi(g_i) (rank 1). 'task' requires measure_test_states='goals'
         config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)
         config.psi_base = 'learned'   # goal leg psi(g) under the SCALAR IQL TD (readout-vs-TD control, sf-design-space 1b): 'learned' -> trained (stock bilinear GCIQL) | 'frozen' -> frozen random MLP (d free) | 'identity' -> psi(g)=g (d==goal dim). Applied to value net AND critic; needs bilinear, excludes sf_feature_td/fb_forward_z/fwd_two_tower
         config.sf_feature_td = False  # SUCCESSOR-FEATURE vector TD on phi: phi(s,a)<-b(s)+gamma*phi(s',a'), Q=<phi,psi(g)> (train ONLY phi; needs bilinear)
