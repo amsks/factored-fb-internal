@@ -1,0 +1,39 @@
+# Rung 3 (sf-design-space 1d): Chua et al.'s Simple SF -- the paper's cell, with our backup.
+# Identical to ..._simplesf_arch.yaml EXCEPT psi(g) is stop-gradded inside the value/critic losses
+# and trained ONLY by the reward-prediction loss  r_hat = <sg[b], psi(g)>/sqrt(d)  on
+# batch['rewards']. Isolates the cost of REWARD-GROUNDING psi against rung 2.
+#
+# Deviation from the reference, deliberate (spec 4a): we keep GCIQL's expectile backup rather than
+# the paper's DDPG min-twin target, so that rung 2 differs from bilinear GCIQL by architecture
+# ALONE. Safe because tau0.5 -- which strips the improvement operator entirely -- scores
+# 0.920 +/- 0.016, so the operator is free on this task.
+#
+# Read simplesf/reward_loss BEFORE the success number: with r in {-1,0} and ~79% of relabelled
+# rewards equal to -1, predicting the mean scores ~0.166. A plateau near that prior means the
+# reward is NOT linearly readable in b -- the reference's load-bearing assumption failing -- and
+# the cell then says nothing about grounding.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-SimpleSF-Grounded
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: simplesf
+  value_latent_dim: 50
+  project_z: true
+  simplesf_ground_psi: true
+  simplesf_reward_coef: 1.0
+wandb_mode: online
