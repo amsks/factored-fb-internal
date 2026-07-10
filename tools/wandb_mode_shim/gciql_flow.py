@@ -247,8 +247,11 @@ class GCFrozenBValue(GCBilinearValue):
     random features of the state. Freezing psi (stop_grad on every use -> zero gradient -> params
     stay at init) is the standard SF anti-collapse fix (a random encoder) and DECOUPLES the
     representation rank d from the obs dim, so d can match the FB / bilinear-GCIQL 50. With
-    `fb_forward_z` the forward map is TASK-CONDITIONED phi([s,a,z=psi(g)]) (frozen features)."""
+    `fb_forward_z` the forward map is TASK-CONDITIONED phi([s,a,z=psi(g)]) (frozen features).
+    `project_z` hard-projects psi (and hence the z fed to phi) onto the sqrt(d) sphere -- FB's
+    ||B||=||z||=sqrt(d) Norm layer."""
     fb_forward_z: bool = False
+    project_z: bool = False
 
     def setup(self):
         m = MLP
@@ -260,7 +263,8 @@ class GCFrozenBValue(GCBilinearValue):
     def _psi(self, goals):
         if self.goal_encoder is not None:
             goals = self.goal_encoder(goals)
-        return jax.lax.stop_gradient(self.psi(goals))   # FROZEN: zero grad -> stays at random init
+        psi = jax.lax.stop_gradient(self.psi(goals))    # FROZEN: zero grad -> stays at random init
+        return _sphere(psi, self.latent_dim) if self.project_z else psi
 
     def __call__(self, observations, b_goals, actions=None, z_goals=None, info=False):
         if self.state_encoder is not None:
@@ -294,7 +298,9 @@ class GCLearnedBValue(GCFrozenBValue):
     def _psi(self, goals):
         if self.goal_encoder is not None:
             goals = self.goal_encoder(goals)
-        return self.psi(goals)   # LEARNED (vs GCFrozenBValue): grads arrive via sf_reward_regress
+        # LEARNED (vs GCFrozenBValue): grads arrive via sf_reward_regress and/or sf_joint_psi.
+        psi = self.psi(goals)
+        return _sphere(psi, self.latent_dim) if self.project_z else psi
 
     def __call__(self, observations, b_goals, actions=None, z_goals=None, info=False):
         if self.state_encoder is not None:
@@ -912,6 +918,10 @@ class GCIQLFlowAgent(GCIQLAgent):
                 crit_kwargs['project_z'] = config.get('project_z', False)
             if critic_cls in (GCIdentityBValue, GCFrozenBValue, GCLearnedBValue):
                 crit_kwargs['fb_forward_z'] = config.get('fb_forward_z', False)
+            if critic_cls in (GCFrozenBValue, GCLearnedBValue):
+                # NOT GCIdentityBValue: its _psi returns the raw goal, and sphering it would
+                # destroy the identity base b(g)=g.
+                crit_kwargs['project_z'] = config.get('project_z', False)
             critic_def = critic_cls(**crit_kwargs)
         else:
             value_def = GCValue(
