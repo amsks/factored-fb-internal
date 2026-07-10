@@ -205,3 +205,56 @@ def test_prepare_anneal_ckpt_round_trip():
     proc = run_jax(code, cwd=str(OGBENCH_IMPLS), env_extra={'REPO': str(OGBENCH_IMPLS.parents[2])})
     assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     assert "OK" in proc.stdout
+
+
+def test_anneal_guards_reject_invalid_combinations():
+    """Guards encode the design so a misconfigured cell fails loudly rather than producing an
+    uninterpretable number.
+
+    1. anneal_measure => not measure_only (we graft onto the IQL losses, not replace them)
+    2. anneal_measure => measure_scale_norm (raw measure grafts blew the Q scale, 18/18 crashed)
+    3. anneal_measure => measure_legs == 'critic'
+    4. anneal_measure => anneal_ramp > 0 and measure_coef >= 0
+    5. anneal_measure => PARAM-TREE IDENTITY with the checkpoint: value_arch == 'bilinear',
+       psi_base == 'learned', and none of fb_forward_z / fwd_two_tower / isfb / sf_feature_td /
+       the task-norm knobs (each changes the param tree and breaks restore)."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (6, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (6, 5))
+        def build(**over):
+            cfg = dict(get_config())
+            cfg["encoder"] = None; cfg["frame_stack"] = None
+            cfg["value_latent_dim"] = 50
+            cfg.update(over)
+            return GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        A = dict(anneal_measure=True, measure_coef=10.0, measure_legs="critic",
+                 measure_scale_norm=True, value_arch="bilinear", anneal_ramp=1000)
+        bad = [
+            dict(A, measure_only=True),                       # 1
+            dict(A, measure_scale_norm=False),                # 2
+            dict(A, measure_legs="value"),                    # 3
+            dict(A, anneal_ramp=0),                           # 4
+            dict(A, value_arch="mlp"),                        # 5
+            dict(A, fb_forward_z=True),                       # 5
+            dict(A, fwd_two_tower=True),                      # 5
+            dict(A, psi_base="frozen"),                       # 5
+            dict(A, measure_test_states="goals"),             # 5
+        ]
+        for over in bad:
+            try:
+                build(**over)
+            except AssertionError:
+                continue
+            raise SystemExit("guard missing for " + repr(over))
+        build(**A, measure_stopgrad_phi=True,  anneal_lr_warmup=10)   # Anneal-SgPhi
+        build(**A, measure_stopgrad_phi=False, anneal_lr_warmup=10)   # Anneal-Shared
+        build(value_arch="bilinear", anneal_lr_warmup=10)            # Anneal-Zero (no SM loss)
+        build(value_arch="bilinear")                                 # stock cells unaffected
+        build()                                                      # mlp default unaffected
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
