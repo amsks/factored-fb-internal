@@ -204,6 +204,12 @@ MAP = {
     'GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Fix':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-rewreg-shift', graft='E3: SF vector TD + reward-regressed learned base (corrected r_hat(s,g))'),
     'GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-rewreg-shift-cond', graft='+ task-conditioned phi (audit pt3: goal-dependent mask)'),
 
+    # --- 1a: joint-psi SF, FB ortho + sphere (spec 2026-07-10). Cell A is the estimator-axis
+    # control: identical to GCIQL-State-Flow-Bilinear-d50-C-FBzProjZ-O1000 (0.231) except the
+    # BxB measure loss is replaced by the per-sample vector TD.
+    'GCIQL-State-Flow-SF-JointPsi-Ortho1k':        dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-joint-ortho1k', graft="SF vector TD trains psi too; FB ortho1000 + sphere; b=psi(s'), no mask (matched to C-fbz-projz-ortho1000 except the estimator)"),
+    'GCIQL-State-Flow-SF-JointPsi-Ortho1k-Absorb': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-joint-ortho1k-absorb', graft='+ absorbing goal mask: Q=gamma^T (first-hitting) instead of a visitation density'),
+
     # --- 1b: readout-vs-TD crux -- SCALAR IQL TD with the SF cells' crippled goal leg ---
     'GCIQL-State-Flow-Bilinear-d50-FrozenPsi':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='frozen-psi-d50', graft='scalar IQL TD + frozen random psi (isolates the vector TD from the frozen readout)'),
     'GCIQL-State-Flow-Bilinear-IdentityPsi':    dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='identity-psi-d28', graft='scalar IQL TD + psi(g)=g (read vs bilinear-d28, not d50)'),
