@@ -669,6 +669,25 @@ class GCIQLFlowAgent(GCIQLAgent):
             orth = jnp.mean(o_off + o_diag)
             loss = td + lam * orth
             info['orth'] = orth
+        lam_psi = self.config.get('sf_psi_ortho_coef', 0.0)
+        if lam_psi > 0:
+            # FB orthonormality ||E_rho[psi psi^T] - I|| on the BASE/goal leg psi -- the same
+            # penalty and the same distribution measure_loss uses (B := psi(s'), the rho marginal,
+            # NOT the HER value_goals that ortho_loss uses). This is what keeps a jointly-trained
+            # psi non-degenerate: un-stop-gradding the base makes phi=0, psi=0 a GLOBAL minimum of
+            # the TD, and the -tr(C) term below turns the origin into a strict local maximum
+            # (repelling). Distinct from sf_ortho_coef, which penalizes phi.
+            _, _, psi_o = self.network.select('critic')(obs, nobs, acts, *zarg, info=True, params=grad_params)
+            Bn = obs.shape[0]; off_p = 1.0 - jnp.eye(Bn)
+            CovP = jnp.einsum('hid,hjd->hij', psi_o, psi_o)                 # [2,B,B]
+            p_off = 0.5 * jnp.sum((CovP * off_p[None]) ** 2, axis=(1, 2)) / jnp.sum(off_p)
+            p_diag = -jnp.mean(jnp.diagonal(CovP, axis1=1, axis2=2), axis=1)
+            orth_psi = jnp.mean(p_off + p_diag)
+            loss = loss + lam_psi * orth_psi
+            info['psi_ortho'] = orth_psi
+            info['psi_ortho_off'] = jnp.mean(p_off)
+            info['psi_ortho_diag'] = jnp.mean(p_diag)
+            info['psi_norm_mean'] = jnp.mean(jnp.linalg.norm(psi_o, axis=-1))
         if self.config.get('sf_reward_regress', False):
             # E3 (corrected SF cell): ground the base in the ACTUAL reward -- bilinear reward
             # model r_hat(s,g) = <psi(s), psi(g)>/sqrt(d) regressed on batch rewards. This is
@@ -1043,6 +1062,7 @@ def get_config():
         config.sf_reward_coef = 1.0   # weight on the reward-regression loss (sf_reward_regress)
         config.sf_reward_shift = 0.0  # regress on r+shift; use 1.0 with OGBench {-1,0} rewards to escape the psi=0 saddle of the symmetric bilinear reward model (argmax-invariant)
         config.sf_ortho_coef = 0.0    # aux orthonormality reg ||E[phi phi^T]-I|| on the SF vector phi (anti-collapse; sf_feature_td only)
+        config.sf_psi_ortho_coef = 0.0  # FB orthonormality ||E_rho[psi psi^T]-I|| on the BASE leg psi(s') (FB uses 1000). DISTINCT from sf_ortho_coef, which penalizes phi. Required by sf_joint_psi (else phi=0,psi=0 is a global min of the SF TD)
         config.fwd_two_tower = False  # FB-style two-tower forward map F=trunk(MLP[s,a],MLP[s,z]) on the IQL bilinear critic (z=sg(psi(g)); architecture-only ablation, no measure loss)
         config.iql_ortho_coef = 0.0  # FB orthonormality ||E[psi psi^T]-I|| on the IQL bilinear critic's psi, with NO measure loss (isolates the ortho constraint on the ~90 IQL bilinear)
         config.project_z = False  # hard-project z and B=psi onto the sqrt(d) sphere (FB's ||B||=||z||=sqrt(d) Norm); applies to GCFBValue/GCTwoTowerCritic
