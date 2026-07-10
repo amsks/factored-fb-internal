@@ -945,6 +945,24 @@ class GCIQLFlowAgent(GCIQLAgent):
         config = dict(config)
         config['action_dim'] = action_dim
 
+        if config.get('simplesf_ground_psi', False) or config.get('value_arch', 'mlp') == 'simplesf':
+            # (1) the grounding knob is meaningless without the architecture.
+            assert config.get('value_arch', 'mlp') == 'simplesf', \
+                "simplesf_ground_psi requires value_arch='simplesf'"
+            # (2) every knob below selects its own critic class or replaces the loss entirely and
+            # would silently override the SimpleSF architecture.
+            for knob in ('sf_feature_td', 'measure_only', 'fb_forward_z', 'fwd_two_tower',
+                         'isfb', 'sf_joint_psi'):
+                assert not config.get(knob, False), f"value_arch='simplesf' is incompatible with {knob}"
+            assert config.get('measure_coef', 0.0) == 0.0, \
+                "value_arch='simplesf' is incompatible with measure_coef>0"
+            # (3) psi_base dispatches GCBilinearValue subclasses; the two must not compose silently.
+            assert config.get('psi_base', 'learned') == 'learned', \
+                "value_arch='simplesf' requires psi_base='learned'"
+            # (4) the flow actor conditions on the raw goal in every cell.
+            assert config.get('actor_cond', 'goal') == 'goal' and not config.get('actor_z_infer', False), \
+                "value_arch='simplesf' requires actor_cond='goal'"
+
         if config.get('sf_feature_td', False):
             # phi = the ONLY learned leg (trained by sf_loss); goal enters via the readout, so
             # force actor_cond='goal' (avoids the z-dim guard below). Base leg:
