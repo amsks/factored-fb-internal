@@ -204,6 +204,13 @@ MAP = {
     'GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Fix':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-rewreg-shift', graft='E3: SF vector TD + reward-regressed learned base (corrected r_hat(s,g))'),
     'GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-rewreg-shift-cond', graft='+ task-conditioned phi (audit pt3: goal-dependent mask)'),
 
+    # --- 1f: annealed SM finetuning from the converged bilinear-GCIQL anchor (0.904). lambda(t)
+    # ramps 0 -> lam_max over 300k then holds; dense evals make each run a success-vs-lambda dose
+    # curve. Separates fixed-point incompatibility from an optimization-path artifact.
+    'GCIQL-State-Flow-Anneal-Zero':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-zero', graft='CONTROL: finetune the 0.904 anchor 400k more steps with NO measure loss (validates restore; isolates extra IQL steps)'),
+    'GCIQL-State-Flow-Anneal-SgPhi':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-sgphi', graft='warm-start + lambda 0->10 ramp on the stopgrad-phi measure (crosses the cold cliff at lambda=3)'),
+    'GCIQL-State-Flow-Anneal-Shared': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-shared', graft='warm-start + lambda 0->100 ramp on the shared-legs measure (cold cliff is above 10, never located)'),
+
     # --- 1e: task-weighted successor moments (research note). N1 swaps the measure loss's B x B
     # test states from rho (next_observations) to nu (value_goals); N2 additionally collapses the
     # test set to rank 1. Ortho and Dirac stay on psi(next_observations) in both.
