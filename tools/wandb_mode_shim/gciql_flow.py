@@ -1003,6 +1003,34 @@ class GCIQLFlowAgent(GCIQLAgent):
         config = dict(config)
         config['action_dim'] = action_dim
 
+        if config.get('anneal_measure', False):
+            # (1) we graft the SM loss onto the IQL losses; measure_only would replace them.
+            assert not config.get('measure_only', False), \
+                "anneal_measure grafts onto the IQL losses; measure_only=True replaces them"
+            # (2) raw (non-scale-normed) measure grafts blew the Q scale and crashed 18/18 runs
+            # (audit-20260706 section 1). Every surviving E2 cell used scale_norm.
+            assert config.get('measure_scale_norm', False), \
+                "anneal_measure requires measure_scale_norm=True (raw measure grafts blow the Q scale)"
+            # (3) the value-legs measure is a different object; the dose-response is on the critic.
+            assert config.get('measure_legs', 'critic') == 'critic', \
+                "anneal_measure requires measure_legs='critic'"
+            # (4) a zero-length ramp would divide by zero; lam_max may be 0 (the control cell).
+            assert int(config.get('anneal_ramp', 300_000)) > 0, "anneal_ramp must be > 0"
+            assert config.get('measure_coef', 0.0) >= 0.0, "measure_coef (lam_max) must be >= 0"
+            # (5) PARAM-TREE IDENTITY with the warm-start checkpoint. Any of these changes the
+            # parameter tree, so restore_agent would fail (or, worse, the prep script's splice
+            # would). Refuse at construction.
+            assert config.get('value_arch', 'mlp') == 'bilinear', \
+                "anneal_measure requires value_arch='bilinear' (the checkpoint's architecture)"
+            assert config.get('psi_base', 'learned') == 'learned', \
+                "anneal_measure requires psi_base='learned' (psi_base changes the critic class)"
+            for knob in ('fb_forward_z', 'fwd_two_tower', 'isfb', 'sf_feature_td'):
+                assert not config.get(knob, False), \
+                    f"anneal_measure is incompatible with {knob} (it changes the param tree)"
+            assert config.get('measure_test_states', 'rho') == 'rho' \
+                and config.get('measure_test_rank', 'full') == 'full', \
+                "anneal_measure is incompatible with the task-norm knobs"
+
         if (config.get('measure_test_states', 'rho') != 'rho'
                 or config.get('measure_test_rank', 'full') != 'full'):
             # (1) the rho diagonal IS the Dirac term; projecting there would double-count the reward.
