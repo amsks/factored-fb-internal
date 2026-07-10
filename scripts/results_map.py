@@ -204,6 +204,12 @@ MAP = {
     'GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Fix':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-rewreg-shift', graft='E3: SF vector TD + reward-regressed learned base (corrected r_hat(s,g))'),
     'GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-rewreg-shift-cond', graft='+ task-conditioned phi (audit pt3: goal-dependent mask)'),
 
+    # --- 1e: task-weighted successor moments (research note). N1 swaps the measure loss's B x B
+    # test states from rho (next_observations) to nu (value_goals); N2 additionally collapses the
+    # test set to rank 1. Ortho and Dirac stay on psi(next_observations) in both.
+    'GCIQL-State-Flow-Bilinear-d50-C-TaskNorm': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='C-tasknorm', graft='FB measure, residual tested in the TASK norm (test states ~ value_goals) instead of the replay norm'),
+    'GCIQL-State-Flow-Bilinear-d50-C-TaskProj': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='C-taskproj', graft='+ rank-1 test set: project each residual onto its own z_i=psi(g_i); fixed point = scalar TD with a kernel reward'),
+
     # --- 1d: GC-SimpleSF (Chua et al.). Rung 2 isolates the architecture against bilinear GCIQL
     # (0.904); rung 3 grounds psi in the reward and isolates the grounding against rung 2.
     'GCIQL-State-Flow-SimpleSF-Arch':     dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='simplesf-arch', graft='SimpleSF trunk split (b=h/||h||, Psi=head(h)), psi learned end-to-end; scalar IQL TD'),
