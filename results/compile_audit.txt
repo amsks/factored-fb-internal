@@ -1,4 +1,5 @@
-groups in wandb: 192 | mapped: 166 | excluded: 34
+groups in wandb: 198 | mapped: 175 | excluded: 34
+MAPPED BUT ABSENT FROM WANDB: GCIQL-State-Flow-Anneal-SgPhi, GCIQL-State-Flow-Anneal-Shared, GCIQL-State-Flow-Anneal-Zero
 PARTIAL GCIQL-AntMaze-Medium-Flow-Bilinear-d50: 3 used, dropped: sd000_20260624_221417(died@1), sd000_20260624_222659(no-metric), sd000_20260624_223802(died@10000), sd001_20260624_221417(died@1), sd001_20260624_222659(no-metric), sd001_20260624_223802(died@10000), sd002_20260624_221417(died@1), sd002_20260624_222659(no-metric), sd002_20260624_223802(died@10000)
 PARTIAL GCIQL-AntMaze-Medium-Flow-MLP: 3 used, dropped: sd000_20260625_062452(died@95000), sd001_20260625_062452(died@95000), sd002_20260625_062452(died@95000)
 PARTIAL GCIQL-AntMaze-Medium-Stock-DDPGBC: 3 used, dropped: sd000_20260625_062452(died@95000), sd001_20260625_062452(died@95000), sd002_20260625_062452(died@95000)
@@ -11,12 +12,9 @@ PARTIAL GCIQL-Bilinear-Measure-mc1.0: 0 used, dropped: measure_mc1.0_s0(died@315
 PARTIAL GCIQL-Bilinear-Measure-mc10.0: 0 used, dropped: measure_mc10.0_s0(died@330000), measure_mc10.0_s1(died@340000), measure_mc10.0_s2(no-metric)
 PARTIAL GCIQL-Pixel-DrQ-Flow: 4 used, dropped: sd000_20260609_233854(no-metric), sd001_20260609_233856(no-metric), sd001_20260609_234415(died@195000), sd002_20260609_233858(no-metric), sd003_20260609_233900(no-metric), sd004_20260609_233902(no-metric)
 PARTIAL GCIQL-State-Flow: 9 used, dropped: sd000_20260609_233854(no-metric), sd001_20260609_233856(no-metric), sd002_20260609_233859(no-metric), sd003_20260609_233901(no-metric), sd003_20260609_234415(died@400000), sd004_20260609_233902(no-metric), sd005_20260609_233904(no-metric), sd006_20260609_233906(no-metric), sd007_20260609_233908(no-metric), sd008_20260609_233910(died@5000), sd009_20260609_233912(no-metric)
-PARTIAL GCIQL-State-Flow-Bilinear-IdentityPsi: 0 used, dropped: cube_single_state_gciql_flow_bilinear_identity_psi_s0(died@110000), cube_single_state_gciql_flow_bilinear_identity_psi_s1(no-metric), cube_single_state_gciql_flow_bilinear_identity_psi_s2(died@95000)
-PARTIAL GCIQL-State-Flow-Bilinear-d28: 0 used, dropped: cube_single_state_gciql_flow_bilinear_d28_s0(died@70000), cube_single_state_gciql_flow_bilinear_d28_s1(died@145000), cube_single_state_gciql_flow_bilinear_d28_s2(no-metric)
 PARTIAL GCIQL-State-Flow-Bilinear-d50-B4-FBstruct: 3 used, dropped: sd000_20260701_075529(no-metric)
 PARTIAL GCIQL-State-Flow-Bilinear-d50-D1-ActorZCritic: 3 used, dropped: sd002_20260701_075530(no-metric)
 PARTIAL GCIQL-State-Flow-Bilinear-d50-Exp4-ActorZInfer: 2 used, dropped: sd002_20260701_203814(died@95000)
-PARTIAL GCIQL-State-Flow-Bilinear-d50-FrozenPsi: 0 used, dropped: cube_single_state_gciql_flow_bilinear_d50_frozen_psi_s0(no-metric), cube_single_state_gciql_flow_bilinear_d50_frozen_psi_s1(no-metric), cube_single_state_gciql_flow_bilinear_d50_frozen_psi_s2(no-metric)
 PARTIAL GCIQL-State-Flow-Bilinear-d50-singleq: 13 used, dropped: sd003_20260623_105901(died@275000)
 PARTIAL GCIQL-State-Flow-IdentityPsi-Measure: 0 used, dropped: sd000_20260704_180022(died@175000), sd001_20260704_180026(died@195000), sd002_20260704_180030(died@175000)
 PARTIAL GCIQL-State-Flow-IdentityPsi-Measure-FBz: 0 used, dropped: sd000_20260704_180034(died@275000), sd001_20260704_180038(died@175000), sd002_20260704_180042(died@270000)
@@ -25,8 +23,6 @@ EXCLUDED GCIQL-State-Flow-SF-FeatureTD-Identity-Ortho10k: 1 metricless stub (n=1
 EXCLUDED GCIQL-State-Flow-SF-FeatureTD-IdentityCond-Ortho10k: 2 stubs, no completed seed (n=2)
 EXCLUDED GCIQL-State-Flow-SF-FeatureTD-RewReg: E3 v1: psi=0 saddle ({-1,0} rewards x symmetric bilinear model) AND the psi(s") reward bug; killed @260k (n=3)
 EXCLUDED GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift: E3 v2: escaped the saddle but still carried the psi(s") reward bug; killed @330k. Superseded by -Fix (n=6)
-PARTIAL GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond: 0 used, dropped: cube_single_state_gciql_flow_sf_feature_td_rewreg_shift_cond_s0(no-metric), cube_single_state_gciql_flow_sf_feature_td_rewreg_shift_cond_s1(died@70000), cube_single_state_gciql_flow_sf_feature_td_rewreg_shift_cond_s2(died@65000)
-PARTIAL GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Fix: 0 used, dropped: cube_single_state_gciql_flow_sf_feature_td_rewreg_shift_s0(no-metric), cube_single_state_gciql_flow_sf_feature_td_rewreg_shift_s1(no-metric), cube_single_state_gciql_flow_sf_feature_td_rewreg_shift_s2(died@5000)
 PARTIAL GCIVL-Pixel-IMPALA-AWR: 5 used, dropped: sd000_20260521_053522(died@165000), sd000_20260521_192822(no-metric), sd001_20260521_053522(died@165000), sd001_20260521_192823(no-metric), sd002_20260521_053522(died@160000), sd002_20260521_192822(no-metric), sd004_20260521_053522(died@165000), sd004_20260521_192822(no-metric)
 PARTIAL GCIVL-State-Flow-Bilinear-d50: 5 used, dropped: gcivl_flow_bil_s1(died@410000), gcivlflow_bil__s0(died@50000), gcivlflow_bil__s1(died@45000), gcivlflow_bil__s2(died@15000)
 PARTIAL GCIVL-State-Flow-Stock: 3 used, dropped: gcivlflow_stock__s0(died@55000), gcivlflow_stock__s1(died@50000), gcivlflow_stock__s2(died@80000)
