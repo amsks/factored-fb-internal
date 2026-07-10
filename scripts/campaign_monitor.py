@@ -50,7 +50,34 @@ CELLS = {
     'GCIQL-State-Flow-SF-JointPsi-Ortho1k-Absorb': (
         'sfjoint', 'GCIQL-State-Flow-SF-JointPsi-Ortho1k',
         'CELL C: absorbing mask => Q = gamma^T (first-hitting) instead of a visitation density.'),
+
+    # ---- task-weighted moments (1e): replay norm vs task norm ----
+    'GCIQL-State-Flow-Bilinear-d50-C-TaskNorm': (
+        'tasknorm', 'GCIQL-State-Flow-Bilinear-d50-C-FBzProjZ-O1000',
+        'N1: measure residual tested under nu (value_goals) instead of rho. Matched to the anchor '
+        '(0.231) in EVERY respect except the test set. ~0.90 vindicates the note; ~0.23 refutes it.'),
+    'GCIQL-State-Flow-Bilinear-d50-C-TaskProj': (
+        'tasknorm', 'GCIQL-State-Flow-Bilinear-d50-C-TaskNorm',
+        'N2: + rank-1 test set. Fixed point = GCIQL backup with the learned kernel reward. '
+        '~0.90 => the RANK was the failure; ~0.23 => the KERNEL REWARD was; ~0.12 => the diagonal '
+        'estimator dominates (cell-A effect) and N2 says nothing about the reward.'),
+
+    # ---- GC-SimpleSF (1d): architecture, then reward-grounding of psi ----
+    'GCIQL-State-Flow-SimpleSF-Arch': (
+        'simplesf', 'GCIQL-State-Flow-Bilinear-d50',
+        'rung 2: the SimpleSF trunk split, psi still learned end-to-end. Isolates the ARCHITECTURE '
+        'against bilinear GCIQL (0.904). Expect 0.84-0.90 (B1 says z-conditioning costs ~0.06).'),
+    'GCIQL-State-Flow-SimpleSF-Grounded': (
+        'simplesf', 'GCIQL-State-Flow-SimpleSF-Arch',
+        "rung 3 = Chua et al.'s cell: psi's ONLY gradient is the reward regression. Isolates the "
+        'GROUNDING. Predicted 0.0-0.2; near 0.90 would falsify "grounding is a repair, not a virtue".'),
 }
+
+# SimpleSF reward-model diagnostics. PRE-REGISTERED: read reward_loss BEFORE the success number.
+SS_DIAG = ['training/simplesf/reward_loss', 'training/simplesf/b_norm_mean',
+           'training/simplesf/z_norm_mean', 'training/simplesf/rhat_mean']
+SS_PRIOR = 0.166   # r in {-1,0}, ~79% at -1 => predicting the mean scores 0.79*0.21
+GROUNDED = 'GCIQL-State-Flow-SimpleSF-Grounded'
 
 # ortho diagnostics, only meaningful for the joint-psi cells
 DIAG = ['training/sf/psi_ortho', 'training/sf/psi_norm_mean', 'training/sf/psi_ortho_off',
@@ -111,6 +138,31 @@ def fmt(vals):
     return ' '.join(f'{v:.3f}' for v in vals) if vals else '—'
 
 
+def _print_diag(cell, diag, ss):
+    """Training-side diagnostics: ortho health (joint-psi cells) and the PRE-REGISTERED
+    reward-model check (the grounded SimpleSF cell). Printed whether or not an eval has landed."""
+    if cell in diag:
+        # Do NOT read psi_ortho_off on its own: asymptotically o_off = 0.5*||C||_F^2, so at the
+        # WHITENED optimum C=I it equals d/2 = 25 -- the same value random sphere-normed psi
+        # gives. The discriminating quantity is the SUM, psi_ortho -> -d/2 iff C -> I.
+        floor = D_LATENT * (B_BATCH - D_LATENT) / (2.0 * (B_BATCH - 1)) - D_LATENT
+        for s, pts in sorted(diag[cell].items()):
+            step_, orth, norm, _off, _diag, sfl = pts[-1]
+            dev = c_minus_i_sq(orth)                     # ||C - I||_F^2, exact under project_z
+            print(f'  ortho  s{s} @{step_:>6}  psi_ortho={orth:+.2f} (C=I floor {floor:.1f})  '
+                  f'||C-I||²={dev:.2f} (of ||C||²≈{dev + D_LATENT:.0f})  '
+                  f'|psi|={norm:.3f} (√d=7.071)  sf_loss={sfl:.3g}')
+    if cell in ss:
+        # PRE-REGISTERED. reward_loss must fall well below the class prior (0.166) or the reward is
+        # NOT linearly readable in b -- the reference's load-bearing assumption failing -- and the
+        # success number then says nothing about grounding.
+        for s, pts in sorted(ss[cell].items()):
+            step_, rl, bn, zn, rm = pts[-1]
+            verdict = 'FITS' if rl < 0.8 * SS_PRIOR else ('at prior' if rl < 1.2 * SS_PRIOR else 'ABOVE prior')
+            print(f'  reward s{s} @{step_:>6}  reward_loss={rl:.4f} (prior {SS_PRIOR}) -> {verdict}  '
+                  f'rhat_mean={rm:+.3f}  |b|={bn:.4f} (1.0)  |z|={zn:.4f} (√d=7.071)')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--step', type=int, default=None, help='eval step to compare at (default: per-cell deepest 100k multiple)')
@@ -123,6 +175,7 @@ def main():
 
     # ortho diagnostics for the joint cells (separate key set -> separate fetch)
     diag = live_series([c for c in JOINT if c in cells], DIAG) if any(c in cells for c in JOINT) else {}
+    ss = live_series([GROUNDED], SS_DIAG) if GROUNDED in cells else {}
 
     for cell, (camp, base, why) in cells.items():
         runs = live.get(cell, {})
@@ -132,7 +185,11 @@ def main():
             step = next((t for t in CKPTS if any(at_step(p, t) is not None for p in runs.values())), None)
         if step is None:
             depth = max((max(p[0] for p in pts) for pts in runs.values()), default=0)
-            print(f'{cell}\n  [{camp}] no 100k eval yet (deepest logged step {depth})\n')
+            print(f'{cell}\n  [{camp}] no 100k eval yet (deepest logged step {depth})')
+            # Still print the training-side diagnostics: the PRE-REGISTERED reward_loss check and
+            # the ortho health are most useful BEFORE the first eval lands, not after.
+            _print_diag(cell, diag, ss)
+            print(f'  ? {why}\n')
             continue
 
         cur = {s: v for s, pts in runs.items() if (v := at_step(pts, step)) is not None}
@@ -151,21 +208,7 @@ def main():
             if paired:
                 print('  per-seed Δ    ' + ' '.join(f's{s}:{d:+.3f}' for s, d in paired)
                       + f'   |Δ|mean {sum(abs(d) for _, d in paired) / len(paired):.3f}')
-        if cell in diag:
-            # Do NOT read psi_ortho_off on its own: asymptotically o_off = 0.5*||C||_F^2, so at the
-            # WHITENED optimum C=I it equals d/2 = 25 -- the same value random sphere-normed psi
-            # gives (random isotropic vectors already have C ~ I). It cannot tell the two apart.
-            # The discriminating quantity is the SUM:
-            #   psi_ortho = o_off + o_diag = 0.5||C||_F^2 - tr(C) = 0.5||C - I||_F^2 - d/2
-            # so psi_ortho -> -d/2 = -25 iff C -> I, and  ||C - I||_F^2 = 2*(psi_ortho + d/2).
-            # dev >> 0 means psi has NOT whitened and the peaked-kernel argument never took hold.
-            floor = D_LATENT * (B_BATCH - D_LATENT) / (2.0 * (B_BATCH - 1)) - D_LATENT
-            for s, pts in sorted(diag[cell].items()):
-                step_, orth, norm, _off, _diag, sfl = pts[-1]
-                dev = c_minus_i_sq(orth)                     # ||C - I||_F^2, exact under project_z
-                print(f'  ortho  s{s} @{step_:>6}  psi_ortho={orth:+.2f} (C=I floor {floor:.1f})  '
-                      f'||C-I||²={dev:.2f} (of ||C||²≈{dev + D_LATENT:.0f})  '
-                      f'|psi|={norm:.3f} (√d=7.071)  sf_loss={sfl:.3g}')
+        _print_diag(cell, diag, ss)
         print(f'  ? {why}\n')
     return 0
 
