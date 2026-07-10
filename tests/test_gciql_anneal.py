@@ -97,3 +97,64 @@ def test_measure_loss_is_still_computed_at_lambda_zero():
     proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
     assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     assert "OK" in proc.stdout
+
+
+def test_lr_warmup_schedule_is_linear_then_constant():
+    """optax.linear_schedule(0, lr, N) rises linearly and HOLDS at lr past N. The warmup exists to
+    protect the restored weights from a large first step. It cannot be faked by scaling the loss:
+    Adam is approximately scale-invariant per parameter (m/sqrt(v)), so a global loss factor is a
+    no-op. lambda works only because it changes the RELATIVE weight of L_SM against L_IQL."""
+    code = """
+        import optax, jax.numpy as jnp
+        lr, N = 3e-4, 10
+        s = optax.linear_schedule(init_value=0.0, end_value=lr, transition_steps=N)
+        # tolerance 1e-9, not 1e-12: optax computes in float32, so s(5) = 1.500000071e-4 rather
+        # than exactly lr/2 = 1.5e-4 -- an absolute error of ~7e-12, above a 1e-12 threshold.
+        for c, expect in [(0, 0.0), (5, lr/2), (10, lr), (20, lr), (10_000, lr)]:
+            got = float(s(c))
+            assert abs(got - expect) < 1e-9, (c, got, expect)
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_scheduled_optimizer_changes_the_opt_state_tree():
+    """THE FACT THAT FORCES THE PREP SCRIPT. optax.adam(constant lr) ends in EmptyState;
+    optax.adam(callable lr) ends in ScaleByScheduleState(count). restore_agent deserializes the
+    whole TrainState, so a checkpoint saved with a constant LR CANNOT restore into a scheduled
+    optimizer. Asserted explicitly so a future optax that unifies them is caught here, not by a
+    five-hour run that dies on restore."""
+    code = """
+        import jax, jax.numpy as jnp, optax
+        p = {'w': jnp.ones((3,))}
+        const = optax.adam(learning_rate=3e-4)
+        sched = optax.adam(learning_rate=optax.linear_schedule(0.0, 3e-4, 10))
+        ts_c = jax.tree_util.tree_structure(const.init(p))
+        ts_s = jax.tree_util.tree_structure(sched.init(p))
+        assert ts_c != ts_s, ("optax unified the trees; prepare_anneal_ckpt.py may be simplifiable", ts_c)
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
+
+
+def test_agent_builds_a_scheduled_tx_only_when_warmup_is_set():
+    """anneal_lr_warmup=0 must reproduce today's optimizer exactly (EmptyState); >0 must produce the
+    scheduled one. This is the switch prepare_anneal_ckpt.py has to mirror."""
+    code = PREAMBLE + """
+        import optax
+        a0, _ = build(warm=0)
+        a1, _ = build(warm=10)
+        t0 = jax.tree_util.tree_structure(a0.network.opt_state)
+        t1 = jax.tree_util.tree_structure(a1.network.opt_state)
+        assert t0 != t1, "anneal_lr_warmup did not change the optimizer"
+        ref = jax.tree_util.tree_structure(optax.adam(learning_rate=3e-4).init(a0.network.params))
+        assert t0 == ref, "warmup=0 must reproduce today's constant-LR adam exactly"
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout

@@ -1255,7 +1255,18 @@ class GCIQLFlowAgent(GCIQLAgent):
         networks = {k: v[0] for k, v in network_info.items()}
         network_args = {k: v[1] for k, v in network_info.items()}
         network_def = ModuleDict(networks)
-        network_tx = optax.adam(learning_rate=config['lr'])
+        # anneal_lr_warmup: linear LR warmup, then constant. Protects the restored weights from a
+        # large first step, and lets Adam's fresh moments adapt before the SM gradient grows.
+        # It CANNOT be faked by scaling the loss (Adam is ~scale-invariant per parameter), so it
+        # must be a real LR schedule -- which changes the opt_state tree and is why such a run can
+        # only restore from a checkpoint written by scripts/prepare_anneal_ckpt.py.
+        warmup = int(config.get('anneal_lr_warmup', 0))
+        if warmup > 0:
+            lr_sched = optax.linear_schedule(init_value=0.0, end_value=config['lr'],
+                                             transition_steps=warmup)
+            network_tx = optax.adam(learning_rate=lr_sched)
+        else:
+            network_tx = optax.adam(learning_rate=config['lr'])
         network_params = network_def.init(init_rng, **network_args)['params']
         network = TrainState.create(network_def, network_params, tx=network_tx)
 
