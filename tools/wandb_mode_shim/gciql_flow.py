@@ -285,15 +285,22 @@ class GCFrozenBValue(GCBilinearValue):
 
 class GCLearnedBValue(GCFrozenBValue):
     """Bilinear critic with a LEARNED base/goal leg psi, for the CORRECTED successor-feature
-    cell (E3, audit-20260706): psi is trained ONLY by reward regression (`sf_reward_regress`,
-    the reference's reward-prediction basis, sf_simple.py:322)
+    cell (E3, audit-20260706): psi is trained ONLY by reward regression (`sf_reward_regress`)
 
         r_hat(s,g) = <psi(s), psi(g)>/sqrt(d)  ->  regress on batch rewards
 
     so the goal indicator becomes linearly READABLE in the base (the identity/frozen cells'
     semantic confound: r=<s,g> is linear in s, argmax != goal). The SF vector TD still trains
     ONLY phi (sf_loss stop-grads b(s)=psi(s) in its target): psi makes the reward expressible,
-    phi accumulates it. Division of labor, one shared psi network."""
+    phi accumulates it. Division of labor, one shared psi network.
+
+    NOTE (2026-07-10, re-read of the reference): sf_simple.py:322 regresses the reference's TASK
+    VECTOR, not its basis -- the basis there is computed under torch.no_grad() and is trained by
+    the critic TD instead. So the reference's reward model is ASYMMETRIC, <phi_basis(s',a'), z>,
+    between a network and a FREE nn.Parameter vector. Our symmetric <psi(s), psi(g)> ties both
+    legs to one net, which is exactly why it has a psi=0 stationary point (the saddle that killed
+    E3 v1 and forced sf_reward_shift). An asymmetric two-embedding reward model would remove that
+    degeneracy structurally rather than by shifting the targets."""
 
     def _psi(self, goals):
         if self.goal_encoder is not None:
