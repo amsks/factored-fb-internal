@@ -932,6 +932,20 @@ class GCIQLFlowAgent(GCIQLAgent):
             for k, v in ss_info.items():
                 info[f'simplesf/{k}'] = v
             loss = loss + self.config.get('simplesf_reward_coef', 1.0) * ss_loss
+        if self.config.get('anneal_simplesf_ground', False):
+            # SimpleSF curriculum: the reward-regression grounding fades IN (weight 0 -> reward_coef
+            # over anneal_ramp) as the true-reward TD fades OUT via iql_w above. psi keeps the rung-2
+            # architecture (simplesf_ground_psi off, z NOT detached), so the fade -- not a
+            # stop-gradient -- hands psi's training from the TD to the reward regression. Endpoint =
+            # reward-regressed psi on the (TD-faded, hence frozen) rung-2 trunk.
+            t = jnp.asarray(self.network.step, jnp.float32)
+            ramp = float(self.config.get('anneal_ramp', 300_000))
+            frac = jnp.clip(t / ramp, 0.0, 1.0)
+            ss_loss, ss_info = self.simplesf_reward_loss(batch, grad_params)
+            for k, v in ss_info.items():
+                info[f'simplesf/{k}'] = v
+            info['anneal/ground_frac'] = frac
+            loss = loss + frac * self.config.get('simplesf_reward_coef', 1.0) * ss_loss
         if self.config.get('measure_coef', 0.0) > 0:   # graft FB measure onto GCIQL's rep
             rng, m_rng = jax.random.split(rng)
             m_loss, m_info = self.measure_loss(batch, grad_params, m_rng)
@@ -1014,10 +1028,24 @@ class GCIQLFlowAgent(GCIQLAgent):
         config['action_dim'] = action_dim
 
         if config.get('anneal_iql_fade', False):
-            # the crossfade only makes sense paired with the lambda ramp: fading IQL out with no
-            # measure ramping in would leave only the actor loss.
-            assert config.get('anneal_measure', False), \
-                "anneal_iql_fade requires anneal_measure (it crossfades IQL out as the measure ramps in)"
+            # the crossfade only makes sense paired with something ramping IN as IQL fades OUT,
+            # else only the actor loss survives. Two pairings: the SM measure ramp (bilinear
+            # warm-start) or the SimpleSF reward-regression grounding (simplesf, cold curriculum).
+            assert config.get('anneal_measure', False) or config.get('anneal_simplesf_ground', False), \
+                "anneal_iql_fade requires anneal_measure or anneal_simplesf_ground (something must ramp in as IQL fades out)"
+        if config.get('anneal_simplesf_ground', False):
+            # SimpleSF curriculum: fade the true-reward TD out (anneal_iql_fade) while the
+            # reward-regression grounding fades in over the same ramp. psi keeps the rung-2
+            # architecture (NO stop-gradient), so the fade -- not a detach -- hands psi's training
+            # from the TD to the reward regression. Endpoint = reward-regressed psi on a frozen
+            # rung-2 trunk (the frozen-representation readout probe).
+            assert config.get('anneal_iql_fade', False), \
+                "anneal_simplesf_ground requires anneal_iql_fade (the true-reward TD must fade as the grounding grows)"
+            assert config.get('value_arch', 'mlp') == 'simplesf', \
+                "anneal_simplesf_ground requires value_arch='simplesf'"
+            assert not config.get('simplesf_ground_psi', False), \
+                "anneal_simplesf_ground grounds psi via the fade, NOT the stop-gradient; keep simplesf_ground_psi=False"
+            assert int(config.get('anneal_ramp', 300_000)) > 0, "anneal_ramp must be > 0"
         if config.get('anneal_measure', False):
             # (1) we graft the SM loss onto the IQL losses; measure_only would replace them.
             assert not config.get('measure_only', False), \
@@ -1359,7 +1387,8 @@ def get_config():
         config.anneal_measure = False    # ramp the SM loss weight instead of holding it constant: lam(t) = measure_coef * clip(step/anneal_ramp, 0, 1), then HOLD. measure_coef is reinterpreted as lam_max. Warm-start finetuning only (see scripts/prepare_anneal_ckpt.py, which resets network.step to 0)
         config.anneal_ramp = 300_000     # linear ramp length in updates; lam holds at lam_max afterwards
         config.anneal_lr_warmup = 0      # linear LR warmup length in updates (0 = constant LR, today's behaviour). NOTE: a nonzero value changes the optax opt_state tree, so such a run can only restore from a checkpoint written by prepare_anneal_ckpt.py
-        config.anneal_iql_fade = False   # crossfade the IQL value+critic losses OUT (weight 1->0 over anneal_ramp) as the measure ramps IN -> endpoint is measure-only, warm-started. Tests fixed-point vs IQL-propping. Requires anneal_measure
+        config.anneal_iql_fade = False   # crossfade the IQL value+critic losses OUT (weight 1->0 over anneal_ramp) as the measure ramps IN -> endpoint is measure-only, warm-started. Tests fixed-point vs IQL-propping. Requires anneal_measure or anneal_simplesf_ground
+        config.anneal_simplesf_ground = False  # SimpleSF curriculum: pair with anneal_iql_fade to fade the true-reward TD OUT while the reward-regression grounding (L_rew) fades IN over anneal_ramp. Cold-start SimpleSF (value_arch='simplesf', simplesf_ground_psi=False). Endpoint = reward-regressed psi on a frozen rung-2 trunk. Tests optimization-path vs representability of rung 3
         config.measure_test_states = 'rho'   # distribution the measure residual is TESTED against: 'rho' -> psi(next_observations), FB-faithful | 'goals' -> psi(value_goals), the task distribution nu (the research note's task norm). The ortho and the Dirac term ALWAYS stay on psi(next_observations)
         config.measure_test_rank = 'full'    # test set rank: 'full' -> B x B cross-pairs (i != j) | 'task' -> diagonal, project each residual onto its OWN task vector z_i = psi(g_i) (rank 1). 'task' requires measure_test_states='goals'
         config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)

@@ -208,6 +208,7 @@ MAP = {
     # ramps 0 -> lam_max over 300k then holds; dense evals make each run a success-vs-lambda dose
     # curve. Separates fixed-point incompatibility from an optimization-path artifact.
     'GCIQL-State-Flow-Anneal-Zero':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-zero', graft='CONTROL: finetune the 0.904 anchor 400k more steps with NO measure loss (validates restore; isolates extra IQL steps)'),
+    'GCIQL-State-Flow-Anneal-SgPhi-IQLfade': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-sgphi-iqlfade', graft='warm-start + crossfade IQL OUT as lambda ramps to 10 (endpoint = measure-only): does the good basin survive without L_IQL?'),
     'GCIQL-State-Flow-Anneal-SgPhi':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-sgphi', graft='warm-start + lambda 0->10 ramp on the stopgrad-phi measure (crosses the cold cliff at lambda=3)'),
     'GCIQL-State-Flow-Anneal-Shared': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-shared', graft='warm-start + lambda 0->100 ramp on the shared-legs measure (cold cliff is above 10, never located)'),
 
@@ -221,6 +222,7 @@ MAP = {
     # (0.904); rung 3 grounds psi in the reward and isolates the grounding against rung 2.
     'GCIQL-State-Flow-SimpleSF-Arch':     dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='simplesf-arch', graft='SimpleSF trunk split (b=h/||h||, Psi=head(h)), psi learned end-to-end; scalar IQL TD'),
     'GCIQL-State-Flow-SimpleSF-Grounded': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='simplesf-grounded', graft="Chua et al.'s cell: + psi trained ONLY by reward regression <sg[b],psi(g)>"),
+    'GCIQL-State-Flow-SimpleSF-Anneal':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='simplesf-anneal', graft='SimpleSF curriculum: cross-fade true-reward TD OUT while reward-regression grounding fades IN (rung 2 geometry -> rung 3 endpoint); tests optimization-path vs representability'),
 
     # --- 1a: joint-psi SF, FB ortho + sphere (spec 2026-07-10). Cell A is the estimator-axis
     # control: identical to GCIQL-State-Flow-Bilinear-d50-C-FBzProjZ-O1000 (0.231) except the

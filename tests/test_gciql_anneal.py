@@ -324,3 +324,50 @@ def test_iql_fade_requires_anneal_measure():
     proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
     assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     assert "OK" in proc.stdout
+
+
+def test_simplesf_ground_curriculum_crossfades_td_to_reward_regression():
+    """anneal_simplesf_ground (with anneal_iql_fade, value_arch='simplesf', ground_psi off): the
+    SimpleSF-arch true-reward TD fades OUT (value+critic weight 1->0) while the reward-regression
+    L_rew fades IN (weight 0->frac*coef). Endpoint = reward-regressed psi on the frozen rung-2
+    trunk -- a frozen-representation readout probe reached by annealing. Tests whether rung 3's
+    failure is optimization (survives from a good geometry) or representability (r not linearizable
+    in b). No detach is annealed; psi keeps the rung-2 architecture (z NOT stop-gradded)."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        def probe(step, reward_coef):
+            cfg = dict(get_config()); cfg["encoder"]=None; cfg["frame_stack"]=None
+            cfg["value_arch"]="simplesf"; cfg["value_latent_dim"]=50; cfg["project_z"]=True
+            cfg["simplesf_ground_psi"]=False           # rung-2 forward (z NOT detached)
+            cfg["anneal_ramp"]=100
+            cfg["anneal_iql_fade"]=True; cfg["anneal_simplesf_ground"]=True
+            cfg["simplesf_reward_coef"]=reward_coef
+            B=12
+            obs=jax.random.normal(jax.random.PRNGKey(0),(B,11)); nobs=jax.random.normal(jax.random.PRNGKey(4),(B,11))
+            act=jax.random.normal(jax.random.PRNGKey(1),(B,5)); goals=jax.random.normal(jax.random.PRNGKey(3),(B,11))
+            rew=jnp.where(jax.random.uniform(jax.random.PRNGKey(5),(B,))<0.2,0.0,-1.0)
+            ag=GCIQLFlowAgent.create(0,obs,act,cfg); ag=ag.replace(network=ag.network.replace(step=step))
+            batch=dict(observations=obs,next_observations=nobs,actions=act,rewards=rew,masks=1.0+rew,value_goals=goals,actor_goals=goals)
+            g=jax.grad(lambda p: ag.total_loss(batch,p,jax.random.PRNGKey(7))[0])(ag.network.params)
+            vg=sum(float(jnp.sum(jnp.abs(l))) for l in jax.tree_util.tree_leaves(g['modules_value']))
+            _,info=ag.total_loss(batch,ag.network.params,jax.random.PRNGKey(7))
+            return vg, {k:float(v) for k,v in info.items() if 'simplesf' in k or 'anneal' in k}
+        # reward_coef=0 ISOLATES the true-reward TD (no grounding): the value net's ONLY gradient is
+        # the faded value+critic loss, so it must vanish exactly at t=ramp.
+        vg0, i0 = probe(0, 0.0)
+        vgr, ir = probe(100, 0.0)
+        assert vg0 > 1e-3, ('t=0: value net must get the full true-reward TD gradient', vg0)
+        assert abs(i0['anneal/iql_w']-1.0)<1e-6 and abs(i0['anneal/ground_frac'])<1e-6
+        assert vgr < 1e-8, ('t=ramp with no grounding: TD faded -> value net gets NO gradient', vgr)
+        assert abs(ir['anneal/iql_w'])<1e-6 and abs(ir['anneal/ground_frac']-1.0)<1e-6
+        # reward_coef>0: at t=ramp the grounding IS the value net's gradient (psi trained by L_rew),
+        # so the value net is trained again -- proving the crossfade handed psi from TD to L_rew.
+        vgr_g, ir_g = probe(100, 1.0)
+        assert vgr_g > 1e-3, ('t=ramp with grounding: L_rew trains psi in the value net', vgr_g)
+        assert 'simplesf/reward_loss' in ir_g
+        print('OK')
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
