@@ -183,3 +183,49 @@ def test_dirac_term_never_follows_the_test_set():
     proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
     assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     assert "OK" in proc.stdout
+
+
+def test_task_norm_guards_reject_invalid_combinations():
+    """The guards encode the design so a misconfigured cell fails loudly instead of producing an
+    uninterpretable number.
+
+    1. measure_test_rank='task' => measure_test_states='goals'. The rho diagonal IS the Dirac term;
+       projecting there would double-count the reward.
+    2. either knob off-default => measure_only or measure_coef>0 (they only affect measure_loss).
+    3. either knob off-default => measure_legs='critic' (the value-legs branch has no goal leg).
+    4. either knob off-default => not sf_feature_td, and value_arch != 'simplesf' (each replaces
+       the loss entirely)."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (6, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (6, 5))
+        def build(**over):
+            cfg = dict(get_config())
+            cfg["encoder"] = None; cfg["frame_stack"] = None
+            cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = 50
+            cfg.update(over)
+            return GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        M = dict(measure_only=True, measure_coef=1.0, measure_legs="critic",
+                 fb_forward_z=True, project_z=True, measure_ortho_coef=1000.0)
+        bad = [
+            dict(M, measure_test_rank="task", measure_test_states="rho"),   # 1
+            dict(M, measure_test_states="goals", measure_only=False, measure_coef=0.0),  # 2
+            dict(M, measure_test_states="goals", measure_legs="value"),     # 3
+            dict(M, measure_test_states="goals", sf_feature_td=True, sf_base="frozen"),  # 4
+        ]
+        for over in bad:
+            try:
+                build(**over)
+            except AssertionError:
+                continue
+            raise SystemExit("guard missing for " + repr(over))
+        build(**M, measure_test_states="goals", measure_test_rank="full")   # N1
+        build(**M, measure_test_states="goals", measure_test_rank="task")   # N2
+        build(**M)                                                          # the 0.231 anchor
+        build()                                                             # stock GCIQL
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout

@@ -981,6 +981,24 @@ class GCIQLFlowAgent(GCIQLAgent):
         config = dict(config)
         config['action_dim'] = action_dim
 
+        if (config.get('measure_test_states', 'rho') != 'rho'
+                or config.get('measure_test_rank', 'full') != 'full'):
+            # (1) the rho diagonal IS the Dirac term; projecting there would double-count the reward.
+            if config.get('measure_test_rank', 'full') == 'task':
+                assert config.get('measure_test_states', 'rho') == 'goals', \
+                    "measure_test_rank='task' requires measure_test_states='goals'"
+            # (2) both knobs only affect measure_loss.
+            assert config.get('measure_only', False) or config.get('measure_coef', 0.0) > 0, \
+                "measure_test_states/measure_test_rank require measure_only=True or measure_coef>0"
+            # (3) the value-legs branch has no goal leg to test against.
+            assert config.get('measure_legs', 'critic') == 'critic', \
+                "measure_test_states/measure_test_rank require measure_legs='critic'"
+            # (4) these replace the loss entirely and would silently override the measure objective.
+            assert not config.get('sf_feature_td', False), \
+                "measure_test_states/measure_test_rank are incompatible with sf_feature_td"
+            assert config.get('value_arch', 'mlp') != 'simplesf', \
+                "measure_test_states/measure_test_rank are incompatible with value_arch='simplesf'"
+
         if config.get('simplesf_ground_psi', False) or config.get('value_arch', 'mlp') == 'simplesf':
             # (1) the grounding knob is meaningless without the architecture.
             assert config.get('value_arch', 'mlp') == 'simplesf', \
