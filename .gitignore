@@ -76,3 +76,5 @@ CLAUDE.md
 results/
 datasets*/
 .ref-papers/
+# graphify knowledge graph — derived from the tree, rebuilt by .githooks/post-commit
+graphify-out/
