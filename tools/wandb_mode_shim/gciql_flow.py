@@ -861,15 +861,37 @@ class GCIQLFlowAgent(GCIQLAgent):
                 goal_dim = ex_goals.shape[-1]
                 assert config['value_latent_dim'] == goal_dim, \
                     f"sf_feature_td sf_base='identity' requires value_latent_dim==goal_dim ({goal_dim}), got {config['value_latent_dim']}"
-            # E3 guards: reward regression on a FIXED base is the audited confound (the linear
-            # proxy r=<s,g> cannot express the goal indicator) -> refuse; a learned base without
-            # the regression leaves psi with zero training signal -> refuse.
+            # E3 guard: reward regression on a FIXED base is the audited confound (the linear
+            # proxy r=<s,g> cannot express the goal indicator) -> refuse.
             if config.get('sf_reward_regress', False):
                 assert config.get('sf_base', 'identity') == 'learned', \
                     "sf_reward_regress requires sf_base='learned' (fixed bases can't express the goal indicator)"
+            joint = config.get('sf_joint_psi', False)
+            if joint:
+                # (1) exactly ONE gradient path into psi.
+                assert config.get('sf_base', 'identity') == 'learned', \
+                    "sf_joint_psi requires sf_base='learned' (a fixed psi has no gradient to receive)"
+                assert not config.get('sf_reward_regress', False), \
+                    "sf_joint_psi and sf_reward_regress are mutually exclusive (two grad paths into psi)"
+                # (2) without the ortho penalty, phi=0 and psi=0 is a GLOBAL minimum of the TD.
+                assert config.get('sf_psi_ortho_coef', 0.0) > 0, \
+                    "sf_joint_psi requires sf_psi_ortho_coef>0 (else phi=0,psi=0 is a global min of the SF TD)"
+                # (3) a goal-dependent absorption coefficient cannot sit in a goal-agnostic
+                # recursion. Scoped to joint cells: the legacy SF grid is agnostic AND masked,
+                # and is left untouched (the objection is documented, not retro-enforced).
+                if config.get('sf_mask', 'goal') == 'goal':
+                    assert config.get('fb_forward_z', False), \
+                        "sf_joint_psi with sf_mask='goal' requires fb_forward_z (goal-dependent mask needs a goal-conditioned phi)"
+            # (4) never mix the arriving-state base with the current-index mask: GCDataset ties
+            # rewards AND masks to the current index, so b=psi(s') + m_g(s) is off-by-one against
+            # the mask (the class of bug fixed in E3, 2026-07-09).
+            assert not (config.get('sf_base_index', 'current') == 'next'
+                        and config.get('sf_mask', 'goal') == 'goal'), \
+                "sf_base_index='next' requires sf_mask='none' (arriving-state base + current-index mask mixes conventions)"
+            # (5) a learned psi with no training signal at all.
             if config.get('sf_base', 'identity') == 'learned':
-                assert config.get('sf_reward_regress', False) or config.get('sf_joint_psi', False), \
-                    "sf_base='learned' requires sf_reward_regress=True (else psi has no training signal)"
+                assert config.get('sf_reward_regress', False) or joint, \
+                    "sf_base='learned' requires sf_reward_regress=True or sf_joint_psi=True (else psi has no training signal)"
             config['actor_cond'] = 'goal'
 
         if config.get('psi_base', 'learned') != 'learned':

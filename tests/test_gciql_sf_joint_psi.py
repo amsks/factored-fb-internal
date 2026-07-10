@@ -315,3 +315,53 @@ def test_defaults_reproduce_todays_sf_loss():
     proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
     assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     assert "OK" in proc.stdout
+
+
+def test_joint_psi_guards_reject_invalid_combinations():
+    """The guards encode the algebra, so a misconfigured cell fails loudly instead of producing an
+    uninterpretable number -- the failure mode this program keeps repeating.
+
+    1. joint => sf_base='learned' and NOT sf_reward_regress  (exactly one grad path into psi)
+    2. joint => sf_psi_ortho_coef > 0   (else phi=0, psi=0 is a GLOBAL minimum of the TD)
+    3. joint and sf_mask='goal' => fb_forward_z  (a goal-dependent absorption coefficient cannot
+       sit in a goal-agnostic recursion). Scoped to joint: every legacy SF cell is agnostic+masked.
+    4. NOT (sf_base_index='next' and sf_mask='goal')  (mixes the arriving-state and current-index
+       conventions -- the exact class of bug fixed in E3 on 2026-07-09)
+    5. sf_base='learned' => sf_reward_regress OR sf_joint_psi  (a learned psi with no signal)"""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (6, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (6, 5))
+        def build(**over):
+            cfg = dict(get_config())
+            cfg["encoder"] = None; cfg["frame_stack"] = None
+            cfg["value_arch"] = "bilinear"; cfg["value_latent_dim"] = 50
+            cfg["sf_feature_td"] = True
+            cfg.update(over)
+            return GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        J = dict(sf_base="learned", sf_joint_psi=True, sf_psi_ortho_coef=1000.0,
+                 fb_forward_z=True, project_z=True)
+        bad = [
+            dict(J, sf_base="frozen"),                                   # 1: joint on a fixed base
+            dict(J, sf_reward_regress=True),                             # 1: two grad paths
+            dict(J, sf_psi_ortho_coef=0.0),                              # 2: guaranteed collapse
+            dict(J, sf_mask="goal", sf_base_index="current", fb_forward_z=False),  # 3
+            dict(J, sf_base_index="next", sf_mask="goal"),               # 4: mixed conventions
+            dict(sf_base="learned"),                                     # 5: no signal at all
+        ]
+        for over in bad:
+            try:
+                build(**over)
+            except AssertionError:
+                continue
+            raise SystemExit("guard missing for " + repr(over))
+        build(**J, sf_base_index="next", sf_mask="none")       # cell A
+        build(**J, sf_base_index="current", sf_mask="goal")    # cell C
+        build(sf_base="frozen")                                # legacy cell unaffected
+        build(sf_base="learned", sf_reward_regress=True)       # E3 cell unaffected
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
