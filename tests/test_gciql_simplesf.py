@@ -253,6 +253,7 @@ def test_simplesf_guards_reject_invalid_combinations():
             dict(S, fb_forward_z=True),                              # 2
             dict(S, fwd_two_tower=True),                             # 2
             dict(S, sf_joint_psi=True),                              # 2
+            dict(S, iql_ortho_coef=1.0),                             # 2 (ortho_loss expects a 3-tuple critic)
             dict(S, psi_base="frozen"),                              # 3
             dict(S, actor_cond="z"),                                 # 4
         ]

@@ -1018,6 +1018,10 @@ class GCIQLFlowAgent(GCIQLAgent):
                 assert not config.get(knob, False), f"value_arch='simplesf' is incompatible with {knob}"
             assert config.get('measure_coef', 0.0) == 0.0, \
                 "value_arch='simplesf' is incompatible with measure_coef>0"
+            # ortho_loss unpacks the critic's 3-tuple (v, phi, psi); GCSimpleSFValue returns a
+            # 4-tuple (v, Psi, z, b), so this would raise. Refuse it at construction instead.
+            assert config.get('iql_ortho_coef', 0.0) == 0.0, \
+                "value_arch='simplesf' is incompatible with iql_ortho_coef>0 (ortho_loss expects a 3-tuple critic)"
             # (3) psi_base dispatches GCBilinearValue subclasses; the two must not compose silently.
             assert config.get('psi_base', 'learned') == 'learned', \
                 "value_arch='simplesf' requires psi_base='learned'"
