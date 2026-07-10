@@ -925,7 +925,21 @@ class GCIQLFlowAgent(GCIQLAgent):
         if self.config.get('measure_coef', 0.0) > 0:   # graft FB measure onto GCIQL's rep
             rng, m_rng = jax.random.split(rng)
             m_loss, m_info = self.measure_loss(batch, grad_params, m_rng)
-            loss = loss + self.config['measure_coef'] * m_loss
+            lam = self.config['measure_coef']
+            if self.config.get('anneal_measure', False):
+                # Warm-start dose-response: grow the SM weight from 0, then HOLD at lam_max.
+                # t is network.step, which prepare_anneal_ckpt.py resets to 0 -- restore_agent
+                # otherwise brings back the anchor's step (1_000_001) and the ramp would start
+                # fully saturated. The measure loss is still COMPUTED at lam=0 (static jit shapes),
+                # just scaled to zero, so the first finetune step is a no-op on the restored geometry.
+                # jnp.asarray, not .astype: TrainState.step is a plain Python int leaf until jit
+                # traces it, and `int.astype` does not exist.
+                t = jnp.asarray(self.network.step, jnp.float32)
+                ramp = float(self.config.get('anneal_ramp', 300_000))
+                lam = lam * jnp.clip(t / ramp, 0.0, 1.0)
+                info['anneal/lambda'] = lam
+                info['anneal/t'] = t
+            loss = loss + lam * m_loss
             for k, v in m_info.items():
                 info[f'measure/{k}'] = v
         if self.config.get('iql_ortho_coef', 0.0) > 0:  # FB orthonormality ONLY (no measure)
@@ -1288,6 +1302,9 @@ def get_config():
         config.measure_scale_norm = False  # E2: divide the measure TD terms by sg[mean(M^2)] so the gradient is dimensionless (stops the <F,z> inflation that crashed 18/18 mc* runs; audit §1)
         config.measure_stopgrad_phi = False  # E2: stop-grad phi inside measure_loss so the measure gradient shapes ONLY psi (readout/backward leg), quarantined from the value-critical forward leg
         config.measure_z_random_frac = 0.0  # FB-fidelity: fraction of measure-loss task vectors z drawn as sqrt(d)-sphere gaussian directions (metamotivo sample_mixed_z) instead of psi(vgoals); needs fb_forward_z
+        config.anneal_measure = False    # ramp the SM loss weight instead of holding it constant: lam(t) = measure_coef * clip(step/anneal_ramp, 0, 1), then HOLD. measure_coef is reinterpreted as lam_max. Warm-start finetuning only (see scripts/prepare_anneal_ckpt.py, which resets network.step to 0)
+        config.anneal_ramp = 300_000     # linear ramp length in updates; lam holds at lam_max afterwards
+        config.anneal_lr_warmup = 0      # linear LR warmup length in updates (0 = constant LR, today's behaviour). NOTE: a nonzero value changes the optax opt_state tree, so such a run can only restore from a checkpoint written by prepare_anneal_ckpt.py
         config.measure_test_states = 'rho'   # distribution the measure residual is TESTED against: 'rho' -> psi(next_observations), FB-faithful | 'goals' -> psi(value_goals), the task distribution nu (the research note's task norm). The ortho and the Dirac term ALWAYS stay on psi(next_observations)
         config.measure_test_rank = 'full'    # test set rank: 'full' -> B x B cross-pairs (i != j) | 'task' -> diagonal, project each residual onto its OWN task vector z_i = psi(g_i) (rank 1). 'task' requires measure_test_states='goals'
         config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)
