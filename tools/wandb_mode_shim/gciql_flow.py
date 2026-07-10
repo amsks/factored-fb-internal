@@ -326,6 +326,56 @@ class GCLearnedBValue(GCFrozenBValue):
         return v
 
 
+class GCSimpleSFValue(GCBilinearValue):
+    """Chua et al.'s Simple SF head, ported (reference: simple_successor_features/agent/sf_simple.py).
+
+        h(s,a,z)  = trunk([s, a, sg[z]])          # ONE trunk, not ensembled
+        b(s,a,z)  = h / ||h||                     # reward BASIS -- zero params of its own
+        Psi_i     = head_i(h)                     # twin heads (CriticSF.Q1/Q2)
+        z         = psi(g)                        # the task vector (sqrt(d)-sphere if project_z)
+        Q_i       = <Psi_i, z_used>/sqrt(d)
+
+    b and Psi are DIFFERENT vectors off a shared trunk, and b carries no parameters: its only
+    gradient arrives through the trunk, from the TD. That is what makes the reward model
+    <b, psi(g)> ASYMMETRIC (a network against a task vector) and hence free of the psi=0
+    stationary point that killed E3 v1 (whose <psi(s), psi(g)> is symmetric, so its gradient
+    vanishes at zero and needed sf_reward_shift to escape).
+
+    z is stop-gradded in the TRUNK INPUT in both rungs -- the reference passes task.detach() to
+    update_critic (sf_simple.py:283). Otherwise the trunk's TD gradient would reach psi through
+    the input concatenation and ground_psi would not isolate psi's signal. With ground_psi the
+    readout also stop-grads z, leaving the reward regression as psi's ONLY gradient path."""
+    ground_psi: bool = False
+    project_z: bool = False
+
+    def setup(self):
+        head_m = ensemblize(MLP, 2) if self.ensemble else MLP
+        self.trunk = MLP((*self.hidden_dims, self.latent_dim), activate_final=False,
+                         layer_norm=self.layer_norm)
+        self.head = head_m((self.hidden_dims[-1], self.latent_dim), activate_final=False,
+                           layer_norm=self.layer_norm)
+        self.psi = MLP((*self.hidden_dims, self.latent_dim), activate_final=False,
+                       layer_norm=self.layer_norm)
+
+    def __call__(self, observations, goals, actions=None, info=False):
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        g = self.goal_encoder(goals) if self.goal_encoder is not None else goals
+        z = self.psi(g)                                          # [B,d], grad ON
+        if self.project_z:
+            z = _sphere(z, self.latent_dim)
+        z_in = jax.lax.stop_gradient(z)                          # trunk input NEVER trains psi
+        parts = [observations] if actions is None else [observations, actions]
+        h = self.trunk(jnp.concatenate([*parts, z_in], axis=-1))  # [B,d]
+        b = h / (jnp.linalg.norm(h, axis=-1, keepdims=True) + 1e-6)
+        Psi = self.head(h)                                       # [2,B,d] or [B,d]
+        z_used = jax.lax.stop_gradient(z) if self.ground_psi else z
+        v = (Psi * z_used).sum(axis=-1) / jnp.sqrt(self.latent_dim)
+        if info:
+            return v, Psi, z, b
+        return v
+
+
 class GCIQLFlowAgent(GCIQLAgent):
     """GCIQL with FB's FlowBC actor. Inherits value_loss/critic_loss/update."""
 
@@ -940,7 +990,24 @@ class GCIQLFlowAgent(GCIQLAgent):
         # value_arch: 'mlp' = canonical GCIQL GCValue (concat MLP over [s,g,a]);
         # 'bilinear' = inner-product value V=phi(s).psi(g)/sqrt(d), Q=phi(s,a).psi(g)/sqrt(d)
         # (Direction A: GCIQL's IQL training poured through an FB-style rank-d head).
-        if config.get('value_arch', 'mlp') == 'bilinear':
+        if config.get('value_arch', 'mlp') == 'simplesf':
+            # Simple SF (Chua et al.): one trunk -> (b, Psi); Q = <Psi, psi(g)>/sqrt(d).
+            # Applied to BOTH the value net and the critic: grounding only the critic's psi would
+            # leak goal information back through V(s',g) into the critic target.
+            d = config['value_latent_dim']
+            ss_kwargs = dict(
+                hidden_dims=config['value_hidden_dims'], latent_dim=d,
+                layer_norm=config['layer_norm'],
+                ground_psi=config.get('simplesf_ground_psi', False),
+                project_z=config.get('project_z', False),
+            )
+            value_def = GCSimpleSFValue(
+                ensemble=False, state_encoder=encoders.get('value'),
+                goal_encoder=encoders.get('value'), **ss_kwargs)
+            critic_def = GCSimpleSFValue(
+                ensemble=True, state_encoder=encoders.get('critic'),
+                goal_encoder=encoders.get('critic'), **ss_kwargs)
+        elif config.get('value_arch', 'mlp') == 'bilinear':
             d = config['value_latent_dim']
             # psi_base: cripple the goal leg under the NORMAL scalar IQL TD (1b control).
             # Applied SYMMETRICALLY to the value net and the critic -- freezing only the critic
@@ -1067,8 +1134,11 @@ def get_config():
     config = _gciql_get_config()
     with config.unlocked():
         config.agent_name = 'gciql_flow'
-        # Value architecture: 'mlp' (canonical GCIQL) or 'bilinear' (inner-product, Direction A).
+        # Value architecture: 'mlp' (canonical GCIQL) | 'bilinear' (inner-product, Direction A)
+        # | 'simplesf' (Chua et al.: trunk -> b=h/||h|| and Psi=head(h); Q=<Psi,psi(g)>/sqrt(d)).
         config.value_arch = 'mlp'
+        config.simplesf_ground_psi = False  # rung 3 (the paper's cell): stop-grad z in the value/critic losses so psi(g) is trained ONLY by the reward-prediction loss L_rew
+        config.simplesf_reward_coef = 1.0   # weight on L_rew, summed over the value net and the critic
         config.value_latent_dim = 512
         # Actor conditioning identity (G4 objective-isolation arm):
         # 'goal' = raw goal obs (stock); 'z' = z=stop_grad(value.psi(goal)),
