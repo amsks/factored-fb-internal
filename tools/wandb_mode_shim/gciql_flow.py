@@ -700,9 +700,14 @@ class GCIQLFlowAgent(GCIQLAgent):
                 dir_i = jnp.diagonal(M - gamma * tM, axis1=1, axis2=2)                          # [2,B]
                 diagt = -jnp.mean(dir_i, axis=1)                                                # [2]
                 if scale_norm:
-                    msq = jax.lax.stop_gradient(jnp.mean(M_t ** 2))
-                    offdiag = offdiag / (msq + 1e-6)
-                    diagt = diagt / (jnp.sqrt(msq) + 1e-6)
+                    # Each term is normalized by ITS OWN matrix's scale: offdiag lives on the task
+                    # matrix M_t, the Dirac on the rho matrix M. Using M_t for both (the naive
+                    # port of _measure_terms) would make the Dirac differ from the anchor's and
+                    # silently break the "only the test set moved" invariant.
+                    msq_t = jax.lax.stop_gradient(jnp.mean(M_t ** 2))
+                    msq_o = jax.lax.stop_gradient(jnp.mean(M ** 2))
+                    offdiag = offdiag / (msq_t + 1e-6)
+                    diagt = diagt / (jnp.sqrt(msq_o) + 1e-6)
             Cov = jnp.einsum('hid,hjd->hij', psi, psi)                    # FB ortho on B:=psi(s') (grads on)
             o_off = 0.5 * jnp.sum((Cov * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
             o_diag = -jnp.mean(jnp.diagonal(Cov, axis1=1, axis2=2), axis=1)
