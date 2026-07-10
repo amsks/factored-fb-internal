@@ -158,3 +158,50 @@ def test_agent_builds_a_scheduled_tx_only_when_warmup_is_set():
     proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
     assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     assert "OK" in proc.stdout
+
+
+def test_prepare_anneal_ckpt_round_trip():
+    """DECISIVE for the whole experiment. The prep script must produce a checkpoint that:
+      * restores into an agent built with the FINETUNE config (scheduled tx),
+      * carries the anchor's params byte-for-byte,
+      * has step == 0 (so lam(0) = 0 and the LR warmup starts at 0), and
+      * has a FRESH opt_state matching the scheduled tx (not the anchor's constant-LR one).
+    Then the restored agent must take an update without error."""
+    code = PREAMBLE + """
+        import pickle, os, sys, flax, tempfile
+        sys.path.insert(0, os.path.join(os.environ['REPO'], 'scripts'))
+        from prepare_anneal_ckpt import splice_checkpoint
+
+        # 1. build a "source" agent with today's constant-LR tx, and save it like main.py would
+        src_agent, batch = build(step=1234, lam_max=0.0, anneal=False, warm=0)
+        tmp = tempfile.mkdtemp()
+        src_dir = os.path.join(tmp, 'src'); os.makedirs(src_dir)
+        with open(os.path.join(src_dir, 'params_1234.pkl'), 'wb') as f:
+            pickle.dump(dict(agent=flax.serialization.to_state_dict(src_agent)), f)
+
+        # 2. build the FINETUNE agent (scheduled tx) and splice
+        ft_agent, _ = build(step=99, lam_max=10.0, anneal=True, warm=10)
+        out_dir = os.path.join(tmp, 'out')
+        splice_checkpoint(ft_agent, os.path.join(src_dir, 'params_1234.pkl'), out_dir)
+
+        # 3. restore, exactly as main.py does
+        from utils.flax_utils import restore_agent
+        restored = restore_agent(ft_agent, out_dir, 0)
+
+        # params equal the source's
+        d = jax.tree_util.tree_map(lambda a, b: jnp.max(jnp.abs(a - b)),
+                                   restored.network.params, src_agent.network.params)
+        assert max(float(x) for x in jax.tree_util.tree_leaves(d)) == 0.0, "params not preserved"
+        # step reset
+        assert int(restored.network.step) == 0, int(restored.network.step)
+        # opt_state matches a FRESH init of the scheduled tx (not the source's)
+        assert (jax.tree_util.tree_structure(restored.network.opt_state)
+                == jax.tree_util.tree_structure(ft_agent.network.opt_state))
+        # and it trains
+        restored, info = restored.update(batch)
+        assert bool(jnp.isfinite(info['actor/actor_loss']))
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS), env_extra={'REPO': str(OGBENCH_IMPLS.parents[2])})
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
