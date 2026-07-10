@@ -692,9 +692,12 @@ class GCIQLFlowAgent(GCIQLAgent):
                     qz = jnp.diagonal(diff_t, axis1=1, axis2=2)                                 # [2,B]
                     offdiag = 0.5 * jnp.mean(qz ** 2, axis=1)                                   # [2]
                     qz_mean = jnp.mean(qz)
-                # Dirac term: the rho diagonal, computed directly (never via the test matrix).
-                dir_i = (jnp.einsum('hid,hid->hi', phi, psi)
-                         - gamma * jax.lax.stop_gradient(jnp.einsum('hid,hid->hi', tphi, tpsi))) / sqd
+                # Dirac term: the diagonal of the RHO matrix (M, tM), which is already computed
+                # above. Taking it from that matrix rather than recomputing it with an einsum
+                # keeps this term BIT-IDENTICAL to the legacy _measure_terms diag -- the reduction
+                # order matters in float32, and the term is a small number obtained by
+                # cancellation, so a different order shifts it by ~1e-3 relative.
+                dir_i = jnp.diagonal(M - gamma * tM, axis1=1, axis2=2)                          # [2,B]
                 diagt = -jnp.mean(dir_i, axis=1)                                                # [2]
                 if scale_norm:
                     msq = jax.lax.stop_gradient(jnp.mean(M_t ** 2))
