@@ -792,6 +792,35 @@ class GCIQLFlowAgent(GCIQLAgent):
             info['sf_rhat_mean'] = jnp.mean(r_hat)
         return loss, info
 
+    def simplesf_reward_loss(self, batch, grad_params):
+        """Simple SF's reward-prediction loss (sf_simple.py:302-325), the task vector's ONLY
+        gradient path when simplesf_ground_psi:
+
+            r_hat(s,a,g) = <sg[b(s,a,z)], psi(g)>/sqrt(d)   ->  regress on batch['rewards']
+
+        b is stop-gradded exactly as the reference computes next_rep under torch.no_grad() and
+        steps only task_opt. CURRENT index: GCDataset ties rewards AND masks to
+        idxs == value_goal_idxs (datasets.py:242-244), so b is evaluated at (s,a), not (s',a').
+
+        Applied to BOTH nets: grounding only the critic's psi would leak goal information back
+        through V(s',g) into the critic target. No reward shift is needed -- the model is
+        ASYMMETRIC (b is a separate object from psi), so it has no psi=0 saddle, and with
+        ||b||=1, ||z||=sqrt(d) its range [-1,1] already covers the reward range {-1,0}."""
+        obs, vgoals, acts = batch['observations'], batch['value_goals'], batch['actions']
+        r = batch['rewards']
+        d = self.config['value_latent_dim']
+        _, _, z_q, b_q = self.network.select('critic')(obs, vgoals, acts, info=True, params=grad_params)
+        _, _, z_v, b_v = self.network.select('value')(obs, vgoals, info=True, params=grad_params)
+        rhat_q = (jax.lax.stop_gradient(b_q) * z_q).sum(axis=-1) / jnp.sqrt(d)      # [B]
+        rhat_v = (jax.lax.stop_gradient(b_v) * z_v).sum(axis=-1) / jnp.sqrt(d)      # [B]
+        loss = jnp.mean((rhat_q - r) ** 2) + jnp.mean((rhat_v - r) ** 2)
+        return loss, {
+            'reward_loss': loss,
+            'rhat_mean': jnp.mean(rhat_q), 'rhat_std': jnp.std(rhat_q),
+            'b_norm_mean': jnp.mean(jnp.linalg.norm(b_q, axis=-1)),
+            'z_norm_mean': jnp.mean(jnp.linalg.norm(z_q, axis=-1)),
+        }
+
     def ortho_loss(self, batch, grad_params):
         """FB orthonormality penalty ||E[psi psi^T]-I|| on the IQL critic's backward
         map psi(value_goals) -- with NO measure bootstrap. Isolates the ortho constraint
@@ -841,6 +870,14 @@ class GCIQLFlowAgent(GCIQLAgent):
         for k, v in critic_info.items():
             info[f'critic/{k}'] = v
         loss = value_loss + critic_loss + actor_loss
+        if self.config.get('simplesf_ground_psi', False):
+            # rung 3 (the paper's cell): psi(g) is detached inside value/critic (GCSimpleSFValue),
+            # so this regression is its ONLY gradient. The trunk still learns from the TD, which
+            # is what trains the basis b.
+            ss_loss, ss_info = self.simplesf_reward_loss(batch, grad_params)
+            for k, v in ss_info.items():
+                info[f'simplesf/{k}'] = v
+            loss = loss + self.config.get('simplesf_reward_coef', 1.0) * ss_loss
         if self.config.get('measure_coef', 0.0) > 0:   # graft FB measure onto GCIQL's rep
             rng, m_rng = jax.random.split(rng)
             m_loss, m_info = self.measure_loss(batch, grad_params, m_rng)
