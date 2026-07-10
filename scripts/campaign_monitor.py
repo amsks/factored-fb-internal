@@ -56,7 +56,25 @@ CELLS = {
 DIAG = ['training/sf/psi_ortho', 'training/sf/psi_norm_mean', 'training/sf/psi_ortho_off',
         'training/sf/psi_ortho_diag', 'training/sf/sf_loss']
 JOINT = [c for c, (camp, _, _) in CELLS.items() if camp == 'sfjoint']
-D_LATENT = 50
+D_LATENT = 50        # value_latent_dim
+B_BATCH = 1024       # gciql.py:282
+
+
+def c_minus_i_sq(psi_ortho, d=D_LATENT, B=B_BATCH):
+    """||C - I||_F^2 from the logged psi_ortho, EXACTLY for sphere-normed psi (project_z).
+
+    The code computes, per head,
+        psi_ortho = o_off + o_diag = 0.5 * mean_{i!=j} <psi_i,psi_j>^2  -  mean_i ||psi_i||^2
+    With ||psi_i||^2 = d exactly (project_z) we have tr(C) = d and sum_i ||psi_i||^4 = B d^2, so
+    using ||Psi Psi^T||_F^2 = B^2 ||C||_F^2:
+        psi_ortho = 0.5 * (B^2||C||_F^2 - B d^2)/(B^2 - B)  -  d
+    Invert for ||C||_F^2, then ||C - I||_F^2 = ||C||_F^2 - 2 tr(C) + d = ||C||_F^2 - d.
+
+    Do NOT use the asymptotic 2*(psi_ortho + d/2): at B=1024, d=50 the whitened floor is
+    psi_ortho = d(B-d)/(2(B-1)) - d = -26.2, not -25, so that form returns NEGATIVE squared norms.
+    """
+    c_fro2 = (2.0 * (psi_ortho + d) * (B * B - B) + B * d * d) / (B * B)
+    return c_fro2 - d
 
 
 def live_series(groups, keys):
@@ -141,11 +159,13 @@ def main():
             #   psi_ortho = o_off + o_diag = 0.5||C||_F^2 - tr(C) = 0.5||C - I||_F^2 - d/2
             # so psi_ortho -> -d/2 = -25 iff C -> I, and  ||C - I||_F^2 = 2*(psi_ortho + d/2).
             # dev >> 0 means psi has NOT whitened and the peaked-kernel argument never took hold.
+            floor = D_LATENT * (B_BATCH - D_LATENT) / (2.0 * (B_BATCH - 1)) - D_LATENT
             for s, pts in sorted(diag[cell].items()):
                 step_, orth, norm, _off, _diag, sfl = pts[-1]
-                dev = 2.0 * (orth + D_LATENT / 2.0)          # ||C - I||_F^2
-                print(f'  ortho  s{s} @{step_:>6}  psi_ortho={orth:+.2f} (C=I ⇒ {-D_LATENT/2:.0f})  '
-                      f'||C-I||²={dev:.3f}  |psi|={norm:.3f} (√d=7.071)  sf_loss={sfl:.3g}')
+                dev = c_minus_i_sq(orth)                     # ||C - I||_F^2, exact under project_z
+                print(f'  ortho  s{s} @{step_:>6}  psi_ortho={orth:+.2f} (C=I floor {floor:.1f})  '
+                      f'||C-I||²={dev:.2f} (of ||C||²≈{dev + D_LATENT:.0f})  '
+                      f'|psi|={norm:.3f} (√d=7.071)  sf_loss={sfl:.3g}')
         print(f'  ? {why}\n')
     return 0
 
