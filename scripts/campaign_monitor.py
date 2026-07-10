@@ -163,11 +163,53 @@ def _print_diag(cell, diag, ss):
                   f'rhat_mean={rm:+.3f}  |b|={bn:.4f} (1.0)  |z|={zn:.4f} (√d=7.071)')
 
 
+# Annealed SM finetuning: a dose curve, not a seed-paired comparison. lambda(t) ramps 0->lam_max
+# over 300k then holds; each run is success-vs-lambda. PRE-REGISTERED: critic/q_mean must stay in
+# [-21, -8] (outside = Q-scale blowup, success uninterpretable); Anneal-Zero must stay ~0.90.
+ANNEAL = {
+    'GCIQL-State-Flow-Anneal-Zero':   ('lam=0 CONTROL: 400k more IQL, no SM loss. Must stay ~0.90 or restore/drift is broken.', 0.0),
+    'GCIQL-State-Flow-Anneal-SgPhi':  ('lambda 0->10, stopgrad-phi. Cold cliff at lambda=3 (0.857->0.176). Survives => path artifact; collapses => bad fixed point.', 10.0),
+    'GCIQL-State-Flow-Anneal-Shared': ('lambda 0->100, shared legs. Cold cliff above 10 (l10=0.917), never located.', 100.0),
+}
+ANNEAL_RAMP = 300_000
+Q_BAND = (-21.0, -8.0)
+
+
+def report_anneal():
+    # eval success and the training diagnostics log on DIFFERENT steps, so fetch them separately
+    # and pair by "latest of each" -- the reader wants "at ~this depth: success X, lambda Y, q Z".
+    succ = live_series(list(ANNEAL), [METRIC])
+    trn = live_series(list(ANNEAL), ['training/critic/q_mean', 'training/anneal/lambda'])
+    print('\n=== annealed SM finetune (dose curve; lam(t) ramps 0->lam_max over 300k, holds) ===\n')
+    for g, (why, lam_max) in ANNEAL.items():
+        sr, tr = succ.get(g, {}), trn.get(g, {})
+        print(f'{g.split("-")[-1]}   (lam_max={lam_max:g})')
+        if not sr and not tr:
+            print('  no data logged yet\n'); continue
+        for s in sorted(set(sr) | set(tr)):
+            e = sr.get(s, [])[-1] if sr.get(s) else None
+            t = tr.get(s, [])[-1] if tr.get(s) else None
+            estep, ev = (e[0], e[1]) if e else (None, None)
+            tstep, q, lam = (t[0], t[1], t[2]) if t else (None, None, None)
+            if lam is None and tstep is not None:
+                lam = lam_max * min(1.0, tstep / ANNEAL_RAMP)
+            qflag = '' if (q is None or Q_BAND[0] <= q <= Q_BAND[1]) else '  *** q OUT OF BAND [-21,-8]: scale blowup, success uninterpretable ***'
+            es = f'{ev:.3f}@{estep}' if e else '   -   '
+            qs = f'{q:+.1f}' if q is not None else ' - '
+            ls = f'{lam:6.2f}' if lam is not None else '  -  '
+            print(f'  s{s}  success={es:>12s}  lambda={ls} (@{tstep})  q_mean={qs}{qflag}')
+        print(f'  ? {why}\n')
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--step', type=int, default=None, help='eval step to compare at (default: per-cell deepest 100k multiple)')
-    ap.add_argument('--campaign', default=None, help='psibase | sfjoint (default: both)')
+    ap.add_argument('--campaign', default=None, help='psibase | sfjoint | anneal (default: seed-paired campaigns)')
     args = ap.parse_args()
+
+    if args.campaign == 'anneal':
+        return report_anneal()
 
     cells = {c: v for c, v in CELLS.items() if args.campaign in (None, v[0])}
     groups = sorted(set(cells) | {b for _, b, _ in cells.values() if b})
