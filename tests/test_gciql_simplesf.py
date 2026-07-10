@@ -221,3 +221,53 @@ def test_reward_model_has_no_psi_zero_saddle():
     proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
     assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
     assert "OK" in proc.stdout
+
+
+def test_simplesf_guards_reject_invalid_combinations():
+    """Guards encode the design so a misconfigured cell fails loudly instead of producing an
+    uninterpretable number.
+
+    1. simplesf_ground_psi => value_arch == 'simplesf'
+    2. value_arch=='simplesf' excludes every knob that selects its own critic class or loss
+       (sf_feature_td, measure_only, measure_coef>0, fb_forward_z, fwd_two_tower, isfb,
+       sf_joint_psi) -- they would silently override the architecture.
+    3. value_arch=='simplesf' => psi_base == 'learned' (psi_base dispatches GCBilinearValue).
+    4. value_arch=='simplesf' => actor_cond == 'goal' (the flow actor sees the raw goal)."""
+    code = """
+        import jax, jax.numpy as jnp
+        from gciql_flow import GCIQLFlowAgent, get_config
+        ex_obs = jax.random.normal(jax.random.PRNGKey(0), (6, 11))
+        ex_act = jax.random.normal(jax.random.PRNGKey(1), (6, 5))
+        def build(**over):
+            cfg = dict(get_config())
+            cfg["encoder"] = None; cfg["frame_stack"] = None
+            cfg["value_latent_dim"] = 50
+            cfg.update(over)
+            return GCIQLFlowAgent.create(0, ex_obs, ex_act, cfg)
+        S = dict(value_arch="simplesf")
+        bad = [
+            dict(simplesf_ground_psi=True, value_arch="bilinear"),   # 1
+            dict(S, sf_feature_td=True, sf_base="frozen"),           # 2
+            dict(S, measure_only=True),                              # 2
+            dict(S, measure_coef=1.0),                               # 2
+            dict(S, fb_forward_z=True),                              # 2
+            dict(S, fwd_two_tower=True),                             # 2
+            dict(S, sf_joint_psi=True),                              # 2
+            dict(S, psi_base="frozen"),                              # 3
+            dict(S, actor_cond="z"),                                 # 4
+        ]
+        for over in bad:
+            try:
+                build(**over)
+            except AssertionError:
+                continue
+            raise SystemExit("guard missing for " + repr(over))
+        build(**S)                                       # rung 2: simplesf-arch
+        build(**S, simplesf_ground_psi=True)             # rung 3: simplesf-grounded
+        build(value_arch="bilinear")                     # legacy cells unaffected
+        build()                                          # mlp default unaffected
+        print("OK")
+    """
+    proc = run_jax(code, cwd=str(OGBENCH_IMPLS))
+    assert proc.returncode == 0, f"stdout={proc.stdout!r}\nstderr={proc.stderr!r}"
+    assert "OK" in proc.stdout
