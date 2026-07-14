@@ -1,0 +1,45 @@
+# N2 (sf-design-space 1e): the same task-norm cell, but with the test set collapsed to RANK 1 --
+# each residual is projected onto its OWN task vector z_i = psi(g_i) instead of against all B
+# test directions.
+#
+# Its STATIONARY POINT (not its loss) is a scalar TD. Minimizing
+#   0.5*(Q - gamma*Qbar)^2 - <F, psi(s')>/sqrt(d)
+# over F and projecting the gradient onto z (with ||z||^2 = d under project_z) gives
+#   Q = <psi(s'),psi(g)>/d + gamma*Qbar
+# i.e. GCIQL's backup with the LEARNED KERNEL reward in place of the true indicator 1[s=g]-1.
+# The exact midpoint between the FB measure (0.231) and bilinear GCIQL (0.904).
+#
+# Reading it:  ~0.90 => the RANK of the test matrix was the failure (fitting the full density)
+#              ~0.23 => the KERNEL reward was the failure, not the rank
+#              ~0.12 => the DIAGONAL ESTIMATOR dominates (the cell-A effect) and N2 says nothing
+#                       about the reward; a fourth cell would be needed to separate them.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Bilinear-d50-C-TaskProj
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  fb_forward_z: true
+  project_z: true
+  measure_ortho_coef: 1000.0
+  measure_test_states: goals
+  measure_test_rank: task
+wandb_mode: online

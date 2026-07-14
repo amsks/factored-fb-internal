@@ -157,6 +157,56 @@ FB inside GCIQL collapses to $\bad{16\text{--}25}$}. Same bilinear form, same fl
 actor: \B{D1 (the objective) is the whole gap.}
 
 % ======================================================================
+\begin{table}[h]
+\centering\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}l l r@{}}
+\toprule
+\B{Cell} & \B{one-knob change vs.\ the scalar-TD anchor} & \B{Succ.\ (\%)} \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Anchors --- scalar reward-TD}}\\
+IQL bilinear $d50$                 & the reference cell                              & \good{$90.4\pm1.9$}$^{\dagger}$ \\
+\;$\tau{=}0.5$                      & drop the expectile improvement operator          & \good{$92.0\pm1.6$}$^{\dagger}$ \\
+\;bilinear $d28$                   & rank $50{\to}28$ (control for identity-$\psi$)   & \good{$86.4\pm7.5$} \\
+\;two-tower                        & FB's two-tower forward map, IQL objective        & \good{$86.4\pm0.8$} \\
+\;B1 = fb-fwd-$z$ under IQL         & task-condition $\phi(s,a,z)$, $z{=}\psi(g)$       & \good{$84.4\pm0.8$} \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Readout crippled --- goal leg cannot express the sparse indicator} (scalar TD held)}\\
+\;$\psi_{\text{base}}$ frozen      & $\psi(g)$ = frozen random MLP                    & \bad{$6.1\pm1.9$} \\
+\;$\psi_{\text{base}}$ identity    & $\psi(g){=}g$                                    & \bad{$2.8\pm0.9$} \\
+\;E3 reward-regressed $\psi$        & $\psi$ trained only by $\langle\psi(s),\psi(g)\rangle{\approx}r$  & \bad{$0.1\pm0.3$} \\
+\;\quad + task-conditioned $\phi$   & E3 $+$ fb-fwd-$z$                                & \bad{$3.5\pm2.7$} \\
+\;SimpleSF grounded (Chua et al.)  & $\psi$ trained only by $\langle b,\psi(g)\rangle{\approx}r$; $r$ \emph{not} readable & \bad{$0.1\pm0.3$} \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Objective replaced --- successor MEASURE (B$\times$B), $\lambda_{\text{ortho}}{=}1000$}}\\
+\;FB measure, ortho$_{1000}$       & fit occupancy density, test states $\sim\rho$    & \bad{$25.5\pm5.2$} \\
+\;\quad + sphere-Norm              & $+$ $\sqrt d$ projection                          & \bad{$23.1\pm3.0$} \\
+\;N1: test states $\sim\nu$        & measure residual in the \emph{task} norm         & \bad{$20.0\pm5.3$} \\
+\;N2: rank-1 task projection       & project residual onto its own $z_i{=}\psi(g_i)$  & \bad{$6.7\pm2.2$} \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Objective replaced --- successor FEATURE / vector TD}}\\
+\;joint-$\psi$ SF $+$ ortho$_{1000}$ & per-sample vector TD; = FB-measure but diagonal estimator & \bad{$12.0\pm1.6$} \\
+\;\quad + absorbing mask ($Q{=}\gamma^{T}$) & first-hitting instead of visitation density & \bad{$12.5\pm1.7$} \\
+\;SimpleSF arch ($\psi$ learned)   & Chua et al.\ trunk split, scalar TD, true reward & $38.0\pm6.3$ \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Annealed finetune from the converged $90.4$ geometry} (\B{running}; dose curve, $\lambda(t){:}\,0{\to}\lambda_{\max}$)}\\
+\;$\lambda{=}0$ control            & $400$k more IQL steps, no SM loss                & \emph{restore $\approx90$} \\
+\;stop-grad-$\phi$, $\lambda{:}\,0{\to}10$ & crosses the cold cliff at $\lambda{=}3$   & \emph{in progress} \\
+\;shared legs, $\lambda{:}\,0{\to}100$ & cold cliff $>10$, never located              & \emph{in progress} \\
+\bottomrule
+\end{tabular}
+\caption{\B{Follow-up ablations, cube-single state, 3 seeds @ 500k} (mean $\pm\,95\%$ CI;
+wandb \texttt{amsks/factored-fb}). $^{\dagger}$$n{=}13$. Organized by \emph{what each cell
+changes}, not by a claimed mechanism. Two failure regimes are separable: a crippled
+\emph{readout} (goal leg cannot linearly express $\mathbf{1}[s{=}g]$) collapses to $\le6$
+even under the otherwise-perfect scalar TD; a replaced \emph{objective} (successor measure or
+vector TD) caps at $12$--$38$. The scalar reward-TD is the only configuration that reaches
+$90$. The annealed cells test whether the cold-start collapse is a property of the objective's
+fixed point or of the optimization path.}
+\label{tab:followup}
+\end{table}
+
+% ======================================================================
 \section{One decision at a time}
 \label{sec:isolations}
 % ======================================================================
