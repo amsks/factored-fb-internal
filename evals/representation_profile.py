@@ -56,7 +56,14 @@ def _tile_z(z: torch.Tensor, batch: int) -> torch.Tensor:
 def q_values(model, obs: torch.Tensor, action: torch.Tensor,
              z: torch.Tensor) -> np.ndarray:
     zb = _tile_z(z, obs.shape[0]).to(obs.device).float()
-    F = model.forward_map(obs, zb, action)
+    # FB/RLDP expose forward_map; PSM's analogue is sf_psi -- same [P, B, z_dim]
+    # contract and the same (psi * z).sum(-1) ensemble-mean readout.
+    if hasattr(model, "forward_map"):
+        F = model.forward_map(obs, zb, action)
+    elif hasattr(model, "sf_psi"):
+        F = model.sf_psi(obs, zb, action)
+    else:
+        raise AttributeError("model exposes neither forward_map nor sf_psi")
     return _ensemble_q(F, zb).cpu().numpy()
 
 
@@ -182,7 +189,13 @@ def probe_z_decoding(model, next_obs: torch.Tensor, physics: np.ndarray,
                      topk: int = 256,
                      goal_thresh: float = 0.04) -> Dict[str, float]:
     """How sparse are goal states, and does z point at 'placed' states?"""
-    B = model.backward_map(next_obs.float())              # [N, z_dim]
+    # FB/RLDP expose backward_map; PSM's analogue is phi (same [N, z_dim] output).
+    if hasattr(model, "backward_map"):
+        B = model.backward_map(next_obs.float())          # [N, z_dim]
+    elif hasattr(model, "phi"):
+        B = model.phi(next_obs.float())                   # [N, z_dim]  (PSM)
+    else:
+        raise AttributeError("model exposes neither backward_map nor phi")
     scores = (B * z.view(1, -1)).sum(-1).cpu().numpy()    # B·z
     cube = np.asarray(physics, np.float64)[:, 14:17]
     d = np.linalg.norm(cube - np.asarray(goal, np.float64).reshape(1, 3),
@@ -293,9 +306,12 @@ def run_representation_profile(*, model, agent, infer_z, make_env,
         zdec["task"] = task
         zd.append(zdec)
 
-        B = model.backward_map(
-            next_obs.float() if hasattr(next_obs, "float") else
-            torch.as_tensor(next_obs, dtype=torch.float32))
+        _no = (next_obs.float() if hasattr(next_obs, "float") else
+               torch.as_tensor(next_obs, dtype=torch.float32))
+        # FB/RLDP: backward_map; PSM: phi (same [N, z_dim] output).
+        _bwd = (model.backward_map if hasattr(model, "backward_map")
+                else model.phi)
+        B = _bwd(_no)
         d_off = np.linalg.norm(
             physics[:, 14:17] - goal.reshape(1, 3), axis=1)
         bres = probe_b_resolution(B, d_off, seed=seed)

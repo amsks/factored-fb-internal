@@ -181,6 +181,11 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
                   if isinstance(saved_agent, dict) else None) or "gciql"
     if agent_name == "gcivl":
         from agents.gcivl import GCIVLAgent as AgentCls, get_config
+    elif agent_name == "gciql_flow":
+        _shim = str(REPO_ROOT / "tools" / "wandb_mode_shim")
+        if _shim not in sys.path:
+            sys.path.insert(0, _shim)
+        from gciql_flow import GCIQLFlowAgent as AgentCls, get_config
     else:
         from agents.gciql import GCIQLAgent as AgentCls, get_config
     # Build the agent config from get_config() defaults, then overlay the
@@ -191,8 +196,10 @@ def _jax_rollout(run_dir: str, step: int, task_ids: List[int],
     config = get_config()
     if isinstance(saved_agent, dict):
         for k, v in saved_agent.items():
-            if k in config:
+            if k in config and v is not None:
                 config[k] = v
+    if agent_name == "gciql_flow" and not config.get("value_arch"):
+        config["value_arch"] = "mlp"   # stock GCIQL-Flow: flags store value_arch=None
     episodes: List[Dict[str, Any]] = []
     fs = config.get("frame_stack")
     for task_id in task_ids:
