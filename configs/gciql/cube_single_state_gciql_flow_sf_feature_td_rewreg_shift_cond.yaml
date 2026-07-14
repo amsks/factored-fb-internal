@@ -1,0 +1,45 @@
+# E3 v3: the RewReg-Shift cell with a TASK-CONDITIONED forward map, phi(s,a,z), z=sg(psi(g)).
+#
+# Audit point 3 (the goal-dependent-mask confound): sf_loss's TD target is
+#   phi(s,a) <- b(s) + gamma * mask * phi_target(s',a')
+# and `mask = 1 - 1[idxs == value_goal_idxs]` depends on the SAMPLED RELABELLED GOAL. With
+# fb_forward_z=false the forward map phi(s,a) is task-AGNOSTIC, so one phi(s,a) is forced to
+# average over mutually inconsistent goal-conditioned terminations (and over goal-conditioned
+# bootstrap actions a' ~ pi(s',g)). Setting fb_forward_z=true makes phi carry the same task the
+# mask does, so the SF backup is internally consistent -- the goal-conditioned SF test.
+#
+# The alternative remedy (goal-INDEPENDENT continuation mask = the behaviour-SF test) is not
+# implemented; it would also change the fixed point, so it stays a separate cell.
+#
+# Prior: the 8-cell grid's agnostic/conditioned axis moved nothing (0.08-0.16 either way), but
+# that grid had no reward in the loop at all -- conditioning only becomes meaningful once the
+# base is reward-grounded. Reads against rewreg_shift (agnostic). 3 seeds @500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  sf_feature_td: true
+  sf_base: learned
+  sf_reward_regress: true
+  sf_reward_coef: 1.0
+  sf_reward_shift: 1.0
+  sf_coef: 1.0
+  fb_forward_z: true
+wandb_mode: online

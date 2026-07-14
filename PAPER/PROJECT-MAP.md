@@ -140,6 +140,40 @@ structure**.
 
 ---
 
+## Code knowledge graph (`graphify-out/`)
+
+A navigable graph of the whole repo lives at **`graphify-out/`** (untracked, ~9 MB,
+rebuilt automatically — see below). Built 2026-07-10 over all 674 files:
+**4,558 nodes · 8,583 edges · 356 communities** (4,095 nodes from AST extraction,
+472 semantic from the `configs/`, `PAPER/`, and figure files).
+
+| File | What it is |
+|---|---|
+| `graphify-out/graph.html` | interactive graph — open in a browser, no server |
+| `graphify-out/GRAPH_REPORT.md` | audit report: god nodes, cohesion, token cost |
+| `graphify-out/graph.json` | raw graph, GraphRAG-ready |
+
+**Use it before grepping** for architecture questions — `graphify query "<question>"`,
+`graphify path "<A>" "<B>"`, `graphify explain "<node>"`. Community labels are
+hand-written and persist in `.graphify_labels.json` across rebuilds.
+
+**Auto-rebuild.** `.githooks/post-commit` (+ `post-checkout`) re-runs AST extraction on
+changed code files and rebuilds the graph in the background; log at
+`~/.cache/graphify-rebuild.log`. Requires `core.hooksPath=.githooks` (already set).
+It is a no-op when no code topology changed.
+
+**Two caveats, both real.**
+1. **The hook only tracks code.** Doc, config, and image changes are ignored — a new
+   `PAPER/` writeup or `configs/gciql/` cell will not enter the graph until someone runs
+   `/graphify . --update` by hand. Given how much of ③'s design space lives in
+   `configs/gciql/`, this matters.
+2. **The graph under-connects.** The build reported **1,582 dangling-endpoint edges** —
+   edges naming a node that does not exist, mostly AST `references` to external symbols
+   (`torch.Tensor` &c.). Traversal answers can be confidently incomplete; verify anything
+   structural against the source before trusting it.
+
+---
+
 ## Operating rules (memory)
 Run everything in **tmux** ([[always-run-in-tmux]]); wandb entity **amsks** only
 ([[wandb-entity-amsks]]); you ARE the GPU box, act locally

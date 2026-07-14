@@ -44,6 +44,8 @@ MAP = {
     'GCIQL-State-Flow-Bilinear':   dict(csv='summary', env='cube', agent='GCIQL', actor='fql_flow', variant='bilinear-d512'),
     'GCIQL-State-Flow-Bilinear-d128': dict(csv='summary', env='cube', agent='GCIQL', actor='fql_flow', variant='bilinear-d128'),
     'GCIQL-State-Flow-Bilinear-d5':   dict(csv='summary', env='cube', agent='GCIQL', actor='fql_flow', variant='bilinear-d5'),
+    'GCIQL-State-Flow-Bilinear-d28':  dict(csv='summary', env='cube', agent='GCIQL', actor='fql_flow', variant='bilinear-d28',
+                                          notes='rank control for the identity-psi cell (d==cube obs dim)'),
     'GCIQL-State-Flow-Bilinear-d50':  dict(csv='summary', env='cube', agent='GCIQL', actor='fql_flow', variant='bilinear-d50'),
     'GCIQL-State-Flow-Bilinear-d50-ddpgbc': dict(csv='summary', env='cube', agent='GCIQL', actor='ddpgbc', variant='bilinear-d50'),
     'GCIQL-State-AWRFlow-Bilinear-d50': dict(csv='summary', env='cube', agent='GCIQL', actor='awr_flow', variant='bilinear-d50',
@@ -193,6 +195,43 @@ MAP = {
     'GCIQL-State-Flow-Bilinear-d50-tau095':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='tau0.95', graft='GCIQL self-ablation'),
     'GCIQL-State-Flow-IdentityPsi-Measure':     dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='identity-psi-measure', graft='REVERTED mis-build (identity_psi); crashed/partial'),
     'GCIQL-State-Flow-IdentityPsi-Measure-FBz': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='identity-psi-measure-fbz', graft='REVERTED mis-build; crashed/partial'),
+    # --- E3: corrected SF, reward IN the loop via a learned base (sf_base=learned) ---
+    # The two pre-fix runs regressed the reward on psi(s') while GCDataset ties reward AND mask
+    # to the current index (fixed 2026-07-09, fb83d68). Both are dead numbers; the -Fix / -Cond
+    # groups are the citable cells. Their 100k-400k curves are still emitted by the compiler.
+    'GCIQL-State-Flow-SF-FeatureTD-RewReg':       dict(csv=E, reason='E3 v1: psi=0 saddle ({-1,0} rewards x symmetric bilinear model) AND the psi(s") reward bug; killed @260k'),
+    'GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift': dict(csv=E, reason='E3 v2: escaped the saddle but still carried the psi(s") reward bug; killed @330k. Superseded by -Fix'),
+    'GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Fix':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-rewreg-shift', graft='E3: SF vector TD + reward-regressed learned base (corrected r_hat(s,g))'),
+    'GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-rewreg-shift-cond', graft='+ task-conditioned phi (audit pt3: goal-dependent mask)'),
+
+    # --- 1f: annealed SM finetuning from the converged bilinear-GCIQL anchor (0.904). lambda(t)
+    # ramps 0 -> lam_max over 300k then holds; dense evals make each run a success-vs-lambda dose
+    # curve. Separates fixed-point incompatibility from an optimization-path artifact.
+    'GCIQL-State-Flow-Anneal-Zero':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-zero', graft='CONTROL: finetune the 0.904 anchor 400k more steps with NO measure loss (validates restore; isolates extra IQL steps)'),
+    'GCIQL-State-Flow-Anneal-SgPhi':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-sgphi', graft='warm-start + lambda 0->10 ramp on the stopgrad-phi measure (crosses the cold cliff at lambda=3)'),
+    'GCIQL-State-Flow-Anneal-Shared': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='anneal-shared', graft='warm-start + lambda 0->100 ramp on the shared-legs measure (cold cliff is above 10, never located)'),
+
+    # --- 1e: task-weighted successor moments (research note). N1 swaps the measure loss's B x B
+    # test states from rho (next_observations) to nu (value_goals); N2 additionally collapses the
+    # test set to rank 1. Ortho and Dirac stay on psi(next_observations) in both.
+    'GCIQL-State-Flow-Bilinear-d50-C-TaskNorm': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='C-tasknorm', graft='FB measure, residual tested in the TASK norm (test states ~ value_goals) instead of the replay norm'),
+    'GCIQL-State-Flow-Bilinear-d50-C-TaskProj': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='C-taskproj', graft='+ rank-1 test set: project each residual onto its own z_i=psi(g_i); fixed point = scalar TD with a kernel reward'),
+
+    # --- 1d: GC-SimpleSF (Chua et al.). Rung 2 isolates the architecture against bilinear GCIQL
+    # (0.904); rung 3 grounds psi in the reward and isolates the grounding against rung 2.
+    'GCIQL-State-Flow-SimpleSF-Arch':     dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='simplesf-arch', graft='SimpleSF trunk split (b=h/||h||, Psi=head(h)), psi learned end-to-end; scalar IQL TD'),
+    'GCIQL-State-Flow-SimpleSF-Grounded': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='simplesf-grounded', graft="Chua et al.'s cell: + psi trained ONLY by reward regression <sg[b],psi(g)>"),
+
+    # --- 1a: joint-psi SF, FB ortho + sphere (spec 2026-07-10). Cell A is the estimator-axis
+    # control: identical to GCIQL-State-Flow-Bilinear-d50-C-FBzProjZ-O1000 (0.231) except the
+    # BxB measure loss is replaced by the per-sample vector TD.
+    'GCIQL-State-Flow-SF-JointPsi-Ortho1k':        dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-joint-ortho1k', graft="SF vector TD trains psi too; FB ortho1000 + sphere; b=psi(s'), no mask (matched to C-fbz-projz-ortho1000 except the estimator)"),
+    'GCIQL-State-Flow-SF-JointPsi-Ortho1k-Absorb': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-joint-ortho1k-absorb', graft='+ absorbing goal mask: Q=gamma^T (first-hitting) instead of a visitation density'),
+
+    # --- 1b: readout-vs-TD crux -- SCALAR IQL TD with the SF cells' crippled goal leg ---
+    'GCIQL-State-Flow-Bilinear-d50-FrozenPsi':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='frozen-psi-d50', graft='scalar IQL TD + frozen random psi (isolates the vector TD from the frozen readout)'),
+    'GCIQL-State-Flow-Bilinear-IdentityPsi':    dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='identity-psi-d28', graft='scalar IQL TD + psi(g)=g (read vs bilinear-d28, not d50)'),
+
     # --- SF-feature-TD cells (SEMANTICALLY CONFOUNDED per audit-20260706: no reward in loop) ---
     'GCIQL-State-Flow-SF-FeatureTD-IdentityB':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-identity', graft='SF vector TD, identity base (CONFOUNDED, see audit)'),
     'GCIQL-State-Flow-SF-FeatureTD-Frozen50':    dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='sf-td-frozen50', graft='SF vector TD, frozen base (CONFOUNDED)'),
