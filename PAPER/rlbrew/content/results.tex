@@ -3,17 +3,17 @@
 
 Our experiments test the interaction-state hypothesis from Section~\ref{sec:theory}.
 The evaluated methods rarely fail during approach; most performance differences arise after control has been acquired.
-We then ask whether this pattern is explained by state-space support and whether learned scores distinguish acquired-control states with different task outcomes.
+We then ask whether this pattern is explained by state-space support and whether learned values distinguish acquired-control states with different task outcomes.
 These diagnostics identify where policies fail and whether learned values preserve the interaction-state distinctions needed for control, but they are not designed to isolate a single architectural cause.
-Per-task success, exact counts, and the full diagnostic tables are in Appendix~\ref{app:tables}.
+Per-goal success, exact counts, and the full diagnostic tables are in Appendix~\ref{app:tables}.
 
 \subsection{Aggregate success obscures where policies fail}
 
 Aggregate state-based success ranks the methods but says nothing about where they fail. 
-Across $10$ evaluation seeds, the overall interquartile mean (IQM)~\citep{agarwal-neurips21a} success rates are \gciql{} ($71.8 \pm 4.1$), \fb{} ($52.0 \pm 5.5$), \psm{} ($36.7 \pm 4.5$), \crl{} ($25.8 \pm 2.3$), and \rldp{} ($22.7 \pm 6.0$).\protect\footnotemark{}
+Across $10$ evaluation seeds, the overall inter-quartile mean (IQM)~\citep{agarwal-neurips21a} success rates are \gciql{} ($71.8 \pm 4.1$), \fb{} ($52.0 \pm 5.5$), \psm{} ($36.7 \pm 4.5$), \crl{} ($25.8 \pm 2.3$), and \rldp{} ($22.7 \pm 6.0$).\protect\footnotemark{}
 \footnotetext{Aggregate success uses the stochastic evaluation policy and is summarized by IQM over seeds; the phase decomposition uses deterministic closed-loop rollouts, so per-method success differs slightly between the two analyses. We report each metric consistently within its corresponding analysis.}
 
-The rollout-stage decomposition in Section~\ref{sec:method} localizes where the methods fail (Figures~\ref{fig:funnel} and \ref{fig:outcomes}).
+The phase decomposition in Section~\ref{sec:method} localizes where the methods fail (Figures~\ref{fig:funnel} and \ref{fig:outcomes}).
 Every method almost always completes the approach phase, and most rollouts satisfy the control-acquisition criterion.
 The largest differences arise afterward, in maintain-control and transport failures.
 
@@ -27,7 +27,7 @@ Because the phase labels are computed only from simulator states, the same analy
 \centering
 \begin{minipage}[t]{0.48\linewidth}
   \centering
-  \includegraphics[width=\linewidth]{fig_funnel.png}
+  \includegraphics[width=\linewidth]{fig_funnel_new.png}
   \caption{
     \textbf{Phase survival through cube manipulation.}
     Each curve shows the fraction of deterministic evaluation rollouts that satisfy each successive phase criterion: approach, control acquisition, maintain control, and transport.
@@ -36,7 +36,7 @@ Because the phase labels are computed only from simulator states, the same analy
 \end{minipage}\hfill
 \begin{minipage}[t]{0.48\linewidth}
   \centering
-  \includegraphics[width=\linewidth]{fig_outcomes.png}
+  \includegraphics[width=\linewidth]{fig_outcomes_new.png}
   \caption{
     \textbf{Terminal outcomes under the phase decomposition.}
     Each rollout is assigned to success or to the first unmet phase criterion.
@@ -46,7 +46,7 @@ Because the phase labels are computed only from simulator states, the same analy
 \end{minipage}
 \end{figure}
 
-\subsection{Dataset support covaries with performance but cannot explain it}
+\subsection{State-support gaps covary with performance but do not explain value ranking}
 
 The support analysis groups individual states according to gripper and cube state.
 Because both the play data and policy rollouts contain repeated pick-and-place attempts, we use three state categories: \emph{approach} (pre-contact), \emph{pickup} (gripper closed, cube on the table), and \emph{carry} (cube lifted and held).
@@ -56,15 +56,18 @@ One possible explanation is that failures after control acquisition occur in reg
 Figure~\ref{fig:support} reports the difference in nearest-neighbor distance to the offline dataset between failed and successful rollout states, grouped by state category and failure phase.
 Failed states are often farther from the data in the pickup and carry categories, especially for maintain-control failures (e.g.\ \crl{} pickup, $+1.83$).
 
-These support differences track the ordering of method success. \gciql{}, the strongest method, shows essentially no gap: its failed states are as close to the data as its successful ones (all categories within $0.1$). Every lower-performing method shows a positive gap.
-Dataset support is therefore correlated with performance under this state-only metric, and we cannot rule it out as a contributing factor.
-It does not, however, explain the value-ranking failures reported below. That probe resets to in-hand states drawn \emph{from the offline data}, where support is adequate by construction, yet the lower-performing methods still rank those states near chance.
-A consistent reading is that the two are linked: a value that does not distinguish stable from unstable grasps produces actions that drive the policy into states the dataset does not cover, so the support gap is a consequence of weak value ranking rather than a competing explanation for it.
-This analysis does not rule out differences in action-conditioned support, transition support, or the availability of corrective actions in the offline data.
+These state-support gaps broadly covary with performance.
+\gciql{}, the strongest method, shows almost no gap in the plotted pickup and carry categories, whereas every lower-performing method shows positive gaps.
+However, the gaps do not reproduce the exact performance ordering among the lower-performing methods, so state support is at most a partial explanation.
+The value-ranking probe below begins from in-hand states sampled directly from the offline dataset, so the initial states are supported by construction.
+Nevertheless, several lower-performing methods still rank eventual task success near chance.
+This shows that initial-state support alone does not explain the ranking failures, but it does not rule out limited action or transition support during the subsequent rollout.
+Weak value ranking may drive a policy toward poorly supported states, limited support may degrade the learned value or policy, or both effects may occur.
+Our diagnostics do not determine the direction of causality.
 
-\subsection{Value functions weakly rank acquired-control states}
+\subsection{learned values weakly rank acquired-control states}
 
-Because dataset support cannot account for ranking failures on states drawn from the dataset itself, we next investigate whether each learned score ranks in-hand grasp states by eventual success under the method's own policy.
+Because initial-state support alone does not account for the ranking failures observed on states drawn from the dataset, we next investigate whether each learned value ranks in-hand grasp states by eventual success under the method's own policy.
 Coarse cube-to-goal geometry is not sufficient to explain performance.
 For methods with an explicit backward embedding, the embeddings learned by \psm{} and \rldp{} predict cube-to-goal distance substantially better than the embedding learned by \fb{} (nonlinear $R^2$ of $0.90$ and $0.75$ versus $0.21$).
 Nevertheless, both methods have higher maintain-control failure rates than \fb{} (Appendix~\ref{app:tables}).
@@ -77,6 +80,7 @@ From each state, we roll out the agent's own policy and label the grasp by wheth
 Each grasp is evaluated independently, and the probe covers states from the offline dataset rather than only states generated by the learned policy.
 We then plot success rate as a function of the learned value percentile.
 We summarize ranking quality using rank-AUC, the probability that a successful grasp state receives a higher value than an unsuccessful grasp state.
+Because the success labels are generated separately under each method's own policy, this probe measures whether a method's value is consistent with its own downstream outcomes rather than comparing all methods against a single shared target.
 \gciql{}'s value is strongly predictive (rank-AUC $0.89$): its top-value grasps succeed ${\approx}99\%$ of the time, its bottom-value grasps ${\approx}27\%$.
 For \rldp{} and \psm{}, the curves are nearly flat (AUC $0.52$ and $0.49$), indicating that higher values do not correspond to higher success rates.
 \fb{} shows a weaker relationship (AUC approximately $0.61$), while \crl{} is intermediate ($0.68$).
@@ -84,23 +88,24 @@ For \fb{} and \rldp{}, the learned value is therefore only weakly informative ab
 
 We next ask whether the weak ranking arises in the learned representation or in the scalar value derived from it.
 Using each agent's simulator-reset success labels, we fit a linear readout from the learned representation and compare its ranking with that of the learned value (Appendix~\ref{app:tables}, Figure~\ref{fig:cf_ladder}).
-The probe suggests different bottlenecks for \fb{} and \rldp{}.
+The probe suggests different bottlenecks for \fb{}, \rldp{}, and \psm{}.
 \fb{} is consistent with a readout bottleneck: a linear readout of its forward map reaches AUC 0.70, while its learned scalar value reaches 0.61.
 \rldp{} is consistent with a representation bottleneck: the best readout reaches only
 0.61, and its learned value reaches 0.55.
+\psm{} shows the largest collapse from the raw-state baseline to the learned value: although its backward embedding resolves cube-to-goal geometry best of any method (nonlinear $R^2$ $0.90$; Table~\ref{tab:geometry_control}), a linear readout of the representation its value uses does not exceed the raw-state baseline for counterfactual success ($0.67$ versus $0.73$), and the value itself ranks near chance ($0.52$). Resolving cube-to-goal geometry therefore does not imply that the representation encodes which grasps the policy will keep.
 For \gciql{}, the learned value preserves nearly all of the linearly decodable signal available in its value features, reaching AUC $0.89$.
 
 These probes suggest that weak ranking can arise either in the learned representation or in the scalar readout, but they do not identify the readout form as the sole cause.
-\gciql{} differs from \fb{}, \crl{}, and \rldp{} in objective, actor training, critic architecture, implicit regularization, and optimization stability, not only in its value readout.
-The evidence therefore supports a narrower conclusion: the lower-performing methods learn scores that weakly rank acquired-control states by whether the agent will maintain control and complete transport, while \gciql{} provides a stronger ranking under this diagnostic.
+\gciql{} differs from \fb{}, \crl{}, \rldp{}, and \psm{} in objective, actor training, critic architecture, implicit regularization, and optimization stability, not only in its value readout.
+The evidence therefore supports a narrower conclusion: the lower-performing methods learn values that weakly rank acquired-control states by whether the agent will maintain control and complete transport, while \gciql{} provides a stronger ranking under this diagnostic.
 A matched readout ablation would be needed to attribute the difference specifically to bilinear versus MLP value form.
 
 \begin{figure}[htbp]
 \centering
 \begin{minipage}[t]{0.48\linewidth}
   \centering
-  \includegraphics[width=\linewidth,trim={0.2cm 0.2cm 0.2cm 0.7cm},clip]{fig_support.png}
-  \caption{\textbf{Failure-success support gap.} Positive values indicate that failed rollout states are farther from the offline dataset under the nearest-neighbor metric. The gap is positive for every lower-performing method but is essentially zero for \gciql{}, the strongest method, so support covaries with performance.}
+  \includegraphics[width=\linewidth,trim={0.2cm 0.2cm 0.2cm 0.7cm},clip]{fig_support_new.png}
+  \caption{\textbf{Failure-success support gap.} Positive values indicate that failed rollout states are farther from the offline dataset under the nearest-neighbor metric. The gap is positive for every lower-performing method but is essentially zero for \gciql{}, so state-support gaps broadly covary with performance.}
   \label{fig:support}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.48\linewidth}
@@ -115,6 +120,7 @@ A matched readout ablation would be needed to attribute the difference specifica
 \paragraph{Takeaway.}
 The phase decomposition changes the interpretation of state-based URL failures in cube manipulation.
 The evaluated methods usually complete approach and acquire control, but many failures occur afterward, in the maintain-control and transport phases.
-Failed pickup and carry states are farther from the offline dataset for the lower-performing methods but not for \gciql{}, so support covaries with performance; it cannot, however, explain why the learned values rank grasp states drawn from the dataset itself near chance.
-The learned scores of the lower-performing methods also do not reliably rank acquired-control states by whether the policy will maintain control and complete transport.
+Failed pickup and carry states are farther from the offline dataset for the lower-performing methods but not for \gciql{}, so state-support gaps broadly covary with performance.
+However, initial-state support alone does not explain why several learned values rank in-dataset grasp states near chance.
+The learned values of the lower-performing methods do not reliably rank acquired-control states by whether the policy will maintain control and complete transport.
 Distinguishing such states is therefore a useful target for future offline URL objectives in manipulation.

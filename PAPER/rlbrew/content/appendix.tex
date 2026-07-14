@@ -1,16 +1,19 @@
 \section{Additional results}
 \label{app:tables}
 
-This appendix provides the detailed numbers behind the main-paper diagnostics: per-task success, the exact terminal-outcome distribution, the full dataset-support distances, the backward-embedding geometry probe, and the counterfactual value/representation-ranking analysis. 
-These results support the main empirical chain: scalar success hides post-acquisition failures; state-space support covaries with performance but cannot explain ranking failures on states drawn from the dataset itself; coarse cube-goal geometry is insufficient; and learned values differ in how well they rank in-hand states by the agent's own future success.
+This appendix provides the detailed numbers behind the main-paper analyses: per-goal success, the exact terminal-outcome distribution, the full
+state-support distances, the backward-embedding geometry probe, and the counterfactual value and representation-ranking analysis.
+These results support the main empirical chain: aggregate success hides post-acquisition failures; state-support gaps broadly covary with performance, while weak value ranking persists for initial states drawn from the offline dataset; coarse cube-to-goal geometry is insufficient; and learned values
+differ in how well they rank in-hand states by the agent's own eventual success.
+Throughout this subsection, \emph{value} refers to the method-specific task-conditioned scalar used to rank states or actions.
 
-\subsection{Per-task success}
+\subsection{Per-goal success}
 \label{app:pertask}
 
 \begin{table}[H]
 \centering
-\caption{State-based evaluation success by task (IQM $\pm$ half-width of the $95\%$ stratified-bootstrap CI across $10$ seeds). 
-All methods use the flow-Q learning actor with BC regularization and are evaluated at $1$M steps.}
+\caption{State-based evaluation success by held-out goal (IQM $\pm$ half-width of the $95\%$ stratified-bootstrap CI across $10$ seeds). 
+All methods use the Flow-Q learning with BC (FQL-BC) regularization~\citep{park-icml25a,bagatella-iclr26a} as the policy extraction mechanism (actor) and are evaluated at $1$M steps.}
 \label{tab:pertask}
 \begin{tabular}{lcccccc}
 \toprule
@@ -30,11 +33,11 @@ All methods use the flow-Q learning actor with BC regularization and are evaluat
 
 \begin{table}[H]
 \centering
-\caption{Cross-method terminal-outcome distribution (\% of episodes, mean across $10$ seeds; the first five columns sum to $100\%$). The post-contact share is $(\text{maintain}+\text{transport})/(100-\text{success})$.}
+\caption{Cross-method terminal-outcome distribution (\% of episodes, mean across $10$ seeds; the first five columns sum to $100\%$). The post-acquisition share is $(\text{maintain}+\text{transport})/(100-\text{success})$.}
 \label{tab:cross_method_outcomes}
 \begin{tabular}{lcccccc}
 \toprule
-\textbf{Method} & \textbf{Success} & \textbf{Approach} & \textbf{Grasp} & \textbf{Maintain} & \textbf{Transport} & \textbf{Post-contact share} \\
+\textbf{Method} & \textbf{Success} & \textbf{Approach} & \textbf{Control acquisition} & \textbf{Maintain} & \textbf{Transport} & \textbf{Post-acquisition share} \\
 \midrule
 \fb{}    & $49.4$ & $0.0$ & $8.7$  & $24.9$ & $17.0$ & $82.8\%$ \\
 \gciql{} & $73.7$ & $0.0$ & $11.9$ & $7.8$  & $6.7$  & $54.9\%$ \\
@@ -45,16 +48,18 @@ All methods use the flow-Q learning actor with BC regularization and are evaluat
 \end{tabular}
 \end{table}
 
-\subsection{Dataset-manifold support}
+\subsection{State-support analysis}
 \label{app:support}
 
 \begin{table}[H]
 \centering
-\caption{Nearest-neighbor distance $m_{\mathrm{dist}}$ from rollout states to comparable offline states (mean across seeds; larger means lower support), by per-state regime and terminal outcome. S = success, Mf = maintain-control failure, Tf = transport failure. All methods use the flow actor and are evaluated at $1$M steps under the same probe ($20$ episodes per seed, $10$ seeds). Figure~\ref{fig:support} plots the Mf$-$S and Tf$-$S deltas for the contact regimes.}
+\caption{Nearest-neighbor distance $m_{\mathrm{dist}}$ from rollout states to states in the offline dataset (mean across seeds; larger values indicate lower support), grouped by state category and terminal outcome. 
+S = success, Mf = maintain-control failure, Tf = transport failure. All methods use the FQL-BC and are evaluated at $1$M steps under the same probe ($20$ episodes per seed, $10$ seeds). 
+Figure~\ref{fig:support} plots the Mf$-$S and Tf$-$S differences for the pickup and carry categories.}
 \label{tab:state_coverage}
 \begin{tabular}{llccc}
 \toprule
-\textbf{Method} & \textbf{Regime} & \textbf{S} & \textbf{Mf} & \textbf{Tf} \\
+\textbf{Method} & \textbf{Category} & \textbf{S} & \textbf{Mf} & \textbf{Tf} \\
 \midrule
 \gciql{} & approach & $2.53$ & $2.29$ & $2.43$ \\
          & pickup   & $3.05$ & $3.00$ & $3.01$ \\
@@ -84,7 +89,7 @@ All methods use the flow-Q learning actor with BC regularization and are evaluat
 
 \begin{table}[H]
 \centering
-\caption{Carry-regime resolution of the backward embedding $B$ for cube-to-goal distance $d$, under a linear and a nonlinear (MLP) readout, with the maintain-control failure rate. This probe is restricted to methods with an explicit backward embedding. Better cube-goal geometric resolution in $B$ does not imply better post-contact control.}
+\caption{Carry-regime resolution of the backward embedding $B$ for cube-to-goal distance $d$, under a linear and a nonlinear (MLP) readout, with the maintain-control failure rate. This probe is restricted to methods with an explicit backward embedding. Better cube-to-goal geometric resolution in $B$ does not imply a lower maintain-control failure rate.}
 \label{tab:geometry_control}
 \begin{tabular}{lccc}
 \toprule
@@ -100,17 +105,18 @@ All methods use the flow-Q learning actor with BC regularization and are evaluat
 \subsection{Counterfactual value and representation ranking}
 \label{app:counterfactual_ranking}
 
-The main value-quality diagnostic uses an on-policy counterfactual label. 
-We reset the simulator to in-hand grasp states, roll out each agent's own policy, and label each state by whether that agent reaches the goal. 
-This directly tests whether the value the policy follows ranks post-acquisition states by their eventual tail outcome.
+The main value-ranking analysis uses an on-policy counterfactual label.
+We reset the simulator to in-hand grasp states, roll out each agent's own policy, and label each state by whether that agent reaches the goal.
+This directly tests whether the learned value ranks acquired-control states by eventual task success under the corresponding policy.
+Because the labels are generated separately under each method's own policy, the analysis measures consistency with each method's own downstream outcomes rather than comparison against a single shared target.
 
 \begin{table}[H]
 \centering
-\caption{On-policy counterfactual value test. We reset $200$ in-hand grasps into the simulator, roll out each agent's own policy, and report the per-task rank-AUC of the learned value against the agent's own success, averaged over goals, along with mean counterfactual success rate. This is the value-quality measure used in the main text.}
+\caption{On-policy counterfactual value test. We reset $200$ in-hand grasp states in the simulator, roll out each agent's own policy, and report the learned value's rank-AUC against the agent's own success, computed per goal and averaged across goals, together with the mean counterfactual success rate.}
 \label{tab:cf_value}
 \begin{tabular}{lcc}
 \toprule
-\textbf{Method} & \textbf{Counterfactual value-AUC} & \textbf{Counterfactual success rate} \\
+\textbf{Method} & \textbf{Counterfactual rank-AUC} & \textbf{Counterfactual success rate} \\
 \midrule
 \gciql{} & $0.89$ & $0.66$ \\
 \crl{}   & $0.68$ & $0.38$ \\
@@ -121,12 +127,13 @@ This directly tests whether the value the policy follows ranks post-acquisition 
 \end{tabular}
 \end{table}
 
-Figure~\ref{fig:cf_ladder} compares the learned value against a supervised linear readout from the representation that the value uses. 
-This asks whether the representation contains linearly accessible information about the agent's own counterfactual success, and whether the learned scalar value preserves that information in its ranking.
+Figure~\ref{fig:cf_ladder} compares the learned value with a supervised linear readout from the representation used to compute it.
+This asks whether the representation contains linearly accessible information about the agent's own counterfactual success and whether the learned value
+preserves that information in its ranking.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.8\linewidth]{fig_cf_ladder.png}
-\caption{Counterfactual representation--value ladder. For each method, the probe uses the agent's own counterfactual success as the label. We compare a raw-state linear baseline, the best linear readout of the representation used by the value (\gciql{} penultimate value features; \crl{} $\phi(s,\pi)$; \fb{}/\rldp{} forward map $F(s,\pi,z)$), and the learned value's own ranking. \gciql{} preserves nearly all linearly decodable signal available in its value features; \fb{} contains more signal in $F$ than is reflected in the learned scalar value; \rldp{} contains weaker signal under this probe. The raw baseline is per-agent because counterfactual success depends on each policy, so the cleanest comparison is within method.}
+\includegraphics[width=0.8\linewidth]{fig_cf_ladder_new.png}
+\caption{Counterfactual representation--value ladder. For each method, the probe uses the agent's own counterfactual success as the label. We compare a raw-state linear baseline, the best linear readout of the representation used by the scalar value (\gciql{} penultimate value features; \crl{} $\phi(s,\pi)$; \fb{}/\rldp{}/\psm{} the successor-feature map $F(s,\pi,z)$, which for \psm{} is $\psi(s,\pi,z)$), and the learned value's own ranking. \gciql{} preserves nearly all linearly decodable signal available in its value features; \fb{} contains more signal in $F$ than is reflected in the learned scalar value; \rldp{} contains weaker signal under this probe; \psm{} resolves cube-to-goal geometry best (Table~\ref{tab:geometry_control}) yet its representation readout does not exceed the raw baseline and its value ranks near chance. The raw baseline is per-agent because counterfactual success depends on each policy, so the cleanest comparison is within method.}
 \label{fig:cf_ladder}
 \end{figure}
