@@ -125,8 +125,8 @@ def build_child_env(plain: Mapping[str, Any], base_env: Mapping[str, str]) -> di
     env["GCIQL_FB_ENV"] = str(plain["env_name"])
     # Repo-wide default: all GCIQL runs log to FB's wandb entity/project so
     # they sit alongside FB runs for comparison. Only run_group/tags vary.
-    env["GCIQL_WANDB_ENTITY"] = str(plain.get("wandb_entity", "amsks"))
-    env["GCIQL_WANDB_PROJECT"] = str(plain.get("wandb_project", "factored-fb"))
+    env["GCIQL_WANDB_ENTITY"] = str(plain.get("wandb_entity", os.environ.get("WANDB_ENTITY", "amsks")))
+    env["GCIQL_WANDB_PROJECT"] = str(plain.get("wandb_project", os.environ.get("WANDB_PROJECT", "factored-fb")))
     mode = str(plain.get("wandb_mode", "online"))
     # don't inherit a stale GCIQL_WANDB_FORCE_MODE from the parent shell:
     # only this launcher should set it, and only for offline/disabled.
