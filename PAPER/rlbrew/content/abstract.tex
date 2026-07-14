@@ -6,6 +6,6 @@ A learned score may therefore preserve coarse geometric reachability while weakl
 We formalize this view through interaction-conditioned tail successor structure and instantiate it in the state-based version of \ogbench{} \task{}, where the relevant interaction variable is whether the cube is freely moving, controllably held, slipping, or dropped.
 A phase diagnostic decomposes each rollout into approach, control acquisition, maintained control, and transport.
 Across five state-based future-reachability methods, approach failures are negligible, while most failures occur after control acquisition.
-Support diagnostics show that contact-regime coverage contributes but does not determine the method ordering, and value-ranking probes show that learned scores weakly separate states corresponding to cube in-hand with different post-interaction futures.
+Support diagnostics show that contact-regime coverage covaries with performance but cannot explain it: value-ranking probes on in-hand states drawn from the dataset itself, where coverage is adequate, show that the weaker methods' learned scores still separate those states only weakly.
 These results suggest that the missing object is not grasping-specific, but the preservation of interaction-conditioned successor structure.
 \end{abstract}
