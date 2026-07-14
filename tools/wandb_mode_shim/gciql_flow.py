@@ -247,8 +247,11 @@ class GCFrozenBValue(GCBilinearValue):
     random features of the state. Freezing psi (stop_grad on every use -> zero gradient -> params
     stay at init) is the standard SF anti-collapse fix (a random encoder) and DECOUPLES the
     representation rank d from the obs dim, so d can match the FB / bilinear-GCIQL 50. With
-    `fb_forward_z` the forward map is TASK-CONDITIONED phi([s,a,z=psi(g)]) (frozen features)."""
+    `fb_forward_z` the forward map is TASK-CONDITIONED phi([s,a,z=psi(g)]) (frozen features).
+    `project_z` hard-projects psi (and hence the z fed to phi) onto the sqrt(d) sphere -- FB's
+    ||B||=||z||=sqrt(d) Norm layer."""
     fb_forward_z: bool = False
+    project_z: bool = False
 
     def setup(self):
         m = MLP
@@ -260,7 +263,8 @@ class GCFrozenBValue(GCBilinearValue):
     def _psi(self, goals):
         if self.goal_encoder is not None:
             goals = self.goal_encoder(goals)
-        return jax.lax.stop_gradient(self.psi(goals))   # FROZEN: zero grad -> stays at random init
+        psi = jax.lax.stop_gradient(self.psi(goals))    # FROZEN: zero grad -> stays at random init
+        return _sphere(psi, self.latent_dim) if self.project_z else psi
 
     def __call__(self, observations, b_goals, actions=None, z_goals=None, info=False):
         if self.state_encoder is not None:
@@ -281,20 +285,29 @@ class GCFrozenBValue(GCBilinearValue):
 
 class GCLearnedBValue(GCFrozenBValue):
     """Bilinear critic with a LEARNED base/goal leg psi, for the CORRECTED successor-feature
-    cell (E3, audit-20260706): psi is trained ONLY by reward regression (`sf_reward_regress`,
-    the reference's reward-prediction basis, sf_simple.py:322)
+    cell (E3, audit-20260706): psi is trained ONLY by reward regression (`sf_reward_regress`)
 
-        r_hat(s',g) = <psi(s'), psi(g)>/sqrt(d)  ->  regress on batch rewards
+        r_hat(s,g) = <psi(s), psi(g)>/sqrt(d)  ->  regress on batch rewards
 
     so the goal indicator becomes linearly READABLE in the base (the identity/frozen cells'
     semantic confound: r=<s,g> is linear in s, argmax != goal). The SF vector TD still trains
     ONLY phi (sf_loss stop-grads b(s)=psi(s) in its target): psi makes the reward expressible,
-    phi accumulates it. Division of labor, one shared psi network."""
+    phi accumulates it. Division of labor, one shared psi network.
+
+    NOTE (2026-07-10, re-read of the reference): sf_simple.py:322 regresses the reference's TASK
+    VECTOR, not its basis -- the basis there is computed under torch.no_grad() and is trained by
+    the critic TD instead. So the reference's reward model is ASYMMETRIC, <phi_basis(s',a'), z>,
+    between a network and a FREE nn.Parameter vector. Our symmetric <psi(s), psi(g)> ties both
+    legs to one net, which is exactly why it has a psi=0 stationary point (the saddle that killed
+    E3 v1 and forced sf_reward_shift). An asymmetric two-embedding reward model would remove that
+    degeneracy structurally rather than by shifting the targets."""
 
     def _psi(self, goals):
         if self.goal_encoder is not None:
             goals = self.goal_encoder(goals)
-        return self.psi(goals)   # LEARNED (vs GCFrozenBValue): grads arrive via sf_reward_regress
+        # LEARNED (vs GCFrozenBValue): grads arrive via sf_reward_regress and/or sf_joint_psi.
+        psi = self.psi(goals)
+        return _sphere(psi, self.latent_dim) if self.project_z else psi
 
     def __call__(self, observations, b_goals, actions=None, z_goals=None, info=False):
         if self.state_encoder is not None:
@@ -310,6 +323,56 @@ class GCLearnedBValue(GCFrozenBValue):
         v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
         if info:
             return v, phi, psi
+        return v
+
+
+class GCSimpleSFValue(GCBilinearValue):
+    """Chua et al.'s Simple SF head, ported (reference: simple_successor_features/agent/sf_simple.py).
+
+        h(s,a,z)  = trunk([s, a, sg[z]])          # ONE trunk, not ensembled
+        b(s,a,z)  = h / ||h||                     # reward BASIS -- zero params of its own
+        Psi_i     = head_i(h)                     # twin heads (CriticSF.Q1/Q2)
+        z         = psi(g)                        # the task vector (sqrt(d)-sphere if project_z)
+        Q_i       = <Psi_i, z_used>/sqrt(d)
+
+    b and Psi are DIFFERENT vectors off a shared trunk, and b carries no parameters: its only
+    gradient arrives through the trunk, from the TD. That is what makes the reward model
+    <b, psi(g)> ASYMMETRIC (a network against a task vector) and hence free of the psi=0
+    stationary point that killed E3 v1 (whose <psi(s), psi(g)> is symmetric, so its gradient
+    vanishes at zero and needed sf_reward_shift to escape).
+
+    z is stop-gradded in the TRUNK INPUT in both rungs -- the reference passes task.detach() to
+    update_critic (sf_simple.py:283). Otherwise the trunk's TD gradient would reach psi through
+    the input concatenation and ground_psi would not isolate psi's signal. With ground_psi the
+    readout also stop-grads z, leaving the reward regression as psi's ONLY gradient path."""
+    ground_psi: bool = False
+    project_z: bool = False
+
+    def setup(self):
+        head_m = ensemblize(MLP, 2) if self.ensemble else MLP
+        self.trunk = MLP((*self.hidden_dims, self.latent_dim), activate_final=False,
+                         layer_norm=self.layer_norm)
+        self.head = head_m((self.hidden_dims[-1], self.latent_dim), activate_final=False,
+                           layer_norm=self.layer_norm)
+        self.psi = MLP((*self.hidden_dims, self.latent_dim), activate_final=False,
+                       layer_norm=self.layer_norm)
+
+    def __call__(self, observations, goals, actions=None, info=False):
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        g = self.goal_encoder(goals) if self.goal_encoder is not None else goals
+        z = self.psi(g)                                          # [B,d], grad ON
+        if self.project_z:
+            z = _sphere(z, self.latent_dim)
+        z_in = jax.lax.stop_gradient(z)                          # trunk input NEVER trains psi
+        parts = [observations] if actions is None else [observations, actions]
+        h = self.trunk(jnp.concatenate([*parts, z_in], axis=-1))  # [B,d]
+        b = h / (jnp.linalg.norm(h, axis=-1, keepdims=True) + 1e-6)
+        Psi = self.head(h)                                       # [2,B,d] or [B,d]
+        z_used = jax.lax.stop_gradient(z) if self.ground_psi else z
+        v = (Psi * z_used).sum(axis=-1) / jnp.sqrt(self.latent_dim)
+        if info:
+            return v, Psi, z, b
         return v
 
 
@@ -546,6 +609,7 @@ class GCIQLFlowAgent(GCIQLAgent):
         B = obs.shape[0]; off = 1.0 - jnp.eye(B)
         scale_norm = self.config.get('measure_scale_norm', False)
         sg_phi = self.config.get('measure_stopgrad_phi', False)
+        qz_mean = None   # set only by the rank-1 ('task') test set, in the critic branch
         if self.config.get('measure_legs', 'critic') == 'value':
             _, phi, psi = self.network.select('value')(obs, nobs, info=True, params=grad_params)
             if sg_phi: phi = jax.lax.stop_gradient(phi)
@@ -603,7 +667,47 @@ class GCIQLFlowAgent(GCIQLAgent):
             a_next = jax.lax.stop_gradient(a_next)
             _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_next, *zarg, info=True, **zkw)
             tM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi) / sqd)            # [2, B, B]
-            offdiag, diagt = self._measure_terms(M, tM, gamma, scale_norm)                      # [2]
+            test_states = self.config.get('measure_test_states', 'rho')
+            test_rank = self.config.get('measure_test_rank', 'full')
+            if test_states == 'rho' and test_rank == 'full':
+                # Legacy FB path, untouched: offdiag and diag are the two halves of ONE matrix,
+                # which only works because the test states ARE the next-states.
+                offdiag, diagt = self._measure_terms(M, tM, gamma, scale_norm)                  # [2]
+            else:
+                # Task norm. The test set moves to nu=psi(value_goals); the DIRAC term (the reward,
+                # -E_i M(s_i,a_i,s'_i)) stays on psi(s'_i), and the ortho below stays on psi(nobs).
+                # Letting the Dirac follow the test set would make the diagonal Q_i - gamma*Qbar_i
+                # and delete the reward. phi depends on (obs,acts,z) only -- b_goals feeds psi
+                # alone -- so we reuse phi/tphi and take only the psi legs from the extra calls.
+                _, _, psi_t = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True,
+                                                            params=grad_params, **zkw)
+                _, _, tpsi_t = self.network.select('target_critic')(nobs, vgoals, a_next, *zarg,
+                                                                    info=True, **zkw)
+                M_t = jnp.einsum('hid,hjd->hij', phi, psi_t) / sqd                              # [2,B,B]
+                tM_t = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi, tpsi_t) / sqd)
+                diff_t = M_t - gamma * tM_t
+                if test_rank == 'full':
+                    offdiag = 0.5 * jnp.sum((diff_t * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
+                else:  # 'task': rank-1 projection of each residual onto its OWN z_i = psi(g_i)
+                    qz = jnp.diagonal(diff_t, axis1=1, axis2=2)                                 # [2,B]
+                    offdiag = 0.5 * jnp.mean(qz ** 2, axis=1)                                   # [2]
+                    qz_mean = jnp.mean(qz)
+                # Dirac term: the diagonal of the RHO matrix (M, tM), which is already computed
+                # above. Taking it from that matrix rather than recomputing it with an einsum
+                # keeps this term BIT-IDENTICAL to the legacy _measure_terms diag -- the reduction
+                # order matters in float32, and the term is a small number obtained by
+                # cancellation, so a different order shifts it by ~1e-3 relative.
+                dir_i = jnp.diagonal(M - gamma * tM, axis1=1, axis2=2)                          # [2,B]
+                diagt = -jnp.mean(dir_i, axis=1)                                                # [2]
+                if scale_norm:
+                    # Each term is normalized by ITS OWN matrix's scale: offdiag lives on the task
+                    # matrix M_t, the Dirac on the rho matrix M. Using M_t for both (the naive
+                    # port of _measure_terms) would make the Dirac differ from the anchor's and
+                    # silently break the "only the test set moved" invariant.
+                    msq_t = jax.lax.stop_gradient(jnp.mean(M_t ** 2))
+                    msq_o = jax.lax.stop_gradient(jnp.mean(M ** 2))
+                    offdiag = offdiag / (msq_t + 1e-6)
+                    diagt = diagt / (jnp.sqrt(msq_o) + 1e-6)
             Cov = jnp.einsum('hid,hjd->hij', psi, psi)                    # FB ortho on B:=psi(s') (grads on)
             o_off = 0.5 * jnp.sum((Cov * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
             o_diag = -jnp.mean(jnp.diagonal(Cov, axis1=1, axis2=2), axis=1)
@@ -611,8 +715,11 @@ class GCIQLFlowAgent(GCIQLAgent):
             lam = self.config.get('measure_ortho_coef', 0.0)
             loss = jnp.mean(offdiag + diagt + lam * orth)                  # per-head, then average
             offdiag, diagt, orth = jnp.mean(offdiag), jnp.mean(diagt), jnp.mean(orth)
-        return loss, {'measure_loss': loss, 'measure_offdiag': offdiag, 'measure_diag': diagt,
-                      'measure_orth': orth}
+        info = {'measure_loss': loss, 'measure_offdiag': offdiag, 'measure_diag': diagt,
+                'measure_orth': orth}
+        if qz_mean is not None:
+            info['measure_qz_mean'] = qz_mean
+        return loss, info
 
     def sf_loss(self, batch, grad_params, rng):
         """Successor-FEATURE vector TD on phi (SF-style, à la simple_successor_features), with
@@ -625,20 +732,31 @@ class GCIQLFlowAgent(GCIQLAgent):
         Q(s,a,g)=<phi(s,a), psi(g)> drives the greedy flow actor. Base b(s): 'identity' -> b(s)=s
         (d==obs dim); 'frozen' -> b(s)=psi(s), the critic's frozen random features (d free)."""
         obs, nobs, acts = batch['observations'], batch['next_observations'], batch['actions']
-        vgoals, mask = batch['value_goals'], batch['masks']
+        vgoals = batch['value_goals']
         gamma = self.config['discount']
+        # sf_mask: 'goal' -> batch['masks'] = 1[s != g], an ABSORBING goal (Q = gamma^T, a
+        # first-hitting value). 'none' -> m == 1, no absorption (Q = sum_t gamma^t 1[s_t=g], a
+        # visitation DENSITY -- FB's object; measure_loss has no mask at all).
+        mask = batch['masks'] if self.config.get('sf_mask', 'goal') == 'goal' else jnp.ones_like(batch['masks'])
+        # sf_base_index: 'current' -> b(s)=psi(s), forced by GCDataset tying rewards AND masks to
+        # the current index. 'next' -> b(s)=psi(s'), FB's arriving-state convention (its measure
+        # counts arrival at s'). Never mix the two (guard 4).
+        base_next = self.config.get('sf_base_index', 'current') == 'next'
+        joint = self.config.get('sf_joint_psi', False)
         # fb_forward_z: task-condition phi([s,a,z=psi(g)]) -> thread z_goals=vgoals through the
         # phi, base-feature, and target-critic calls (same task g on both sides of the SF backup).
         zarg = (vgoals,) if self.config.get('fb_forward_z', False) else ()
         _, phi, _psi = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
         if self.config.get('sf_base', 'identity') in ('frozen', 'learned'):
-            # b(s) = psi(s): the base features of the CURRENT state (call psi via b_goals=obs).
-            # Stop-gradded either way: the TD trains ONLY phi ('learned' psi trains solely via
-            # the sf_reward_regress term below).
-            _, _, b = self.network.select('critic')(obs, obs, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
-            b = jax.lax.stop_gradient(b)
+            # b = psi(s) or psi(s'): call psi via b_goals. Stop-gradded UNLESS sf_joint_psi, in
+            # which case the TD residual trains psi through the base (held non-degenerate by
+            # sf_psi_ortho_coef -- without it phi=0, psi=0 is a global minimum).
+            b_goals = nobs if base_next else obs
+            _, _, b = self.network.select('critic')(obs, b_goals, acts, *zarg, info=True, params=grad_params)  # [2,B,d]
+            if not joint:
+                b = jax.lax.stop_gradient(b)
         else:
-            b = obs[None]                                             # identity base b(s)=s -> [1,B,d]
+            b = (nobs if base_next else obs)[None]                    # identity base b(s)=s -> [1,B,d]
         if self.config['actor_kind'] == 'ddpgbc':
             # stock gaussian actor: a' = mode of pi(.|s',g) (or a sample if learned std).
             dist = self.network.select('actor')(nobs, vgoals)
@@ -648,10 +766,14 @@ class GCIQLFlowAgent(GCIQLAgent):
             a_next = self.network.select('actor')(nobs, vgoals, noise)          # a' ~ pi(s',g)
         a_next = jax.lax.stop_gradient(jnp.clip(a_next, -1, 1))
         _, tphi, _ = self.network.select('target_critic')(nobs, vgoals, a_next, *zarg, info=True)  # [2,B,d]
-        target = jax.lax.stop_gradient(b + gamma * mask[None, :, None] * tphi)               # [2,B,d]
+        boot = gamma * mask[None, :, None] * jax.lax.stop_gradient(tphi)                      # [2,B,d]
+        # b carries gradient iff sf_joint_psi; the bootstrap is always semi-gradient (FB does the
+        # same). With joint=False this is identical to the old sg[b + gamma*m*tphi] target.
+        target = b + boot
         td = jnp.mean((phi - target) ** 2)
         loss = td
-        info = {'sf_loss': td, 'phi_absmax': jnp.max(jnp.abs(phi)), 'target_absmax': jnp.max(jnp.abs(target))}
+        info = {'sf_loss': td, 'phi_absmax': jnp.max(jnp.abs(phi)),
+                'target_absmax': jnp.max(jnp.abs(jax.lax.stop_gradient(target)))}
         lam = self.config.get('sf_ortho_coef', 0.0)
         if lam > 0:
             # anti-collapse aux reg: orthonormality ||E[phi phi^T]-I|| on the SF vector phi
@@ -663,26 +785,85 @@ class GCIQLFlowAgent(GCIQLAgent):
             orth = jnp.mean(o_off + o_diag)
             loss = td + lam * orth
             info['orth'] = orth
+        lam_psi = self.config.get('sf_psi_ortho_coef', 0.0)
+        if lam_psi > 0:
+            # FB orthonormality ||E_rho[psi psi^T] - I|| on the BASE/goal leg psi -- the same
+            # penalty and the same distribution measure_loss uses (B := psi(s'), the rho marginal,
+            # NOT the HER value_goals that ortho_loss uses). This is what keeps a jointly-trained
+            # psi non-degenerate: un-stop-gradding the base makes phi=0, psi=0 a GLOBAL minimum of
+            # the TD, and the -tr(C) term below turns the origin into a strict local maximum
+            # (repelling). Distinct from sf_ortho_coef, which penalizes phi.
+            _, _, psi_o = self.network.select('critic')(obs, nobs, acts, *zarg, info=True, params=grad_params)
+            Bn = obs.shape[0]; off_p = 1.0 - jnp.eye(Bn)
+            CovP = jnp.einsum('hid,hjd->hij', psi_o, psi_o)                 # [2,B,B]
+            p_off = 0.5 * jnp.sum((CovP * off_p[None]) ** 2, axis=(1, 2)) / jnp.sum(off_p)
+            p_diag = -jnp.mean(jnp.diagonal(CovP, axis1=1, axis2=2), axis=1)
+            orth_psi = jnp.mean(p_off + p_diag)
+            loss = loss + lam_psi * orth_psi
+            info['psi_ortho'] = orth_psi
+            info['psi_ortho_off'] = jnp.mean(p_off)
+            info['psi_ortho_diag'] = jnp.mean(p_diag)
+            info['psi_norm_mean'] = jnp.mean(jnp.linalg.norm(psi_o, axis=-1))
         if self.config.get('sf_reward_regress', False):
             # E3 (corrected SF cell): ground the base in the ACTUAL reward -- bilinear reward
-            # model r_hat(s',g) = <psi(s'), psi(g)>/sqrt(d) regressed on batch rewards (received
-            # on ARRIVING at s', matching the SF telescope Q=sum gamma^t <b(s_t),w>). This is
+            # model r_hat(s,g) = <psi(s), psi(g)>/sqrt(d) regressed on batch rewards. This is
             # psi's ONLY grad path (the TD target stop-grads b; the actor Q-term takes no critic
             # grads), and it is what makes the goal indicator linearly readable in the base.
-            _, _, psi_ns = self.network.select('critic')(nobs, nobs, acts, *zarg, info=True, params=grad_params)  # psi(s')
+            # CURRENT-state convention, forced by GCDataset: successes = (idxs == value_goal_idxs)
+            # ties BOTH rewards (=successes-1) and masks (=1-successes) to the CURRENT index, and
+            # the SF target's immediate feature is b(s). Regressing on psi(s') instead would be
+            # off-by-one against reward, mask, and base alike (an arriving-state convention would
+            # additionally require retargeting the TD to b(s') and relabelling on idxs+1).
+            # At the goal s=g this pins <psi(g),psi(g)> = ||psi(g)||^2 = r_at_goal + shift.
+            _, _, psi_s = self.network.select('critic')(obs, obs, acts, *zarg, info=True, params=grad_params)  # psi(s)
             _, _, psi_g = self.network.select('critic')(obs, vgoals, acts, *zarg, info=True, params=grad_params)  # psi(g)
-            r_hat = (psi_ns * psi_g).sum(axis=-1) / jnp.sqrt(psi_ns.shape[-1])   # [2,B]
+            r_hat = (psi_s * psi_g).sum(axis=-1) / jnp.sqrt(psi_s.shape[-1])   # [2,B]
             # sf_reward_shift: regress on r+shift. Raw OGBench rewards {-1 off-goal, 0 at-goal}
             # collapse the SYMMETRIC bilinear model to the psi=0 saddle (grad of a bilinear form
             # vanishes at psi=0, where the majority class is already fit); shift=1 gives {0, 1}
             # targets -- majority class 0 is saddle-consistent, goal pairs demand <psi,psi>=1
-            # (a peaked kernel). A constant reward offset never changes the actor's argmax.
+            # (a peaked kernel). Note r+1 == successes == 1-masks, i.e. the goal INDICATOR.
+            # Argmax-invariance is NOT "a constant offset telescopes away" -- it does not, since
+            # the mask makes the goal absorbing so the horizon is the hitting time T. It holds
+            # because both readouts are strictly increasing in gamma^T:
+            #   r_hat = 1[s=g]      -> Q = gamma^T
+            #   r_hat = 1[s=g] - 1  -> Q = -(1 - gamma^T)/(1 - gamma)
+            # so they induce the same ordering over actions and the same greedy policy.
             r_tgt = batch['rewards'] + self.config.get('sf_reward_shift', 0.0)
             rew = jnp.mean((r_hat - r_tgt[None]) ** 2)
             loss = loss + self.config.get('sf_reward_coef', 1.0) * rew
             info['sf_reward_loss'] = rew
             info['sf_rhat_mean'] = jnp.mean(r_hat)
         return loss, info
+
+    def simplesf_reward_loss(self, batch, grad_params):
+        """Simple SF's reward-prediction loss (sf_simple.py:302-325), the task vector's ONLY
+        gradient path when simplesf_ground_psi:
+
+            r_hat(s,a,g) = <sg[b(s,a,z)], psi(g)>/sqrt(d)   ->  regress on batch['rewards']
+
+        b is stop-gradded exactly as the reference computes next_rep under torch.no_grad() and
+        steps only task_opt. CURRENT index: GCDataset ties rewards AND masks to
+        idxs == value_goal_idxs (datasets.py:242-244), so b is evaluated at (s,a), not (s',a').
+
+        Applied to BOTH nets: grounding only the critic's psi would leak goal information back
+        through V(s',g) into the critic target. No reward shift is needed -- the model is
+        ASYMMETRIC (b is a separate object from psi), so it has no psi=0 saddle, and with
+        ||b||=1, ||z||=sqrt(d) its range [-1,1] already covers the reward range {-1,0}."""
+        obs, vgoals, acts = batch['observations'], batch['value_goals'], batch['actions']
+        r = batch['rewards']
+        d = self.config['value_latent_dim']
+        _, _, z_q, b_q = self.network.select('critic')(obs, vgoals, acts, info=True, params=grad_params)
+        _, _, z_v, b_v = self.network.select('value')(obs, vgoals, info=True, params=grad_params)
+        rhat_q = (jax.lax.stop_gradient(b_q) * z_q).sum(axis=-1) / jnp.sqrt(d)      # [B]
+        rhat_v = (jax.lax.stop_gradient(b_v) * z_v).sum(axis=-1) / jnp.sqrt(d)      # [B]
+        loss = jnp.mean((rhat_q - r) ** 2) + jnp.mean((rhat_v - r) ** 2)
+        return loss, {
+            'reward_loss': loss,
+            'rhat_mean': jnp.mean(rhat_q), 'rhat_std': jnp.std(rhat_q),
+            'b_norm_mean': jnp.mean(jnp.linalg.norm(b_q, axis=-1)),
+            'z_norm_mean': jnp.mean(jnp.linalg.norm(z_q, axis=-1)),
+        }
 
     def ortho_loss(self, batch, grad_params):
         """FB orthonormality penalty ||E[psi psi^T]-I|| on the IQL critic's backward
@@ -733,10 +914,32 @@ class GCIQLFlowAgent(GCIQLAgent):
         for k, v in critic_info.items():
             info[f'critic/{k}'] = v
         loss = value_loss + critic_loss + actor_loss
+        if self.config.get('simplesf_ground_psi', False):
+            # rung 3 (the paper's cell): psi(g) is detached inside value/critic (GCSimpleSFValue),
+            # so this regression is its ONLY gradient. The trunk still learns from the TD, which
+            # is what trains the basis b.
+            ss_loss, ss_info = self.simplesf_reward_loss(batch, grad_params)
+            for k, v in ss_info.items():
+                info[f'simplesf/{k}'] = v
+            loss = loss + self.config.get('simplesf_reward_coef', 1.0) * ss_loss
         if self.config.get('measure_coef', 0.0) > 0:   # graft FB measure onto GCIQL's rep
             rng, m_rng = jax.random.split(rng)
             m_loss, m_info = self.measure_loss(batch, grad_params, m_rng)
-            loss = loss + self.config['measure_coef'] * m_loss
+            lam = self.config['measure_coef']
+            if self.config.get('anneal_measure', False):
+                # Warm-start dose-response: grow the SM weight from 0, then HOLD at lam_max.
+                # t is network.step, which prepare_anneal_ckpt.py resets to 0 -- restore_agent
+                # otherwise brings back the anchor's step (1_000_001) and the ramp would start
+                # fully saturated. The measure loss is still COMPUTED at lam=0 (static jit shapes),
+                # just scaled to zero, so the first finetune step is a no-op on the restored geometry.
+                # jnp.asarray, not .astype: TrainState.step is a plain Python int leaf until jit
+                # traces it, and `int.astype` does not exist.
+                t = jnp.asarray(self.network.step, jnp.float32)
+                ramp = float(self.config.get('anneal_ramp', 300_000))
+                lam = lam * jnp.clip(t / ramp, 0.0, 1.0)
+                info['anneal/lambda'] = lam
+                info['anneal/t'] = t
+            loss = loss + lam * m_loss
             for k, v in m_info.items():
                 info[f'measure/{k}'] = v
         if self.config.get('iql_ortho_coef', 0.0) > 0:  # FB orthonormality ONLY (no measure)
@@ -800,6 +1003,74 @@ class GCIQLFlowAgent(GCIQLAgent):
         config = dict(config)
         config['action_dim'] = action_dim
 
+        if config.get('anneal_measure', False):
+            # (1) we graft the SM loss onto the IQL losses; measure_only would replace them.
+            assert not config.get('measure_only', False), \
+                "anneal_measure grafts onto the IQL losses; measure_only=True replaces them"
+            # (2) raw (non-scale-normed) measure grafts blew the Q scale and crashed 18/18 runs
+            # (audit-20260706 section 1). Every surviving E2 cell used scale_norm.
+            assert config.get('measure_scale_norm', False), \
+                "anneal_measure requires measure_scale_norm=True (raw measure grafts blow the Q scale)"
+            # (3) the value-legs measure is a different object; the dose-response is on the critic.
+            assert config.get('measure_legs', 'critic') == 'critic', \
+                "anneal_measure requires measure_legs='critic'"
+            # (4) a zero-length ramp would divide by zero; lam_max may be 0 (the control cell).
+            assert int(config.get('anneal_ramp', 300_000)) > 0, "anneal_ramp must be > 0"
+            assert config.get('measure_coef', 0.0) >= 0.0, "measure_coef (lam_max) must be >= 0"
+            # (5) PARAM-TREE IDENTITY with the warm-start checkpoint. Any of these changes the
+            # parameter tree, so restore_agent would fail (or, worse, the prep script's splice
+            # would). Refuse at construction.
+            assert config.get('value_arch', 'mlp') == 'bilinear', \
+                "anneal_measure requires value_arch='bilinear' (the checkpoint's architecture)"
+            assert config.get('psi_base', 'learned') == 'learned', \
+                "anneal_measure requires psi_base='learned' (psi_base changes the critic class)"
+            for knob in ('fb_forward_z', 'fwd_two_tower', 'isfb', 'sf_feature_td'):
+                assert not config.get(knob, False), \
+                    f"anneal_measure is incompatible with {knob} (it changes the param tree)"
+            assert config.get('measure_test_states', 'rho') == 'rho' \
+                and config.get('measure_test_rank', 'full') == 'full', \
+                "anneal_measure is incompatible with the task-norm knobs"
+
+        if (config.get('measure_test_states', 'rho') != 'rho'
+                or config.get('measure_test_rank', 'full') != 'full'):
+            # (1) the rho diagonal IS the Dirac term; projecting there would double-count the reward.
+            if config.get('measure_test_rank', 'full') == 'task':
+                assert config.get('measure_test_states', 'rho') == 'goals', \
+                    "measure_test_rank='task' requires measure_test_states='goals'"
+            # (2) both knobs only affect measure_loss.
+            assert config.get('measure_only', False) or config.get('measure_coef', 0.0) > 0, \
+                "measure_test_states/measure_test_rank require measure_only=True or measure_coef>0"
+            # (3) the value-legs branch has no goal leg to test against.
+            assert config.get('measure_legs', 'critic') == 'critic', \
+                "measure_test_states/measure_test_rank require measure_legs='critic'"
+            # (4) these replace the loss entirely and would silently override the measure objective.
+            assert not config.get('sf_feature_td', False), \
+                "measure_test_states/measure_test_rank are incompatible with sf_feature_td"
+            assert config.get('value_arch', 'mlp') != 'simplesf', \
+                "measure_test_states/measure_test_rank are incompatible with value_arch='simplesf'"
+
+        if config.get('simplesf_ground_psi', False) or config.get('value_arch', 'mlp') == 'simplesf':
+            # (1) the grounding knob is meaningless without the architecture.
+            assert config.get('value_arch', 'mlp') == 'simplesf', \
+                "simplesf_ground_psi requires value_arch='simplesf'"
+            # (2) every knob below selects its own critic class or replaces the loss entirely and
+            # would silently override the SimpleSF architecture.
+            for knob in ('sf_feature_td', 'measure_only', 'fb_forward_z', 'fwd_two_tower',
+                         'isfb', 'sf_joint_psi'):
+                assert not config.get(knob, False), f"value_arch='simplesf' is incompatible with {knob}"
+            assert config.get('measure_coef', 0.0) == 0.0, \
+                "value_arch='simplesf' is incompatible with measure_coef>0"
+            # ortho_loss unpacks the critic's 3-tuple (v, phi, psi); GCSimpleSFValue returns a
+            # 4-tuple (v, Psi, z, b), so this would raise. Refuse it at construction instead.
+            assert config.get('iql_ortho_coef', 0.0) == 0.0, \
+                "value_arch='simplesf' is incompatible with iql_ortho_coef>0 (ortho_loss expects a 3-tuple critic)"
+            # (3) psi_base dispatches GCBilinearValue subclasses; the two must not compose silently.
+            assert config.get('psi_base', 'learned') == 'learned', \
+                "value_arch='simplesf' requires psi_base='learned'"
+            # (4) the flow actor conditions on the raw goal in every cell.
+            assert config.get('actor_cond', 'goal') == 'goal' and not config.get('actor_z_infer', False), \
+                "value_arch='simplesf' requires actor_cond='goal'"
+
         if config.get('sf_feature_td', False):
             # phi = the ONLY learned leg (trained by sf_loss); goal enters via the readout, so
             # force actor_cond='goal' (avoids the z-dim guard below). Base leg:
@@ -810,16 +1081,54 @@ class GCIQLFlowAgent(GCIQLAgent):
                 goal_dim = ex_goals.shape[-1]
                 assert config['value_latent_dim'] == goal_dim, \
                     f"sf_feature_td sf_base='identity' requires value_latent_dim==goal_dim ({goal_dim}), got {config['value_latent_dim']}"
-            # E3 guards: reward regression on a FIXED base is the audited confound (the linear
-            # proxy r=<s,g> cannot express the goal indicator) -> refuse; a learned base without
-            # the regression leaves psi with zero training signal -> refuse.
+            # E3 guard: reward regression on a FIXED base is the audited confound (the linear
+            # proxy r=<s,g> cannot express the goal indicator) -> refuse.
             if config.get('sf_reward_regress', False):
                 assert config.get('sf_base', 'identity') == 'learned', \
                     "sf_reward_regress requires sf_base='learned' (fixed bases can't express the goal indicator)"
+            joint = config.get('sf_joint_psi', False)
+            if joint:
+                # (1) exactly ONE gradient path into psi.
+                assert config.get('sf_base', 'identity') == 'learned', \
+                    "sf_joint_psi requires sf_base='learned' (a fixed psi has no gradient to receive)"
+                assert not config.get('sf_reward_regress', False), \
+                    "sf_joint_psi and sf_reward_regress are mutually exclusive (two grad paths into psi)"
+                # (2) without the ortho penalty, phi=0 and psi=0 is a GLOBAL minimum of the TD.
+                assert config.get('sf_psi_ortho_coef', 0.0) > 0, \
+                    "sf_joint_psi requires sf_psi_ortho_coef>0 (else phi=0,psi=0 is a global min of the SF TD)"
+                # (3) a goal-dependent absorption coefficient cannot sit in a goal-agnostic
+                # recursion. Scoped to joint cells: the legacy SF grid is agnostic AND masked,
+                # and is left untouched (the objection is documented, not retro-enforced).
+                if config.get('sf_mask', 'goal') == 'goal':
+                    assert config.get('fb_forward_z', False), \
+                        "sf_joint_psi with sf_mask='goal' requires fb_forward_z (goal-dependent mask needs a goal-conditioned phi)"
+            # (4) never mix the arriving-state base with the current-index mask: GCDataset ties
+            # rewards AND masks to the current index, so b=psi(s') + m_g(s) is off-by-one against
+            # the mask (the class of bug fixed in E3, 2026-07-09).
+            assert not (config.get('sf_base_index', 'current') == 'next'
+                        and config.get('sf_mask', 'goal') == 'goal'), \
+                "sf_base_index='next' requires sf_mask='none' (arriving-state base + current-index mask mixes conventions)"
+            # (5) a learned psi with no training signal at all.
             if config.get('sf_base', 'identity') == 'learned':
-                assert config.get('sf_reward_regress', False), \
-                    "sf_base='learned' requires sf_reward_regress=True (else psi has no training signal)"
+                assert config.get('sf_reward_regress', False) or joint, \
+                    "sf_base='learned' requires sf_reward_regress=True or sf_joint_psi=True (else psi has no training signal)"
             config['actor_cond'] = 'goal'
+
+        if config.get('psi_base', 'learned') != 'learned':
+            # Readout-vs-TD crux (sf-design-space 1b): cripple the goal leg EXACTLY as the SF
+            # cells do, but keep GCIQL's scalar expectile TD. Only meaningful for the plain
+            # bilinear critic -- every other branch below picks its own critic class and would
+            # silently override psi_base, and sf_base already owns the base under sf_feature_td.
+            assert config.get('value_arch', 'mlp') == 'bilinear', \
+                "psi_base requires value_arch='bilinear' (an mlp critic has no goal leg to freeze)"
+            assert not config.get('sf_feature_td', False), \
+                "psi_base is for the SCALAR-TD control; under sf_feature_td use sf_base instead"
+            for knob in ('fb_forward_z', 'fwd_two_tower', 'isfb'):
+                assert not config.get(knob, False), f"psi_base is incompatible with {knob} (it selects its own critic class)"
+            if config['psi_base'] == 'identity':
+                goal_dim = ex_goals.shape[-1]
+                assert config['value_latent_dim'] == goal_dim, \
+                    f"psi_base='identity' requires value_latent_dim==goal_dim ({goal_dim}), got {config['value_latent_dim']}"
 
         # Actor goal-input example. In z-conditioning (G4) the actor consumes a
         # d-dim task vector z=psi(goal) (B := value net's psi), not the raw goal
@@ -844,9 +1153,31 @@ class GCIQLFlowAgent(GCIQLAgent):
         # value_arch: 'mlp' = canonical GCIQL GCValue (concat MLP over [s,g,a]);
         # 'bilinear' = inner-product value V=phi(s).psi(g)/sqrt(d), Q=phi(s,a).psi(g)/sqrt(d)
         # (Direction A: GCIQL's IQL training poured through an FB-style rank-d head).
-        if config.get('value_arch', 'mlp') == 'bilinear':
+        if config.get('value_arch', 'mlp') == 'simplesf':
+            # Simple SF (Chua et al.): one trunk -> (b, Psi); Q = <Psi, psi(g)>/sqrt(d).
+            # Applied to BOTH the value net and the critic: grounding only the critic's psi would
+            # leak goal information back through V(s',g) into the critic target.
             d = config['value_latent_dim']
-            value_def = GCBilinearValue(
+            ss_kwargs = dict(
+                hidden_dims=config['value_hidden_dims'], latent_dim=d,
+                layer_norm=config['layer_norm'],
+                ground_psi=config.get('simplesf_ground_psi', False),
+                project_z=config.get('project_z', False),
+            )
+            value_def = GCSimpleSFValue(
+                ensemble=False, state_encoder=encoders.get('value'),
+                goal_encoder=encoders.get('value'), **ss_kwargs)
+            critic_def = GCSimpleSFValue(
+                ensemble=True, state_encoder=encoders.get('critic'),
+                goal_encoder=encoders.get('critic'), **ss_kwargs)
+        elif config.get('value_arch', 'mlp') == 'bilinear':
+            d = config['value_latent_dim']
+            # psi_base: cripple the goal leg under the NORMAL scalar IQL TD (1b control).
+            # Applied SYMMETRICALLY to the value net and the critic -- freezing only the critic
+            # would leave V(s,g) a fully-trained bilinear head and confound the readout.
+            value_cls = {'learned': GCBilinearValue, 'frozen': GCFrozenBValue,
+                         'identity': GCIdentityBValue}[config.get('psi_base', 'learned')]
+            value_def = value_cls(
                 hidden_dims=config['value_hidden_dims'], latent_dim=d,
                 layer_norm=config['layer_norm'], ensemble=False,
                 state_encoder=encoders.get('value'), goal_encoder=encoders.get('value'),
@@ -854,7 +1185,7 @@ class GCIQLFlowAgent(GCIQLAgent):
             # fb_forward_z: task-condition the critic's forward map -> phi(s,a,z), the
             # FB-faithful F(s,a,z).B(s'). Only valid as a measure-only critic (its
             # extra z arg would break the IQL value/critic Bellman losses).
-            critic_cls = GCBilinearValue
+            critic_cls = value_cls
             if config.get('sf_feature_td', False):
                 # phi = successor-feature vector trained by sf_loss. Base leg: 'frozen' -> frozen
                 # random psi (d free); 'identity' -> psi(g)=g (d==obs dim); 'learned' -> psi
@@ -880,6 +1211,10 @@ class GCIQLFlowAgent(GCIQLAgent):
                 crit_kwargs['project_z'] = config.get('project_z', False)
             if critic_cls in (GCIdentityBValue, GCFrozenBValue, GCLearnedBValue):
                 crit_kwargs['fb_forward_z'] = config.get('fb_forward_z', False)
+            if critic_cls in (GCFrozenBValue, GCLearnedBValue):
+                # NOT GCIdentityBValue: its _psi returns the raw goal, and sphering it would
+                # destroy the identity base b(g)=g.
+                crit_kwargs['project_z'] = config.get('project_z', False)
             critic_def = critic_cls(**crit_kwargs)
         else:
             value_def = GCValue(
@@ -948,7 +1283,18 @@ class GCIQLFlowAgent(GCIQLAgent):
         networks = {k: v[0] for k, v in network_info.items()}
         network_args = {k: v[1] for k, v in network_info.items()}
         network_def = ModuleDict(networks)
-        network_tx = optax.adam(learning_rate=config['lr'])
+        # anneal_lr_warmup: linear LR warmup, then constant. Protects the restored weights from a
+        # large first step, and lets Adam's fresh moments adapt before the SM gradient grows.
+        # It CANNOT be faked by scaling the loss (Adam is ~scale-invariant per parameter), so it
+        # must be a real LR schedule -- which changes the opt_state tree and is why such a run can
+        # only restore from a checkpoint written by scripts/prepare_anneal_ckpt.py.
+        warmup = int(config.get('anneal_lr_warmup', 0))
+        if warmup > 0:
+            lr_sched = optax.linear_schedule(init_value=0.0, end_value=config['lr'],
+                                             transition_steps=warmup)
+            network_tx = optax.adam(learning_rate=lr_sched)
+        else:
+            network_tx = optax.adam(learning_rate=config['lr'])
         network_params = network_def.init(init_rng, **network_args)['params']
         network = TrainState.create(network_def, network_params, tx=network_tx)
 
@@ -962,8 +1308,11 @@ def get_config():
     config = _gciql_get_config()
     with config.unlocked():
         config.agent_name = 'gciql_flow'
-        # Value architecture: 'mlp' (canonical GCIQL) or 'bilinear' (inner-product, Direction A).
+        # Value architecture: 'mlp' (canonical GCIQL) | 'bilinear' (inner-product, Direction A)
+        # | 'simplesf' (Chua et al.: trunk -> b=h/||h|| and Psi=head(h); Q=<Psi,psi(g)>/sqrt(d)).
         config.value_arch = 'mlp'
+        config.simplesf_ground_psi = False  # rung 3 (the paper's cell): stop-grad z in the value/critic losses so psi(g) is trained ONLY by the reward-prediction loss L_rew
+        config.simplesf_reward_coef = 1.0   # weight on L_rew, summed over the value net and the critic
         config.value_latent_dim = 512
         # Actor conditioning identity (G4 objective-isolation arm):
         # 'goal' = raw goal obs (stock); 'z' = z=stop_grad(value.psi(goal)),
@@ -992,14 +1341,24 @@ def get_config():
         config.measure_scale_norm = False  # E2: divide the measure TD terms by sg[mean(M^2)] so the gradient is dimensionless (stops the <F,z> inflation that crashed 18/18 mc* runs; audit §1)
         config.measure_stopgrad_phi = False  # E2: stop-grad phi inside measure_loss so the measure gradient shapes ONLY psi (readout/backward leg), quarantined from the value-critical forward leg
         config.measure_z_random_frac = 0.0  # FB-fidelity: fraction of measure-loss task vectors z drawn as sqrt(d)-sphere gaussian directions (metamotivo sample_mixed_z) instead of psi(vgoals); needs fb_forward_z
+        config.anneal_measure = False    # ramp the SM loss weight instead of holding it constant: lam(t) = measure_coef * clip(step/anneal_ramp, 0, 1), then HOLD. measure_coef is reinterpreted as lam_max. Warm-start finetuning only (see scripts/prepare_anneal_ckpt.py, which resets network.step to 0)
+        config.anneal_ramp = 300_000     # linear ramp length in updates; lam holds at lam_max afterwards
+        config.anneal_lr_warmup = 0      # linear LR warmup length in updates (0 = constant LR, today's behaviour). NOTE: a nonzero value changes the optax opt_state tree, so such a run can only restore from a checkpoint written by prepare_anneal_ckpt.py
+        config.measure_test_states = 'rho'   # distribution the measure residual is TESTED against: 'rho' -> psi(next_observations), FB-faithful | 'goals' -> psi(value_goals), the task distribution nu (the research note's task norm). The ortho and the Dirac term ALWAYS stay on psi(next_observations)
+        config.measure_test_rank = 'full'    # test set rank: 'full' -> B x B cross-pairs (i != j) | 'task' -> diagonal, project each residual onto its OWN task vector z_i = psi(g_i) (rank 1). 'task' requires measure_test_states='goals'
         config.fb_forward_z = False  # task-condition the critic's forward map: phi(s,a,z), z=sg(psi(goal)) -> true F(s,a,z).B(s') (needs bilinear; runs under measure OR the IQL backup, B1)
+        config.psi_base = 'learned'   # goal leg psi(g) under the SCALAR IQL TD (readout-vs-TD control, sf-design-space 1b): 'learned' -> trained (stock bilinear GCIQL) | 'frozen' -> frozen random MLP (d free) | 'identity' -> psi(g)=g (d==goal dim). Applied to value net AND critic; needs bilinear, excludes sf_feature_td/fb_forward_z/fwd_two_tower
         config.sf_feature_td = False  # SUCCESSOR-FEATURE vector TD on phi: phi(s,a)<-b(s)+gamma*phi(s',a'), Q=<phi,psi(g)> (train ONLY phi; needs bilinear)
         config.sf_coef = 1.0          # weight on the SF vector-TD loss (sf_feature_td)
         config.sf_base = 'identity'   # SF base feature b: 'identity' -> b(s)=s (d==obs dim); 'frozen' -> b(s)=psi(s) frozen random MLP (d free, e.g. 50); 'learned' -> psi trained by reward regression (needs sf_reward_regress)
-        config.sf_reward_regress = False  # E3 corrected SF: learn the base by reward regression r_hat(s',g)=<psi(s'),psi(g)>/sqrt(d) on batch rewards (requires sf_base='learned')
+        config.sf_reward_regress = False  # E3 corrected SF: learn the base by reward regression r_hat(s,g)=<psi(s),psi(g)>/sqrt(d) on batch rewards (current-state convention: GCDataset ties reward+mask to idxs==value_goal_idxs); requires sf_base='learned'
         config.sf_reward_coef = 1.0   # weight on the reward-regression loss (sf_reward_regress)
         config.sf_reward_shift = 0.0  # regress on r+shift; use 1.0 with OGBench {-1,0} rewards to escape the psi=0 saddle of the symmetric bilinear reward model (argmax-invariant)
         config.sf_ortho_coef = 0.0    # aux orthonormality reg ||E[phi phi^T]-I|| on the SF vector phi (anti-collapse; sf_feature_td only)
+        config.sf_psi_ortho_coef = 0.0  # FB orthonormality ||E_rho[psi psi^T]-I|| on the BASE leg psi(s') (FB uses 1000). DISTINCT from sf_ortho_coef, which penalizes phi. Required by sf_joint_psi (else phi=0,psi=0 is a global min of the SF TD)
+        config.sf_joint_psi = False   # train psi by the SF vector TD itself (un-stop-grad the base b). Requires sf_base='learned' + sf_psi_ortho_coef>0; mutually exclusive with sf_reward_regress
+        config.sf_base_index = 'current'  # immediate feature: 'current' -> b(s)=psi(s) (GCDataset ties rewards+masks to the current index) | 'next' -> b(s)=psi(s') (FB's arriving-state measure convention). Never mix 'next' with sf_mask='goal'
+        config.sf_mask = 'goal'       # bootstrap gate: 'goal' -> batch['masks'], absorbing goal (Q=gamma^T, hitting time) | 'none' -> m==1 (Q=sum gamma^t 1[s_t=g], visitation density; FB's measure_loss has no mask)
         config.fwd_two_tower = False  # FB-style two-tower forward map F=trunk(MLP[s,a],MLP[s,z]) on the IQL bilinear critic (z=sg(psi(g)); architecture-only ablation, no measure loss)
         config.iql_ortho_coef = 0.0  # FB orthonormality ||E[psi psi^T]-I|| on the IQL bilinear critic's psi, with NO measure loss (isolates the ortho constraint on the ~90 IQL bilinear)
         config.project_z = False  # hard-project z and B=psi onto the sqrt(d) sphere (FB's ||B||=||z||=sqrt(d) Norm); applies to GCFBValue/GCTwoTowerCritic

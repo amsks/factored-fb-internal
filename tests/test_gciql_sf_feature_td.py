@@ -301,8 +301,11 @@ def test_sf_ortho_without_conditioning_trains_finite():
 
 def test_sf_learned_base_reward_regression_semantics():
     """E3 (corrected SF cell): sf_base='learned' + sf_reward_regress grounds the base in the
-    ACTUAL reward -- a bilinear reward model r_hat(s',g)=<psi(s'),psi(g)>/sqrt(d) trained by
-    regression on batch rewards. DECISIVE at gamma=0: total SF loss must equal
+    ACTUAL reward -- a bilinear reward model r_hat(s,g)=<psi(s),psi(g)>/sqrt(d) trained by
+    regression on batch rewards. CURRENT-state convention: GCDataset ties the relabeled
+    reward to the current index (successes = idxs == value_goal_idxs) and the SF TD's
+    immediate feature is b(s) -- so the regression must ground psi(s), NOT psi(s')
+    (the s' variant is off-by-one vs both). DECISIVE at gamma=0: total SF loss must equal
     mean((phi - psi(s))^2) + coef * mean((r_hat - r)^2), both terms computed by hand."""
     code = """
         import jax, jax.numpy as jnp
@@ -326,10 +329,9 @@ def test_sf_learned_base_reward_regression_semantics():
         p = agent.network.params
         _, phi, _ = agent.network.select("critic")(ex_obs, goals, ex_act, info=True, params=p)
         _, _, psi_s = agent.network.select("critic")(ex_obs, ex_obs, ex_act, info=True, params=p)
-        _, _, psi_ns = agent.network.select("critic")(ex_nobs, ex_nobs, ex_act, info=True, params=p)
         _, _, psi_g = agent.network.select("critic")(ex_obs, goals, ex_act, info=True, params=p)
         exp_td = jnp.mean((phi - psi_s) ** 2)                       # target = b(s)=psi(s) at gamma=0
-        r_hat = (psi_ns * psi_g).sum(-1) / jnp.sqrt(50.0)
+        r_hat = (psi_s * psi_g).sum(-1) / jnp.sqrt(50.0)            # CURRENT state: r(s,g), not psi(s')
         exp_rew = jnp.mean((r_hat - rewards[None]) ** 2)
         assert jnp.allclose(loss, exp_td + 2.0 * exp_rew, atol=1e-5), \\
             (float(loss), float(exp_td), float(exp_rew))
@@ -346,8 +348,9 @@ def test_sf_reward_shift_regresses_on_shifted_reward():
     {-1 off-goal, 0 at-goal} rewards the raw regression collapses to the psi=0 saddle
     (a bilinear form's gradient vanishes at psi=0, and the majority class IS 0 there);
     shift=1 makes the majority class the saddle-consistent 0 and the goal pairs demand
-    <psi(s'),psi(g)>=1, a peaked kernel. Constant shift leaves the actor argmax unchanged.
-    DECISIVE: sf_reward_loss must equal mean((r_hat - (r+shift))^2) computed by hand."""
+    <psi(s),psi(g)>=1, a peaked kernel. Constant shift leaves the actor argmax unchanged.
+    DECISIVE: sf_reward_loss must equal mean((r_hat - (r+shift))^2) computed by hand,
+    with r_hat grounded on the CURRENT state's psi(s) (GCDataset reward convention)."""
     code = """
         import jax, jax.numpy as jnp
         from gciql_flow import GCIQLFlowAgent, get_config
@@ -368,9 +371,9 @@ def test_sf_reward_shift_regresses_on_shifted_reward():
                      value_goals=goals, actor_goals=goals)
         loss, info = agent.sf_loss(batch, agent.network.params, jax.random.PRNGKey(2))
         p = agent.network.params
-        _, _, psi_ns = agent.network.select("critic")(ex_nobs, ex_nobs, ex_act, info=True, params=p)
+        _, _, psi_s = agent.network.select("critic")(ex_obs, ex_obs, ex_act, info=True, params=p)
         _, _, psi_g = agent.network.select("critic")(ex_obs, goals, ex_act, info=True, params=p)
-        r_hat = (psi_ns * psi_g).sum(-1) / jnp.sqrt(50.0)
+        r_hat = (psi_s * psi_g).sum(-1) / jnp.sqrt(50.0)
         exp_rew = jnp.mean((r_hat - (rewards[None] + 1.0)) ** 2)
         assert jnp.allclose(info["sf_reward_loss"], exp_rew, atol=1e-5), \\
             (float(info["sf_reward_loss"]), float(exp_rew))
