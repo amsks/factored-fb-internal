@@ -34,9 +34,7 @@ from agents.fb.agent import FBAgent
 from agents.fb.flow_bc.agent import FBFlowBCAgent
 from agents.rldp.agent import RLDPAgent
 from agents.rldp.flow_bc.agent import RLDPFlowBCAgent
-from data.ogbench import load_ogbench_dataset
-from envs.ogbench import create_ogbench_env
-from evals.ogbench import OGBenchEvaluator
+from envs.registry import make_dataset, make_env, make_evaluator
 from nn_models import (
     AugmentatorArchiConfig,
     BackwardArchiConfig,
@@ -269,26 +267,31 @@ def main(cfg: DictConfig) -> None:
             save_code=cfg.wandb_save_code,
         )
 
+    # Env family: parsed from a "family:name" prefix in cfg.domain, or an explicit
+    # cfg.env_family override. Absent both -> "ogbench" (byte-identical to before).
+    env_family = cfg.get("env_family", None)
     print(f"[train] env: {cfg.domain}")
-    env, _ = create_ogbench_env(
+    env, _ = make_env(
         cfg.domain,
         obs_type=cfg.obs_type,
         seed=cfg.seed,
         frame_stack=cfg.get("frame_stack", 1),
+        env_family=env_family,
     )
     obs_space = env.observation_space
     action_dim = env.action_space.shape[0]
     print(f"[train] obs_space={obs_space.shape}  action_dim={action_dim}")
 
     print(f"[train] loading dataset for {cfg.domain}")
-    buffer = load_ogbench_dataset(
-        domain=cfg.domain,
+    buffer = make_dataset(
+        cfg.domain,
         data_path=cfg.data_path,
         load_n_episodes=cfg.load_n_episodes,
         device=cfg.device,
         n_transitions=cfg.n_transitions,
         obs_type=cfg.obs_type,
         frame_stack=cfg.get("frame_stack", 1),
+        env_family=env_family,
     )
     print(f"[train] buffer size: {len(buffer):,}")
 
@@ -302,10 +305,11 @@ def main(cfg: DictConfig) -> None:
     if cfg.save_eval_videos:
         video_dir.mkdir(parents=True, exist_ok=True)
 
-    evaluator = OGBenchEvaluator(
-        domain=cfg.domain,
+    evaluator = make_evaluator(
+        cfg.domain,
         agent=agent,
         offline_buffer=buffer,
+        env_family=env_family,
         relabel_size=cfg.eval_relabel_size,
         n_episodes=cfg.eval_n_episodes,
         shift_reward=cfg.eval_shift_reward,
