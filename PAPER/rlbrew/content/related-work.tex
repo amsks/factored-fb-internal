@@ -4,13 +4,13 @@
 \paragraph{Unsupervised and goal-conditioned RL.}
 URL methods learn reusable control objects in a reward-free or reward-agnostic phase and reuse them for downstream goals.
 Goal-conditioned methods learn values or policies indexed by target states~\citep{eysenbach-iclr21a,ma-neurips22a}, while contrastive and metric-based methods learn state-goal scores or representations that distinguish future states from negatives~\citep{eysenbach-neurips22a,wang-icml23a,park-iclr24a}.
-Successor representations, successor features, and forward--backward representations estimate future-occupancy objects that can be combined with downstream rewards~\citep{dayan-nc93a,barreto-neurips17a,touati-neurips21a,touati-iclr23a}.
+Successor representations, successor features, and FB representations estimate future-occupancy objects that can be combined with downstream rewards~\citep{dayan-nc93a,barreto-neurips17a,touati-neurips21a,touati-iclr23a}.
 Proto-value and proto-successor methods instead use learned bases or spectral structure to represent behavior or value spaces~\citep{mahadevan-icml05a,mahadevan-jmlr07a,farebrother-iclr23a,agarwal-arxiv25a}.
 Recent work has argued that many URL objectives can be viewed as tractable approximations to successor measures or future-reachability objects~\citep{agarwal-rlj25a}.
 Our work uses this view diagnostically: we ask whether these learned objects preserve local interaction modes that change successor structure, rather than proposing a new URL objective.
 
 \paragraph{Structured and controllable representations.}
-Classical factored MDP work exploits state structure to make planning and learning more efficient~\citep{boutilier-ijcai95a,kearns-ijcai99a,guestrin-jair03a}.
+Classical factored MDP work exploits state structure to make planning and learning more efficient~\citep{boutilier-ijcai95a,kearns-ijcai99a,guestrin-jair03a}; see also \cite{mohan-jair24a}.
 More recent controllable-representation methods aim to preserve action-relevant state information, often through inverse or multi-step inverse dynamics objectives~\citep{efroni-iclr22a,lamb-arxiv22a,levine-arxiv24a,rudolph-rlc24a}.
 These works are closely related to our interaction-mode view: the relevant abstraction should retain variables that change how actions affect future states.
 Our contribution is different in scope.
