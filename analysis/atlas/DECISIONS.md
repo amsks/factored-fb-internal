@@ -123,3 +123,26 @@ FINDINGS:
 
 CAVEAT: principal angles need a null baseline (same-critic different-seed = noise floor;
 random rank-3 in 64-D ~ orthogonal) before calling 53.7 deg "different." NEXT.
+
+## Primary A oracle run (2026-07-15) — INCONCLUSIVE (broken oracle discriminator, NOT a tie)
+
+2h 3min run. Result: C2 bilinear rho=0.011 mlp=-0.029; C3 bilinear=-0.005 mlp=0.022. All ~0.
+
+DO NOT read this as "bilinear and MLP rank equally." It is a NULL from a broken instrument.
+Root cause VERIFIED: the oracle J floor-clusters. Over 8 actions at C2: J = [-33.1 x5,
+-29.35 x2, -28.77 x1] -> only 3 distinct values, 5/8 at the floor. Spearman over 60%+ tied
+data is ~0 regardless of the critic.
+
+WHY: the oracle continuation is GOAL-AGNOSTIC mu. It doesn't steer toward goal g, so whether
+the cube reaches g within H=40 depends on luck, not the first action -> most actions -> floor
+(never reach g) -> J is mostly ties. The sparse discounted-hitting reward has no gradient for
+the majority of actions.
+
+FIX (next): graded J = -(min cube-to-goal distance over the rollout), so EVERY action gets a
+continuous score reflecting how close behavior-continuation got to g. No floor, Spearman
+meaningful. Cheap swap in oracle.py. Also worth: speed up (2h is too slow -- batch the mu
+continuation, or shorten H with the graded reward which needs less horizon).
+
+UNAFFECTED (these do NOT use the oracle J ranking, still solid):
+- Phase 0A off-support exploitation (17.9 vs 1.76) -- the actor-reversal mechanism.
+- Oracle-free: multi-modality refuted, principal angles [53.7,71.5,83.3].
