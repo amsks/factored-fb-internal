@@ -198,3 +198,28 @@ The 42 persistent-only groups (never in /dev/shm, so no checksum baseline) were 
 verified per group: loaded ONE checkpoint from each -> 41/41 torch OK + 1/1 jax OK.
 Combined with the 43 already-verified (checksum byte-parity or loaded end-to-end), ALL 85
 experiment groups are now individually verified. audit=no count: 0.
+
+## Action-grounded mode decode (2026-07-15) — THE ANSWER: direction vs distance
+
+Part A (128 bank states P0-P3, 5 eval goals) + Part B (120 dataset states). Fast (~3 min/part).
+
+**What the dominant modes ENCODE (consistent across all 4 phases):**
+- BILINEAR dominant goal-mode = goal DIRECTION (goal_dir_x/y, |r|~0.69-0.85), 28-30/32 states.
+- MLP dominant goal-mode = goal DISTANCE (goal_dist, |r|~0.75-0.87), 27-29/32 states.
+  (MLP shifts to direction only at P3.) Both action-modes = cube displacement (dx_z lift / dx_x).
+
+=> This IS the content of the 53.7deg basis difference: bilinear factors WHICH-WAY (direction);
+MLP encodes HOW-FAR (distance). Direction is what steering needs; distance is a magnitude that
+does not tell you the way. => candidate 3 (directional action-goal composition), plan Outcome B.
+
+**Part B — bilinear steers MORE than the goal-agnostic play policy** (T_dir, one-step, tiny
+magnitudes but consistent ordering):
+- P2 at-contact: bil +0.0002 > data -0.0002, > mlp
+- P3 holding:    bil +0.0049 > mlp +0.0040 > data +0.0026
+=> bilinear is NOT just replaying the dataset's action distribution (rules out scripted
+primitives, candidate 4); it steers toward the specific goal more than the play policy did.
+
+CAVEATS: goal decode is over 5 eval goals (small n per state; the CROSS-STATE consistency
+28-30/32 is the evidence) -> confirm on the 64-goal grid. T_dir magnitudes are one-step and
+tiny; the ordering is the signal. Descriptive/correlational (per plan), not yet the causal
+keep/remove surgery.
