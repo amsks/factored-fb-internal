@@ -1,23 +1,27 @@
 \section{Additional results}
 \label{app:tables}
 
-This appendix provides the detailed tables behind the main-paper figures: per-task success, the exact terminal-outcome distribution, the full dataset-support distances, the backward-embedding geometry probe, and the representation/value-ranking diagnostics. 
-We distinguish two kinds of representation probes: offline reach-before-end separability, which asks whether features separate states from successful versus failed offline trajectories, and counterfactual on-policy ranking, which asks whether the learned value ranks in-hand states by the agent's own future success.
+This appendix provides the detailed numbers behind the main-paper analyses: per-goal success, the exact terminal-outcome distribution, the full
+state-support distances, the backward-embedding geometry probe, and the counterfactual value and representation-ranking analysis.
+These results support the main empirical chain: aggregate success hides post-acquisition failures; state-support gaps broadly covary with performance, while weak value ranking persists for initial states drawn from the offline dataset; coarse cube-to-goal geometry is insufficient; and learned values
+differ in how well they rank in-hand states by the agent's own eventual success.
+Throughout this subsection, \emph{value} refers to the method-specific task-conditioned scalar used to rank states or actions.
 
-\subsection{Per-task success}
+\subsection{Per-goal success}
 \label{app:pertask}
 
 \begin{table}[H]
 \centering
-\caption{State-based evaluation success by task (IQM $\pm$ half-width of the $95\%$ stratified-bootstrap CI across $10$ seeds).}
+\caption{State-based evaluation success by held-out goal (IQM $\pm$ half-width of the $95\%$ stratified-bootstrap CI across $10$ seeds). 
+All methods use the Flow-Q learning with BC (FQL-BC) regularization~\citep{park-icml25a,bagatella-iclr26a} as the policy extraction mechanism (actor) and are evaluated at $1$M steps.}
 \label{tab:pertask}
 \begin{tabular}{lcccccc}
 \toprule
 \textbf{Method} & \textbf{task1} & \textbf{task2} & \textbf{task3} & \textbf{task4} & \textbf{task5} & \textbf{Overall} \\
 \midrule
-\fb{}    & $16.7 \pm 10.0$ & $68.3 \pm 10.9$ & $75.0 \pm 10.0$ & $40.0 \pm 13.3$ & $43.3 \pm 18.4$ & $50.0 \pm 7.0$ \\
-\gciql{} & $73.7 \pm 5.9$  & $70.0 \pm 7.0$  & $73.0 \pm 7.0$  & $58.0 \pm 5.2$  & $64.3 \pm 7.0$  & $68.3 \pm 3.7$ \\
-\crl{}   & $24.0 \pm 3.3$  & $28.0 \pm 6.7$  & $28.0 \pm 4.8$  & $24.3 \pm 3.5$  & $26.3 \pm 5.8$  & $25.9 \pm 2.0$ \\
+\fb{}    & $21.7 \pm 10.8$ & $73.3 \pm 10.8$ & $73.3 \pm 6.7$  & $36.7 \pm 15.8$ & $50.0 \pm 13.3$ & $52.0 \pm 5.5$ \\
+\gciql{} & $78.8 \pm 8.0$  & $74.8 \pm 5.8$  & $76.4 \pm 7.4$  & $67.2 \pm 4.2$  & $68.0 \pm 5.2$  & $71.8 \pm 4.1$ \\
+\crl{}   & $23.6 \pm 3.2$  & $26.8 \pm 7.4$  & $28.4 \pm 5.6$  & $23.6 \pm 3.8$  & $27.2 \pm 5.4$  & $25.8 \pm 2.3$ \\
 \rldp{}  & $28.3 \pm 10.8$ & $16.7 \pm 6.7$  & $35.0 \pm 15.9$ & $13.3 \pm 12.5$ & $18.3 \pm 10.0$ & $22.7 \pm 6.0$ \\
 \psm{}   & $50.0 \pm 11.7$ & $38.3 \pm 16.7$ & $73.3 \pm 12.5$ & $1.7 \pm 4.2$   & $11.7 \pm 9.2$  & $36.7 \pm 4.5$ \\
 \bottomrule
@@ -29,47 +33,53 @@ We distinguish two kinds of representation probes: offline reach-before-end sepa
 
 \begin{table}[H]
 \centering
-\caption{Cross-method terminal-outcome distribution (\% of episodes, mean across $10$ seeds; the first five columns sum to $100\%$). The post-contact share is $(\text{maintain}+\text{transport})/(100-\text{success})$.}
+\caption{Cross-method terminal-outcome distribution (\% of episodes, mean across $10$ seeds; the first five columns sum to $100\%$). The post-acquisition share is $(\text{maintain}+\text{transport})/(100-\text{success})$.}
 \label{tab:cross_method_outcomes}
 \begin{tabular}{lcccccc}
 \toprule
-\textbf{Method} & \textbf{Success} & \textbf{Approach} & \textbf{Grasp} & \textbf{Maintain} & \textbf{Transport} & \textbf{Post-contact share} \\
+\textbf{Method} & \textbf{Success} & \textbf{Approach} & \textbf{Control acquisition} & \textbf{Maintain} & \textbf{Transport} & \textbf{Post-acquisition share} \\
 \midrule
-\fb{}    & $49.4$ & $0.0$ & $9.8$  & $23.8$ & $17.0$ & $80.6\%$ \\
-\gciql{} & $69.2$ & $0.2$ & $12.2$ & $9.2$  & $9.2$  & $59.7\%$ \\
-\crl{}   & $23.2$ & $0.4$ & $23.8$ & $28.6$ & $24.0$ & $68.5\%$ \\
-\rldp{}  & $25.4$ & $0.2$ & $9.6$  & $44.0$ & $20.8$ & $86.9\%$ \\
-\psm{}   & $38.4$ & $1.0$ & $19.2$ & $35.4$ & $6.0$  & $67.2\%$ \\
+\fb{}    & $49.4$ & $0.0$ & $8.7$  & $24.9$ & $17.0$ & $82.8\%$ \\
+\gciql{} & $73.7$ & $0.0$ & $11.9$ & $7.8$  & $6.7$  & $54.9\%$ \\
+\crl{}   & $25.0$ & $0.9$ & $25.2$ & $26.3$ & $22.6$ & $65.2\%$ \\
+\rldp{}  & $21.3$ & $0.1$ & $14.7$ & $43.8$ & $20.1$ & $81.2\%$ \\
+\psm{}   & $37.3$ & $0.8$ & $20.5$ & $36.4$ & $5.0$  & $66.0\%$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Dataset-manifold support}
+\subsection{State-support analysis}
 \label{app:support}
 
 \begin{table}[H]
 \centering
-\caption{Nearest-neighbor distance $m_{\mathrm{dist}}$ from rollout states to comparable offline states (mean across seeds; larger means lower support), by per-state regime and terminal outcome. S = success, Mf = maintain-control failure, Tf = transport failure. Figure~\ref{fig:support} plots the Mf$-$S and Tf$-$S deltas for the contact regimes.}
+\caption{Nearest-neighbor distance $m_{\mathrm{dist}}$ from rollout states to states in the offline dataset (mean across seeds; larger values indicate lower support), grouped by state category and terminal outcome. 
+S = success, Mf = maintain-control failure, Tf = transport failure. All methods use the FQL-BC and are evaluated at $1$M steps under the same probe ($20$ episodes per seed, $10$ seeds). 
+Figure~\ref{fig:support} plots the Mf$-$S and Tf$-$S differences for the pickup and carry categories.}
 \label{tab:state_coverage}
 \begin{tabular}{llccc}
 \toprule
-\textbf{Method} & \textbf{Regime} & \textbf{S} & \textbf{Mf} & \textbf{Tf} \\
+\textbf{Method} & \textbf{Category} & \textbf{S} & \textbf{Mf} & \textbf{Tf} \\
 \midrule
-\fb{}    & approach & $2.28$ & $2.17$ & $2.19$ \\
-         & pickup   & $2.23$ & $2.74$ & $2.42$ \\
-         & carry    & $2.18$ & $2.31$ & $2.14$ \\
+\gciql{} & approach & $2.53$ & $2.29$ & $2.43$ \\
+         & pickup   & $3.05$ & $3.00$ & $3.01$ \\
+         & carry    & $2.67$ & $2.58$ & $2.67$ \\
 \addlinespace
-\gciql{} & approach & $2.50$ & $2.76$ & $2.96$ \\
-         & pickup   & $2.93$ & $3.75$ & $3.68$ \\
-         & carry    & $2.65$ & $3.00$ & $2.99$ \\
+\fb{}    & approach & $2.27$ & $2.38$ & $2.37$ \\
+         & pickup   & $2.36$ & $2.74$ & $2.61$ \\
+         & carry    & $2.09$ & $2.33$ & $2.20$ \\
 \addlinespace
-\crl{}   & approach & $2.53$ & $2.87$ & $2.74$ \\
-         & pickup   & $3.08$ & $4.50$ & $3.47$ \\
-         & carry    & $2.76$ & $2.88$ & $3.07$ \\
+\psm{}   & approach & $2.17$ & $2.23$ & $2.44$ \\
+         & pickup   & $2.22$ & $2.98$ & $2.75$ \\
+         & carry    & $2.10$ & $2.45$ & $2.56$ \\
 \addlinespace
-\rldp{}  & approach & $2.37$ & $2.30$ & $2.42$ \\
-         & pickup   & $2.46$ & $2.93$ & $2.90$ \\
-         & carry    & $2.21$ & $2.62$ & $2.55$ \\
+\crl{}   & approach & $2.50$ & $3.02$ & $2.71$ \\
+         & pickup   & $2.73$ & $4.56$ & $3.31$ \\
+         & carry    & $2.58$ & $3.00$ & $2.95$ \\
+\addlinespace
+\rldp{}  & approach & $2.32$ & $2.36$ & $2.55$ \\
+         & pickup   & $2.64$ & $3.06$ & $3.11$ \\
+         & carry    & $2.22$ & $2.65$ & $2.80$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -79,74 +89,51 @@ We distinguish two kinds of representation probes: offline reach-before-end sepa
 
 \begin{table}[H]
 \centering
-\caption{Carry-regime resolution of the backward embedding $B$ for cube-to-goal distance $d$, under a linear and a nonlinear (MLP) readout, with the maintain-control failure rate. This probe is restricted to methods with an explicit backward embedding. Better cube-goal geometric resolution in $B$ does not imply better post-contact control.}
+\caption{Carry-regime resolution of the backward embedding $B$ for cube-to-goal distance $d$, under a linear and a nonlinear (MLP) readout, with the maintain-control failure rate. This probe is restricted to methods with an explicit backward embedding. Better cube-to-goal geometric resolution in $B$ does not imply a lower maintain-control failure rate.}
 \label{tab:geometry_control}
 \begin{tabular}{lccc}
 \toprule
 \textbf{Method} & \textbf{$R^2(B\to d)$ linear} & \textbf{$R^2(B\to d)$ MLP} & \textbf{Maintain-control fail (\%)} \\
 \midrule
-\fb{}   & $0.20$ & $0.21$          & $23.8$ \\
-\rldp{} & $0.55$ & $0.75$          & $44.0$ \\
-\psm{}  & $0.90$ & $\mathbf{0.90}$ & $35.4$ \\
+\fb{}   & $0.20$ & $0.21$          & $24.9$ \\
+\rldp{} & $0.55$ & $0.75$          & $43.8$ \\
+\psm{}  & $0.90$ & $\mathbf{0.90}$ & $36.4$ \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-\subsection{Offline representation separability}
-\label{app:offline_repsep}
-
-This diagnostic asks whether learned representations linearly separate in-hand states from offline trajectories that later reach the goal from those that do not. 
-The label is the play-data reach-before-end flag, not the agent's own counterfactual outcome. 
-We therefore use this probe only to assess offline representation separability, not value quality.
-
-\begin{table}[H]
-\centering
-\caption{Raw-state linear baseline: per-task linear-probe AUC from raw state sub-vectors using the offline reach-before-end label. The instantaneous configuration only weakly determines the offline outcome, and the gripper-only features are at chance.}
-\label{tab:repsep_raw}
-\begin{tabular}{lcc}
-\toprule
-\textbf{Raw feature subset} & \textbf{dims} & \textbf{AUC} \\
-\midrule
-Gripper (opening + contact) & $2$  & $0.50$ \\
-Gripper + arm joints        & $14$ & $0.61$ \\
-Full state                  & $28$ & $0.64$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-For \fb{} and \rldp{}, the successor-style representation stack does not improve separability over the raw full-state linear baseline under this offline label. 
-More importantly, the scalar value $Q=F\cdot z$ is near chance for this offline trajectory-level label. 
-This offline probe should not be confused with the on-policy value-ranking test in Section~\ref{app:counterfactual_ranking}, which uses the agent's own counterfactual success as the target.
 
 \subsection{Counterfactual value and representation ranking}
 \label{app:counterfactual_ranking}
 
-The main value-quality diagnostic uses an on-policy counterfactual label. 
-We reset the simulator to in-hand grasp states, roll out each agent's own policy, and label each state by whether that agent reaches the goal. 
-This directly tests whether the value the policy follows ranks post-acquisition states by their eventual tail outcome.
+The main value-ranking analysis uses an on-policy counterfactual label.
+We reset the simulator to in-hand grasp states, roll out each agent's own policy, and label each state by whether that agent reaches the goal.
+This directly tests whether the learned value ranks acquired-control states by eventual task success under the corresponding policy.
+Because the labels are generated separately under each method's own policy, the analysis measures consistency with each method's own downstream outcomes rather than comparison against a single shared target.
 
 \begin{table}[H]
 \centering
-\caption{O\textbf{n-policy counterfactual value test.} We reset $200$ in-hand grasps into the simulator, roll out each agent's own policy, and report the per-task rank-AUC of the learned value against the agent's own success, averaged over goals, along with mean counterfactual success rate. This is the value-quality measure used in the main text.}
+\caption{On-policy counterfactual value test. We reset $200$ in-hand grasp states in the simulator, roll out each agent's own policy, and report the learned value's rank-AUC against the agent's own success, computed per goal and averaged across goals, together with the mean counterfactual success rate.}
 \label{tab:cf_value}
 \begin{tabular}{lcc}
 \toprule
-\textbf{Method} & \textbf{Counterfactual value-AUC} & \textbf{Counterfactual success rate} \\
+\textbf{Method} & \textbf{Counterfactual rank-AUC} & \textbf{Counterfactual success rate} \\
 \midrule
 \gciql{} & $0.89$ & $0.66$ \\
 \crl{}   & $0.68$ & $0.38$ \\
 \fb{}    & $0.61$ & $0.55$ \\
 \rldp{}  & $0.52$ & $0.21$ \\
+\psm{}   & $0.49$ & $0.32$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Figure~\ref{fig:cf_ladder} compares the learned value against a supervised linear readout from the representation that the value uses. 
-This asks whether the representation contains linearly accessible information about the agent's own counterfactual success, and whether the learned scalar value preserves that information in its ranking.
+Figure~\ref{fig:cf_ladder} compares the learned value with a supervised linear readout from the representation used to compute it.
+This asks whether the representation contains linearly accessible information about the agent's own counterfactual success and whether the learned value
+preserves that information in its ranking.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.8\linewidth,trim={0cm 0cm 0cm 1.1cm},clip]{fig_cf_ladder.png}
-\caption{\textbf{Counterfactual representation-value ladder.} For each method, the probe uses the agent's own counterfactual success as the label. We compare a raw-state linear baseline, the best linear readout of the representation used by the value (\gciql{} penultimate value features; \crl{} $\phi(s,\pi)$; \fb{}/\rldp{} forward map $F(s,\pi,z)$), and the learned value's own ranking. \gciql{} preserves nearly all linearly decodable signal available in its value features; \fb{} contains more signal in $F$ than is reflected in the learned scalar value; \rldp{} contains weaker signal under this probe. The raw baseline is per-agent because counterfactual success depends on each policy, so the cleanest comparison is within method.}
+\includegraphics[width=0.8\linewidth]{fig_cf_ladder_new.png}
+\caption{Counterfactual representation--value ladder. For each method, the probe uses the agent's own counterfactual success as the label. We compare a raw-state linear baseline, the best linear readout of the representation used by the scalar value (\gciql{} penultimate value features; \crl{} $\phi(s,\pi)$; \fb{}/\rldp{}/\psm{} the successor-feature map $F(s,\pi,z)$, which for \psm{} is $\psi(s,\pi,z)$), and the learned value's own ranking. \gciql{} preserves nearly all linearly decodable signal available in its value features; \fb{} contains more signal in $F$ than is reflected in the learned scalar value; \rldp{} contains weaker signal under this probe; \psm{} resolves cube-to-goal geometry best (Table~\ref{tab:geometry_control}) yet its representation readout does not exceed the raw baseline and its value ranks near chance. The raw baseline is per-agent because counterfactual success depends on each policy, so the cleanest comparison is within method.}
 \label{fig:cf_ladder}
 \end{figure}
