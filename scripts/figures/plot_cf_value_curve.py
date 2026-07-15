@@ -31,7 +31,7 @@ OUT = REPO / "PAPER" / "rlbrew" / "figures"
 sns.set_palette("colorblind")
 _CB = sns.color_palette("colorblind").as_hex()
 METHODS = [("gciql", "GCIQL", _CB[1]), ("crl", "CRL", _CB[2]),
-           ("fb", "FB", _CB[0]), ("rldp", "RLDP", _CB[3])]
+           ("fb", "FB", _CB[0]), ("rldp", "RLDP", _CB[3]), ("psm", "PSM", _CB[6])]
 NBINS = 6
 
 
