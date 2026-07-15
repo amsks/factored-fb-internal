@@ -64,10 +64,11 @@ OUTCOME_COL = {"success": _CB[2], "approach": _CB[4], "grasp": _CB[1],
 # Failure-minus-success nearest-neighbour distance (paper-canonical; cf. appendix
 # support table). Columns: pickup Mf-S, carry Mf-S, pickup Tf-S, carry Tf-S.
 SUPPORT_DELTA = {
-    "FB":    [0.51, 0.13, 0.19, -0.04],
-    "GCIQL": [0.82, 0.35, 0.75, 0.34],
-    "CRL":   [1.42, 0.12, 0.39, 0.31],
-    "RLDP":  [0.47, 0.41, 0.44, 0.34],
+    "FB":    [0.38, 0.24, 0.26, 0.11],
+    "GCIQL": [-0.05, -0.09, -0.04, 0.00],
+    "CRL":   [1.83, 0.42, 0.58, 0.37],
+    "RLDP":  [0.42, 0.43, 0.47, 0.58],
+    "PSM":   [0.76, 0.35, 0.53, 0.46],
 }
 SUPPORT_COLS = ["Pickup\nMf$-$S", "Carry\nMf$-$S", "Pickup\nTf$-$S", "Carry\nTf$-$S"]
 

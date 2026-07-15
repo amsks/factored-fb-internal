@@ -99,9 +99,15 @@ def main() -> int:
     ap.add_argument("--data-path", default="datasets")
     ap.add_argument("--n-states", type=int, default=200)
     ap.add_argument("--max-steps", type=int, default=200)
+    ap.add_argument("--k-rollouts", type=int, default=1,
+                    help="continuations per grasp; stores p_succ = successes/K "
+                         "(K=1 reproduces the single-draw success label)")
     ap.add_argument("--mujoco-gl", default="glfw")
     ap.add_argument("--out-tag", default="",
                     help="suffix for output files, e.g. '_seed03' (avoids clobbering the primary run)")
+    ap.add_argument("--values-only", default="",
+                    help="fingerprint mode: dump per-task grasp values to this JSON and exit "
+                         "(no rollouts) -- used for match-by-reproduction checkpoint provenance")
     args = ap.parse_args()
     os.environ["MUJOCO_GL"] = args.mujoco_gl
 
@@ -134,6 +140,13 @@ def main() -> int:
     print(f"[cf] sampled {len(obs_g)} in-hand grasps; rolling out {len(tasks)} goals "
           f"x {args.max_steps} steps each")
 
+    if args.values_only:                                  # provenance fingerprint: values, no rollouts
+        fp = {str(ti): value_q(model, agent, obs_g, zs[ti]).tolist()
+              for ti in range(1, len(tasks) + 1)}
+        Path(args.values_only).write_text(json.dumps(fp))
+        print(f"[cf:values-only] wrote {len(fp)} task value-vectors -> {args.values_only}")
+        return 0
+
     per_task_auc, per_task_sr = [], []
     records = []                                          # (task, success, value, obs)
     for ti, task in enumerate(tasks, start=1):
@@ -141,34 +154,39 @@ def main() -> int:
         val = value_q(model, agent, obs_g, z)            # value at each grasp
         e, _ = create_ogbench_env(task, seed=cfg.seed, obs_type=cfg.obs_type)
         u = e.unwrapped; nv = u._model.nv
-        succ = np.zeros(len(phys_g), bool)
+        K = max(1, args.k_rollouts)
+        psucc = np.zeros(len(phys_g), float)              # p_succ = successes / K
         for j, qpos in enumerate(phys_g):
-            e.reset(options=dict(task_id=ti))
-            u.set_state(np.asarray(qpos, np.float64), np.zeros(nv))
-            u._data.ctrl[u._gripper_actuator_ids] = 0.0   # establish the grasp
-            mujoco.mj_forward(u._model, u._data)
-            ob = np.asarray(u.compute_observation(), np.float32)
-            s = False
-            for _ in range(args.max_steps):
-                a = agent.act(torch.as_tensor(ob[None]), _zb(z, 1))
-                a = np.clip(np.asarray(a).reshape(-1), -1.0, 1.0)
-                ob_, _, term, trunc, info = e.step(a)
-                ob = np.asarray(ob_, np.float32)
-                s = s or bool(info.get("success", False))
-                if term or trunc:
-                    break
-            succ[j] = s
+            nsucc = 0
+            for _k in range(K):                           # independent continuations (stochastic actor)
+                e.reset(options=dict(task_id=ti))
+                u.set_state(np.asarray(qpos, np.float64), np.zeros(nv))
+                u._data.ctrl[u._gripper_actuator_ids] = 0.0   # establish the grasp
+                mujoco.mj_forward(u._model, u._data)
+                ob = np.asarray(u.compute_observation(), np.float32)
+                s = False
+                for _ in range(args.max_steps):
+                    a = agent.act(torch.as_tensor(ob[None]), _zb(z, 1))
+                    a = np.clip(np.asarray(a).reshape(-1), -1.0, 1.0)
+                    ob_, _, term, trunc, info = e.step(a)
+                    ob = np.asarray(ob_, np.float32)
+                    s = s or bool(info.get("success", False))
+                    if term or trunc:
+                        break
+                nsucc += int(s)
+            psucc[j] = nsucc / K
         if hasattr(e, "close"):
             e.close()
-        auc = (roc_auc_score(succ.astype(int), val)
-               if 5 <= succ.sum() <= len(succ) - 5 else float("nan"))
-        per_task_auc.append(auc); per_task_sr.append(float(succ.mean()))
+        lbl = (psucc >= 0.5).astype(int)                  # majority label for the AUC summary
+        auc = (roc_auc_score(lbl, val)
+               if 5 <= lbl.sum() <= len(lbl) - 5 else float("nan"))
+        per_task_auc.append(auc); per_task_sr.append(float(psucc.mean()))
         for j in range(len(obs_g)):
-            records.append((ti, bool(succ[j]), float(val[j]), obs_g[j]))
-        print(f"  task{ti}: cf success rate {succ.mean():.2f}  value-AUC {auc:.3f}")
+            records.append((ti, float(psucc[j]), float(val[j]), obs_g[j]))
+        print(f"  task{ti}: cf success rate {psucc.mean():.2f}  value-AUC {auc:.3f}")
 
     import pandas as pd
-    rec = pd.DataFrame([{"task": t, "success": s, "value": v,
+    rec = pd.DataFrame([{"task": t, "p_succ": s, "success": bool(s >= 0.5), "value": v,
                          **{f"obs_{i}": float(o[i]) for i in range(o.shape[0])}}
                         for t, s, v, o in records])
     rec.to_parquet(REPO / f"analysis/value/repsep/cf_records_{args.method}{args.out_tag}.parquet")
