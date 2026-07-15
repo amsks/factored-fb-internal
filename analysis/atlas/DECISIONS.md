@@ -146,3 +146,34 @@ continuation, or shorten H with the graded reward which needs less horizon).
 UNAFFECTED (these do NOT use the oracle J ranking, still solid):
 - Phase 0A off-support exploitation (17.9 vs 1.76) -- the actor-reversal mechanism.
 - Oracle-free: multi-modality refuted, principal angles [53.7,71.5,83.3].
+
+## Angle calibration + off-reference critic test (2026-07-15) — both oracle-free
+
+### Principal-angle calibration (top-3 goal modes, deg; 0=identical, 90=orthogonal)
+| pair                     | mode1 | mode2 | mode3 |
+|--------------------------|------:|------:|------:|
+| bilinear vs bilinear (seed) | 17.5 | 38.1 | 70.4 |
+| MLP vs MLP (seed)           | 22.2 | 41.6 | 62.7 |
+| **bilinear vs MLP**         | **53.7** | 76.2 | 85.8 |
+| random vs random (ceiling)  | 71.0 | 79.9 | 86.9 |
+
+=> The content difference is REAL: on the dominant mode, bil-vs-mlp 53.7 deg is far above the
+same-critic seed floor (~20 deg) and below the random ceiling (71 deg) -- partial shared
+structure but a genuine divergence, not seed noise. Modes 2-3 are ~random (no shared structure).
+
+### Off-reference critic test (bilinear_ddpgbc vs mlp_ddpgbc, own co-trained critic+actor)
+| critic          | Q(a_DDPG) - max_ref | frac>0 | ||grad_a Q|| |
+|-----------------|--------------------:|-------:|-------------:|
+| bilinear_ddpgbc | **+2.142**          | **0.787** | 3.18 |
+| mlp_ddpgbc      | -0.257              | 0.062  | 3.06 |
+
+=> ATTRACTIVE OFF-REFERENCE PEAK CONFIRMED. The bilinear critic values the DDPG+BC action ABOVE
+every behavioral-reference action 79% of the time (median +2.14); the MLP does so only 6%
+(median -0.26, i.e. below the best reference). The actor climbs a real critic peak that lies
+off the mu support.
+=> STEEPER-LANDSCAPE ALTERNATIVE RULED OUT: ||grad_a Q|| is essentially identical (3.18 vs 3.06),
+so it is not that bilinear has globally steeper action-gradients shifting the BC/RL tradeoff --
+it is specifically an off-support MAXIMUM exceeding the on-manifold max.
+
+CAVEAT: path_rise as coded == the peak endpoint diff (redundant); monotonicity ALONG the path
+not separately captured. Peak result is the load-bearing one and is solid.
