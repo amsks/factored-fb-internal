@@ -84,3 +84,16 @@ and chases them (17.9), while the flow actor is distillation-anchored and stays 
 MLP critic has no such extrema, so its DDPG+BC actor also stays near (1.76). This is the
 mechanism for the actor reversal (bilinear+flow >> bilinear+ddpgbc). Phase 0B (oracle-based
 causal confirmation: are those distant actions actually WORSE?) is pending the oracle subsample.
+
+## Task 10 Primary A — code done; run in progress; two issues found by testing
+
+Oracle discrimination requires H=40 (not smoke's H=12): at H=40 J varies across first-actions
+for EVAL goals (std ~1.7; good actions reach the target, bad ones don't). C2/C3 (eval goals)
+are runnable now; a real run (C2,C3 x 4 states x 16 acts x H40 x 2 reps, ~1h) is backgrounded
+-> analysis/atlas/primaryA_evalgoals.json.
+
+ISSUE for C1/C4: goals_hindsight were RANDOM dataset rows -> unreachable from the state ->
+oracle J constant (std 0) -> no ranking signal. FIX (committed in banks.py): per-state
+REACHABLE hindsight goals = observations mu reaches by rolling forward from each state
+(goals_hindsight_ps [4,K,NH,28]). Requires a banks REBUILD (~20 min of mu rollouts) and a
+primaryA update to read per-state hindsight goals before C1/C4 can run. NOT yet done.

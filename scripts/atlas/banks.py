@@ -84,16 +84,48 @@ def build_banks(mu, dataset, out_path):
     A_glob = (qmc.Sobol(d=5, seed=C.SEED).random(C.N_GLOBAL) * 2 - 1).astype(np.float32)
 
     goals_eval = _eval_goals(env)
-    hi = rng.choice(len(dataset['observations']), C.N_HINDSIGHT, replace=False)
     gi = rng.choice(len(dataset['observations']), C.N_GRID, replace=False)
-    goals_hind = dataset['observations'][hi].astype(np.float32)
     goals_grid = dataset['observations'][gi].astype(np.float32)
+    # Per-state REACHABLE hindsight goals: roll mu forward from each state and take the
+    # observation a few horizons ahead. Reachable by construction (mu just did it), so the
+    # oracle can discriminate first-actions toward them. Shape [4, K, N_HG, 28].
+    goals_hind_ps = _reachable_hindsight(mu, env, obs, pref, preflen)
 
     np.savez(out_path, state_obs=obs, state_qpos=qp, state_qvel=qv,
              state_phase=np.repeat(np.arange(4), K),
              state_prefix_actions=pref, state_prefix_len=preflen,
              A_mu=A_mu, A_perturb=A_pert, A_global=A_glob, mu_center_samples=mu_center,
-             goals_eval=goals_eval, goals_hindsight=goals_hind, goals_grid=goals_grid)
+             goals_eval=goals_eval, goals_hindsight_ps=goals_hind_ps, goals_grid=goals_grid)
+
+
+def _reachable_hindsight(mu, env, obs, pref, preflen, horizons=(15, 30, 45), n_alt=2):
+    """For each state, roll mu forward from it and snapshot the observation at a few
+    horizons -> reachable hindsight goals. n_alt independent rollouts per horizon give
+    variety. Returns [4, K, len(horizons)*n_alt, 28]."""
+    P, K = obs.shape[:2]
+    NH = len(horizons) * n_alt
+    out = np.zeros((P, K, NH, 28), np.float32)
+    for p in range(P):
+        for k in range(K):
+            # reconstruct the state by prefix-replay, then roll mu forward
+            L = int(preflen[p, k])
+            gi = 0
+            for alt in range(n_alt):
+                env.reset(seed=k % 5000, options=dict(task_id=1, render_goal=False))
+                for a in pref[p, k, :L]:
+                    env.step(a)
+                ob = obs[p, k]
+                snaps = {}
+                a = mu.sample(ob[None], n=1, seed=1000 * (p * K + k) + 17 * alt)[0, 0]
+                for t in range(max(horizons)):
+                    ob, *_ = env.step(a)
+                    if (t + 1) in horizons:
+                        snaps[t + 1] = ob.copy()
+                    a = mu.sample(ob[None], n=1, seed=1000 * (p * K + k) + 17 * alt + t + 1)[0, 0]
+                for h in horizons:
+                    out[p, k, gi] = snaps.get(h, ob)
+                    gi += 1
+    return out
 
 
 def load_banks(path):
