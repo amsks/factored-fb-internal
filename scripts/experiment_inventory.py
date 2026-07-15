@@ -85,10 +85,18 @@ def main():
         has_fb_dir = any(ATLAS_FB_DIR in r['path'] for r in real)
         steps = sorted({r['max_step'] for r in real})
         vlevel = correctness(g, roots, has_fb_dir)
+        # exact absolute checkpoint file for one seed (verified to exist)
+        import glob as _glob
+        rundir = os.path.join(os.path.expanduser('~/bridge_ckpt_backup'), real[0]['path'])
+        if real[0]['framework'] == 'jax':
+            _f = sorted(_glob.glob(f'{rundir}/params_*.pkl'))
+        else:
+            _f = sorted(_glob.glob(f'{rundir}/checkpoints/*.pt'))
+        example_ckpt = _f[-1] if _f else rundir
+        group_dir = os.path.dirname(rundir)   # the dir holding all seed subdirs
         out.append(dict(
             group=g, n_seeds=len(real), desc=describe(g, real), thrust=thrust(g, real),
-            location='; '.join(sorted(roots)),
-            example_path=os.path.dirname(real[0]['path']),
+            location=group_dir + '/', example_ckpt=example_ckpt,
             steps=steps[-1], size_gb=round(sum(float(r['size_mb']) for r in real) / 1000, 1),
             verified=vlevel,
             audit='yes' if ('checksum-OK' in vlevel or 'loaded' in vlevel) else 'no',
@@ -97,7 +105,7 @@ def main():
     out.sort(key=lambda r: (-r['size_gb']))
     csvp = f'{REPO}/analysis/atlas/EXPERIMENT_INVENTORY.csv'
     with open(csvp, 'w', newline='') as fh:
-        w = csv.DictWriter(fh, fieldnames=['group', 'thrust', 'desc', 'location', 'example_path',
+        w = csv.DictWriter(fh, fieldnames=['group', 'thrust', 'desc', 'location', 'example_ckpt',
                                            'n_seeds', 'steps', 'size_gb', 'in_paper',
                                            'verified', 'audit'])
         w.writeheader()
