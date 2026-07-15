@@ -20,12 +20,24 @@ from scripts.atlas.build_atlas import center_and_standardize
 from scripts.atlas.oracle import oracle_J
 from scripts.atlas.prefix_replay import PrefixState
 
-CELLS = {                        # name -> (phase, goal_key)
-    'C1': (2, 'goals_hindsight'),
-    'C2': (2, 'goals_eval'),
-    'C4': (0, 'goals_hindsight'),
-    'C3': (0, 'goals_eval'),
+CELLS = {                        # name -> (phase, goal_source)
+    'C1': (2, 'hindsight'),      # ID start (on-manifold) + ID goal (reachable hindsight)
+    'C2': (2, 'eval'),          # ID start + OOD goal (eval task)
+    'C4': (0, 'hindsight'),     # OOD start (reset) + ID goal
+    'C3': (0, 'eval'),          # OOD start + OOD goal = the benchmark
 }
+
+
+def _cell_goals(banks, phase, k, source, n=5):
+    """Goals for one (phase, state). Eval/grid goals are shared [n,28]; hindsight goals are
+    PER-STATE and mu-reachable (banks['goals_hindsight_ps'][phase,k]) so the oracle can rank."""
+    if source == 'eval':
+        return banks['goals_eval'][:n]
+    if source == 'grid':
+        return banks['goals_grid'][:n]
+    if source == 'hindsight':
+        return banks['goals_hindsight_ps'][phase, k][:n]
+    raise ValueError(source)
 
 
 def spearman_gap(a_vals, j_vals):
@@ -54,8 +66,7 @@ def _atlas_col(critic, obs, acts, mu_center, goal):
 
 def primary_a_cell(critics, banks, pool, mu, cell, n_states=3, n_act=16, H=20, replicates=2):
     """One factorial cell. Returns per-critic mean Spearman rho over (state, goal) pairs."""
-    phase, goal_key = CELLS[cell]
-    goals = banks[goal_key][:5]
+    phase, source = CELLS[cell]
     rng = np.random.RandomState(C.SEED)
     rhos = {name: [] for name in critics}
     for k in range(n_states):
@@ -65,7 +76,7 @@ def primary_a_cell(critics, banks, pool, mu, cell, n_states=3, n_act=16, H=20, r
         idx = rng.choice(len(A_mu), n_act, replace=False)
         acts = A_mu[idx]
         ps = _ps(banks, phase, k)
-        for g in goals:
+        for g in _cell_goals(banks, phase, k, source):
             J = np.array([oracle_J(pool, mu, ps, a, g, replicates=replicates, H=H)
                           for a in acts])
             for name, crit in critics.items():
