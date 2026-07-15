@@ -8,7 +8,7 @@ All methods almost always complete approach and most acquire control, but the lo
 State-support gaps broadly covary with performance: \gciql{} shows almost no gap between successful and failed rollout states, whereas, for every
 lower-performing method, failed pickup and carry states are farther from the offline data.
 However, when initialized from in-hand states sampled directly from the offline dataset, the lower-performing methods still weakly rank grasp states
-by eventual task success, while \gciql{} reaches a rank-AUC of $0.89$.
+by eventual task success, while \gciql{} reaches a rank-AUC of $0.82$.
 Linear probes further suggest that \fb{} contains task-success information that is not fully preserved by its scalar readout, whereas \rldp{} contains
 less linearly accessible information.
 Together, these findings show that effective successor-measure approximations for manipulation must not only reach and lift the object, but also assign

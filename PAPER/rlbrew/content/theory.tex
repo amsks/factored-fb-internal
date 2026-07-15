@@ -4,10 +4,10 @@
 We now formalize the interaction-state hypothesis behind our analysis.
 Because the interaction state is part of the full physical state, the exact successor measure reflects its effect on future occupancy.
 Approximation error can arise when the physical state is compressed into an observation or learned representation.
-Let $y=\Omega(\tilde{s})$ denote the state encoding used by the policy or value function, and let $\iota(\tilde{s})$ denote the local interaction state, such as whether an object is freely moving, stably held, or slipping.
+Let $\tilde{s}\in\widetilde{\mathcal S}$ denote the full physical state, and let $y=\Omega(\tilde{s})$ denote the state encoding used by the policy or value function, with $\iota(\tilde{s})$ denoting the local interaction state, such as whether an object is freely moving, stably held, or slipping.
 Here, $\Omega$ may denote either the observation map or a learned representation.
-Two full states can be nearby in observation space while having different interaction states and therefore different successor measures.
-The relevant question is which interaction-state distinctions are lost in the observation, learned representation, or values.
+Two full states can be nearby in representation space while having different interaction states and therefore different successor measures.
+The relevant question is which interaction-state distinctions are lost in the learned representation, and corresponding value-functions.
 We illustrate this distinction by describing how interaction state changes the transition dynamics.
 
 \subsection{Interaction-dependent transition dynamics}
@@ -91,7 +91,7 @@ Thus, if stable and unstable grasp states receive the same observation or repres
 Overestimating unstable grasp states can cause the actor to prefer actions that lift the cube but do not maintain control during transport.
 
 This information loss may occur either in the learned representation or in the scalar readout.
-A bilinear value can express the distinction only if the representation encodes the relevant interaction-state information and the task-conditioned readout uses it.
+A bilinear value parameterization can express the distinction  only if the representation encodes the relevant interaction-state information and the task-conditioned readout uses it.
 Our empirical probes therefore ask whether the learned representation contains information about task success from in-hand grasp states and whether the scalar value preserves that information.
 
 \subsection{Instantiation in cube manipulation}
@@ -110,7 +110,7 @@ For goal $g$, we use the task-specific event
         \tilde{s}_H\in G_g
     \},
 \end{equation}
-where $A$ is the reaching set, $C$ is the control-acquisition set, $R$ is the final-retention set, and $G_g$ is the goal set.
+where $\tau_A=\inf\{t:\tilde{s}_t\in A\}$, $A$ is the reaching set, $C$ is the control-acquisition set, $R$ is the final-retention set, and $G_g$ is the goal set.
 The corresponding task-success probability is
 \begin{equation}
     u^\pi_H(\tilde{s},a;g) = \Pr_\pi
@@ -123,5 +123,3 @@ The corresponding task-success probability is
         \tilde{s}_0=\tilde{s},a_0=a
     \right).
 \end{equation}
-where $\tau_A=\inf\{t:\tilde{s}_t\in A\}$, $A$ is the reaching set, $C$ is the control-acquisition set, $R$ is the final-retention set, and $G_g$ is the goal set.
-A maintain-control failure means that the policy satisfied the control-acquisition criterion but did not end the episode with the cube above the retention threshold.

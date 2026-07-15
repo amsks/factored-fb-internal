@@ -58,7 +58,7 @@ def main() -> int:
     ax.legend(fontsize=9, loc="upper right", frameon=False)
     ax.grid(True, axis="y", alpha=0.3)
     fig.tight_layout()
-    out = OUT / "fig_cf_ladder.png"
+    out = OUT / "fig_cf_ladder_new.png"
     fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
     print(f"[plot] wrote {out}")
     return 0
