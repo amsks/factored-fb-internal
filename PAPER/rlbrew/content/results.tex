@@ -81,19 +81,19 @@ Each grasp is evaluated independently, and the probe covers states from the offl
 We then plot success rate as a function of the learned value percentile.
 We summarize ranking quality using rank-AUC, the probability that a successful grasp state receives a higher value than an unsuccessful grasp state.
 Because the success labels are generated separately under each method's own policy, this probe measures whether a method's value is consistent with its own downstream outcomes rather than comparing all methods against a single shared target.
-\gciql{}'s value is strongly predictive (rank-AUC $0.89$): its top-value grasps succeed ${\approx}99\%$ of the time, its bottom-value grasps ${\approx}27\%$.
-For \rldp{} and \psm{}, the curves are nearly flat (AUC $0.52$ and $0.49$), indicating that higher values do not correspond to higher success rates.
-\fb{} shows a weaker relationship (AUC approximately $0.61$), while \crl{} is intermediate ($0.68$).
+\gciql{}'s value is the most predictive (rank-AUC $0.82$): its top-value grasps succeed ${\approx}99\%$ of the time, its bottom-value grasps ${\approx}54\%$.
+For \rldp{} and \psm{}, the curves are nearly flat (AUC $0.51$ and $0.52$), indicating that higher values do not correspond to higher success rates.
+\fb{} shows a weaker relationship (AUC approximately $0.64$), while \crl{} is intermediate ($0.73$).
 For \fb{} and \rldp{}, the learned value is therefore only weakly informative about whether the policy will maintain control and complete the task.
 
 We next ask whether the weak ranking arises in the learned representation or in the scalar value derived from it.
 Using each agent's simulator-reset success labels, we fit a linear readout from the learned representation and compare its ranking with that of the learned value (Appendix~\ref{app:tables}, Figure~\ref{fig:cf_ladder}).
 The probe suggests different bottlenecks for \fb{}, \rldp{}, and \psm{}.
-\fb{} is consistent with a readout bottleneck: a linear readout of its forward map reaches AUC 0.70, while its learned scalar value reaches 0.61.
+\fb{} is consistent with a readout bottleneck: a linear readout of its forward map reaches AUC 0.83, while its learned scalar value reaches only 0.64.
 \rldp{} is consistent with a representation bottleneck: the best readout reaches only
-0.61, and its learned value reaches 0.52.
-\psm{} shows the largest collapse from the raw-state baseline to the learned value: although its backward embedding resolves cube-to-goal geometry best of any method (nonlinear $R^2$ $0.90$; Table~\ref{tab:geometry_control}), a linear readout of the representation its value uses does not exceed the raw-state baseline for counterfactual success ($0.67$ versus $0.73$), and the value itself ranks near chance ($0.49$). Resolving cube-to-goal geometry therefore does not imply that the representation encodes which grasps the policy will keep.
-For \gciql{}, the learned value preserves nearly all of the linearly decodable signal available in its value features, reaching AUC $0.89$.
+0.68, barely above the raw-state baseline ($0.72$), and its learned value reaches 0.51.
+\psm{} shows the same pattern more sharply: although its backward embedding resolves cube-to-goal geometry best of any method (nonlinear $R^2$ $0.90$; Table~\ref{tab:geometry_control}), a linear readout of the representation its value uses does not exceed the raw-state baseline for counterfactual success ($0.66$ versus $0.73$), and the value itself ranks near chance ($0.52$). Resolving cube-to-goal geometry therefore does not imply that the representation encodes which grasps the policy will keep.
+For \gciql{}, the learned value retains most of the linearly decodable signal available in its value features (readout $0.92$, value $0.82$), the strongest value ranking under this diagnostic.
 
 These probes suggest that weak ranking can arise either in the learned representation or in the scalar readout, but they do not identify the readout form as the sole cause.
 \gciql{} differs from \fb{}, \crl{}, \rldp{}, and \psm{} in objective, actor training, critic architecture, implicit regularization, and optimization stability, not only in its value readout.

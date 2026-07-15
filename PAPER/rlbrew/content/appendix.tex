@@ -112,17 +112,17 @@ Because the labels are generated separately under each method's own policy, the 
 
 \begin{table}[H]
 \centering
-\caption{On-policy counterfactual value test. We reset $200$ in-hand grasp states in the simulator, roll out each agent's own policy, and report the learned value's rank-AUC against the agent's own success, computed per goal and averaged across goals, together with the mean counterfactual success rate.}
+\caption{On-policy counterfactual value test. We reset $200$ in-hand grasp states in the simulator and roll out each agent's own (flow) policy for $K=10$ independent continuations per grasp, labeling the grasp by the fraction that reaches the goal (the flow policy is stochastic, so a single rollout is a noisy draw). We report the learned value's rank-AUC against this success label, computed per goal, averaged across goals and across the method's flow-actor training seeds ($9$--$10$ seeds), together with the mean counterfactual success rate.}
 \label{tab:cf_value}
 \begin{tabular}{lcc}
 \toprule
 \textbf{Method} & \textbf{Counterfactual rank-AUC} & \textbf{Counterfactual success rate} \\
 \midrule
-\gciql{} & $0.89$ & $0.66$ \\
-\crl{}   & $0.68$ & $0.38$ \\
-\fb{}    & $0.61$ & $0.55$ \\
-\rldp{}  & $0.52$ & $0.21$ \\
-\psm{}   & $0.49$ & $0.32$ \\
+\gciql{} & $0.82$ & $0.79$ \\
+\crl{}   & $0.73$ & $0.37$ \\
+\fb{}    & $0.64$ & $0.54$ \\
+\rldp{}  & $0.51$ & $0.23$ \\
+\psm{}   & $0.52$ & $0.23$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -134,6 +134,6 @@ preserves that information in its ranking.
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.8\linewidth]{fig_cf_ladder_new.png}
-\caption{Counterfactual representation--value ladder. For each method, the probe uses the agent's own counterfactual success as the label. We compare a raw-state linear baseline, the best linear readout of the representation used by the scalar value (\gciql{} penultimate value features; \crl{} $\phi(s,\pi)$; \fb{}/\rldp{}/\psm{} the successor-feature map $F(s,\pi,z)$, which for \psm{} is $\psi(s,\pi,z)$), and the learned value's own ranking. \gciql{} preserves nearly all linearly decodable signal available in its value features; \fb{} contains more signal in $F$ than is reflected in the learned scalar value; \rldp{} contains weaker signal under this probe; \psm{} resolves cube-to-goal geometry best (Table~\ref{tab:geometry_control}) yet its representation readout does not exceed the raw baseline and its value ranks near chance. The raw baseline is per-agent because counterfactual success depends on each policy, so the cleanest comparison is within method.}
+\caption{Counterfactual representation--value ladder. For each method, the probe uses the agent's own counterfactual success as the label. We compare a raw-state linear baseline, the best linear readout of the representation used by the scalar value (\gciql{} penultimate value features; \crl{} $\phi(s,\pi)$; \fb{}/\rldp{}/\psm{} the successor-feature map $F(s,\pi,z)$, which for \psm{} is $\psi(s,\pi,z)$), and the learned value's own ranking. \gciql{} retains most of the linearly decodable signal available in its value features; \fb{} contains more signal in $F$ than is reflected in the learned scalar value; \rldp{} contains weaker signal under this probe; \psm{} resolves cube-to-goal geometry best (Table~\ref{tab:geometry_control}) yet its representation readout does not exceed the raw baseline and its value ranks near chance. The raw baseline is per-agent because counterfactual success depends on each policy, so the cleanest comparison is within method.}
 \label{fig:cf_ladder}
 \end{figure}
