@@ -191,3 +191,10 @@ Systematic 4-boundary audit of the persistent copies before deleting the /dev/sh
 VERDICT: the /dev/shm copies of gciql_outputs, factored-fb, datasets are byte-identical to
 persistent and load correctly. SAFE to delete them (reclaims ~165 GB RAM). Keep .venv-jax.
 Inventory: analysis/atlas/EXPERIMENT_INVENTORY.csv (85 groups, 483 runs).
+
+## Full per-group audit closed (2026-07-15) — all 85 groups audit=yes
+
+The 42 persistent-only groups (never in /dev/shm, so no checksum baseline) were loadability-
+verified per group: loaded ONE checkpoint from each -> 41/41 torch OK + 1/1 jax OK.
+Combined with the 43 already-verified (checksum byte-parity or loaded end-to-end), ALL 85
+experiment groups are now individually verified. audit=no count: 0.

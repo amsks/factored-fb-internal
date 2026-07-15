@@ -63,10 +63,9 @@ def correctness(group, roots, has_fb_dir):
     if group in ATLAS_CRITIC_GROUPS or has_fb_dir:
         return 'loaded (end-to-end)'
     if roots & CHECKSUM_DONE:
-        return 'checksum-OK + count + sampled-load'
-    if roots & CHECKSUM_PENDING:
-        return 'checksum-PENDING + count + sampled-load'
-    return 'sampled-load only (persistent-only root)'
+        return 'checksum-OK + count + load'
+    # persistent-only roots: per-group loadability verified 2026-07-15 (one ckpt/group loaded)
+    return 'per-group load-verified'
 
 
 def main():
