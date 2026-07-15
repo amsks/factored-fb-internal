@@ -114,14 +114,19 @@ def _torch_rows(root):
         env = parts[1] if len(parts) > 1 else cfg.get('domain', '')
         agent = parts[2] if len(parts) > 2 else ''
         seed = ovd.get('seed', '')
+        # wandb_group lives in the OVERRIDES for most torch runs (config.yaml has it null).
+        group = ovd.get('wandb_group') or cfg.get('wandb_group') or ''
+        m = MAP.get(group, {})
+        s = SUCCESS.get(group, ('', '', '', '', '', ''))
         hint = ','.join(f'{k}={v}' for k, v in sorted(ovd.items()) if k not in _BORING)
         rows.append(dict(
             framework='torch', root=os.path.basename(root), path=os.path.relpath(d, ROOT),
-            wandb_group=cfg.get('wandb_group') or '', mapped='no',
-            env=env, agent=agent, actor='flowbc' if 'flowbc' in agent else agent,
-            variant=hint[:60], seed=seed, steps=str(len(pts)) + ' .pt',
+            wandb_group=group, mapped='yes' if m else 'no',
+            env=m.get('env', s[2]) or env, agent=m.get('agent', s[3]) or agent,
+            actor=m.get('actor', 'flowbc' if 'flowbc' in agent else agent),
+            variant=m.get('variant', hint[:60]), seed=seed, steps=str(len(pts)) + ' .pt',
             max_step=nts, is_smoke='yes' if nts < SMOKE_STEPS else 'no',
-            success='', ci95='', size_mb=_dir_size_mb(d)))
+            success=s[0], ci95=s[1], size_mb=_dir_size_mb(d)))
     return rows
 
 
