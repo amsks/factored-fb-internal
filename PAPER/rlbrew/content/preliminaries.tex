@@ -12,7 +12,8 @@ For a state reward $r$, policy evaluation can be written as:
 \end{equation}
 This identity motivates successor measures for URL: a reward-independent representation of future occupancy can be combined with a downstream reward to evaluate task-specific policies~\citep{dayan-nc93a,touati-neurips21a,touati-iclr23a,agarwal-rlj25a}.
 
-Representing exact successor measures is intractable in large or continuous state spaces, particularly when the representation must cover many policies. Practical URL methods therefore impose additional structure.
+Representing exact successor measures is generally impractical in large or continuous state spaces, particularly when the representation must cover many policies. 
+Practical URL methods therefore impose additional structure.
 For example, \fb{} uses a low-rank approximation:
 \begin{equation}
     M^{\pi_z}(s,a,ds^+) \approx F(s,a,z)^\top B(s^+)\,\rho(ds^+),
@@ -20,7 +21,7 @@ For example, \fb{} uses a low-rank approximation:
 where $\rho$ is a reference state distribution and $z$ indexes a reward or policy embedding~\citep{touati-neurips21a,touati-iclr23a}.
 Other methods can be viewed as learning lower-dimensional or goal-specific projections of future occupancy~\citep{agarwal-rlj25a}.
 Goal-conditioned methods learn values or policies indexed by a target, 
-contrastive methods learn state–goal scores, and predictive methods learn latent transition structure intended to support long-horizon control~\citep{eysenbach-iclr21a,eysenbach-neurips22a,ma-neurips22a}.
+contrastive methods learn state–goal values, and predictive methods learn latent transition structure intended to support long-horizon control~\citep{eysenbach-iclr21a,eysenbach-neurips22a,ma-neurips22a}.
 Each objective therefore determines which state distinctions are preserved for downstream control.
 
 \subsection{Successor-measure view of the evaluated methods}
@@ -36,14 +37,16 @@ The corresponding goal-relevant successor mass is
     m^\pi_g(s,a) = M^\pi\!\left(s,a,G(g)\right).
 \end{equation}
 This quantity measures the discounted future occupancy of the goal set under $\pi$.
+Because repeated visits contribute additional mass, $m_g^\pi$ is not in general equal to the probability of reaching the goal set.
 We use $m^\pi_g$ only as a common reference: the evaluated methods do not all estimate it explicitly.
 
 Under this view, \gciql{} learns a goal-conditioned value $Q(s,a,g)$~\citep{park-iclr25a},
-while \crl{} learns a bilinear state-action-goal score $f(s,a)^\top b(g)$~\citep{eysenbach-neurips22a}.
+while \crl{} learns a bilinear state-action-goal value $f(s,a)^\top b(g)$~\citep{eysenbach-neurips22a}.
 \fb{} directly learns a low-rank factorization of policy-conditioned successor measures~\citep{touati-neurips21a,touati-iclr23a},
 and \psm{} learns a basis for representing a family of successor measures~\citep{agarwal-arxiv25a}.
 \rldp{} instead learns predictive features from which downstream task-conditioned policies are extracted~\citep{jajoo-iclr26a}.
 
 Contact-rich manipulation can violate the assumption that geometrically similar states have similar futures.
 Nearby robot-object configurations may correspond to a stable grasp, an incipient slip, or a loss of control, and can therefore induce substantially different future occupancies.
-A useful learned representation or score must consequently preserve distinctions between interaction-states that affect future control, in addition to the coarse geometry of the robot, object, and goal.
+A useful learned representation or value must therefore preserve the interaction-state distinctions that affect future control, in addition to the
+coarse geometry of the robot, object, and goal.
