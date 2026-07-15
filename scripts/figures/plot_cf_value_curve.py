@@ -60,19 +60,14 @@ def main() -> int:
             n = np.sum(~np.isnan(curves), axis=0)
             sem = np.nanstd(curves, axis=0, ddof=1) / np.sqrt(np.maximum(n, 1))
             lo, hi = y - 1.96 * sem, y + 1.96 * sem
-            a = ms.get(m, {})
-            note = (f"AUC {a['auc_iqm']:.2f}$\\pm${a['auc_ci_halfwidth']:.2f}"
-                    if a else "")
             ax.fill_between(x, lo, hi, color=col, alpha=0.18)
-            ax.plot(x, y, "o-", color=col, lw=2.2, ms=7,
-                    label=f"{lab}  ({note})")
+            ax.plot(x, y, "o-", color=col, lw=2.2, ms=7, label=lab)
         else:                                             # fallback: single primary run
             rp = REPSEP / f"cf_records_{m}.parquet"
             if not rp.exists():
                 continue
             y = _seed_curve(pd.read_parquet(rp))
-            auc = json.loads((REPSEP / f"cf_value_{m}.json").read_text())["cf_value_auc_mean"]
-            ax.plot(x, y, "o-", color=col, lw=2.2, ms=7, label=f"{lab}  (AUC {auc:.2f})")
+            ax.plot(x, y, "o-", color=col, lw=2.2, ms=7, label=lab)
 
     ax.set_xlabel("grasp value percentile  (low $\\rightarrow$ high value)", fontsize=11)
     ax.set_ylabel("counterfactual success rate\n(agent reaches goal from grasp)", fontsize=11)

@@ -32,10 +32,15 @@ def main() -> int:
     ap.add_argument("--checkpoint-dir")
     ap.add_argument("--step", type=int, default=1000000)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--records", default="",
+                    help="input records tag: cf_records_<records>.parquet (default: --method)")
+    ap.add_argument("--out-tag", default="",
+                    help="suffix on output: cf_repfeat_<method><out-tag>.parquet")
     args = ap.parse_args()
 
     import jax
-    rec = pd.read_parquet(REPO / f"analysis/value/repsep/cf_records_{args.method}.parquet")
+    rec = pd.read_parquet(
+        REPO / f"analysis/value/repsep/cf_records_{args.records or args.method}.parquet")
     obs_cols = [c for c in rec.columns if c.startswith("obs_")]
 
     if args.method == "gciql":
@@ -98,19 +103,21 @@ def main() -> int:
                         seed=k, temperature=0.0)), -1, 1).astype(np.float32)
             return np.asarray(phi_fn(obs, a))
 
+    has_p = "p_succ" in rec.columns
     out_rows = []
     for ti in range(1, N_TASKS + 1):
         d = rec[rec["task"] == ti]
         obs = d[obs_cols].to_numpy(np.float32)
         rep = rep_of(obs, ti)
         for k in range(len(d)):
-            out_rows.append((ti, bool(d["success"].iloc[k]), float(d["value"].iloc[k]),
+            ps = float(d["p_succ"].iloc[k]) if has_p else float(bool(d["success"].iloc[k]))
+            out_rows.append((ti, bool(d["success"].iloc[k]), ps, float(d["value"].iloc[k]),
                              obs[k], rep[k]))
-    df = pd.DataFrame([{"task": t, "success": s, "value": v,
+    df = pd.DataFrame([{"task": t, "success": s, "p_succ": ps, "value": v,
                         **{f"obs_{i}": float(o[i]) for i in range(o.shape[0])},
                         **{f"rep_{i}": float(r[i]) for i in range(r.shape[0])}}
-                       for t, s, v, o, r in out_rows])
-    out = REPO / f"analysis/value/repsep/cf_repfeat_{args.method}.parquet"
+                       for t, s, ps, v, o, r in out_rows])
+    out = REPO / f"analysis/value/repsep/cf_repfeat_{args.method}{args.out_tag}.parquet"
     df.to_parquet(out)
     print(f"[cf_repfeat:{args.method}] {len(df)} rows, rep dim "
           f"{sum(c.startswith('rep_') for c in df.columns)} -> {out}")

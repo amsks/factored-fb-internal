@@ -58,6 +58,10 @@ def main() -> int:
     ap.add_argument("--data-path", default="datasets")
     ap.add_argument("--n-states", type=int, default=200)
     ap.add_argument("--max-steps", type=int, default=200)
+    ap.add_argument("--k-rollouts", type=int, default=1,
+                    help="continuations per grasp; stores p_succ = successes/K")
+    ap.add_argument("--values-only", default="",
+                    help="fingerprint mode: dump per-task grasp values to this JSON and exit")
     ap.add_argument("--out-tag", default="",
                     help="suffix for output files, e.g. '_seed03' (avoids clobbering the primary run)")
     args = ap.parse_args()
@@ -137,6 +141,26 @@ def main() -> int:
           f"x {args.max_steps} steps")
     per_task_auc, per_task_sr, records = [], [], []
     rng = jax.random.PRNGKey(args.seed)
+
+    if args.values_only:                                  # provenance fingerprint: values, no rollouts
+        fp = {}
+        for ti in range(1, N_TASKS + 1):
+            e, goal = make_task_env(ti)
+            G = np.broadcast_to(goal[None], obs_g.shape).astype(np.float32)
+            if args.method == "gciql":
+                val = np.asarray(value(obs_g, G))
+            else:
+                rng, k = jax.random.split(rng)
+                A = np.clip(np.asarray(agent.sample_actions(
+                    observations=obs_g, goals=G, seed=k, temperature=0.0)), -1, 1).astype(np.float32)
+                val = np.asarray(qcrit(obs_g, G, A))
+            if hasattr(e, "close"):
+                e.close()
+            fp[str(ti)] = val.tolist()
+        Path(args.values_only).write_text(json.dumps(fp))
+        print(f"[cf-jax:values-only] wrote {len(fp)} task value-vectors -> {args.values_only}")
+        return 0
+
     for ti in range(1, N_TASKS + 1):
         e, goal = make_task_env(ti)
         u = e.unwrapped
@@ -148,30 +172,35 @@ def main() -> int:
             A = np.clip(np.asarray(agent.sample_actions(
                 observations=obs_g, goals=G, seed=k, temperature=0.0)), -1, 1).astype(np.float32)
             val = np.asarray(qcrit(obs_g, G, A))
-        succ = np.zeros(len(phys_g), bool)
+        K = max(1, args.k_rollouts)
+        psucc = np.zeros(len(phys_g), float)              # p_succ = successes / K
         for j, qpos in enumerate(phys_g):
-            reset_task(e, ti)
-            ob = _establish_grasp(u, qpos, mujoco)
-            s = False
-            for _ in range(args.max_steps):
-                rng, k = jax.random.split(rng)
-                a = np.clip(np.asarray(agent.sample_actions(
-                    observations=ob, goals=goal, seed=k, temperature=0.0)), -1, 1)
-                ob_, _, term, trunc, info = e.step(a)
-                ob = np.asarray(ob_, np.float32)
-                s = s or bool(info.get("success", False))
-                if term or trunc:
-                    break
-            succ[j] = s
+            nsucc = 0
+            for _kk in range(K):                          # independent continuations
+                reset_task(e, ti)
+                ob = _establish_grasp(u, qpos, mujoco)
+                s = False
+                for _ in range(args.max_steps):
+                    rng, k = jax.random.split(rng)
+                    a = np.clip(np.asarray(agent.sample_actions(
+                        observations=ob, goals=goal, seed=k, temperature=0.0)), -1, 1)
+                    ob_, _, term, trunc, info = e.step(a)
+                    ob = np.asarray(ob_, np.float32)
+                    s = s or bool(info.get("success", False))
+                    if term or trunc:
+                        break
+                nsucc += int(s)
+            psucc[j] = nsucc / K
         if hasattr(e, "close"):
             e.close()
-        auc = _auc(succ, val)
-        per_task_auc.append(auc); per_task_sr.append(float(succ.mean()))
+        lbl = (psucc >= 0.5).astype(int)
+        auc = _auc(lbl.astype(bool), val)
+        per_task_auc.append(auc); per_task_sr.append(float(psucc.mean()))
         for j in range(len(obs_g)):
-            records.append((ti, bool(succ[j]), float(val[j]), obs_g[j]))
-        print(f"  task{ti}: cf success {succ.mean():.2f}  value-AUC {auc:.3f}")
+            records.append((ti, float(psucc[j]), float(val[j]), obs_g[j]))
+        print(f"  task{ti}: cf success {psucc.mean():.2f}  value-AUC {auc:.3f}")
 
-    pd.DataFrame([{"task": t, "success": s, "value": v,
+    pd.DataFrame([{"task": t, "p_succ": s, "success": bool(s >= 0.5), "value": v,
                    **{f"obs_{i}": float(o[i]) for i in range(o.shape[0])}}
                   for t, s, v, o in records]).to_parquet(
         REPO / f"analysis/value/repsep/cf_records_{args.method}{args.out_tag}.parquet")
