@@ -55,3 +55,28 @@ def goal_dir(state_cube_xyz, goal_obs, eps=1e-6):
 def T_dir(dx_cube, dg):
     """[n,3] . [3] -> [n]  goal-directed transport score per action."""
     return dx_cube @ dg
+
+
+def T_hold_batch(pool, qpos, qvel, actions, mu, Hh=15, seed=0):
+    """Control-retention candidate, BATCHED across an env pool: take action a from state s,
+    continue with the goal-agnostic BC flow mu for Hh steps in lockstep, return 1 if the cube
+    is still controlled at the end (contact on and not dropped). actions [n,5] -> [n] in {0,1}.
+    Chunks so no two actions share an env."""
+    out = np.zeros(len(actions), np.float32)
+    P = len(pool)
+    for c in range(0, len(actions), P):
+        chunk = actions[c:c + P]
+        m = len(chunk)
+        envs = pool[:m]
+        ob = np.zeros((m, 28), np.float32)
+        for j in range(m):
+            restore_qposvel(envs[j], qpos, qvel)
+            ob[j] = envs[j].step(np.asarray(chunk[j], np.float32))[0]
+        for t in range(Hh):
+            an = mu.sample(ob, n=1, seed=seed * 100000 + c * 100 + t)[:, 0, :]
+            for j in range(m):
+                ob[j] = envs[j].step(an[j])[0]
+        for j in range(m):
+            held = (ob[j][CONTACT_IDX] > 0.5) and (envs[j].unwrapped._data.qpos[CUBE_QPOS][2] > 0.03)
+            out[c + j] = 1.0 if held else 0.0
+    return out
