@@ -7,6 +7,8 @@ torch FB: reward-inferred z_g per goal (infer_z(obs, reward)); Q = <F(s,a,z_g), 
 The two stacks run under different venvs and are loaded lazily so importing this module
 never requires both.
 """
+import os
+
 import numpy as np
 
 from scripts.atlas.jax_load import CRITICS, load_agent
@@ -101,7 +103,8 @@ def _load_fb():
     _, agent, _, _ = build_env_and_agent(cfg)
     load_checkpoint(agent, f'{run}/checkpoints/final.pt', map_location='cpu')
     ds = load_ogbench_dataset(domain='cube-single-play-v0',
-                              data_path='/dev/shm/datasets',   # FB per-episode buffer layout
+                              # FB per-episode buffer, moved off volatile /dev/shm to persistent
+                              data_path=os.path.expanduser('~/bridge_ckpt_backup/datasets'),
                               load_n_episodes=50, device='cpu')
     ref = ds.sample(2048)['observation'].cpu().numpy().astype(np.float32)
     return _TorchFB(agent, ref)
