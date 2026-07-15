@@ -223,3 +223,12 @@ CAVEATS: goal decode is over 5 eval goals (small n per state; the CROSS-STATE co
 28-30/32 is the evidence) -> confirm on the 64-goal grid. T_dir magnitudes are one-step and
 tiny; the ordering is the signal. Descriptive/correlational (per plan), not yet the causal
 keep/remove surgery.
+
+## Grid check REFUTES direction-vs-distance (2026-07-15) — retracted
+
+64-goal grid re-run of the mode decode: dominant-goal-mode mean |r| collapses from 0.75/0.80
+(5 eval goals, bil/mlp) to 0.37/0.26 (64 goals), and best-field scatters (bil: dist 38/dir 37/
+height 24; mlp: mostly goal_dir_y 86/128 -- opposite of the 5-goal story). => the 5-goal
+"bilinear=direction, MLP=distance" was small-n inflation. RETRACTED. Finding 2 (real 53.7deg
+content difference) stands; its physical NAME is unknown. Doc updated. Next = causal keep/remove
+surgery, not another correlational decode.

@@ -79,13 +79,13 @@ def _policy_action(agent, obs, goal):
     return np.clip(np.asarray(a)[0], -1, 1)
 
 
-def run_shard(shard, n_shards, out_path):
+def run_shard(shard, n_shards, out_path, goal_key='goals_eval'):
     b = load_banks('/home/adityamohan/git/Factored-FB/analysis/atlas/banks.npz')
     env = make_env(task_id=1)
     bil = load_critic('bilinear_flow')
     mlp = load_critic('mlp_flow')
     mu = load_mu(*CRITICS['bilinear_flow'])
-    goals = b['goals_eval']
+    goals = b[goal_key]
     rng = np.random.RandomState(0)
 
     keys = [(p, k) for p in range(4) for k in range(b['state_obs'].shape[1])]
@@ -187,8 +187,9 @@ if __name__ == '__main__':
     ap.add_argument('--n-shards', type=int, default=1)
     ap.add_argument('--shard', type=int, default=0)
     ap.add_argument('--out', required=True)
+    ap.add_argument('--goal-key', default='goals_eval')   # goals_eval (5) | goals_grid (64)
     a = ap.parse_args()
     if a.part == 'dataset':
         run_dataset(a.out)
     else:
-        run_shard(a.shard, a.n_shards, a.out)
+        run_shard(a.shard, a.n_shards, a.out, goal_key=a.goal_key)
