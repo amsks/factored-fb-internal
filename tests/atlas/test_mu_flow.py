@@ -6,6 +6,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import pytest
+pytest.importorskip('jax')  # jax-venv only; skipped under repo .venv
+
+
 from scripts.atlas.jax_load import CRITICS
 from scripts.atlas.mu_flow import assert_q_independent, load_mu
 
