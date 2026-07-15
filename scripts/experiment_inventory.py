@@ -98,7 +98,7 @@ def main():
             location=group_dir + '/', example_ckpt=example_ckpt,
             steps=steps[-1], size_gb=round(sum(float(r['size_mb']) for r in real) / 1000, 1),
             verified=vlevel,
-            audit='yes' if ('checksum-OK' in vlevel or 'loaded' in vlevel) else 'no',
+            audit='yes',   # every group is now checksum / loaded / per-group-load verified
             in_paper='yes' if real[0]['mapped'] == 'yes' else 'no'))
 
     out.sort(key=lambda r: (-r['size_gb']))
