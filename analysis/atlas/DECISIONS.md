@@ -246,3 +246,22 @@ Started plan Step 4 (keep/remove necessity+sufficiency scored by simulator outco
 NOTHING concluded. Options: scoped-down induced run (~30-60min, wide bars) | full build | defer.
 Findings 1 (off-support peak) + 2 (53.7deg content) stand; Finding 3 (direction/distance)
 retracted. Doc: Finding 4 = this status.
+
+## In-hand ranking under a SHARED continuation (2026-07-15) — NULL: it's co-adaptation
+
+Cheap causal test (user design): from in-hand states (P2/P3 bank, n=160/phase), roll ONE shared
+continuation policy -> success label Y; score each critic by Q_m(s, a0, g) at the shared first
+action; compare AUC(Q_bil,Y) vs AUC(Q_mlp,Y). Both shared policies run (bil, mlp).
+
+| shared | phase | AUC_bil | AUC_mlp |
+|--------|-------|---------|---------|
+| bil    | ALL   | 0.529   | 0.582   |
+| mlp    | ALL   | 0.556   | 0.543   |
+(P2/P3 split: bil-policy P3 mlp 0.616>bil; mlp-policy P3 bil 0.602>mlp -- it FLIPS.)
+
+All AUCs near chance (0.37-0.62); differences within ~1 SE (~0.04); the ordering flips with the
+shared policy. => the bilinear critic does NOT independently rank in-hand success better than
+MLP. Per the test's logic: the ranking advantage does NOT survive removing critic-actor
+co-adaptation => the performance win is a property of the CO-ADAPTED critic-actor SYSTEM, not the
+critic's value in isolation. Ties to Finding 1 (bilinear critic only usable WITH the flow actor).
+Caveat: AUC of first-action-Q vs 150-step rollout is coarse; robust as a null, not a fine measure.
