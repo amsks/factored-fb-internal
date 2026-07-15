@@ -27,6 +27,28 @@ sys.path.insert(0, os.path.join(REPO, 'scripts'))
 from results_map import MAP  # noqa: E402
 
 
+def thrust(group, rows):
+    """Primary paper/thrust (PROJECT-MAP): (1) RLBrew future-reachability methods,
+    (2) OGBench-SOTA bilinear, (3) FB-GCIQL Bridge, (4) Atlas. Some cells serve several;
+    this is the PRIMARY home. The 6 atlas critics also carry a +atlas tag."""
+    m = MAP.get(group, {})
+    g = group.lower()
+    agent = m.get('agent') or rows[0]['agent']
+    env = m.get('env') or rows[0]['env']
+    atlas = ' +atlas' if group in ATLAS_CRITIC_GROUPS or any(ATLAS_FB_DIR in r['path'] for r in rows) else ''
+    if m.get('csv') == 'bridge':
+        return '3 Bridge' + atlas
+    if any(x in group for x in ('HIQL', 'GCIVL', 'Pixel', 'DrQ')) or 'scene' in g or 'antmaze' in g:
+        return '2 SOTA'
+    if agent in ('PSM', 'RLDP', 'CRL', 'TDMPC2') or any(x in g for x in ('psm', 'rldp', 'crl', 'tdmpc2')):
+        return '1 RLBrew'
+    if agent == 'FB' or g.startswith('fb_') or 'onestep' in g or 'covbal' in g:
+        return '1 RLBrew' + atlas          # future-reachability method (also bridge anchor)
+    if agent == 'GCIQL' and env == 'cube':
+        return '2 SOTA' + atlas            # bilinear/mlp cube cells = SOTA anchors
+    return '2 SOTA'
+
+
 def describe(group, rows):
     m = MAP.get(group, {})
     if m.get('graft'):
@@ -62,19 +84,22 @@ def main():
         roots = {r['root'] for r in real}
         has_fb_dir = any(ATLAS_FB_DIR in r['path'] for r in real)
         steps = sorted({r['max_step'] for r in real})
+        vlevel = correctness(g, roots, has_fb_dir)
         out.append(dict(
-            group=g, n_seeds=len(real), desc=describe(g, real),
+            group=g, n_seeds=len(real), desc=describe(g, real), thrust=thrust(g, real),
             location='; '.join(sorted(roots)),
             example_path=os.path.dirname(real[0]['path']),
             steps=steps[-1], size_gb=round(sum(float(r['size_mb']) for r in real) / 1000, 1),
-            verified=correctness(g, roots, has_fb_dir),
+            verified=vlevel,
+            audit='yes' if ('checksum-OK' in vlevel or 'loaded' in vlevel) else 'no',
             in_paper='yes' if real[0]['mapped'] == 'yes' else 'no'))
 
     out.sort(key=lambda r: (-r['size_gb']))
     csvp = f'{REPO}/analysis/atlas/EXPERIMENT_INVENTORY.csv'
     with open(csvp, 'w', newline='') as fh:
-        w = csv.DictWriter(fh, fieldnames=['group', 'desc', 'location', 'example_path',
-                                           'n_seeds', 'steps', 'size_gb', 'in_paper', 'verified'])
+        w = csv.DictWriter(fh, fieldnames=['group', 'thrust', 'desc', 'location', 'example_path',
+                                           'n_seeds', 'steps', 'size_gb', 'in_paper',
+                                           'verified', 'audit'])
         w.writeheader()
         for r in out:
             w.writerow({k: r[k] for k in w.fieldnames})
