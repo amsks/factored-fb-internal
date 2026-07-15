@@ -80,10 +80,28 @@ def make_dataset(
     obs_type: str = "state",
     frame_stack: int = 1,
     env_family: Optional[str] = None,
+    data_format: Optional[str] = None,
 ):
-    """Load the offline dataset into a ``DictBuffer``."""
+    """Load the offline dataset into a ``DictBuffer``.
+
+    ``data_format`` is orthogonal to the env family: it selects the on-disk schema
+    / loader. Default is per-family ("ogbench" for the ogbench sim, "unified" for
+    rlmini). Set data_format="unified" to feed an ogbench-sim task (e.g. cube) from
+    the unified format — the alignment sanity path.
+    """
     family, name = parse_domain(domain, env_family)
-    if family == "ogbench":
+    fmt = data_format or ("unified" if family == "rlmini" else "ogbench")
+    if fmt == "unified":
+        from data.unified import load_dataset
+
+        return load_dataset(
+            name,
+            data_path=data_path,
+            load_n_episodes=load_n_episodes,
+            device=device,
+            n_transitions=n_transitions,
+        )
+    if fmt == "ogbench":
         from data.ogbench import load_ogbench_dataset
 
         return load_ogbench_dataset(
@@ -95,17 +113,7 @@ def make_dataset(
             obs_type=obs_type,
             frame_stack=frame_stack,
         )
-    if family == "rlmini":
-        from data.unified import load_dataset  # P1
-
-        return load_dataset(
-            name,
-            data_path=data_path,
-            load_n_episodes=load_n_episodes,
-            device=device,
-            n_transitions=n_transitions,
-        )
-    raise _unknown(family)
+    raise ValueError(f"unknown data_format {fmt!r}; expected 'ogbench' or 'unified'")
 
 
 def make_evaluator(domain: str, *, agent, offline_buffer, env_family: Optional[str] = None, **kw):

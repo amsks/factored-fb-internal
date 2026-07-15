@@ -292,6 +292,7 @@ def main(cfg: DictConfig) -> None:
         obs_type=cfg.obs_type,
         frame_stack=cfg.get("frame_stack", 1),
         env_family=env_family,
+        data_format=cfg.get("data_format", None),
     )
     print(f"[train] buffer size: {len(buffer):,}")
 
