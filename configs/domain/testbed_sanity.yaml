@@ -1,0 +1,11 @@
+# @package _global_
+# Data-format sanity task: a manipulation testbed env (Box2D, fast, no mujoco).
+# Select with `domain=testbed_sanity`; the rlmini: prefix routes env/data/eval
+# through the rlmini family (unified data format). Override the task on the CLI by
+# pointing at a different domain config, or edit `domain` below.
+defaults:
+  - /agent: fb_flowbc
+  - _self_
+
+domain: rlmini:Box2D/goal-ctrl-target
+bc_coeff: 3.0

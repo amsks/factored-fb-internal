@@ -302,26 +302,29 @@ def main(cfg: DictConfig) -> None:
     save_dir = Path(cfg.save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    video_dir = Path(cfg.eval_videos_dir)
-    if cfg.save_eval_videos:
-        video_dir.mkdir(parents=True, exist_ok=True)
-
-    evaluator = make_evaluator(
-        cfg.domain,
-        agent=agent,
-        offline_buffer=buffer,
-        env_family=env_family,
-        relabel_size=cfg.eval_relabel_size,
-        n_episodes=cfg.eval_n_episodes,
-        shift_reward=cfg.eval_shift_reward,
-        obs_type=cfg.obs_type,
-        frame_stack=cfg.get("frame_stack", 1),
-        seed=cfg.seed,
-        device=cfg.device,
-        save_videos=cfg.save_eval_videos,
-        video_dir=video_dir,
-        use_wandb=cfg.use_wandb,
-    )
+    # Build the evaluator only when eval is enabled — a no-eval run (eval_every=0)
+    # must not require a family's evaluator to exist yet (e.g. the rlmini GoalEvaluator).
+    evaluator = None
+    if cfg.eval_every > 0:
+        video_dir = Path(cfg.eval_videos_dir)
+        if cfg.save_eval_videos:
+            video_dir.mkdir(parents=True, exist_ok=True)
+        evaluator = make_evaluator(
+            cfg.domain,
+            agent=agent,
+            offline_buffer=buffer,
+            env_family=env_family,
+            relabel_size=cfg.eval_relabel_size,
+            n_episodes=cfg.eval_n_episodes,
+            shift_reward=cfg.eval_shift_reward,
+            obs_type=cfg.obs_type,
+            frame_stack=cfg.get("frame_stack", 1),
+            seed=cfg.seed,
+            device=cfg.device,
+            save_videos=cfg.save_eval_videos,
+            video_dir=video_dir,
+            use_wandb=cfg.use_wandb,
+        )
 
     print(f"[train] {cfg.num_train_steps:,} steps")
     # Match td_jepa Workspace.train_offline:

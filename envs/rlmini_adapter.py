@@ -174,6 +174,15 @@ def make_rlmini_env(
     if obs_type != "state":
         raise NotImplementedError("rlmini adapter currently supports obs_type='state' only")
     env_name, _, variant = name.partition("/")
+    # Auto-configure obs_keys / goal_key / achieved_goal_spec from the testbed
+    # registry when the task is known (explicit kwargs still win).
+    from envs.testbed import get_task_spec
+
+    spec = get_task_spec(name)
+    if spec is not None:
+        kw.setdefault("obs_keys", spec.get("obs_keys"))
+        kw.setdefault("achieved_goal_spec", spec.get("achieved_goal"))
+        kw.setdefault("goal_key", spec.get("goal_key", "Goal"))
     adapter = RLMiniAdapter(
         env_name, variant or "default", seed=seed, horizon=horizon, render=render, **kw
     )
