@@ -7,6 +7,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import pytest
+pytest.importorskip('jax')  # jax-venv only; skipped under repo .venv
+
+
 from scripts.atlas.critics import load_critic
 
 
