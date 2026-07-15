@@ -1,0 +1,86 @@
+group,desc,location,example_path,n_seeds,steps,size_gb,in_paper,verified
+psm_state_orthohi__ortho_coef1000__lr_phi1e-5,PSM/flowbc tuned-ortho1000,factored-fb_outputs,factored-fb_outputs,10,1500000,13.9,yes,sampled-load only (persistent-only root)
+psm_flowbc_state,"agent=psm_flowbc,wandb_entity=amsks,wandb_group=psm_flowbc_s",factored-fb,factored-fb/runs,10,1000000,10.4,no,checksum-OK + count + sampled-load
+psm_state_tuned__ortho_coef1__lr_phi1e-5,PSM/flowbc tuned-ortho1,factored-fb_outputs,factored-fb_outputs,10,1000000,10.4,yes,sampled-load only (persistent-only root)
+psm_z50_ortho1000,PSM/flowbc z50-ortho1000-tuned,factored-fb_outputs,factored-fb_outputs,10,1000000,9.9,yes,sampled-load only (persistent-only root)
+fb_state_encmatch,"wandb_entity=amsks,wandb_group=fb_state_encmatch,wandb_run_n",factored-fb,factored-fb/runs,5,1000000,6.0,no,checksum-OK + count + sampled-load
+fb_state_plain,FB/flowbc plain-1.5M,factored-fb,factored-fb/runs,10,1500000,6.0,yes,checksum-OK + count + sampled-load
+rldp_flowbc_state_10seeds,"agent=rldp_flowbc,wandb_entity=amsks,wandb_group=rldp_flowbc",factored-fb,factored-fb/runs,10,1000000,5.4,no,checksum-OK + count + sampled-load
+rldp_state_tuned__ortho_coef0p001__lr_b1e-5,"agent=rldp_flowbc,lr_b=1e-5,ortho_coef=0.001,wandb_entity=am",factored-fb_outputs,factored-fb_outputs,10,1000000,5.4,no,sampled-load only (persistent-only root)
+[nogroup:fb_flowbc],"wandb_entity=amsks,wandb_run_name=visual-cube-single__fb_flo",factored-fb_outputs; fb_outputs,fb_outputs,6,1000000,5.0,no,sampled-load only (persistent-only root)
+fb_z128_ortho1000,FB capacity/ortho variant,factored-fb_outputs,factored-fb_outputs,10,1000000,4.9,yes,sampled-load only (persistent-only root)
+psm_pixel,"wandb_entity=amsks,wandb_group=psm_pixel,wandb_run_name=psm_",factored-fb,factored-fb/runs,5,500000,4.9,no,checksum-OK + count + sampled-load
+fb_state_v1,"goal_cond=true,lr_b=1e-4,ortho_coef=1000,wandb_entity=amsks,",factored-fb,factored-fb/runs,10,1000000,4.6,no,checksum-OK + count + sampled-load
+cube-single-onestep-ortho1000-lrb1e-4,one-step FB variant,factored-fb,factored-fb/runs,10,1000000,4.5,yes,checksum-OK + count + sampled-load
+factored-fb-onestep-fb,"lr_b=1e-4,onestep=true,ortho_coef=1.0,wandb_entity=amsks,wan",factored-fb,factored-fb/runs,10,1000000,4.5,no,checksum-OK + count + sampled-load
+fb_state_L256,"lr_b=1e-4,ortho_coef=1000,wandb_entity=amsks,wandb_group=fb_",factored-fb,factored-fb/runs,10,1000000,4.5,no,checksum-OK + count + sampled-load
+fb_state_iql,FB<-IQL objective (early),factored-fb_outputs,factored-fb_outputs,10,1000000,4.5,yes,sampled-load only (persistent-only root)
+fb_state_iqlcritic_fix,"FB<-IQL critic (lr1e-4, ortho1000)",factored-fb_outputs,factored-fb_outputs,10,1000000,4.5,yes,sampled-load only (persistent-only root)
+fb_state_zher,z-HER relabel,factored-fb_outputs,factored-fb_outputs,10,1000000,4.5,yes,sampled-load only (persistent-only root)
+tdmpc2_state_10seeds,"agent=tdmpc2,wandb_entity=amsks,wandb_group=tdmpc2_state_10s",factored-fb,factored-fb/runs,10,1000000,4.3,no,checksum-OK + count + sampled-load
+psm_state_orthohi__ortho_coef100__lr_phi1e-5,PSM/flowbc tuned-ortho100,factored-fb_outputs,factored-fb_outputs,10,1000000,3.8,yes,sampled-load only (persistent-only root)
+fb_state_v2,"fixed_b=cube_xyz,lr_b=1e-4,ortho_coef=1000,wandb_entity=amsk",factored-fb,factored-fb/runs,10,1000000,3.6,no,checksum-OK + count + sampled-load
+rldp_pixel,"wandb_entity=amsks,wandb_group=rldp_pixel,wandb_run_name=rld",factored-fb,factored-fb/runs,5,500000,3.3,no,checksum-OK + count + sampled-load
+psm_isolation_300k,"agent=psm,wandb_entity=amsks,wandb_group=psm_isolation_300k,",factored-fb_outputs,factored-fb_outputs,6,300000,2.1,yes,sampled-load only (persistent-only root)
+covbal_prio_wz_a0.5,coverage-balanced prioritized w/ z,factored-fb,factored-fb/runs,10,1000000,1.6,yes,checksum-OK + count + sampled-load
+psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5,"actor_pessimism_penalty=0,agent=psm_flowbc,lr_phi=1e-5,wandb",factored-fb_outputs,factored-fb_outputs,3,500000,1.6,no,sampled-load only (persistent-only root)
+psm_state_sweep__ortho_coef10__lr_phi1e-4,"agent=psm_flowbc,lr_phi=1e-4,ortho_coef=10,wandb_entity=amsk",factored-fb_outputs,factored-fb_outputs,3,500000,1.6,no,sampled-load only (persistent-only root)
+GCIQL-Pixel-DrQ-Flow,GCIQL/fql_flow drq,gciql_outputs,gciql_outputs/factored-fb/GCIQL-Pixel-DrQ-Flow,4,500000,1.5,yes,checksum-OK + count + sampled-load
+factored-fb-gciql-pixel-drq,mlp,gciql_outputs,gciql_outputs/factored-fb/factored-fb-gciql-pixel-drq,5,500000,1.5,yes,checksum-OK + count + sampled-load
+fb_cube_decouple,decouple actor-z,phase2_out,phase2_out,3,1000000,1.4,yes,sampled-load only (persistent-only root)
+fb_cube_her_learnedB_r1,learned-B + HER,phase2_out,phase2_out,3,1000000,1.4,yes,sampled-load only (persistent-only root)
+fb_cube_iql_learnedB_r1,learned-B + IQL (phase2 control),phase2_out,phase2_out,3,1000000,1.4,yes,sampled-load only (persistent-only root)
+gciql_g4_zcond,actor_cond=z from value psi (G4),gciql_outputs,gciql_outputs/factored-fb/gciql_g4_zcond,9,1000000,1.4,yes,checksum-OK + count + sampled-load
+GCIQL-State-Flow-Bilinear-d128,GCIQL/fql_flow bilinear-d128,gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d128,10,1000000,1.2,yes,checksum-OK + count + sampled-load
+GCIQL-State-Flow-Bilinear-d5,GCIQL/fql_flow bilinear-d5,gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d5,10,1000000,1.1,yes,checksum-OK + count + sampled-load
+GCIQL-State-Flow-Bilinear-d50,GCIQL/fql_flow bilinear-d50,gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50,10,1000000,1.1,yes,loaded (end-to-end)
+GCIQL-State-Flow-Bilinear-d50-singleq,GCIQL self-ablation,gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-singleq,10,1000000,1.1,yes,checksum-OK + count + sampled-load
+GCIQL-State-Flow-Bilinear-d50-tau05,GCIQL self-ablation,gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-tau05,10,1000000,1.1,yes,checksum-OK + count + sampled-load
+GCIQL-State-Flow-Bilinear-d50-tau095,GCIQL self-ablation,gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-tau095,10,1000000,1.1,yes,checksum-OK + count + sampled-load
+factored-fb-crl-flowbc,mlp,gciql_outputs,gciql_outputs/factored-fb/factored-fb-crl-flowbc,10,500000,1.1,yes,checksum-OK + count + sampled-load
+factored-fb-gcivl-pixel-drq,mlp,gciql_outputs,gciql_outputs/factored-fb/factored-fb-gcivl-pixel-drq,5,500000,1.1,yes,checksum-OK + count + sampled-load
+fb_cube_her_idnorm_r1,identity-norm + HER,phase2_out,phase2_out,3,1000000,1.1,yes,sampled-load only (persistent-only root)
+fb_cube_zg_her,z=g identity-FB + HER,zg_cube_out,zg_cube_out,3,1000000,1.1,yes,sampled-load only (persistent-only root)
+fb_cube_zg_iql,z=g identity-FB + IQL,zg_cube_out,zg_cube_out,3,1000000,1.1,yes,sampled-load only (persistent-only root)
+GCIQL-State-Flow-Bilinear-d50-ddpgbc,GCIQL/ddpgbc bilinear-d50,gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-ddpgbc,10,1000000,1.0,yes,loaded (end-to-end)
+psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-5,"agent=psm_flowbc,lr_phi=1e-5,ortho_coef=1,wandb_entity=amsks",factored-fb_outputs,factored-fb_outputs,2,500000,1.0,no,sampled-load only (persistent-only root)
+psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-5,"agent=psm_flowbc,lr_phi=1e-5,target_tau=0.01,wandb_entity=am",factored-fb_outputs,factored-fb_outputs,2,500000,1.0,no,sampled-load only (persistent-only root)
+psm_state_sweep__ortho_coef10__lr_phi1e-5,"agent=psm_flowbc,lr_phi=1e-5,ortho_coef=10,wandb_entity=amsk",factored-fb_outputs,factored-fb_outputs,2,500000,1.0,no,sampled-load only (persistent-only root)
+GCIQL-State-Flow-Bilinear,GCIQL/fql_flow bilinear-d512,gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear,8,1000000,0.9,yes,checksum-OK + count + sampled-load
+factored-fb-gciql,mlp,gciql_outputs,gciql_outputs/factored-fb/factored-fb-gciql,10,1000000,0.8,yes,loaded (end-to-end)
+rldp_state_fbmatch__ortho_coef1000__lr_b1e-4,"agent=rldp_flowbc,lr_b=1e-4,ortho_coef=1000,wandb_entity=ams",factored-fb_outputs,factored-fb_outputs,3,500000,0.8,no,sampled-load only (persistent-only root)
+rldp_state_sweep__ortho_coef0p1__lr_b1e-5,"agent=rldp_flowbc,lr_b=1e-5,ortho_coef=0.1,wandb_entity=amsk",factored-fb_outputs,factored-fb_outputs,3,500000,0.8,no,sampled-load only (persistent-only root)
+fb_antmaze_medium_500k,FB/flowbc plain,factored-fb_outputs,factored-fb_outputs,3,500000,0.7,yes,sampled-load only (persistent-only root)
+fb_bridge_a0_cubexyz,privileged cube-xyz reward,bridge_knobs_out,bridge_knobs_out,3,500000,0.7,yes,sampled-load only (persistent-only root)
+fb_bridge_r0_base,FB<-IQL + goal-match + GCIQL mix,bridge_knobs_out,bridge_knobs_out,3,500000,0.7,yes,sampled-load only (persistent-only root)
+fb_bridge_r1_decond,r0 + de-condition F->phi,bridge_knobs_out,bridge_knobs_out,3,500000,0.7,yes,sampled-load only (persistent-only root)
+fb_bridge_r2_dnorm,r0 + sqrt(d) norm,bridge_knobs_out,bridge_knobs_out,3,500000,0.7,yes,sampled-load only (persistent-only root)
+fb_bridge_r3_allon,r0 + decond + dnorm,bridge_knobs_out,bridge_knobs_out,3,500000,0.7,yes,sampled-load only (persistent-only root)
+fb_iql_ontraj_flow,FB-IQL on-trajectory goals,factored-fb,factored-fb/runs,3,500000,0.7,yes,checksum-OK + count + sampled-load
+fb_scene_500k,FB/flowbc plain,factored-fb_outputs,factored-fb_outputs,3,500000,0.7,yes,sampled-load only (persistent-only root)
+fb_state_iqlcritic,FB<-IQL critic (old incidentals),factored-fb_outputs,factored-fb_outputs,3,500000,0.7,yes,sampled-load only (persistent-only root)
+fb_state_iwr,IWR reweight,factored-fb_outputs,factored-fb_outputs,3,500000,0.7,yes,sampled-load only (persistent-only root)
+fb_state_iwr_wz,IWR reweight w/ z,factored-fb_outputs,factored-fb_outputs,3,500000,0.7,yes,sampled-load only (persistent-only root)
+factored-fb-gciql-pixel,mlp,gciql_outputs,gciql_outputs/factored-fb/factored-fb-gciql-pixel,5,500000,0.6,yes,checksum-OK + count + sampled-load
+fb_iql_ontraj_ddpgbc,"FB-IQL on-trajectory goals, ddpgbc actor",factored-fb,factored-fb/runs,3,500000,0.6,yes,checksum-OK + count + sampled-load
+fb_state_ddpgbc,FB/ddpgbc plain,factored-fb,factored-fb/runs,3,500000,0.6,yes,checksum-OK + count + sampled-load
+GCIQL-State-Flow,GCIQL/fql_flow mlp,gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow,9,1000000,0.5,yes,loaded (end-to-end)
+crl_state_ddpgbc,CRL/ddpgbc plain,gciql_outputs,gciql_outputs/factored-fb/crl_state_ddpgbc,10,1000000,0.5,yes,checksum-OK + count + sampled-load
+fb_cube_decouple_iql,decouple actor-z + IQL,decpl2_out,decpl2_out,3,1000000,0.5,yes,sampled-load only (persistent-only root)
+fb_cube_decouple_zher_traj,decouple actor-z + zHER-traj,decpl2_out,decpl2_out,3,1000000,0.5,yes,sampled-load only (persistent-only root)
+psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-4,"agent=psm_flowbc,lr_phi=1e-4,ortho_coef=1,wandb_entity=amsks",factored-fb_outputs,factored-fb_outputs,1,500000,0.5,no,sampled-load only (persistent-only root)
+psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-4,"agent=psm_flowbc,lr_phi=1e-4,target_tau=0.01,wandb_entity=am",factored-fb_outputs,factored-fb_outputs,1,500000,0.5,no,sampled-load only (persistent-only root)
+factored-fb-gcivl-pixel,mlp,gciql_outputs,gciql_outputs/factored-fb/factored-fb-gcivl-pixel,5,500000,0.4,yes,checksum-OK + count + sampled-load
+GCIQL-AntMaze-Medium-Flow-Bilinear-d50,GCIQL/fql_flow bilinear-d50,gciql_outputs,gciql_outputs/factored-fb/GCIQL-AntMaze-Medium-Flow-Bilinear-d50,3,500000,0.3,yes,checksum-OK + count + sampled-load
+GCIQL-Scene-Flow-Bilinear-d50,GCIQL/fql_flow bilinear-d50,gciql_outputs,gciql_outputs/factored-fb/GCIQL-Scene-Flow-Bilinear-d50,3,500000,0.3,yes,checksum-OK + count + sampled-load
+GCIQL-State-Flow-Bilinear-SG-d50,"psi(s,g) not psi(g): same inner-product head, no low-rank GOAL bottleneck",GCIQL-State-Flow-Bilinear-SG-d50,GCIQL-State-Flow-Bilinear-SG-d50,3,500000,0.3,yes,sampled-load only (persistent-only root)
+rldp_state_sweep__ortho_coef0p01__lr_b1e-5,"agent=rldp_flowbc,lr_b=1e-5,ortho_coef=0.01,wandb_entity=ams",factored-fb_outputs,factored-fb_outputs,1,500000,0.3,no,sampled-load only (persistent-only root)
+rldp_state_sweep__ortho_coef0p1__lr_b1e-4,"agent=rldp_flowbc,lr_b=1e-4,ortho_coef=0.1,wandb_entity=amsk",factored-fb_outputs,factored-fb_outputs,1,500000,0.3,no,sampled-load only (persistent-only root)
+GCIQL-AntMaze-Medium-Bilinear-d50-DDPGBC,GCIQL/ddpgbc bilinear-d50,gciql_outputs,gciql_outputs/factored-fb/GCIQL-AntMaze-Medium-Bilinear-d50-DDPGBC,3,500000,0.2,yes,checksum-OK + count + sampled-load
+GCIQL-AntMaze-Medium-Flow-MLP,GCIQL/fql_flow mlp,gciql_outputs,gciql_outputs/factored-fb/GCIQL-AntMaze-Medium-Flow-MLP,3,500000,0.2,yes,checksum-OK + count + sampled-load
+GCIQL-State-Flow-SimpleSF-Arch,"SimpleSF trunk split (b=h/||h||, Psi=head(h)), psi learned end-to-end; scalar IQL TD",gciql_outputs,gciql_outputs/factored-fb/GCIQL-State-Flow-SimpleSF-Arch,3,500000,0.2,yes,loaded (end-to-end)
+GCIVL-State-Bilinear-d50,GCIVL/awr bilinear-d50,gciql_outputs,gciql_outputs/factored-fb/GCIVL-State-Bilinear-d50,3,500000,0.2,yes,checksum-OK + count + sampled-load
+HIQL-State-Bilinear-d50,HIQL/awr bilinear-d50-sg25-mistuned,gciql_outputs,gciql_outputs/factored-fb/HIQL-State-Bilinear-d50,3,500000,0.2,yes,checksum-OK + count + sampled-load
+[nogroup:tdmpc2],"+tdmpc2.reward_mode=dense,agent=tdmpc2,horizon=5",factored-fb_outputs,factored-fb_outputs,1,120000,0.2,no,sampled-load only (persistent-only root)
+GCIQL-AntMaze-Medium-Stock-DDPGBC,GCIQL/ddpgbc mlp,gciql_outputs,gciql_outputs/factored-fb/GCIQL-AntMaze-Medium-Stock-DDPGBC,3,500000,0.1,yes,checksum-OK + count + sampled-load
+GCIQL-Scene-Stock-DDPGBC,GCIQL/ddpgbc mlp,gciql_outputs,gciql_outputs/factored-fb/GCIQL-Scene-Stock-DDPGBC,3,500000,0.1,yes,checksum-OK + count + sampled-load

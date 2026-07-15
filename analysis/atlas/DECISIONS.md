@@ -177,3 +177,17 @@ it is specifically an off-support MAXIMUM exceeding the on-manifold max.
 
 CAVEAT: path_rise as coded == the peak endpoint diff (redundant); monotonicity ALONG the path
 not separately captured. Peak result is the load-bearing one and is solid.
+
+## Pre-delete checkpoint audit (2026-07-15) — PASSED, safe to delete /dev/shm
+
+Systematic 4-boundary audit of the persistent copies before deleting the /dev/shm source:
+1. COUNT/SIZE parity: exact file-count match per tree (gciql 2560, factored-fb 7552, ds 36500).
+2. CHECKSUM byte-parity (rsync -c): **0 files differ** on ALL THREE trees -> byte-faithful.
+3. LOADABILITY: 24/24 sampled checkpoints load (12 jax pkl under jax venv, 12 torch pt).
+   NB the first "12/12 BAD" was an interpreter mismatch (jax pkl under torch venv), not corruption.
+4. ATLAS-CRITICAL: all 5 jax critics + FB critic load end-to-end; FB Q works from the MOVED
+   persistent datasets (critics.py path updated + committed).
+
+VERDICT: the /dev/shm copies of gciql_outputs, factored-fb, datasets are byte-identical to
+persistent and load correctly. SAFE to delete them (reclaims ~165 GB RAM). Keep .venv-jax.
+Inventory: analysis/atlas/EXPERIMENT_INVENTORY.csv (85 groups, 483 runs).
