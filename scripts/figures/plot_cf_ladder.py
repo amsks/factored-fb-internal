@@ -26,8 +26,8 @@ OUT = REPO / "PAPER" / "rlbrew" / "figures"
 sns.set_palette("colorblind")
 _CB = sns.color_palette("colorblind").as_hex()
 RAW, REP, Q = "0.6", _CB[0], _CB[3]
-METHODS = ["gciql", "crl", "fb", "rldp"]
-LAB = {"gciql": "GCIQL", "crl": "CRL", "fb": "FB", "rldp": "RLDP"}
+METHODS = ["gciql", "crl", "fb", "rldp", "psm"]
+LAB = {"gciql": "GCIQL", "crl": "CRL", "fb": "FB", "rldp": "RLDP", "psm": "PSM"}
 
 
 def _vals(m):

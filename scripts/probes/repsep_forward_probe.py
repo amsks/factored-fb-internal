@@ -36,7 +36,9 @@ def phi(model, obs_np):
     import torch
     with torch.no_grad():
         t = torch.as_tensor(np.asarray(obs_np), dtype=torch.float32)
-        return model._left_encoder(model._fw_encoder(model._normalize(t))).cpu().numpy()
+        if hasattr(model, "_left_encoder"):
+            return model._left_encoder(model._fw_encoder(model._normalize(t))).cpu().numpy()
+        return model._fw_encoder(model._normalize(t)).cpu().numpy()   # PSM: no _left_encoder
 
 
 def B_rep(model, obs_np):
@@ -44,7 +46,9 @@ def B_rep(model, obs_np):
     import torch
     with torch.no_grad():
         t = torch.as_tensor(np.asarray(obs_np), dtype=torch.float32)
-        return model.backward_map(t).cpu().numpy()
+        if hasattr(model, "backward_map"):
+            return model.backward_map(t).cpu().numpy()
+        return model._bw_encoder(model._normalize(t)).cpu().numpy()   # PSM: backward-side state features
 
 
 def F_rep(model, agent, obs_np, z):
@@ -60,7 +64,10 @@ def F_rep(model, agent, obs_np, z):
         action = agent.act(obs, zb)
         if isinstance(action, np.ndarray):
             action = torch.as_tensor(action, dtype=torch.float32)
-        F = model.forward_map(obs, zb, action.to(obs.device).float())
+        if hasattr(model, "forward_map"):
+            F = model.forward_map(obs, zb, action.to(obs.device).float())
+        else:
+            F = model.sf_psi(obs, zb, action.to(obs.device).float())   # PSM: value's input rep
         if F.dim() == 3:                      # [P, B, z_dim] -> mean over heads
             F = F.mean(0)
         return F.cpu().numpy()
