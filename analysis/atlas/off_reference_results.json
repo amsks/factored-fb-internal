@@ -1,0 +1,18 @@
+{
+ "bilinear_ddpgbc": {
+  "n": 80,
+  "peak_median": 2.142,
+  "peak_frac_positive": 0.787,
+  "path_rise_median": 2.142,
+  "path_rise_frac_positive": 0.787,
+  "grad_norm_mean": 3.1842
+ },
+ "mlp_ddpgbc": {
+  "n": 80,
+  "peak_median": -0.257,
+  "peak_frac_positive": 0.062,
+  "path_rise_median": -0.257,
+  "path_rise_frac_positive": 0.062,
+  "grad_norm_mean": 3.0623
+ }
+}
