@@ -46,16 +46,18 @@ def _present(d):
     have been filled in, without breaking panels that still lack it."""
     return [m for m in METHODS if m in d]
 
-# S0 terminal-outcome distribution (% episodes, mean over seeds).
+# Terminal-outcome distribution (% episodes, mean over seeds).
+# Values are the paper-canonical numbers in Table~tab:cross_method_outcomes
+# (flow actor, 1M); keep in sync with that table.
 OUTCOMES = {
-    "FB":    {"success": 49.4, "approach": 0.0, "grasp": 9.8,  "maintain": 23.8, "transport": 17.0},
-    "GCIQL": {"success": 69.2, "approach": 0.2, "grasp": 12.2, "maintain": 9.2,  "transport": 9.2},
-    "CRL":   {"success": 23.2, "approach": 0.4, "grasp": 23.8, "maintain": 28.6, "transport": 24.0},
-    "RLDP":  {"success": 25.4, "approach": 0.2, "grasp": 9.6,  "maintain": 44.0, "transport": 20.8},
-    "PSM":   {"success": 38.4, "approach": 1.0, "grasp": 19.2, "maintain": 35.4, "transport": 6.0},
+    "FB":    {"success": 49.4, "approach": 0.0, "grasp": 8.7,  "maintain": 24.9, "transport": 17.0},
+    "GCIQL": {"success": 73.7, "approach": 0.0, "grasp": 11.9, "maintain": 7.8,  "transport": 6.7},
+    "CRL":   {"success": 25.0, "approach": 0.9, "grasp": 25.2, "maintain": 26.3, "transport": 22.6},
+    "RLDP":  {"success": 21.3, "approach": 0.1, "grasp": 14.7, "maintain": 43.8, "transport": 20.1},
+    "PSM":   {"success": 37.3, "approach": 0.8, "grasp": 20.5, "maintain": 36.4, "transport": 5.0},
 }
 OUTCOME_KEYS = ["success", "approach", "grasp", "maintain", "transport"]
-OUTCOME_LAB = ["Success", "Approach fail", "Grasp fail", "Maintain fail", "Transport fail"]
+OUTCOME_LAB = ["Success", "Approach fail", "Control-acq. fail", "Maintain fail", "Transport fail"]
 # keep the semantics (success=green, maintain=vermillion, transport=blue, ...)
 # but draw from the colorblind palette
 OUTCOME_COL = {"success": _CB[2], "approach": _CB[4], "grasp": _CB[1],
@@ -64,7 +66,7 @@ OUTCOME_COL = {"success": _CB[2], "approach": _CB[4], "grasp": _CB[1],
 # Failure-minus-success nearest-neighbour distance (paper-canonical; cf. appendix
 # support table). Columns: pickup Mf-S, carry Mf-S, pickup Tf-S, carry Tf-S.
 SUPPORT_DELTA = {
-    "FB":    [0.38, 0.24, 0.26, 0.11],
+    "FB":    [0.38, 0.24, 0.25, 0.11],
     "GCIQL": [-0.05, -0.09, -0.04, 0.00],
     "CRL":   [1.83, 0.42, 0.58, 0.37],
     "RLDP":  [0.42, 0.43, 0.47, 0.58],
@@ -86,7 +88,7 @@ def _funnel_stages(o):
 def fig_funnel(out: Path) -> None:
     """4-stage phase funnel (survival lines), single panel."""
     fig, ax = plt.subplots(figsize=(5.4, 4.0))
-    stages = ["Reached", "Control\nacquired", "Control\nmaintained", "Goal\nreached"]
+    stages = ["Approach", "Control\nacquisition", "Maintain\ncontrol", "Transport"]
     x = np.arange(4)
     for m in _present(OUTCOMES):
         ax.plot(x, _funnel_stages(OUTCOMES[m]), "o-", color=MC[m], lw=2, label=m)
@@ -170,9 +172,9 @@ def fig_aliasing(out: Path) -> None:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    fig_funnel(OUT / "fig_funnel.png")
-    fig_outcomes(OUT / "fig_outcomes.png")
-    fig_support(OUT / "fig_support.png")
+    fig_funnel(OUT / "fig_funnel_new.png")
+    fig_outcomes(OUT / "fig_outcomes_new.png")
+    fig_support(OUT / "fig_support_new.png")
     fig_aliasing(OUT / "fig_aliasing.png")
     return 0
 
