@@ -52,3 +52,58 @@ def dataset_state_restore_drift(env, dataset, idx, horizon, grasp_actions=None):
         obs_drift = max(obs_drift, float(np.abs(o - rec_obs[j]).max()))
     return dict(cube_xyz_drift_max=cube_drift, full_state_drift_max=obs_drift,
                 threshold_m=0.04, passes=cube_drift < 0.04)
+
+
+def _whiten(mu_cloud, lam, eps):
+    cov = np.cov(np.asarray(mu_cloud, np.float64).T)
+    cov = (1 - lam) * cov + lam * np.diag(np.diag(cov)) + eps * np.eye(cov.shape[0])
+    return np.linalg.cholesky(np.linalg.inv(cov))
+
+
+def whitened_dist(a, mu_cloud, lam, eps):
+    """Relative whitened nearest-neighbour distance of `a` to the mu-reference cloud,
+    normalized by the cloud's own leave-one-out median spread (spec section 3)."""
+    W = _whiten(mu_cloud, lam, eps)
+
+    def nn(x):
+        return float(np.min(np.linalg.norm((mu_cloud - x) @ W, axis=1)))
+
+    loo = np.median([
+        float(np.min(np.linalg.norm((np.delete(mu_cloud, i, 0) - mu_cloud[i]) @ W, axis=1)))
+        for i in range(len(mu_cloud))
+    ])
+    return nn(a) / (loo + 1e-12)
+
+
+def _actor_action(critic, obs, goal):
+    import jax
+    sa = critic.agent.sample_actions(
+        observations=np.asarray(obs)[None], goals=np.asarray(goal)[None],
+        seed=jax.random.PRNGKey(0), temperature=0.0)
+    return np.clip(np.asarray(sa)[0], -1, 1)
+
+
+def phase_0a(critics, banks, phases=(0, 2), n_states=8):
+    """Exploitation branch gate. For matched (state, eval-goal), compare how far each
+    agent's chosen action sits from the mu-reference cloud. branch_alive = the bilinear
+    DDPG+BC action departs the reference MORE than the MLP DDPG+BC action does.
+
+    `critics`: dict name -> critic object (has .agent.sample_actions).
+    """
+    from scripts.atlas import config as C
+    goals = banks['goals_eval']
+    key = {'ddpgbc_bil': 'bilinear_ddpgbc', 'ddpgbc_mlp': 'mlp_ddpgbc',
+           'flow_bil': 'bilinear_flow', 'flow_mlp': 'mlp_flow'}
+    acc = {k: [] for k in key}
+    for p in phases:
+        for k in range(n_states):
+            obs = banks['state_obs'][p, k]
+            cloud = banks['A_mu'][p, k]
+            for gi in range(len(goals)):
+                for slot, cname in key.items():
+                    a = _actor_action(critics[cname], obs, goals[gi])
+                    acc[slot].append(whitened_dist(a, cloud, C.COV_SHRINK_LAMBDA, C.COV_EPS))
+    med = {k: float(np.median(v)) for k, v in acc.items()}
+    return dict(d_ddpgbc_bil=med['ddpgbc_bil'], d_ddpgbc_mlp=med['ddpgbc_mlp'],
+                d_flow_bil=med['flow_bil'], d_flow_mlp=med['flow_mlp'],
+                branch_alive=med['ddpgbc_bil'] > med['ddpgbc_mlp'])

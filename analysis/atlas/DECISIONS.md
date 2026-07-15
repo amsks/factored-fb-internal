@@ -67,3 +67,20 @@ persistent disk (was only in volatile /dev/shm).
 - End-to-end atlas verified on live checkpoints: ||A||_F=1.0; over the 5 eval goals bilinear
   top-sv 0.969 < mlp 0.980 (bilinear more mode-distributed — a first multi-modality signal,
   n=1 state). rank=5 is the n_g ceiling here; use the 64-goal grid for real effective-rank.
+
+## Phase 0A gate (Task 9) — PASSED. Exploitation branch (Primary B) SURVIVES.
+
+Median whitened distance to the mu-reference action cloud (P0+P2, 8 states x 5 eval goals):
+
+| actor / critic  | bilinear | MLP  |
+|-----------------|----------|------|
+| DDPG+BC         | **17.9** | 1.76 |
+| flow            | 2.37     | 2.00 |
+
+branch_alive = True (d_ddpgbc_bil 17.9 > d_ddpgbc_mlp 1.76, ~10x).
+
+Reading: the bilinear critic HAS attractive off-reference extrema -- the DDPG+BC actor finds
+and chases them (17.9), while the flow actor is distillation-anchored and stays put (2.37). The
+MLP critic has no such extrema, so its DDPG+BC actor also stays near (1.76). This is the
+mechanism for the actor reversal (bilinear+flow >> bilinear+ddpgbc). Phase 0B (oracle-based
+causal confirmation: are those distant actions actually WORSE?) is pending the oracle subsample.
