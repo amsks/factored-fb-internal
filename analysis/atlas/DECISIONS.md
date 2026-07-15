@@ -232,3 +232,17 @@ height 24; mlp: mostly goal_dir_y 86/128 -- opposite of the 5-goal story). => th
 "bilinear=direction, MLP=distance" was small-n inflation. RETRACTED. Finding 2 (real 53.7deg
 content difference) stands; its physical NAME is unknown. Doc updated. Next = causal keep/remove
 surgery, not another correlational decode.
+
+## Causal value-surgery attempt (2026-07-15) — two design walls, no result
+
+Started plan Step 4 (keep/remove necessity+sufficiency scored by simulator outcome).
+- v1 first-action override: overriding only step 1 then continuing with the bilinear flow actor
+  does NOT discriminate (all operators = 0.33 success) -- the continuation washes out the single
+  action. Dead design.
+- v2 induced-policy rollout (each operator drives every step; physical candidates re-scored by
+  one-step scratch-env branching to keep the rollout exact): CORRECT but expensive --
+  branching is O(H*N*episodes) sequential mujoco steps; first pass >5min for 6 states -> full
+  run is multi-hour, not the ~1hr I estimated. Killed the smoke; committed WIP (784d927).
+NOTHING concluded. Options: scoped-down induced run (~30-60min, wide bars) | full build | defer.
+Findings 1 (off-support peak) + 2 (53.7deg content) stand; Finding 3 (direction/distance)
+retracted. Doc: Finding 4 = this status.
