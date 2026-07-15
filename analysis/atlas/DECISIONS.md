@@ -97,3 +97,29 @@ oracle J constant (std 0) -> no ranking signal. FIX (committed in banks.py): per
 REACHABLE hindsight goals = observations mu reaches by rolling forward from each state
 (goals_hindsight_ps [4,K,NH,28]). Requires a banks REBUILD (~20 min of mu rollouts) and a
 primaryA update to read per-state hindsight goals before C1/C4 can run. NOT yet done.
+
+## Oracle-free atlas analysis (2026-07-15) — multi-modality REFUTED; difference is in CONTENT
+
+32 states/critic, 64-goal grid (rank not n_g-capped), mu-reference actions. No simulator.
+
+| critic         | eff_rank    | top_sv_share | basins |
+|----------------|-------------|--------------|--------|
+| bilinear_flow  | 6.65 ±1.68  | 0.500        | 1.00   |
+| mlp_flow       | 6.81 ±1.41  | 0.486        | 1.00   |
+| simplesf       | 6.99 ±2.02  | 0.479        | 1.00   |
+(FB skipped: torch not in jax venv -> needs a torch-venv run.)
+
+bilinear vs MLP goal-mode principal angles (top-3): [53.7, 71.5, 83.3] deg.
+
+FINDINGS:
+1. eff_rank + mode concentration are the SAME across bilinear/MLP/simplesf (within SD). The
+   earlier n=1 teaser (bilinear top_sv 0.969 < mlp 0.980 -> "more mode-distributed") does NOT
+   survive at n=32 (0.500 vs 0.486). NO spectral-shape difference.
+2. ALL unimodal (basins=1.00). => the multi-modality SECONDARY hypothesis is REFUTED. The
+   actor reversal is NOT "Gaussian averages across modes" -- there is only one mode. Consistent
+   with Phase 0A: the mechanism is OFF-SUPPORT extrema, not multiple in-support modes.
+3. Principal angles [53.7,71.5,83.3] => bilinear and MLP span DIFFERENT goal-preference
+   structure despite identical spectral shape. Same rank, different CONTENT.
+
+CAVEAT: principal angles need a null baseline (same-critic different-seed = noise floor;
+random rank-3 in 64-D ~ orthogonal) before calling 53.7 deg "different." NEXT.

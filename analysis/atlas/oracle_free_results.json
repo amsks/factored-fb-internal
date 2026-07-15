@@ -1,0 +1,31 @@
+{
+ "bilinear_flow": {
+  "eff_rank": 6.652846070664999,
+  "eff_rank_sd": 1.6806814748698033,
+  "top_sv_share": 0.5004190716000042,
+  "mean_basins": 1.0,
+  "n": 32,
+  "secs": 44
+ },
+ "mlp_flow": {
+  "eff_rank": 6.808824670568705,
+  "eff_rank_sd": 1.413422657319759,
+  "top_sv_share": 0.4864659289632469,
+  "mean_basins": 1.0,
+  "n": 32,
+  "secs": 21
+ },
+ "simplesf": {
+  "eff_rank": 6.991962590801593,
+  "eff_rank_sd": 2.0155582002290644,
+  "top_sv_share": 0.4785359649945887,
+  "mean_basins": 1.0,
+  "n": 32,
+  "secs": 30
+ },
+ "_bilinear_vs_mlp_principal_angles_deg": [
+  53.7,
+  71.5,
+  83.3
+ ]
+}
