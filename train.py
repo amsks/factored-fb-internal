@@ -270,17 +270,11 @@ def main(cfg: DictConfig) -> None:
     # Env family: parsed from a "family:name" prefix in cfg.domain, or an explicit
     # cfg.env_family override. Absent both -> "ogbench" (byte-identical to before).
     env_family = cfg.get("env_family", None)
-    print(f"[train] env: {cfg.domain}")
-    env, _ = make_env(
-        cfg.domain,
-        obs_type=cfg.obs_type,
-        seed=cfg.seed,
-        frame_stack=cfg.get("frame_stack", 1),
-        env_family=env_family,
-    )
-    obs_space = env.observation_space
-    action_dim = env.action_space.shape[0]
-    print(f"[train] obs_space={obs_space.shape}  action_dim={action_dim}")
+    # build_env=false -> pure offline training: derive obs/action dims from the
+    # dataset instead of constructing the env in-process. Needed for ManiSkill,
+    # whose newt backend uses a top-level 'envs' package that clashes with ours;
+    # also useful for any prebuilt-dataset offline run. Implies no eval.
+    build_env = cfg.get("build_env", True)
 
     print(f"[train] loading dataset for {cfg.domain}")
     buffer = make_dataset(
@@ -296,6 +290,27 @@ def main(cfg: DictConfig) -> None:
     )
     print(f"[train] buffer size: {len(buffer):,}")
 
+    if build_env:
+        print(f"[train] env: {cfg.domain}")
+        env, _ = make_env(
+            cfg.domain,
+            obs_type=cfg.obs_type,
+            seed=cfg.seed,
+            frame_stack=cfg.get("frame_stack", 1),
+            env_family=env_family,
+        )
+        obs_space = env.observation_space
+        action_dim = env.action_space.shape[0]
+    else:
+        import gymnasium as gym
+
+        _s = buffer.sample(1)
+        obs_dim = int(_s["observation"].shape[-1])
+        action_dim = int(_s["action"].shape[-1])
+        obs_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
+        print(f"[train] offline (build_env=false): no in-process env")
+    print(f"[train] obs_space={obs_space.shape}  action_dim={action_dim}")
+
     agent = make_agent(cfg, obs_space, action_dim)
     print(f"[train] agent: {type(agent).__name__}")
 
@@ -305,7 +320,7 @@ def main(cfg: DictConfig) -> None:
     # Build the evaluator only when eval is enabled — a no-eval run (eval_every=0)
     # must not require a family's evaluator to exist yet (e.g. the rlmini GoalEvaluator).
     evaluator = None
-    if cfg.eval_every > 0:
+    if cfg.eval_every > 0 and build_env:
         video_dir = Path(cfg.eval_videos_dir)
         if cfg.save_eval_videos:
             video_dir.mkdir(parents=True, exist_ok=True)
@@ -344,7 +359,7 @@ def main(cfg: DictConfig) -> None:
             print(f"[ckpt] {ckpt}")
 
         # Eval (td_jepa's EveryNStepsChecker triggers at t=0 and every N)
-        if cfg.eval_every > 0 and (step == 0 or step % cfg.eval_every == 0):
+        if evaluator is not None and (step == 0 or step % cfg.eval_every == 0):
             print(f"[eval] step={step}")
             log_metrics(evaluator.run(step=step), step, use_wandb=cfg.use_wandb, prefix="eval/reward/")
 
