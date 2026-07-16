@@ -24,7 +24,7 @@ We decompose each rollout into four phases: approach, control acquisition, maint
 This separates failures during approach from failures that occur after control has been acquired.
 Across methods, approach failures are rare, and most performance differences arise during maintain control and transport.
 State-support gaps broadly covary with performance: \gciql{} shows almost no difference between successful and failed rollout states, whereas every lower-performing method shows positive gaps in pickup and carry.
-However, when initialized from in-hand grasp states sampled directly from the offline dataset, the lower-performing methods still weakly rank eventual task success.
+However, when initialized from in-hand grasp states sampled directly from the offline dataset, \rldp{} and \psm{} rank eventual task success near chance and \fb{} only weakly, while \crl{} is intermediate.
 This suggests that initial-state support alone does not explain the observed value-ranking failures.
 
 Our contributions are threefold:

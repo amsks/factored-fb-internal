@@ -38,10 +38,11 @@ NBINS = 6
 def _seed_curve(df):
     """Per-bin counterfactual success rate for one (seed's) records frame."""
     df = df.copy()
+    ycol = "p_succ" if "p_succ" in df.columns else "success"   # K=10 soft label if present
     df["pct"] = df.groupby("task")["value"].rank(pct=True)
     bins = np.linspace(0, 1, NBINS + 1)
     df["b"] = np.clip(np.digitize(df["pct"], bins) - 1, 0, NBINS - 1)
-    g = df.groupby("b")["success"].mean()
+    g = df.groupby("b")[ycol].mean()
     y = np.full(NBINS, np.nan)
     y[g.index.to_numpy()] = g.to_numpy()
     return y
@@ -53,7 +54,9 @@ def main() -> int:
     ms = json.loads((REPSEP / "cf_value_multiseed.json").read_text()) \
         if (REPSEP / "cf_value_multiseed.json").exists() else {}
     for m, lab, col in METHODS:
-        seed_files = sorted(REPSEP.glob(f"cf_records_{m}_ms*.parquet"))
+        seed_files = sorted(REPSEP.glob(f"cf_records_{m}_k*.parquet"))       # K=10 flow records
+        if not seed_files:
+            seed_files = sorted(REPSEP.glob(f"cf_records_{m}_ms*.parquet"))   # legacy single-draw
         if seed_files:                                    # multiseed: mean +/- across-seed 95% CI
             curves = np.vstack([_seed_curve(pd.read_parquet(p)) for p in seed_files])
             y = np.nanmean(curves, axis=0)
@@ -72,13 +75,13 @@ def main() -> int:
     ax.set_xlabel("grasp value percentile  (low $\\rightarrow$ high value)", fontsize=11)
     ax.set_ylabel("counterfactual success rate\n(agent reaches goal from grasp)", fontsize=11)
     ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-    ax.set_title("Does climbing the value buy success?\nGCIQL's value tracks "
-                 "controllability; the FB family's is nearly flat (aliased)\n"
-                 "mean over 10 seeds; band = 95% CI across seeds",
+    ax.set_title("Does climbing the value buy success?\n"
+                 "Counterfactual success vs. grasp-value percentile\n"
+                 "mean over seeds; band = 95% CI across seeds",
                  fontsize=11)
     ax.grid(True, alpha=0.3); ax.legend(fontsize=10, loc="upper left", title="method")
     fig.tight_layout()
-    out = OUT / "fig_cf_value_curve.png"
+    out = OUT / "fig_cf_value_curve_new.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"[plot] wrote {out}")

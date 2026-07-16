@@ -28,20 +28,25 @@ def main() -> int:
     from sklearn.metrics import roc_auc_score
     from scripts.probes.repsep_forward_probe import _auc
 
-    df = pd.read_parquet(REPO / f"analysis/value/repsep/cf_repfeat_{args.method}.parquet")
-    obs_cols = [c for c in df.columns if c.startswith("obs_")]
-    rep_cols = [c for c in df.columns if c.startswith("rep_")]
-    rows = {"raw": [], "rep": [], "Q": []}
-    for ti in sorted(df["task"].unique()):
-        d = df[df["task"] == ti]
-        y = d["success"].to_numpy(bool)
-        if y.sum() < 5 or (~y).sum() < 5:
-            for k in rows:
-                rows[k].append(np.nan)
-            continue
-        rows["raw"].append(_auc(d[obs_cols].to_numpy(np.float32), y))
-        rows["rep"].append(_auc(d[rep_cols].to_numpy(np.float32), y))
-        rows["Q"].append(roc_auc_score(y.astype(int), d["value"].to_numpy()))
+    repsep = REPO / "analysis/value/repsep"
+    files = sorted(repsep.glob(f"cf_repfeat_{args.method}_s*.parquet"))   # per-seed (K=10)
+    if not files:
+        files = [repsep / f"cf_repfeat_{args.method}.parquet"]           # legacy single-seed
+    rows = {"raw": [], "rep": [], "Q": []}                                # pooled over (seed, task)
+    for f in files:
+        df = pd.read_parquet(f)
+        obs_cols = [c for c in df.columns if c.startswith("obs_")]
+        rep_cols = [c for c in df.columns if c.startswith("rep_")]
+        for ti in sorted(df["task"].unique()):
+            d = df[df["task"] == ti]
+            # confident-continuation label from K rollouts (falls back to single-draw success)
+            y = ((d["p_succ"].to_numpy() >= 0.5) if "p_succ" in d.columns
+                 else d["success"].to_numpy(bool))
+            if y.sum() < 5 or (~y).sum() < 5:
+                continue
+            rows["raw"].append(_auc(d[obs_cols].to_numpy(np.float32), y))
+            rows["rep"].append(_auc(d[rep_cols].to_numpy(np.float32), y))
+            rows["Q"].append(roc_auc_score(y.astype(int), d["value"].to_numpy()))
     means = {k: float(np.nanmean(v)) for k, v in rows.items()}
     out = REPO / f"analysis/value/repsep/cf_ladder_{args.method}.json"
     out.write_text(json.dumps({"method": args.method, "label": "counterfactual",
