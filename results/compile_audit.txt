@@ -1,5 +1,4 @@
-groups in wandb: 198 | mapped: 175 | excluded: 34
-MAPPED BUT ABSENT FROM WANDB: GCIQL-State-Flow-Anneal-SgPhi, GCIQL-State-Flow-Anneal-Shared, GCIQL-State-Flow-Anneal-Zero
+groups in wandb: 204 | mapped: 178 | excluded: 34
 PARTIAL GCIQL-AntMaze-Medium-Flow-Bilinear-d50: 3 used, dropped: sd000_20260624_221417(died@1), sd000_20260624_222659(no-metric), sd000_20260624_223802(died@10000), sd001_20260624_221417(died@1), sd001_20260624_222659(no-metric), sd001_20260624_223802(died@10000), sd002_20260624_221417(died@1), sd002_20260624_222659(no-metric), sd002_20260624_223802(died@10000)
 PARTIAL GCIQL-AntMaze-Medium-Flow-MLP: 3 used, dropped: sd000_20260625_062452(died@95000), sd001_20260625_062452(died@95000), sd002_20260625_062452(died@95000)
 PARTIAL GCIQL-AntMaze-Medium-Stock-DDPGBC: 3 used, dropped: sd000_20260625_062452(died@95000), sd001_20260625_062452(died@95000), sd002_20260625_062452(died@95000)
@@ -12,6 +11,10 @@ PARTIAL GCIQL-Bilinear-Measure-mc1.0: 0 used, dropped: measure_mc1.0_s0(died@315
 PARTIAL GCIQL-Bilinear-Measure-mc10.0: 0 used, dropped: measure_mc10.0_s0(died@330000), measure_mc10.0_s1(died@340000), measure_mc10.0_s2(no-metric)
 PARTIAL GCIQL-Pixel-DrQ-Flow: 4 used, dropped: sd000_20260609_233854(no-metric), sd001_20260609_233856(no-metric), sd001_20260609_234415(died@195000), sd002_20260609_233858(no-metric), sd003_20260609_233900(no-metric), sd004_20260609_233902(no-metric)
 PARTIAL GCIQL-State-Flow: 9 used, dropped: sd000_20260609_233854(no-metric), sd001_20260609_233856(no-metric), sd002_20260609_233859(no-metric), sd003_20260609_233901(no-metric), sd003_20260609_234415(died@400000), sd004_20260609_233902(no-metric), sd005_20260609_233904(no-metric), sd006_20260609_233906(no-metric), sd007_20260609_233908(no-metric), sd008_20260609_233910(died@5000), sd009_20260609_233912(no-metric)
+PARTIAL GCIQL-State-Flow-Anneal-SgPhi: 0 used, dropped: cube_single_state_gciql_flow_anneal_sgphi_s0(died@400000), cube_single_state_gciql_flow_anneal_sgphi_s1(died@400000), cube_single_state_gciql_flow_anneal_sgphi_s2(died@400000)
+PARTIAL GCIQL-State-Flow-Anneal-SgPhi-IQLfade: 0 used, dropped: cube_single_state_gciql_flow_anneal_sgphi_iqlfade_s0(died@400000), cube_single_state_gciql_flow_anneal_sgphi_iqlfade_s1(died@400000), cube_single_state_gciql_flow_anneal_sgphi_iqlfade_s2(died@400000)
+PARTIAL GCIQL-State-Flow-Anneal-Shared: 0 used, dropped: cube_single_state_gciql_flow_anneal_shared_s0(died@400000), cube_single_state_gciql_flow_anneal_shared_s1(died@400000), cube_single_state_gciql_flow_anneal_shared_s2(died@400000)
+PARTIAL GCIQL-State-Flow-Anneal-Zero: 0 used, dropped: cube_single_state_gciql_flow_anneal_zero_s0(died@400000), cube_single_state_gciql_flow_anneal_zero_s1(died@400000), cube_single_state_gciql_flow_anneal_zero_s2(died@400000)
 PARTIAL GCIQL-State-Flow-Bilinear-d50-B4-FBstruct: 3 used, dropped: sd000_20260701_075529(no-metric)
 PARTIAL GCIQL-State-Flow-Bilinear-d50-D1-ActorZCritic: 3 used, dropped: sd002_20260701_075530(no-metric)
 PARTIAL GCIQL-State-Flow-Bilinear-d50-Exp4-ActorZInfer: 2 used, dropped: sd002_20260701_203814(died@95000)

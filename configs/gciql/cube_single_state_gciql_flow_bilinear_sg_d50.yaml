@@ -1,0 +1,35 @@
+# Expressivity ablation of the bilinear bridge cell: state-conditioned backward leg.
+#
+#   stock bilinear (0.90):  Q(s,a,g) = phi(s,a) . psi(g)   / sqrt(d)
+#   THIS cell:              Q(s,a,g) = phi(s,a) . psi(s,g) / sqrt(d)
+#
+# Same inner-product head, same rank d=50, same flow actor, same IQL objective. The ONLY
+# change is that psi now sees the state as well as the goal, which destroys the low-rank
+# GOAL bottleneck (and with it the state-independent task vector z=psi(g)).
+#
+# Question: is the bilinear win the low-rank goal bottleneck, or just the bilinear head?
+# Anchor to beat/miss: GCIQL-State-Flow-Bilinear-d50 = 0.904 (and MLP GCValue = 0.717).
+# NOTE: this cell has NO zero-shot task-inference API by construction -- it cannot be used
+# for the z-inference / measure / SF cells (the agent asserts this).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Bilinear-SG-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear_sg
+  value_latent_dim: 50
+wandb_mode: online

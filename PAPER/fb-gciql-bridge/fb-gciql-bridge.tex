@@ -107,9 +107,9 @@ ran, grouped by direction; \S\ref{sec:isolations} then isolates each decision.
 \B{Config} & \B{D1 obj.} & \B{D2 form} & \B{FB knobs added (D3--D5)} & \B{D7 actor} & \B{Succ.} \\
 \midrule
 \multicolumn{6}{@{}l}{\emph{Anchors}}\\
-IQL-bilinear $d50$ (base)      & IQL     & bilinear      & \no                                   & flow & \good{$\sim$90}$^\ddagger$ \\
-GCIQL MLP critic               & IQL     & MLP           & \no                                   & flow & $\sim$73$^\ddagger$ \\
-plain FB (measure)             & measure & bilinear      & z-fwd, ortho, $\sqrt d$ (native FB)    & flow & \bad{34}$^\ddagger$ \\
+IQL-bilinear $d50$ (base)      & IQL     & bilinear      & \no                                   & flow & \good{91.6} \\
+GCIQL MLP critic               & IQL     & MLP           & \no                                   & flow & 71.3 \\
+plain FB (measure)             & measure & bilinear      & z-fwd, ortho, $\sqrt d$ (native FB)    & flow & \bad{34.0}$^\ddagger$ \\
 \midrule
 \multicolumn{6}{@{}l}{\emph{Direction A --- impose FB structure on IQL-bilinear (D1 held at IQL)}}\\
 \;+ two-tower fwd map           & IQL     & bil+2-tower   & \no                                   & flow & 86.4 \\
@@ -142,9 +142,9 @@ plain FB (measure)             & measure & bilinear      & z-fwd, ortho, $\sqrt 
 \bottomrule
 \end{tabular}
 \caption{\B{Every combination we ran}, cube-single state, \B{3 seeds @ 500k},
-success (\% mean; wandb \texttt{amsks/factored-fb}). $^\ddagger$anchor: base
-IQL-bilinear and MLP are the 500k development-ladder values; plain FB is $34$
-@500k / $48$ @1M. \good{green}$=$near-$90$, \bad{red}$=$collapse.}
+success (\% mean; wandb \texttt{amsks/factored-fb}). Every row is seeds $\{0,1,2\}$ read at
+the $500$k eval point. $^\ddagger$plain FB is $34.0$ @500k / $48$ @1M --- the @500k figure is
+the one comparable to every other row here. \good{green}$=$near-$90$, \bad{red}$=$collapse.}
 \label{tab:master}
 \end{table}
 
@@ -165,8 +165,8 @@ actor: \B{D1 (the objective) is the whole gap.}
 \B{Cell} & \B{one-knob change vs.\ the scalar-TD anchor} & \B{Succ.\ (\%)} \\
 \midrule
 \multicolumn{3}{@{}l}{\emph{Anchors --- scalar reward-TD}}\\
-IQL bilinear $d50$                 & the reference cell                              & \good{$90.4\pm1.9$}$^{\dagger}$ \\
-\;$\tau{=}0.5$                      & drop the expectile improvement operator          & \good{$92.0\pm1.6$}$^{\dagger}$ \\
+IQL bilinear $d50$                 & the reference cell                              & \good{$91.6\pm3.1$} \\
+\;$\tau{=}0.5$                      & drop the expectile improvement operator          & \good{$88.7\pm1.0$} \\
 \;bilinear $d28$                   & rank $50{\to}28$ (control for identity-$\psi$)   & \good{$86.4\pm7.5$} \\
 \;two-tower                        & FB's two-tower forward map, IQL objective        & \good{$86.4\pm0.8$} \\
 \;B1 = fb-fwd-$z$ under IQL         & task-condition $\phi(s,a,z)$, $z{=}\psi(g)$       & \good{$84.4\pm0.8$} \\
@@ -189,22 +189,139 @@ IQL bilinear $d50$                 & the reference cell                         
 \;\quad + absorbing mask ($Q{=}\gamma^{T}$) & first-hitting instead of visitation density & \bad{$12.5\pm1.7$} \\
 \;SimpleSF arch ($\psi$ learned)   & Chua et al.\ trunk split, scalar TD, true reward & $38.0\pm6.3$ \\
 \midrule
-\multicolumn{3}{@{}l}{\emph{Annealed finetune from the converged $90.4$ geometry} (\B{running}; dose curve, $\lambda(t){:}\,0{\to}\lambda_{\max}$)}\\
-\;$\lambda{=}0$ control            & $400$k more IQL steps, no SM loss                & \emph{restore $\approx90$} \\
-\;stop-grad-$\phi$, $\lambda{:}\,0{\to}10$ & crosses the cold cliff at $\lambda{=}3$   & \emph{in progress} \\
-\;shared legs, $\lambda{:}\,0{\to}100$ & cold cliff $>10$, never located              & \emph{in progress} \\
+\multicolumn{3}{@{}l}{\emph{Annealed finetune from the converged $91.6$ geometry} (dose curve, $\lambda(t){:}\,0{\to}\lambda_{\max}$)}\\
+\;$\lambda{=}0$ control            & $400$k more IQL steps, no SM loss                & \good{$93.1\pm7.0$} \\
+\;stop-grad-$\phi$, $\lambda{:}\,0{\to}10$ & crosses the cold cliff at $\lambda{=}3$   & \good{$84.9\pm2.1$} \\
+\;shared legs, $\lambda{:}\,0{\to}100$ & cold cliff $>10$, never located              & \bad{$0.9\pm0.3$} \\
+\;\B{$+$ fade $\mathcal{L}_{\text{IQL}}$ out} & \B{endpoint $=$ measure-only: does the basin survive?} & \bad{\B{$5.3\pm5.2$}} \\
 \bottomrule
 \end{tabular}
 \caption{\B{Follow-up ablations, cube-single state, 3 seeds @ 500k} (mean $\pm\,95\%$ CI;
-wandb \texttt{amsks/factored-fb}). $^{\dagger}$$n{=}13$. Organized by \emph{what each cell
+wandb \texttt{amsks/factored-fb}). Every row is seeds $\{0,1,2\}$ at the $500$k eval point;
+runs trained past $500$k are read from history at that step. Organized by \emph{what each cell
 changes}, not by a claimed mechanism. Two failure regimes are separable: a crippled
 \emph{readout} (goal leg cannot linearly express $\mathbf{1}[s{=}g]$) collapses to $\le6$
 even under the otherwise-perfect scalar TD; a replaced \emph{objective} (successor measure or
 vector TD) caps at $12$--$38$. The scalar reward-TD is the only configuration that reaches
-$90$. The annealed cells test whether the cold-start collapse is a property of the objective's
-fixed point or of the optimization path.}
+$90$. The annealed cells settle whether the cold-start collapse is a property of the
+objective's fixed point or of the optimization path: warm-starting from the converged $91.6$
+geometry does \emph{not} rescue the measure. Ramping it in with $\mathcal{L}_{\text{IQL}}$
+retained holds $84.9$, but fading $\mathcal{L}_{\text{IQL}}$ out --- leaving the measure's own
+fixed point --- collapses to $5.3$, and the shared-legs ramp to $0.9$. The scalar TD term was
+propping the good basin up; the measure does not have one of its own on cube.}
 \label{tab:followup}
 \end{table}
+
+% ======================================================================
+\section{Rank is a floor, not a ceiling}
+\label{sec:rank}
+
+A natural reading of the bilinear/MLP gap is that the inner-product head helps by
+\emph{compressing} --- a low-rank bottleneck on the value function. The rank ladder refutes
+this. Capacity is not being restricted: everything from $d{=}28$ to $d{=}512$ sits in a flat
+band, and only $d{=}5$ --- too few dimensions to span the goal space at all --- collapses.
+
+\begin{center}\footnotesize
+\begin{tabular}{@{}l r r@{}}
+\toprule
+Critic (IQL-trained $+$ flow) & Succ. @500k & \\
+\midrule
+bilinear $d5$    & \bad{$13.3\pm4.4$} & rank below the span of the goal set \\
+\midrule
+bilinear $d28$   & \good{$86.4\pm7.5$} & \\
+bilinear $d50$   & \good{$91.6\pm3.1$} & flat band: above the floor, \\
+bilinear $d128$  & \good{$93.1\pm0.7$} & rank is free \\
+bilinear $d512$  & \good{$87.7\pm1.4$} & \\
+\midrule
+MLP critic       & $71.3\pm3.4$ & unconstrained in $g$; below \emph{every} bilinear rank \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent At $d{=}512$ the goal leg is as wide as the hidden layers, so the bilinear form is
+barely a capacity restriction at all --- and it still beats the MLP by $16$ points. What the
+inner product constrains is not \emph{how much} the critic can express but \emph{how the goal
+enters}: $Q(s,a,g)=\langle\phi(s,a),\psi(g)\rangle/\sqrt d$ with $\psi$ a function of $g$
+alone. \S\ref{sec:ood} shows that this is exactly the axis on which the MLP fails.
+
+% ======================================================================
+\section{Where the benchmark score is actually lost}
+\label{sec:ood}
+
+The benchmark shifts two things at once relative to the offline data: the episode
+\emph{start} (the environment's \texttt{reset()}, not a dataset state) and the \emph{goal}
+(an evaluation task, not a state drawn from the data). We re-evaluate every trained agent on
+the $2{\times}2$ that crosses them, on byte-identical start states and goals:
+
+\begin{center}\footnotesize
+\begin{tabular}{@{}l c c@{}}
+\toprule
+ & ID goal (hindsight) & OOD goal (eval task) \\
+\midrule
+ID start (dataset state)   & C1 & C2 \\
+OOD start (\texttt{reset}) & C4 & \B{C3} $=$ the benchmark \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent with $\Delta_{\text{GOAL}}{=}\text{C2}{-}\text{C1}$ and
+$\Delta_{\text{START}}{=}\text{C4}{-}\text{C1}$. Measured against the offline data, the
+\emph{goal} shift is the larger one: eval goals sit $3.6\times$ further from the nearest
+dataset state than dataset goals do ($83.5\%$ beyond the data's p99), against $2.3\times$
+($9\%$) for the start states.
+
+\begin{table}[h]
+\centering\footnotesize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}l r r r r r r@{}}
+\toprule
+& \B{C1} & \B{C2} & \B{C4} & \B{C3} & \B{$\Delta_{\text{GOAL}}$} & \B{$\Delta_{\text{START}}$} \\
+& ID/ID & ID/OOD & OOD/ID & \B{eval} & & \\
+\midrule
+\multicolumn{7}{@{}l}{\emph{Scalar reward-TD, bilinear --- the goal shift is free}}\\
+bilinear $d512$ & 93.3 & 92.7 & 84.3 & \good{96.0} & \good{$-0.7$} & $-9.0$ \\
+bilinear $d50$  & 86.7 & 93.0 & 77.3 & \good{94.7} & \good{$+6.3$} & $-9.3$ \\
+bilinear $d128$ & 89.0 & 93.7 & 82.3 & \good{93.3} & \good{$+4.7$} & $-6.7$ \\
+\midrule
+\multicolumn{7}{@{}l}{\emph{Scalar reward-TD, MLP --- fits best on-manifold, loses the goal shift}}\\
+MLP critic      & \good{98.0} & 82.3 & 78.7 & 74.7 & \bad{$-15.7$} & $-19.3$ \\
+\midrule
+\multicolumn{7}{@{}l}{\emph{Objective replaced --- the goal shift is where it is paid for}}\\
+SimpleSF arch          & 73.0 & 38.7 & 65.3 & \bad{38.3} & \bad{$-34.3$} & $-7.7$ \\
+measure $+$ z-fwd      & 45.7 & 32.7 & 31.0 & \bad{25.7} & \bad{$-13.0$} & $-14.7$ \\
+C4: full FB rebuild    & 50.0 & 20.7 & 26.3 & \bad{14.7} & \bad{$-29.3$} & $-23.7$ \\
+joint-$\psi$ SF        & 67.7 & 17.7 & 50.3 & \bad{13.3} & \bad{$-50.0$} & $-17.3$ \\
+ortho$_{1000}$ on IQL  & 64.0 & \phantom{0}9.7 & 36.3 & \bad{\phantom{0}5.3} & \bad{$-54.3$} & $-27.7$ \\
+\bottomrule
+\end{tabular}
+\caption{\B{The $2\times2$ start$\,\times\,$goal decomposition}, cube-single state, 3 seeds.
+Success (\%). Own re-evaluation harness ($H{=}200$, success $=\|\text{cube}-\text{target}\|
+\le 4$cm, the env's own criterion), run on the recorded checkpoints; C3 reproduces the
+training-time eval for every anchor (MLP $74.7$ vs $71.3$; bilinear $d50$ $94.7$ vs $91.6$),
+which is what licenses reading the other three cells. \B{Every} bilinear scalar-TD cell in the
+full table ($\sim$20 of them) has $\Delta_{\text{GOAL}}\in[-0.08,+0.08]$: the goal shift is
+\emph{free}, and often helps --- the five canonical tasks are more structured than random
+hindsight goals. The MLP loses $16$ points to the same shift, and every replaced-objective
+cell loses $13$--$54$ --- while often retaining decent on-manifold competence (joint-$\psi$ SF
+is $67.7$ on C1 and $13.3$ on the benchmark). $\Delta_{\text{START}}$ hurts everyone and
+separates nobody. \emph{Caveat:} the interaction term is large and positive
+($+5$ to $+24$) throughout, so the two shifts are not independent; read
+$\Delta_{\text{GOAL}}$ as an ordinal signal, not a variance decomposition. FB-family rows are
+omitted here: their C1/C4 use $z{=}B(g)$ while C2/C3 use reward-inference $z$, so their
+deltas would be cross-route and meaningless.}
+\label{tab:ood}
+\end{table}
+
+\noindent This relocates the failure. The measure objective does not simply make a weaker
+agent --- it makes an agent that is \emph{competent on the data manifold and cannot carry that
+competence to a new goal}. And it explains the bilinear head: with $\psi$ a function of $g$
+alone, $Q(\cdot,\cdot,g)$ for \emph{any} goal lies in the linear span of $Q(\cdot,\cdot,g_i)$
+for $d$ dataset goals spanning $\psi$-space, so a novel evaluation goal needs no
+extrapolation of the value function --- only of the small map $\psi$. The MLP, nonlinear in
+$g$, has no such guarantee, and pays $16$ points for it. Consistently, letting the goal leg
+see the state ($\psi(s,g)$, destroying exactly this property) does not merely revert to MLP
+quality: it destabilizes the IQL fixed point outright ($32.5\pm39.4$; $2/3$ seeds diverge
+late, $q$ crossing positive; the one stable seed lands at $69.2$, i.e.\ MLP level).
 
 % ======================================================================
 \section{One decision at a time}
@@ -237,9 +354,9 @@ IQL objective, exact goal:
 \toprule
 Form (IQL-trained + flow) & Succ. \\
 \midrule
-bilinear $\phi^\top\psi/\sqrt d$, $d50$ & \good{$\sim$90} \\
+bilinear $\phi^\top\psi/\sqrt d$, $d50$ & \good{91.6} \\
 \;+ FB two-tower forward map & 86.4 \\
-MLP critic & 73 \\
+MLP critic & 71.3 \\
 \bottomrule
 \end{tabular}
 \end{center}

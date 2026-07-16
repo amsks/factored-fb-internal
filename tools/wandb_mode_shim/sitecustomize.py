@@ -151,6 +151,33 @@ try:
 except Exception:
     pass
 
+# --- SARSA next-actions batch key (opt-in via OGBENCH_NEXT_ACTIONS=1) ---
+# T10 centered measure (PAPER/rescuing-fb/04-centered-measure-spec.md): the
+# split-bootstrap base leg needs the DATASET next action a' = actions[idx+1].
+# GCDataset builds batches through Dataset.get_subset, which mirrors exactly this
+# indexing for next_observations (min(idxs+1, size-1); compact datasets sample
+# only 'valids' idxs, so idx+1 stays inside the trajectory). Purely ADDITIVE --
+# one extra batch key -- and default-off, so every other run is bit-unchanged.
+if os.environ.get("OGBENCH_NEXT_ACTIONS") == "1":
+    try:
+        import numpy as _np_na
+        import utils.datasets as _ogb_datasets_na
+
+        _orig_get_subset = _ogb_datasets_na.Dataset.get_subset
+
+        @functools.wraps(_orig_get_subset)
+        def _get_subset_next_actions(self, idxs):
+            result = _orig_get_subset(self, idxs)
+            if "actions" in self._dict and "next_actions" not in result:
+                result["next_actions"] = self._dict["actions"][
+                    _np_na.minimum(idxs + 1, self.size - 1)
+                ]
+            return result
+
+        _ogb_datasets_na.Dataset.get_subset = _get_subset_next_actions
+    except Exception:
+        pass
+
 # --- CRL+FlowBC agent injection (independent of the blocks above) ---
 # Register CRLFlowBCAgent so configs may select agent_name='crl_flowbc' via
 # --agent=tools/wandb_mode_shim/crl_flowbc.py. Guarded: inert in non-jax

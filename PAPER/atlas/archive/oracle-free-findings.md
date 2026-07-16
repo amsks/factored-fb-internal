@@ -276,6 +276,161 @@ bars, ~30–60 min) for a first directional read, or the full multi-hour build, 
 
 ---
 
+## Finding 5 — the winning critic's value does NOT rank in-hand reachability (actor-matched)
+
+*(RLBrew counterfactual value probe: `scripts/value/counterfactual_value_probe_jax.py`,
+batched re-implementation `scripts/value/cf_value_probe_batched.py`.
+`analysis/value/repsep/cf_value_gciql_*.json`.)*
+
+The RLBrew probe resets **200 in-hand grasp states**, rolls out **the agent's own policy** to
+success/failure, and reports the **rank-AUC of the learned value against realised success** —
+i.e. does the value function *know* which grasps will reach the goal. The published GCIQL
+number is **0.89**. We ran it on our bridge cells and, critically, held the **actor fixed**
+(both cells use the same flow actor) so the comparison isolates the **critic**:
+
+| critic — **flow actor**, n=200 | value read | in-hand rank-AUC |
+|--------------------------------|-----------|-----------------:|
+| **MLP** (`GCIQL-State-Flow`), 9-seed campaign | V(s,g) | 0.68–0.93, **mean 0.81** |
+| MLP, batched-harness cross-check (sd000) | V(s,g) | **0.875** |
+| **bilinear** (`-Bilinear-d50`), 3 seeds {0,1,2}@500k | V(s,g) | 0.363 / 0.389 / 0.418, **mean 0.39** |
+| bilinear (sd000) | Q(s,π,g) | 0.458 |
+
+- **The paper's 0.89 is the flow-actor MLP GCIQL** — verified from the campaign's own
+  checkpoint log (`GCIQL-State-Flow/sd00*`), not the stock DDPG+BC gciql. Our batched harness
+  reproduces it (0.875 vs the campaign's ~0.81–0.89 sequential), so the harness is faithful.
+- **The bilinear critic's value ranks in-hand reachability near/below chance** — mean **0.39**
+  across the 3 paper-protocol seeds (V), and **0.458** as an action-value at its own policy (Q).
+  No overlap with the MLP's 0.68–0.93 band. The below-chance V is a genuine anti-ranking, not a
+  readout artifact (the bilinear cell trains a real scalar value head `V=φ(s)·ψ(g)`).
+- **This is a dissociation, not a tie.** With the *same actor*, the critic that **wins the
+  eval** (C3 0.947 vs 0.747) is the one whose value is a **worse** reachability-ranker. Whatever
+  buys bilinear its performance, it is **not** that its value better predicts which grasps
+  succeed.
+
+**Reading, tied to the rest of the atlas.** Finding 1 already showed the bilinear critic places
+its action-maximum *off* the μ support; Finding 5 shows the flip side on-support — the bilinear
+value does not encode reachability in a way that ranks held-cube states. Together they say the
+bilinear advantage lives in the **actor + the low-rank goal bottleneck's stabilising effect**
+(the oodgrid `dGOAL≈0` / critic-stability result), **not** in value fidelity. This puts the
+"co-adaptation" reading — the value and actor are jointly tuned rather than the value being an
+independently good success-predictor — back on solid, actor-matched footing.
+
+*Caveat:* the MLP number is at 1M steps (no 500k intermediate saved) vs bilinear at 500k; the
+gap is 0.81 vs 0.39, far too large to be a training-length effect, and the 1M MLP is the
+*conservative* side (more training, still the better ranker).
+
+### Decomposition — it is a value-geometry vs advantage-geometry split, not a quality gap
+
+*(`scripts/value/value_decomp_probe.py`, `analysis/value/repsep/value_decomp.json`. n=200
+grasps, both critics @ their own step, `Q = min(q₁,q₂)`.)* Following the hypothesis that
+bilinear learns an **advantage geometry, not a value geometry**, we split
+`Q_m(s,a,g) = U_m(s,g) + A_m(s,a,g)` with the μ-mean baseline `U_m = E_{a~μ_m} Q_m` (the same
+μ = frozen BC flow used everywhere in this atlas) and `A_m` the centered operator, and ran the
+in-hand probe on each component:
+
+| readout, n=200 | MLP AUC | bilinear AUC |
+|----------------|--------:|-------------:|
+| **U = E_μ Q** (return magnitude) | **0.817** | **0.396** |
+| V (value head)                   | 0.821   | 0.403        |
+| Qπ (value at own action)         | 0.817   | 0.455        |
+| Adv@π = Qπ − U                    | 0.664   | 0.584        |
+
+- **"MLP fits return magnitude" — confirmed.** The MLP's entire in-hand state ranking lives in
+  the action-independent baseline **U (0.817)**; V and Qπ add nothing over it. The bilinear
+  baseline ranks states **below chance (0.396)** — its absolute state calibration is not merely
+  weaker, it is *anti-calibrated*.
+- **The two geometries separate exactly as the hypothesis predicts.** Across states the two
+  baselines are **uncorrelated** — `Spearman(U_bil, U_mlp) = −0.04` — while within a state the
+  two critics' **advantage** orderings over a shared μ action bank **partially agree** —
+  `Spearman(A_bil, A_mlp) = +0.22` (per-task 0.13–0.36). Orthogonal value calibration,
+  partially-shared policy-improvement geometry.
+- **Nuance:** for bilinear, Adv@π (0.584) *out-ranks* its own baseline U (0.396); a below-chance
+  baseline and a mildly-positive advantage cancel to the near-chance Qπ (0.455). The bilinear
+  critic carries what signal it has in the **action-dependent** part, not the baseline.
+
+**What this settles and what it does not.** It settles that the bilinear–MLP difference is a
+*value-geometry vs advantage-geometry* split, and that bilinear lives on the advantage side
+(H1). It does **not** show bilinear's advantage is *better* — the +0.22 is agreement-with-MLP,
+not correctness. The strong form ("bilinear *organizes* policy improvement") requires scoring
+each critic's advantage ordering against **realized action outcomes**; we ran that test
+directly (next subsection) and it came back a **low-power null** — so the compact statement
+**MLP fits return magnitude; bilinear organizes policy improvement** is evidence-backed only in
+its *first* clause. The second clause is neither confirmed nor refuted.
+
+### The causal action-ranking test — run, low-power null (continuation wash-out)
+
+*(`scripts/atlas/action_ranking_causal.py`, `analysis/atlas/action_ranking_causal.json`.)* The
+direct causal design: for each fixed `(s,g)`, take a shared bank of `N=16` actions `a_i∼μ(·|s)`,
+score both critics' centered advantages `A_bil(s,a_i,g)`, `A_mlp(s,a_i,g)`, then **execute each
+first action** (bit-exact prefix-replay) and **continue every branch under one shared frozen
+goal-conditioned policy** (the MLP flow actor — the conservative choice for a bilinear-wins
+prediction). The realized outcome is the **discounted goal-hit return** `Y_i = γ^{t_hit}`
+(γ=0.99, H=150; 0 if never hit), and within each state we take `ρ_m = Spearman(A_m(s,·,g), Y_i)`.
+Pre-registered: ρ_MLP≥ρ_bil (C1), tie (C4), ρ_bil>ρ_MLP (C2, C3).
+
+| cell | prereg | ρ_bil | ρ_mlp | gap (b−m) | cf success | pairs |
+|------|--------|------:|------:|----------:|-----------:|------:|
+| C1 (ID/ID)       | ρ_MLP≥ρ_bil | −0.042 | −0.170 | +0.13 | 0.66 | 8  |
+| C2 (ID/OOD)      | ρ_bil>ρ_MLP | −0.086 | −0.002 | −0.08 | 0.74 | 40 |
+| C4 (OOD/ID)      | ρ_MLP≈ρ_bil | −0.049 | −0.017 | −0.03 | 0.75 | 8  |
+| C3 (OOD/OOD eval)| ρ_bil>ρ_MLP | −0.050 | +0.023 | −0.07 | 0.83 | 40 |
+
+**Every ρ is ≈0** (−0.17…+0.02); no cell exceeds chance and the pre-registered pattern
+(ρ_bil>ρ_MLP on C2/C3) is **not** observed — C3, the decisive cell, nominally favours MLP by a
+within-noise 0.07. **This is a low-power null, not a refutation, and the mechanism is a
+continuation wash-out.** With cf-success 0.66–0.83, the competent 150-step continuation recovers
+from almost any first action, so the first action barely moves `Y` and *both* advantages
+correlate ~0 with it — including the MLP's own advantage on its own continuation (its home
+turf), which rules out "the continuation just favoured one critic." A single first action does
+not matter enough under a strong shared continuation for this design to have power. This is the
+Finding-4 wall in quantitative form.
+
+**Consequence.** The shared-continuation design *cannot* adjudicate "bilinear organizes policy
+improvement" — a good continuation erases the very signal it would test. Power would require an
+outcome where the first action is *unrecoverable* (e.g. P3 grasped states, where a bad action
+drops the cube), which trades the start-factorial for a P3 goal-axis test. Until then the strong
+clause stays open; the solid, oracle-free results (Findings 1–2, 5-decomposition) are unaffected.
+
+---
+
+## Finding 6 — behavior-sample reranking: the frozen bilinear critic IS a strong policy
+
+*(`scripts/atlas/rerank_eval.py`, `analysis/atlas/rerank_eval{,_mumlp}.json`. 25 episodes/task,
+N=32, H=200, OOD start = the C3 protocol.)* The causal test lost power to the continuation
+wash-out; this test sidesteps it by **deploying the critic's action ordering as the policy**.
+Per critic `m`, at every env step sample `N=32` candidates `a_i∼μ(·|s)` (one shared frozen BC
+flow) and execute `argmax_i Q_m(s,a_i,g)`. No actor training, no branching — just the frozen
+critic reranking behavior samples.
+
+| policy | μ = bilinear candidates | μ = MLP candidates |
+|--------|------------------------:|-------------------:|
+| μ-floor (no rerank)   | 0.064 | 0.056 |
+| **bilinear-rerank**   | **0.960** | **0.912** |
+| MLP-rerank            | 0.592 | 0.568 |
+| *(trained flow actor)* | *bilinear 0.947 / MLP 0.747* | |
+
+- **Bilinear reranking wins decisively (~0.35), and robustly** — the gap survives swapping which
+  BC flow generates the candidate set, so it is a property of the **critic's action ordering**,
+  not of the candidate distribution.
+- **Bilinear-rerank ≈ its trained flow actor** (0.96 vs 0.947): a trivial argmax-over-behavior
+  policy with **no actor training** reproduces the full performance. So the bilinear advantage is
+  in the **final critic's ordering of supported actions**, *not* actor-training dynamics — the
+  strong clause "bilinear organizes policy improvement" is now **directly supported**, powered,
+  where the shared-continuation causal test could not adjudicate it.
+- **MLP-rerank (0.59) < MLP's trained actor (0.747)** — an informative asymmetry: the flow actor
+  adds real value for the MLP but almost none for bilinear. Bilinear's advantage field is so
+  well-structured on the behavior manifold that a one-step argmax extracts it; the MLP needs the
+  actor to do more work.
+- **μ-floor 0.06** — behavior alone fails; both critics add large lift, bilinear far more.
+
+This is the resolution of the program's central question (`bilinear-mechanism-program.md`, Exp 1):
+bilinear + flow is a **compatible policy-learning system** — the bilinear bottleneck supplies a
+well-ordered goal-conditioned energy over *supported* actions (extractable by argmax-over-μ),
+which the flow actor projects onto the behavior manifold; the poor absolute value calibration
+(Finding 5) is irrelevant to this because reranking only uses the *ordering*.
+
+---
+
 ## What we are seeing, in one paragraph
 
 The bilinear and MLP critics are, spectrally, the same kind of object: both express a single,
@@ -290,9 +445,14 @@ whereas a Q-ascending Gaussian actor climbs straight to it — which is why bili
 flow actor and the MLP does not. The multi-modality story is off the table. We tried to give the
 goal-preference difference a physical name (direction vs distance) but that did **not** survive a
 64-goal check and is retracted (Finding 3); the difference is real and calibrated (53.7° vs a
-~20° seed floor) but its physical identity remains open. In one line: an off-support critic peak
-explains why bilinear needs the flow actor; a real-but-not-yet-named difference in the goal
-factor `ψ(g)` is the remaining lead on why it outperforms the MLP.
+~20° seed floor) but its physical identity remains open. And when we ask, actor-matched,
+whether the winning critic's *value* is simply a better reachability-predictor, the answer is
+**no**: on the RLBrew in-hand probe the flow-actor MLP value ranks grasp→goal success at ~0.81
+(reproducing the paper's 0.89) while the bilinear value ranks it at ~0.39, below chance
+(Finding 5) — the critic that wins the eval is the *worse* value-ranker. In one line: an
+off-support critic peak explains why bilinear needs the flow actor; its advantage is **not**
+value fidelity but the actor plus the goal-bottleneck's stabilising role, and a
+real-but-not-yet-named difference in the goal factor `ψ(g)` is the remaining lead.
 
 ---
 
@@ -367,6 +527,25 @@ content (not shape) difference — already stands on the oracle-free evidence.
   spectral shape (effective rank ~6.7–7.0, top-sv ~0.49).
 - **Solid, seed-calibrated:** bilinear and MLP span **different goal-preference content** —
   dominant-mode principal angle 53.7° vs a ~20° same-seed floor and a 71° random ceiling.
+- **Solid, actor-matched (Finding 5):** the **winning critic's value does not rank in-hand
+  reachability** — on the RLBrew probe (same flow actor) the MLP value ranks grasp→goal success
+  at **0.81** (reproducing the paper's 0.89) while the bilinear value ranks it at **0.39**,
+  below chance (Q at own action 0.458). The bilinear win is **not** value fidelity.
+- **Solid (Finding 5-decomposition):** the split is **value-geometry vs advantage-geometry** —
+  MLP's state ranking lives entirely in the return-magnitude baseline `U=E_μQ` (AUC 0.82);
+  bilinear's `U` is anti-calibrated (0.40) and **uncorrelated** with MLP's (Spearman −0.04),
+  while the two critics' **advantage** orderings partially agree (Spearman +0.22). "MLP fits
+  return magnitude" is confirmed; bilinear carries its signal in the action-dependent part.
+- **Tested, low-power null:** the **causal action-ranking test** (does the advantage rank first
+  actions by realized discounted return under a shared frozen continuation) returns ρ≈0 for both
+  critics in all four cells — a **continuation wash-out** (cf-success 0.66–0.83), not a real
+  no-signal result. Superseded as the strong-form test by Finding 6.
+- **Solid, powered (Finding 6):** **behavior-sample reranking** — deploying `argmax_i Q_m(s,a_i,g)`
+  over `μ`-sampled candidates as the policy — gives **bilinear 0.91–0.96 vs MLP 0.57–0.59** (robust
+  to candidate source), and bilinear-rerank **≈ its trained flow actor (0.947) with no actor
+  training**. The frozen bilinear critic's **action ordering** is intrinsically better; "bilinear
+  organizes policy improvement" is directly confirmed. Poor value *calibration* (Finding 5) is
+  irrelevant here because reranking uses only the *ordering*.
 - **Retracted:** the physical *name* for that content — "bilinear=direction, MLP=distance" —
   was a 5-eval-goal small-n artifact (\|r\| 0.75→0.37 on a 64-goal grid, best-field scatters).
   The content difference is real; its physical identity is **still open**.

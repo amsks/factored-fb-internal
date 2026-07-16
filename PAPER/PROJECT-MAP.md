@@ -140,6 +140,52 @@ structure**.
 
 ---
 
+## ④ Value-Function Atlas — what bilinear GCIQL *does* right  ← **ACTIVE**
+
+**Paper:** `debug-bilinear-gciql/oracle-free-findings.md`. Code: `scripts/atlas/` (config,
+prefix_replay, banks, mu_flow, critics, build_atlas, oracle, gates, mode_analysis,
+calibrate_angles, off_reference_test, primaryA). Artifacts + full run log:
+`analysis/atlas/{banks.npz, *_results.json, angle_calibration.json, DECISIONS.md}`. The
+**positive-mechanism** complement to ③: ③ shows the measure objective *breaks* bilinear;
+this asks what the winning bilinear+flow cell is actually *doing*.
+
+**Two facts to explain.** bilinear+flow **0.947** > MLP+flow 0.747 (the win); bilinear+flow
+≫ bilinear+**DDPG+BC 0.557** while MLP is 0.747 either way (the **actor reversal** — bilinear
+is better with a flow actor and *worse* with a Gaussian one). The object: the **centered
+action–goal preference operator** `A^m_s(a,g) = Q_m(s,a,g) − E_{ã~μ}[Q_m(s,ã,g)]`, μ = the
+frozen goal-independent BC flow; rendered over a shared state/action/goal bank and SVD'd
+(rotation-invariant). Counterfactual states via **bit-exact reset+prefix-replay** (snapshot/
+restore drifts — the IK-target integrator lives outside `mjData`).
+
+**Findings (all oracle-free, on 500k checkpoints; the win is confirmed *without* a simulator).**
+1. **The actor reversal = an off-support critic PEAK.** The bilinear critic values the DDPG+BC
+   action *above every behavioural-reference action* **79%** of the time (median **+2.14**);
+   the MLP does so **6%** (−0.26). DDPG+BC climbs to it (whitened μ-departure **17.9 vs 1.76**);
+   the flow actor is distillation-anchored and stays put. **Not a steeper landscape** — action-
+   gradient norms are equal (3.18 vs 3.06), so it is specifically an off-support *maximum*.
+2. **Multi-modality REFUTED.** bilinear/MLP/simplesf are spectrally identical (effective rank
+   ~6.7–7.0, top-sv ~0.49) and all **unimodal** (basins=1) — no modes for a Gaussian actor to
+   average across. The n=1 "bilinear more mode-distributed" teaser dies at n=32.
+3. **Content difference is REAL (seed-calibrated).** bilinear-vs-MLP dominant-mode principal
+   angle **53.7°** vs same-critic seed floor **~20°** and random ceiling **71°** — same
+   spectral shape, genuinely different goal-preference content; modes 2–3 at the random level.
+
+**Story:** bilinear needs the flow actor because its optimum lies off the μ support — an ascending
+Gaussian actor exploits it, a distillation-anchored flow actor cannot.
+
+**Open.** The privileged **MPPI oracle** (`oracle.py`, flow-proposed + return-selected over
+prefix-replay) is built but Primary A (ranking A vs oracle) is **INCONCLUSIVE** — the sparse
+goal-hitting `J` floor-clusters (5/8 actions tied) because goal-agnostic μ can't steer; fix =
+**graded J = −min cube-goal distance**. Also pending: **FB** (torch, skipped in the jax run),
+**Phase 0B** (simulator confirmation the distant actions are worse), along-path monotonicity.
+
+**Checkpoint backup (this session, tangential).** `scripts/hf_manifest.py` → `analysis/atlas/
+MANIFEST.csv`: 508 runs (483 real, 25 smoke); jax 180/180 + torch 179/303 mapped to a paper
+cell (torch `wandb_group` lives in `.hydra/overrides`). Plan for a non-destructive HF-taxonomy
+reorg: `analysis/atlas/HF_BACKUP_PLAN.md`.
+
+---
+
 ## Code knowledge graph (`graphify-out/`)
 
 A navigable graph of the whole repo lives at **`graphify-out/`** (untracked, ~9 MB,

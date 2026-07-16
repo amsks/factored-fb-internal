@@ -30,6 +30,39 @@ def _sphere(x, d):
     return x * jnp.sqrt(d * 1.0) / (jnp.linalg.norm(x, axis=-1, keepdims=True) + 1e-6)
 
 
+class GCStatePsiValue(GCBilinearValue):
+    """Bilinear critic with a STATE-CONDITIONED backward leg: Q=phi(s,a).psi(s,g)/sqrt(d).
+
+    GCBilinearValue factorizes Q(s,a,g)=phi(s,a).psi(g): psi sees ONLY the goal, which is
+    what makes it an FB-style rank-d goal embedding and what makes z=psi(g) a well-defined,
+    state-independent task vector. This module feeds psi the pair (s,g) instead.
+
+    It is the expressivity ablation of the bilinear bridge cell: does the bilinear win come
+    from the low-rank GOAL bottleneck specifically, or merely from the inner-product head?
+    A state-conditioned psi keeps the head but destroys the bottleneck.
+
+    NOTE: this deliberately breaks the zero-shot task-inference API -- there is no longer a
+    state-independent z=psi(g) to infer. That is the point of the ablation. Do not pair it
+    with actor_cond='z', fb_forward_z, or any measure/SF cell that reads psi as a task vector.
+    """
+
+    def __call__(self, observations, goals, actions=None, info=False):
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        if self.goal_encoder is not None:
+            goals = self.goal_encoder(goals)
+
+        phi_inputs = observations if actions is None else jnp.concatenate(
+            [observations, actions], axis=-1)
+        phi = self.phi(phi_inputs)
+        psi = self.psi(jnp.concatenate([observations, goals], axis=-1))
+
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if self.value_exp:
+            v = jnp.exp(v)
+        return (v, phi, psi) if info else v
+
+
 class GCFBValue(GCBilinearValue):
     """FB-style bilinear critic with a TASK-CONDITIONED forward map.
 
@@ -81,6 +114,62 @@ class GCFBValue(GCBilinearValue):
         if info:
             return v, phi, psi
         return v
+
+
+class GCDuelingValue(GCBilinearValue):
+    """Behavior-centered dueling critic: Q(s,a,g) = U(s,g) + A_bil(s,a,g).
+
+    A_bil(s,a,g) = (phi(s,a) - b(s)).psi(g)/sqrt(d) is GCBilinearValue's bilinear
+    score with the forward leg phi RE-CENTERED against a learned baseline feature
+    b(s), an MLP head (same output dim + ensemble structure as phi) trained to
+    approximate the behavior-policy mean E_{a~mu}[phi(s,a)] (gciql_flow.py's
+    critic_loss adds a regression loss L_b = ||b(s) - sg(phi(s,a_data))||^2). U(s,g)
+    is a plain state-goal MLP scalar head (the GCValue pattern), ensembled to 2 like
+    the critic.
+
+    No separate loss trains U or the Q-level split: Q=U+A_bil is trained end-to-end
+    by the SAME IQL expectile critic TD as the plain bilinear critic. Because
+    E_{a~mu}[A_bil] ~= 0 once b tracks phi's behavior mean, U absorbs the
+    state-goal cardinal level and A_bil is left carrying the action-relative part --
+    the flow actor's q-term then reads A_bil alone (see actor_loss), so maximizing
+    it maximizes the part of Q the actor can actually influence through a, instead of
+    U(s,g), which the actor cannot move at all.
+
+    __call__ returns Q=U+A_bil (ensembled [2,B]) -- a drop-in for GCBilinearValue-
+    style critics, so eval/atlas code that calls network.select('critic')(obs,g,a)
+    is unaffected. info=True returns (Q, phi, psi), matching GCBilinearValue's
+    (v, phi, psi) convention. full_info=True additionally returns a dict with
+    A_bil, U, and b(s) split out, for the b-regression loss (critic_loss) and the
+    actor's A_bil-only q-term (actor_loss)."""
+
+    def setup(self):
+        super().setup()   # self.phi, self.psi (GCBilinearValue's bilinear legs)
+        mlp_module = MLP
+        if self.ensemble:
+            mlp_module = ensemblize(mlp_module, 2)
+        self.b = mlp_module((*self.hidden_dims, self.latent_dim), activate_final=False, layer_norm=self.layer_norm)
+        self.U_net = mlp_module((*self.hidden_dims, 1), activate_final=False, layer_norm=self.layer_norm)
+
+    def __call__(self, observations, goals, actions=None, info=False, full_info=False):
+        assert actions is not None, \
+            "GCDuelingValue is critic-only (Q needs actions); use GCValue for the expectile V(s,g)"
+        if self.state_encoder is not None:
+            observations = self.state_encoder(observations)
+        if self.goal_encoder is not None:
+            goals = self.goal_encoder(goals)
+
+        phi = self.phi(jnp.concatenate([observations, actions], axis=-1))   # [2,B,d]
+        psi = self.psi(goals)                                               # [2,B,d]
+        bs = self.b(observations)                                           # [2,B,d]
+        A_bil = ((phi - bs) * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)  # [2,B]
+        U = self.U_net(jnp.concatenate([observations, goals], axis=-1)).squeeze(-1)  # [2,B]
+        Q = U + A_bil
+
+        if full_info:
+            return {'Q': Q, 'A_bil': A_bil, 'U': U, 'phi': phi, 'bs': bs, 'psi': psi}
+        if info:
+            return Q, phi, psi
+        return Q
 
 
 class _TwoTowerPhi(nn.Module):
@@ -380,7 +469,9 @@ class GCIQLFlowAgent(GCIQLAgent):
     """GCIQL with FB's FlowBC actor. Inherits value_loss/critic_loss/update."""
 
     def _flow_rollout(self, obs, noise, params):
-        """Euler-integrate the BC velocity field from noise -> action (flow_steps)."""
+        """Euler-integrate the BC velocity field from noise -> action (flow_steps).
+        `obs` is the vf's obs input -- under actor_vf_cond != 'none' the caller
+        passes the already-conditioned input (_vf_obs), not the raw obs."""
         fs = self.config['flow_steps']
         actions = noise
         for i in range(fs):
@@ -420,6 +511,20 @@ class GCIQLFlowAgent(GCIQLAgent):
             return self._critic_psi(goals, params)
         return self._value_psi(goals, params)
 
+    def _vf_obs(self, obs, goals, params=None):
+        """RG-FB v0 (actor_vf_cond): the obs input the BC vector field AND the
+        distillation rollout consume. 'none' -> obs unchanged (bit-identical stock
+        behavior: goal-agnostic behavioral anchor). 'goal' -> [obs, raw goal]
+        (parity with the awr_flow vf, which concatenates the goal into its obs
+        input). 'z' -> [obs, sg(psi(goal))] -- the SAME task vector the one-shot
+        z-actor consumes (_actor_z), stop-gradded so the vf's flow-matching loss
+        never trains psi (the representation stays purely IQL-trained)."""
+        mode = self.config.get('actor_vf_cond', 'none')
+        if mode == 'none':
+            return obs
+        cond = goals if mode == 'goal' else jax.lax.stop_gradient(self._actor_z(goals, params))
+        return jnp.concatenate([obs, cond], axis=-1)
+
     def _infer_actor_z(self, psi, rng):
         """exp4: the INFERRED task vector z=E[r*psi] per sample. Draw a random sparse
         reward over the batch's goal embeddings psi [B,d] (each row keeps its own goal
@@ -444,9 +549,35 @@ class GCIQLFlowAgent(GCIQLAgent):
 
     def critic_loss(self, batch, grad_params):
         """IQL critic loss; thread z_goals when fb_forward_z (B1): the z-conditioned
-        forward map takes an extra task arg, so Q(s,a,g)=<F(s,a,psi(g)),psi(g)>/sqrt(d)."""
+        forward map takes an extra task arg, so Q(s,a,g)=<F(s,a,psi(g)),psi(g)>/sqrt(d).
+
+        value_arch='dueling': Q=U+A_bil is trained by the SAME TD (no change in form),
+        but the critic call additionally exposes phi/bs (full_info=True) so the
+        baseline regression L_b = mean(||b(s) - sg(phi(s,a_data))||^2) can be added
+        here, weighted by dueling_b_coef. Uses the BATCH's own (behavior) actions --
+        NOT an actor sample -- so b(s) is trained to track E_{a~mu}[phi(s,a)]."""
         next_v = self.network.select('value')(batch['next_observations'], batch['value_goals'])
         q = batch['rewards'] + self.config['discount'] * batch['masks'] * next_v
+        if self.config.get('value_arch', 'mlp') == 'dueling':
+            out = self.network.select('critic')(
+                batch['observations'], batch['value_goals'], batch['actions'],
+                full_info=True, params=grad_params)
+            q1, q2 = out['Q']
+            critic_loss = ((q1 - q) ** 2 + (q2 - q) ** 2).mean()
+            # SCALE-NORM the b-regression: phi inflates during training (bilinear feature
+            # growth), so raw ||b-phi||^2 blows up and dominates the TD (v1 hit critic_loss
+            # ~1.25e4 == b_loss, starving the Q backup -> policy collapsed to floor). Dividing
+            # by sg[mean(phi^2)] makes it a dimensionless relative error ~O(1), balanced against
+            # the TD -- mirrors the repo's measure_scale_norm fix for raw measure grafts.
+            b_scale = jax.lax.stop_gradient(jnp.mean(out['phi'] ** 2) + 1e-6)
+            b_loss = jnp.mean((out['bs'] - jax.lax.stop_gradient(out['phi'])) ** 2) / b_scale
+            b_coef = self.config.get('dueling_b_coef', 1.0)
+            critic_loss = critic_loss + b_coef * b_loss
+            return critic_loss, {'critic_loss': critic_loss, 'q_mean': q.mean(),
+                                 'q_max': q.max(), 'q_min': q.min(),
+                                 'dueling_b_loss': b_loss, 'dueling_b_scale': b_scale,
+                                 'dueling_A_mean': out['A_bil'].mean(),
+                                 'dueling_U_mean': out['U'].mean()}
         zarg = (batch['value_goals'],) if self.config.get('fb_forward_z', False) else ()
         q1, q2 = self.network.select('critic')(
             batch['observations'], batch['value_goals'], batch['actions'], *zarg, params=grad_params)
@@ -509,12 +640,15 @@ class GCIQLFlowAgent(GCIQLAgent):
         rng, x0_rng, t_rng, n_rng, z_rng = jax.random.split(rng, 5)
 
         # 1) flow-matching loss trains actor_vf (the BC flow policy).
+        # RG-FB (actor_vf_cond != 'none'): the vf is goal/z-conditioned -- vf_obs
+        # carries the condition; identical to obs when actor_vf_cond='none'.
+        vf_obs = self._vf_obs(obs, goals, grad_params)
         x_1 = actions
         x_0 = jax.random.normal(x0_rng, actions.shape)
         t = jax.random.uniform(t_rng, (actions.shape[0], 1))
         x_t = (1 - t) * x_0 + t * x_1
         vel = x_1 - x_0
-        pred = self.network.select('actor_vf')(obs, x_t, t, params=grad_params)
+        pred = self.network.select('actor_vf')(vf_obs, x_t, t, params=grad_params)
         bc_flow_loss = jnp.mean((pred - vel) ** 2)
 
         # 2) Q-max on the one-shot actor's actions, using GCIQL's IQL min(q1,q2).
@@ -538,7 +672,15 @@ class GCIQLFlowAgent(GCIQLAgent):
         else:
             actor_cond_input = goals
         actor_actions = self.network.select('actor')(obs, actor_cond_input, noise, params=grad_params)
-        if z_infer is not None:
+        if self.config.get('value_arch', 'mlp') == 'dueling':
+            # dueling: the actor's q-term is A_bil ALONE (the behavior-relative
+            # bilinear advantage), min over the 2-head ensemble -- NOT the full
+            # Q=U+A_bil and NOT (Q-V). U(s,g) is a state-goal cardinal the actor
+            # cannot move through a; maximizing U would just be chasing a bias term.
+            # Frozen critic params (no params=grad_params), same as every other cell.
+            out = self.network.select('critic')(obs, goals, actor_actions, full_info=True)
+            q1, q2 = out['A_bil']
+        elif z_infer is not None:
             # Q_z(s,a)=<phi(s,a), z>/sqrt(d): greedy readout on the inferred task vector.
             _, phi, _ = self.network.select('critic')(obs, goals, actor_actions, info=True)
             q = (phi * z_infer[None]).sum(-1) / jnp.sqrt(self.config['value_latent_dim'])
@@ -555,7 +697,8 @@ class GCIQLFlowAgent(GCIQLAgent):
         # invariant, exactly as in GCIQL's DDPG+BC actor loss.
         distill_error = 0.0
         if self.config['bc_coeff'] > 0:
-            target = self._flow_rollout(obs, noise, jax.lax.stop_gradient(grad_params))
+            # RG-FB: the distillation target rolls the SAME conditioned vf (vf_obs).
+            target = self._flow_rollout(vf_obs, noise, jax.lax.stop_gradient(grad_params))
             distill_error = jnp.mean((actor_actions - target) ** 2)
             bc_loss = self.config['bc_coeff'] * distill_error
             actor_loss = actor_loss / jax.lax.stop_gradient(jnp.abs(q).mean() + 1e-6) + bc_loss
@@ -719,6 +862,145 @@ class GCIQLFlowAgent(GCIQLAgent):
                 'measure_orth': orth}
         if qz_mean is not None:
             info['measure_qz_mean'] = qz_mean
+        return loss, info
+
+    def centered_measure_loss(self, batch, grad_params, rng):
+        """T10 -- centered (advantage) successor measure (PAPER/rescuing-fb/
+        04-centered-measure-spec.md). Every failed measure cell trains raw M, whose
+        loss is dominated by the shared occupancy baseline; the action-contingent
+        component (what control needs) is ~0.2% of Q-variance and gets ~no gradient.
+        Centering gives it its own loss and scale:
+
+            b(s)      ~= E_{a~mu} phi(s,a)   (mu = the frozen goal-agnostic BC flow;
+                          K=center_b_samples flow samples; regression to sg[mean phi],
+                          scale-normed by sg[mean(phi_mu^2)] -- the dueling-v1 lesson)
+            DeltaM    = (phi(s,a) - sg[b(s)]) . psi(s') / sqrt(d)
+            DeltaM TD = the usual BxB measure residual (offdiag + diag attraction) on
+                        DeltaM - gamma*sg[DeltaM_target(s',a'~pi,.)], own scale-norm.
+
+        centered_measure='aux' (T10-a): this is an AUXILIARY on top of the stock scalar
+        IQL losses -- U stays grounded by expectile TD; the actor consumes the full
+        critic Q = phi.psi = (b + Delta-phi).psi = U + DeltaM, normalized by sg|Q_full|
+        (spec §4 risk 1: NEVER DeltaM alone -- the dueling Arch-11 floor).
+
+        centered_measure='only' (T10-b): NO scalar TD anywhere. A second, BASE leg
+        grounds the raw measure M = phi.psi with a BEHAVIOR-ANCHORED measure TD:
+        bootstrap a' = the DATASET next action (SARSA, batch['next_actions'] -- the
+        fixed-policy measure operator, a genuine gamma-contraction), while the pi
+        bootstrap lives ONLY on the DeltaM leg (the split-bootstrap design). The actor
+        again consumes the full Q = phi.psi.
+
+        b(s) is trained ONLY by the regression (stop-gradded inside DeltaM, online net
+        used for the target side -- there is no target b). Logged: b-fidelity
+        ||E_mu phi - b||/||phi|| (spec risk 4) + the T2 early-warning set (E||psi||^2,
+        E||phi||^2, q_mean/q_max on Q_full, per-leg scales)."""
+        obs, nobs = batch['observations'], batch['next_observations']
+        acts, vgoals = batch['actions'], batch['value_goals']
+        d = self.config['value_latent_dim']; sqd = jnp.sqrt(d)
+        gamma = self.config['discount']
+        B = obs.shape[0]; off = 1.0 - jnp.eye(B)
+        mode = self.config['centered_measure']
+        rng, mu_rng, pi_rng = jax.random.split(rng, 3)
+
+        # Online legs: phi(s,a) and psi(s') -- test states = rho (next-observations),
+        # exactly as measure_loss's critic branch.
+        _, phi, psi = self.network.select('critic')(obs, nobs, acts, info=True,
+                                                    params=grad_params)          # [2,B,d]
+
+        # centered_scale_anchors (T10-b2, 2026-07-16): with NO scalar TD, scale-norming
+        # BOTH measure legs makes the whole objective scale-invariant -- nothing pins
+        # |phi.psi| and the diag-attraction inflates it without bound (observed: q_mean
+        # 1e8->3e13, norms 1e14 by 160k; the T2 early-warning metrics caught it). FB's
+        # own anchors, restored: hard sphere-norm on psi (||psi||=sqrt(d)) + a RAW
+        # (un-normalized) regression on the SARSA-anchored base leg to pin phi's scale.
+        anchors = bool(self.config.get('centered_scale_anchors', False))
+        if anchors:
+            psi = _sphere(psi, d)
+
+        # --- b(s): behavior-mean forward feature, regression to sg[mean_{a~mu} phi]. ---
+        # K flow samples per state, batched as one rollout of (B*K); rows (i,k)=i*K+k.
+        # Frozen params everywhere on the target side (values only, no grads).
+        K = int(self.config['center_b_samples'])
+        obs_rep = jnp.repeat(obs, K, axis=0)                                     # [B*K, obs]
+        mu_noise = jax.random.normal(mu_rng, (B * K, self.config['action_dim']))
+        a_mu = self._flow_rollout(obs_rep, mu_noise, jax.lax.stop_gradient(grad_params))
+        _, phi_mu, _ = self.network.select('critic')(obs_rep, obs_rep, a_mu, info=True)
+        phi_mu = jax.lax.stop_gradient(phi_mu).reshape(2, B, K, d).mean(axis=2)  # sg[E_mu phi] [2,B,d]
+        bs = self.network.select('center_b')(obs, params=grad_params)            # [2,B,d]
+        b_scale = jax.lax.stop_gradient(jnp.mean(phi_mu ** 2)) + 1e-6
+        b_loss = jnp.mean((bs - phi_mu) ** 2) / b_scale
+        # b-fidelity (spec risk 4): a lazy b silently un-centers DeltaM.
+        b_fid = (jnp.mean(jnp.linalg.norm(phi_mu - jax.lax.stop_gradient(bs), axis=-1))
+                 / (jnp.mean(jnp.linalg.norm(phi_mu, axis=-1)) + 1e-6))
+
+        # --- DeltaM leg: centered measure TD, bootstrap a' ~ pi (one-shot actor). ---
+        pi_noise = jax.random.normal(pi_rng, acts.shape)
+        a_pi = jax.lax.stop_gradient(self.network.select('actor')(nobs, vgoals, pi_noise))
+        _, tphi, tpsi = self.network.select('target_critic')(nobs, nobs, a_pi, info=True)
+        if anchors:
+            tpsi = _sphere(tpsi, d)
+        tb = jax.lax.stop_gradient(self.network.select('center_b')(nobs))        # online b at s'
+        dphi = phi - jax.lax.stop_gradient(bs)          # b trained ONLY by its regression
+        if self.config.get('measure_stopgrad_phi', False):
+            dphi = jax.lax.stop_gradient(dphi)
+        dM = jnp.einsum('hid,hjd->hij', dphi, psi) / sqd                          # [2,B,B]
+        tdM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi - tb, tpsi) / sqd)
+        dm_off, dm_diag = self._measure_terms(dM, tdM, gamma, scale_norm=True)   # own scale-norm
+        dm_loss = jnp.mean(dm_off + dm_diag)
+
+        info = {
+            'b_loss': b_loss, 'b_scale': b_scale, 'b_fidelity': b_fid,
+            'dm_loss': dm_loss, 'dm_offdiag': jnp.mean(dm_off), 'dm_diag': jnp.mean(dm_diag),
+            'dm_msq': jnp.mean(dM ** 2),
+            # T2 early-warning set: the psi-leg norm runaway + q_max are the divergence trace.
+            'phi_norm_sq': jnp.mean(jnp.sum(phi ** 2, axis=-1)),
+            'psi_norm_sq': jnp.mean(jnp.sum(psi ** 2, axis=-1)),
+        }
+
+        # --- Base/U leg (T10-b only): behavior-anchored raw-measure TD (SARSA). ---
+        base_loss = 0.0
+        if mode == 'only':
+            if self.config.get('centered_split_bootstrap', True):
+                assert 'next_actions' in batch, (
+                    "centered_measure='only' + centered_split_bootstrap needs "
+                    "batch['next_actions'] (dataset SARSA bootstrap on the base leg); "
+                    "run with OGBENCH_NEXT_ACTIONS=1 so sitecustomize patches "
+                    "Dataset.get_subset (see scripts/rescuing_fb/launch_t10.sh)")
+                a_base = batch['next_actions']
+            else:   # non-contraction control: pi bootstrap on the base leg too
+                a_base = a_pi
+            _, tphi_b, tpsi_b = self.network.select('target_critic')(nobs, nobs, a_base, info=True)
+            if anchors:
+                tpsi_b = _sphere(tpsi_b, d)
+            M = jnp.einsum('hid,hjd->hij', phi, psi) / sqd                        # [2,B,B]
+            tM = jax.lax.stop_gradient(jnp.einsum('hid,hjd->hij', tphi_b, tpsi_b) / sqd)
+            # anchors: RAW regression here (scale_norm off) -- the contractive SARSA leg
+            # is the one place an absolute scale can be pinned without an E2-style fight.
+            base_off, base_diag = self._measure_terms(M, tM, gamma, scale_norm=not anchors)
+            base_loss = jnp.mean(base_off + base_diag)
+            info.update({'base_loss': base_loss, 'base_offdiag': jnp.mean(base_off),
+                         'base_diag': jnp.mean(base_diag), 'base_msq': jnp.mean(M ** 2)})
+
+        # Optional FB orthonormality on psi(s') (reuses measure_ortho_coef; default 0).
+        lam_o = self.config.get('measure_ortho_coef', 0.0)
+        orth = 0.0
+        if lam_o > 0:
+            Cov = jnp.einsum('hid,hjd->hij', psi, psi)
+            o_off = 0.5 * jnp.sum((Cov * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)
+            o_diag = -jnp.mean(jnp.diagonal(Cov, axis1=1, axis2=2), axis=1)
+            orth = jnp.mean(o_off + o_diag)
+            info['orth'] = orth
+
+        # Q_full watch (spec risk 3: q_mean must stay <= 0 and bounded). Frozen params,
+        # metrics only -- the actor's own q-normalizer already sees sg|Q_full|.
+        q1, q2 = self.network.select('critic')(obs, vgoals, acts)
+        q_full = jnp.minimum(q1, q2)
+        info.update({'q_mean': q_full.mean(), 'q_max': q_full.max(), 'q_min': q_full.min()})
+
+        lam = self.config.get('centered_measure_coef', 1.0)
+        bcoef = self.config.get('center_b_coef', 1.0)
+        loss = base_loss + lam * dm_loss + bcoef * b_loss + lam_o * orth
+        info['centered_loss'] = loss
         return loss, info
 
     def sf_loss(self, batch, grad_params, rng):
@@ -900,6 +1182,17 @@ class GCIQLFlowAgent(GCIQLAgent):
                 info[f'sf/{k}'] = v
             return self.config.get('sf_coef', 1.0) * sf_l + actor_loss, info
 
+        if self.config.get('centered_measure', 'off') == 'only':
+            # T10-b: NO scalar TD anywhere. Base leg = behavior-anchored (SARSA) measure
+            # TD grounds M=phi.psi; DeltaM leg = centered measure TD with a pi bootstrap;
+            # b(s) regression. The IQL value/critic losses are dropped (value net inits
+            # but never trains, exactly like measure_only).
+            rng, cm_rng = jax.random.split(rng)
+            cm_loss, cm_info = self.centered_measure_loss(batch, grad_params, cm_rng)
+            for k, v in cm_info.items():
+                info[f'centered/{k}'] = v
+            return cm_loss + actor_loss, info
+
         if self.config.get('measure_only', False):     # SM-ONLY critic (no IQL): FB objective
             rng, m_rng = jax.random.split(rng)
             m_loss, m_info = self.measure_loss(batch, grad_params, m_rng)
@@ -924,6 +1217,15 @@ class GCIQLFlowAgent(GCIQLAgent):
             iql_w = 1.0 - jnp.clip(t / ramp, 0.0, 1.0)
             info['anneal/iql_w'] = iql_w
         loss = iql_w * (value_loss + critic_loss) + actor_loss
+        if self.config.get('centered_measure', 'off') == 'aux':
+            # T10-a: centered-measure ADVANTAGE as an auxiliary on top of the stock
+            # scalar IQL grounding (which keeps training the full Q = phi.psi). The
+            # actor path is untouched -- it consumes Q_full normalized by sg|Q_full|.
+            rng, cm_rng = jax.random.split(rng)
+            cm_loss, cm_info = self.centered_measure_loss(batch, grad_params, cm_rng)
+            for k, v in cm_info.items():
+                info[f'centered/{k}'] = v
+            loss = loss + cm_loss
         if self.config.get('simplesf_ground_psi', False):
             # rung 3 (the paper's cell): psi(g) is detached inside value/critic (GCSimpleSFValue),
             # so this regression is its ONLY gradient. The trunk still learns from the TD, which
@@ -1183,6 +1485,81 @@ class GCIQLFlowAgent(GCIQLAgent):
         else:
             ex_actor_goals = ex_goals
 
+        # RG-FB v0 (actor_vf_cond): condition the BC vector field + distillation
+        # rollout on the goal ('goal': raw goal concatenated, awr_flow parity) or
+        # on the task vector ('z': sg(psi(goal)) -- the SAME z the one-shot actor
+        # consumes). 'none' (default) keeps the stock goal-agnostic vf and a
+        # byte-identical param tree, so every existing checkpoint keeps loading.
+        vf_cond = config.get('actor_vf_cond', 'none')
+        assert vf_cond in ('none', 'goal', 'z'), f"unknown actor_vf_cond={vf_cond!r}"
+        if vf_cond != 'none':
+            assert config.get('actor_kind', 'flow') == 'flow', \
+                "actor_vf_cond requires actor_kind='flow' (ddpgbc has no vf; awr_flow's vf is already goal-conditioned)"
+            assert config['encoder'] is None, \
+                "actor_vf_cond supports state obs only (a pixel vf would need an encoded-goal concat path)"
+            if vf_cond == 'z':
+                # value_arch='bilinear' (an arch WITH a psi) is enforced transitively
+                # by the actor_cond='z' guard above; 'goal' needs no psi and works on
+                # any arch with a flow actor.
+                assert config.get('actor_cond', 'goal') == 'z', \
+                    "actor_vf_cond='z' requires actor_cond='z' (the vf consumes the same z=sg(psi(goal)) as the one-shot actor)"
+                assert not config.get('actor_z_infer', False), \
+                    "actor_vf_cond='z' conditions the vf on the exact psi(goal); actor_z_infer trains the actor on inferred z and would mismatch"
+
+        if config.get('value_arch', 'mlp') == 'dueling':
+            # GCDuelingValue is a NEW critic class (not a GCBilinearValue subclass swap
+            # over an existing param tree) that reads phi/psi/b/U through its own
+            # full_info=True path -- every knob below either reads the critic's info=True
+            # 3-tuple with FB-specific semantics, picks its OWN critic class, or wires an
+            # extra arg the dueling critic's __call__ doesn't accept. Refuse them at
+            # construction rather than silently mis-composing.
+            assert config.get('actor_kind', 'flow') == 'flow', \
+                "value_arch='dueling' requires actor_kind='flow' (its A_bil-only q-term is wired into the flow-actor branch of actor_loss)"
+            assert config.get('measure_coef', 0.0) == 0.0 and not config.get('measure_only', False), \
+                "value_arch='dueling' is incompatible with the FB measure knobs (measure_coef/measure_only)"
+            assert not config.get('sf_feature_td', False), \
+                "value_arch='dueling' is incompatible with sf_feature_td (a different critic class owns phi)"
+            assert config.get('psi_base', 'learned') == 'learned', \
+                "value_arch='dueling' is incompatible with psi_base != 'learned' (dueling defines its own critic class)"
+            assert not config.get('fb_forward_z', False), \
+                "value_arch='dueling' is incompatible with fb_forward_z (Q=U+A_bil has no z-conditioned forward-map arg)"
+            assert not config.get('fwd_two_tower', False) and not config.get('isfb', False), \
+                "value_arch='dueling' is incompatible with fwd_two_tower/isfb (they select their own critic class)"
+            assert config.get('actor_cond', 'goal') != 'z' and not config.get('actor_z_infer', False), \
+                "value_arch='dueling' has no state-independent z=psi(g) task vector; actor_cond='z'/actor_z_infer are incompatible"
+            assert config.get('iql_ortho_coef', 0.0) == 0.0, \
+                "value_arch='dueling' is incompatible with iql_ortho_coef (ortho_loss's info=True psi has different semantics under dueling)"
+
+        # T10 (centered measure) lattice: the centered loss reads the critic's info=True
+        # 3-tuple with plain-bilinear semantics (phi(s,a), psi(g)), samples mu from the
+        # goal-agnostic BC flow, and bootstraps DeltaM on the one-shot flow actor -- so
+        # it composes with exactly ONE cell: plain bilinear + flow + raw-goal actor.
+        cm = config.get('centered_measure', 'off')
+        assert cm in ('off', 'aux', 'only'), f"unknown centered_measure={cm!r}"
+        if cm != 'off':
+            assert config.get('value_arch', 'mlp') == 'bilinear', \
+                "centered_measure requires value_arch='bilinear' (DeltaM centers the plain bilinear phi)"
+            assert config.get('psi_base', 'learned') == 'learned', \
+                "centered_measure requires psi_base='learned' (a frozen/identity psi has different info semantics)"
+            assert config.get('actor_kind', 'flow') == 'flow', \
+                "centered_measure requires actor_kind='flow' (mu = the BC flow via _flow_rollout; a'~pi = the one-shot actor)"
+            assert config.get('actor_vf_cond', 'none') == 'none', \
+                "centered_measure requires actor_vf_cond='none' (b(s) regresses on the GOAL-AGNOSTIC behavior flow mu)"
+            assert config.get('actor_cond', 'goal') == 'goal' and not config.get('actor_z_infer', False), \
+                "centered_measure requires actor_cond='goal' (under 'only' the value net -- the z source -- never trains)"
+            assert config['encoder'] is None, "centered_measure supports state obs only"
+            for knob in ('fb_forward_z', 'fwd_two_tower', 'isfb', 'sf_feature_td', 'measure_only',
+                         'anneal_measure', 'anneal_iql_fade', 'anneal_simplesf_ground'):
+                assert not config.get(knob, False), f"centered_measure is incompatible with {knob}"
+            assert config.get('measure_coef', 0.0) == 0.0, \
+                "centered_measure is incompatible with the raw measure graft (measure_coef>0); it IS the measure term"
+            assert config.get('iql_ortho_coef', 0.0) == 0.0, \
+                "centered_measure owns the psi ortho term (measure_ortho_coef); iql_ortho_coef would double it"
+            assert not config.get('freeze_critic_ckpt', ''), \
+                "centered_measure adds a center_b module the freeze-splice list doesn't cover"
+            assert int(config.get('center_b_samples', 8)) >= 1, "center_b_samples must be >= 1"
+            assert config.get('centered_measure_coef', 1.0) >= 0.0, "centered_measure_coef must be >= 0"
+
         # Encoders: IQL value/critic use the GCEncoder wrapper (as in gciql.py);
         # the flow nets take the raw encoder module (as in crl_flowbc.py).
         encoders = {}
@@ -1213,6 +1590,30 @@ class GCIQLFlowAgent(GCIQLAgent):
             critic_def = GCSimpleSFValue(
                 ensemble=True, state_encoder=encoders.get('critic'),
                 goal_encoder=encoders.get('critic'), **ss_kwargs)
+        elif config.get('value_arch', 'mlp') == 'bilinear_sg':
+            # State-conditioned backward leg: Q=phi(s,a).psi(s,g)/sqrt(d). Keeps the
+            # inner-product head, destroys the low-rank GOAL bottleneck. Separate branch on
+            # purpose: the 'bilinear' path below stays byte-identical, so every bridge
+            # checkpoint on disk keeps loading.
+            d = config['value_latent_dim']
+            for bad in ('fb_forward_z', 'sf_feature_td', 'fwd_two_tower', 'isfb',
+                        'measure_only', 'actor_z_infer'):
+                assert not config.get(bad, False), \
+                    f"value_arch='bilinear_sg' has no state-independent z=psi(g); '{bad}' " \
+                    "reads psi as a task vector and is incompatible."
+            assert config.get('actor_cond', 'goal') != 'z', \
+                "value_arch='bilinear_sg' has no state-independent z=psi(g); actor_cond='z' " \
+                "is incompatible."
+            sg_kwargs = dict(
+                hidden_dims=config['value_hidden_dims'], latent_dim=d,
+                layer_norm=config['layer_norm'],
+            )
+            value_def = GCStatePsiValue(
+                ensemble=False, state_encoder=encoders.get('value'),
+                goal_encoder=encoders.get('value'), **sg_kwargs)
+            critic_def = GCStatePsiValue(
+                ensemble=True, state_encoder=encoders.get('critic'),
+                goal_encoder=encoders.get('critic'), **sg_kwargs)
         elif config.get('value_arch', 'mlp') == 'bilinear':
             d = config['value_latent_dim']
             # psi_base: cripple the goal leg under the NORMAL scalar IQL TD (1b control).
@@ -1259,6 +1660,23 @@ class GCIQLFlowAgent(GCIQLAgent):
                 # destroy the identity base b(g)=g.
                 crit_kwargs['project_z'] = config.get('project_z', False)
             critic_def = critic_cls(**crit_kwargs)
+        elif config.get('value_arch', 'mlp') == 'dueling':
+            # Behavior-centered dueling critic Q=U(s,g)+A_bil(s,a,g) (GCDuelingValue).
+            # The critic is a NEW class (not a GCBilinearValue drop-in swap): only the
+            # critic net gets it -- the value net stays the plain GCValue expectile V,
+            # a DISTINCT object from the in-Q baseline U.
+            d = config['value_latent_dim']
+            value_def = GCValue(
+                hidden_dims=config['value_hidden_dims'],
+                layer_norm=config['layer_norm'],
+                ensemble=False,
+                gc_encoder=encoders.get('value'),
+            )
+            critic_def = GCDuelingValue(
+                hidden_dims=config['value_hidden_dims'], latent_dim=d,
+                layer_norm=config['layer_norm'], ensemble=True,
+                state_encoder=encoders.get('critic'), goal_encoder=encoders.get('critic'),
+            )
         else:
             value_def = GCValue(
                 hidden_dims=config['value_hidden_dims'],
@@ -1281,6 +1699,16 @@ class GCIQLFlowAgent(GCIQLAgent):
             critic=(critic_def, critic_ex),
             target_critic=(copy.deepcopy(critic_def), critic_ex),
         )
+        if cm != 'off':
+            # T10 b(s): behavior-mean forward feature, an MLP head with phi's output
+            # dim + ensemble structure (2 heads, matching the critic), trained ONLY by
+            # the scale-normed regression in centered_measure_loss. Registered only
+            # when the knob is on, so the default param tree stays byte-identical and
+            # every existing checkpoint keeps loading.
+            center_b_def = ensemblize(MLP, 2)(
+                (*config['value_hidden_dims'], config['value_latent_dim']),
+                activate_final=False, layer_norm=config['layer_norm'])
+            network_info['center_b'] = (center_b_def, (ex_observations,))
         if config.get('actor_kind', 'flow') == 'ddpgbc':
             # Stock GCIQL gaussian DDPG+BC actor on the (possibly bilinear) critic.
             actor_def = GCActor(
@@ -1321,7 +1749,17 @@ class GCIQLFlowAgent(GCIQLAgent):
             )
             ex_noise = jnp.zeros_like(ex_actions)
             ex_t = jnp.zeros((ex_actions.shape[0], 1))
-            network_info['actor_vf'] = (actor_vf_def, (ex_observations, ex_actions, ex_t))
+            # RG-FB (actor_vf_cond): size the vf's obs example to the conditioned
+            # input. 'goal' appends the raw goal obs; 'z' appends the d-dim task
+            # vector (ex_actor_goals is zeros(B, value_latent_dim) under
+            # actor_cond='z', which actor_vf_cond='z' requires).
+            if vf_cond == 'goal':
+                ex_vf_obs = jnp.concatenate([ex_observations, ex_goals], axis=-1)
+            elif vf_cond == 'z':
+                ex_vf_obs = jnp.concatenate([ex_observations, ex_actor_goals], axis=-1)
+            else:
+                ex_vf_obs = ex_observations
+            network_info['actor_vf'] = (actor_vf_def, (ex_vf_obs, ex_actions, ex_t))
             network_info['actor'] = (actor_def, (ex_observations, ex_actor_goals, ex_noise))
         networks = {k: v[0] for k, v in network_info.items()}
         network_args = {k: v[1] for k, v in network_info.items()}
@@ -1339,6 +1777,33 @@ class GCIQLFlowAgent(GCIQLAgent):
         else:
             network_tx = optax.adam(learning_rate=config['lr'])
         network_params = network_def.init(init_rng, **network_args)['params']
+
+        # Exp 2/3: splice a frozen trained critic into the fresh-actor tree + mask the optimizer.
+        if config.get('freeze_critic_ckpt', ''):
+            import glob as _glob
+            import pickle as _pickle
+            from flax.core import unfreeze as _unfreeze
+            assert not config.get('anneal_measure', False) and not config.get('anneal_iql_fade', False), \
+                "freeze_critic_ckpt is incompatible with the anneal warm-start path"
+            _cand = _glob.glob(config['freeze_critic_ckpt'])
+            assert len(_cand) == 1, f"freeze_critic_ckpt matched {len(_cand)}: {_cand}"
+            _pkl = f"{_cand[0]}/params_{int(config['freeze_critic_epoch'])}.pkl"
+            with open(_pkl, 'rb') as _f:
+                _ck = _pickle.load(_f)['agent']['network']['params']
+            _FREEZE = ('modules_value', 'modules_critic', 'modules_target_critic')
+            network_params = _unfreeze(network_params)
+            for _k in _FREEZE:
+                assert _k in _ck, f"checkpoint missing {_k}; freeze_critic config must match its architecture"
+                network_params[_k] = _ck[_k]          # frozen trained critic/value; actor stays fresh-init
+            print(f"[freeze_critic] spliced {_FREEZE} from {_pkl}; actor re-initialised, "
+                  f"optimizer masked to actor-only", flush=True)
+
+            def _freeze_labels(params):
+                return {k: jax.tree_util.tree_map(lambda _l: ('freeze' if k in _FREEZE else 'train'), v)
+                        for k, v in params.items()}
+            network_tx = optax.multi_transform(
+                {'train': network_tx, 'freeze': optax.set_to_zero()}, _freeze_labels)
+
         network = TrainState.create(network_def, network_params, tx=network_tx)
 
         params = network_params
@@ -1352,8 +1817,11 @@ def get_config():
     with config.unlocked():
         config.agent_name = 'gciql_flow'
         # Value architecture: 'mlp' (canonical GCIQL) | 'bilinear' (inner-product, Direction A)
-        # | 'simplesf' (Chua et al.: trunk -> b=h/||h|| and Psi=head(h); Q=<Psi,psi(g)>/sqrt(d)).
+        # | 'simplesf' (Chua et al.: trunk -> b=h/||h|| and Psi=head(h); Q=<Psi,psi(g)>/sqrt(d))
+        # | 'dueling' (behavior-centered dueling critic: Q=U(s,g)+A_bil(s,a,g), A_bil=
+        #   (phi(s,a)-b(s)).psi(g)/sqrt(d); see GCDuelingValue).
         config.value_arch = 'mlp'
+        config.dueling_b_coef = 1.0  # weight on the dueling baseline regression L_b=||b(s)-sg(phi(s,a_data))||^2 (critic_loss); value_arch='dueling' only
         config.simplesf_ground_psi = False  # rung 3 (the paper's cell): stop-grad z in the value/critic losses so psi(g) is trained ONLY by the reward-prediction loss L_rew
         config.simplesf_reward_coef = 1.0   # weight on L_rew, summed over the value net and the critic
         config.value_latent_dim = 512
@@ -1361,6 +1829,12 @@ def get_config():
         # 'goal' = raw goal obs (stock); 'z' = z=stop_grad(value.psi(goal)),
         # FB-style single backward map. 'z' requires value_arch='bilinear'.
         config.actor_cond = 'goal'
+        # RG-FB v0 (PAPER/rescuing-fb/02-rgfb-spec.md §2.1): condition the BC flow
+        # vector field AND the distillation rollout. 'none' = stock goal-agnostic
+        # behavioral anchor (bit-identical, default) | 'goal' = raw goal concat
+        # (awr_flow parity) | 'z' = sg(psi(goal)), the SAME task vector the one-shot
+        # z-actor consumes (requires actor_cond='z'; flow actor + state obs only).
+        config.actor_vf_cond = 'none'
         # Clipped double-Q: True = min(q1,q2) (stock); False = q1 only (pessimism ablation).
         config.double_q = True
         # Actor family: 'flow' (FlowBC + Q-max distillation, the custom actor),
@@ -1384,6 +1858,13 @@ def get_config():
         config.measure_scale_norm = False  # E2: divide the measure TD terms by sg[mean(M^2)] so the gradient is dimensionless (stops the <F,z> inflation that crashed 18/18 mc* runs; audit §1)
         config.measure_stopgrad_phi = False  # E2: stop-grad phi inside measure_loss so the measure gradient shapes ONLY psi (readout/backward leg), quarantined from the value-critical forward leg
         config.measure_z_random_frac = 0.0  # FB-fidelity: fraction of measure-loss task vectors z drawn as sqrt(d)-sphere gaussian directions (metamotivo sample_mixed_z) instead of psi(vgoals); needs fb_forward_z
+        # --- T10 centered (advantage) successor measure (PAPER/rescuing-fb/04-centered-measure-spec.md) ---
+        config.centered_measure = 'off'  # 'off' (stock, byte-identical) | 'aux' (T10-a: centered-measure DeltaM TD as an auxiliary on the scalar-IQL grounding) | 'only' (T10-b: no scalar TD; SARSA-anchored base measure TD + pi-bootstrapped centered DeltaM TD)
+        config.center_b_samples = 8      # K flow samples per state for the b(s) regression target sg[mean_{a~mu} phi(s,a)] (mu = the frozen goal-agnostic BC flow)
+        config.center_b_coef = 1.0       # weight on the scale-normed b(s) regression loss
+        config.centered_measure_coef = 1.0  # lambda_DeltaM: weight on the centered-measure TD leg (spec doses {0.3, 1})
+        config.centered_split_bootstrap = True  # T10-b base leg bootstrap: True -> a' = DATASET next action (SARSA, the contractive fixed-policy operator; needs batch['next_actions'] via OGBENCH_NEXT_ACTIONS=1) | False -> a' ~ pi (the non-contraction control)
+        config.centered_scale_anchors = False  # T10-b2: with NO scalar TD, scale-norming both measure legs is scale-INVARIANT and the representation inflates without bound (observed q_mean +3e13). True restores FB's anchors: sphere-norm psi (||psi||=sqrt(d)) everywhere + RAW (un-normalized) regression on the SARSA base leg (+ set measure_ortho_coef>0). No effect on 'aux'/'off' paths beyond the DeltaM psi-sphere when explicitly enabled.
         config.anneal_measure = False    # ramp the SM loss weight instead of holding it constant: lam(t) = measure_coef * clip(step/anneal_ramp, 0, 1), then HOLD. measure_coef is reinterpreted as lam_max. Warm-start finetuning only (see scripts/prepare_anneal_ckpt.py, which resets network.step to 0)
         config.anneal_ramp = 300_000     # linear ramp length in updates; lam holds at lam_max afterwards
         config.anneal_lr_warmup = 0      # linear LR warmup length in updates (0 = constant LR, today's behaviour). NOTE: a nonzero value changes the optax opt_state tree, so such a run can only restore from a checkpoint written by prepare_anneal_ckpt.py
@@ -1409,4 +1890,12 @@ def get_config():
         config.project_z = False  # hard-project z and B=psi onto the sqrt(d) sphere (FB's ||B||=||z||=sqrt(d) Norm); applies to GCFBValue/GCTwoTowerCritic
         config.actor_z_from_critic = False  # source the flow actor's z from the CRITIC psi (=B, measure-trained), not the value net (audit #2 / D1); needs actor_cond='z'
         config.actor_z_infer = False  # exp4: train the flow actor on the INFERRED task dist z=E[r*psi] (sparse-reward readout over the batch), not exact psi(g); needs bilinear
+        # --- Exp 2/3 (bilinear-mechanism-program): train a FRESH actor against a RESTORED,
+        # FROZEN critic. Splice the checkpoint's value/critic/target_critic into a fresh-init
+        # param tree (actor stays random-init) and mask the optimizer so ONLY actor params move
+        # (set_to_zero on critic/value). Isolates the critic's actor-training FIELD from
+        # actor-critic co-adaptation. The config MUST match the checkpoint's critic architecture
+        # (value_arch, value_latent_dim, ...) or the splice tree mismatches. Empty = off.
+        config.freeze_critic_ckpt = ''     # glob path to the run dir holding params_<epoch>.pkl
+        config.freeze_critic_epoch = 0     # checkpoint step to load the frozen critic from
     return config
