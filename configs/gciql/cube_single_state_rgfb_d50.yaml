@@ -1,0 +1,37 @@
+# RG-FB v0 (PAPER/rescuing-fb/02-rgfb-spec.md): Reward-Grounded Forward-Backward.
+#
+# FB's zero-shot API grounded by hindsight scalar expectile TD instead of
+# policy-conditioned measure TD. This is the bilinear-d50 anchor recipe
+# (Q = phi(s,a).psi(g)/sqrt(d), IQL expectile TD, OGBench goal mix, flow actor)
+# + the G4 z-conditioned one-shot actor (actor_cond=z: z = sg(psi(goal)))
+# + NEW: the BC flow vector field AND the distillation rollout are z-conditioned
+#   too (actor_vf_cond=z) -- fixes the goal-agnostic behavioral anchor (audit
+#   smell #1). v0 has NO measure auxiliary (measure_coef=0, spec §1.2.3).
+#
+# Eval protocol is zero-shot ONLY (scripts/rescuing_fb/eval_rgfb_zeroshot.py);
+# the in-training eval success is the exact-z DIAGNOSTIC anchor.
+# Pre-registered reads (spec §3): exact-z >= 0.88 / zeroshot >= 0.90 / gap <= 3pts.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: RGFB-Cube-Single-State-d50-v0
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_cond: z
+  actor_vf_cond: z
+wandb_mode: online

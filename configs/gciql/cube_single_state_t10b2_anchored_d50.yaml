@@ -1,0 +1,43 @@
+# T10-b2 (ANCHORED) -- centered (advantage) successor measure, MEASURE-ONLY arm (the pure
+# measure-native rescue). Spec: PAPER/rescuing-fb/04-centered-measure-spec.md §2.
+#
+# NO scalar TD anywhere. Split bootstrap:
+#   base/U leg: raw measure M = phi(s,a).psi(s') trained by BEHAVIOR-ANCHORED
+#       measure TD -- bootstrap a' = the DATASET next action (SARSA; the
+#       fixed-policy measure operator, a genuine gamma-contraction). Needs
+#       batch['next_actions']: launch with OGBENCH_NEXT_ACTIONS=1 (sitecustomize).
+#   DeltaM leg: centered measure TD on (phi - sg[b]).psi with a' ~ pi -- the
+#       policy improvement lives ONLY in the advantage.
+#   b(s): scale-normed regression to sg[mean_{a~mu} phi], K=8 BC-flow samples.
+# Actor consumes the FULL Q = phi.psi (= U + DeltaM), q-normalized by sg|Q_full|.
+#
+# Read (pre-registered): best existing measure-only is 0.088. >=0.5 = a real
+# measure-native rescue (headline); 0.2-0.5 = partial; <0.2 = arm dead.
+# Honest prior (spec risk 2): plateau in the 0.3-0.5 band.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-CenteredMeasure-Only-Anchored-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  centered_measure: only
+  centered_measure_coef: 1.0
+  center_b_samples: 8
+  centered_scale_anchors: true
+  measure_ortho_coef: 1.0
+wandb_mode: online
