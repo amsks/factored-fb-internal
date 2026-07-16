@@ -37,7 +37,7 @@ All methods use the Flow-Q learning with BC (FQL-BC) regularization~\citep{park-
 \label{tab:cross_method_outcomes}
 \begin{tabular}{lcccccc}
 \toprule
-\textbf{Method} & \textbf{Success} & \textbf{Approach} & \textbf{Control acquisition} & \textbf{Maintain} & \textbf{Transport} & \textbf{Post-acquisition share} \\
+\textbf{Method} & \textbf{Success} & \textbf{Approach} & \textbf{Control acq.} & \textbf{Maintain} & \textbf{Transport} & \textbf{Post-acq. share} \\
 \midrule
 \fb{}    & $49.4$ & $0.0$ & $8.7$  & $24.9$ & $17.0$ & $82.8\%$ \\
 \gciql{} & $73.7$ & $0.0$ & $11.9$ & $7.8$  & $6.7$  & $54.9\%$ \\
@@ -112,7 +112,7 @@ Because the labels are generated separately under each method's own policy, the 
 
 \begin{table}[H]
 \centering
-\caption{On-policy counterfactual value test. We reset $200$ in-hand grasp states in the simulator and roll out each agent's own (flow) policy for $K=10$ independent continuations per grasp, labeling the grasp by the fraction that reaches the goal (the flow policy is stochastic, so a single rollout is a noisy draw). We report the learned value's rank-AUC against this success label, computed per goal, averaged across goals and across the method's flow-actor training seeds ($9$--$10$ seeds), together with the mean counterfactual success rate.}
+\caption{On-policy counterfactual value test. We reset $200$ in-hand grasp states in the simulator and pair each with the five held-out goals ($1{,}000$ state--goal pairs), rolling out each agent's own (flow) policy for $K{=}10$ independent continuations per pair (the flow policy is stochastic, so a single rollout is a noisy draw) and labeling a pair a success when at least half of its continuations reach the goal. We report the learned value's rank-AUC (the ROC-AUC of the value against this binary label), computed within each goal and averaged across goals and the method's flow-actor training seeds ($9$--$10$ seeds), together with the mean counterfactual success rate (the average fraction of successful continuations).}
 \label{tab:cf_value}
 \begin{tabular}{lcc}
 \toprule
