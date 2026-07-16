@@ -20,16 +20,16 @@ This converts aggregate success into a phase-specific failure profile.
 
 \begin{table}[htb]
 \centering
-\caption{Operational criteria for assigning the first unmet phase in state-based rollouts.}
+\caption{Operational criteria for assigning the first unmet phase in state-based rollouts. The transport criterion is a diagnostic threshold ($5$ cm final cube-to-goal \emph{position}, together with final retention) and does not reproduce the benchmark's own success signal, which uses a $4$ cm position threshold and no retention requirement. Phase-defined success is therefore a diagnostic quantity and is not expected to match aggregate benchmark success exactly.}
 \label{tab:failure_criteria}
-\begin{tabular}{ll}
+\begin{tabular}{p{0.28\linewidth} p{0.68\linewidth}}
 \toprule
 \textbf{Phase}      & \textbf{Criterion} \\
 \midrule
 Approach reached    & Minimum gripper-to-cube distance $<6$ cm at any point in the episode \\ \addlinespace
 Control acquired    & Cube lifted $>3$ cm above the table with the gripper closed for at least $5$ consecutive steps \\ \addlinespace
 Maintain control    & Final cube height above the table $\geq 3$ cm \\ \addlinespace
-Transport success   & Final cube pose within $5$ cm of the goal pose \\
+Transport (diagnostic) & Final cube \emph{position} within $5$ cm of the goal position \\
 \bottomrule
 \end{tabular}
 \end{table}
