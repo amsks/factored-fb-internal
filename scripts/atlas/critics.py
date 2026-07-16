@@ -38,26 +38,31 @@ class _JaxGCIQL:
 
 
 class _TorchFB:
-    """FB critic with reward-inferred z per goal. Runs under the repo .venv (torch)."""
+    """FB critic with reward-inferred z per goal. Runs under the repo .venv (torch).
 
-    def __init__(self, agent, ref_obs):
+    z uses the *exact* FB-eval reward-relabel inference (OGBenchEvaluator._infer_z): relabel a
+    large offline sub-batch with the task's cube_reward_fn, shift by +1, project. Precomputed once
+    per eval task in `_load_fb` and looked up here by nearest eval goal. The OLD sparse hit-indicator
+    z (cube-within-4cm over a ref batch) returned z=0 -> Q=0 on the eval goals (sparse-z fails)."""
+
+    def __init__(self, agent, eval_goals, eval_z):
         self.agent = agent
-        self.ref = ref_obs                      # fixed reference batch for infer_z [R, 28]
-
-    def _reward_for_goal(self, goal):
-        """Sparse success indicator over the reference batch: cube within 4cm of the goal
-        cube, matching the dataset's exact-match reward semantics (datasets.py:242)."""
-        import torch
-        ref_cube = self.ref[:, 14:17]
-        goal_cube = np.asarray(goal)[14:17]
-        hit = (np.linalg.norm(ref_cube - goal_cube[None], axis=1) <= 0.04).astype(np.float32)
-        return torch.as_tensor(hit)
+        self.eval_goals = np.asarray(eval_goals, np.float32)   # [T, 28] task goal observations
+        self.eval_z = list(eval_z)                             # [T] each 1-D z tensor (relabel-z)
 
     def z_identifiable(self, goals):
-        return np.array([int(self._reward_for_goal(g).sum()) > 0 for g in goals], dtype=bool)
+        # relabel-z with shift_reward=+1 is always non-degenerate
+        return np.ones(len(goals), dtype=bool)
 
     def _z(self, goal):
-        return self.agent.infer_z(_totorch(self.ref), self._reward_for_goal(goal))
+        """Match the incoming goal observation to its eval task by nearest cube position and
+        return that task's precomputed relabel-z."""
+        gc = np.asarray(goal, np.float32)[14:17]
+        d = np.linalg.norm(self.eval_goals[:, 14:17] - gc[None], axis=1)
+        i = int(d.argmin())
+        assert d[i] < 1e-3, (f'goal cube {gc} not among the {len(self.eval_z)} eval goals '
+                             f'(nearest dist {d[i]:.4g}); relabel-z is only precomputed for those')
+        return self.eval_z[i]
 
     def Q(self, obs, actions, goals):
         import torch
@@ -91,20 +96,42 @@ def load_critic(spec):
 
 
 def _load_fb():
-    """Torch FB via the same loader oodgrid_run_torch uses. Reference batch = a fixed
-    slice of the offline dataset for infer_z."""
+    """Torch FB via the same loader oodgrid_run_torch uses. Per-task relabel-z (the exact
+    FB-eval inference) is precomputed here via OGBenchEvaluator, mirroring rerank_audit_fb.py."""
     import sys
     sys.path.insert(0, '/home/adityamohan/git/Factored-FB')
     from data.ogbench import load_ogbench_dataset
     from evals.analysis import build_env_and_agent, load_cfg, load_checkpoint
-    run = ('/home/adityamohan/bridge_ckpt_backup/factored-fb_outputs/'
-           '2026-05-14_21-34-52__cube-single-play-v0__fb_flowbc__s0')
+    from evals.ogbench import OGBenchEvaluator
+    # Plain FB, state, cube: agent=fb_flowbc, z_dim=50, ortho_coef=1000, onestep=false, 1.5M steps
+    # (inventory row fb_state_plain, load-verified). The OLD default here was a 100-step SMOKE
+    # STUB (2026-05-14_21-34-52...) that scores ~0 -- any prior FB atlas result on it is invalid.
+    domain = 'cube-single-play-v0'
+    run = ('/home/adityamohan/bridge_ckpt_backup/factored-fb/runs/'
+           '20260607_070225__fb_state_plain__s0')
     cfg = load_cfg(f'{run}/.hydra/config.yaml', device='cpu')
     _, agent, _, _ = build_env_and_agent(cfg)
-    load_checkpoint(agent, f'{run}/checkpoints/final.pt', map_location='cpu')
-    ds = load_ogbench_dataset(domain='cube-single-play-v0',
+    load_checkpoint(agent, f'{run}/checkpoints/step_1000000.pt', map_location='cpu')
+    agent.model.eval()
+    ds = load_ogbench_dataset(domain=domain,
                               # FB per-episode buffer, moved off volatile /dev/shm to persistent
                               data_path=os.path.expanduser('~/bridge_ckpt_backup/datasets'),
-                              load_n_episodes=50, device='cpu')
-    ref = ds.sample(2048)['observation'].cpu().numpy().astype(np.float32)
-    return _TorchFB(agent, ref)
+                              load_n_episodes=400, device='cpu')
+
+    # relabel-z per eval task (task_id 1..5), same order as banks['goals_eval'] (built from
+    # env.reset(task_id=t) in banks.py::_eval_goals).
+    evaluator = OGBenchEvaluator(domain=domain, agent=agent, offline_buffer=ds,
+                                 relabel_size=10000, shift_reward=1.0, device='cpu')
+    tasks = evaluator.tasks
+    assert len(tasks) == 5, tasks
+    eval_z = []
+    for t in tasks:
+        z, rmet = evaluator._infer_z(t)
+        z = z.detach().float().reshape(-1)
+        eval_z.append(z)
+        print(f"[fb-z] {t}: |z|={z.norm().item():.3f} "
+              f"relabel_nonzero={rmet.get('relabel_reward#nonzero')}", flush=True)
+
+    banks = np.load('/home/adityamohan/git/Factored-FB/analysis/atlas/banks.npz')
+    eval_goals = banks['goals_eval']                          # [5, 28], task_id 1..5 order
+    return _TorchFB(agent, eval_goals, eval_z)

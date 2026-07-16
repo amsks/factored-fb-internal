@@ -190,6 +190,10 @@ MAP = {
     'GCIQL-State-Flow-Bilinear-d50-MeasureMix-l30-sgphi': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='E2-mix-l30-sgphi', graft='stopgrad-phi dose (3/3 q-band violations, UNINTERPRETABLE)'),
     'GCIQL-AntMaze-Medium-Bilinear-d50-MeasureOnly-DDPGBC': dict(csv='bridge', env='antmaze', agent='GCIQL', actor='ddpgbc', variant='measure-only', graft='measure objective only, domain-flip control'),
     'GCIQL-State-Flow-Bilinear-d50-Ortho1000': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='iql-ortho1000', graft='FB ortho coef on IQL critic (kills it)'),
+    'GCIQL-State-Flow-Bilinear-SG-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='bilinear-sg-d50',
+                                             graft='psi(s,g) not psi(g): same inner-product head, no low-rank GOAL bottleneck',
+                                             notes='2/3 seeds DIVERGE late (value_loss 0.15->1-5, q_mean crosses positive); '
+                                                   'the one stable seed lands at MLP level. Mean is divergence-driven, not a policy quality.'),
     'GCIQL-State-Flow-Bilinear-d50-singleq': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='single-q', graft='GCIQL self-ablation'),
     'GCIQL-State-Flow-Bilinear-d50-tau05':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='tau0.5', graft='GCIQL self-ablation'),
     'GCIQL-State-Flow-Bilinear-d50-tau095':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='tau0.95', graft='GCIQL self-ablation'),

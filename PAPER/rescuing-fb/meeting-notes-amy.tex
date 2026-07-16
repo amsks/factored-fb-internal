@@ -1,0 +1,370 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!60!black]{hyperref}
+\usepackage{microtype}
+\usepackage{graphicx}
+\graphicspath{{figs/}}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\sg}{\mathrm{sg}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\numgood}[1]{\textbf{\textcolor{green!45!black}{#1}}}
+\newcommand{\numbad}[1]{\textbf{\textcolor{red!65!black}{#1}}}
+\newcommand{\whyq}[1]{\medskip\noindent\textbf{\textcolor{blue!50!black}{Why #1}}\\}
+
+\title{Why Bilinear GCIQL Works on Cube --- and How We Are Rescuing FB\\
+\large Meeting notes: a Socratic chain, with math, figures, and measured numbers}
+\author{Factored-FB project}
+\date{July 16, 2026}
+
+\begin{document}
+\maketitle
+
+\noindent\emph{All numbers are success rates on OGBench \texttt{cube-single-play}
+(state-based), 3--13 seeds at 500k steps unless noted. Notation: $s$ state, $a$ action, $g$
+goal (a full observation), $z\in\R^d$ task vector, $d=50$, $\gamma=0.99$, $\sg[\cdot]$ =
+stop-gradient, $\mu$ = the behavior (dataset) policy, $\rho$ = the dataset distribution.}
+
+\section{Setup and anchors}
+
+Goal: zero-shot RL for manipulation --- train once on unlabeled play data, solve any test task
+without retraining. FB (forward--backward) is the standard method; on cube it gets
+\numbad{0.42} (1M steps; 0.34 at 500k). One change to the supervised baseline GCIQL --- replace
+the monolithic value network with the \emph{bilinear} form
+\begin{equation}
+Q(s,a,g) \;=\; \frac{\phi(s,a)^{\top}\psi(g)}{\sqrt d},
+\qquad \phi,\psi:\ \text{MLPs}\ (512^3\!\to\!d)
+\label{eq:bilinear}
+\end{equation}
+--- lifted it from 0.72 to \numgood{0.904} (0.947 on the matched-protocol re-eval), past the
+published SOTA (0.68). But only with a \emph{flow} policy: with a gradient-climbing DDPG+BC
+policy the same critic drops to \numbad{0.51} (the MLP critic: 0.70 either way). Explaining
+this, and using the explanation to fix FB, is the project.
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.86\textwidth]{fig_anchors}
+\caption{The anchor cells. Blue = bilinear-critic GCIQL family, green = MLP critic, pink =
+FB, gray = published. The two zero-shot bars use FB's task-inference API with no goal ever
+shown to the policy.}
+\label{fig:anchors}
+\end{figure}
+
+\section{The Socratic chain: ask why until nothing remains}
+
+Each rung is a question, the experiment that answered it, and the number. Open ends are
+marked \fbox{open}.
+
+\whyq{does FB fail on cube --- architecture or objective?}
+We built every hybrid: identical networks, swap only the training signal. FB's structural
+pieces all survive under GCIQL's scalar-TD objective ($z$-indexed forward map 0.844; two-tower
+0.864; the full FB structure stack 0.871). The identical architecture under FB's
+successor-measure objective: \numbad{0.08--0.34}. Decisive version (\emph{anneal-iqlfade}):
+initialize \emph{at} the 0.93 solution and fade the scalar TD out $\Rightarrow$ \numbad{0.05}.
+\textbf{Answer: the objective --- its fixed point on cube is bad; it leaves the solution when
+handed it.}
+
+\whyq{is the objective the only broken part --- what about FB's task-inference API?}
+Run FB's test-time rule on the trained bilinear GCIQL critic: $z=\sum_i r_i\,\psi(s'_i)$ over
+50k reward-labeled dataset samples, feed $z$ to a $z$-conditioned policy: \numgood{0.955},
+equal to exact-goal conditioning. \textbf{Answer: the API is intact; only the grounding is
+broken.}
+
+\whyq{does bilinear win --- is it out-of-distribution generalization?}
+A $2\times2$ grid crosses start shift $\times$ goal shift (Fig.~\ref{fig:oodgrid}). FB fails
+\emph{in distribution} (0.43 from dataset starts with hindsight goals, grasping 100\% of the
+time --- its failure is post-grasp steering). The bilinear--MLP separation is the \emph{goal}
+axis: novel goals are free for bilinear ($\Delta\!\approx\!+0.06$) and cost the MLP 16--24
+points; start shift hurts both. \textbf{Answer: partially --- goal generalization is real, but
+it cannot explain the on-support gap, so keep asking.}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.72\textwidth]{fig_oodgrid}
+\caption{The evaluation grid (C1$\to$C3). FB's C1 uses the $z{=}B(g)$ route; its C4 was not
+run. The MLP is \emph{best} fully in-distribution (C1 = 0.98) and worst on the real eval.}
+\label{fig:oodgrid}
+\end{figure}
+
+\whyq{does bilinear win on-support --- is it a more accurate value function?}
+No --- it is \emph{less} accurate. Rank-AUC of value against realized success from in-hand
+states (flow actor held fixed on both sides): MLP \numgood{0.81}, bilinear \numbad{0.39},
+below chance. Decomposing $Q = U(s,g) + A(s,a,g)$, $U = \E_{a\sim\mu}Q$: the MLP's entire
+signal is in the action-independent baseline (AUC 0.82); bilinear's $U$ is anti-calibrated
+(0.40). \textbf{Answer: not accuracy. The two critics allocate capacity to different parts of
+$Q$: MLP to the baseline, bilinear to the action-dependent part.}
+
+\whyq{--- then what does the bilinear critic actually do better?}
+Deploy the frozen critic as a pure ranker: sample $N$ candidates from a plain BC flow $\mu$
+each step, execute $\arg\max_i Q(s,a_i,g)$ (Fig.~\ref{fig:rerank}). Bilinear:
+\numgood{0.91--0.96} at $N{=}32$ --- equal to its fully trained actor, \emph{with no actor
+training at all}. MLP: \numbad{0.57--0.59}. FB: \emph{declines} with $N$ (0.52 at $N{=}1$
+$\to$ 0.17 at $N{=}32$) --- its scores actively mislead about actions. Fresh actors trained
+against frozen critics reproduce the gap (0.88 vs 0.68), so it is the critic field, not
+co-training. \textbf{Answer: the product is the on-support action ordering. The ordering
+\emph{is} the policy.}
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.62\textwidth]{fig_rerank_nsweep}
+\caption{The mechanism figure. Frozen-critic reranking of $N$ behavior-flow candidates.
+Bilinear saturates at its trained-actor level by $N{=}32$, then declines at $N{=}128$ (more
+draws $\to$ more chances to hit its off-support peak); the MLP caps near 0.6; FB is
+anti-informative. Dotted lines: each critic's trained actor.}
+\label{fig:rerank}
+\end{figure}
+
+\whyq{does the gradient-climbing actor lose with a critic whose ordering is near-perfect?}
+Because the ordering is only near-perfect \emph{on support}. The bilinear critic values the
+DDPG+BC actor's fabricated action above \emph{every} realistic reference action 79\% of the
+time (median $+2.14$), with action-gradient norms equal to the MLP's (3.18 vs 3.06): a
+spurious off-support \emph{maximum}, not a steeper landscape. A $Q$-ascending Gaussian climbs
+into it (fresh DDPG+BC vs frozen bilinear: 0.52); the distillation-anchored flow policy
+never leaves the data manifold. \textbf{Answer: the critic's one flaw lives exactly where
+gradient extraction looks and anchored extraction never does.}
+
+\whyq{is that off-support peak intrinsic to the bilinear form?}
+No --- it is domain-dependent (Fig.~\ref{fig:peak}): cube 63.9\% of states, antmaze
+\numgood{0.3\%}, scene 1.4\% (which is why bilinear+DDPG+BC \emph{wins} antmaze at 0.837).
+And it is \emph{not} explained by dataset action coverage: dimension-corrected, cube's
+conditional action manifold is only $1.11\times$ narrower than antmaze's --- far too small
+for a $0.639\to0.003$ flip. \textbf{Answer: the peak's location follows the domain's value
+geometry, not the data.} \fbox{open}: a predictive account of \emph{where} the rank-$d$
+form's irreducible error lands.
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.42\textwidth]{fig_t3_peak}
+\caption{The off-support peak by domain (bilinear + DDPG+BC checkpoints, 512 dataset states
+$\times$ 5 goals; reference = dataset action + 64-NN actions).}
+\label{fig:peak}
+\end{figure}
+
+\whyq{does the bilinear form order actions well when the MLP orders them barely above chance?}
+First hypothesis --- the MLP's action signal exists but is per-goal noise, and the
+factorization merely pools/denoises it --- is \numbad{refuted} (Fig.~\ref{fig:t1}): averaging
+the MLP's scores over local goal clouds makes it monotonically \emph{worse}
+($0.616 \to 0.408$ at $K{=}32$, $\sigma{=}4$\,cm), and a 2--4\,cm goal shift is already
+distribution shift for the MLP head (the same brittleness as its $-16$ to $-24$ point
+goal-shift loss). So the MLP's action signal is \emph{absent}, not noisy.
+Which-action-is-better is $<1\%$ of $Q$'s variance; the MLP can satisfy the training loss
+while ignoring it. The surviving hypothesis: the factorization makes that impossible --- one
+shared $\phi$ must serve every goal, so the tiny action signal accumulates in one basis at
+training time. \textbf{Answer (partial): not denoising; constraint-forced structure.}
+\fbox{open}: the causal control (same two towers, MLP readout instead of inner product; and a
+param-matched MLP) is queued as T5.
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.66\textwidth]{fig_t1_smoothing}
+\caption{T1: reranking with goal-smoothed scores $\bar Q_K = \frac1K\sum_j Q(s,a,g_j)$.
+Smoothing never helps the MLP and degrades it with radius; the random-goal control collapses
+both (the signal is genuinely goal-specific).}
+\label{fig:t1}
+\end{figure}
+
+\whyq{is the factorized form also more \emph{stable}, and why?}
+Let the goal leg see the state --- $\psi(s,g)$ instead of $\psi(g)$ --- and 2 of 3 seeds
+diverge late (value loss $\times$10--30, $Q$ crossing positive on a $\le 0$-bounded value).
+The blow-up is localized in the state-conditioned leg: $\E\|\psi\|^2 = 1083/2355/3789$ across
+seeds, monotone in divergence severity, $q_{\max}$ up to $+1.2\times10^3$, while $\phi$ stays
+sane. \textbf{Answer: with $\psi(g)$ only, any score inflation must pass through globally
+shared features and is corrected by the rest of the data; $\psi(s,g)$ opens a local $(s,g)$
+pocket that expectile-TD's upward pressure inflates. The goal bottleneck is the stabilizer.}
+
+\whyq{cube --- why does all of this matter most on this benchmark?}
+Three coincidences of the domain: (i) the benchmark's binding distribution shift is the
+\emph{goal} shift --- free for the factorization (Fig.~\ref{fig:oodgrid}); (ii) success hinges
+on post-grasp, per-step action choice --- an ordering problem, not a value-magnitude problem
+(all three methods reach at rate 1.0 and grasp within 6 points of each other; the entire
+method spread is in $P(\mathrm{success}\mid\mathrm{secured})$: FB 0.44, MLP 0.80, bilinear
+0.98); (iii) the play data's action distribution makes the imitation anchor a good one --- on
+antmaze the same goal-agnostic anchor breaks the flow actor for \emph{both} critics
+(0.24--0.33), an actor-side artifact we are fixing, not a fact about the critic.
+
+\paragraph{Bedrock --- what remains open after all the whys.}
+(1) \emph{Why} the low-rank constraint forces good ordering (T5 control queued).
+(2) \emph{Where} the off-support peak forms --- a predictive value-geometry account (T3 ruled
+out data coverage). (3) \emph{Scene}: bilinear loses there with both actors (0.26--0.29 vs
+0.52) and shows no peak --- a different, undiagnosed mechanism. (4) Whether \emph{any}
+measure-TD grounding can work on cube (T10, running --- \S\ref{sec:t10}).
+
+\section{The answer, condensed}
+
+\begin{enumerate}[leftmargin=1.6em]
+\item \textbf{Sound grounding.} Scalar hindsight TD is a contractive backup evaluated only at
+dataset actions, task-weighted where cube needs it. FB's measure TD is non-contractive,
+occupancy-weighted (99.8\% of its $Q$ variance is state-driven), with a bad fixed point here.
+\item \textbf{Capacity spent on ordering.} The bilinear form cannot ignore the tiny
+($<1\%$-variance) action signal the way a monolithic net can; one shared $\phi$ serving all
+goals accumulates it. Price: value calibration (irrelevant downstream) and one structured
+off-support flaw. Bonus: free goal generalization and backup stability.
+\item \textbf{Extraction that consumes exactly the good part.} Anchored (flow / selection)
+extraction reads only the on-support ordering; gradient extraction reads the flaw.
+\end{enumerate}
+
+\section{GC-IQL grounding (shared by all working cells)}\label{sec:iql}
+Rewards $r\in\{-1,0\}$ ($0$ at the goal), masks $m=1-\mathbf 1[s'{=}g]$, expectile $\tau=0.9$,
+twin critics, target network $\bar Q$:
+\begin{align}
+\mathcal L_V &= \E\big[\,\ell_\tau^2\big(\min_i \bar Q_i(s,a,g) - V(s,g)\big)\big],
+&& \ell_\tau^2(u) = |\tau - \mathbf 1[u<0]|\,u^2,\\
+\mathcal L_Q &= \textstyle\sum_i \E\big[\big(Q_i(s,a,g) - (r + \gamma\, m\, V(s',g))\big)^2\big].
+\end{align}
+Value goals: 0.2 current / 0.5 geometric future ($p{=}1{-}\gamma$) / 0.3 random; actor goals:
+uniform future on the same trajectory.
+
+\section{The math of every FB variant we ran}\label{sec:variants}
+
+\subsection{Canonical FB, as ported (torch; \texttt{agents/fb/})}
+Measure $M^{\pi_z}(s,a,\cdot)\approx F(s,z,a)^\top B(\cdot)\,\rho(\cdot)$;
+$Q(s,a,z)=F(s,z,a)^\top z$; $\|B\|=\|z\|=\sqrt d$ (hard norm). With batch goals
+$\{s'_j\}\sim\rho$ and $a'\sim\pi_z(s')$:
+\begin{align}
+\Delta_{ij} &= F(s_i,z,a_i)^\top B(s'_j) - \gamma\,\sg\!\big[\bar F(s'_i,z,a')^\top \bar B(s'_j)\big],\\
+\mathcal L_{\mathrm{FB}} &= \frac{1}{2(B^2{-}B)}\sum_{i\neq j}\Delta_{ij}^2 \;-\;
+\frac1B\sum_i \Delta_{ii}
+\;+\; \lambda_\perp \Big[\tfrac{1}{2(B^2-B)}\textstyle\sum_{i\neq j}(B_i^\top B_j)^2 - \overline{B_i^\top B_i}\Big].
+\end{align}
+$z$-mix: 50\% uniform on the $\sqrt d$ sphere, 50\% $\mathrm{proj}_{\sqrt d} B(s'_{\mathrm{perm}})$.
+Actor = FlowBC ($z$-conditioned one-shot actor distilled from a goal-agnostic BC flow, $-Q$
+term normalized by $\sg|Q|$). Inference: $z=\mathrm{proj}_{\sqrt d}\big(\sum_i r_i B(s'_i)\big)$,
+10k relabeled samples. \textbf{Result: 0.42 (1M) / 0.34 (500k).} Audited port deltas vs canon:
+twin targets aggregated by \emph{mean}, not min (an optimism delta --- the exact failure mode
+the conservative-FB literature diagnoses on narrow data); the ortho diagonal is inert (the
+sphere norm makes it constant); a learned left-encoder $L(s)$ feeds $F$.
+
+\subsection{FB-side modifications (torch), one equation from canon each}
+\begin{center}\resizebox{\textwidth}{!}{\begin{tabular}{lll}
+\toprule
+variant & defining change & result \\
+\midrule
+FB-IQL (\texttt{critic\_mode=iql}) & $\mathcal L_{\mathrm{FB}} \to$ expectile TD on $Q{=}F^\top z$, $z{=}B(g)$ & 0.47--0.65 \\
+identity-$B$ ($z{=}g$) + IQL & $B=\mathrm{id}$ (norm off), $z=g$ & 0.51 \; (learned-$B$ ctrl: 0.20) \\
+identity-$B$ + $\sqrt d$-norm, measure & as above under $\mathcal L_{\mathrm{FB}}$ & 0.65 \\
+privileged $B$ (\texttt{fixed\_b=cube\_xyz}) & $B(s)=\text{cube}_{xyz}(s)$, $d{=}3$ (USFA-style) & \numbad{0.086} \\
+goal-conditioned $F$ (\texttt{goal\_cond}) & $F(s,g,z,a)$, actor sees $g$ & 0.25 \\
+$z$-HER (\texttt{train\_goal\_mode=traj}) & $z = \mathrm{proj}B(s_{t+k})$, $k\sim\mathrm{Geom}(1{-}\gamma)$ & 0.43 (= plain) \\
+decouple actor-$z$ & critic $z$-mix kept; actor only $z{=}B(\text{future})$ & 0.44 (= plain) \\
+one-step FB (repo version) & $F(s,\bm 0,a)$ + SARSA $a'$ --- \emph{note: NOT Zheng-style (untested)} & \numbad{0.06--0.08} \\
+coverage/IWR reweighting & density weights on $\mathcal L_{\mathrm{FB}}$ & 0.13--0.23 \\
+ISFB (scalar-gate measure improvement) & expectile gate inside the measure target & 0.15--0.23 \\
+\bottomrule
+\end{tabular}}\end{center}
+Reading: nothing inside the measure framework beats plain FB's own ceiling ($\approx$0.48);
+the structural levers pay off only under the IQL objective.
+
+\subsection{The graft lattice (jax; \texttt{tools/wandb\_mode\_shim/gciql\_flow.py})}
+All on the bilinear form \eqref{eq:bilinear} + IQL grounding \S\ref{sec:iql} unless noted.
+\begin{center}\resizebox{\textwidth}{!}{\begin{tabular}{lll}
+\toprule
+cell & defining equation & result \\
+\midrule
+bilinear $d{=}50$ (the anchor) & Eq.~\eqref{eq:bilinear} & \numgood{0.904} \\
+rank sweep & $d\in\{5,28,50,128,512\}$ & 0.12 / 0.86 / 0.90 / 0.91 / 0.90 \\
+$z$-conditioned $F$ (B1) & $Q=\phi(s,a,\sg\psi(g))^\top\psi(g)/\sqrt d$ & 0.844 \\
+two-tower $F$ & $\phi = W[\,e_{sa}(s,a);\,e_{sz}(s,z)\,]$ & 0.864 \\
+full FB structure stack (B4) & two-tower + $z$-cond + sphere + ortho$_1$ & 0.871 \\
+FB ortho on IQL, $\lambda{=}1000$ & $+\lambda_\perp\mathcal L_\perp(\psi)$ & \numbad{0.072} \\
+$z$-cond actor (G4) & actor input $\sg[\psi(g)]$ instead of $g$ & \numgood{0.921} \\
+measure-only & $\mathcal L_{\mathrm{FB}}$ on $\phi,\psi$; no scalar TD & \numbad{0.076--0.088} \\
+E2 measure auxiliary, $\lambda\le1$ & $\mathcal L_{\mathrm{IQL}} + \lambda\,\mathcal L_{\mathrm{FB}}/\sg[\overline{M^2}]$ & 0.86--0.90 (free) \\
+anneal-iqlfade & warm start at 0.93, fade $\mathcal L_{\mathrm{IQL}}\to0$ & \numbad{0.05} \\
+SF feature-TD family & $\phi \leftarrow b(s) + \gamma m\,\sg\bar\phi(s',a')$; $Q=\phi^\top\psi(g)$ & \numbad{0.00--0.16} \\
+SimpleSF (scalar TD through trunk) & $h{=}\mathrm{trunk}(s,a,\sg z)$, $Q=\mathrm{head}(h)^\top z/\sqrt d$ & 0.38 \\
+frozen / identity $\psi$ & $\psi$ random-frozen / $\psi(g){=}g$ & \numbad{0.06 / 0.03} \\
+$\psi(s,g)$ (\texttt{bilinear\_sg}) & goal leg sees the state & 0.69 stable seed; 2/3 diverge \\
+dueling (Arch 11) & $Q{=}U(s,g) + (\phi(s,a){-}b(s))^\top\psi(g)/\sqrt d$, actor on $A$ only & \numbad{0.00--0.05} \\
+\bottomrule
+\end{tabular}}\end{center}
+
+\subsection{RG-FB (this week): FB's API on the scalar grounding}
+Keep the FB interface, swap the grounding. Training: Eq.~\eqref{eq:bilinear} +
+\S\ref{sec:iql} with $z=\psi(g)$; actor = FQL-style flow conditioned on $\sg[\psi(g)]$,
+\begin{align}
+\mathcal L_{\mathrm{vf}} &= \E\,\|v(s, c, x_t, t) - (a - x_0)\|^2,\qquad x_t = (1{-}t)x_0 + t\,a,\\
+\mathcal L_\pi &= -\,\E\big[\min\nolimits_i Q_i(s, \pi(s,z,\varepsilon), g)\big]/\sg|Q|
+\;+\; 3.0\,\|\pi(s,z,\varepsilon) - \mathrm{Euler}_{10}(v; s, c, \varepsilon)\|^2,
+\end{align}
+with vf conditioning $c\in\{\varnothing, z\}$ under test. \textbf{Zero-shot inference}
+(the deployed policy never sees $g$):
+\begin{equation}
+z \;=\; \sum_i r_i\,\psi(s'_i)\ \ \text{over 50k relabeled dataset samples},\qquad
+z \leftarrow z\cdot \frac{\overline{\|\psi(s')\|}}{\|z\|}.
+\end{equation}
+\textbf{Measured today} (Fig.~\ref{fig:rgfb}): zero-shot \numgood{$0.825\pm0.014$}, exact-$z$
+0.852 --- inference gap 2.7 points, inside the pre-registered $\le$3-point band (the API is
+clean); the $\sqrt d$ norm instead of the matched norm collapses to 0.365 (norm hygiene is
+load-bearing, confirmed three times). The $c=\varnothing$ control is tracking \emph{above} v0
+(0.872 at 300k) --- the goal-agnostic anchor appears load-bearing on cube. Generality probe
+(on the $d{=}512$/1M checkpoint): novel region-goals inside the data support \numgood{0.672}
+(any-goal-position zero-shot is real; the single-goal anchors reproduce at 0.952); two-goal
+composite rewards \numbad{0.26} --- the blended $z$ leaves the trained manifold. The v1 fix
+is task-mixture hindsight relabeling: sample goals $g_{1..K}$, weights $w$, reward
+$\sum_k w_k\mathbf 1[s{\approx}g_k]$, $z=\sum_k w_k\psi(g_k)$, same TD.
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.68\textwidth]{fig_rgfb_curves}
+\caption{RG-FB training (exact-$z$ diagnostic eval; thin lines = seeds, bold = mean). The
+vf-unconditioned control is tracking above v0. Star: today's zero-shot read at 500k.}
+\label{fig:rgfb}
+\end{figure}
+
+\subsection{Centered (advantage) measure --- the measure-native rescue (running)}\label{sec:t10}
+Motivation: control needs the action-contingent $\Delta M$, but the raw measure loss is
+dominated by the occupancy baseline ($\Delta M \sim 0.2\%$ of $Q$ variance). Give it its own
+objective. With $b(s)$ regressed to the behavior-mean feature and $\tilde\psi$ sphere-pinned:
+\begin{align}
+\mathcal L_b &= \big\|\,b(s) - \sg\big[\tfrac1K\textstyle\sum_k \phi(s,\tilde a_k)\big]\big\|^2
+\big/\, \sg[\overline{\phi_\mu^2}],\qquad \tilde a_k \sim \mu,\ K{=}8,\\
+\Delta M_{ij} &= \big(\phi(s_i,a_i) - \sg[b(s_i)]\big)^\top \tilde\psi(s'_j)/\sqrt d,\qquad
+\tilde\psi = \sqrt d\,\psi/\|\psi\|.
+\end{align}
+\textbf{T10-a (auxiliary)}: $\mathcal L = \mathcal L_{\mathrm{IQL}} + \lambda(\mathcal
+L_{\Delta M} + \mathcal L_b)$, with $\mathcal L_{\Delta M}$ the FB off-diag/diag form on
+$\Delta M - \gamma\,\sg[\Delta \bar M(s', a'{\sim}\pi,\cdot)]$, scale-normed.
+\emph{Status: healthy at 0.71--0.78 mid-training --- the first FB-style loss that does not
+hurt on cube.}\\[2pt]
+\textbf{T10-b2 (measure-only, anchored, split bootstrap)}: no scalar TD anywhere.
+\begin{equation}
+\mathcal L = \underbrace{\mathcal L_{\mathrm{meas}}\big(M,\ a'{=}a'_{\mathrm{data}}\big)}_{\text{raw, contractive (SARSA base leg)}}
+\;+\; \lambda\,\underbrace{\mathcal L_{\Delta M}\big(a'{\sim}\pi\big)}_{\text{scale-normed}}
+\;+\; \mathcal L_b \;+\; \mathcal L_\perp(\tilde\psi),
+\end{equation}
+policy improvement confined to the (small) $\Delta M$ leg; the actor always consumes the full
+$Q=\phi^\top\tilde\psi/\sqrt d$ normalized by $\sg|Q_{\mathrm{full}}|$ (never $\Delta M$ alone
+--- that pattern floored the dueling cell). \emph{Status: the un-anchored first attempt was
+scale-invariant and inflated without bound ($Q$ to $10^{13}$; diagnosed, fixed); the anchored
+relaunch has $\|\tilde\psi\|^2$ pinned at exactly $d$, the $\Delta M$ leg flat, the $M$ scale
+decelerating; first evals landing now. Pre-registered: $\ge$0.5 = a real measure-native
+rescue (best prior measure-only: 0.088); jointly with faithful one-step FB, failure licenses
+``no known measure-TD grounding supports cube.''}
+
+\section{Where the code lives}
+\begin{center}\resizebox{\textwidth}{!}{\begin{tabular}{ll}
+\toprule
+RG-FB agent + all graft knobs & \texttt{tools/wandb\_mode\_shim/gciql\_flow.py} \\
+bilinear head & \texttt{third\_party/ogbench/impls/utils/networks.py} (\texttt{GCBilinearValue}) \\
+RG-FB config / launch / zero-shot eval & \texttt{configs/gciql/...rgfb\_d50.yaml};\ \texttt{scripts/rescuing\_fb/} \\
+centered measure (T10) & \texttt{centered\_measure\_loss} in \texttt{gciql\_flow.py}; configs \texttt{...t10\_*.yaml} \\
+torch FB (canon + variants) & \texttt{agents/fb/} (\texttt{agent.py}, \texttt{flow\_bc/}) \\
+probes T1/T2/T3/T6 & \texttt{scripts/rescuing\_fb/}; results \texttt{analysis/rescuing-fb/} \\
+specs, log, this document & \texttt{PAPER/rescuing-fb/} (\texttt{00}--\texttt{05}, \texttt{DECISIONS.md}) \\
+\bottomrule
+\end{tabular}}\end{center}
+
+\section{Claims we would defend in a paper}
+\begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
+\item FB-style zero-shot RL fails on manipulation because of its \emph{training objective}
+(non-contractive, occupancy-weighted, bad fixed point) --- not its architecture, not its
+task-inference interface; and the failure is manipulation-specific (the same objective scores
+0.784 on antmaze, where occupancy \emph{is} the task).
+\item A goal-factored bilinear head turns goal-conditioned TD into an action-ranking machine:
+state-of-the-art manipulation under imitation-anchored extraction, with measured failure
+conditions (gradient extraction; domains where the off-support peak appears).
+\item RG-FB: FB's zero-shot interface on scalar grounding reaches supervised-level cube
+performance zero-shot (0.825 today, isolation control pending), with a measured claim
+boundary (arbitrary goal positions: yes, 0.672 on never-evaluated regions; composite rewards:
+not yet, 0.26 --- fix identified).
+\end{enumerate}
+
+\end{document}
