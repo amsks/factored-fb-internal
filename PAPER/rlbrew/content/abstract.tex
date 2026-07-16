@@ -1,16 +1,15 @@
 \begin{abstract}
-Many unsupervised reinforcement learning methods can be viewed as tractable approximations to policy-dependent successor measures.
-We study why these methods perform unevenly in the state-based \ogbench{} \task{} environment.
-Our hypothesis is that learned representations or scalar values may fail to distinguish nearby grasp states with different future occupancies.
-We decompose rollouts into approach, control acquisition, maintain control, and transport across five methods: \gciql{}, \crl{}, \fb{}, \rldp{}, and
-\psm{}.
-All methods almost always complete approach and most acquire control, but the lower-performing methods fail mainly during maintain control and transport.
-State-support gaps broadly covary with performance: \gciql{} shows almost no gap between successful and failed rollout states, whereas, for every
-lower-performing method, failed pickup and carry states are farther from the offline data.
-However, when initialized from in-hand states sampled directly from the offline dataset, the lower-performing methods still weakly rank grasp states
-by eventual task success, while \gciql{} reaches a rank-AUC of $0.89$.
-Linear probes further suggest that \fb{} contains task-success information that is not fully preserved by its scalar readout, whereas \rldp{} contains
-less linearly accessible information.
-Together, these findings show that effective successor-measure approximations for manipulation must not only reach and lift the object, but also assign
-meaningfully different values to acquired-control states that support stable transport and those that lead to loss of control.
-\end{abstract}
+    Many unsupervised reinforcement learning methods can be viewed as tractable approximations to policy-dependent successor measures.
+    We study why these methods perform unevenly in the state-based \ogbench{} \task{} environment.
+    Our hypothesis is that learned representations or scalar values may fail to distinguish nearby grasp states with different future occupancies.
+    We decompose rollouts into approach, control acquisition, maintain control, and transport across five methods: \gciql{}, \crl{}, \fb{}, \rldp{}, and
+    \psm{}.
+    All methods almost always complete approach and most acquire control, but the lower-performing methods fail mainly during maintain control and transport.
+    State-support gaps broadly covary with performance: \gciql{} shows almost no gap between successful and failed rollout states, whereas, for every
+    lower-performing method, failed pickup and carry states are farther from the offline data.
+    However, when initialized from in-hand states sampled directly from the offline dataset, \rldp{} and \psm{} rank grasp states near chance and \fb{} only weakly by eventual task success, while \crl{} is intermediate and \gciql{} reaches a rank-AUC of $0.82$.
+    Linear probes further suggest that \fb{} contains task-success information that is not fully preserved by its scalar readout, whereas \rldp{} contains
+    less linearly accessible information.
+    Together, these findings show that effective successor-measure approximations for manipulation must not only reach and lift the object, but also assign
+    meaningfully different values to acquired-control states that support stable transport and those that lead to loss of control.
+    \end{abstract}
