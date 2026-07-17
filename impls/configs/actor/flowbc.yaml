@@ -1,0 +1,11 @@
+# FlowBC (FQL-style flow-matching) actor defaults at cube-single launch values.
+name: flowbc
+type: flow
+hidden_dim: 512
+hidden_layers: 2
+embedding_layers: 2
+bc_coeff: 3.0
+flow_steps: 10
+lr_actor_vf: 3.0e-4
+flow_vf_hidden_dim: 512
+flow_vf_hidden_layers: 4

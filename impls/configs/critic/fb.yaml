@@ -1,0 +1,29 @@
+# FB (Forward-Backward) critic defaults at cube-single launch values.
+# PR1 reads impls/main.py:get_config(); these yamls document the intended Hydra
+# critic= group for the multi-critic PRs.
+name: fb
+z_dim: 50
+L_dim: 50
+num_parallel: 2
+discount: 0.99
+f_target_tau: 0.005
+b_target_tau: 0.005
+ortho_coef: 1.0
+train_goal_ratio: 0.5
+fb_pessimism_penalty: 0.0
+norm_z: true
+lr_f: 1.0e-4
+lr_b: 1.0e-4
+lr_actor: 1.0e-4
+forward:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+backward:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+left_encoder:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
