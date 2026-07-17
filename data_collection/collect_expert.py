@@ -79,8 +79,10 @@ def make_env(cfg):
             from envs.maniskill import make_env as backend
         elif task.startswith("mw-"):
             from envs.metaworld import make_env as backend
+        elif task.startswith(("b2d-", "p2d-")):
+            from envs.rlmini import make_env as backend
         else:
-            raise ValueError(f"collect_expert supports ms-/mw- tasks only, got {task!r}")
+            raise ValueError(f"collect_expert supports ms-/mw-/b2d-/p2d- tasks, got {task!r}")
         env = backend(cfg)
         _REAL.setdefault("obs", int(env.observation_space.shape[0]))
         _REAL.setdefault("act", int(env.action_space.shape[0]))
@@ -128,7 +130,9 @@ def main(cfg):
 
     cfg.enable_wandb = False
     cfg.env_mode = "sync"
-    cfg.checkpoint = f"{ck_dir}/{cfg.task}.pt"
+    # ckpt: explicit per-task path (Box2D/Pusher2D, trained-from-scratch) OR
+    # <checkpoint_dir>/<task>.pt (MW/MS newt HuggingFace snapshot).
+    cfg.checkpoint = cfg.get("ckpt", None) or f"{ck_dir}/{cfg.task}.pt"
     cfg.num_envs = n_envs
     cfg.model_size = "B"
     cfg.save_video = False
@@ -143,7 +147,9 @@ def main(cfg):
     agent = TDMPC2(model, cfg)
     _robust_load(agent, cfg.checkpoint)
 
-    root = dataset_dir(out, f"{'Metaworld' if cfg.task.startswith('mw-') else 'ManiSkill'}/{cfg.task}")
+    _FAM = {"ms-": "ManiSkill", "mw-": "Metaworld", "b2d-": "Box2D", "p2d-": "Pusher2D"}
+    fam = next(v for k, v in _FAM.items() if cfg.task.startswith(k))
+    root = dataset_dir(out, f"{fam}/{cfg.task}")
     buffer_dir = root / "buffer"
     buffer_dir.mkdir(parents=True, exist_ok=True)
 
@@ -208,7 +214,7 @@ def main(cfg):
               f"written={written}/{n_episodes}", flush=True)
 
     write_meta(root, {
-        "env_family": "maniskill" if cfg.task.startswith("ms-") else "metaworld",
+        "env_family": fam.lower(),
         "task": cfg.task,
         "checkpoint": cfg.checkpoint,
         "policy": "tdmpc2-expert",
