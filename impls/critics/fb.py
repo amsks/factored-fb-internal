@@ -95,6 +95,10 @@ class FBCritic:
         # actor_pessimism_penalty is 0 in scope; keep the mean-of-heads reduction.
         return qmean, Qs
 
+    def cond_vec(self, cond):
+        """The vector actors concatenate onto obs to condition. FB: the latent z."""
+        return cond["z"]
+
     def sample_cond(self, net, batch, rng):
         next_obs = batch["next_observations"]
         B = next_obs.shape[0]
