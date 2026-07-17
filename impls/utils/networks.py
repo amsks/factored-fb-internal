@@ -5,7 +5,9 @@ Reference weight_init: nn.Linear -> orthogonal(gain=1); DenseParallel -> orthogo
 flax LayerNorm uses epsilon=1e-5 to match torch's default. GELU is exact (erf), not the tanh approx.
 """
 import math
+from typing import Any, Optional, Sequence
 
+import distrax
 import jax
 import flax.linen as nn
 import jax.numpy as jnp
@@ -198,3 +200,107 @@ class FBTd3Actor(nn.Module):
         for _ in range(self.hidden_layers):
             h = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_ORTH1)(h))
         return jnp.tanh(nn.Dense(self.action_dim, kernel_init=_ORTH1)(h))
+
+
+# ── Gaussian actor / value / flow-VF nets (from utils/networks.py, for PR2 actors) ──
+def default_init(scale=1.0):
+    return nn.initializers.variance_scaling(scale, 'fan_avg', 'uniform')
+
+
+class MLP(nn.Module):
+    hidden_dims: Sequence[int]
+    activations: Any = nn.gelu
+    activate_final: bool = False
+    kernel_init: Any = default_init()
+    layer_norm: bool = False
+
+    @nn.compact
+    def __call__(self, x):
+        for i, size in enumerate(self.hidden_dims):
+            x = nn.Dense(size, kernel_init=self.kernel_init)(x)
+            if i + 1 < len(self.hidden_dims) or self.activate_final:
+                x = self.activations(x)
+                if self.layer_norm:
+                    x = nn.LayerNorm()(x)
+        return x
+
+
+class TransformedWithMode(distrax.Transformed):
+    def mode(self):
+        return self.bijector.forward(self.distribution.mode())
+
+
+class Actor(nn.Module):
+    """Gaussian actor network (distrax MultivariateNormalDiag)."""
+
+    hidden_dims: Sequence[int]
+    action_dim: int
+    layer_norm: bool = False
+    log_std_min: Optional[float] = -5
+    log_std_max: Optional[float] = 2
+    tanh_squash: bool = False
+    state_dependent_std: bool = False
+    const_std: bool = True
+    final_fc_init_scale: float = 1e-2
+
+    def setup(self):
+        self.actor_net = MLP(self.hidden_dims, activate_final=True, layer_norm=self.layer_norm)
+        self.mean_net = nn.Dense(self.action_dim, kernel_init=default_init(self.final_fc_init_scale))
+        if self.state_dependent_std:
+            self.log_std_net = nn.Dense(self.action_dim, kernel_init=default_init(self.final_fc_init_scale))
+        else:
+            if not self.const_std:
+                self.log_stds = self.param('log_stds', nn.initializers.zeros, (self.action_dim,))
+
+    def __call__(self, observations, temperature=1.0):
+        outputs = self.actor_net(observations)
+        means = self.mean_net(outputs)
+        if self.state_dependent_std:
+            log_stds = self.log_std_net(outputs)
+        else:
+            log_stds = jnp.zeros_like(means) if self.const_std else self.log_stds
+        log_stds = jnp.clip(log_stds, self.log_std_min, self.log_std_max)
+        distribution = distrax.MultivariateNormalDiag(loc=means, scale_diag=jnp.exp(log_stds) * temperature)
+        if self.tanh_squash:
+            distribution = TransformedWithMode(distribution, distrax.Block(distrax.Tanh(), ndims=1))
+        return distribution
+
+
+class Value(nn.Module):
+    """Value/critic network. Ensembled MLP -> scalar (V(s,g) or Q(s,a,g))."""
+
+    hidden_dims: Sequence[int]
+    layer_norm: bool = True
+    num_ensembles: int = 2
+
+    def setup(self):
+        mlp_class = MLP
+        if self.num_ensembles > 1:
+            mlp_class = ensemblize(mlp_class, self.num_ensembles)
+        self.value_net = mlp_class((*self.hidden_dims, 1), activate_final=False, layer_norm=self.layer_norm)
+
+    def __call__(self, observations, actions=None):
+        inputs = [observations]
+        if actions is not None:
+            inputs.append(actions)
+        inputs = jnp.concatenate(inputs, axis=-1)
+        return self.value_net(inputs).squeeze(-1)
+
+
+class ActorVectorField(nn.Module):
+    """Actor vector field for flow matching. Input [obs, action(, time)] -> velocity."""
+
+    hidden_dims: Sequence[int]
+    action_dim: int
+    layer_norm: bool = False
+
+    def setup(self):
+        self.mlp = MLP((*self.hidden_dims, self.action_dim), activate_final=False, layer_norm=self.layer_norm)
+
+    @nn.compact
+    def __call__(self, observations, actions, times=None):
+        if times is None:
+            inputs = jnp.concatenate([observations, actions], axis=-1)
+        else:
+            inputs = jnp.concatenate([observations, actions, times], axis=-1)
+        return self.mlp(inputs)
