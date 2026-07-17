@@ -68,11 +68,18 @@ Each `<task>.npz` holds the 8 unified fields (fixed horizon `T` per task):
 import numpy as np
 from huggingface_hub import hf_hub_download
 
-fp = hf_hub_download("<username>/factoredfb-testbed-demos",
+fp = hf_hub_download("TommyShen/Factor-FB-Offline",
                      "data/maniskill/ms-pick-cube.npz", repo_type="dataset")
 z = np.load(fp)
 obs, act, rew = z["observation"], z["action"], z["reward"]   # [N,T,·], [N,T,·], [N,T]
 ```
+
+## Policies
+
+The **TD-MPC2 policies that collected the Box2D split** are published at
+[`TommyShen/Factor-FB-Offline-tdmpc2`](https://huggingface.co/TommyShen/Factor-FB-Offline-tdmpc2).
+Metaworld / ManiSkill demos were collected with the public multitask checkpoint
+[`nicklashansen/newt`](https://huggingface.co/nicklashansen/newt).
 
 Helper (`list_tasks`, `load_task`) in `hf_dataset/load_hf_dataset.py` of the
 [Factored-FB](https://github.com/LUH-AI/Factored-FB) repo (branch `tl-alignment`).
