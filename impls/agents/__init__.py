@@ -85,8 +85,9 @@ class Agent(flax.struct.PyTreeNode):
         new_agent, info = self.apply_update(batch, cond, boot)
         return new_agent.replace(rng=new_rng), info
 
-    @jax.jit
-    def sample_actions(self, observations, seed=None, temperature=1.0):
+    def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
+        # `goals` is accepted (and ignored) so the ogbench eval loop can call uniformly;
+        # FB conditions on cond_eval (an inferred task latent), not a per-episode goal.
         seed = self.rng if seed is None else seed
         return self.actor.sample_actions(self.net, observations, self.cond_eval, seed, temperature)
 
