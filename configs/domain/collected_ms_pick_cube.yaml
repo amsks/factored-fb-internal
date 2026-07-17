@@ -1,0 +1,12 @@
+# @package _global_
+# Train FB offline on collected ManiSkill data (unified format, no in-process env).
+# Example: the ms-pick-cube expert dataset from data_collection/collect_expert.py.
+#   train.py domain=collected_ms_pick_cube data_path=<collected-root> eval_every=0
+defaults:
+  - /agent: fb_flowbc
+  - _self_
+
+domain: ManiSkill/ms-pick-cube
+data_format: unified
+build_env: false
+bc_coeff: 3.0
