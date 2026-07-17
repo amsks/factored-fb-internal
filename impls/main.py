@@ -51,6 +51,7 @@ def get_config():
 
 def main(_):
     cfg = get_config()
+    os.makedirs(FLAGS.save_dir, exist_ok=True)
     env, train_ds, val_ds = make_env_and_datasets(FLAGS.env_name)
     ex = train_ds.sample(1)
     agent = Agent.create(FLAGS.critic, FLAGS.actor, FLAGS.seed,
