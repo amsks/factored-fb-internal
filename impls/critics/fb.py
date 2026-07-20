@@ -32,6 +32,7 @@ class FBCritic:
     GROUPS = ("forward", "backward", "left_encoder")
     STAGES = ("fb",)
     PROVIDES_V = False
+    PROVIDES_COND = frozenset({"z"})  # sample_cond() produces {"z": ...}
 
     @property
     def TARGETS(self):

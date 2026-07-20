@@ -10,13 +10,43 @@ from omegaconf import OmegaConf
 
 CONFIG_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs")
 
-# Keys each critic needs at the top level. Checked up front so a missing key is a named
-# error here rather than a bare KeyError inside Agent.create's optimizer construction.
+# Keys each critic needs — checked up front so a missing key is a named error here rather
+# than a bare KeyError inside Agent.create's optimizer construction, or (for gciql's
+# GCDataset keys) inside make_dataset(), which runs *before* Agent.create. Dotted keys
+# (e.g. "forward.hidden_dim") reach into nested group dicts.
 REQUIRED_KEYS = {
-    "fb": ("lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount"),
-    "gciql": ("lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
-              "value_hidden_dims", "layer_norm", "gc_negative"),
+    # fb.py:build() reads z_dim/L_dim/num_parallel plus the forward/backward/left_encoder
+    # sub-dicts (fb.py:130-154); the FBCritic dataclass reads the remaining scalars.
+    "fb": (
+        "lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount",
+        "L_dim", "num_parallel", "ortho_coef", "fb_pessimism_penalty",
+        "train_goal_ratio", "norm_z", "f_target_tau", "b_target_tau",
+        "forward.hidden_dim", "forward.hidden_layers", "forward.embedding_layers",
+        "backward.hidden_dim", "backward.hidden_layers", "backward.norm",
+        "left_encoder.hidden_dim", "left_encoder.hidden_layers", "left_encoder.norm",
+    ),
+    # gciql.py:build() reads lr/batch_size/discount/expectile/tau/value_hidden_dims/
+    # layer_norm; datasets.py:GCDataset (built *before* Agent.create, datasets.py:96-116)
+    # reads the goal-sampling and dataset_class keys.
+    "gciql": (
+        "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
+        "value_hidden_dims", "layer_norm", "gc_negative",
+        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
+        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
+        "dataset_class",
+    ),
 }
+
+
+def _get_dotted(d, dotted_key):
+    """Walk a dotted key (e.g. "forward.hidden_dim") through nested dicts. Returns
+    (value, present) so a present-but-None value can be distinguished from a missing one."""
+    node = d
+    for part in dotted_key.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None, False
+        node = node[part]
+    return node, True
 
 
 class ConfigError(ValueError):
@@ -54,7 +84,8 @@ def load_config(critic, actor, domain, overrides=None):
     out = OmegaConf.to_container(cfg, resolve=True)
 
     for key in REQUIRED_KEYS.get(critic, ()):
-        if key not in out or out[key] is None:
+        value, present = _get_dotted(out, key)
+        if not present or value is None:
             raise ConfigError(
                 f"critic {critic!r} requires config key {key!r}, which the composed config "
                 f"(domain={domain}, critic={critic}, actor={actor}) does not define"

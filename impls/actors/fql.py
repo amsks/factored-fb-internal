@@ -20,6 +20,7 @@ class FQLActor:
 
     GROUPS = ("actor_bc_flow", "actor_onestep")
     NEEDS_V = False
+    REQUIRES_COND = frozenset()  # _cvec accepts either cond["z"] or cond["goal"]
 
     def _bc(self, p, obs_c, x, t):
         return self.actor_bc_flow.apply({"params": p}, obs_c, x, t)

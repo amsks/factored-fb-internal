@@ -27,6 +27,7 @@ class GCIQLCritic:
     GROUPS = ("value", "critic")
     STAGES = ("iql",)
     PROVIDES_V = True
+    PROVIDES_COND = frozenset({"value_goal", "goal"})  # sample_cond() produces these
 
     @property
     def TARGETS(self):

@@ -6,6 +6,7 @@ from typing import Protocol, runtime_checkable
 class Actor(Protocol):
     GROUPS: tuple           # module groups this actor owns
     NEEDS_V: bool           # awr=True; ddpgbc/flowbc/fql=False
+    REQUIRES_COND: frozenset  # cond keys this actor hard-requires (flowbc: {"z"}; others: {})
 
     @classmethod
     def build(cls, ex_obs, ex_actions, config): ...

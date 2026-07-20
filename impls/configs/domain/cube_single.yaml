@@ -1,4 +1,3 @@
 # cube-single (state-based) domain.
-name: cube_single
 env_name: cube-single-play-v0
 obs_type: state

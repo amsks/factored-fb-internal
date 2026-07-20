@@ -1,5 +1,5 @@
 import pytest
-from impls.utils.config_utils import load_config, ConfigError
+from impls.utils.config_utils import load_config, ConfigError, REQUIRED_KEYS
 
 
 def test_load_fb_flowbc_matches_legacy_values():
@@ -38,3 +38,48 @@ def test_returns_plain_dict_not_dictconfig():
     cfg = load_config("fb", "flowbc", "cube_single")
     assert type(cfg) is dict
     assert type(cfg["actor"]) is dict
+
+
+# --- FINDING 1 regression: REQUIRED_KEYS must actually cover everything Agent.create /
+# make_dataset(GCDataset) read off the config, so a missing key surfaces here as a named
+# ConfigError rather than a bare KeyError deep inside them.
+
+def test_fb_agent_create_key_error_reproduction():
+    """Before the fix, `~L_dim` composed fine and only blew up as a bare KeyError inside
+    Agent.create's FBCritic.build(). REQUIRED_KEYS must catch it at load_config time."""
+    with pytest.raises(ConfigError) as e:
+        load_config("fb", "flowbc", "cube_single", overrides=["~L_dim"])
+    assert "L_dim" in str(e.value)
+
+
+@pytest.mark.parametrize("key", REQUIRED_KEYS["fb"])
+def test_fb_required_key_missing_raises_named_error(key):
+    with pytest.raises(ConfigError) as e:
+        load_config("fb", "flowbc", "cube_single", overrides=[f"~{key}"])
+    assert key in str(e.value)
+
+
+@pytest.mark.parametrize("key", REQUIRED_KEYS["gciql"])
+def test_gciql_required_key_missing_raises_named_error(key):
+    with pytest.raises(ConfigError) as e:
+        load_config("gciql", "fql", "cube_single", overrides=[f"~{key}"])
+    assert key in str(e.value)
+
+
+# --- FINDING 2 regression: `~key` overrides must actually remove the key, not leave it
+# present with value None (OmegaConf.merge with a bare `key:` dotlist would do the latter).
+
+def test_top_level_delete_override_removes_key():
+    # obs_type is a real, present, top-level key that no REQUIRED_KEYS list needs, so this
+    # isolates the delete mechanism itself from the required-key gate exercised above.
+    cfg = load_config("fb", "flowbc", "cube_single", overrides=["~obs_type"])
+    assert "obs_type" not in cfg
+    # sibling top-level keys must survive the delete.
+    assert "env_name" in cfg
+
+
+def test_nested_delete_override_removes_key():
+    cfg = load_config("gciql", "fql", "cube_single", overrides=["~actor.alpha"])
+    assert "alpha" not in cfg["actor"]
+    # sibling keys in the same nested dict must survive the delete.
+    assert "hidden_dims" in cfg["actor"]

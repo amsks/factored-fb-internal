@@ -19,6 +19,7 @@ class DDPGBCActor:
 
     GROUPS = ("actor",)
     NEEDS_V = False
+    REQUIRES_COND = frozenset()  # _cvec accepts either cond["z"] or cond["goal"]
 
     def _dist(self, p, obs, cvec, temperature=1.0):
         return self.actor.apply({"params": p}, jnp.concatenate([obs, cvec], -1), temperature=temperature)

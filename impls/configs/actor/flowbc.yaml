@@ -1,6 +1,5 @@
 # FlowBC (FQL-style flow-matching) actor defaults at cube-single launch values.
 # Mirrors impls/main.py:get_config()'s actor=dict(...) block exactly.
-name: flowbc
 actor:
   type: flow
   hidden_dim: 512

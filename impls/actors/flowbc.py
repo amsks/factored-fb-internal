@@ -20,6 +20,7 @@ class FlowBCActor:
 
     GROUPS = ("actor", "actor_vf")
     NEEDS_V = False
+    REQUIRES_COND = frozenset({"z"})  # hard-requires cond["z"] (loss/sample_bootstrap/sample_actions)
 
     def _actor(self, p, obs, z, noise):
         return self.actor.apply({"params": p}, obs, z, noise)
