@@ -1475,6 +1475,38 @@ class GCIQLFlowAgent(GCIQLAgent):
                 assert config['value_latent_dim'] == goal_dim, \
                     f"psi_base='identity' requires value_latent_dim==goal_dim ({goal_dim}), got {config['value_latent_dim']}"
 
+        if config.get('fwd_two_tower', False):
+            # The forward-map dispatch below is an if/elif chain
+            # (sf_feature_td -> fb_forward_z -> fwd_two_tower), so a two-tower request raised
+            # ALONGSIDE either of the others used to be silently discarded and the other
+            # branch's critic built instead. Nothing composes the two: GCTwoTowerCritic's phi
+            # is _TwoTowerPhi(obs, actions, z) with z computed INTERNALLY from the goal and a
+            # (obs, goals, actions) signature, while GCFBValue/GCISFBValue and the SF base
+            # classes take an EXTERNAL (obs, b_goals, actions, z_goals) with a FLAT
+            # phi([s,a,z]). A two-tower forward map fed an external z is a module that does
+            # not exist (untried-design-space B2/B4) -- building it is a design decision, not
+            # a bug fix. Refuse loudly rather than substitute a different architecture.
+            assert config.get('value_arch', 'mlp') == 'bilinear', \
+                "fwd_two_tower requires value_arch='bilinear' (GCTwoTowerCritic is a GCBilinearValue drop-in; " \
+                "every other value_arch picks its own critic class and would discard the two-tower)"
+            assert not config.get('fb_forward_z', False) and not config.get('isfb', False), \
+                "fwd_two_tower + fb_forward_z/isfb is NOT IMPLEMENTED: no module composes the two-tower " \
+                "forward map with an external z_goals arg. The dispatch would build GCFBValue/GCISFBValue " \
+                "and silently drop the two-tower. (untried-design-space B2/B4 need a new critic class.)"
+            assert not config.get('sf_feature_td', False), \
+                "fwd_two_tower is incompatible with sf_feature_td (the sf_base classes own the critic; " \
+                "the two-tower request would be silently discarded)"
+
+        if config.get('project_z', False):
+            # project_z is a MODULE attribute -- only the critic classes that declare it can
+            # honour it. It used to be accepted and silently dropped on every other class.
+            # This is the coarse arch-level filter; the exact per-class check is at the
+            # construction site below (keyed off critic_cls, the single source of truth).
+            assert config.get('value_arch', 'mlp') in ('bilinear', 'simplesf'), \
+                f"project_z requires value_arch in ('bilinear','simplesf'); " \
+                f"value_arch={config.get('value_arch', 'mlp')!r} selects a critic class with no " \
+                "project_z attribute and would silently ignore the sqrt(d) sphere projection"
+
         # Actor goal-input example. In z-conditioning (G4) the actor consumes a
         # d-dim task vector z=psi(goal) (B := value net's psi), not the raw goal
         # observation, so its goal-leg params must be sized to value_latent_dim.
@@ -1659,6 +1691,23 @@ class GCIQLFlowAgent(GCIQLAgent):
                 # NOT GCIdentityBValue: its _psi returns the raw goal, and sphering it would
                 # destroy the identity base b(g)=g.
                 crit_kwargs['project_z'] = config.get('project_z', False)
+            # project_z was requested but the dispatch above did NOT forward it -> this critic
+            # class has no project_z attribute (plain GCBilinearValue, i.e. psi_base='learned'
+            # with no fb/two-tower/SF flag) or deliberately refuses it (GCIdentityBValue, whose
+            # _psi returns the raw goal). Either way the sqrt(d) sphere projection would be a
+            # silent no-op. Refuse at construction. NOTE: enabling it for GCBilinearValue
+            # (untried-design-space B3/C3) needs a project_z-aware bilinear module, which does
+            # not exist -- adding one is a design decision, not a bug fix.
+            if config.get('project_z', False) and 'project_z' not in crit_kwargs:
+                raise AssertionError(
+                    f"project_z=True is not honoured by critic class {critic_cls.__name__} "
+                    "and would be silently ignored. project_z is supported on GCFBValue / "
+                    "GCISFBValue / GCTwoTowerCritic / GCFrozenBValue / GCLearnedBValue "
+                    "(and GCSimpleSFValue under value_arch='simplesf'). "
+                    "It is NOT supported on GCBilinearValue (psi_base='learned' with no "
+                    "fb_forward_z/fwd_two_tower/sf_feature_td) nor on GCIdentityBValue "
+                    "(sphering the identity base would destroy b(g)=g)."
+                )
             critic_def = critic_cls(**crit_kwargs)
         elif config.get('value_arch', 'mlp') == 'dueling':
             # Behavior-centered dueling critic Q=U(s,g)+A_bil(s,a,g) (GCDuelingValue).
