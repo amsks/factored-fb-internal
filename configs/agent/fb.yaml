@@ -36,6 +36,7 @@ critic_mode: measure                        # measure = stock FB; iql = goal-con
 iql_expectile: 0.9                          # IQL expectile (matches GCIQL)
 iql_thresh: 0.04                            # goal-reaching reward radius (cube xyz, world m)
 onestep: false                              # true = one-step FB (F not z-conditioned + SARSA next-action; behavior successor)
+onestep_z_cond: false                       # T8: with onestep=true, KEEP F z-conditioned (Zheng-faithful reading); only swaps the target action
 decondition_F: false                        # true = zeros to F's task slot => phi(s,a) task-agnostic (bilinear-GCIQL direction)
 d_norm: false                               # true = scale bilinear value F.z by 1/sqrt(z_dim) (GCIQL's phi.psi/sqrt(d))
 bilinear_v: false                           # true = FB-IQL value head V=<phi_V(s),z>/sqrt(d) (matches Q) instead of MLP([s,z])

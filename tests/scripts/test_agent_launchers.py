@@ -31,6 +31,28 @@ def test_fb_state_onestep_mode():
     r = _dry_run("fb/state.sh", MODE="onestep")
     assert r.returncode == 0, r.stderr
     assert "onestep=true" in r.stdout
+    assert "onestep_z_cond" not in r.stdout        # historical arm keeps z-zeroing
+
+
+def test_fb_state_onestep_zcond_mode():
+    """T8: SARSA next-action bootstrap with F still z-conditioned."""
+    r = _dry_run("fb/state.sh", MODE="onestep_zcond")
+    assert r.returncode == 0, r.stderr
+    assert "onestep=true" in r.stdout
+    assert "onestep_z_cond=true" in r.stdout
+
+
+def test_fb_state_pessimism_off_by_default():
+    r = _dry_run("fb/state.sh")
+    assert "pessimism_penalty" not in r.stdout
+
+
+def test_fb_state_pessimism_knobs():
+    """T7: VC-FB-style conservatism on the FB targets and/or the actor."""
+    r = _dry_run("fb/state.sh", FB_PESSIMISM="0.5", ACTOR_PESSIMISM="0.5")
+    assert r.returncode == 0, r.stderr
+    assert "fb_pessimism_penalty=0.5" in r.stdout
+    assert "actor_pessimism_penalty=0.5" in r.stdout
 
 
 def test_fb_state_reweight_alpha():

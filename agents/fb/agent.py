@@ -173,6 +173,7 @@ class FBAgent(BaseAgent):
         iql_expectile: float = 0.9,
         iql_thresh: float = 0.04,
         onestep: bool = False,
+        onestep_z_cond: bool = False,
         decondition_F: bool = False,
         d_norm: bool = False,
         bilinear_v: bool = False,
@@ -254,6 +255,15 @@ class FBAgent(BaseAgent):
         # the dataset's own next action (SARSA, batch["next"]["action"]) instead of the
         # policy's. The actor then does one improvement step on <F(s,a), z>. Default off.
         self.onestep = bool(onestep)
+        # T8 ablation (2026-07-20): the SARSA bootstrap above and the z-deconditioning of F
+        # are two INDEPENDENT choices that `onestep` currently ties together. The deep-audit
+        # read of Zheng et al. (2602.11399) is that faithful one-step FB keeps F z-conditioned
+        # and only swaps the target action; the comment above defends z-zeroing on the grounds
+        # that the behavior policy's successor features are genuinely task-independent. Both
+        # readings are defensible and the paper is not settled here, so this flag makes it an
+        # ablation rather than an assumption: onestep_z_cond=True keeps F(s,z,a) z-conditioned
+        # while retaining the SARSA next-action. Default False => byte-identical to before.
+        self.onestep_z_cond = bool(onestep_z_cond)
         # decondition_F: feed zeros to F's task slot => phi(s,a) task-agnostic (bilinear-GCIQL).
         self.decondition_F = bool(decondition_F)
         # d_norm: scale the bilinear value F.z by 1/sqrt(z_dim) (GCIQL's phi.psi/sqrt(d)).
@@ -448,7 +458,8 @@ class FBAgent(BaseAgent):
         """z fed to the forward map. F is made z-independent (=> phi(s,a), task-agnostic)
         for one-step FB (behavior successor features) or decondition_F (bilinear-GCIQL) =>
         feed zeros. Otherwise pass z through. The <F, z> dot products keep the real z."""
-        return torch.zeros_like(z) if (self.onestep or self.decondition_F) else z
+        zero_for_onestep = self.onestep and not self.onestep_z_cond
+        return torch.zeros_like(z) if (zero_for_onestep or self.decondition_F) else z
 
     def _fb_Q_heads(self, left, z, action, fmap):
         """Per-head bilinear value <F(s,a,_fb_z(z)), z> * value_scale -> [num_parallel, batch].

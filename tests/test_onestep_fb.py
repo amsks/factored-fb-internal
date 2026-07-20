@@ -75,6 +75,38 @@ def test_onestep_zeros_z_for_F():
     assert zf.shape == z.shape and torch.count_nonzero(zf) == 0   # F is z-independent
 
 
+# --- T8 ablation: decouple the SARSA bootstrap from the z-deconditioning -----------
+
+def test_onestep_z_cond_default_off_is_byte_identical():
+    """onestep_z_cond defaults off => the historical onestep behaviour is unchanged."""
+    a = _tiny(onestep=True)
+    assert a.onestep_z_cond is False
+    z = torch.randn(4, a.z_dim)
+    assert torch.count_nonzero(a._fb_z(z)) == 0
+
+
+def test_onestep_z_cond_keeps_F_conditioned():
+    """T8 arm: SARSA next-action retained, but F still sees the real z."""
+    a = _tiny(onestep=True, onestep_z_cond=True)
+    assert a.onestep is True and a.onestep_z_cond is True
+    z = torch.randn(4, a.z_dim)
+    assert torch.equal(a._fb_z(z), z)                # F is z-conditioned (Zheng-faithful read)
+
+
+def test_onestep_z_cond_does_not_leak_into_plain_fb():
+    """The flag is inert unless onestep is on (guards against a stray config)."""
+    a = _tiny(onestep=False, onestep_z_cond=True)
+    z = torch.randn(4, a.z_dim)
+    assert torch.equal(a._fb_z(z), z)                # plain FB: unchanged either way
+
+
+def test_decondition_F_still_wins_over_onestep_z_cond():
+    """decondition_F is a separate architecture knob and keeps its zeroing precedence."""
+    a = _tiny(onestep=True, onestep_z_cond=True, decondition_F=True)
+    z = torch.randn(4, a.z_dim)
+    assert torch.count_nonzero(a._fb_z(z)) == 0
+
+
 # --- integration: one-step FB + FlowBC update() runs end-to-end --------------------
 
 def test_onestep_flowbc_update_runs():
