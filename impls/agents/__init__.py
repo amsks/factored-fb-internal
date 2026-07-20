@@ -12,13 +12,17 @@ from impls.utils.flax_utils import TrainState, soft_update, nonpytree_field
 from impls.critics.base import check_combo
 from impls.critics.fb import FBCritic
 from impls.actors.flowbc import FlowBCActor
+from impls.actors.ddpgbc import DDPGBCActor
+from impls.actors.awr import AWRActor
+from impls.actors.fql import FQLActor
 
 CRITICS = {"fb": FBCritic}
-ACTORS = {"flowbc": FlowBCActor}
+ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor}
 
 # per-group learning rates come from config; this maps group -> config key.
 _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
-           "actor": "lr_actor", "actor_vf": None}  # actor_vf uses actor.lr_actor_vf
+           "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf
+           "actor_bc_flow": "lr_actor", "actor_onestep": "lr_actor"}  # fql groups
 
 
 class Agent(flax.struct.PyTreeNode):
@@ -105,13 +109,13 @@ class Agent(flax.struct.PyTreeNode):
         check_combo(critic, actor)
 
         params = {**cparams, **aparams}
-        modules = {"forward": critic.forward, "backward": critic.backward,
-                   "left_encoder": critic.left_encoder,
-                   "actor": actor.actor, "actor_vf": actor.actor_vf}
-        lr_actor_vf = float(config["actor"]["lr_actor_vf"])
+        # Each group's nn.Module is an attribute named after the group on its owner.
+        modules = {g: getattr(critic, g) for g in critic.GROUPS}
+        modules.update({g: getattr(actor, g) for g in actor.GROUPS})
         net = {}
         for g, p in params.items():
-            lr = lr_actor_vf if g == "actor_vf" else float(config[_LR_KEY[g]])
+            # actor_vf (flowbc) has its own lr; other groups map to a config lr key.
+            lr = float(config["actor"]["lr_actor_vf"]) if g == "actor_vf" else float(config[_LR_KEY[g]])
             net[g] = TrainState.create(modules[g], p, tx=optax.adam(lr))
 
         z_dim = config["z_dim"]

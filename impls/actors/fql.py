@@ -12,8 +12,8 @@ from impls.actors.ddpgbc import _cvec
 
 @dataclasses.dataclass(frozen=True)
 class FQLActor:
-    bc_flow: Any
-    onestep: Any
+    actor_bc_flow: Any
+    actor_onestep: Any
     flow_steps: int
     alpha: float
     normalize_q_loss: bool
@@ -22,10 +22,10 @@ class FQLActor:
     NEEDS_V = False
 
     def _bc(self, p, obs_c, x, t):
-        return self.bc_flow.apply({"params": p}, obs_c, x, t)
+        return self.actor_bc_flow.apply({"params": p}, obs_c, x, t)
 
     def _one(self, p, obs_c, noise):
-        return self.onestep.apply({"params": p}, obs_c, noise)
+        return self.actor_onestep.apply({"params": p}, obs_c, noise)
 
     def _rollout(self, p, obs_c, noise):
         a = noise
@@ -64,7 +64,7 @@ class FQLActor:
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
         obs_c = jnp.concatenate([obs, _cvec(cond)], -1)
-        noise = jax.random.normal(rng, (*obs.shape[:-1], self.onestep.action_dim))
+        noise = jax.random.normal(rng, (*obs.shape[:-1], self.actor_onestep.action_dim))
         return jnp.clip(self._one(net["actor_onestep"].params, obs_c, noise), -1, 1)
 
     @classmethod
@@ -82,6 +82,6 @@ class FQLActor:
             "actor_bc_flow": bc.init(rbc, obs_c, ex_actions, ex_actions[..., :1])["params"],
             "actor_onestep": one.init(ron, obs_c, ex_actions, None)["params"],
         }
-        return cls(bc_flow=bc, onestep=one, flow_steps=int(a_cfg["flow_steps"]),
+        return cls(actor_bc_flow=bc, actor_onestep=one, flow_steps=int(a_cfg["flow_steps"]),
                    alpha=float(a_cfg["alpha"]),
                    normalize_q_loss=bool(a_cfg.get("normalize_q_loss", False))), params
