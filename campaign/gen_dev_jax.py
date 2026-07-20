@@ -42,11 +42,12 @@ def data_dir(ds):
 def main():
     by_slug = _ds_by_slug()
     lines = []
-    for slug in DEV_TASKS:
-        ds = by_slug[slug]
-        ddir = data_dir(ds)
+    # task-innermost order so the FIRST wave spans all dev tasks (not one task at a time)
+    for s in DEV_SEEDS:
         for algo, (af, ov) in ALGOS.items():
-            for s in DEV_SEEDS:
+            for slug in DEV_TASKS:
+                ds = by_slug[slug]
+                ddir = data_dir(ds)
                 save_dir = f"{CAMPAIGN_OUT}/dev_jax/{algo}__{slug}__s{s}"
                 cmd = (
                     f"XLA_PYTHON_CLIENT_PREALLOCATE=false MUJOCO_GL=egl "  # on-demand mem + headless render
