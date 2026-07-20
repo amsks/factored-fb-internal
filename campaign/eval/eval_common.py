@@ -30,6 +30,12 @@ class _Cfg(dict):
     def get(self, k, d=None):
         return dict.get(self, k, d)
 
+    def __getattr__(self, k):
+        return dict.get(self, k, None)
+
+    def __setattr__(self, k, v):
+        self[k] = v
+
 
 def make_eval_env(task, render=False):
     """Return (env, horizon). Obs is the RAW factored obs identical to the collected data."""
