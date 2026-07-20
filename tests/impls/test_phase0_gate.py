@@ -37,7 +37,14 @@ PAIRS = [(c, a) for c in CRITICS for a in ACTORS]
 # The only two pairs that are structurally invalid by design. Every other pair in PAIRS
 # must construct and train; if this set and PAIRS ever drift (e.g. a new critic/actor is
 # registered), the assertions below will fail loudly rather than silently skip.
-EXPECTED_COMBO_ERRORS = {("fb", "awr"), ("gciql", "flowbc"), ("iql_bilinear", "flowbc")}
+EXPECTED_COMBO_ERRORS = {
+    ("fb", "awr"), ("gciql", "flowbc"), ("iql_bilinear", "flowbc"),
+    # Phase 1 bridge critics: flowbc needs cond["z"] none of them produce; sf_feature and
+    # centered_bilinear are PROVIDES_V=False so also reject awr.
+    ("simple_sf", "flowbc"), ("sf_feature", "flowbc"), ("sf_feature", "awr"),
+    ("centered_bilinear", "flowbc"), ("centered_bilinear", "awr"),
+    ("fb_forward_bilinear", "flowbc"),
+}
 
 
 @pytest.mark.parametrize("critic,actor", PAIRS)
@@ -62,10 +69,10 @@ def test_pair_trains_or_is_rejected(critic, actor):
     assert jnp.isfinite(jnp.asarray(info["actor_loss"])).all()
 
 
-def test_expected_combo_errors_cover_exactly_three_of_sixteen_pairs():
-    """Pins the gate's exact floor: 13 pairs train, 3 are rejected. If PAIRS grows without
+def test_expected_combo_errors_cover_exactly_nine_of_thirtytwo_pairs():
+    """Pins the gate's exact floor: 23 pairs train, 9 are rejected. If PAIRS grows without
     updating EXPECTED_COMBO_ERRORS, this is the assertion that catches it."""
-    assert len(PAIRS) == 16
+    assert len(PAIRS) == 32
     assert EXPECTED_COMBO_ERRORS <= set(PAIRS)
-    assert len(EXPECTED_COMBO_ERRORS) == 3
-    assert len(set(PAIRS) - EXPECTED_COMBO_ERRORS) == 13
+    assert len(EXPECTED_COMBO_ERRORS) == 9
+    assert len(set(PAIRS) - EXPECTED_COMBO_ERRORS) == 23

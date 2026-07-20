@@ -68,6 +68,47 @@ def _min_cfg_for(critic_kind, actor_kind):
             actor_z_infer=False,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
         )
+    elif critic_kind == "simple_sf":
+        base = dict(
+            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
+            lr=3e-4, lr_actor=3e-4, gc_negative=True,
+            value_latent_dim=8, ground_psi=False, reward_coef=0.0, project_z=False,
+            double_q=True, actor_cond="goal", ground_fade=False,
+            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
+        )
+    elif critic_kind == "sf_feature":
+        base = dict(
+            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, tau=0.005,
+            lr=3e-4, lr_actor=3e-4, gc_negative=True,
+            value_latent_dim=16, sf_base="frozen", sf_mask="goal", sf_base_index="current",
+            sf_joint_psi=False, sf_reward_regress=False, sf_reward_coef=1.0, sf_reward_shift=0.0,
+            sf_ortho_coef=0.0, sf_psi_ortho_coef=0.0, sf_coef=1.0, fb_forward_z=False,
+            actor_cond="goal",
+            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
+        )
+    elif critic_kind == "centered_bilinear":
+        base = dict(
+            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
+            lr=3e-4, lr_actor=3e-4, gc_negative=True,
+            value_latent_dim=8, double_q=True, mode="dueling",
+            dueling_b_coef=1.0, centered_measure_coef=1.0, center_b_coef=1.0, center_b_samples=1,
+            centered_split_bootstrap=True, centered_scale_anchors=False, use_next_actions=False,
+            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
+        )
+    elif critic_kind == "fb_forward_bilinear":
+        base = dict(
+            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
+            lr=3e-4, lr_actor=3e-4, gc_negative=True,
+            value_latent_dim=8, phi_module="flat", objective="iql", project_z=False, double_q=True,
+            measure_coef=0.0, measure_legs="critic", measure_scale_norm=False,
+            measure_stopgrad_phi=False, measure_ortho_coef=0.0, measure_test_states="rho",
+            measure_test_rank="full", iql_ortho_coef=0.0,
+            measure_insample="scalar_gate_hard", alpha_n=1.0, alpha_m=1.0, alpha_v=1.0,
+            awr_beta=3.0, awr_wmax=100.0, awr_normalize_adv=True, fb_pessimism_penalty=0.0,
+            goal_mask=True,
+            actor_cond="goal", actor_z_from_critic=False, actor_z_infer=False,
+            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
+        )
     else:  # gciql
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
@@ -103,7 +144,14 @@ def test_every_registered_pair_composes():
     assert ("isfb", "awr") in built
     # iql_bilinear x flowbc joins gciql x flowbc: neither promises FlowBCActor's cond["z"].
     assert ("iql_bilinear", "flowbc") in skipped
-    assert len(built) == 13  # the other 13 of the 16 registered pairs are legitimate
+    # The three z-blind bilinear-family critics (simple_sf, sf_feature, centered_bilinear,
+    # fb_forward_bilinear) likewise reject flowbc; the two V-less ones (sf_feature,
+    # centered_bilinear have PROVIDES_V=False) also reject awr.
+    for c in ("simple_sf", "sf_feature", "centered_bilinear", "fb_forward_bilinear"):
+        assert (c, "flowbc") in skipped, f"{c} x flowbc should be rejected (no cond['z'])"
+    assert ("sf_feature", "awr") in skipped
+    assert ("centered_bilinear", "awr") in skipped
+    assert len(built) == 23  # 23 of the 32 registered pairs are legitimate; 9 combo-invalid
 
 
 def test_gciql_flowbc_raises_combo_error():

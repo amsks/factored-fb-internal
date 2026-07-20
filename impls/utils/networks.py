@@ -450,3 +450,283 @@ class GCBilinearPsiValue(GCBilinearValue):
         if info:
             return v, phi, psi
         return v
+
+
+
+
+class GCSimpleSFValue(nn.Module):
+    """Chua et al.'s Simple SF head (reference: simple_successor_features/agent/sf_simple.py,
+    ported through tools/wandb_mode_shim/gciql_flow.py::GCSimpleSFValue).
+
+        z         = psi(g)                        # the task vector (sqrt(d)-sphere if project_z)
+        h(s,a,z)  = trunk([s, a, sg[z]])          # ONE trunk, not ensembled
+        b(s,a,z)  = h / (||h|| + eps)             # reward BASIS -- zero params of its own
+        Psi_i     = head_i(h)                     # twin heads (CriticSF.Q1/Q2) when ensemble
+        Q_i       = <Psi_i, z_used> / sqrt(d)
+
+    b and Psi are DIFFERENT vectors off a shared trunk, and b carries no parameters of its
+    own: its only gradient arrives through the trunk, from the TD. That asymmetry (a network
+    b against a task vector z=psi(g)) is what frees the reward model <b, psi(g)> from the
+    psi=0 stationary point that killed the symmetric <psi(s),psi(g)> SF variant.
+
+    z is stop_gradded in the TRUNK INPUT in BOTH rungs (the reference passes task.detach() to
+    update_critic): otherwise the trunk's TD gradient would reach psi through the input
+    concatenation and `ground_psi` would not isolate psi's signal.
+
+    ground_psi is the ONLY stop_gradient-psi in the whole factored design: with ground_psi the
+    READOUT also stop-grads z, so the IQL TD gives psi EXACTLY ZERO gradient and the reward
+    regression (SimpleSfCritic._reward_loss) becomes psi's only training signal. Forward
+    output is identical either way -- ground_psi is a gradient property, tested by the
+    exact-zero-gradient seam test, not the forward invariants.
+    """
+    hidden_dims: Sequence[int]
+    latent_dim: int
+    layer_norm: bool = True
+    ensemble: bool = True
+    ground_psi: bool = False
+    project_z: bool = False
+
+    def setup(self):
+        head_m = ensemblize(MLP, 2) if self.ensemble else MLP
+        self.trunk = MLP((*self.hidden_dims, self.latent_dim),
+                         activate_final=False, layer_norm=self.layer_norm)
+        self.head = head_m((self.hidden_dims[-1], self.latent_dim),
+                           activate_final=False, layer_norm=self.layer_norm)
+        self.psi = MLP((*self.hidden_dims, self.latent_dim),
+                       activate_final=False, layer_norm=self.layer_norm)
+
+    def psi_of(self, goals):
+        """The task vector z = psi(g), sphered onto radius sqrt(d) when project_z. Exposed so
+        the reward-regression loss can read exactly the z the readout uses."""
+        z = self.psi(goals)
+        if self.project_z:
+            z = sphere_project(z, self.latent_dim)
+        return z
+
+    def __call__(self, observations, goals, actions=None, info=False):
+        z = self.psi_of(goals)                                   # [B,d], grad ON
+        z_in = jax.lax.stop_gradient(z)                          # trunk input NEVER trains psi
+        parts = [observations] if actions is None else [observations, actions]
+        h = self.trunk(jnp.concatenate([*parts, z_in], axis=-1))  # [B,d]
+        b = h / (jnp.linalg.norm(h, axis=-1, keepdims=True) + 1e-6)
+        Psi = self.head(h)                                       # [2,B,d] or [B,d]
+        z_used = jax.lax.stop_gradient(z) if self.ground_psi else z
+        v = (Psi * z_used).sum(axis=-1) / jnp.sqrt(self.latent_dim)
+        if info:
+            return v, Psi, z, b
+        return v
+
+
+
+
+class GCSfBilinearValue(GCBilinearPsiValue):
+    """Successor-FEATURE bilinear head. Same bilinear readout Q(s,a,g)=<phi(s,a), psi(g)>/√d
+    as GCBilinearPsiValue, but here phi(s,a) is the LEARNED successor-feature vector and the
+    goal leg psi is the SF *base* b (the per-sample vector TD that trains phi lives in the
+    critic's stage_loss, NOT in this module). `psi_base` names the base map, mirroring the
+    bridge's three SF critic classes:
+
+      'identity' — b(g)=g, param-free (GCIdentityBValue); latent_dim PINNED to the goal dim.
+      'frozen'   — b=stop_gradient(MLP), a frozen random encoder (GCFrozenBValue); d is free.
+      'learned'  — b=MLP, trained ONLY by the agent's reward regression / joint-ψ path
+                   (GCLearnedBValue).
+
+    Adds `fb_forward_z`: task-condition phi on z=sg(psi(g)) by concatenating it (head-meaned
+    when ψ is ensembled, always stop-gradded) onto phi's input — the bridge's
+    phi([s,a,z=psi(g)]). The stop_gradient is unconditional here, matching the bridge across
+    all three bases (identity/learned stop-grad z explicitly; frozen's psi_of already froze
+    it, and a second stop_gradient is a no-op). Unverified — no external reference exists for
+    the z-indexed SF forward map (parity scout item 1); locked structurally only.
+    """
+    fb_forward_z: bool = False
+
+    def __call__(self, observations, b_goals, actions=None, z_goals=None, info=False):
+        phi_inputs = observations if actions is None else \
+            jnp.concatenate([observations, actions], axis=-1)
+        if self.fb_forward_z:
+            z = self.psi_of(z_goals)
+            if z.ndim == 3:                       # head-mean an ensembled ψ down to [B,d]
+                z = z.mean(axis=0)
+            phi_inputs = jnp.concatenate([phi_inputs, jax.lax.stop_gradient(z)], axis=-1)
+
+        phi = self.phi(phi_inputs)
+        psi = self.psi_of(b_goals)
+        if self.psi_base == "identity":
+            psi = jnp.broadcast_to(psi, phi.shape)   # param-free ψ is unensembled
+
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if self.value_exp:
+            v = jnp.exp(v)
+        if info:
+            return v, phi, psi
+        return v
+
+
+class GCDuelingValue(GCBilinearValue):
+    """Behavior-centered dueling critic: Q(s,a,g) = U(s,g) + A_bil(s,a,g).
+
+    A_bil(s,a,g) = (phi(s,a) - b(s))·psi(g)/sqrt(d) is GCBilinearValue's bilinear score
+    with the forward leg phi RE-CENTERED against a learned baseline feature b(s) — an MLP
+    head (same output dim + ensemble structure as phi) trained to approximate the
+    behavior-policy mean E_{a~mu}[phi(s,a)]. U(s,g) is a plain state-goal scalar head
+    (the GCValue pattern), ensembled to 2 like the critic. No separate loss trains U or
+    the Q-level split: Q=U+A_bil is trained end-to-end by the SAME expectile-TD as the
+    plain bilinear critic. Once b tracks phi's behavior mean, E_{a~mu}[A_bil] ~= 0, so U
+    absorbs the state-goal cardinal level and A_bil carries the action-relative part; the
+    actor's q-term reads A_bil alone (the part it can move through a).
+
+    Transcribed from tools/wandb_mode_shim/gciql_flow.py::GCDuelingValue (state-based, no
+    encoders). full_info=True returns the dict the b-regression and the actor's A_bil-only
+    q-term consume; info=True returns (Q, phi, psi) matching GCBilinearValue's convention.
+    """
+
+    def setup(self):
+        super().setup()   # self.phi, self.psi (GCBilinearValue's bilinear legs)
+        mlp_class = MLP
+        if self.ensemble:
+            mlp_class = ensemblize(mlp_class, 2)
+        self.b = mlp_class((*self.hidden_dims, self.latent_dim),
+                           activate_final=False, layer_norm=self.layer_norm)
+        self.U_net = mlp_class((*self.hidden_dims, 1),
+                               activate_final=False, layer_norm=self.layer_norm)
+
+    def __call__(self, observations, goals, actions=None, info=False, full_info=False):
+        assert actions is not None, \
+            "GCDuelingValue is critic-only (Q needs actions); use GCValue for the expectile V(s,g)"
+        phi = self.phi(jnp.concatenate([observations, actions], axis=-1))   # [2,B,d]
+        psi = self.psi(goals)                                               # [2,B,d]
+        bs = self.b(observations)                                           # [2,B,d]
+        A_bil = ((phi - bs) * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)  # [2,B]
+        U = self.U_net(jnp.concatenate([observations, goals], axis=-1)).squeeze(-1)  # [2,B]
+        Q = U + A_bil
+        if full_info:
+            return {"Q": Q, "A_bil": A_bil, "U": U, "phi": phi, "bs": bs, "psi": psi}
+        if info:
+            return Q, phi, psi
+        return Q
+
+
+
+
+
+
+class _TwoTowerPhi(nn.Module):
+    """FB-style two-tower forward leg: F = trunk( MLP[s,a] , MLP[s,z] ).
+
+    Verbatim port of tools/wandb_mode_shim/gciql_flow.py::_TwoTowerPhi (which mirrors torch
+    agents/fb/model.py ForwardMap): the (s,a) and (s,z) embeddings each end activated
+    (activate_final), the trunk is linear to latent_dim. Submodule names (`embed_sa`,
+    `embed_sz`, `trunk`) are load-bearing so the wiring is testable. z is a REQUIRED input
+    here (the task index enters through embed_sz) — which is exactly what lets the two-tower
+    COMPOSE with the z-indexed family instead of being an either/or sibling (audit S1)."""
+    hidden_dims: tuple
+    latent_dim: int
+    layer_norm: bool = True
+
+    @nn.compact
+    def __call__(self, obs, actions, z):
+        h = tuple(self.hidden_dims)
+        sa = obs if actions is None else jnp.concatenate([obs, actions], axis=-1)
+        e_sa = MLP((*h, h[-1]), activate_final=True, layer_norm=self.layer_norm, name="embed_sa")(sa)
+        e_sz = MLP((*h, h[-1]), activate_final=True, layer_norm=self.layer_norm, name="embed_sz")(
+            jnp.concatenate([obs, z], axis=-1))
+        return MLP((*h, self.latent_dim), activate_final=False, layer_norm=self.layer_norm,
+                   name="trunk")(jnp.concatenate([e_sa, e_sz], axis=-1))
+
+
+PHI_MODULES = ("flat", "two_tower", "isfb_twin_leg")
+
+
+class GCFbForwardValue(GCBilinearValue):
+    """z-INDEXED bilinear critic: Q(s,a,g) = <F(s,a,z), psi(g)>/sqrt(d), z = sg(psi(g)).
+
+    The forward-map analogue of GCBilinearPsiValue: where that head's forward leg is z-BLIND
+    (phi(s,a)), this one feeds the head-mean, stop-gradded task vector z=psi(goals) INTO the
+    forward map, restoring FB's defining z-indexed family M(s,a,z)=<F(s,a,z),B(g)>. It
+    unifies the reference's GCFBValue / GCTwoTowerCritic / GCISFBValue (three sibling classes
+    selected by a mutually-exclusive if/elif in gciql_flow.py — audit S1) into ONE module
+    whose forward architecture is a `phi_module` CHOICE. Because z always enters the SAME way
+    (internal, from psi(goals)), the two-tower composes with the z-index by construction —
+    which is what makes B2/B4 (two_tower + z-forward + sphere + ortho) constructible.
+
+    phi_module:
+      'flat'          — phi = MLP([s, a, z]).                    (GCFBValue)
+      'two_tower'     — phi = trunk(MLP[s,a], MLP[s,z]).         (GCTwoTowerCritic)
+      'isfb_twin_leg' — flat phi PLUS a second leg F_V = MLP([s, z]) (action-free) for the
+                        value successor measure N=<F_V,B>.       (GCISFBValue)
+
+    psi is ALWAYS learned (freezing/identity-pinning the goal leg is IqlBilinear's axis, not
+    this one). `project_z` hard-projects BOTH z and psi onto the sqrt(d) sphere, applied
+    SYMMETRICALLY (audit S3). Signature is (observations, goals, actions) — the GCBilinearValue
+    3-arg drop-in — with z computed internally, so every phi_module shares it.
+    """
+    phi_module: str = "flat"
+    project_z: bool = False
+
+    def setup(self):
+        assert self.phi_module in PHI_MODULES, \
+            f"phi_module must be one of {PHI_MODULES}, got {self.phi_module!r}"
+        mlp = MLP
+        two_tower = _TwoTowerPhi
+        if self.ensemble:
+            mlp = ensemblize(mlp, 2)
+            two_tower = ensemblize(two_tower, 2)
+        self.psi = mlp((*self.hidden_dims, self.latent_dim),
+                       activate_final=False, layer_norm=self.layer_norm)
+        if self.phi_module == "two_tower":
+            self.phi = two_tower(hidden_dims=tuple(self.hidden_dims), latent_dim=self.latent_dim,
+                                 layer_norm=self.layer_norm)
+        else:
+            self.phi = mlp((*self.hidden_dims, self.latent_dim),
+                           activate_final=False, layer_norm=self.layer_norm)
+        if self.phi_module == "isfb_twin_leg":
+            # F_V(s, z): action-free forward leg giving the value successor measure N. The
+            # ISFB (Q,V) decoupling is done at the measure level over the ONE shared psi.
+            self.fv = mlp((*self.hidden_dims, self.latent_dim),
+                          activate_final=False, layer_norm=self.layer_norm)
+
+    def psi_of(self, goals):
+        """Backward map B = psi(goals), sphered if project_z. Exposed like
+        GCBilinearPsiValue.psi_of so the actor's z (actor_cond='z') is EXACTLY the psi the
+        critic trains."""
+        psi = self.psi(goals)
+        return sphere_project(psi, self.latent_dim) if self.project_z else psi
+
+    def _z(self, z_goals, z_vec):
+        """The task vector fed to the forward map. z_vec overrides it (measure mixed-z path);
+        otherwise z = sg(head-mean psi(z_goals)), sphered if project_z. Detached either way — z
+        is a frozen task INPUT, per FB (psi is trained as the backward map B, not as z)."""
+        if z_vec is not None:
+            return jax.lax.stop_gradient(z_vec)
+        z = self.psi(z_goals)
+        if self.ensemble:
+            z = z.mean(axis=0)                      # single task vector per sample [B,d]
+        z = jax.lax.stop_gradient(z)
+        return sphere_project(z, self.latent_dim) if self.project_z else z
+
+    def _phi(self, observations, actions, z):
+        if self.phi_module == "two_tower":
+            return self.phi(observations, actions, z)
+        inp = observations if actions is None else jnp.concatenate([observations, actions], -1)
+        return self.phi(jnp.concatenate([inp, z], -1))
+
+    def _fv(self, observations, z):
+        return self.fv(jnp.concatenate([observations, z], -1))
+
+    def __call__(self, observations, goals, actions, z_goals=None, info=False,
+                 return_fv=False, z_vec=None):
+        # goals feeds the backward map B=psi(goals); z_goals feeds the task index z (defaults
+        # to goals). They DIFFER in the measure loss: B is psi(next_obs), z is psi(value_goals).
+        z = self._z(goals if z_goals is None else z_goals, z_vec)
+        phi = self._phi(observations, actions, z)
+        psi = self.psi_of(goals)
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if self.value_exp:
+            v = jnp.exp(v)
+        if info and return_fv:
+            assert self.phi_module == "isfb_twin_leg", \
+                "return_fv requires phi_module='isfb_twin_leg' (no F_V leg otherwise)"
+            return v, phi, psi, self._fv(observations, z), z
+        if info:
+            return v, phi, psi
+        return v
