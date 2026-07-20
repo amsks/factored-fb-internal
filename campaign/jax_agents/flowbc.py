@@ -89,6 +89,7 @@ class FlowBCAgent(flax.struct.PyTreeNode):
 def get_config():
     return ml_collections.ConfigDict(dict(
         agent_name="flowbc", lr=3e-4, batch_size=256, flow_steps=10,
+        discount=0.99,                                 # unused by flowbc; GCDataset needs it for goal sampling
         hidden_dim=512, hidden_layers=4,
         encoder=ml_collections.config_dict.placeholder(str),
         dataset_class="GCDataset",
