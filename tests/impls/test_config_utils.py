@@ -70,10 +70,12 @@ def test_gciql_required_key_missing_raises_named_error(key):
 # present with value None (OmegaConf.merge with a bare `key:` dotlist would do the latter).
 
 def test_top_level_delete_override_removes_key():
-    # obs_type is a real, present, top-level key that no REQUIRED_KEYS list needs, so this
-    # isolates the delete mechanism itself from the required-key gate exercised above.
-    cfg = load_config("fb", "flowbc", "cube_single", overrides=["~obs_type"])
-    assert "obs_type" not in cfg
+    # A synthetic top-level key introduced by a `set` override, unrelated to REQUIRED_KEYS,
+    # isolates the delete mechanism itself from the required-key gate exercised above (and
+    # from any particular domain yaml's contents).
+    cfg = load_config("fb", "flowbc", "cube_single",
+                      overrides=["scratch_probe=1", "~scratch_probe"])
+    assert "scratch_probe" not in cfg
     # sibling top-level keys must survive the delete.
     assert "env_name" in cfg
 

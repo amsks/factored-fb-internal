@@ -11,7 +11,13 @@ def get_exp_name(seed, critic=None, actor=None, env_name=None):
 
 
 class CsvLogger:
-    """Append rows to a CSV, writing a header on first use."""
+    """Append rows to a CSV, writing a header on first use.
+
+    If `path` already contains a non-empty file when the first row is logged (e.g. a
+    --restore_path resume into the same --save_dir), rows are appended to it using the
+    existing file's header rather than truncating it: a resume must not destroy the
+    pre-resume history. A fresh/missing/empty path still gets a freshly written header.
+    """
 
     def __init__(self, path):
         self.path = path
@@ -25,10 +31,18 @@ class CsvLogger:
         if step is not None:
             row['step'] = step
         if self._file is None:
-            self._keys = list(row.keys())
-            self._file = open(self.path, 'w', newline='')
-            self._writer = csv.DictWriter(self._file, fieldnames=self._keys)
-            self._writer.writeheader()
+            file_exists = os.path.exists(self.path) and os.path.getsize(self.path) > 0
+            if file_exists:
+                with open(self.path, 'r', newline='') as f:
+                    header = next(csv.reader(f), None)
+                self._keys = header if header else list(row.keys())
+                self._file = open(self.path, 'a', newline='')
+                self._writer = csv.DictWriter(self._file, fieldnames=self._keys)
+            else:
+                self._keys = list(row.keys())
+                self._file = open(self.path, 'w', newline='')
+                self._writer = csv.DictWriter(self._file, fieldnames=self._keys)
+                self._writer.writeheader()
         self._writer.writerow({k: row.get(k) for k in self._keys})
         self._file.flush()
 

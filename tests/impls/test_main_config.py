@@ -20,11 +20,11 @@ def test_fb_flowbc_real_yaml_composes():
 
 # --- minimal hand-rolled configs, one per (critic, actor) group, mirroring the pattern
 # already used by test_pr2_actors.py / test_pr3_gciql.py / test_combo_validation.py. These
-# sidestep real-yaml completeness gaps that are orthogonal to combo validity (e.g. flowbc.yaml
-# carries no top-level lr_actor because fb.yaml already supplies one for the fb×flowbc pair;
-# gciql.yaml carries no z_dim because only FB-family critics use that concept) so the test
-# exercises exactly what it's meant to: does Agent.create (and therefore check_combo) accept
-# or structurally reject each registered pair.
+# sidestep real-yaml completeness gaps that are orthogonal to combo validity (e.g. gciql.yaml
+# carries no z_dim because only FB-family critics use that concept, so gciql x flowbc needs
+# z_dim supplied by hand here to reach check_combo instead of dying earlier on a missing key)
+# so the test exercises exactly what it's meant to: does Agent.create (and therefore
+# check_combo) accept or structurally reject each registered pair.
 
 def _actor_block(actor_kind):
     if actor_kind == "flowbc":
