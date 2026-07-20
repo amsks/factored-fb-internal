@@ -2,7 +2,3 @@
 name: cube_single
 env_name: cube-single-play-v0
 obs_type: state
-batch_size: 256
-# selects critic=fb actor=flowbc by default for the Hydra path (multi-critic PRs).
-critic: fb
-actor: flowbc
