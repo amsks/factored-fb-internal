@@ -5,7 +5,9 @@ FrozenDict with idx+1 next-observation inference). `FBDataset` adds the FB train
 observations/actions/next_observations plus reward=0 (play data is unlabeled) and
 terminals=0 (always-gamma bootstrap, matching the PyTorch reference).
 """
+import dataclasses
 from functools import partial
+from typing import Any
 
 import jax
 import numpy as np
@@ -74,3 +76,62 @@ class FBDataset(Dataset):
             'rewards': rewards,
             'terminals': np.zeros((B,), np.float32),  # always-gamma
         }
+
+
+@dataclasses.dataclass
+class GCDataset:
+    """Goal-conditioned dataset — faithful port of OGBench utils/datasets.py:GCDataset,
+    state-only (frame-stack / image augmentation dropped). Produces value_goals, actor_goals,
+    rewards, masks. np.random call order matches the vendored source for seeded determinism.
+    """
+    dataset: Dataset
+    config: Any
+
+    def __post_init__(self):
+        self.size = self.dataset.size
+        (self.terminal_locs,) = np.nonzero(np.asarray(self.dataset['terminals']) > 0)
+        self.initial_locs = np.concatenate([[0], self.terminal_locs[:-1] + 1])
+        assert self.terminal_locs[-1] == self.size - 1
+        c = self.config
+        assert np.isclose(c['value_p_curgoal'] + c['value_p_trajgoal'] + c['value_p_randomgoal'], 1.0)
+        assert np.isclose(c['actor_p_curgoal'] + c['actor_p_trajgoal'] + c['actor_p_randomgoal'], 1.0)
+
+    def sample(self, batch_size, idxs=None):
+        if idxs is None:
+            idxs = self.dataset.get_random_idxs(batch_size)
+        batch = self.dataset.get_subset(idxs)
+        c = self.config
+        value_goal_idxs = self.sample_goals(
+            idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'], c['value_geom_sample'])
+        actor_goal_idxs = self.sample_goals(
+            idxs, c['actor_p_curgoal'], c['actor_p_trajgoal'], c['actor_p_randomgoal'], c['actor_geom_sample'])
+        obs = self.dataset['observations']
+        batch['observations'] = np.asarray(batch['observations'], np.float32)
+        batch['next_observations'] = np.asarray(batch['next_observations'], np.float32)
+        batch['actions'] = np.asarray(batch['actions'], np.float32)
+        batch['value_goals'] = np.asarray(obs[value_goal_idxs], np.float32)
+        batch['actor_goals'] = np.asarray(obs[actor_goal_idxs], np.float32)
+        successes = (idxs == value_goal_idxs).astype(np.float32)
+        batch['masks'] = 1.0 - successes
+        batch['rewards'] = successes - (1.0 if c['gc_negative'] else 0.0)
+        return batch
+
+    def sample_goals(self, idxs, p_curgoal, p_trajgoal, p_randomgoal, geom_sample):
+        batch_size = len(idxs)
+        random_goal_idxs = self.dataset.get_random_idxs(batch_size)
+        final_state_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
+        if geom_sample:
+            offsets = np.random.geometric(p=1 - self.config['discount'], size=batch_size)  # in [1, inf)
+            traj_goal_idxs = np.minimum(idxs + offsets, final_state_idxs)
+        else:
+            distances = np.random.rand(batch_size)  # in [0, 1)
+            traj_goal_idxs = np.round(
+                (np.minimum(idxs + 1, final_state_idxs) * distances + final_state_idxs * (1 - distances))
+            ).astype(int)
+        if p_curgoal == 1.0:
+            goal_idxs = idxs
+        else:
+            goal_idxs = np.where(
+                np.random.rand(batch_size) < p_trajgoal / (1.0 - p_curgoal), traj_goal_idxs, random_goal_idxs)
+            goal_idxs = np.where(np.random.rand(batch_size) < p_curgoal, idxs, goal_idxs)
+        return goal_idxs
