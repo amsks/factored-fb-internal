@@ -115,13 +115,38 @@ def make_eval_env(task, render=False):
             if hasattr(env._raw, "max_steps"):
                 env._raw.max_steps = 1_000_000_000
         return env, episode_length_for(task)
+
+    if task.startswith("mw-"):
+        os.environ.setdefault("MUJOCO_GL", "egl")
+        from envs.metaworld import MetaWorldWrapper
+        from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
+        env_id = task.split("-", 1)[-1] + "-v2-goal-observable"
+        raw = ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[env_id](seed=0, render_mode="rgb_array")
+        return MetaWorldWrapper(raw, _Cfg()), 100          # 100 wrapper steps (action-repeat 2)
+
+    if task.startswith("ms-"):
+        os.environ.setdefault("MUJOCO_GL", "egl")
+        from envs.maniskill import make_env as ms_make
+        cfg = _Cfg(task=task, seed=0, obs="state", render_size=128,
+                   control_mode="pd_ee_delta_pos", num_envs=1)
+        return ms_make(cfg), 25                              # ManiSkill episodes: 25 steps @10Hz
     raise ValueError(f"eval_fb env builder not yet wired for task {task!r}")
 
 
-def rollout_fixed_seeds(agent, env, z, horizon, n_episodes, seed_base, n_video, device):
+def seeded_reset(env, task, seed):
+    """Family-specific deterministic reset so a given seed => a fixed initial state.
+    rlmini honors reset(seed=); Metaworld draws its rand_vec from the GLOBAL np.random;
+    ManiSkill honors reset(seed=)."""
+    if task.startswith("mw-"):
+        np.random.seed(seed)
+        return env.reset()
+    return env.reset(seed=seed)
+
+
+def rollout_fixed_seeds(agent, env, task, z, horizon, n_episodes, seed_base, n_video, device):
     successes, frames = [], []
     for i in range(n_episodes):
-        obs, info = env.reset(seed=seed_base + i)
+        obs, info = seeded_reset(env, task, seed_base + i)
         if hasattr(agent, "reset"):
             agent.reset()
         ep_success = bool(info.get("success", 0.0))
@@ -188,7 +213,7 @@ def main():
     agent, cfg = build_fb_agent(args.run_dir, ckpt_path, obs_dim, act_dim, args.device)
     z = infer_z(agent, args.data_dir, args.relabel_n, args.device)
 
-    successes, frames = rollout_fixed_seeds(agent, env, z, horizon, args.n_episodes,
+    successes, frames = rollout_fixed_seeds(agent, env, args.task, z, horizon, args.n_episodes,
                                             args.seed_base, args.n_video, args.device)
     env.close()
 
