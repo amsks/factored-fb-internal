@@ -108,9 +108,12 @@ class Agent(flax.struct.PyTreeNode):
         critic_cls = CRITICS[critic_name]
         actor_cls = ACTORS[actor_name]
         critic, cparams, targets = critic_cls.build(ex_obs, ex_actions, config)
+        # Validate before building the actor: check_combo reads only class attributes, so
+        # an invalid pair raises ComboError naming the real reason rather than dying on
+        # whatever config key the actor's build() indexes first.
+        check_combo(critic, actor_cls)
         config = {**config, "cvec_dim": int(critic.cvec_dim)}  # actors size conditioning on this
         actor, aparams = actor_cls.build(ex_obs, ex_actions, config)
-        check_combo(critic, actor)
 
         params = {**cparams, **aparams}
         # Each group's nn.Module is an attribute named after the group on its owner.

@@ -27,19 +27,28 @@ class Critic(Protocol):
     def infer_cond(self, net, obs, rewards): ...
 
 
+def _name(obj):
+    """Display name for either a class or an instance of one."""
+    return obj.__name__ if isinstance(obj, type) else type(obj).__name__
+
+
 def check_combo(critic, actor):
-    """Validate a critic×actor pair at construction. Raises ComboError with a named
-    reason if the actor needs a V function the critic does not provide, or if the actor
-    requires a cond key (e.g. FlowBCActor's "z") the critic's sample_cond does not produce."""
+    """Validate a critic×actor pair. Raises ComboError with a named reason if the actor
+    needs a V function the critic does not provide, or if the actor requires a cond key
+    (e.g. FlowBCActor's "z") the critic's sample_cond does not produce.
+
+    Both arguments may be a class or an instance: every attribute consulted here is a
+    class attribute. Agent.create relies on that to validate BEFORE building the actor,
+    so an invalid pair reports its real reason instead of whatever missing config key
+    the actor's build() happens to index first (e.g. gciql×flowbc dying on z_dim)."""
     if getattr(actor, "NEEDS_V", False) and not getattr(critic, "PROVIDES_V", False):
         raise ComboError(
-            f"{type(actor).__name__} requires a V function but "
-            f"{type(critic).__name__}.PROVIDES_V is False"
+            f"{_name(actor)} requires a V function but {_name(critic)}.PROVIDES_V is False"
         )
     missing = set(getattr(actor, "REQUIRES_COND", ())) - set(getattr(critic, "PROVIDES_COND", ()))
     if missing:
         raise ComboError(
-            f"{type(actor).__name__} requires cond key(s) {sorted(missing)} but "
-            f"{type(critic).__name__}.sample_cond only produces "
+            f"{_name(actor)} requires cond key(s) {sorted(missing)} but "
+            f"{_name(critic)}.sample_cond only produces "
             f"{sorted(getattr(critic, 'PROVIDES_COND', ()))}"
         )
