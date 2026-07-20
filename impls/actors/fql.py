@@ -76,7 +76,7 @@ class FQLActor:
         hd = tuple(a_cfg["hidden_dims"])
         bc = ActorVectorField(hidden_dims=hd, action_dim=A, layer_norm=a_cfg.get("layer_norm", False))
         one = ActorVectorField(hidden_dims=hd, action_dim=A, layer_norm=a_cfg.get("layer_norm", False))
-        obs_c = jnp.zeros((ex_obs.shape[0], ex_obs.shape[-1] + config["z_dim"]))
+        obs_c = jnp.zeros((ex_obs.shape[0], ex_obs.shape[-1] + config.get("cvec_dim", config.get("z_dim"))))
         rbc, ron = jr.split(jr.PRNGKey(config["seed"] + 4000))
         params = {
             "actor_bc_flow": bc.init(rbc, obs_c, ex_actions, ex_actions[..., :1])["params"],

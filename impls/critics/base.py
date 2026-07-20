@@ -12,6 +12,9 @@ class Critic(Protocol):
     STAGES: tuple           # ordered; run sequentially by the generic update
     TARGETS: dict           # group -> polyak tau  (FB: forward/left_encoder=f_tau, backward=b_tau)
     PROVIDES_V: bool        # whether v_fn is available (AWR requires it)
+    cvec_dim: int           # width of cond_vec(cond) — the actor's conditioning input
+
+    def eval_cond0(self, ex_obs, config): ...   # initial eval-time cond (FB: {"z":..}, GC: {"goal":..})
 
     @classmethod
     def build(cls, ex_obs, ex_actions, config): ...

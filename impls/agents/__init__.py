@@ -105,6 +105,7 @@ class Agent(flax.struct.PyTreeNode):
         critic_cls = CRITICS[critic_name]
         actor_cls = ACTORS[actor_name]
         critic, cparams, targets = critic_cls.build(ex_obs, ex_actions, config)
+        config = {**config, "cvec_dim": int(critic.cvec_dim)}  # actors size conditioning on this
         actor, aparams = actor_cls.build(ex_obs, ex_actions, config)
         check_combo(critic, actor)
 
@@ -118,8 +119,7 @@ class Agent(flax.struct.PyTreeNode):
             lr = float(config["actor"]["lr_actor_vf"]) if g == "actor_vf" else float(config[_LR_KEY[g]])
             net[g] = TrainState.create(modules[g], p, tx=optax.adam(lr))
 
-        z_dim = config["z_dim"]
-        cond_eval = {"z": jnp.zeros((z_dim,), jnp.float64)}
+        cond_eval = critic.eval_cond0(ex_obs, config)
         return cls(rng=jax.random.PRNGKey(seed), net=net, target=targets,
                    cond_eval=cond_eval, critic=critic, actor=actor,
                    config=flax.core.FrozenDict(config))

@@ -37,6 +37,13 @@ class FBCritic:
     def TARGETS(self):
         return {"forward": self.f_tau, "left_encoder": self.f_tau, "backward": self.b_tau}
 
+    @property
+    def cvec_dim(self):
+        return self.z_dim
+
+    def eval_cond0(self, ex_obs, config):
+        return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+
     def stage_groups(self, stage):
         assert stage == "fb"
         return self.GROUPS

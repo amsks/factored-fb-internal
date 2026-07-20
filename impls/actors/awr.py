@@ -47,6 +47,6 @@ class AWRActor:
         actor = Actor(hidden_dims=tuple(a_cfg["hidden_dims"]), action_dim=ex_actions.shape[-1],
                       layer_norm=a_cfg.get("layer_norm", False), tanh_squash=True,
                       const_std=a_cfg.get("const_std", True))
-        ex_in = jnp.zeros((ex_obs.shape[0], ex_obs.shape[-1] + config["z_dim"]))
+        ex_in = jnp.zeros((ex_obs.shape[0], ex_obs.shape[-1] + config.get("cvec_dim", config.get("z_dim"))))
         params = {"actor": actor.init(jr.PRNGKey(config["seed"] + 3000), ex_in)["params"]}
         return cls(actor=actor, alpha=float(a_cfg["alpha"])), params
