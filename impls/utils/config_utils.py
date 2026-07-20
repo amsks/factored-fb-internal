@@ -35,6 +35,24 @@ REQUIRED_KEYS = {
         "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
         "dataset_class",
     ),
+    # isfb.py:build() bare-indexes every FB key (it builds the same forward/backward/
+    # left_encoder modules) PLUS the ISFB terms; stage_loss reads batch['masks'], which only
+    # GCDataset produces, so the GCDataset keys are required too (they are consumed by
+    # make_dataset(), which runs *before* Agent.create).
+    "isfb": (
+        "lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount",
+        "L_dim", "num_parallel", "ortho_coef", "fb_pessimism_penalty",
+        "train_goal_ratio", "norm_z", "f_target_tau", "b_target_tau",
+        "forward.hidden_dim", "forward.hidden_layers", "forward.embedding_layers",
+        "backward.hidden_dim", "backward.hidden_layers", "backward.norm",
+        "left_encoder.hidden_dim", "left_encoder.hidden_layers", "left_encoder.norm",
+        "measure_insample", "iql_expectile", "alpha_n", "alpha_m", "alpha_v",
+        "awr_beta", "awr_wmax", "awr_normalize_adv", "goal_mask",
+        "gc_negative",
+        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
+        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
+        "dataset_class",
+    ),
 }
 
 

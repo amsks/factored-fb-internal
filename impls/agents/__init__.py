@@ -12,16 +12,18 @@ from impls.utils.flax_utils import TrainState, soft_update, nonpytree_field
 from impls.critics.base import check_combo
 from impls.critics.fb import FBCritic
 from impls.critics.gciql import GCIQLCritic
+from impls.critics.isfb import ISFBCritic
 from impls.actors.flowbc import FlowBCActor
 from impls.actors.ddpgbc import DDPGBCActor
 from impls.actors.awr import AWRActor
 from impls.actors.fql import FQLActor
 
-CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic}
+CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "isfb": ISFBCritic}
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor}
 
 # per-group learning rates come from config; this maps group -> config key.
 _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
+           "value_forward": "lr_f",                       # isfb F_V rides the forward group
            "value": "lr", "critic": "lr",                  # gciql groups
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf
            "actor_bc_flow": "lr_actor", "actor_onestep": "lr_actor"}  # fql groups

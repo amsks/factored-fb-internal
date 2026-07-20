@@ -47,6 +47,18 @@ def _min_cfg_for(critic_kind, actor_kind):
             backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
             left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
         )
+    elif critic_kind == "isfb":
+        base = dict(
+            z_dim=8, L_dim=8, num_parallel=2, discount=0.99,
+            f_target_tau=0.005, b_target_tau=0.005, ortho_coef=1.0, train_goal_ratio=0.5,
+            fb_pessimism_penalty=0.0, norm_z=True, lr_f=1e-4, lr_b=1e-4, lr_actor=1e-4,
+            forward=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
+            backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
+            left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
+            measure_insample="scalar_gate_hard", iql_expectile=0.9,
+            alpha_n=1.0, alpha_m=1.0, alpha_v=1.0, awr_beta=3.0, awr_wmax=100.0,
+            awr_normalize_adv=True, goal_mask=True,
+        )
     else:  # gciql
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
@@ -78,7 +90,9 @@ def test_every_registered_pair_composes():
 
     assert ("gciql", "flowbc") in skipped, "gciql x flowbc is not a legitimate pair (see test below)"
     assert ("fb", "awr") in skipped, "fb x awr is not a legitimate pair (fb doesn't PROVIDES_V)"
-    assert len(built) == 6  # the other 6 of the 8 registered pairs are legitimate
+    # isfb x awr IS legitimate where fb x awr is not: ISFBCritic.PROVIDES_V is True.
+    assert ("isfb", "awr") in built
+    assert len(built) == 10  # the other 10 of the 12 registered pairs are legitimate
 
 
 def test_gciql_flowbc_raises_combo_error():

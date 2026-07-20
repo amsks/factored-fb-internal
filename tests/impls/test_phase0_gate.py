@@ -2,7 +2,7 @@
 or is rejected as a structurally invalid combo — with a fixed, exact expectation for both
 counts, so a broken YAML turns this gate red rather than quietly being skipped away.
 
-Two of the eight critic x actor pairs are invalid by design and MUST be rejected via
+Two of the twelve critic x actor pairs are invalid by design and MUST be rejected via
 ComboError (never a skip, never a ConfigError):
   - fb x awr        -- AWRActor.NEEDS_V is True, FBCritic.PROVIDES_V is False.
     Rejected by impls/critics/base.py:check_combo (raises ComboError) inside
@@ -14,8 +14,10 @@ ComboError (never a skip, never a ConfigError):
     REQUIRED_KEYS is satisfied); check_combo is what rejects this pair, again before
     actor.build ever runs.
 
-The other six pairs (fb x {flowbc,ddpgbc,fql}, gciql x {ddpgbc,awr,fql}) must construct
-and train for a few steps with a finite actor_loss.
+The other ten pairs (fb x {flowbc,ddpgbc,fql}, gciql x {ddpgbc,awr,fql}, and all four
+isfb pairs) must construct and train for a few steps with a finite actor_loss. Note isfb x
+awr is legitimate where fb x awr is not: ISFBCritic.PROVIDES_V is True (v = <F_V, z>), the
+first FB-family critic for which that holds.
 
 A ConfigError from load_config() for ANY pair is a hard failure here, not a skip: it means
 a config YAML is broken (e.g. a required key like critic/fb.yaml's `ortho_coef` went
@@ -60,10 +62,10 @@ def test_pair_trains_or_is_rejected(critic, actor):
     assert jnp.isfinite(jnp.asarray(info["actor_loss"])).all()
 
 
-def test_expected_combo_errors_cover_exactly_two_of_eight_pairs():
-    """Pins the gate's exact floor: 6 pairs train, 2 are rejected. If PAIRS grows without
+def test_expected_combo_errors_cover_exactly_two_of_twelve_pairs():
+    """Pins the gate's exact floor: 10 pairs train, 2 are rejected. If PAIRS grows without
     updating EXPECTED_COMBO_ERRORS, this is the assertion that catches it."""
-    assert len(PAIRS) == 8
+    assert len(PAIRS) == 12
     assert EXPECTED_COMBO_ERRORS <= set(PAIRS)
     assert len(EXPECTED_COMBO_ERRORS) == 2
-    assert len(set(PAIRS) - EXPECTED_COMBO_ERRORS) == 6
+    assert len(set(PAIRS) - EXPECTED_COMBO_ERRORS) == 10
