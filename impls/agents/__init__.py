@@ -92,10 +92,11 @@ class Agent(flax.struct.PyTreeNode):
         return new_agent.replace(rng=new_rng), info
 
     def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
-        # `goals` is accepted (and ignored) so the ogbench eval loop can call uniformly;
-        # FB conditions on cond_eval (an inferred task latent), not a per-episode goal.
+        # `goals` is used by goal-conditioned critics (gciql: cond["goal"]); FB ignores it
+        # (it conditions on cond_eval["z"]). When goals is None, use the stored eval cond.
         seed = self.rng if seed is None else seed
-        return self.actor.sample_actions(self.net, observations, self.cond_eval, seed, temperature)
+        cond = self.cond_eval if goals is None else {**self.cond_eval, "goal": goals}
+        return self.actor.sample_actions(self.net, observations, cond, seed, temperature)
 
     def infer_eval_cond(self, observations, rewards):
         return self.replace(cond_eval=self.critic.infer_cond(self.net, observations, rewards))
