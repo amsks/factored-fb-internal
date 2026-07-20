@@ -1,18 +1,15 @@
 """campaign/jax_agents/fb.py — JAX/Flax port of the torch FB agent (agents/fb/), for the
-unified jax pipeline. Faithful to the torch logic:
+unified jax pipeline. Supports plain FB (TD3 Gaussian actor) and FB+FlowBC (flow-matching
+actor) via the config flag `flow`. Faithful to the torch logic:
 
   goal = next_obs; z = half random (sqrt(d)*normalize(gaussian)) / half project(B(next_obs[perm])).
-  Ms = F(left_enc(obs), z, action) . B(next_obs).T           [P, B, B]
-  target_M = min_P F_tgt(left_enc_tgt(next_obs), z, a') . B_tgt(next_obs).T   (a' = actor(next_obs,z))
-  diff = Ms - gamma*target_M
-  fb = 0.5*(diff*offdiag)^2/offdiag_sum  -  diag(diff).mean*P
-  ortho = 0.5*(BB^T*offdiag)^2/offdiag_sum - diag(BB^T).mean
-  actor (TD3): -min_P (F(left_enc,z,a_pi).z).mean  (+ bc_coeff*mse when bc_coeff>0)
-  soft targets tau on forward/backward/left_encoder (target modules, gciql-style).
+  Ms = F(left_enc(obs), z, action) . B(next_obs).T   ; diff = Ms - gamma*min_P target_M
+  fb = 0.5*(diff*offdiag)^2/sum - diag(diff).mean*P  + ortho_coef*[0.5*(BB^T*offdiag)^2/sum - diag(BB^T).mean]
+  TD3 actor: -min_P(F(left_enc,z,a_pi).z).mean (+bc);  forward FROZEN in actor loss.
+  FlowBC actor: bc_flow_loss (actor_vf) + -Q(one-shot actor) + bc distillation to the flow rollout.
+  soft targets tau on forward/backward/left_encoder.
 
-Registered into agents.agents['fb'] so jax_train_unified.py / eval_jax.py drive it exactly
-like the OGBench agents. Reads observations/actions/next_observations/terminals from the
-(GC)Dataset batch and ignores the goal-conditioned fields.
+Registered into agents.agents['fb'] (fb_flowbc.py registers 'fb_flowbc' with flow=True).
 """
 import copy
 
@@ -25,11 +22,11 @@ import optax
 
 from utils.flax_utils import ModuleDict, TrainState, nonpytree_field
 from utils.networks import ensemblize
+from ogbench_flow import GCVectorField, GCNoiseActor
 
 
 # --------------------------------------------------------------------- networks
 class SimpleEmbedding(nn.Module):
-    """torch simple_embedding: Dense+LN+Tanh, (emb_layers-1)x[Dense+ReLU], Dense(hidden//2)+ReLU."""
     hidden_dim: int
     embedding_layers: int
 
@@ -42,7 +39,6 @@ class SimpleEmbedding(nn.Module):
 
 
 class TrunkNet(nn.Module):
-    """torch backward/left_encoder: Dense+LN+Tanh, (layers-1)x[Dense+ReLU], Dense(out)."""
     hidden_dim: int
     hidden_layers: int
     out_dim: int
@@ -56,7 +52,6 @@ class TrunkNet(nn.Module):
 
 
 class ForwardMap(nn.Module):
-    """F(obs=left_enc, z, action) -> z_dim. Split embeddings embed_z(obs,z)/embed_sa(obs,action)."""
     hidden_dim: int
     hidden_layers: int
     embedding_layers: int
@@ -73,7 +68,7 @@ class ForwardMap(nn.Module):
 
 
 class Actor(nn.Module):
-    """TD3 actor mean: embed_z(obs,z)/embed_s(obs) -> trunk -> action_dim (unbounded mean)."""
+    """Plain-FB TD3 actor mean (unbounded)."""
     hidden_dim: int
     hidden_layers: int
     embedding_layers: int
@@ -107,6 +102,48 @@ class FBAgent(flax.struct.PyTreeNode):
     def sample_z(self, rng, n):
         return self.project_z(jax.random.normal(rng, (n, self.config["z_dim"])))
 
+    def _flow_rollout(self, net, obs, noise, params):
+        fs = self.config["flow_steps"]
+        a = noise
+        for i in range(fs):
+            t = jnp.ones((noise.shape[0], 1)) * (i / fs)
+            a = a + net.select("actor_vf")(obs, a, t, params=params) / fs
+        return jnp.clip(a, -1.0, 1.0)
+
+    def _actor_loss(self, net, grad_params, obs, left, z, action, rng):
+        cfg = self.config
+        if not cfg["flow"]:
+            a_pi = jnp.clip(net.select("actor")(obs, z, params=grad_params), -1.0, 1.0)
+            Fpi = net.select("forward")(jax.lax.stop_gradient(left), z, a_pi)   # FROZEN forward
+            Qs = (Fpi * z[None]).sum(-1)
+            Q = jnp.min(Qs, axis=0)
+            aloss = -Q.mean()
+            bc = 0.0
+            if cfg["bc_coeff"] > 0:
+                bc = jnp.mean((a_pi - action) ** 2)
+                aloss = aloss / (jnp.abs(Qs).mean() + 1e-6) + cfg["bc_coeff"] * bc
+            return aloss, dict(actor_loss=aloss, q=Q.mean(), bc=bc, bc_flow=0.0)
+        # FlowBC actor
+        rng, x0r, tr, nr = jax.random.split(rng, 4)
+        x0 = jax.random.normal(x0r, action.shape)
+        t = jax.random.uniform(tr, (action.shape[0], 1))
+        x_t = (1 - t) * x0 + t * action
+        pred = net.select("actor_vf")(obs, x_t, t, params=grad_params)
+        bc_flow = jnp.mean((pred - (action - x0)) ** 2)
+        noise = jax.random.normal(nr, action.shape)
+        a_pi = net.select("actor")(obs, z, noise, params=grad_params)           # tanh-bounded
+        Fpi = net.select("forward")(jax.lax.stop_gradient(left), z, a_pi)        # FROZEN forward
+        Qs = (Fpi * z[None]).sum(-1)
+        Q = jnp.min(Qs, axis=0)
+        aloss = -Q.mean()
+        bc = 0.0
+        if cfg["bc_coeff"] > 0:
+            target = self._flow_rollout(net, obs, noise, jax.lax.stop_gradient(grad_params))
+            bc = jnp.mean((a_pi - target) ** 2)
+            aloss = aloss / (jnp.abs(Qs).mean() + 1e-6) + cfg["bc_coeff"] * bc
+        aloss = aloss + bc_flow
+        return aloss, dict(actor_loss=aloss, q=Q.mean(), bc=bc, bc_flow=bc_flow)
+
     @jax.jit
     def total_loss(self, batch, grad_params, rng=None):
         cfg = self.config
@@ -115,30 +152,27 @@ class FBAgent(flax.struct.PyTreeNode):
         B = obs.shape[0]
         discount = (cfg["discount"] * (1.0 - term)).reshape(-1, 1)
         rng = rng if rng is not None else self.rng
-        rng, zr, pr, mr = jax.random.split(rng, 4)
+        rng, zr, pr, mr, ar = jax.random.split(rng, 5)
         net = self.network
 
-        # z: half random, half project(B(next_obs[perm]))  (backward has grad, matches torch)
         z_rand = self.sample_z(zr, B)
         perm = jax.random.permutation(pr, B)
         z_goal = self.project_z(net.select("backward")(next_obs[perm], params=grad_params))
         mask = jax.random.uniform(mr, (B, 1)) < cfg["train_goal_ratio"]
         z = jnp.where(mask, z_goal, z_rand)
 
-        # online successor Ms = F(left_enc(obs), z, a) . B(next_obs).T
         left = net.select("left_encoder")(obs, params=grad_params)
-        Fs = net.select("forward")(left, z, action, params=grad_params)          # [P, B, z]
-        Bg = net.select("backward")(next_obs, params=grad_params)                # [B, z]
-        Ms = jnp.einsum("pbz,cz->pbc", Fs, Bg)                                    # [P, B, B]
+        Fs = net.select("forward")(left, z, action, params=grad_params)
+        Bg = net.select("backward")(next_obs, params=grad_params)
+        Ms = jnp.einsum("pbz,cz->pbc", Fs, Bg)
 
-        # target (detached): a' = online actor(next_obs, z) [no grad via stored params]
         nleft = net.select("target_left_encoder")(next_obs)
-        a_next = jnp.clip(net.select("actor")(next_obs, z), -1.0, 1.0)
+        a_next = self.sample_actions_train(net, next_obs, z, ar)
         tFs = net.select("target_forward")(nleft, z, a_next)
         tBg = net.select("target_backward")(next_obs)
         target_M = jax.lax.stop_gradient(jnp.min(jnp.einsum("pbz,cz->pbc", tFs, tBg), axis=0))
 
-        diff = Ms - discount[None] * target_M[None]                              # [P, B, B]
+        diff = Ms - discount[None] * target_M[None]
         off = 1.0 - jnp.eye(B)
         off_sum = off.sum()
         fb_offdiag = 0.5 * ((diff * off[None]) ** 2).sum() / off_sum
@@ -147,22 +181,17 @@ class FBAgent(flax.struct.PyTreeNode):
         orth = 0.5 * ((Cov * off) ** 2).sum() / off_sum - jnp.diag(Cov).mean()
         fb_loss = fb_offdiag + fb_diag + cfg["ortho_coef"] * orth
 
-        # TD3 actor: maximize min_P (F(left_enc, z, a_pi) . z). The forward map is
-        # evaluated at FROZEN params (no params=grad_params) so -Q updates ONLY the actor
-        # (torch uses a separate actor optimizer); otherwise -Q inflates F -> divergence.
-        a_pi = jnp.clip(net.select("actor")(obs, z, params=grad_params), -1.0, 1.0)
-        Fpi = net.select("forward")(jax.lax.stop_gradient(left), z, a_pi)
-        Qs = (Fpi * z[None]).sum(-1)                                             # [P, B]
-        Q = jnp.min(Qs, axis=0)
-        actor_loss = -Q.mean()
-        bc = 0.0
-        if cfg["bc_coeff"] > 0:
-            bc = jnp.mean((a_pi - action) ** 2)
-            actor_loss = actor_loss / (jnp.abs(Qs).mean() + 1e-6) + cfg["bc_coeff"] * bc
+        aloss, ainfo = self._actor_loss(net, grad_params, obs, left, z, action, rng)
+        loss = fb_loss + aloss
+        info = dict(fb_loss=fb_loss, fb_offdiag=fb_offdiag, fb_diag=fb_diag, orth=orth, **ainfo)
+        return loss, info
 
-        loss = fb_loss + actor_loss
-        return loss, dict(fb_loss=fb_loss, fb_offdiag=fb_offdiag, fb_diag=fb_diag, orth=orth,
-                          actor_loss=actor_loss, q=Q.mean(), bc=bc)
+    def sample_actions_train(self, net, obs, z, rng):
+        """next-action for the FB target (frozen actor params)."""
+        if self.config["flow"]:
+            noise = jax.random.normal(rng, (obs.shape[0], self.config["action_dim"]))
+            return net.select("actor")(obs, z, noise)
+        return jnp.clip(net.select("actor")(obs, z), -1.0, 1.0)
 
     def target_update(self, network, name):
         tau = self.config["tau"]
@@ -185,13 +214,18 @@ class FBAgent(flax.struct.PyTreeNode):
 
     @jax.jit
     def sample_actions(self, observations, goals=None, z=None, seed=None, temperature=1.0):
-        del goals, seed, temperature
+        del goals, temperature
         obs = jnp.asarray(observations, jnp.float32)
         single = obs.ndim == 1
         obs2 = obs[None] if single else obs
-        z2 = jnp.atleast_2d(z)
-        z2 = jnp.broadcast_to(z2, (obs2.shape[0], z2.shape[-1]))
-        a = jnp.clip(self.network.select("actor")(obs2, z2), -1.0, 1.0)
+        z2 = jnp.broadcast_to(jnp.atleast_2d(z), (obs2.shape[0], self.config["z_dim"]))
+        if self.config["flow"]:
+            seed = seed if seed is not None else jax.random.PRNGKey(0)
+            noise = jax.random.normal(seed, (obs2.shape[0], self.config["action_dim"]))
+            a = self.network.select("actor")(obs2, z2, noise)
+        else:
+            a = self.network.select("actor")(obs2, z2)
+        a = jnp.clip(a, -1.0, 1.0)
         return a[0] if single else a
 
     @classmethod
@@ -200,24 +234,35 @@ class FBAgent(flax.struct.PyTreeNode):
         rng, init_rng = jax.random.split(rng)
         act_dim = ex_actions.shape[-1]
         zc = config["z_dim"]
+        config = dict(config)
+        config["action_dim"] = act_dim
+        config = ml_collections.FrozenConfigDict(config)
+
         ex_obs = jnp.asarray(ex_observations, jnp.float32)
         ex_act = jnp.asarray(ex_actions, jnp.float32)
         ex_left = jnp.zeros((ex_obs.shape[0], config["L_dim"]), jnp.float32)
         ex_z = jnp.zeros((ex_obs.shape[0], zc), jnp.float32)
+        ex_t = jnp.zeros((ex_obs.shape[0], 1), jnp.float32)
 
         left_def = TrunkNet(config["hidden_dim"], config["enc_layers"], config["L_dim"])
         back_def = TrunkNet(config["hidden_dim"], config["enc_layers"], zc)
-        actor_def = Actor(config["hidden_dim"], config["actor_layers"], config["embedding_layers"], act_dim)
-
         net_info = dict(
             left_encoder=(left_def, (ex_obs,)),
             backward=(back_def, (ex_obs,)),
             forward=(_fwd_module(config, zc), (ex_left, ex_z, ex_act)),
-            actor=(actor_def, (ex_obs, ex_z)),
             target_left_encoder=(copy.deepcopy(left_def), (ex_obs,)),
             target_backward=(copy.deepcopy(back_def), (ex_obs,)),
             target_forward=(_fwd_module(config, zc), (ex_left, ex_z, ex_act)),
         )
+        if config["flow"]:
+            net_info["actor"] = (GCNoiseActor(hidden_dim=config["hidden_dim"], hidden_layers=config["actor_layers"],
+                                              embedding_layers=config["embedding_layers"]), (ex_obs, ex_z, ex_act))
+            net_info["actor_vf"] = (GCVectorField(hidden_dim=config["hidden_dim"], hidden_layers=config["enc_layers"]),
+                                    (ex_obs, ex_act, ex_t))
+        else:
+            net_info["actor"] = (Actor(config["hidden_dim"], config["actor_layers"],
+                                       config["embedding_layers"], act_dim), (ex_obs, ex_z))
+
         networks = {k: v[0] for k, v in net_info.items()}
         args = {k: v[1] for k, v in net_info.items()}
         net_def = ModuleDict(networks)
@@ -226,7 +271,7 @@ class FBAgent(flax.struct.PyTreeNode):
         for name in ("forward", "backward", "left_encoder"):
             params[f"modules_target_{name}"] = params[f"modules_{name}"]
         network = TrainState.create(net_def, params, tx=tx)
-        return cls(rng=rng, network=network, config=flax.core.FrozenDict(**config))
+        return cls(rng=rng, network=network, config=config)
 
 
 def get_config():
@@ -235,6 +280,7 @@ def get_config():
         lr=1e-4, batch_size=256,
         z_dim=50, L_dim=50, discount=0.99, tau=0.005,
         train_goal_ratio=0.5, ortho_coef=1.0, num_parallel=2, bc_coeff=0.0,
+        flow=0, flow_steps=10,
         hidden_dim=512, enc_layers=4, fwd_layers=2, actor_layers=2, embedding_layers=2,
         encoder=ml_collections.config_dict.placeholder(str),
         dataset_class="GCDataset",
@@ -245,6 +291,5 @@ def get_config():
     ))
 
 
-# self-register so agents.agents['fb'] resolves (jax_train_unified / eval_jax use it).
 import agents as _ogbench_agents  # noqa: E402
 _ogbench_agents.agents["fb"] = FBAgent
