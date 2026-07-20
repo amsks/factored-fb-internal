@@ -24,6 +24,7 @@ ALGOS = {
     "gciql":      ("agents/gciql.py", "--set alpha=1.0"),
     "crl":        ("agents/crl.py", "--set alpha=3.0"),
     "crl_flowbc": ("tools/wandb_mode_shim/crl_flowbc.py", "--set bc_coeff=3.0"),
+    "flowbc":     ("campaign/jax_agents/flowbc.py", ""),   # pure flow-matching BC (ablation)
 }
 
 _FAM_DIR = {"box2d": "Box2D", "metaworld": "Metaworld", "maniskill": "ManiSkill"}
