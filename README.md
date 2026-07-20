@@ -76,6 +76,23 @@ python scripts/extract_ogbench.py --dataset_path /path/to/cache --output_folder 
 
 ## Running an agent
 
+### Factored tree (`impls/`) — one critic × actor per run
+
+The JAX rewrite. Venv: `/tmp/factored-fb-venv-jax/bin/python`. One `(critic, actor, domain, seed)` per process:
+
+```bash
+XLA_PYTHON_CLIENT_PREALLOCATE=false /tmp/factored-fb-venv-jax/bin/python -m impls.main \
+    --critic gciql --actor fql --domain cube_single --seed 0 --save_dir /u/amsks/exp
+```
+
+Config composes from `impls/configs/{critic,actor,domain}/*.yaml`; override with `--override key=val` (`~key` deletes). Flags: `--train_steps`, `--eval_interval`, `--save_interval`, `--restore_path`/`--restore_epoch` (resume), `--infer_cond_episodes`. Logs to wandb unless `WANDB_MODE=disabled`. Do **not** point `--save_dir` at `/dev/shm` (tmpfs, lost on reboot).
+
+Critics: `fb`, `gciql`, `isfb`, `iql_bilinear`, `fb_forward_bilinear`, `sf_feature`, `centered_bilinear`, `simple_sf`. Actors: `flowbc`, `ddpgbc`, `awr`, `fql`. Of the 32 pairs, 23 are valid; the rest raise `ComboError` at build (`flowbc` needs a `z`-critic; `awr` needs a `PROVIDES_V` critic). `fb`/`isfb`/`fb_forward_bilinear` take `flowbc`; the bilinear/GC critics take `ddpgbc`/`fql`, and `awr` where `PROVIDES_V`.
+
+Not yet in `impls/`: `psm`, `rldp`, `crl`, `gcivl`, `hiql` (still torch, below); pixel domains; a multi-run sweep launcher.
+
+### Legacy stack (`scripts/agents/`, torch + vendored-OGBench JAX)
+
 All cube-single agents live under `scripts/agents/<agent>/<obs>.sh`. Each leaf is a multi-seed sweep with sensible defaults; single-seed runs are `SEEDS=0 GPUS=0 bash ...`.
 
 ### Matrix (cube-single)
