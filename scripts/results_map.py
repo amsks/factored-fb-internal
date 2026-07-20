@@ -161,7 +161,7 @@ MAP = {
     'GCIQL-State-Flow-Bilinear-d50-B-TwoTowerProjZ': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='B-twotower-projz', graft='two-tower + sphere-Norm'),
     'GCIQL-State-Flow-Bilinear-d50-B-TwoTowerOrtho1': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='B-twotower-ortho1', graft='two-tower + ortho1.0'),
     'GCIQL-State-Flow-Bilinear-d50-B1-FBzIQL':     dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='B1-fbz-iql', graft='fb_forward_z under IQL (USFA-IQL core)'),
-    'GCIQL-State-Flow-Bilinear-d50-B4-FBstruct':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='B4-full-struct', graft='two-tower + z-fwd + sphere + ortho1, IQL'),
+    'GCIQL-State-Flow-Bilinear-d50-B4-FBstruct':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='B4-full-struct', graft='two-tower + sphere + ortho1, IQL'),  # NB: fb_forward_z=False; the old "z-fwd" label here seeded the B4/C4 "identical architecture" error
     'GCIQL-Bil-MeasureOnly':        dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-only', graft='FB successor-measure objective only'),
     'GCIQL-Bil-MeasureOnly-O1000':  dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-only-ortho1000', graft='measure only + ortho1000'),
     'GCIQL-Bil-FBz-O1000':          dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='C1-fbz-ortho1000', graft='measure + fb_forward_z (C1)'),

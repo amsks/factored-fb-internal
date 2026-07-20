@@ -175,11 +175,12 @@ GCIQL-Bilinear-$d50$          & IQL       & bilinear                 & the ${\si
 \;+ two-tower (alone)         & IQL       & \;+ two-tower            & FB fwd map, nearly free        & $86.4\pm2$ \\
 GCIQL-MLP-value               & IQL       & MLP critic               & no bilinear factorization      & $73$ \\
 \midrule
-\textbf{B4} FB-struct         & IQL       & full FB skeleton         & two-tower+projZ+ortho$_1$      & \good{$\mathbf{87.1}$} \\
+\textbf{B4} FB-struct         & IQL       & two-tower FB skeleton    & two-tower+projZ+ortho$_1$      & \good{$\mathbf{87.1}$} \\
 \;\;B-TwoTower-ProjZ (abl.)   & IQL       & two-tower+projZ          &                                & $87.5$ \\
 \;\;B-TwoTower-Ortho$_1$ (abl.)& IQL      & two-tower+ortho$_1$      &                                & $85.5$ \\
 \midrule
-\textbf{C4} FB-rebuild        & measure   & full FB skeleton         & the objective swap             & \bad{$\mathbf{16.5}$} \\
+\textbf{C4} FB-rebuild        & measure   & $z$-fwd FB skeleton      & the objective swap             & \bad{$\mathbf{16.5}$} \\
+\;\;C2-MeasureTwoTower        & measure   & two-tower FB skeleton    & \emph{architecture-matched to B4} & \bad{${\sim}8.0$} \\
 \;\;C-FBz-O$_1$ (abl.)        & measure   & \;+ $z$-fwd, ortho$_1$   &                                & $17.1$ \\
 \;\;C-FBz-ProjZ-O$_{1000}$    & measure   & \;+ projZ, ortho$_{1000}$&                                & $18.0$ \\
 GCIQL-Bil-FBz-O$_{1000}$      & measure   & bilinear + $z$-fwd       & measure + genuine $F(s,a,z)$   & $25.5$ \\

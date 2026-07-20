@@ -438,9 +438,14 @@ The three endpoints stack their whole cluster; ablations bracket each:
 \bottomrule
 \end{tabular}
 \end{center}
-\noindent B4 and C4 are the payoff: \B{identical architecture, opposite objective
----} $\good{87}$ under IQL, $\bad{16}$ under the
-measure.\footnote{Scale caveat: the JAX measure cells (\texttt{MeasureOnly}/C4/FBz)
+\noindent The payoff is the \emph{architecture-matched} pair: B-TwoTower-Ortho$_1$ and
+C2-MeasureTwoTower are both two-tower forward maps with ortho$_1$, differing only in the
+objective --- $\good{85.5}$ under IQL, $\bad{{\sim}8}$ under the measure, a gap of
+${\sim}77$ points. B4 and C4 tell the same story with \emph{different} forward maps
+(two-tower vs.\ $z$-fwd), $\good{87}$ vs.\ $\bad{16}$; that $70.6$-point gap understates
+the effect, because the flat $z$-fwd map survives the measure objective somewhat better
+($16.5$) than the matched two-tower map does
+(${\sim}8.0$).\footnote{Scale caveat: the JAX measure cells (\texttt{MeasureOnly}/C4/FBz/C2)
 run at an \emph{uncontrolled} scale --- actor $q$-means of $2.5$--$4.8\mathrm{k}$,
 gradient norms $12$--$24\mathrm{k}$, occasional seed crashes --- the same unbounded
 $\langle F,z\rangle$ inflation documented for SG-ISFB (\S\ref{sec:isfb}). Their
