@@ -1,0 +1,10 @@
+# @package _global_
+# Smoke config: FB+FlowBC train-only on a Box2D unified dataset.
+defaults:
+  - /agent: fb_flowbc
+  - _self_
+domain: Box2D/b2d-goal-ctrl
+data_format: unified
+build_env: false
+bc_coeff: 3.0
+data_path: /raid/tongle/rl/fb-data/collected
