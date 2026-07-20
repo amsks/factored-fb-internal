@@ -20,7 +20,7 @@ SAVE_EVERY = 100_000
 # (pick) + button-press. Loco tasks (b2d-center-ctrl, goal-ctrl-maze) kept as sanity.
 DEV_TASKS = [
     "cube-single",                                        # ogbench (play data; validation anchor 0.47)
-    "mw-bin-picking", "mw-button-press",                 # metaworld
+    "mw-push", "mw-pick-place",                          # metaworld (intended tasks; collected via orig TD-MPC2)
     "ms-pick-cube", "ms-push-cube",                      # maniskill
     "b2d-center-ctrl", "b2d-goal-ctrl-maze",             # box2d loco (sanity)
     "b2d-center-wall", "b2d-goal-ctrl-target", "b2d-center-ctrl-target",  # box2d manip
@@ -29,7 +29,8 @@ DEV_TASKS = [
 BOX2D = ["b2d-center-ctrl", "b2d-center-ctrl-target", "b2d-center-ctrl-target-hard",
          "b2d-center-wall", "b2d-center-wall-navigation", "b2d-goal-ctrl",
          "b2d-goal-ctrl-maze", "b2d-goal-ctrl-target"]
-METAWORLD = ["mw-assembly", "mw-basketball", "mw-bin-picking", "mw-box-close", "mw-button-press"]
+METAWORLD = ["mw-assembly", "mw-basketball", "mw-bin-picking", "mw-box-close", "mw-button-press",
+             "mw-push", "mw-pick-place"]   # push/pick collected via original TD-MPC2 (collect_tdmpc2_orig)
 MANISKILL = ["ms-lift-peg", "ms-pick-cube", "ms-poke-cube", "ms-push-cube", "ms-stack-cube"]
 
 
