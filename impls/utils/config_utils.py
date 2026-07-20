@@ -53,6 +53,19 @@ REQUIRED_KEYS = {
         "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
         "dataset_class",
     ),
+    # iql_bilinear.py:build() bare-indexes every gciql key (same expectile-V + twin-Q
+    # objective) PLUS the bilinear-head and actor-conditioning knobs that _validate() and
+    # the head constructor read. Every one of these is indexed without .get(), on purpose:
+    # a knob that silently defaults is a knob a sweep can silently fail to set.
+    "iql_bilinear": (
+        "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
+        "value_hidden_dims", "layer_norm", "gc_negative",
+        "value_latent_dim", "psi_base", "project_z", "double_q", "iql_ortho_coef",
+        "actor_cond", "actor_z_from_critic", "actor_z_infer",
+        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
+        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
+        "dataset_class",
+    ),
 }
 
 

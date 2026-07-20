@@ -13,12 +13,14 @@ from impls.critics.base import check_combo
 from impls.critics.fb import FBCritic
 from impls.critics.gciql import GCIQLCritic
 from impls.critics.isfb import ISFBCritic
+from impls.critics.iql_bilinear import IqlBilinearCritic
 from impls.actors.flowbc import FlowBCActor
 from impls.actors.ddpgbc import DDPGBCActor
 from impls.actors.awr import AWRActor
 from impls.actors.fql import FQLActor
 
-CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "isfb": ISFBCritic}
+CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "isfb": ISFBCritic,
+           "iql_bilinear": IqlBilinearCritic}
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor}
 
 # per-group learning rates come from config; this maps group -> config key.
@@ -98,6 +100,12 @@ class Agent(flax.struct.PyTreeNode):
         # (it conditions on cond_eval["z"]). When goals is None, use the stored eval cond.
         seed = self.rng if seed is None else seed
         cond = self.cond_eval if goals is None else {**self.cond_eval, "goal": goals}
+        # Optional critic hook: some critics condition the actor on a FUNCTION of the goal
+        # (iql_bilinear with actor_cond='z' feeds the actor psi(goal), width latent_dim),
+        # which cannot be recovered from `cond` alone — it needs the critic's params.
+        # Critics without the hook are unaffected.
+        if hasattr(self.critic, "map_eval_cond"):
+            cond = self.critic.map_eval_cond(self.net, cond)
         return self.actor.sample_actions(self.net, observations, cond, seed, temperature)
 
     def infer_eval_cond(self, observations, rewards):

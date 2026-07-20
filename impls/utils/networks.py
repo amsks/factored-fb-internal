@@ -331,3 +331,122 @@ class ActorVectorField(nn.Module):
         else:
             inputs = jnp.concatenate([observations, actions, times], axis=-1)
         return self.mlp(inputs)
+
+
+class GCBilinearValue(nn.Module):
+    """Goal-conditioned bilinear value/critic, faithful to OGBench GCBilinearValue.
+
+    V(s, g) = phi(s)·psi(g) / sqrt(d)   (actions=None)
+    Q(s, a, g) = phi(s, a)·psi(g) / sqrt(d)   (actions given)
+
+    phi and psi are both MLP((*hidden_dims, latent_dim), activate_final=False), ensembled
+    to 2 heads when ensemble=True. Submodule names `phi`/`psi` match vendored. The encoder
+    arguments of the vendored class are omitted (state-based only, as with GCValue here).
+
+    The /sqrt(latent_dim) scale is load-bearing: it is what keeps the head's output scale
+    comparable across a d-sweep. Locked at 1e-10 by tests/impls/test_gcbilinear.py.
+    """
+    hidden_dims: Sequence[int]
+    latent_dim: int
+    layer_norm: bool = True
+    ensemble: bool = True
+    value_exp: bool = False
+
+    def setup(self):
+        mlp_class = MLP
+        if self.ensemble:
+            mlp_class = ensemblize(mlp_class, 2)
+        self.phi = mlp_class((*self.hidden_dims, self.latent_dim),
+                             activate_final=False, layer_norm=self.layer_norm)
+        self.psi = mlp_class((*self.hidden_dims, self.latent_dim),
+                             activate_final=False, layer_norm=self.layer_norm)
+
+    def __call__(self, observations, goals, actions=None, info=False):
+        phi_inputs = observations if actions is None else \
+            jnp.concatenate([observations, actions], axis=-1)
+
+        phi = self.phi(phi_inputs)
+        psi = self.psi(goals)
+
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+
+        if self.value_exp:
+            v = jnp.exp(v)
+
+        if info:
+            return v, phi, psi
+        return v
+
+
+def sphere_project(x, d):
+    """Project x onto the sqrt(d) sphere along the last axis — FB's ||B||=||z||=sqrt(d) Norm.
+
+    eps is 1e-6, matching tools/wandb_mode_shim/gciql_flow.py::_sphere, NOT fb_math.project_z
+    (which uses 1e-12). Keeping the bridge's eps means an IqlBilinear run with project_z=True
+    is comparable to the bridge sweeps it replaces; mixing the two would shift the sphered
+    vectors at the 1e-6 level for near-zero rows.
+    """
+    return x * jnp.sqrt(d * 1.0) / (jnp.linalg.norm(x, axis=-1, keepdims=True) + 1e-6)
+
+
+class GCBilinearPsiValue(GCBilinearValue):
+    """GCBilinearValue with a `psi_base` knob on the goal leg and a `project_z` sphere.
+
+    psi_base:
+      'learned'  — psi is a trained MLP. IDENTICAL to GCBilinearValue (same submodule names,
+                   same init order, same math) when project_z=False, so the vendored 1e-10
+                   lock on the base class transitively covers this path.
+      'frozen'   — psi is stop_gradient(MLP): zero gradient, so its params stay at random
+                   init forever. Decouples the rank d from the obs dim (the standard SF
+                   anti-collapse random encoder).
+      'identity' — psi(g) = g, param-free. There is no `psi` submodule at all, so d is
+                   PINNED to the goal dim (audit S12); the caller must enforce that.
+
+    project_z hard-projects psi onto the sqrt(d) sphere. Unlike the bridge reference, this
+    module is used SYMMETRICALLY for the value net and the critic net by IqlBilinearCritic
+    (audit S3), so the actor never conditions on an unsphered psi while the critic trains a
+    sphered one.
+    """
+    psi_base: str = "learned"
+    project_z: bool = False
+
+    def setup(self):
+        mlp_class = MLP
+        if self.ensemble:
+            mlp_class = ensemblize(mlp_class, 2)
+        self.phi = mlp_class((*self.hidden_dims, self.latent_dim),
+                             activate_final=False, layer_norm=self.layer_norm)
+        if self.psi_base != "identity":
+            # same name/shape/init order as GCBilinearValue.psi => param trees interchange.
+            self.psi = mlp_class((*self.hidden_dims, self.latent_dim),
+                                 activate_final=False, layer_norm=self.layer_norm)
+
+    def psi_of(self, goals):
+        """The goal-leg embedding, i.e. the task vector z the actor may condition on.
+        Exposed (rather than private) because IqlBilinearCritic reads it directly for
+        actor_cond='z' — the actor must see EXACTLY the psi the critic trains."""
+        if self.psi_base == "identity":
+            return goals
+        psi = self.psi(goals)
+        if self.psi_base == "frozen":
+            psi = jax.lax.stop_gradient(psi)   # zero grad -> params never leave init
+        return sphere_project(psi, self.latent_dim) if self.project_z else psi
+
+    def __call__(self, observations, goals, actions=None, info=False):
+        phi_inputs = observations if actions is None else \
+            jnp.concatenate([observations, actions], axis=-1)
+
+        phi = self.phi(phi_inputs)
+        psi = self.psi_of(goals)
+        if self.psi_base == "identity":
+            # param-free psi is unensembled; match phi's [2,B,d] when the head is ensembled.
+            psi = jnp.broadcast_to(psi, phi.shape)
+
+        v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+
+        if self.value_exp:
+            v = jnp.exp(v)
+
+        if info:
+            return v, phi, psi
+        return v

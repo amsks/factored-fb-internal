@@ -59,6 +59,15 @@ def _min_cfg_for(critic_kind, actor_kind):
             alpha_n=1.0, alpha_m=1.0, alpha_v=1.0, awr_beta=3.0, awr_wmax=100.0,
             awr_normalize_adv=True, goal_mask=True,
         )
+    elif critic_kind == "iql_bilinear":
+        base = dict(
+            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
+            lr=3e-4, lr_actor=3e-4, gc_negative=True,
+            value_latent_dim=8, psi_base="learned", project_z=False, double_q=True,
+            iql_ortho_coef=0.0, actor_cond="goal", actor_z_from_critic=False,
+            actor_z_infer=False,
+            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
+        )
     else:  # gciql
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
@@ -92,7 +101,9 @@ def test_every_registered_pair_composes():
     assert ("fb", "awr") in skipped, "fb x awr is not a legitimate pair (fb doesn't PROVIDES_V)"
     # isfb x awr IS legitimate where fb x awr is not: ISFBCritic.PROVIDES_V is True.
     assert ("isfb", "awr") in built
-    assert len(built) == 10  # the other 10 of the 12 registered pairs are legitimate
+    # iql_bilinear x flowbc joins gciql x flowbc: neither promises FlowBCActor's cond["z"].
+    assert ("iql_bilinear", "flowbc") in skipped
+    assert len(built) == 13  # the other 13 of the 16 registered pairs are legitimate
 
 
 def test_gciql_flowbc_raises_combo_error():
