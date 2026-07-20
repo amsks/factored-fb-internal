@@ -135,3 +135,14 @@ class GCDataset:
                 np.random.rand(batch_size) < p_trajgoal / (1.0 - p_curgoal), traj_goal_idxs, random_goal_idxs)
             goal_idxs = np.where(np.random.rand(batch_size) < p_curgoal, idxs, goal_idxs)
         return goal_idxs
+
+
+def make_dataset(base, config):
+    """Wrap a base Dataset per the critic's dataset_class.
+
+    Goal-conditioned critics (gciql and the PR4+ family) need GCDataset's trajectory goal
+    sampling; FB carries no goal machinery and uses the base dataset unchanged.
+    """
+    if config.get('dataset_class') == 'GCDataset':
+        return GCDataset(base, config)
+    return base
