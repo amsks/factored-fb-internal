@@ -14,6 +14,18 @@ SEEDS = [0, 1, 2]
 NUM_TRAIN_STEPS = 500_000     # train-only budget (expert data); checkpoints every 100k
 SAVE_EVERY = 100_000
 
+# ---- DEV set: a small manip-focused subset for fast jax-unified iteration ----
+# (goal: get FB or CRL working on manipulation). All have collected data already.
+# Metaworld push/pick-place have no newt TD-MPC2 checkpoint -> swapped to bin-picking
+# (pick) + button-press. Loco tasks (b2d-center-ctrl, goal-ctrl-maze) kept as sanity.
+DEV_TASKS = [
+    "cube-single",                                        # ogbench (play data; validation anchor 0.47)
+    "mw-bin-picking", "mw-button-press",                 # metaworld
+    "ms-pick-cube", "ms-push-cube",                      # maniskill
+    "b2d-center-ctrl", "b2d-goal-ctrl-maze",             # box2d loco (sanity)
+    "b2d-center-wall", "b2d-goal-ctrl-target", "b2d-center-ctrl-target",  # box2d manip
+]
+
 BOX2D = ["b2d-center-ctrl", "b2d-center-ctrl-target", "b2d-center-ctrl-target-hard",
          "b2d-center-wall", "b2d-center-wall-navigation", "b2d-goal-ctrl",
          "b2d-goal-ctrl-maze", "b2d-goal-ctrl-target"]
