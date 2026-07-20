@@ -42,6 +42,15 @@ from impls.utils.networks import ForwardMap, PhiMap
 from impls.utils.fb_math import project_z, targets_uncertainty
 
 
+class IsfbConfigError(ValueError):
+    """Raised for an invalid ISFB knob at BUILD time (matching the *ConfigError discipline in
+    iql_bilinear.py / sf_feature.py), so a bad config fails at Agent.create rather than dying
+    on a bare ValueError deep inside stage_loss at trace time."""
+
+
+MEASURE_INSAMPLE = ("scalar_gate_hard", "scalar_gate_awr", "coord")
+
+
 def _expectile_loss(diff, expectile):
     """Asymmetric L2. Strict `> 0` tie-break, matching agents/fb/agent.py::expectile_loss.
     (Do NOT reuse GCIQLCritic._expectile_loss: it uses `>= 0`.)"""
@@ -260,6 +269,11 @@ class ISFBCritic:
     @classmethod
     def build(cls, ex_obs, ex_actions, config):
         import jax.random as jr
+        # Validate the enum at BUILD time (named error), not at stage_loss trace time.
+        insample = str(config["measure_insample"])
+        if insample not in MEASURE_INSAMPLE:
+            raise IsfbConfigError(
+                f"measure_insample must be one of {MEASURE_INSAMPLE}, got {insample!r}")
         z_dim, L_dim, P = config["z_dim"], config["L_dim"], config["num_parallel"]
         fwd_kw = dict(z_dim=z_dim, hidden_dim=config["forward"]["hidden_dim"], num_parallel=P,
                       hidden_layers=config["forward"]["hidden_layers"],

@@ -12,7 +12,9 @@ discount: 0.99
 tau: 0.005
 
 # --- SF base / readout ---
-value_latent_dim: 50      # d; free under frozen/learned, PINNED to the goal dim under identity
+value_latent_dim: 512     # d; free under frozen/learned, PINNED to the goal dim under identity.
+                          # 512 to match the rest of the bilinear family (iql_bilinear/simple_sf/
+                          # centered_bilinear/fb_forward_bilinear) — no reason it must differ.
 sf_base: frozen           # identity | frozen | learned  (identity PINS d==goal dim, audit S12)
 sf_coef: 1.0              # weight on the whole SF loss
 fb_forward_z: false        # task-condition phi([s,a,z=psi(g)]) — UNVERIFIED (no external ref)

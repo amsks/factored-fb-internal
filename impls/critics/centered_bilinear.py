@@ -247,14 +247,16 @@ class CenteredBilinearCritic:
             if self.centered_split_bootstrap:
                 # S13: the SARSA base leg reads the dataset next action. use_next_actions
                 # granted it at build time; the batch must actually carry it — fail loudly if
-                # not (a structural check on the batch dict, evaluated at trace time).
-                assert "next_actions" in batch, (
-                    "centered_only + centered_split_bootstrap needs batch['next_actions'] "
-                    "(the dataset SARSA bootstrap on the base leg). use_next_actions=True was "
-                    "set, but this batch does not carry next_actions — the dataset must emit "
-                    "them (the factored seam's GCDataset does not by default). This is the "
-                    "explicit config-keyed replacement for the reference's OGBENCH_NEXT_ACTIONS "
-                    "env var (audit S13).")
+                # not (a structural check on the batch dict, evaluated at trace time). An
+                # explicit raise (not a bare assert) so the invariant survives python -O.
+                if "next_actions" not in batch:
+                    raise CenteredBilinearConfigError(
+                        "centered_only + centered_split_bootstrap needs batch['next_actions'] "
+                        "(the dataset SARSA bootstrap on the base leg). use_next_actions=True was "
+                        "set, but this batch does not carry next_actions — the dataset must emit "
+                        "them (the factored seam's GCDataset does not by default). This is the "
+                        "explicit config-keyed replacement for the reference's OGBENCH_NEXT_ACTIONS "
+                        "env var (audit S13).")
                 a_base = batch["next_actions"]
             else:   # non-contraction control: π bootstrap on the base leg too
                 a_base = a_pi

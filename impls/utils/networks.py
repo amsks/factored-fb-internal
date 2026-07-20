@@ -723,10 +723,17 @@ class GCFbForwardValue(GCBilinearValue):
         v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
         if self.value_exp:
             v = jnp.exp(v)
+        # Materialize the F_V leg on EVERY call under isfb_twin_leg (not only the return_fv
+        # path). Flax creates a setup-declared submodule's params lazily on first invocation;
+        # if fv is only ever called under return_fv=True, a plain 3-arg .init(obs,goals,actions)
+        # omits it and a later apply(...,return_fv=True) raises ScopeCollectionNotFound. Calling
+        # it here makes the advertised 3-arg drop-in create fv, so return_fv is always safe. The
+        # extra leg is cheap (isfb_twin_leg only exists under objective='isfb', which uses it).
+        fv = self._fv(observations, z) if self.phi_module == "isfb_twin_leg" else None
         if info and return_fv:
             assert self.phi_module == "isfb_twin_leg", \
                 "return_fv requires phi_module='isfb_twin_leg' (no F_V leg otherwise)"
-            return v, phi, psi, self._fv(observations, z), z
+            return v, phi, psi, fv, z
         if info:
             return v, phi, psi
         return v

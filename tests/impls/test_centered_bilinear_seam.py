@@ -233,7 +233,9 @@ def test_s13_runtime_refuses_batch_without_next_actions():
         ex_obs, ex_act, _cfg(mode="centered_only", centered_split_bootstrap=True,
                              use_next_actions=True))
     b = _batch(with_next_actions=False)
-    with pytest.raises(AssertionError, match="next_actions"):
+    # FIX 4: an explicit named raise (not a bare `assert`, which python -O would strip),
+    # so the runtime invariant holds regardless of optimization level.
+    with pytest.raises(CenteredBilinearConfigError, match="next_actions"):
         c.stage_loss("centered", params, targets, b, _cond(b), _boot(b))
     # with next_actions present it runs and is finite.
     bn = _batch(with_next_actions=True)

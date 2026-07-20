@@ -127,9 +127,17 @@ class FbForwardBilinearCritic:
 
     def stage_groups(self, stage):
         assert stage == "fb_forward"
-        # measure/isfb train only the critic legs (the value net inits but never trains,
-        # exactly like the reference's measure_only). iql/mix train both.
-        return ("value", "critic") if self.objective in ("iql", "mix") else ("critic",)
+        # iql/mix train both legs. isfb trains only the critic (its whole loss lives on
+        # params["critic"]). measure trains the group its loss ACTUALLY lands on: the
+        # value-leg measure (measure_legs='value', _measure_value_legs) is a real objective
+        # on the z-BLIND value net — it trains fine under 'mix' — so under pure 'measure' the
+        # optimizer must move 'value', not 'critic'. Returning ('critic',) there would be a
+        # silent dead objective (value gets the gradient, critic gets zero, nothing steps).
+        if self.objective in ("iql", "mix"):
+            return ("value", "critic")
+        if self.objective == "measure":
+            return ("value",) if self.measure_legs == "value" else ("critic",)
+        return ("critic",)   # isfb
 
     # --- module apply helpers ---
     def _V(self, p, obs, goal):
@@ -534,12 +542,12 @@ class FbForwardBilinearCritic:
 
         ex_goal = jnp.zeros_like(ex_obs)
         rv, rc = jr.split(jr.PRNGKey(config["seed"] + 7000), 2)
-        # isfb_twin_leg's F_V submodule is only traced (and hence only gets params) on the
-        # return_fv path, so init MUST take that path or the leg would be missing at apply.
-        crit_init_kw = dict(info=True, return_fv=True) if phi_module == "isfb_twin_leg" else {}
+        # The plain 3-arg init suffices for every phi_module: GCFbForwardValue.__call__ now
+        # materializes the isfb_twin_leg F_V submodule eagerly on every call, so init creates
+        # its params without needing the return_fv path (previously required here).
         params = {
             "value": value.init(rv, ex_obs, ex_goal)["params"],
-            "critic": critic.init(rc, ex_obs, ex_goal, ex_actions, **crit_init_kw)["params"],
+            "critic": critic.init(rc, ex_obs, ex_goal, ex_actions)["params"],
         }
         targets = {"critic": copy.deepcopy(params["critic"])}
         obj = cls(

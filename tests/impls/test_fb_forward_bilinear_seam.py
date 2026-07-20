@@ -204,6 +204,40 @@ def test_measure_objective_leaves_value_net_untrained():
                for l in jax.tree_util.tree_leaves(g["critic"]["phi"]))
 
 
+def test_measure_value_legs_actually_trains():
+    """FIX 1 (silent dead objective): objective='measure' + measure_legs='value' puts the
+    whole loss on the z-BLIND value net (a real objective — it trains fine under 'mix'), so
+    stage_groups must return ('value',). If it returned ('critic',) the value net would get the
+    gradient but never be stepped: finite loss, nothing moves, 500k dead steps. This test would
+    FAIL before the fix (stage_groups=('critic',) => value params unchanged after an update)."""
+    ex_obs, ex_act = _ex()
+    over = dict(objective="measure", measure_coef=1.0, measure_legs="value")
+    c = FbForwardBilinearCritic.build(ex_obs, ex_act, _cfg(**over))[0]
+    assert c.stage_groups("fb_forward") == ("value",)
+    agent = Agent.create("fb_forward_bilinear", "ddpgbc", 0, ex_obs, ex_act,
+                         _full_cfg("ddpgbc", **over))
+    before = jax.tree_util.tree_leaves(agent.net["value"].params)
+    agent, _ = agent.update(_batch())
+    after = jax.tree_util.tree_leaves(agent.net["value"].params)
+    assert any(not np.allclose(np.asarray(a), np.asarray(b)) for a, b in zip(before, after)), \
+        "measure+measure_legs='value' must actually step the value net"
+
+
+def test_fv_leg_materializes_on_plain_3arg_init():
+    """FIX 2 (latent init footgun): a plain 3-arg .init(obs,goals,actions) on GCFbForwardValue
+    with phi_module='isfb_twin_leg' must create the F_V leg, so a later apply(return_fv=True)
+    does not raise ScopeCollectionNotFound. Before the fix fv was lazy on the return_fv path
+    only: 'fv' would be absent from params and the apply below would raise."""
+    from impls.utils.networks import GCFbForwardValue
+    ex_obs, ex_act = _ex()
+    net = GCFbForwardValue(hidden_dims=(32, 32), latent_dim=D, layer_norm=True, ensemble=True,
+                           phi_module="isfb_twin_leg", project_z=False)
+    params = net.init(jax.random.PRNGKey(0), ex_obs, ex_obs, ex_act)["params"]  # 3-arg drop-in
+    assert "fv" in params, "the F_V leg must exist after a plain 3-arg init"
+    out = net.apply({"params": params}, ex_obs, ex_obs, ex_act, info=True, return_fv=True)
+    assert len(out) == 5 and out[3].shape == (2, B, D)   # (v, phi, psi, fv, z); fv is [P,B,d]
+
+
 def test_isfb_fv_leg_receives_gradient():
     """The SG-ISFB value measure N=<F_V,B> must actually train the F_V leg."""
     ex_obs, ex_act = _ex()

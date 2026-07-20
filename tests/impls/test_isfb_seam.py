@@ -9,7 +9,7 @@ import pytest
 
 from impls.agents import Agent, CRITICS, _LR_KEY
 from impls.critics.base import ComboError, check_combo
-from impls.critics.isfb import ISFBCritic
+from impls.critics.isfb import ISFBCritic, IsfbConfigError
 from impls.utils.config_utils import REQUIRED_KEYS, load_config
 
 OBS, ACT = 8, 5
@@ -54,6 +54,15 @@ def _agent(actor_kind, **over):
 def test_registered():
     assert CRITICS["isfb"] is ISFBCritic
     assert _LR_KEY["value_forward"] == "lr_f"   # F_V rides the forward group's lr
+
+
+def test_bad_measure_insample_raises_named_error_at_build():
+    """FIX 3: a bad measure_insample enum must raise the named IsfbConfigError at BUILD time
+    (Agent.create), matching every other build-validated critic — not a bare ValueError deep
+    inside stage_loss at trace time. Before the fix this only died on `raise ValueError` when
+    the update actually ran."""
+    with pytest.raises(IsfbConfigError, match="measure_insample must be one of"):
+        _agent("ddpgbc", measure_insample="soft_gate")
 
 
 def test_class_attrs():
