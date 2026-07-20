@@ -287,6 +287,33 @@ class Value(nn.Module):
         return self.value_net(inputs).squeeze(-1)
 
 
+class GCValue(nn.Module):
+    """Goal-conditioned value/critic, faithful to OGBench GCValue (state-based, no encoder).
+
+    ensemble=False -> V(s, g) shape (B,);  ensemble=True -> Q(s, g, a) shape (2, B).
+    Uses the shared MLP (default nn.gelu + default nn.LayerNorm) so it is numerically
+    identical to the vendored GCValue. Submodule name `value_net` matches vendored.
+    """
+    hidden_dims: Sequence[int]
+    layer_norm: bool = True
+    ensemble: bool = True
+
+    def setup(self):
+        mlp_class = MLP
+        if self.ensemble:
+            mlp_class = ensemblize(mlp_class, 2)
+        self.value_net = mlp_class((*self.hidden_dims, 1), activate_final=False, layer_norm=self.layer_norm)
+
+    def __call__(self, observations, goals=None, actions=None):
+        inputs = [observations]
+        if goals is not None:
+            inputs.append(goals)
+        if actions is not None:
+            inputs.append(actions)
+        inputs = jnp.concatenate(inputs, axis=-1)
+        return self.value_net(inputs).squeeze(-1)
+
+
 class ActorVectorField(nn.Module):
     """Actor vector field for flow matching. Input [obs, action(, time)] -> velocity."""
 
