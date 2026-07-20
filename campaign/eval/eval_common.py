@@ -69,11 +69,18 @@ def make_eval_env(task, render=False):
 
 
 def seeded_reset(env, task, seed):
-    """A given seed => a fixed initial state. rlmini/ManiSkill honor reset(seed=);
-    Metaworld draws its rand_vec from the GLOBAL np.random."""
+    """A given seed => a fixed initial state where the env supports it. rlmini honors
+    reset(seed=); Metaworld draws its rand_vec from the GLOBAL np.random; ManiSkill's
+    newt wrapper doesn't accept seed -> best-effort (global seed + plain reset)."""
     if task.startswith("mw-"):
         np.random.seed(seed)
         return env.reset()
+    if task.startswith("ms-"):
+        np.random.seed(seed)
+        try:
+            return env.reset(seed=seed)
+        except TypeError:
+            return env.reset()
     return env.reset(seed=seed)
 
 

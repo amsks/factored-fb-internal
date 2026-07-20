@@ -15,7 +15,8 @@ JAX_AGENTS = f"{FB}/campaign/jax_agents"
 UNIFIED_CUBE = "/raid/tongle/rl/fb-data/unified/cube-single-play-v0"
 JOBS = Path(FB) / "campaign" / "jobs_dev.txt"
 
-DEV_SEEDS = [0]                       # first pass: 1 seed to iterate fast (scale up later)
+DEV_SEEDS = [0, 1, 2]                 # 3 seeds (report mean +/- std)
+NEWT_PY = "/raid/tongle/rl/newt/.venv/bin/python"   # unified train+eval venv (jax 0.4.38 + all envs)
 
 ALGOS = {
     "fb":         ("campaign/jax_agents/fb.py", ""),
@@ -48,12 +49,13 @@ def main():
             for s in DEV_SEEDS:
                 save_dir = f"{CAMPAIGN_OUT}/dev_jax/{algo}__{slug}__s{s}"
                 cmd = (
-                    f"XLA_PYTHON_CLIENT_PREALLOCATE=false "  # on-demand mem: coexist w/ other users
+                    f"XLA_PYTHON_CLIENT_PREALLOCATE=false MUJOCO_GL=egl "  # on-demand mem + headless render
                     f"PYTHONPATH={IMPLS}:{SHIM}:{JAX_AGENTS} "
-                    f".venv-jax/bin/python campaign/jax_train_unified.py "
+                    f"{NEWT_PY} campaign/jax_train_unified.py "
                     f"--data_dir {ddir} --agent_file {af} --save_dir {save_dir} "
                     f"--train_steps {NUM_TRAIN_STEPS} --save_interval {SAVE_EVERY} "
                     f"--seed {s} {ov} "
+                    f"--eval_task {slug} --eval_interval 100000 --eval_episodes 50 --eval_video 4 "
                     f"--wandb 1 --wandb_project factored-fb-dev "
                     f"--wandb_group {ds['family']} --wandb_name {algo}__{slug}__s{s}"
                 )
