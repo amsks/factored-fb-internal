@@ -63,7 +63,8 @@ def compute_goal(data_dir):
     return nobs[int(np.argmax(rew))].astype(np.float32)
 
 
-def rollout(agent, env, task, goal, horizon, n_episodes, seed_base, n_video):
+def rollout(agent, env, task, cond, horizon, n_episodes, seed_base, n_video):
+    """cond is the conditioning kwargs for sample_actions: {'goals': g} (GCRL) or {'z': z} (FB)."""
     successes, frames = [], []
     for i in range(n_episodes):
         obs, info = seeded_reset(env, task, seed_base + i)
@@ -74,7 +75,7 @@ def rollout(agent, env, task, goal, horizon, n_episodes, seed_base, n_video):
         for _ in range(horizon):
             key, sub = jax.random.split(key)
             a = np.asarray(agent.sample_actions(observations=np.asarray(obs, np.float32),
-                                                goals=goal, seed=sub, temperature=0))
+                                                seed=sub, temperature=0, **cond))
             obs, _r, term, trunc, info = env.step(np.clip(a, -1.0, 1.0))
             ep_success = ep_success or bool(info.get("success", 0.0))
             if rec:
@@ -105,9 +106,16 @@ def main():
     act_dim = int(env.action_space.shape[0])
 
     agent, cfg = build_agent(args.agent_file, os.path.join(args.save_dir, args.params), obs_dim, act_dim)
-    goal = compute_goal(args.data_dir)
+    if cfg["agent_name"] in ("fb", "fb_flowbc"):
+        nobs, rew = load_offline(args.data_dir)                    # FB: z = infer from offline reward
+        if len(nobs) > 10000:
+            idx = np.random.default_rng(0).choice(len(nobs), 10000, replace=False)
+            nobs, rew = nobs[idx], rew[idx]
+        cond = {"z": np.asarray(agent.infer_z(nobs, rew))}
+    else:
+        cond = {"goals": compute_goal(args.data_dir)}             # GCRL: high-reward goal obs
 
-    successes, frames = rollout(agent, env, args.task, goal, horizon,
+    successes, frames = rollout(agent, env, args.task, cond, horizon,
                                 args.n_episodes, args.seed_base, args.n_video)
     env.close()
 

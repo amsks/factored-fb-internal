@@ -102,6 +102,13 @@ class FBAgent(flax.struct.PyTreeNode):
     def sample_z(self, rng, n):
         return self.project_z(jax.random.normal(rng, (n, self.config["z_dim"])))
 
+    def infer_z(self, next_obs, reward):
+        """Zero-shot FB task vector z = project(sum_i reward_i * B(next_obs_i)).
+        Not jitted (called once at eval setup over a subsample of the offline data)."""
+        B = self.network.select("backward")(jnp.asarray(next_obs, jnp.float32))   # [N, z_dim]
+        z = jnp.matmul(jnp.asarray(reward, jnp.float32).reshape(1, -1), B)         # [1, z_dim]
+        return self.project_z(z)[0]                                                # [z_dim]
+
     def _flow_rollout(self, net, obs, noise, params):
         fs = self.config["flow_steps"]
         a = noise
