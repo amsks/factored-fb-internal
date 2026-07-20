@@ -79,6 +79,10 @@ def main():
     ap.add_argument("--log_interval", type=int, default=5_000)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--set", nargs="*", default=[], help="config overrides key=val")
+    ap.add_argument("--wandb", type=int, default=0)
+    ap.add_argument("--wandb_project", default="factored-fb-campaign")
+    ap.add_argument("--wandb_group", default=None)
+    ap.add_argument("--wandb_name", default=None)
     args = ap.parse_args()
 
     import agents
@@ -102,16 +106,27 @@ def main():
     ex = ds.sample(1)
     agent = agents.agents[agent_name].create(args.seed, ex["observations"], ex["actions"], cfg)
 
+    run = None
+    if args.wandb:
+        import wandb
+        run = wandb.init(project=args.wandb_project, group=args.wandb_group,
+                         name=args.wandb_name or f"{agent_name}__s{args.seed}", reinit=True,
+                         config=dict(agent=agent_name, seed=args.seed, data_dir=args.data_dir))
+
     Path(args.save_dir).mkdir(parents=True, exist_ok=True)
     import tqdm
     for i in tqdm.tqdm(range(1, args.train_steps + 1), smoothing=0.1, dynamic_ncols=True):
         agent, info = agent.update(ds.sample(cfg["batch_size"]))
         if i % args.log_interval == 0:
-            msg = {k: round(float(v), 4) for k, v in list(info.items())[:5]}
-            print(f"[jax_train] step {i}: {msg}", flush=True)
+            fi = {k: float(v) for k, v in info.items()}
+            print(f"[jax_train] step {i}: {dict(list(fi.items())[:5])}", flush=True)
+            if run is not None:
+                wandb.log({f"train/{k}": v for k, v in fi.items()}, step=i)
         if i % args.save_interval == 0:
             save_agent(agent, args.save_dir, i)
     save_agent(agent, args.save_dir, args.train_steps)
+    if run is not None:
+        run.finish()
     print(f"[jax_train] DONE {agent_name} {args.data_dir} -> {args.save_dir}", flush=True)
 
 
