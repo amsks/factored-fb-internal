@@ -1,12 +1,13 @@
-"""Minimal logging utilities for the impls/ tree. A full wandb/CsvLogger port lands with
-the multi-critic PRs; PR1 needs only exp-name + a lightweight CSV logger."""
+"""Logging utilities for the impls/ tree: experiment naming, CSV logging, and wandb."""
 import csv
 import os
 
 
-def get_exp_name(seed):
-    """Compose a run/experiment name. Time-free (deterministic) for PR1."""
-    return f'seed_{seed}'
+def get_exp_name(seed, critic=None, actor=None, env_name=None):
+    """Compose a run/experiment name. Time-free (deterministic)."""
+    parts = [p for p in (env_name, critic, actor) if p]
+    parts.append(f'seed_{seed}')
+    return '_'.join(parts)
 
 
 class CsvLogger:
@@ -36,6 +37,15 @@ class CsvLogger:
             self._file.close()
 
 
-def setup_wandb(**kwargs):
-    """No-op wandb shim for PR1 (returns None; the real setup lands with logging PR)."""
-    return None
+def setup_wandb(config, project='factored-fb', group=None, name=None, mode=None):
+    """Initialise wandb. Returns None when disabled or unavailable, so callers can
+    unconditionally call this and guard only on the return value."""
+    mode = mode or os.environ.get('WANDB_MODE')
+    if mode == 'disabled':
+        return None
+    try:
+        import wandb
+    except ImportError:
+        return None
+    return wandb.init(project=project, group=group, name=name,
+                      config=config, mode=mode, reinit=True)
