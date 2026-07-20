@@ -44,8 +44,9 @@ class AWRActor:
         import jax.random as jr
         from impls.utils.networks import Actor
         a_cfg = config["actor"]
+        # tanh_squash=False matches vendored GCIQL's GCActor (gciql.py:248).
         actor = Actor(hidden_dims=tuple(a_cfg["hidden_dims"]), action_dim=ex_actions.shape[-1],
-                      layer_norm=a_cfg.get("layer_norm", False), tanh_squash=True,
+                      layer_norm=a_cfg.get("layer_norm", False), tanh_squash=False,
                       const_std=a_cfg.get("const_std", True))
         ex_in = jnp.zeros((ex_obs.shape[0], ex_obs.shape[-1] + config.get("cvec_dim", config.get("z_dim"))))
         params = {"actor": actor.init(jr.PRNGKey(config["seed"] + 3000), ex_in)["params"]}
