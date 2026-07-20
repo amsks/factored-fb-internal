@@ -132,8 +132,9 @@ def main():
     ap.add_argument("--set", nargs="*", default=[], help="config overrides key=val")
     ap.add_argument("--wandb", type=int, default=0)
     ap.add_argument("--wandb_project", default="factored-fb-campaign")
-    ap.add_argument("--wandb_group", default=None)
+    ap.add_argument("--wandb_group", default=None, help="set to <algo>__<task> so the 3 seeds aggregate")
     ap.add_argument("--wandb_name", default=None)
+    ap.add_argument("--wandb_family", default=None)
     # inline eval during training (fixed-seed episodes -> success + video grid -> wandb)
     ap.add_argument("--eval_task", default=None, help="task slug for the eval env (b2d-/mw-/ms-); None=no eval")
     ap.add_argument("--eval_interval", type=int, default=100_000)
@@ -167,7 +168,9 @@ def main():
         import wandb
         run = wandb.init(project=args.wandb_project, group=args.wandb_group,
                          name=args.wandb_name or f"{agent_name}__s{args.seed}", reinit=True,
-                         config=dict(agent=agent_name, seed=args.seed, data_dir=args.data_dir))
+                         tags=[args.wandb_family] if args.wandb_family else None,
+                         config=dict(agent=agent_name, seed=args.seed, task=args.eval_task,
+                                     family=args.wandb_family, data_dir=args.data_dir))
 
     ev = build_eval(args.eval_task, args.data_dir)      # eval env (None if unsupported)
     print(f"[jax_train] inline eval: {'on '+args.eval_task if ev else 'off'}", flush=True)

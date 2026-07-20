@@ -59,7 +59,8 @@ def main():
                     f"--seed {s} {ov} "
                     f"--eval_task {slug} --eval_interval 100000 --eval_episodes 50 --eval_video 4 "
                     f"--wandb 1 --wandb_project factored-fb-dev "
-                    f"--wandb_group {ds['family']} --wandb_name {algo}__{slug}__s{s}"
+                    f"--wandb_group {algo}__{slug} --wandb_family {ds['family']} "  # seeds share group -> mean+/-var
+                    f"--wandb_name {algo}__{slug}__s{s}"
                 )
                 lines.append(cmd)
     JOBS.write_text("\n".join(lines) + "\n")
