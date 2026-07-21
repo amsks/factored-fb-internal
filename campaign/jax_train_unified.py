@@ -88,8 +88,22 @@ def _flag(x):
     return bool(x.any()) if hasattr(x, "any") else bool(x)
 
 
+def _append_agg(agg_dir, group, seed, step, success_rate, at_goal_frac, family):
+    """Append this run's eval point to a per-seed jsonl; wandb_agg_daemon.py reads all
+    seeds of a group and logs {group}__agg with mean/std -> the 'overall result' run."""
+    import json
+    Path(agg_dir).mkdir(parents=True, exist_ok=True)
+    line = json.dumps(dict(seed=int(seed), step=int(step),
+                           success_rate=float(success_rate),
+                           at_goal_frac=float(at_goal_frac), family=family))
+    with open(os.path.join(agg_dir, f"{group}__s{seed}.jsonl"), "a") as f:
+        f.write(line + "\n")
+
+
 def run_eval(agent, agent_name, ev, task, n_episodes, n_video):
-    """Fixed-seed rollout -> (success_rate, per-episode frame lists for the first n_video)."""
+    """Fixed-seed rollout -> (success_rate, at_goal_frac, frames).
+    at_goal_frac = mean over episodes of (steps with info['success'] / steps taken):
+    'how long it stays at the goal' (1.0 = held the goal the whole episode)."""
     import jax
     from eval_common import seeded_reset
     if agent_name in ("fb", "fb_flowbc"):
@@ -97,11 +111,12 @@ def run_eval(agent, agent_name, ev, task, n_episodes, n_video):
     else:
         cond = {"goals": ev["nobs"][int(np.argmax(ev["rew"]))].astype(np.float32)}
     env, horizon = ev["env"], ev["horizon"]
-    successes, frames = [], []
+    successes, dwells, frames = [], [], []
     for i in range(n_episodes):
         obs, info = seeded_reset(env, task, i)
         key = jax.random.PRNGKey(i)
         ep_s = _flag(info.get("success", 0))
+        at_goal, nsteps = 0, 0
         rec = i < n_video
         ff = [env.render()] if rec else None
         for _ in range(horizon):
@@ -109,15 +124,19 @@ def run_eval(agent, agent_name, ev, task, n_episodes, n_video):
             a = np.asarray(agent.sample_actions(observations=np.asarray(obs, np.float32),
                                                 seed=sub, temperature=0, **cond))
             obs, _r, term, trunc, info = env.step(np.clip(a, -1.0, 1.0))
-            ep_s = ep_s or _flag(info.get("success", 0))
+            s_now = _flag(info.get("success", 0))
+            ep_s = ep_s or s_now
+            at_goal += int(s_now)
+            nsteps += 1
             if rec:
                 ff.append(env.render())
             if _flag(term) or _flag(trunc):
                 break
         successes.append(float(ep_s))
+        dwells.append(at_goal / max(nsteps, 1))
         if rec:
             frames.append(ff)
-    return float(np.mean(successes)), frames
+    return float(np.mean(successes)), float(np.mean(dwells)), frames
 
 
 def main():
@@ -137,9 +156,13 @@ def main():
     ap.add_argument("--wandb_family", default=None)
     # inline eval during training (fixed-seed episodes -> success + video grid -> wandb)
     ap.add_argument("--eval_task", default=None, help="task slug for the eval env (b2d-/mw-/ms-); None=no eval")
-    ap.add_argument("--eval_interval", type=int, default=100_000)
+    ap.add_argument("--eval_interval", type=int, default=20_000)
     ap.add_argument("--eval_episodes", type=int, default=50)
     ap.add_argument("--eval_video", type=int, default=4)
+    ap.add_argument("--eval_video_interval", type=int, default=100_000,
+                    help="record a video only every N steps (>= eval_interval); success is logged every eval")
+    ap.add_argument("--agg_dir", default=None,
+                    help="dir for per-seed eval jsonls that wandb_agg_daemon.py aggregates into {group}__agg")
     args = ap.parse_args()
 
     import agents
@@ -178,11 +201,15 @@ def main():
     def do_eval(step):
         if ev is None:
             return
-        sr, frames = run_eval(agent, agent_name, ev, args.eval_task, args.eval_episodes, args.eval_video)
-        print(f"[jax_train] step {step}: eval/success_rate={sr:.3f}", flush=True)
+        want_video = args.eval_video > 0 and (step % args.eval_video_interval == 0)
+        sr, dwell, frames = run_eval(agent, agent_name, ev, args.eval_task, args.eval_episodes,
+                                     args.eval_video if want_video else 0)
+        print(f"[jax_train] step {step}: eval/success_rate={sr:.3f} at_goal_frac={dwell:.3f}", flush=True)
+        if args.agg_dir and args.wandb_group:
+            _append_agg(args.agg_dir, args.wandb_group, args.seed, step, sr, dwell, args.wandb_family)
         if run is not None:
-            log = {"eval/success_rate": sr}
-            if args.eval_video > 0 and frames:
+            log = {"eval/success_rate": sr, "eval/at_goal_frac": dwell}
+            if want_video and frames:
                 from eval_common import save_video_grid
                 vp = save_video_grid(frames, os.path.join(args.save_dir, f"eval_step{step}.mp4"))
                 if vp:

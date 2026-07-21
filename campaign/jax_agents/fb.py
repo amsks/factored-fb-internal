@@ -227,8 +227,11 @@ class FBAgent(flax.struct.PyTreeNode):
         obs2 = obs[None] if single else obs
         z2 = jnp.broadcast_to(jnp.atleast_2d(z), (obs2.shape[0], self.config["z_dim"]))
         if self.config["flow"]:
-            seed = seed if seed is not None else jax.random.PRNGKey(0)
-            noise = jax.random.normal(seed, (obs2.shape[0], self.config["action_dim"]))
+            # FlowBC action head uses a FIXED seed (flow_seed=128) so the policy is
+            # deterministic at eval -> reproducible success rate, no per-episode RNG luck.
+            del seed
+            noise = jax.random.normal(jax.random.PRNGKey(self.config["flow_seed"]),
+                                      (obs2.shape[0], self.config["action_dim"]))
             a = self.network.select("actor")(obs2, z2, noise)
         else:
             a = self.network.select("actor")(obs2, z2)
@@ -287,7 +290,7 @@ def get_config():
         lr=1e-4, batch_size=256,
         z_dim=50, L_dim=50, discount=0.99, tau=0.005,
         train_goal_ratio=0.5, ortho_coef=1.0, num_parallel=2, bc_coeff=0.0,
-        flow=0, flow_steps=10,
+        flow=0, flow_steps=10, flow_seed=128,   # fixed action-head noise seed (FlowBC)
         hidden_dim=512, enc_layers=4, fwd_layers=2, actor_layers=2, embedding_layers=2,
         encoder=ml_collections.config_dict.placeholder(str),
         dataset_class="GCDataset",

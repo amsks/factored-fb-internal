@@ -40,16 +40,22 @@ def data_dir(ds):
     return f"{COLLECTED}/{ds['family']}__{ds['slug']}"
 
 
+RUN_TAG = "v3"                                       # clean relaunch w/ dwell metric; fresh jsonls (v2 was success-only)
+AGG_DIR = f"{CAMPAIGN_OUT}/dev_jax_eval/{RUN_TAG}"    # per-seed eval jsonls -> wandb_agg_daemon aggregates
+
+
 def main():
     by_slug = _ds_by_slug()
     lines = []
-    # task-innermost order so the FIRST wave spans all dev tasks (not one task at a time)
-    for s in DEV_SEEDS:
-        for algo, (af, ov) in ALGOS.items():
-            for slug in DEV_TASKS:
+    # seed-INNERMOST so a group's 3 seeds are contiguous in the queue -> they co-run and
+    # the {algo}__{task}__agg mean+/-var run fills in early (needs all seeds at a step).
+    # algo outer, task next -> the first wave still spans all dev tasks for the first algos.
+    for algo, (af, ov) in ALGOS.items():
+        for slug in DEV_TASKS:
+            for s in DEV_SEEDS:
                 ds = by_slug[slug]
                 ddir = data_dir(ds)
-                save_dir = f"{CAMPAIGN_OUT}/dev_jax/{algo}__{slug}__s{s}"
+                save_dir = f"{CAMPAIGN_OUT}/dev_jax/{RUN_TAG}/{algo}__{slug}__s{s}"
                 cmd = (
                     f"XLA_PYTHON_CLIENT_PREALLOCATE=false MUJOCO_GL=egl "  # on-demand mem + headless render
                     f"PYTHONPATH={IMPLS}:{SHIM}:{JAX_AGENTS} "
@@ -57,7 +63,8 @@ def main():
                     f"--data_dir {ddir} --agent_file {af} --save_dir {save_dir} "
                     f"--train_steps {NUM_TRAIN_STEPS} --save_interval {SAVE_EVERY} "
                     f"--seed {s} {ov} "
-                    f"--eval_task {slug} --eval_interval 100000 --eval_episodes 50 --eval_video 4 "
+                    f"--eval_task {slug} --eval_interval 20000 --eval_episodes 50 "
+                    f"--eval_video 4 --eval_video_interval 100000 --agg_dir {AGG_DIR} "
                     f"--wandb 1 --wandb_project factored-fb-dev "
                     f"--wandb_group {algo}__{slug} --wandb_family {ds['family']} "  # seeds share group -> mean+/-var
                     f"--wandb_name {algo}__{slug}__s{s}"

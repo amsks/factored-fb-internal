@@ -61,8 +61,9 @@ class FlowBCAgent(flax.struct.PyTreeNode):
         obs = jnp.asarray(observations, jnp.float32)
         single = obs.ndim == 1
         obs2 = obs[None] if single else obs
-        seed = seed if seed is not None else jax.random.PRNGKey(0)
-        noise = jax.random.normal(seed, (obs2.shape[0], self.config["action_dim"]))
+        del seed  # deterministic policy: fixed action-head noise seed (flow_seed=128)
+        noise = jax.random.normal(jax.random.PRNGKey(self.config["flow_seed"]),
+                                  (obs2.shape[0], self.config["action_dim"]))
         a = self._flow_rollout(self.network, obs2, noise, self.network.params)
         return a[0] if single else a
 
@@ -88,7 +89,7 @@ class FlowBCAgent(flax.struct.PyTreeNode):
 
 def get_config():
     return ml_collections.ConfigDict(dict(
-        agent_name="flowbc", lr=3e-4, batch_size=256, flow_steps=10,
+        agent_name="flowbc", lr=3e-4, batch_size=256, flow_steps=10, flow_seed=128,
         discount=0.99,                                 # unused by flowbc; GCDataset needs it for goal sampling
         hidden_dim=512, hidden_layers=4,
         encoder=ml_collections.config_dict.placeholder(str),

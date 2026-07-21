@@ -92,7 +92,10 @@ class CRLFlowBCAgent(CRLAgent):
         # see encoders.py:96), so strip the event dims to get the batch shape.
         event_rank = 1 if self.config['encoder'] is None else 3
         batch_shape = observations.shape[:-event_rank]
-        noise = jax.random.normal(seed, (*batch_shape, self.config['action_dim']))
+        # FIXED action-head noise seed (flow_seed=128) -> deterministic eval policy.
+        del seed
+        noise = jax.random.normal(jax.random.PRNGKey(self.config['flow_seed']),
+                                  (*batch_shape, self.config['action_dim']))
         actions = self.network.select('actor')(observations, goals, noise)
         return jnp.clip(actions, -1.0, 1.0)
 
@@ -157,6 +160,7 @@ def get_config():
     with config.unlocked():
         config.agent_name = 'crl_flowbc'
         config.flow_steps = 10
+        config.flow_seed = 128   # fixed action-head noise seed (deterministic eval)
         config.bc_coeff = 3.0
         config.lr_actor_vf = 3e-4
         config.actor_vf_hidden_dim = 512
