@@ -1,0 +1,47 @@
+# SfFeature critic — per-sample successor-FEATURE vector TD on a bilinear head:
+#   phi(s,a) <- b(s) + gamma*mask*phi_target(s',a'),   Q(s,a,g)=<phi(s,a), psi(g)>/sqrt(d)
+# Covers the E3 grid, whose published reading was RETRACTED (identity/frozen ~0.09 is not a
+# collapse; a sparse goal indicator is simply not linearly expressible in fixed features). The
+# vector-TD loss is first-party research code with NO external reference — locked structurally.
+# Knob values mirror the bridge sweeps in tools/wandb_mode_shim/gciql_flow.py::sf_loss.
+lr: 3.0e-4
+batch_size: 1024
+value_hidden_dims: [512, 512, 512]
+layer_norm: true
+discount: 0.99
+tau: 0.005
+
+# --- SF base / readout ---
+value_latent_dim: 512     # d; free under frozen/learned, PINNED to the goal dim under identity.
+                          # 512 to match the rest of the bilinear family (iql_bilinear/simple_sf/
+                          # centered_bilinear/fb_forward_bilinear) — no reason it must differ.
+sf_base: frozen           # identity | frozen | learned  (identity PINS d==goal dim, audit S12)
+sf_coef: 1.0              # weight on the whole SF loss
+fb_forward_z: false        # task-condition phi([s,a,z=psi(g)]) — UNVERIFIED (no external ref)
+
+# --- backup conventions ---
+sf_mask: goal             # goal -> absorbing goal (Q=gamma^T, first-hitting) | none -> density
+sf_base_index: current    # current -> b(s)=psi(s) | next -> b(s')=psi(s') (needs sf_mask='none')
+
+# --- anti-collapse / grounding (mostly for sf_base='learned') ---
+sf_joint_psi: false        # un-stop-grad the base; requires learned base + sf_psi_ortho_coef>0
+sf_reward_regress: false   # ground psi in reward r_hat=<psi(s),psi(g)>/sqrt(d); requires learned
+sf_reward_coef: 1.0       # weight on the reward regression
+sf_reward_shift: 0.0      # regress on r+shift; shift=1 -> the {0,1} goal indicator (escapes psi=0)
+sf_ortho_coef: 0.0        # orthonormality on phi (the SF vector)
+sf_psi_ortho_coef: 0.0    # orthonormality on the base leg psi (holds a jointly-trained psi up)
+
+# --- actor conditioning: PINNED to goal (audit S4: reference silently overwrites 'z') ---
+actor_cond: goal          # any other value RAISES SfFeatureConfigError (never coerced)
+
+# dataset (GCDataset goal sampling) — identical to critic/gciql.yaml
+dataset_class: GCDataset
+value_p_curgoal: 0.2
+value_p_trajgoal: 0.5
+value_p_randomgoal: 0.3
+value_geom_sample: true
+actor_p_curgoal: 0.0
+actor_p_trajgoal: 1.0
+actor_p_randomgoal: 0.0
+actor_geom_sample: false
+gc_negative: true

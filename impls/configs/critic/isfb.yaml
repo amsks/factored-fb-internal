@@ -1,0 +1,60 @@
+# SG-ISFB critic — FB successor measure trained with IQL's in-sample improvement operator
+# at the measure level. Inherits every FB knob verbatim (fb.yaml) and adds the ISFB terms.
+batch_size: 256
+z_dim: 50
+L_dim: 50
+num_parallel: 2
+discount: 0.99
+f_target_tau: 0.005
+b_target_tau: 0.005
+ortho_coef: 1.0
+train_goal_ratio: 0.5
+fb_pessimism_penalty: 0.0
+norm_z: true
+lr_f: 1.0e-4
+lr_b: 1.0e-4
+lr_actor: 1.0e-4
+forward:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+backward:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+left_encoder:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+
+# --- ISFB-specific ---
+# coord | scalar_gate_hard | scalar_gate_awr. `coord` is the pre-refinement baseline and
+# (per isfb.tex's boxed L_Coord-ISFB) carries NO L_V — build() forces alpha_v to 0 there.
+measure_insample: scalar_gate_hard
+iql_expectile: 0.9        # tau for L_V and for the coord L_N expectile
+alpha_n: 1.0              # weight on the value-measure regression L_N
+alpha_m: 1.0              # weight on the measure TD L_M
+alpha_v: 1.0              # weight on the scalar gate L_V (ignored when measure_insample=coord)
+awr_beta: 3.0             # scalar_gate_awr temperature
+awr_wmax: 100.0           # scalar_gate_awr weight clip
+awr_normalize_adv: true   # divide the advantage by its batch std before exp (torch's fix for
+                          # <F,z> inflating over training and re-saturating a fixed beta);
+                          # set false for the raw exp(beta*A) form written in isfb.tex.
+# goal_mask: cut the measure-TD bootstrap at the relabeled goal using OGBench/GCIQL
+# masks (= 1 - success), NOT env `terminated` (never set on cube offline data). This is the
+# single place ISFB follows OGBench over the torch reference; see agents/fb/agent.py::
+# iql_goal_target for the documented V-inflation/actor-collapse failure it prevents.
+# Requires GCDataset, which is what supplies `masks`.
+goal_mask: true
+
+# dataset — GCDataset supplies `masks` (and the goal machinery it needs to compute them).
+dataset_class: GCDataset
+value_p_curgoal: 0.2
+value_p_trajgoal: 0.5
+value_p_randomgoal: 0.3
+value_geom_sample: true
+actor_p_curgoal: 0.0
+actor_p_trajgoal: 1.0
+actor_p_randomgoal: 0.0
+actor_geom_sample: false
+gc_negative: true

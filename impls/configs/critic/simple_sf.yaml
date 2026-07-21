@@ -1,0 +1,42 @@
+# SimpleSf critic — Chua et al.'s Simple SF head under GCIQL's expectile-V + twin-Q TD.
+# One trunk -> (b, Psi); Q = <Psi, psi(g)>/sqrt(d). Objective values mirror critic/gciql.yaml;
+# the SF knobs mirror the bridge sweeps in tools/wandb_mode_shim/gciql_flow.py. Isolated by
+# design (audit critic #6): actor_cond is PINNED to goal and no z is ever produced.
+lr: 3.0e-4
+batch_size: 1024
+value_hidden_dims: [512, 512, 512]
+layer_norm: true
+discount: 0.99
+tau: 0.005
+expectile: 0.9
+
+# --- SF head ---
+value_latent_dim: 512     # d; the rank of the (b, Psi, psi) trunk output
+double_q: true            # false ablates the clipped double-Q to the single head q1
+project_z: false          # hard sphere-Norm psi(g) onto radius sqrt(d), in trunk input + readout
+
+# --- the two rungs (ground_psi is the ONLY stop_gradient-psi in the whole design) ---
+# rung 2: ground_psi=false, reward_coef=0  -> plain IQL on the SF head; psi trained by the TD.
+# rung 3: ground_psi=true,  reward_coef>0  -> psi's ONLY gradient is the reward regression
+#         r_hat=<sg[b],psi(g)>/sqrt(d); the readout stop-grads z so the TD gives psi zero grad.
+# build() REFUSES any other pairing (ground_psi w/ reward_coef=0 freezes psi; reward_coef>0
+# w/o ground_psi is inert). Default is rung 2 to keep the smoke path free of the grounding.
+ground_psi: false
+reward_coef: 0.0          # weight on the reward-regression grounding; must be >0 iff ground_psi
+ground_fade: false        # anneal_simplesf_ground curriculum — a training SCHEDULE, not a
+                          # coordinate; the static seam cannot honour it, so true RAISES.
+
+# actor conditioning is pinned: the SF head has no psi readout to condition an actor on.
+actor_cond: goal
+
+# dataset (GCDataset goal sampling) — identical to critic/gciql.yaml
+dataset_class: GCDataset
+value_p_curgoal: 0.2
+value_p_trajgoal: 0.5
+value_p_randomgoal: 0.3
+value_geom_sample: true
+actor_p_curgoal: 0.0
+actor_p_trajgoal: 1.0
+actor_p_randomgoal: 0.0
+actor_geom_sample: false
+gc_negative: true

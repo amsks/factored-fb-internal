@@ -1,0 +1,20 @@
+# FlowBC (FQL-style flow-matching) actor defaults at cube-single launch values.
+# Mirrors impls/main.py:get_config()'s actor=dict(...) block exactly.
+
+# Declared explicitly so lr_actor is always actor-owned. Merge order is
+# (domain, critic, actor) with actor winning, so ddpgbc/awr/fql already override the
+# critic's value; without this line flowbc was the lone pair inheriting lr_actor from
+# critic/fb.yaml, making ownership depend on which yaml happened to declare it.
+# 1.0e-4 matches critic/fb.yaml, so fb x flowbc's effective value is unchanged.
+lr_actor: 1.0e-4
+
+actor:
+  type: flow
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+  bc_coeff: 3.0
+  flow_steps: 10
+  lr_actor_vf: 3.0e-4
+  flow_vf_hidden_dim: 512
+  flow_vf_hidden_layers: 4
