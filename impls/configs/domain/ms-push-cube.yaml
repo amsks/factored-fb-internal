@@ -1,0 +1,8 @@
+# ms-push-cube (ManiSkill) — our collected demonstrations, via the `unified` adapter.
+adapter: unified
+env_name: ms-push-cube          # run-naming only; the env comes from `task`
+task: ms-push-cube
+data_dir: /raid/tongle/rl/fb-data/collected/ManiSkill__ms-push-cube
+horizon: 25
+val_frac: 0.05
+render: true           # rlmini needs the render env so episodes run the full horizon

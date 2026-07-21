@@ -18,9 +18,8 @@ import jax.numpy as jnp
 
 from impls.agents import Agent
 from impls.utils.config_utils import load_config
+from impls.adapters import get_adapter
 from impls.utils.datasets import make_dataset
-from impls.utils.env_utils import make_env_and_datasets
-from impls.utils.evaluation import evaluate
 from impls.utils.flax_utils import restore_agent, save_agent
 from impls.utils.log_utils import CsvLogger, get_exp_name, setup_wandb
 
@@ -69,8 +68,15 @@ def infer_cond_noop_reason(pre_cond, post_cond, rewards):
     return None
 
 
+# Short names for critics, resolved before CRITICS lookup. Kept OUT of agents.CRITICS
+# on purpose: that dict's arity is an invariant in tests/impls (32 pairs, nine of them
+# ComboError), so registering an alias there would break those counts for no gain.
+CRITIC_ALIASES = {"biql": "iql_bilinear"}
+
+
 def main(_):
-    cfg = load_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
+    critic_name = CRITIC_ALIASES.get(FLAGS.critic, FLAGS.critic)
+    cfg = load_config(critic_name, FLAGS.actor, FLAGS.domain, FLAGS.override)
 
     exp_name = get_exp_name(FLAGS.seed, FLAGS.critic, FLAGS.actor, cfg["env_name"])
     # Each run gets its own subdirectory so two seeds or two critic x actor pairs sharing a
@@ -85,10 +91,11 @@ def main(_):
     csv_eval = CsvLogger(os.path.join(run_dir, "eval.csv"))
 
     try:
-        env, train_ds, val_ds = make_env_and_datasets(cfg["env_name"])
+        adapter = get_adapter(cfg)
+        env, train_ds, val_ds = adapter.make_env_and_datasets(cfg)
         train_ds = make_dataset(train_ds, cfg)
         ex = train_ds.sample(1)
-        agent = Agent.create(FLAGS.critic, FLAGS.actor, FLAGS.seed,
+        agent = Agent.create(critic_name, FLAGS.actor, FLAGS.seed,
                              jnp.asarray(ex["observations"]), jnp.asarray(ex["actions"]), cfg)
 
         start_step = 1
@@ -121,14 +128,13 @@ def main(_):
                             f"conditioning vector -- do not interpret these eval numbers as a "
                             f"zero-shot z-inference result."
                         )
-                n_tasks = len(env.unwrapped.task_infos)
-                for task_id in range(1, n_tasks + 1):
-                    stats, _, _ = evaluate(eval_agent, env, task_id=task_id, config=cfg,
-                                           num_eval_episodes=FLAGS.eval_episodes)
-                    row = {k: float(v) for k, v in dict(stats).items()}
-                    csv_eval.log({**row, "task_id": task_id}, step=i)
+                for task_id in adapter.eval_tasks(env, cfg):
+                    row, _frames = adapter.evaluate(eval_agent, env, task_id, cfg,
+                                                    FLAGS.eval_episodes, 0)
+                    scope = "eval" if task_id is None else f"eval/task{task_id}"
+                    csv_eval.log({**row, "task_id": -1 if task_id is None else task_id}, step=i)
                     if run is not None:
-                        run.log({f"eval/task{task_id}/{k}": v for k, v in row.items()}, step=i)
+                        run.log({f"{scope}/{k}": v for k, v in row.items()}, step=i)
                     print("eval", i, "task", task_id, row, flush=True)
             if i % FLAGS.save_interval == 0:
                 save_agent(agent, run_dir, i)

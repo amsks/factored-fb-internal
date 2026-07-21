@@ -1,0 +1,8 @@
+# b2d-goal-ctrl-target (Box2D) — our collected demonstrations, via the `unified` adapter.
+adapter: unified
+env_name: b2d-goal-ctrl-target          # run-naming only; the env comes from `task`
+task: b2d-goal-ctrl-target
+data_dir: /raid/tongle/rl/fb-data/collected/Box2D__b2d-goal-ctrl-target
+horizon: 200
+val_frac: 0.05
+render: true           # rlmini needs the render env so episodes run the full horizon
