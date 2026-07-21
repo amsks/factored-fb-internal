@@ -34,6 +34,8 @@ flags.DEFINE_integer("log_interval", 5000, "Log every N steps.")
 flags.DEFINE_integer("eval_interval", 100_000, "Eval every N steps.")
 flags.DEFINE_integer("save_interval", 1_000_000, "Checkpoint every N steps.")
 flags.DEFINE_integer("eval_episodes", 20, "Episodes per eval task.")
+flags.DEFINE_string("agg_dir", None, "dir for per-seed eval jsonls that campaign/wandb_agg_daemon.py aggregates into {group}__agg")
+flags.DEFINE_string("agg_group", None, "aggregation key; default <critic>_<actor>__<domain>")
 flags.DEFINE_string("save_dir", "exp/", "Checkpoint directory.")
 flags.DEFINE_string("restore_path", "", "Glob matching exactly one run dir to restore from.")
 flags.DEFINE_integer("restore_epoch", 0, "Checkpoint step to restore (params_{epoch}.pkl).")
@@ -74,6 +76,22 @@ def infer_cond_noop_reason(pre_cond, post_cond, rewards):
 CRITIC_ALIASES = {"biql": "iql_bilinear"}
 
 
+_FAMILY = {"b2d": "Box2D", "p2d": "Box2D", "mw": "Metaworld", "ms": "ManiSkill"}
+
+
+def _append_agg(agg_dir, group, seed, step, row, task):
+    """Append this run's eval point in the same schema campaign/jax_train_unified.py used,
+    so campaign/wandb_agg_daemon.py aggregates seeds into {group}__agg unchanged."""
+    import json
+    os.makedirs(agg_dir, exist_ok=True)
+    rec = dict(seed=int(seed), step=int(step),
+               success_rate=float(row.get("success", row.get("success_rate", 0.0))),
+               at_goal_frac=float(row.get("at_goal_frac", float("nan"))),
+               family=_FAMILY.get(str(task).split("-")[0]))
+    with open(os.path.join(agg_dir, f"{group}__s{seed}.jsonl"), "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
 def main(_):
     critic_name = CRITIC_ALIASES.get(FLAGS.critic, FLAGS.critic)
     cfg = load_config(critic_name, FLAGS.actor, FLAGS.domain, FLAGS.override)
@@ -86,7 +104,8 @@ def main(_):
     run_dir = os.path.join(FLAGS.save_dir, exp_name)
     os.makedirs(run_dir, exist_ok=True)
 
-    run = setup_wandb(cfg, group=f"{FLAGS.critic}-{FLAGS.actor}", name=exp_name)
+    agg_group = FLAGS.agg_group or f"{FLAGS.critic}_{FLAGS.actor}__{FLAGS.domain}"
+    run = setup_wandb(cfg, group=agg_group, name=exp_name)
     csv_train = CsvLogger(os.path.join(run_dir, "train.csv"))
     csv_eval = CsvLogger(os.path.join(run_dir, "eval.csv"))
 
@@ -135,6 +154,9 @@ def main(_):
                     csv_eval.log({**row, "task_id": -1 if task_id is None else task_id}, step=i)
                     if run is not None:
                         run.log({f"{scope}/{k}": v for k, v in row.items()}, step=i)
+                    if FLAGS.agg_dir:
+                        _append_agg(FLAGS.agg_dir, agg_group, FLAGS.seed, i, row,
+                                    cfg.get("task", cfg.get("env_name")))
                     print("eval", i, "task", task_id, row, flush=True)
             if i % FLAGS.save_interval == 0:
                 save_agent(agent, run_dir, i)
