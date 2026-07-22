@@ -1,8 +1,5 @@
-# ms-pick-cube (ManiSkill) — our collected demonstrations, via the `unified` adapter.
+# ms-pick-cube via the unified adapter. Env + offline data are resolved from env/registry by `task`.
 adapter: unified
-env_name: ms-pick-cube          # run-naming only; the env comes from `task`
+env_name: ms-pick-cube          # run naming only
 task: ms-pick-cube
-data_dir: /raid/tongle/rl/fb-data/collected/ManiSkill__ms-pick-cube
-horizon: 25
-val_frac: 0.05
-render: true           # rlmini needs the render env so episodes run the full horizon
+render: false

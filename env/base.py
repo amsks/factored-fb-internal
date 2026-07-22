@@ -39,9 +39,9 @@ def get_adapter(cfg) -> DomainAdapter:
     """Resolve the adapter named by the domain config (`adapter:` key, default 'ogbench')."""
     name = (cfg.get("adapter") or "ogbench") if hasattr(cfg, "get") else "ogbench"
     if name == "ogbench":
-        from impls.adapters.ogbench_adapter import OGBenchAdapter
+        from env.ogbench import OGBenchAdapter
         return OGBenchAdapter()
     if name == "unified":
-        from impls.adapters.unified_adapter import UnifiedAdapter
+        from env.unified import UnifiedAdapter
         return UnifiedAdapter()
     raise ValueError(f"unknown adapter {name!r} (known: ogbench, unified)")

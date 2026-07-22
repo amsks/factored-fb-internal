@@ -19,7 +19,7 @@ import jax.numpy as jnp
 from impls.agents import Agent
 from impls.utils.config_utils import load_config
 from impls.utils.datasets import make_dataset
-from impls.adapters import get_adapter
+from env import get_adapter
 from impls.utils.flax_utils import restore_agent, save_agent
 from impls.utils.log_utils import CsvLogger, get_exp_name, setup_wandb
 

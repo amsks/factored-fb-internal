@@ -1,8 +1,5 @@
-# b2d-goal-ctrl-maze (Box2D) — our collected demonstrations, via the `unified` adapter.
+# b2d-goal-ctrl-maze via the unified adapter. Env + offline data are resolved from env/registry by `task`.
 adapter: unified
-env_name: b2d-goal-ctrl-maze          # run-naming only; the env comes from `task`
+env_name: b2d-goal-ctrl-maze          # run naming only
 task: b2d-goal-ctrl-maze
-data_dir: /raid/tongle/rl/fb-data/collected/Box2D__b2d-goal-ctrl-maze
-horizon: 200
-val_frac: 0.05
-render: true           # rlmini needs the render env so episodes run the full horizon
+render: true

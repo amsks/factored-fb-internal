@@ -25,6 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from impls.utils.datasets import FBDataset
+from env import registry
 
 # newt's env backends (rlmini / metaworld / maniskill). Its envs/__init__ imports dm_control
 # for dmcontrol tasks we don't use, so bind the namespace directly instead of importing it.
@@ -126,7 +127,7 @@ class UnifiedAdapter:
     name = "unified"
 
     def make_env_and_datasets(self, cfg):
-        data = load_unified(cfg["data_dir"])
+        data = load_unified(cfg.get("data_dir") or registry.data_dir(cfg["task"]))
         env, horizon = make_task_env(cfg["task"], render=bool(cfg.get("render", True)))
         self._horizon = horizon
         n = len(data["observations"])
@@ -156,7 +157,7 @@ class UnifiedAdapter:
         provides = set(getattr(agent.critic, "PROVIDES_COND", ()) or ())
         goal = None
         if "goal" in provides and "z" not in provides:
-            d = load_unified(cfg["data_dir"])
+            d = load_unified(cfg.get("data_dir") or registry.data_dir(cfg["task"]))
             goal = d["next_observations"][int(np.argmax(d["rewards"]))].astype(np.float32)
 
         successes, ticks, frames = [], [], []

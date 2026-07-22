@@ -1,8 +1,5 @@
-# mw-pick-place (Metaworld) — our collected demonstrations, via the `unified` adapter.
+# mw-pick-place via the unified adapter. Env + offline data are resolved from env/registry by `task`.
 adapter: unified
-env_name: mw-pick-place          # run-naming only; the env comes from `task`
+env_name: mw-pick-place          # run naming only
 task: mw-pick-place
-data_dir: /raid/tongle/rl/fb-data/collected/Metaworld__mw-pick-place
-horizon: 100
-val_frac: 0.05
-render: true           # rlmini needs the render env so episodes run the full horizon
+render: false
