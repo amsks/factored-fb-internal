@@ -6,6 +6,7 @@ impls/ never imports from here — impls/main.py (the harness entrance) does. Ad
 environment is a registry entry (env/registry.py) + a thin domain config, no algorithm change.
 """
 from env.base import DomainAdapter, get_adapter
+from env.config import make_config
 from env import registry
 
-__all__ = ["DomainAdapter", "get_adapter", "registry"]
+__all__ = ["DomainAdapter", "get_adapter", "make_config", "registry"]

@@ -17,9 +17,8 @@ from absl import app, flags
 import jax.numpy as jnp
 
 from impls.agents import Agent
-from impls.utils.config_utils import load_config
 from impls.utils.datasets import make_dataset
-from env import get_adapter
+from env import get_adapter, make_config
 from impls.utils.flax_utils import restore_agent, save_agent
 from impls.utils.log_utils import CsvLogger, get_exp_name, setup_wandb
 
@@ -87,7 +86,7 @@ def _append_agg(agg_dir, group, seed, step, row, task):
 
 
 def main(_):
-    cfg = load_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
+    cfg = make_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
 
     exp_name = get_exp_name(FLAGS.seed, FLAGS.critic, FLAGS.actor, cfg["env_name"])
     # Each run gets its own subdirectory so two seeds or two critic x actor pairs sharing a
