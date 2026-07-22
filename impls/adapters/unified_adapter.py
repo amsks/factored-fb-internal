@@ -150,6 +150,7 @@ class UnifiedAdapter:
         import jax
         slug = cfg["task"]
         horizon = getattr(self, "_horizon", None) or int(cfg.get("horizon", 100))
+        is_box2d = slug.startswith(("b2d-", "p2d-"))   # at-goal ticks are Box2D-only
         # z-critics condition on agent.cond_eval (goals=None); goal-conditioned critics need
         # an explicit goal, for which we use the highest-reward next_obs in the offline data.
         provides = set(getattr(agent.critic, "PROVIDES_COND", ()) or ())
@@ -158,12 +159,12 @@ class UnifiedAdapter:
             d = load_unified(cfg["data_dir"])
             goal = d["next_observations"][int(np.argmax(d["rewards"]))].astype(np.float32)
 
-        successes, dwells, frames = [], [], []
+        successes, ticks, frames = [], [], []
         for i in range(num_episodes):
             obs, info = seeded_reset(env, slug, i)
             key = jax.random.PRNGKey(i)
             ep_success = _flag(info.get("success", 0))
-            at_goal, nsteps = 0, 0
+            at_goal = int(_flag(info.get("success", 0)))
             record = i < num_video
             ff = [env.render()] if record else None
             for _ in range(horizon):
@@ -175,15 +176,15 @@ class UnifiedAdapter:
                 now = _flag(info.get("success", 0))
                 ep_success = ep_success or now
                 at_goal += int(now)
-                nsteps += 1
                 if record:
                     ff.append(env.render())
                 if _flag(term) or _flag(trunc):
                     break
             successes.append(float(ep_success))
-            dwells.append(at_goal / max(nsteps, 1))
+            ticks.append(at_goal)                       # integer steps spent at goal
             if record:
                 frames.append(np.array(ff))
-        return ({"success": float(np.mean(successes)),
-                 "at_goal_frac": float(np.mean(dwells)),
-                 "at_goal_ticks": float(np.mean(dwells) * horizon)}, frames)
+        out = {"success": float(np.mean(successes))}
+        if is_box2d:                                    # at-goal ticks: Box2D only, integer scale
+            out["at_goal_ticks"] = float(np.mean(ticks))
+        return out, frames

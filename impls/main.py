@@ -86,7 +86,7 @@ def _append_agg(agg_dir, group, seed, step, row, task):
     os.makedirs(agg_dir, exist_ok=True)
     rec = dict(seed=int(seed), step=int(step),
                success_rate=float(row.get("success", row.get("success_rate", 0.0))),
-               at_goal_frac=float(row.get("at_goal_frac", float("nan"))),
+               at_goal_ticks=float(row.get("at_goal_ticks", float("nan"))),  # Box2D only; integer steps at goal
                family=_FAMILY.get(str(task).split("-")[0]))
     with open(os.path.join(agg_dir, f"{group}__s{seed}.jsonl"), "a") as f:
         f.write(json.dumps(rec) + "\n")

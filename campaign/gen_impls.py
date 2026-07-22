@@ -16,9 +16,10 @@ NEWT_PY = "/raid/tongle/rl/newt/.venv/bin/python"      # unified venv: jax 0.4.3
 CAMPAIGN_OUT = "/raid/tongle/rl/fb-data/campaign"
 RUN_TAG = "impls_v1"
 
-# The 9 dev tasks served by the `unified` adapter. cube-single is omitted: it uses the
-# ogbench adapter's multi-task protocol, whose metrics don't line up with success/dwell.
-DOMAINS = ["b2d-center-ctrl", "b2d-center-ctrl-target", "b2d-center-wall",
+# The 10 dev tasks. cube-single goes through the `ogbench` adapter (mean success over its
+# task_infos); the other 9 through the `unified` adapter (success + Box2D-only at-goal ticks).
+DOMAINS = ["cube-single",
+           "b2d-center-ctrl", "b2d-center-ctrl-target", "b2d-center-wall",
            "b2d-goal-ctrl-maze", "b2d-goal-ctrl-target",
            "mw-push", "mw-pick-place", "ms-pick-cube", "ms-push-cube"]
 SEEDS = [0, 1, 2]

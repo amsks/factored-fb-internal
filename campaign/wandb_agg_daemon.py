@@ -51,7 +51,12 @@ def read_group(agg_dir, group):
             except json.JSONDecodeError:
                 continue
             per_step[int(d["step"])].append(float(d["success_rate"]))
-            per_dwell[int(d["step"])].append(float(d.get("at_goal_frac", float("nan"))))
+            # at_goal_ticks (Box2D only, integer scale); fall back to legacy frac*200
+            tk = d.get("at_goal_ticks")
+            if tk is None:
+                fr = d.get("at_goal_frac")
+                tk = (float(fr) * 200.0) if fr is not None else float("nan")
+            per_dwell[int(d["step"])].append(float(tk))
             fam = d.get("family", fam)
     return per_step, per_dwell, fam
 
@@ -97,8 +102,8 @@ def main():
                 d = np.asarray(per_dwell[s], dtype=np.float64)
                 wandb.log({"eval/success_mean": float(v.mean()),
                            "eval/success_std": float(v.std()),
-                           "eval/at_goal_mean": float(np.nanmean(d)),
-                           "eval/at_goal_std": float(np.nanstd(d)),
+                           "eval/at_goal_ticks_mean": float(np.nanmean(d)),
+                           "eval/at_goal_ticks_std": float(np.nanstd(d)),
                            "eval/n_seeds": int(len(v))}, step=s)
                 logged[group].add(s)
             print(f"[agg] {group}: logged steps {ready} "

@@ -1,0 +1,5 @@
+# cube-single (OGBench single-cube pick) via the ogbench adapter. Trained + reported through
+# the same impls.main / agg pipeline as the unified tasks; eval = mean success over OGBench's
+# fixed (init, goal) task_infos. No at-goal ticks (Box2D only).
+adapter: ogbench
+env_name: cube-single-play-v0
