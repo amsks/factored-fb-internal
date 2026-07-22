@@ -127,6 +127,7 @@ def main(cfg):
     n_episodes = int(cfg.get("num_episodes", 1000))
     n_envs = int(cfg.get("num_envs", 50))
     success_only = bool(cfg.get("success_only", True))
+    eps = float(cfg.get("eps", 0.0))   # prob of a uniform-random action (1.0 = random policy)
 
     cfg.enable_wandb = False
     cfg.env_mode = "sync"
@@ -164,6 +165,11 @@ def main(cfg):
         done = torch.ones(cfg.num_envs, dtype=torch.bool)
         while True:
             action = agent(obs, t0=done, task=tasks, eval_mode=True)
+            if eps > 0.0:
+                rmask = (torch.rand(action.shape[0], device=action.device) < eps)
+                if bool(rmask.any()):
+                    rand_a = torch.rand_like(action) * 2.0 - 1.0   # uniform [-1, 1]
+                    action = torch.where(rmask[:, None], rand_a, action)
             obs, reward, terminated, truncated, info = env.step(action)
             obs_seq.append(_state(obs))
             act_seq.append(np.asarray(action.cpu(), dtype=np.float32))

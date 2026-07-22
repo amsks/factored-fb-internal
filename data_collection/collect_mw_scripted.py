@@ -77,6 +77,7 @@ def main():
     ap.add_argument("--horizon", type=int, default=100)
     ap.add_argument("--success_only", type=int, default=1)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--eps", type=float, default=0.0, help="prob of uniform-random action (1.0=random)")
     ap.add_argument("--max_attempts_mult", type=int, default=10,
                     help="give up after num_episodes*mult rollouts (low-yield scripted policy)")
     args = ap.parse_args()
@@ -100,6 +101,8 @@ def main():
         for _ in range(args.horizon):
             a = np.asarray(policy.get_action(np.asarray(obs, np.float64).reshape(-1)), np.float32)
             a = np.clip(a, -1.0, 1.0).reshape(-1)
+            if args.eps > 0.0 and np.random.rand() < args.eps:
+                a = np.random.uniform(-1.0, 1.0, size=a.shape).astype(np.float32)
             obs, reward, term, trunc, info = env.step(a)
             obs_seq.append(np.asarray(obs, np.float32).reshape(-1))
             acts.append(a.astype(np.float32))
