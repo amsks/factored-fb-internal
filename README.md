@@ -38,29 +38,37 @@ actor family. Which knobs of the old research shim map to which critic is record
 
 `impls/agents/__init__.py` composes a **critic** (the value representation) with an **actor**
 (the policy) over per-group Flax `TrainState`s, and `check_combo` (`impls/critics/base.py`)
-validates the pair before building — an actor that needs a value function (`AWR`) or a
-conditioning key (`flowbc` needs `cond["z"]`) is rejected up front with a named reason.
+validates the pair before building. **All 32 critic × actor pairs are valid** — every actor
+composes with every critic.
 
 **Critics:** `fb`, `gciql`, `isfb`, `iql_bilinear`, `simple_sf`, `sf_feature`,
 `centered_bilinear`, `fb_forward_bilinear`
 **Actors:** `flowbc` (flow-matching + distilled noise actor), `ddpgbc` (DDPG+BC),
-`awr` (advantage-weighted regression, needs a V-providing critic), `fql` (one-step flow).
-
-Validated pairs (from `check_combo` — the source of truth):
+`awr` (advantage-weighted regression), `fql` (one-step flow).
 
 | critic \ actor | flowbc | ddpgbc | awr | fql |
 |---|:---:|:---:|:---:|:---:|
-| `fb` | ✅ | ✅ | — | ✅ |
-| `gciql` | — | ✅ | ✅ | ✅ |
+| `fb` | ✅ | ✅ | ✅ᵛ | ✅ |
+| `gciql` | ✅ᶜ | ✅ | ✅ | ✅ |
 | `isfb` | ✅ | ✅ | ✅ | ✅ |
-| `iql_bilinear` | — | ✅ | ✅ | ✅ |
-| `simple_sf` | — | ✅ | ✅ | ✅ |
-| `sf_feature` | — | ✅ | — | ✅ |
-| `centered_bilinear` | — | ✅ | — | ✅ |
-| `fb_forward_bilinear` | — | ✅ | ✅ | ✅ |
+| `iql_bilinear` | ✅ᶜ | ✅ | ✅ | ✅ |
+| `simple_sf` | ✅ᶜ | ✅ | ✅ | ✅ |
+| `sf_feature` | ✅ᶜ | ✅ | ✅ᵛ | ✅ |
+| `centered_bilinear` | ✅ᶜ | ✅ | ✅ᵛ | ✅ |
+| `fb_forward_bilinear` | ✅ᶜ | ✅ | ✅ | ✅ |
 
-`flowbc` requires a critic that produces a `z` conditioning key (FB / ISFB); `awr` requires a
-critic with `PROVIDES_V = True`.
+Every pair builds and trains. Two cells use **fallback semantics** where the critic lacks the
+native quantity the actor prefers:
+
+- **ᶜ** — `flowbc` conditions on the critic's `cond_vec`. For `fb`/`isfb` that *is* the latent
+  `z` (native); for goal-critics it is the **goal**, making it a goal-conditioned flow-BC actor
+  (the flow field stays goal-agnostic; only the one-step actor is conditioned).
+- **ᵛ** — `awr` uses a native value `V(s)` when the critic provides one; for value-less critics
+  (`fb`, `sf_feature`, `centered_bilinear`) it falls back to a **policy-baseline advantage**
+  `A = Q(s,a) − Q(s, π(s))`.
+
+`fb`/`isfb`-flowbc and every V-critic-awr are **byte-identical** to before this generalization
+(guarded by the parity fixtures); only the fallback cells are new.
 
 ---
 

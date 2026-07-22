@@ -30,9 +30,10 @@ def _batch(B=16, obs=8, act=5, seed=0):
             "rewards": np.zeros((B, 1), np.float32), "terminals": np.zeros((B,), np.float32)}
 
 
-def test_awr_on_fb_raises():
-    with pytest.raises(ComboError, match="requires a V function"):
-        Agent.create("fb", "awr", 0, jnp.zeros((2, 8)), jnp.zeros((2, 5)), _cfg("awr"))
+def test_awr_on_fb_builds_with_policy_baseline():
+    # fb has no V; AWRActor now falls back to a policy-baseline advantage, so the pair builds.
+    agent = Agent.create("fb", "awr", 0, jnp.zeros((2, 8)), jnp.zeros((2, 5)), _cfg("awr"))
+    assert agent is not None
 
 
 @pytest.mark.parametrize("actor_kind", ["ddpgbc", "fql"])

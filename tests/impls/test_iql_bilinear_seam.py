@@ -244,12 +244,14 @@ def test_valid_combos_construct(actor):
     assert agent is not None
 
 
-def test_flowbc_combo_rejected():
-    """FlowBCActor hard-requires cond['z'] unconditionally; IqlBilinearCritic only promises
-    value_goal/goal (its z exists only under actor_cond='z'), so the pair is invalid."""
+def test_flowbc_combo_builds():
+    """FlowBCActor now conditions on IqlBilinearCritic.cond_vec (the goal under the default
+    actor_cond='goal'), so the pair builds a goal-conditioned flow-BC actor."""
+    from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
-    with pytest.raises(ComboError, match="z"):
-        Agent.create("iql_bilinear", "flowbc", 0, ex_obs, ex_act, _full_cfg("flowbc"))
+    cfg = load_config("iql_bilinear", "flowbc", "cube_single")
+    agent = Agent.create("iql_bilinear", "flowbc", 0, ex_obs, ex_act, cfg)
+    assert agent is not None
 
 
 @pytest.mark.parametrize("over", [dict(), dict(actor_cond="z"), dict(project_z=True),
