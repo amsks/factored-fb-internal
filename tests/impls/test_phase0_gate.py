@@ -62,8 +62,8 @@ def test_pair_trains_or_is_rejected(critic, actor):
     assert jnp.isfinite(jnp.asarray(info["actor_loss"])).all()
 
 
-def test_all_forty_pairs_are_valid():
+def test_all_fiftyfive_pairs_are_valid():
     """Pins the gate's floor: all 32 critic x actor pairs are legitimate, none rejected."""
-    assert len(PAIRS) == 40
+    assert len(PAIRS) == 55
     assert EXPECTED_COMBO_ERRORS == set()
-    assert len(set(PAIRS) - EXPECTED_COMBO_ERRORS) == 40
+    assert len(set(PAIRS) - EXPECTED_COMBO_ERRORS) == 55

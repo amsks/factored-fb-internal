@@ -28,6 +28,13 @@ REQUIRED_KEYS = {
     # gciql.py:build() reads lr/batch_size/discount/expectile/tau/value_hidden_dims/
     # layer_norm; datasets.py:GCDataset (built *before* Agent.create, datasets.py:96-116)
     # reads the goal-sampling and dataset_class keys.
+    "psm": (
+        "lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount",
+        "num_parallel", "ortho_coef", "fb_pessimism_penalty",
+        "train_goal_ratio", "norm_z", "f_target_tau",
+        "forward.hidden_dim", "forward.hidden_layers", "forward.embedding_layers",
+        "backward.hidden_dim", "backward.hidden_layers", "backward.norm",
+    ),
     "qrl": (
         "lr", "batch_size", "discount", "value_hidden_dims", "latent_dim", "layer_norm",
         "quasimetric_type", "dim_per_component", "eps",

@@ -109,6 +109,24 @@ def _min_cfg_for(critic_kind, actor_kind):
             actor_cond="goal", actor_z_from_critic=False, actor_z_infer=False,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
         )
+    elif critic_kind == "crl":
+        base = dict(
+            value_hidden_dims=[64, 64], latent_dim=8, layer_norm=True, discount=0.99,
+            lr=3e-4, lr_actor=3e-4, z_dim=8,
+        )
+    elif critic_kind == "qrl":
+        base = dict(
+            value_hidden_dims=[64, 64], latent_dim=8, layer_norm=True, discount=0.99,
+            quasimetric_type="iqe", dim_per_component=4, eps=0.05, lr=3e-4, lr_actor=3e-4, z_dim=8,
+        )
+    elif critic_kind == "psm":
+        base = dict(
+            z_dim=8, num_parallel=2, discount=0.98, f_target_tau=0.005, ortho_coef=1.0,
+            train_goal_ratio=0.5, fb_pessimism_penalty=0.0, norm_z=True,
+            lr_f=1e-4, lr_b=1e-4, lr_actor=1e-4,
+            forward=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
+            backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
+        )
     else:  # gciql
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
@@ -142,7 +160,7 @@ def test_every_registered_pair_composes():
     # AWRActor falls back to a policy-baseline advantage when the critic has no V, so EVERY
     # registered pair is legitimate.
     assert skipped == [], f"no pair should be rejected any more, but these were: {skipped}"
-    assert len(built) == 40  # all 40 registered pairs (8 critics x 5 actors) build a working Agent
+    assert len(built) == 55  # all 55 registered pairs (11 critics x 5 actors) build a working Agent
 
 
 def test_gciql_flowbc_builds():
