@@ -100,8 +100,14 @@ does **not** move):
   (`pyproject.toml`, `Makefile`, requirements) + `README.md` + `docs/`.
 - Prune `requirements*.txt` / `pyproject.toml` / `Makefile` to JAX-only deps and targets
   (drop torch, `exca`, DMC, torch smoke targets).
-- Gitignored artifact trees (`PAPER/`, `results/`, `analysis/`, `data/`) are untracked per
-  `CLAUDE.md` and are left untouched.
+- **Research-artifact trees are removed from this branch.** On `feat/jaxify` these are
+  *tracked* (`PAPER/` 145 files, `analysis/` 12, `results/` 3, `data/` 2), unlike the
+  CLAUDE.md convention. `feat/jaxify` becomes a clean **code-only** branch:
+  `git rm -r PAPER analysis results data`, then add them to `.gitignore` so the branch
+  stays clean. This is branch-scoped: the removal is a commit on `feat/jaxify` only —
+  other branches (e.g. `gciql-fb-bridge`) keep them tracked, and the **main worktree's**
+  on-disk copies (a separate working directory) are untouched. The user's requirement is
+  "keep PAPER on disk and on other branches, but not on `feat/jaxify`."
 
 Each deletion batch is its own commit with a message naming what went and why it was safe
 (self-contained `impls/`, out-of-scope agent, dead-path config).
@@ -134,7 +140,10 @@ Replace the current torch-era README (it still describes building `FBAgent`/`FBF
 - PSM, RLDP, TD-MPC2 (remain on their own branches).
 - Any new agent or behaviour change to `impls/` beyond a live-gap port.
 - Pixel/DrQ port (deferred, decision 5).
-- Merging `feat/jaxify` anywhere — this cleanup does not touch `main`/`gciql-fb-bridge`.
+- Scene domain + `value_split` factored value (deferred, like pixel; `impls/` stays
+  cube-single).
+- Merging `feat/jaxify` anywhere — this cleanup does not touch `main`/`gciql-fb-bridge`
+  or the main worktree's on-disk artifacts.
 
 ## Baseline recorded
 
