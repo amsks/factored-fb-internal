@@ -16,6 +16,17 @@ NEWT_PY = "/raid/tongle/rl/newt/.venv/bin/python"      # unified venv: jax 0.4.3
 CAMPAIGN_OUT = "/raid/tongle/rl/fb-data/campaign"
 RUN_TAG = "impls_v1"
 
+# The 10 dev tasks. cube-single goes through the `ogbench` adapter (mean success over its
+# task_infos); the other 9 through the `unified` adapter (success + Box2D-only at-goal ticks).
+DOMAINS = ["cube-single",
+           "b2d-center-ctrl", "b2d-center-ctrl-target", "b2d-center-wall",
+           "b2d-goal-ctrl-maze", "b2d-goal-ctrl-target",
+           "mw-push", "mw-pick-place", "ms-pick-cube", "ms-push-cube"]
+SEEDS = [0, 1, 2]
+TRAIN_STEPS = 500_000
+SAVE_INTERVAL = 100_000
+EVAL_INTERVAL = 20_000
+EVAL_EPISODES = 50
 
 
 def main():
