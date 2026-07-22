@@ -69,13 +69,16 @@ class FBDataset(Dataset):
             rewards = np.asarray(sub['rewards'], np.float32).reshape(B, -1)
         else:
             rewards = np.zeros((B, 1), np.float32)  # play data is unlabeled
-        return {
+        out = {
             'observations': np.asarray(sub['observations'], np.float32),
             'actions': np.asarray(sub['actions'], np.float32),
             'next_observations': np.asarray(sub['next_observations'], np.float32),
             'rewards': rewards,
             'terminals': np.zeros((B,), np.float32),  # always-gamma
         }
+        if 'teacher_actions' in sub:                   # detached-BC relabeling (frozen teacher)
+            out['teacher_actions'] = np.asarray(sub['teacher_actions'], np.float32)
+        return out
 
 
 @dataclasses.dataclass

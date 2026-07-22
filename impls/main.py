@@ -36,6 +36,10 @@ flags.DEFINE_integer("save_interval", 1_000_000, "Checkpoint every N steps.")
 flags.DEFINE_integer("eval_episodes", 20, "Episodes per eval task.")
 flags.DEFINE_string("agg_dir", None, "dir for per-seed eval jsonls that campaign/wandb_agg_daemon.py aggregates into {group}__agg")
 flags.DEFINE_string("agg_group", None, "aggregation key; default <critic>_<actor>__<domain>")
+flags.DEFINE_string("teacher", None, "detached-BC teacher policy: dp | l2bc | None (co-train BC)")
+flags.DEFINE_integer("teacher_demos", 128, "which teacher checkpoint (128 or 64 demos)")
+flags.DEFINE_string("teacher_root", "/raid/tongle/rl/fb-data/campaign/teacher", "teacher checkpoint root")
+flags.DEFINE_integer("teacher_seed", 0, "which teacher seed checkpoint to load")
 flags.DEFINE_string("save_dir", "exp/", "Checkpoint directory.")
 flags.DEFINE_string("restore_path", "", "Glob matching exactly one run dir to restore from.")
 flags.DEFINE_integer("restore_epoch", 0, "Checkpoint step to restore (params_{epoch}.pkl).")
@@ -95,6 +99,10 @@ def _append_agg(agg_dir, group, seed, step, row, task):
 def main(_):
     critic_name = CRITIC_ALIASES.get(FLAGS.critic, FLAGS.critic)
     cfg = load_config(critic_name, FLAGS.actor, FLAGS.domain, FLAGS.override)
+    if FLAGS.teacher and cfg.get("task"):
+        from impls.teacher import resolve_ckpt
+        cfg["teacher_ckpt"] = resolve_ckpt(FLAGS.teacher_root, FLAGS.teacher,
+                                           FLAGS.teacher_demos, cfg["task"], FLAGS.teacher_seed)
 
     exp_name = get_exp_name(FLAGS.seed, FLAGS.critic, FLAGS.actor, cfg["env_name"])
     # Each run gets its own subdirectory so two seeds or two critic x actor pairs sharing a

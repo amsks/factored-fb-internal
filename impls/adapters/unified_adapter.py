@@ -127,6 +127,14 @@ class UnifiedAdapter:
 
     def make_env_and_datasets(self, cfg):
         data = load_unified(cfg["data_dir"])
+        # DETACHED BC: relabel the dataset with a frozen pretrained teacher's action, once,
+        # offline. Actors then regress toward data["teacher_actions"] instead of co-training
+        # a BC head. teacher_ckpt is resolved in main.py from --teacher/--teacher_demos.
+        tck = cfg.get("teacher_ckpt")
+        if tck:
+            from impls.teacher import load_teacher
+            data["teacher_actions"] = load_teacher(tck).relabel(data["observations"])
+            print(f"[unified] relabeled with teacher {tck}", flush=True)
         env, horizon = make_task_env(cfg["task"], render=bool(cfg.get("render", True)))
         self._horizon = horizon
         n = len(data["observations"])

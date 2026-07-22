@@ -22,39 +22,17 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 import optax
-import flax.linen as nn
 from flax.training.train_state import TrainState
 
 FB = "/raid/tongle/rl/Factored-FB"
 if FB not in sys.path:
     sys.path.insert(0, FB)
 from impls.adapters.unified_adapter import make_task_env, seeded_reset, load_unified, _flag  # noqa: E402
+from impls.teacher.nets import MLP, FlowVF  # noqa: E402
 
 _FAMILY = {"b2d": "Box2D", "p2d": "Box2D", "mw": "Metaworld", "ms": "ManiSkill"}
 
 
-class MLP(nn.Module):
-    hidden: tuple
-    out: int
-
-    @nn.compact
-    def __call__(self, x):
-        for h in self.hidden:
-            x = nn.relu(nn.Dense(h)(x))
-        return nn.Dense(self.out)(x)
-
-
-class FlowVF(nn.Module):
-    """Velocity field v(obs, a, t) -> da/dt for flow-matching BC."""
-    hidden: tuple
-    adim: int
-
-    @nn.compact
-    def __call__(self, obs, a, t):
-        x = jnp.concatenate([obs, a, t], -1)
-        for h in self.hidden:
-            x = nn.relu(nn.Dense(h)(x))
-        return nn.Dense(self.adim)(x)
 
 
 def _append_agg(agg_dir, group, seed, step, row, task):
