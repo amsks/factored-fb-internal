@@ -117,29 +117,53 @@ def main():
         loss, grads = jax.value_and_grad(loss_fn)(state.params, ob, ac, key)
         return state.apply_gradients(grads=grads), loss
 
-    env, horizon = make_task_env(args.task, render=bool(args.task.startswith(("b2d-", "p2d-"))))
+    is_cube = args.task == "cube-single"
     is_box2d = args.task.startswith(("b2d-", "p2d-"))
+    if is_cube:
+        # OGBench cube is goal-conditioned; the teacher is goal-BLIND pi(a|s) (a behavior
+        # prior). Eval = mean success over its task_infos, ignoring the goal. Low by design.
+        import ogbench
+        env, _, _ = ogbench.make_env_and_datasets("cube-single-play-v0", compact_dataset=True)
+        n_tasks = len(env.unwrapped.task_infos)
 
-    def evaluate():
-        succ, ticks = [], []
-        for i in range(args.eval_episodes):
-            ob, info = seeded_reset(env, args.task, i)
-            s = _flag(info.get("success", 0))
-            ag = int(s)
-            for _ in range(horizon):
-                a = act_fn(state.params, np.asarray(ob, np.float32)[None])[0]
-                ob, _r, term, trunc, info = env.step(np.clip(a, -1.0, 1.0))
-                now = _flag(info.get("success", 0))
-                s = s or now
-                ag += int(now)
-                if _flag(term) or _flag(trunc):
-                    break
-            succ.append(float(s))
-            ticks.append(ag)
-        out = {"success": float(np.mean(succ))}
-        if is_box2d:
-            out["at_goal_ticks"] = float(np.mean(ticks))
-        return out
+        def evaluate():
+            succ = []
+            per = max(1, args.eval_episodes // n_tasks)
+            for tid in range(1, n_tasks + 1):
+                for _ in range(per):
+                    ob, info = env.reset(options=dict(task_id=tid, render_goal=False))
+                    s = _flag(info.get("success", 0))
+                    for _ in range(1000):
+                        a = act_fn(state.params, np.asarray(ob, np.float32).reshape(1, -1))[0]
+                        ob, _r, term, trunc, info = env.step(np.clip(a, -1.0, 1.0))
+                        s = s or _flag(info.get("success", 0))
+                        if _flag(term) or _flag(trunc):
+                            break
+                    succ.append(float(s))
+            return {"success": float(np.mean(succ))}
+    else:
+        env, horizon = make_task_env(args.task, render=is_box2d)
+
+        def evaluate():
+            succ, ticks = [], []
+            for i in range(args.eval_episodes):
+                ob, info = seeded_reset(env, args.task, i)
+                s = _flag(info.get("success", 0))
+                ag = int(s)
+                for _ in range(horizon):
+                    a = act_fn(state.params, np.asarray(ob, np.float32)[None])[0]
+                    ob, _r, term, trunc, info = env.step(np.clip(a, -1.0, 1.0))
+                    now = _flag(info.get("success", 0))
+                    s = s or now
+                    ag += int(now)
+                    if _flag(term) or _flag(trunc):
+                        break
+                succ.append(float(s))
+                ticks.append(ag)
+            out = {"success": float(np.mean(succ))}
+            if is_box2d:
+                out["at_goal_ticks"] = float(np.mean(ticks))
+            return out
 
     def do_eval(step):
         r = evaluate()
