@@ -115,12 +115,22 @@ def main():
             xt = (1 - t) * x0 + t * ac
             return jnp.mean((net.apply(p, ob, xt, t) - (ac - x0)) ** 2)
 
+        fs = args.flow_steps
+
+        @jax.jit
+        def _flow_action(p, ob):
+            # full Euler rollout from FIXED noise (seed 128), as ONE jitted call --
+            # the per-step unjitted version made eval ~100x slower and stalled runs.
+            a0 = jax.random.normal(jax.random.PRNGKey(128), (ob.shape[0], adim))
+
+            def body(i, a):
+                t = jnp.full((ob.shape[0], 1), i / fs)
+                return a + net.apply(p, ob, a, t) / fs
+
+            return jnp.clip(jax.lax.fori_loop(0, fs, body, a0), -1.0, 1.0)
+
         def act_fn(p, ob):
-            a = jax.random.normal(jax.random.PRNGKey(128), (ob.shape[0], adim))  # FIXED noise
-            for i in range(args.flow_steps):
-                t = jnp.ones((ob.shape[0], 1)) * (i / args.flow_steps)
-                a = a + net.apply(p, ob, a, t) / args.flow_steps
-            return np.clip(np.asarray(a), -1.0, 1.0)
+            return np.asarray(_flow_action(p, jnp.asarray(ob, jnp.float32)))
 
     state = TrainState.create(apply_fn=None, params=params, tx=optax.adam(args.lr))
 
