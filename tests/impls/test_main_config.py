@@ -138,31 +138,19 @@ def test_every_registered_pair_composes():
             assert agent is not None
             built.append((c, a))
 
-    assert ("gciql", "flowbc") in skipped, "gciql x flowbc is not a legitimate pair (see test below)"
-    assert ("fb", "awr") in skipped, "fb x awr is not a legitimate pair (fb doesn't PROVIDES_V)"
-    # isfb x awr IS legitimate where fb x awr is not: ISFBCritic.PROVIDES_V is True.
-    assert ("isfb", "awr") in built
-    # iql_bilinear x flowbc joins gciql x flowbc: neither promises FlowBCActor's cond["z"].
-    assert ("iql_bilinear", "flowbc") in skipped
-    # The three z-blind bilinear-family critics (simple_sf, sf_feature, centered_bilinear,
-    # fb_forward_bilinear) likewise reject flowbc; the two V-less ones (sf_feature,
-    # centered_bilinear have PROVIDES_V=False) also reject awr.
-    for c in ("simple_sf", "sf_feature", "centered_bilinear", "fb_forward_bilinear"):
-        assert (c, "flowbc") in skipped, f"{c} x flowbc should be rejected (no cond['z'])"
-    assert ("sf_feature", "awr") in skipped
-    assert ("centered_bilinear", "awr") in skipped
-    assert len(built) == 23  # 23 of the 32 registered pairs are legitimate; 9 combo-invalid
+    # FlowBCActor now conditions on the critic's cond_vec (z for FB/ISFB, goal otherwise) and
+    # AWRActor falls back to a policy-baseline advantage when the critic has no V, so EVERY
+    # registered pair is legitimate.
+    assert skipped == [], f"no pair should be rejected any more, but these were: {skipped}"
+    assert len(built) == 40  # all 40 registered pairs (8 critics x 5 actors) build a working Agent
 
 
-def test_gciql_flowbc_raises_combo_error():
-    """gciql×flowbc is not a legitimate pair: FlowBCActor hard-requires cond["z"]
-    (REQUIRES_COND={"z"}) but GCIQLCritic.sample_cond only produces value_goal/goal
-    (PROVIDES_COND={"value_goal","goal"}). check_combo must name this, not fail later with
-    a misleading error (e.g. a missing-config-key ConfigError, or a bare KeyError on
-    cond["z"] the first time the actor is used)."""
+def test_gciql_flowbc_builds():
+    """gciql×flowbc is now legitimate: FlowBCActor conditions on GCIQLCritic.cond_vec (the
+    goal), so it builds a goal-conditioned flow-BC actor rather than raising ComboError."""
     from impls.agents import Agent
 
     ex_obs, ex_act = jnp.zeros((2, 8)), jnp.zeros((2, 5))
     cfg = _min_cfg_for("gciql", "flowbc")
-    with pytest.raises(ComboError, match="z"):
-        Agent.create("gciql", "flowbc", 0, ex_obs, ex_act, cfg)
+    agent = Agent.create("gciql", "flowbc", 0, ex_obs, ex_act, cfg)
+    assert agent is not None

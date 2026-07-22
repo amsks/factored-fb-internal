@@ -89,13 +89,13 @@ def test_coord_mode_forces_alpha_v_zero():
     assert critic.alpha_v == 0.0
 
 
-def test_awr_constructs_against_isfb_but_not_fb():
-    """The new capability: an FB-family critic that satisfies AWRActor.NEEDS_V."""
+def test_awr_constructs_against_isfb_and_fb():
+    """ISFB exposes a native V (v = <F_V, z>); AWR uses it directly. AWR now also composes
+    with plain FB via its policy-baseline fallback, so neither pair raises ComboError."""
     from impls.actors.awr import AWRActor
     from impls.critics.fb import FBCritic
-    check_combo(ISFBCritic, AWRActor)                    # must not raise
-    with pytest.raises(ComboError):
-        check_combo(FBCritic, AWRActor)
+    check_combo(ISFBCritic, AWRActor)   # must not raise (native V)
+    check_combo(FBCritic, AWRActor)     # must not raise either (policy-baseline fallback)
     assert _agent("awr") is not None
 
 

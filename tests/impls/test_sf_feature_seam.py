@@ -284,13 +284,14 @@ def test_valid_combos_construct(actor):
     assert agent is not None
 
 
-@pytest.mark.parametrize("actor,match", [("flowbc", "z"), ("awr", "V")])
-def test_invalid_combos_rejected(actor, match):
-    """flowbc hard-requires cond['z'] (SfFeature only promises goal); awr NEEDS_V (SfFeature is
-    SF-only, PROVIDES_V=False). Both are ComboErrors, not silent breakage."""
+@pytest.mark.parametrize("actor", ["flowbc", "awr"])
+def test_flowbc_and_awr_now_build(actor):
+    """Both now compose: flowbc conditions on SfFeature's cond_vec (goal); awr uses a
+    policy-baseline advantage since SfFeature is SF-only (PROVIDES_V=False)."""
+    from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
-    with pytest.raises(ComboError, match=match):
-        Agent.create("sf_feature", actor, 0, ex_obs, ex_act, _full_cfg(actor))
+    cfg = load_config("sf_feature", actor, "cube_single")
+    assert Agent.create("sf_feature", actor, 0, ex_obs, ex_act, cfg) is not None
 
 
 @pytest.mark.parametrize("over", [

@@ -315,10 +315,13 @@ def test_valid_combos_construct(actor):
     assert Agent.create("fb_forward_bilinear", actor, 0, ex_obs, ex_act, _full_cfg(actor)) is not None
 
 
-def test_flowbc_combo_rejected():
+def test_flowbc_combo_builds():
+    """FlowBCActor now conditions on fb_forward_bilinear's cond_vec (goal), so it builds."""
+    from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
-    with pytest.raises(ComboError, match="z"):
-        Agent.create("fb_forward_bilinear", "flowbc", 0, ex_obs, ex_act, _full_cfg("flowbc"))
+    cfg = load_config("fb_forward_bilinear", "flowbc", "cube_single")
+    agent = Agent.create("fb_forward_bilinear", "flowbc", 0, ex_obs, ex_act, cfg)
+    assert agent is not None
 
 
 def test_actor_cond_z_and_eval_mapping():

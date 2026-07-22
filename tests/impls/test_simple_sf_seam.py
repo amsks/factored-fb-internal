@@ -225,12 +225,13 @@ def test_valid_combos_construct(actor):
     assert agent is not None
 
 
-def test_flowbc_combo_rejected():
-    """FlowBCActor hard-requires cond['z'] unconditionally; SimpleSfCritic (actor_cond pinned
-    to goal) only promises value_goal/goal, so the pair is invalid — exactly like gciql."""
+def test_flowbc_combo_builds():
+    """FlowBCActor now conditions on SimpleSfCritic.cond_vec (the goal), so it builds a
+    goal-conditioned flow-BC actor."""
+    from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
-    with pytest.raises(ComboError, match="z"):
-        Agent.create("simple_sf", "flowbc", 0, ex_obs, ex_act, _full_cfg("flowbc"))
+    cfg = load_config("simple_sf", "flowbc", "cube_single")
+    assert Agent.create("simple_sf", "flowbc", 0, ex_obs, ex_act, cfg) is not None
 
 
 @pytest.mark.parametrize("over", [dict(), dict(project_z=True),

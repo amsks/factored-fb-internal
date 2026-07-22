@@ -288,15 +288,18 @@ def test_dueling_rejects_centered_only_knobs():
 
 
 # ------------------------------------------------------------- actor pairing + smoke train
-def test_pairs_with_fql_and_ddpgbc_rejects_flowbc_and_awr():
+def test_pairs_with_all_four_actors_build():
+    """All four actors now compose with centered_bilinear: fql/ddpgbc as before; flowbc via
+    its cond_vec (goal) fallback; awr via its policy-baseline advantage (centered_bilinear is
+    PROVIDES_V=False, so AWR uses Q(s,a)-Q(s,pi(s)) rather than a native V)."""
+    from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
     for actor in ("fql", "ddpgbc"):
         assert Agent.create("centered_bilinear", actor, 0, ex_obs, ex_act,
                             _full_cfg(actor)) is not None
-    with pytest.raises(ComboError, match="z"):            # flowbc needs cond["z"]
-        Agent.create("centered_bilinear", "flowbc", 0, ex_obs, ex_act, _full_cfg("flowbc"))
-    with pytest.raises(ComboError, match="V function"):   # awr needs a V
-        Agent.create("centered_bilinear", "awr", 0, ex_obs, ex_act, _full_cfg("awr"))
+    for actor in ("flowbc", "awr"):
+        cfg = load_config("centered_bilinear", actor, "cube_single")
+        assert Agent.create("centered_bilinear", actor, 0, ex_obs, ex_act, cfg) is not None
 
 
 @pytest.mark.parametrize("mode", ["dueling", "centered_aux", "centered_only"])

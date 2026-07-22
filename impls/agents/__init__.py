@@ -20,6 +20,7 @@ from impls.critics.centered_bilinear import CenteredBilinearCritic
 from impls.critics.fb_forward_bilinear import FbForwardBilinearCritic
 from impls.actors.flowbc import FlowBCActor
 from impls.actors.ddpgbc import DDPGBCActor
+from impls.actors.ddpg import DDPGActor
 from impls.actors.awr import AWRActor
 from impls.actors.fql import FQLActor
 
@@ -27,7 +28,7 @@ CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "isfb": ISFBCritic,
            "iql_bilinear": IqlBilinearCritic, "simple_sf": SimpleSfCritic,
            "sf_feature": SfFeatureCritic, "centered_bilinear": CenteredBilinearCritic,
            "fb_forward_bilinear": FbForwardBilinearCritic}
-ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor}
+ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "ddpg": DDPGActor, "awr": AWRActor, "fql": FQLActor}
 
 # per-group learning rates come from config; this maps group -> config key.
 _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
