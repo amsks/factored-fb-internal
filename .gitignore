@@ -79,3 +79,9 @@ datasets*/
 .ref-papers/
 # graphify knowledge graph — derived from the tree, rebuilt by .githooks/post-commit
 graphify-out/
+
+# Research artifacts — kept on other branches + the main worktree, not on feat/jaxify
+PAPER/
+analysis/
+results/
+data/
