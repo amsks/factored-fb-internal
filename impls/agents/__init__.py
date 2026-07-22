@@ -12,6 +12,8 @@ from impls.utils.flax_utils import TrainState, soft_update, nonpytree_field
 from impls.critics.base import check_combo
 from impls.critics.fb import FBCritic
 from impls.critics.gciql import GCIQLCritic
+from impls.critics.crl import CRLCritic
+from impls.critics.qrl import QRLCritic
 from impls.critics.isfb import ISFBCritic
 from impls.critics.iql_bilinear import IqlBilinearCritic
 from impls.critics.simple_sf import SimpleSfCritic
@@ -24,7 +26,7 @@ from impls.actors.ddpg import DDPGActor
 from impls.actors.awr import AWRActor
 from impls.actors.fql import FQLActor
 
-CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "isfb": ISFBCritic,
+CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "crl": CRLCritic, "qrl": QRLCritic, "isfb": ISFBCritic,
            "iql_bilinear": IqlBilinearCritic, "simple_sf": SimpleSfCritic,
            "sf_feature": SfFeatureCritic, "centered_bilinear": CenteredBilinearCritic,
            "fb_forward_bilinear": FbForwardBilinearCritic}
@@ -34,6 +36,7 @@ ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "ddpg": DDPGActor, "awr"
 _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            "value_forward": "lr_f",                       # isfb F_V rides the forward group
            "value": "lr", "critic": "lr", "center_b": "lr",  # gciql / centered_bilinear groups
+           "lam": "lr", "dynamics": "lr",  # qrl groups
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf
            "actor_bc_flow": "lr_actor", "actor_onestep": "lr_actor"}  # fql groups
 
