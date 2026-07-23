@@ -27,6 +27,12 @@ TRAIN_STEPS = 500_000
 SAVE_INTERVAL = 100_000
 EVAL_INTERVAL = 20_000
 EVAL_EPISODES = 50
+# Eval video (env/video.py). Recorded on SEED 0 only -- one rollout per (critic, actor,
+# domain) is enough to eyeball behaviour, and three identical seeds would just triple the
+# render cost. VIDEO_INTERVAL is deliberately coarser than EVAL_INTERVAL.
+VIDEO_EPISODES = 2
+VIDEO_INTERVAL = 250_000
+VIDEO_SEED = 0
 
 
 def main():
@@ -36,6 +42,8 @@ def main():
     ap.add_argument("--domains", default=",".join(DOMAINS))
     ap.add_argument("--out", default=f"{FB}/campaign/jobs_impls.txt")
     ap.add_argument("--tag", default=RUN_TAG)
+    ap.add_argument("--video_episodes", type=int, default=VIDEO_EPISODES,
+                    help="eval rollout episodes recorded to mp4 on seed 0 (0 = no video)")
     args = ap.parse_args()
 
     critics = [c for c in args.critics.split(",") if c]
@@ -52,13 +60,16 @@ def main():
             for dom in domains:
                 for s in SEEDS:
                     save_dir = f"{CAMPAIGN_OUT}/{args.tag}/{critic}_{actor}__{dom}__s{s}"
+                    video = (f"--eval_video_episodes {args.video_episodes} "
+                             f"--video_interval {VIDEO_INTERVAL} "
+                             if args.video_episodes > 0 and s == VIDEO_SEED else "")
                     lines.append(
                         f"MUJOCO_GL=egl XLA_PYTHON_CLIENT_PREALLOCATE=false "
                         f"PYTHONPATH={FB} {NEWT_PY} -m impls.main "
                         f"--critic {critic} --actor {actor} --domain {dom} --seed {s} "
                         f"--save_dir {save_dir} --train_steps {TRAIN_STEPS} "
                         f"--save_interval {SAVE_INTERVAL} --eval_interval {EVAL_INTERVAL} "
-                        f"--eval_episodes {EVAL_EPISODES} "
+                        f"--eval_episodes {EVAL_EPISODES} " + video +
                         f"--agg_dir {agg_dir} "
                         f"--agg_group {critic}_{actor}__{dom}"
                     )
