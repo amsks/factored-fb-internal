@@ -2,4 +2,4 @@
 adapter: unified
 env_name: mw-push          # run naming only
 task: mw-push
-render: false
+render: true              # eval rollouts are recorded to mp4 (env/video.py)

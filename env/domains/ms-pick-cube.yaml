@@ -2,4 +2,4 @@
 adapter: unified
 env_name: ms-pick-cube          # run naming only
 task: ms-pick-cube
-render: false
+render: true              # eval rollouts are recorded to mp4 (env/video.py)

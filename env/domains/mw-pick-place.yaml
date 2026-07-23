@@ -2,4 +2,4 @@
 adapter: unified
 env_name: mw-pick-place          # run naming only
 task: mw-pick-place
-render: false
+render: true              # eval rollouts are recorded to mp4 (env/video.py)

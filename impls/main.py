@@ -33,6 +33,12 @@ flags.DEFINE_integer("log_interval", 5000, "Log every N steps.")
 flags.DEFINE_integer("eval_interval", 100_000, "Eval every N steps.")
 flags.DEFINE_integer("save_interval", 1_000_000, "Checkpoint every N steps.")
 flags.DEFINE_integer("eval_episodes", 20, "Episodes per eval task.")
+flags.DEFINE_integer("eval_video_episodes", 0,
+                     "Episodes to render into an eval mp4 (0 = no video). Works for every "
+                     "adapter/task; both adapters already return frames, this decides how many.")
+flags.DEFINE_integer("video_interval", 0,
+                     "Render video every N steps (0 = every eval_interval). Videos are far "
+                     "more expensive than the scalar eval, so this can be coarser.")
 flags.DEFINE_string("save_dir", "exp/", "Checkpoint directory.")
 flags.DEFINE_string("restore_path", "", "Glob matching exactly one run dir to restore from.")
 flags.DEFINE_integer("restore_epoch", 0, "Checkpoint step to restore (params_{epoch}.pkl).")
@@ -139,10 +145,20 @@ def main(_):
                             f"conditioning vector -- do not interpret these eval numbers as a "
                             f"zero-shot z-inference result."
                         )
+                # Video is opt-in and can run on a coarser cadence than the scalar eval.
+                vid_every = FLAGS.video_interval or FLAGS.eval_interval
+                n_video = FLAGS.eval_video_episodes if (
+                    FLAGS.eval_video_episodes > 0 and (i == 1 or i % vid_every == 0)) else 0
                 for task_id in adapter.eval_tasks(env, cfg):
-                    row, _frames = adapter.evaluate(eval_agent, env, task_id, cfg,
-                                                    FLAGS.eval_episodes, 0)
+                    row, frames = adapter.evaluate(eval_agent, env, task_id, cfg,
+                                                   FLAGS.eval_episodes, n_video)
                     scope = "eval" if task_id is None else f"eval/task{task_id}"
+                    if n_video and frames:
+                        from env.video import log_video, save_video_grid
+                        tag = "" if task_id is None else f"_task{task_id}"
+                        p = save_video_grid(frames, os.path.join(run_dir, f"eval{tag}_step{i}.mp4"),
+                                            max_episodes=FLAGS.eval_video_episodes)
+                        log_video(run, p, key=f"{scope}/video", step=i)
                     csv_eval.log({**row, "task_id": -1 if task_id is None else task_id}, step=i)
                     if run is not None:
                         run.log({f"{scope}/{k}": v for k, v in row.items()}, step=i)
