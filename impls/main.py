@@ -17,10 +17,8 @@ from absl import app, flags
 import jax.numpy as jnp
 
 from impls.agents import Agent
-from impls.utils.config_utils import load_config
 from impls.utils.datasets import make_dataset
-from impls.utils.env_utils import make_env_and_datasets
-from impls.utils.evaluation import evaluate
+from env import get_adapter, make_config
 from impls.utils.flax_utils import restore_agent, save_agent
 from impls.utils.log_utils import CsvLogger, get_exp_name, setup_wandb
 
@@ -38,6 +36,8 @@ flags.DEFINE_integer("eval_episodes", 20, "Episodes per eval task.")
 flags.DEFINE_string("save_dir", "exp/", "Checkpoint directory.")
 flags.DEFINE_string("restore_path", "", "Glob matching exactly one run dir to restore from.")
 flags.DEFINE_integer("restore_epoch", 0, "Checkpoint step to restore (params_{epoch}.pkl).")
+flags.DEFINE_string("agg_dir", None, "optional: dir for per-seed eval jsonls (campaign/wandb_agg_daemon.py)")
+flags.DEFINE_string("agg_group", None, "optional aggregation key; default <critic>_<actor>__<domain>")
 flags.DEFINE_integer("infer_cond_episodes", 0,
                      "If >0, infer eval conditioning from this many relabelled transitions "
                      "before each eval (FB zero-shot path). 0 = use eval_cond0.")
@@ -69,8 +69,24 @@ def infer_cond_noop_reason(pre_cond, post_cond, rewards):
     return None
 
 
+_FAMILY = {"b2d": "Box2D", "p2d": "Box2D", "mw": "Metaworld", "ms": "ManiSkill"}
+
+
+def _append_agg(agg_dir, group, seed, step, row, task):
+    """Optional: append this run's eval point as a jsonl the campaign agg daemon reads.
+    Pure reporting -- writes nothing unless --agg_dir is set; touches no algorithm state."""
+    import json
+    os.makedirs(agg_dir, exist_ok=True)
+    rec = dict(seed=int(seed), step=int(step),
+               success_rate=float(row.get("success", row.get("success_rate", 0.0))),
+               at_goal_ticks=float(row.get("at_goal_ticks", float("nan"))),
+               family=_FAMILY.get(str(task).split("-")[0]))
+    with open(os.path.join(agg_dir, f"{group}__s{seed}.jsonl"), "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
 def main(_):
-    cfg = load_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
+    cfg = make_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
 
     exp_name = get_exp_name(FLAGS.seed, FLAGS.critic, FLAGS.actor, cfg["env_name"])
     # Each run gets its own subdirectory so two seeds or two critic x actor pairs sharing a
@@ -80,12 +96,14 @@ def main(_):
     run_dir = os.path.join(FLAGS.save_dir, exp_name)
     os.makedirs(run_dir, exist_ok=True)
 
+    agg_group = FLAGS.agg_group or f"{FLAGS.critic}_{FLAGS.actor}__{FLAGS.domain}"
     run = setup_wandb(cfg, group=f"{FLAGS.critic}-{FLAGS.actor}", name=exp_name)
     csv_train = CsvLogger(os.path.join(run_dir, "train.csv"))
     csv_eval = CsvLogger(os.path.join(run_dir, "eval.csv"))
 
     try:
-        env, train_ds, val_ds = make_env_and_datasets(cfg["env_name"])
+        adapter = get_adapter(cfg)
+        env, train_ds, val_ds = adapter.make_env_and_datasets(cfg)
         train_ds = make_dataset(train_ds, cfg)
         ex = train_ds.sample(1)
         agent = Agent.create(FLAGS.critic, FLAGS.actor, FLAGS.seed,
@@ -121,14 +139,16 @@ def main(_):
                             f"conditioning vector -- do not interpret these eval numbers as a "
                             f"zero-shot z-inference result."
                         )
-                n_tasks = len(env.unwrapped.task_infos)
-                for task_id in range(1, n_tasks + 1):
-                    stats, _, _ = evaluate(eval_agent, env, task_id=task_id, config=cfg,
-                                           num_eval_episodes=FLAGS.eval_episodes)
-                    row = {k: float(v) for k, v in dict(stats).items()}
-                    csv_eval.log({**row, "task_id": task_id}, step=i)
+                for task_id in adapter.eval_tasks(env, cfg):
+                    row, _frames = adapter.evaluate(eval_agent, env, task_id, cfg,
+                                                    FLAGS.eval_episodes, 0)
+                    scope = "eval" if task_id is None else f"eval/task{task_id}"
+                    csv_eval.log({**row, "task_id": -1 if task_id is None else task_id}, step=i)
                     if run is not None:
-                        run.log({f"eval/task{task_id}/{k}": v for k, v in row.items()}, step=i)
+                        run.log({f"{scope}/{k}": v for k, v in row.items()}, step=i)
+                    if FLAGS.agg_dir:
+                        _append_agg(FLAGS.agg_dir, agg_group, FLAGS.seed, i, row,
+                                    cfg.get("task", cfg.get("env_name")))
                     print("eval", i, "task", task_id, row, flush=True)
             if i % FLAGS.save_interval == 0:
                 save_agent(agent, run_dir, i)
