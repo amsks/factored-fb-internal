@@ -43,6 +43,10 @@ flags.DEFINE_string("save_dir", "exp/", "Checkpoint directory.")
 flags.DEFINE_string("restore_path", "", "Glob matching exactly one run dir to restore from.")
 flags.DEFINE_integer("restore_epoch", 0, "Checkpoint step to restore (params_{epoch}.pkl).")
 flags.DEFINE_string("agg_dir", None, "optional: dir for per-seed eval jsonls (campaign/wandb_agg_daemon.py)")
+flags.DEFINE_string("teacher", None, "frozen BC teacher policy: dp | l2bc | None")
+flags.DEFINE_integer("teacher_demos", 128, "teacher checkpoint demo count (128|64)")
+flags.DEFINE_string("teacher_root", "/raid/tongle/rl/fb-data/campaign/teacher_clean", "teacher ckpt root")
+flags.DEFINE_integer("teacher_seed", 0, "teacher seed checkpoint")
 flags.DEFINE_string("agg_group", None, "optional aggregation key; default <critic>_<actor>__<domain>")
 flags.DEFINE_integer("infer_cond_episodes", 0,
                      "If >0, infer eval conditioning from this many relabelled transitions "
@@ -93,6 +97,13 @@ def _append_agg(agg_dir, group, seed, step, row, task):
 
 def main(_):
     cfg = make_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
+    if FLAGS.teacher:
+        from env.teacher import resolve_ckpt
+        _t = cfg.get("task") or cfg.get("env_name")
+        if _t == "cube-single-play-v0":
+            _t = "cube-single"
+        cfg["teacher_ckpt"] = resolve_ckpt(FLAGS.teacher_root, FLAGS.teacher,
+                                           FLAGS.teacher_demos, _t, FLAGS.teacher_seed)
 
     exp_name = get_exp_name(FLAGS.seed, FLAGS.critic, FLAGS.actor, cfg["env_name"])
     # Each run gets its own subdirectory so two seeds or two critic x actor pairs sharing a

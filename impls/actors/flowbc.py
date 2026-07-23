@@ -54,9 +54,12 @@ class FlowBCActor:
         a = self._actor(params["actor"], obs, c, noise)
         Q, Qs = critic.q_fn(params, obs, cond, a, stop_encoder_grad=True)
         loss = -Q.mean()
+        detached = "teacher_actions" in batch     # frozen dp teacher supplies the BC prior
+        bc_flow = jnp.asarray(0.0) if detached else bc_flow
         info = {"q": Q.mean(), "bc_flow_loss": bc_flow}
         if self.bc_coeff > 0:
-            tgt = jax.lax.stop_gradient(self._rollout(params["actor_vf"], obs, noise))
+            tgt = (jax.lax.stop_gradient(batch["teacher_actions"]) if detached
+                   else jax.lax.stop_gradient(self._rollout(params["actor_vf"], obs, noise)))
             distill = jnp.mean((a - tgt) ** 2)
             loss = loss / jax.lax.stop_gradient(jnp.abs(Qs).mean()) + self.bc_coeff * distill
             info["bc_error"] = distill

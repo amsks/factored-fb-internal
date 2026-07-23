@@ -128,6 +128,13 @@ class UnifiedAdapter:
 
     def make_env_and_datasets(self, cfg):
         data = load_unified(cfg.get("data_dir") or registry.data_dir(cfg["task"]))
+        # FROZEN TEACHER as the BC regularizer: relabel once, offline. Actors regress toward
+        # data["teacher_actions"] instead of co-training their own BC head.
+        tck = cfg.get("teacher_ckpt")
+        if tck:
+            from env.teacher import load_teacher
+            data["teacher_actions"] = load_teacher(tck).relabel(data["observations"])
+            print(f"[env] relabeled with frozen teacher {tck}", flush=True)
         env, horizon = make_task_env(cfg["task"], render=bool(cfg.get("render", True)))
         self._horizon = horizon
         n = len(data["observations"])

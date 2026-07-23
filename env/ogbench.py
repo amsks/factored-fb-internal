@@ -14,7 +14,18 @@ class OGBenchAdapter:
     name = "ogbench"
 
     def make_env_and_datasets(self, cfg):
-        return make_env_and_datasets(cfg["env_name"], cfg.get("frame_stack"))
+        env, tr, va = make_env_and_datasets(cfg["env_name"], cfg.get("frame_stack"))
+        tck = cfg.get("teacher_ckpt")
+        if tck:
+            import numpy as np
+            from env.teacher import load_teacher
+            from impls.utils.datasets import FBDataset
+            t = load_teacher(tck)
+            d = dict(tr)
+            d["teacher_actions"] = t.relabel(np.asarray(d["observations"], np.float32))
+            tr = FBDataset.create(**d)
+            print(f"[env] relabeled with frozen teacher {tck}", flush=True)
+        return env, tr, va
 
     def eval_tasks(self, env, cfg):
         if cfg.get("eval_aggregate"):

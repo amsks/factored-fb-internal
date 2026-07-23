@@ -44,7 +44,10 @@ class FQLActor:
         vel = action - x0
         pred = self._bc(params["actor_bc_flow"], obs_c, xt, t)
         bc_flow_loss = jnp.mean((pred - vel) ** 2)
-        tgt = jax.lax.stop_gradient(self._rollout(params["actor_bc_flow"], obs_c, noise))
+        detached = "teacher_actions" in batch      # frozen dp teacher supplies the BC prior
+        bc_flow_loss = jnp.asarray(0.0) if detached else bc_flow_loss
+        tgt = (jax.lax.stop_gradient(batch["teacher_actions"]) if detached
+               else jax.lax.stop_gradient(self._rollout(params["actor_bc_flow"], obs_c, noise)))
         a1 = self._one(params["actor_onestep"], obs_c, noise)
         distill = jnp.mean((a1 - tgt) ** 2)
         q, _ = critic.q_fn(params, obs, cond, jnp.clip(a1, -1, 1), stop_encoder_grad=True)

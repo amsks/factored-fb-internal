@@ -31,8 +31,13 @@ class DDPGBCActor:
         q_actions = jnp.clip(dist.mode(), -1, 1)
         q, _ = critic.q_fn(params, obs, cond, q_actions, stop_encoder_grad=True)
         q_loss = -q.mean() / jax.lax.stop_gradient(jnp.abs(q).mean() + 1e-6)
-        log_prob = dist.log_prob(action)
-        bc_loss = -(self.alpha * log_prob).mean()
+        if "teacher_actions" in batch:      # frozen-teacher regularizer (replaces data BC)
+            bc_err = jnp.mean((q_actions - jax.lax.stop_gradient(batch["teacher_actions"])) ** 2)
+            bc_loss = self.alpha * bc_err
+            log_prob = -bc_err
+        else:
+            log_prob = dist.log_prob(action)
+            bc_loss = -(self.alpha * log_prob).mean()
         loss = q_loss + bc_loss
         return loss, {"actor_loss": loss, "q_loss": q_loss, "bc_loss": bc_loss,
                       "q_mean": q.mean(), "bc_log_prob": log_prob.mean()}
