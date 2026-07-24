@@ -55,7 +55,9 @@ import torch  # noqa: E402
 import hydra.utils as _hu  # noqa: E402
 _hu.get_original_cwd = lambda: os.getcwd()          # parse_cfg needs it outside @hydra.main
 
-_FAMILY = {"b2d": "Box2D", "p2d": "Box2D", "mw": "Metaworld", "ms": "maniskill"}
+# Family folder in the data path -- MUST match env/registry.py's `{family}__{task}` convention
+# (Box2D / Metaworld / ManiSkill) so the play data mirrors the expert data layout exactly.
+_FAMILY = {"b2d": "Box2D", "p2d": "Box2D", "mw": "Metaworld", "ms": "ManiSkill"}
 
 
 def resolve_checkpoint(task):
@@ -360,7 +362,7 @@ def main():
     is_mw = family == "Metaworld"                          # scripted oracle: no TD-MPC2 ckpt ships
     # per-family exploration defaults (CLI overrides win)
     DEFAULTS = {"Box2D": dict(eps_max=0.5, noise_max=0.4, expert_frac=0.2, mpc=0),
-                "maniskill": dict(eps_max=0.25, noise_max=0.15, expert_frac=0.3, mpc=1),
+                "ManiSkill": dict(eps_max=0.25, noise_max=0.15, expert_frac=0.3, mpc=1),
                 "Metaworld": dict(eps_max=0.3, noise_max=0.2, expert_frac=0.3, mpc=0)}[family]
     eps_max = DEFAULTS["eps_max"] if args.eps_max is None else args.eps_max
     noise_max = DEFAULTS["noise_max"] if args.noise_max is None else args.noise_max
