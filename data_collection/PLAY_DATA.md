@@ -42,11 +42,15 @@ so the policy follows the obs goal). A redirection gate auto-skips fixed-goal po
 | b2d-goal-ctrl-target *(dev)* | tdmpc2-goal-resample | 200×1000 | 200k | 16.6 | 3328 |
 | b2d-goal-ctrl-target-vel | tdmpc2-goal-resample | 200×1000 | 200k | 13.4 | 2685 |
 | b2d-goal-ctrl-target-hard | tdmpc2-goal-resample | 200×1000 | 200k | 11.2 | 2246 |
+| ms-push-cube *(dev)* | tdmpc2-goal-resample | 120×400 | 48k | 11.9 | 1429 |
+| ms-pick-cube *(dev)* | tdmpc2-goal-resample | 120×400 | 48k | 18.5 | 2219 |
 
-**800k transitions, 16.4k chained goals, 4 tasks.** Data at `.../collected_play_resample/`.
+**896k transitions, 20.0k chained goals, 6 tasks** (4 Box2D + 2 ManiSkill).
+Data at `.../collected_play_resample/`. ManiSkill uses `collect_play_resample_ms.py` (moves the
+SAPIEN goal actor: push-cube `goal_region`, pick-cube `goal_site`).
 
-**Feasibility limits (why only Box2D goal-ctrl):** center-ctrl / center-wall / maze Box2D
+**Feasibility (Box2D goal-ctrl + ManiSkill; Metaworld excluded):** center-ctrl / center-wall / maze Box2D
 policies were trained to a *fixed* objective and ignore the obs goal (gate skips them). Metaworld
-envs are fixed-goal-per-episode (obs doesn't track a mid-episode target change). ManiSkill's goal
-actor is settable but newt's wrapper forces num_envs=1, so a batched native env with goal access
-needs a from-scratch build. Both datasets published to HF: `TommyShen/factored-fb-play`.
+envs are fixed-goal-per-episode (obs doesn't track a mid-episode target change). ManiSkill works via K single-env instances (newt forces num_envs=1) whose SAPIEN goal actor is
+moved mid-episode. Metaworld is excluded: its obs doesn't reliably track a mid-episode goal
+change (y-coord env-controlled). Both datasets on HF: `TommyShen/factored-fb-play`.
