@@ -25,3 +25,28 @@ scripted oracle because no TD-MPC2 checkpoint ships for push/pick-place.
 Experiment: `campaign/gen_play_impls.py` -> 108 jobs, `{iql_bilinear,gciql,fb} x flowbc` on play
 + `iql_bilinear` expert control, all `--teacher off` (co-trained BC) so the data regime is the
 only variable. `/result` compares `{critic}_flowbc_play` vs `_expert` per task.
+
+## play-resample (diverse-goal, continuous) — `collect_play_resample.py`
+
+OGBench-style diverse-GOAL play: one long continuous episode chains many goals (reach → hold
+~1s → resample a valid goal, not in a wall, not too close → continue, no reset). Goal-relabeling
+then sees a broad goal distribution *within* a trajectory — the property biql/gciql need, that
+action-noise (play-noise) can't produce.
+
+Only works where the TD-MPC2 checkpoint is genuinely goal-conditioned (goal varied in training,
+so the policy follows the obs goal). A redirection gate auto-skips fixed-goal policies.
+
+| task | policy | episodes×H | transitions | mean goals/ep | total goals |
+|---|---|---|---|---|---|
+| b2d-goal-ctrl | tdmpc2-goal-resample | 200×1000 | 200k | 40.7 | 8141 |
+| b2d-goal-ctrl-target *(dev)* | tdmpc2-goal-resample | 200×1000 | 200k | 16.6 | 3328 |
+| b2d-goal-ctrl-target-vel | tdmpc2-goal-resample | 200×1000 | 200k | 13.4 | 2685 |
+| b2d-goal-ctrl-target-hard | tdmpc2-goal-resample | 200×1000 | 200k | 11.2 | 2246 |
+
+**800k transitions, 16.4k chained goals, 4 tasks.** Data at `.../collected_play_resample/`.
+
+**Feasibility limits (why only Box2D goal-ctrl):** center-ctrl / center-wall / maze Box2D
+policies were trained to a *fixed* objective and ignore the obs goal (gate skips them). Metaworld
+envs are fixed-goal-per-episode (obs doesn't track a mid-episode target change). ManiSkill's goal
+actor is settable but newt's wrapper forces num_envs=1, so a batched native env with goal access
+needs a from-scratch build. Both datasets published to HF: `TommyShen/factored-fb-play`.
