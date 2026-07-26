@@ -64,3 +64,6 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
+markers = [
+    "slow: dataset-dependent checks (need the ogbench npz; skipped in unit runs)",
+]
