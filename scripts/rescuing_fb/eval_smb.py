@@ -67,14 +67,16 @@ if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
 from smb_common import (  # noqa: E402  (numpy-only at module level)
-    AVOID_R, EPS_OBS, EVAL_TASKS, GAMMA, SPEC, ball_candidate_indices,
-    batched_gpi_rollout_record, batched_rollout_record, chosen_region,
-    cube_m_to_ou, cube_obs_units, discounted_time_in, final_in_any_ball,
-    frac_time_in_ball, in_ball, infer_z_route, per_episode_discounted,
+    AVOID_R, EPS_OBS, EVAL_TASKS, GAMMA, SPEC, _policy_call,
+    ball_candidate_indices, batched_gpi_rollout_record, batched_rollout_record,
+    capture_reset_obs, chosen_region, cube_m_to_ou, cube_obs_units,
+    discounted_time_in, final_in_any_ball, frac_time_in_ball, in_ball,
+    infer_z_route, make_measure_readout, per_episode_discounted,
     reward_corridor, reward_dense, reward_dirac, reward_linear, reward_mixture,
     reward_occhoice, reward_union, sample_sphere_z, to_native,
     z_to_goal_proxy_idx,
 )
+from full_measure import FullMeasure, select_z_by_measure  # noqa: E402
 from t6_gpi_eval import (  # noqa: E402
     batched_gpi_rollout as _unused_gpi,  # noqa: F401  (record variant used instead)
     cosine, decode_cube, load_agent_flexible, m_goal, m_pair, make_psi,
@@ -82,6 +84,24 @@ from t6_gpi_eval import (  # noqa: E402
 )
 
 ALL_TIERS = ("t1", "t2", "t3", "t4", "t5", "t6")
+
+
+def measure_select(cands, qr_fn):
+    """Spec 10 §2 z-search: rank candidate conditionings by the full measure's
+    own ∫r dM estimate at (s0, a0~pi(s0,z)) and act with the argmax, via
+    full_measure.select_z_by_measure. cands: [(name, cond)]; qr_fn(cond) ->
+    full_measure q_r dict. Returns the select_z_by_measure dict + per-candidate
+    q_r details (n_live etc.) for the output JSON."""
+    details = {}
+
+    def score_fn(cond):
+        d = qr_fn(cond)
+        details[id(cond)] = d
+        return d["q"]
+
+    out = select_z_by_measure(cands, score_fn)
+    out["details"] = {name: details[id(c)] for name, c in cands}
+    return out
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -96,10 +116,23 @@ def build_parser() -> argparse.ArgumentParser:
                     help=f"comma-sep subset of {ALL_TIERS} (t0 native: use t6_gpi_eval)")
     ap.add_argument("--episodes", type=int, default=25)
     ap.add_argument("--horizon", type=int, default=200)
-    ap.add_argument("--z-inference", choices=["moment", "ridge", "retrieval"],
-                    default="moment")
+    ap.add_argument("--z-inference",
+                    choices=["moment", "ridge", "retrieval", "cmoment"],
+                    default="moment",
+                    help="cmoment: the density-corrected moment (spec 10 §1) "
+                         "z ∝ mean_j [r_j / N-hat(g_j)] psi(g_j) via "
+                         "full_measure.corrected_moment_z (ess reported)")
     ap.add_argument("--retrieval-k", type=int, default=8)
     ap.add_argument("--ridge-lambda", type=float, default=1e-2)
+    ap.add_argument("--density-cap-q", type=float, default=0.0,
+                    help="winsorize the density's upper tail at this quantile "
+                         "inside q_r comparisons (0 = off); tames the 1/N-hat "
+                         "importance tail at thin-support regions (T3 fix)")
+    ap.add_argument("--z-select", choices=["off", "measure"], default="off",
+                    help="measure: rank the candidate set (region/native "
+                         "candidates + the inferred z) by the full measure's "
+                         "∫r dM at (s0, a0~pi(s0,z)) and roll the argmax "
+                         "(spec 10 §2 z-search; tiers t3/t4/t5/t6)")
     ap.add_argument("--gpi", action="store_true",
                     help="GPI over candidate conditionings (t2/t3/t4 main arms)")
     ap.add_argument("--oracle-z", action="store_true",
@@ -167,6 +200,17 @@ def main() -> int:
         cube_cand = cube_obs_units(S_cand)
         Psi_cand = psi(S_cand).astype(np.float64)
 
+    # ---- eval-layer full measure (spec 10 L1+L2): cmoment + measure-ranked z ----
+    need_fm = (args.z_inference == "cmoment") or (args.z_select == "measure")
+    fm, nobs_all, readout_m = None, None, None
+    if need_fm:
+        fm = FullMeasure(cube_obs_units(obs_all), eps=EPS_OBS)
+        nobs_all = np.asarray(ds1["next_observations"], np.float32)
+        readout_m = make_measure_readout(agent, d, fbz, act_dim)
+        print(f"[smb] FullMeasure over {fm.n} rows, eps={fm.eps}, "
+              f"floor={fm.floor:.2e} (z_inference={args.z_inference}, "
+              f"z_select={args.z_select})", flush=True)
+
     goal_obs, goal_xyz = {}, {}
     for i in range(1, 6):
         env = ogbench.make_env_and_datasets(EVAL_TASKS[i], env_only=True)
@@ -192,9 +236,41 @@ def main() -> int:
                     e.close()
 
     def infer(rewards):
+        if args.z_inference == "cmoment":
+            # spec 10 §1: density-corrected moment, weights 1/N-hat at the
+            # reward samples' cube positions; ess flags degenerate inferences.
+            r = np.asarray(rewards, np.float64)
+            out = fm.corrected_moment_z(Psi_rel, r, cube_rel, match_data)
+            diag = {"route": "cmoment", "n_pos": int((r > 0).sum()),
+                    "n_neg": int((r < 0).sum()), "ess": out["ess"],
+                    "z_raw_norm": out["raw_norm"], "match_data_norm": match_data}
+            return out["z"], diag
         return infer_z_route(Psi_rel, rewards, args.z_inference, match_data,
                              retrieval_k=args.retrieval_k,
                              ridge_lambda=args.ridge_lambda)
+
+    def measure_qr_fn(r_samples, variant):
+        """qr_fn factory for measure_select: the full measure's ∫r dM at the
+        variant's reset states s0 with a0 ~ pi(s0, candidate) -- ball values
+        from the checkpoint's own critic readout at dataset next-obs rows."""
+        import jax
+        s0 = capture_reset_obs(pool(variant))
+        r_samples = np.asarray(r_samples, np.float64)
+
+        def qr(cond):
+            cond_b = np.tile(np.asarray(cond, np.float32)[None], (len(s0), 1))
+            a0 = np.clip(np.asarray(_policy_call(
+                agent, actor_mode, s0, cond_b, jax.random.PRNGKey(0))), -1, 1)
+            zc = np.asarray(cond, np.float32) if fbz else None
+
+            def bvf(idx):
+                idx = np.asarray(idx, np.int64)
+                return readout_m(s0, a0, nobs_all[idx], z_cond=zc).mean(0)
+
+            return fm.q_r(bvf, idx_rel, r_samples,
+                          cap_q=args.density_cap_q or None)
+
+        return qr
 
     def deploy(z):
         """z_r -> actor conditioning (eval_zeroshot_rewards protocol)."""
@@ -239,7 +315,8 @@ def main() -> int:
         "fb_forward_z": fbz, "measure_only": measure_only,
         "psi_src": "critic" if use_critic_psi else "value",
         "tiers": tiers, "episodes": args.episodes, "horizon": H,
-        "z_inference": args.z_inference, "gpi": bool(args.gpi),
+        "z_inference": args.z_inference, "z_select": args.z_select,
+        "gpi": bool(args.gpi),
         "oracle_z": bool(args.oracle_z),
         "relabel_size": int(len(S_rel)), "candidate_pool": int(len(S_cand)),
         "match_data_norm": match_data, "gamma": GAMMA, "eps_obs": EPS_OBS,
@@ -392,7 +469,19 @@ def main() -> int:
                     rec["arms"]["main"] = main
                     pairs_out[pair["name"]] = rec
                     continue
-                if args.gpi:
+                if args.z_select == "measure":
+                    cond_zr, proxy = deploy(z)
+                    if proxy is not None:
+                        main["goal_proxy"] = proxy
+                    sel = measure_select(
+                        [("stable", condS), ("transient", condT), ("z_r", cond_zr)],
+                        measure_qr_fn(rfn(cube_rel), variant))
+                    main["measure_select"] = {"chosen": sel["chosen"],
+                                              "scores": sel["scores"],
+                                              "details": sel["details"]}
+                    tou, _traj, _ot, ln = roll(sel["z"], variant)
+                    main["conditioning"] = f"measure_select:{sel['chosen']}"
+                elif args.gpi:
                     tou, _traj, _ot, ln, sw, cc = roll_gpi(z, [condS, condT], variant)
                     main["switch_rate"] = float(sw.mean())
                     main["choice_frac"] = (cc / max(cc.sum(), 1)).tolist()
@@ -459,7 +548,20 @@ def main() -> int:
                     fam[task["name"]] = rec
                     continue
                 main = {}
-                if args.gpi:
+                if args.z_select == "measure":
+                    cond_zr, proxy = deploy(z)
+                    if proxy is not None:
+                        main["goal_proxy"] = proxy
+                    mcands = [(f"ball{ci}", cands[ci]) for ci in range(len(cands))]
+                    mcands.append(("z_r", cond_zr))
+                    sel = measure_select(mcands,
+                                         measure_qr_fn(rfn(cube_rel), variant))
+                    main["measure_select"] = {"chosen": sel["chosen"],
+                                              "scores": sel["scores"],
+                                              "details": sel["details"]}
+                    tou, _traj, _ot, ln = roll(sel["z"], variant)
+                    main["conditioning"] = f"measure_select:{sel['chosen']}"
+                elif args.gpi:
                     tou, _traj, _ot, ln, sw, cc = roll_gpi(z, list(cands), variant)
                     main["switch_rate"] = float(sw.mean())
                     main["choice_frac"] = (cc / max(cc.sum(), 1)).tolist()
@@ -524,6 +626,14 @@ def main() -> int:
                     cond, proxy = deploy(z)
                     if proxy is not None:
                         arm["goal_proxy"] = proxy
+                    if args.z_select == "measure":
+                        sel = measure_select(
+                            [("goal_A", native_cond(i)), ("z_r", cond)],
+                            measure_qr_fn(rfn(cube_rel), i))
+                        arm["measure_select"] = {"chosen": sel["chosen"],
+                                                 "scores": sel["scores"],
+                                                 "details": sel["details"]}
+                        cond = sel["z"]
                     tou, traj, _ot, ln = roll(cond, i)
                 arm["success_at_A"] = float(m_goal(traj, ln, goal_xyz[i]).mean())
                 arm["time_in_B"] = _mean(frac_time_in_ball(tou, ln, cB, rB))
@@ -592,8 +702,18 @@ def main() -> int:
                 cond, proxy = deploy(z)
                 if proxy is not None:
                     rec["goal_proxy_main"] = proxy
+                if args.z_select == "measure":
+                    mcands = [(f"psi_g{ii}", native_cond(ii)) for ii in range(1, 6)]
+                    mcands.append(("z_r", cond))
+                    sel = measure_select(mcands, measure_qr_fn(r, v0))
+                    rec["measure_select"] = {"chosen": sel["chosen"],
+                                             "scores": sel["scores"],
+                                             "details": sel["details"]}
+                    cond = sel["z"]
+                    rec["conditioning"] = f"measure_select:{sel['chosen']}"
+                else:
+                    rec["conditioning"] = "inferred_z"
                 _tou, _traj, obs_traj, ln = roll(cond, v0)
-                rec["conditioning"] = "inferred_z"
             rec["G_main"] = G_from_obs(obs_traj, ln)
             # control 1: random z
             z_ctrl = sample_sphere_z(rng_lin, d, match_data).astype(np.float32)
@@ -621,7 +741,9 @@ def main() -> int:
 
     # ========================= out ================================================
     tag = ("oracle" if args.oracle_z else args.z_inference) + \
-        ("_gpi" if args.gpi else "")
+        ("_gpi" if args.gpi else "") + \
+        ("_msel" if args.z_select == "measure" else "") + \
+        (f"_cap{args.density_cap_q:g}" if args.density_cap_q else "")
     outp = Path(args.out) if args.out else \
         REPO / "analysis" / "rescuing-fb" / f"smb_wingA_{run_dir.name}_{tag}.json"
     outp.parent.mkdir(parents=True, exist_ok=True)

@@ -71,6 +71,7 @@ from smb_common import (  # noqa: E402  (numpy-only at module level)
     reward_occhoice, reward_union, spearman, to_native,
 )
 from t6_gpi_eval import load_agent_flexible, make_psi  # noqa: E402
+from full_measure import FullMeasure  # noqa: E402  (numpy+scipy only)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,6 +82,13 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--tasks-json", required=True)
     ap.add_argument("--conditionings", default="native",
                     help="only 'native' (the 5 task goals) is implemented")
+    ap.add_argument("--predictor", choices=["surrogate", "density"],
+                    default="surrogate",
+                    help="surrogate: the diagonal/kernel-average adapters (spec 11 "
+                         "B2, current behavior). density: the eval-layer FULL "
+                         "measure (spec 10 L1+L2, ZX checkpoints only) -- "
+                         "M-tilde/N-hat densities, set masses additive by "
+                         "construction, ∫r dM via full_measure.FullMeasure")
     ap.add_argument("--episodes", type=int, default=25)
     ap.add_argument("--horizon", type=int, default=200)
     ap.add_argument("--relabel-size", type=int, default=2000,
@@ -89,6 +97,34 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="")
     return ap
+
+
+def battery_to_fm_query(q: dict) -> dict:
+    """SMB artifact query format -> full_measure query format (the artifact
+    predates full_measure; ball/box translate 1:1, union2 becomes a union of
+    two ball parts)."""
+    t = q["type"]
+    if t == "ball":
+        return {"kind": "ball", "center": q["center"], "eps": q.get("eps", EPS_OBS)}
+    if t == "box":
+        return {"kind": "box", "center": q["center"], "half": q["half"]}
+    if t == "union2":
+        return {"kind": "union", "parts": [
+            {"kind": "ball", "center": c, "eps": q.get("eps", EPS_OBS)}
+            for c in q["centers"]]}
+    raise ValueError(f"unknown battery query type {t!r}")
+
+
+def density_battery_predictions(fm: FullMeasure, queries, ball_value_fn):
+    """Full-measure set masses for a battery of artifact-format queries.
+    Returns (preds [nq] float64, diags list of {n_members, n_used})."""
+    preds, diags = [], []
+    for q in queries:
+        res = fm.set_mass(ball_value_fn,
+                          fm.member_indices(battery_to_fm_query(q)))
+        preds.append(res["mass"])
+        diags.append({"n_members": res["n_members"], "n_used": res["n_used"]})
+    return np.asarray(preds, np.float64), diags
 
 
 def build_b3_tasks(tasks_art: dict, goal_ou: dict) -> list:
@@ -139,8 +175,16 @@ def main() -> int:
     # smb_tasks.py (renewal_head.load_dataset row order) ----
     from renewal_head import load_dataset
     n_tr = int(tasks_art["dataset"]["n_transitions"])
-    obs_ds, _nobs, _acts, _term = load_dataset(args.dataset_path, n_tr)
+    obs_ds, nobs_ds, _acts, _term = load_dataset(args.dataset_path, n_tr)
     cube_ds = obs_ds[:, CUBE_OBS].astype(np.float64)
+    fm = None
+    if args.predictor == "density":
+        assert fbz, ("--predictor density needs a ZX checkpoint (fb_forward_z): "
+                     "the density layer divides the z-conditioned ball-mass "
+                     "readout by N-hat; a diagonal critic has no such readout")
+        fm = FullMeasure(cube_ds, eps=EPS_OBS)
+        print(f"[smbB] FullMeasure over {fm.n} rows, eps={fm.eps}, "
+              f"floor={fm.floor:.2e}, max_members={fm.max_members}", flush=True)
     env0 = ogbench.make_env_and_datasets(EVAL_TASKS[1], env_only=True)
     act_dim = int(env0.action_space.shape[0])
     env0.close()
@@ -237,38 +281,86 @@ def main() -> int:
             [np.stack([discounted_time_in(
                 tou, ln, lambda c, ctr=u["centers"][k]: in_ball(c, ctr, u["eps"]))
                 for k in (0, 1)], axis=1) for u in unions], axis=1)  # [eps, nu, 2]
-        # ---- predictions (per episode) ----
-        goals_all = np.concatenate([goals_fixed, goal_obs[i][None]], axis=0)
-        M = readout(s0, a0, goals_all, z_cond=z_cond if fbz else None)  # [eps, G]
-        pred_ball = M[:, o_ball]                                    # [eps, 64]
-        pred_union, pred_union_comp = [], []
-        for (s1, s2) in union_slices:
-            m1 = M[:, o_union + np.arange(s1.start, s1.stop)].mean(1)
-            m2 = M[:, o_union + np.arange(s2.start, s2.stop)].mean(1)
-            pred_union_comp.append(np.stack([m1, m2], axis=1))
-            # kernel-average surrogate over BOTH components' rep states:
-            both = M[:, o_union + np.arange(s1.start, s2.stop)].mean(1)
-            pred_union.append(both)
-        pred_union = np.stack(pred_union, axis=1)                   # [eps, nu]
-        pred_union_comp = np.stack(pred_union_comp, axis=1)         # [eps, nu, 2]
-        pred_box = np.stack([M[:, o_box + np.arange(s.start, s.stop)].mean(1)
-                             for s in box_slices], axis=1)          # [eps, nx]
-        pred_q = np.concatenate([pred_ball, pred_union, pred_box], axis=1)
-        pred_own = M[:, o_own]
-        M_rel = M[:, o_rel]                                         # [eps, m]
-        # ---- B3 pieces ----
-        b3 = {}
-        for name, rfn in b3_tasks:
-            r = b3_rewards[name]
-            q_hat = float((M_rel * r[None, :]).mean(1).mean())
-            mc = float(per_episode_discounted(tou, ln, rfn).mean())
-            b3[name] = {"Q_hat": q_hat, "G_mc": mc}
+        # ---- predictions ----
+        density_diags = None
+        if args.predictor == "density":
+            # spec 10 L1+L2: every set/integral query goes through the density
+            # m-hat = M-tilde/N-hat; ball values are the ZX readout at dataset
+            # NEXT-observations (the checkpoint's relabel-goal convention),
+            # densities/N-hat at the same rows' obs cube positions.
+            def bvf_mean(idx, _s0=s0, _a0=a0, _z=z_cond):
+                idx = np.asarray(idx, np.int64)
+                return readout(_s0, _a0, nobs_ds[idx], z_cond=_z).mean(0)
+
+            preds_flat, q_diags = density_battery_predictions(fm, queries, bvf_mean)
+            pred_q = preds_flat[None, :]                            # episode-mean
+            n_bq, n_uq = len(balls), len(unions)
+            pred_union = pred_q[:, n_bq:n_bq + n_uq]
+            comp = []
+            for u in unions:
+                row = []
+                for k in (0, 1):
+                    qk = {"kind": "ball", "center": u["centers"][k], "eps": u["eps"]}
+                    row.append(fm.set_mass(bvf_mean, fm.member_indices(qk))["mass"])
+                comp.append(row)
+            pred_union_comp = np.asarray(comp, np.float64)[None, :, :]
+            # B1 own ball: per-episode set masses over the conditioned ball
+            own_members = fm.member_indices(
+                {"kind": "ball", "center": list(map(float, goal_ou[i])),
+                 "eps": EPS_OBS})
+            pred_own = np.zeros(len(s0))
+            for e in range(len(s0)):
+                def bvf_e(idx, _e=e, _z=z_cond):
+                    idx = np.asarray(idx, np.int64)
+                    return readout(s0[_e:_e + 1], a0[_e:_e + 1], nobs_ds[idx],
+                                   z_cond=_z)[0]
+                pred_own[e] = fm.set_mass(bvf_e, own_members)["mass"]
+            density_diags = {"battery": q_diags,
+                             "own_ball_n_members": int(len(own_members))}
+            # B3: ∫r dM via fm.q_r over the relabel rows (episode-mean readout,
+            # looked up from ONE batched call)
+            posarr = np.full(len(obs_ds), -1, np.int64)
+            posarr[idx_rel] = np.arange(len(idx_rel))
+            M_rel_mean = bvf_mean(idx_rel)                          # [m]
+            b3 = {}
+            for name, rfn in b3_tasks:
+                qr = fm.q_r(lambda idx: M_rel_mean[posarr[np.asarray(idx, np.int64)]],
+                            idx_rel, b3_rewards[name])
+                mc = float(per_episode_discounted(tou, ln, rfn).mean())
+                b3[name] = {"Q_hat": qr["q"], "n_live": qr["n_live"], "G_mc": mc}
+        else:
+            goals_all = np.concatenate([goals_fixed, goal_obs[i][None]], axis=0)
+            M = readout(s0, a0, goals_all, z_cond=z_cond if fbz else None)  # [eps, G]
+            pred_ball = M[:, o_ball]                                    # [eps, 64]
+            pred_union, pred_union_comp = [], []
+            for (s1, s2) in union_slices:
+                m1 = M[:, o_union + np.arange(s1.start, s1.stop)].mean(1)
+                m2 = M[:, o_union + np.arange(s2.start, s2.stop)].mean(1)
+                pred_union_comp.append(np.stack([m1, m2], axis=1))
+                # kernel-average surrogate over BOTH components' rep states:
+                both = M[:, o_union + np.arange(s1.start, s2.stop)].mean(1)
+                pred_union.append(both)
+            pred_union = np.stack(pred_union, axis=1)                   # [eps, nu]
+            pred_union_comp = np.stack(pred_union_comp, axis=1)         # [eps, nu, 2]
+            pred_box = np.stack([M[:, o_box + np.arange(s.start, s.stop)].mean(1)
+                                 for s in box_slices], axis=1)          # [eps, nx]
+            pred_q = np.concatenate([pred_ball, pred_union, pred_box], axis=1)
+            pred_own = M[:, o_own]
+            M_rel = M[:, o_rel]                                         # [eps, m]
+            # ---- B3 pieces ----
+            b3 = {}
+            for name, rfn in b3_tasks:
+                r = b3_rewards[name]
+                q_hat = float((M_rel * r[None, :]).mean(1).mean())
+                mc = float(per_episode_discounted(tou, ln, rfn).mean())
+                b3[name] = {"Q_hat": q_hat, "G_mc": mc}
         per_cond[i] = {
             "success_gt_own_mean": float(gt_own.mean()),
             "gt_q": gt_q, "gt_own": gt_own, "gt_union_comp": gt_union_comp,
             "pred_q": pred_q, "pred_own": pred_own,
             "pred_union": pred_union, "pred_union_comp": pred_union_comp,
             "b3": b3, "lengths": ln.tolist(),
+            "density_diags": density_diags,
         }
         print(f"[smbB] cond t{i}: gt_own={gt_own.mean():.3f} "
               f"pred_own={pred_own.mean():.3f} gt_q>0 for "
@@ -353,23 +445,39 @@ def main() -> int:
             "d": d, "fb_forward_z": fbz, "measure_only": measure_only,
             "actor_mode": actor_mode, "episodes": args.episodes, "horizon": H,
             "relabel_size": int(len(S_rel)), "gamma": GAMMA, "seed": args.seed,
-            "predictor": ("ZX: F(s0,a0,z=psi(g_cond))^T B(x)/sqrt(d)" if fbz else
-                          "diagonal: critic(s0, x, a0) -- the WRONG-POLICY "
-                          "surrogate for off-diagonal queries (spec 11 B2: "
-                          "diagonal-form checkpoints cannot express M(s,a,z_c,x); "
-                          "this mismatch is the measurement)"),
-            "box_union_surrogate": "kernel-average: mean readout over the frozen "
-                                   "rep_rows dataset states inside the region "
-                                   "(kernel mass != density)",
+            "predictor_mode": args.predictor,
+            "predictor": (
+                "density: full measure (spec 10 L1+L2) -- m-hat = M-tilde/N-hat, "
+                "set masses = dataset averages of the density over member rows "
+                "(additive by construction), ∫r dM = q_r over the relabel rows; "
+                "ball values = ZX readout F(s0,a0,z=psi(g_cond))^T B(nobs_row)/sqrt(d)"
+                if args.predictor == "density" else
+                ("ZX: F(s0,a0,z=psi(g_cond))^T B(x)/sqrt(d)" if fbz else
+                 "diagonal: critic(s0, x, a0) -- the WRONG-POLICY "
+                 "surrogate for off-diagonal queries (spec 11 B2: "
+                 "diagonal-form checkpoints cannot express M(s,a,z_c,x); "
+                 "this mismatch is the measurement)")),
+            "box_union_surrogate": (
+                None if args.predictor == "density" else
+                "kernel-average: mean readout over the frozen "
+                "rep_rows dataset states inside the region "
+                "(kernel mass != density)"),
             "gt_def": "mean_eps sum_t gamma^t 1[cube(s_{t+1}) in X] over the "
                       "conditioning's own rollouts",
         },
         "B1": B1, "B2": B2, "B3": B3,
         "per_conditioning_b3": {f"t{i}": per_cond[i]["b3"] for i in range(1, 6)},
     }
+    if args.predictor == "density":
+        results["meta"]["full_measure"] = {
+            "n_rows": fm.n, "eps": fm.eps, "floor": fm.floor,
+            "max_members": fm.max_members}
+        results["density_diags"] = {f"t{i}": per_cond[i]["density_diags"]
+                                    for i in range(1, 6)}
 
+    tag = "_density" if args.predictor == "density" else ""
     outp = Path(args.out) if args.out else \
-        REPO / "analysis" / "rescuing-fb" / f"smb_wingB_{run_dir.name}.json"
+        REPO / "analysis" / "rescuing-fb" / f"smb_wingB_{run_dir.name}{tag}.json"
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(json.dumps(to_native(results), indent=2))
     print(f"[smbB] B1 spearman={B1['spearman']:.3f} raw_err={B1['median_rel_err_raw']} "
