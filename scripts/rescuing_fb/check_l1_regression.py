@@ -12,34 +12,52 @@ import json
 import sys
 
 KEYMAP = {"0.4": "1.0", "0.8": "2.0", "1.6": "4.0"}
-FIELDS = ["mc_mean", "model_exact_mean", "ratio_exact", "spearman_exact",
-          "model_head_mean", "ratio_head", "spearman_head"]
-TOL = 0.02          # MC rollouts are stochastic in the env, not the code
+
+# The gate asserts only what is DETERMINISTIC given (seed, checkpoint, code):
+# the model's own set masses. Their residual is float boundary ties -- points
+# sitting exactly on a region edge can flip between the scaled-L2 comparison and
+# the old raw-L2 one -- which is worth ~0.2-0.5% of mass and nothing more.
+DETERMINISTIC = ["model_exact_mean", "model_head_mean"]
+TOL = 0.01
+
+# Everything below is a function of the Monte-Carlo rollouts, whose RNG we do
+# not control across processes. Measured 2026-07-31 on p2_rzK50_s42: the
+# archive-vs-replay gap is 1.5-16% while the seed0-vs-seed1 gap on the SAME code
+# is 2-170% -- an order of magnitude larger. Reported, never gated.
+STOCHASTIC = ["mc_mean", "ratio_exact", "spearman_exact",
+              "ratio_head", "spearman_head"]
 
 
 def main(archived: str, replay: str) -> int:
     A = json.load(open(archived))["summary"]
     B = json.load(open(replay))["summary"]
     bad = []
-    for old_key, new_key in KEYMAP.items():
-        if old_key not in A or new_key not in B:
-            print(f"[skip] {old_key}->{new_key}: absent in one of the files")
-            continue
-        a, b = A[old_key], B[new_key]
-        for f in FIELDS:
-            if f not in a or f not in b:
+    for label, fields, gated in (("GATED (deterministic)", DETERMINISTIC, True),
+                                 ("reported (MC-driven)", STOCHASTIC, False)):
+        print(f"\n--- {label} ---")
+        for old_key, new_key in KEYMAP.items():
+            if old_key not in A or new_key not in B:
+                print(f"[skip] {old_key}->{new_key}: absent in one of the files")
                 continue
-            rel = abs(a[f] - b[f]) / max(abs(a[f]), 1e-9)
-            print(f"hw={old_key:>4} {f:<18} archived={a[f]:>10.4f} "
-                  f"replay={b[f]:>10.4f} rel={rel:.3%}")
-            if rel > TOL:
-                bad.append((old_key, f, a[f], b[f]))
+            a, b = A[old_key], B[new_key]
+            for f in fields:
+                if f not in a or f not in b:
+                    continue
+                rel = abs(a[f] - b[f]) / max(abs(a[f]), 1e-9)
+                mark = ""
+                if gated and rel > TOL:
+                    bad.append((old_key, f, a[f], b[f]))
+                    mark = "  <-- OVER TOLERANCE"
+                print(f"hw={old_key:>4} {f:<18} archived={a[f]:>10.4f} "
+                      f"replay={b[f]:>10.4f} rel={rel:.3%}{mark}")
     if bad:
-        print(f"\nFAIL: {len(bad)} fields moved by more than {TOL:.0%}")
+        print(f"\nFAIL: {len(bad)} deterministic fields moved by more "
+              f"than {TOL:.0%} — the port changed the model's set masses")
         for k, f, x, y in bad:
             print(f"  hw={k} {f}: {x} -> {y}")
         return 1
-    print("\nPASS: the port reproduces the archived cube-single numbers")
+    print(f"\nPASS: the model's set masses reproduce the archive to within "
+          f"{TOL:.0%} at every width")
     return 0
 
 
