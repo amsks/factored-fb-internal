@@ -27,9 +27,12 @@ def test_fb_flowbc_real_yaml_composes():
 # check_combo) accept or structurally reject each registered pair.
 
 def _actor_block(actor_kind):
-    if actor_kind == "flowbc":
+    if actor_kind in ("flowbc", "bcflow"):
+        # bcflow is the same FlowBCActor with the value term off (q_coeff=0), so it needs
+        # the same block; only q_coeff differs, exactly as the two yaml configs differ.
         return dict(type="flow", hidden_dim=32, hidden_layers=2, embedding_layers=2,
-                    bc_coeff=3.0, flow_steps=5, lr_actor_vf=3e-4,
+                    bc_coeff=3.0, q_coeff=0.0 if actor_kind == "bcflow" else 1.0,
+                    flow_steps=5, lr_actor_vf=3e-4,
                     flow_vf_hidden_dim=32, flow_vf_hidden_layers=4)
     if actor_kind in ("ddpgbc", "awr"):
         return dict(hidden_dims=[32, 32], alpha=3.0, const_std=True, layer_norm=False)
@@ -142,7 +145,11 @@ def test_every_registered_pair_composes():
     # AWRActor falls back to a policy-baseline advantage when the critic has no V, so EVERY
     # registered pair is legitimate.
     assert skipped == [], f"no pair should be rejected any more, but these were: {skipped}"
-    assert len(built) == 32  # all 32 registered pairs build a working Agent
+    # Derived from the registries so that adding an actor/critic does not require editing a
+    # magic number, but floored at the 32 pairs that existed when this gate was written so
+    # that *removing* one still fails loudly.
+    assert len(built) == len(CRITICS) * len(ACTORS)
+    assert len(built) >= 32
 
 
 def test_gciql_flowbc_builds():

@@ -13,5 +13,13 @@ omegaconf
 wandb
 tqdm
 
+# Metaworld domains (env/metaworld_env.py). nicklashansen's fork is the one the offline
+# demonstrations were collected with; it declares only lower bounds (gymnasium>=0.29.1,
+# mujoco>=3.0.0), so it composes with the versions ogbench[train] pins.
+metaworld @ git+https://github.com/nicklashansen/metaworld.git@22904d1f65afe920be4325d482808c385f4c0c38
+
+# Fetching the packed offline datasets from the HuggingFace hub (scripts/vista_setup.sh)
+huggingface_hub
+
 # Tests
 pytest

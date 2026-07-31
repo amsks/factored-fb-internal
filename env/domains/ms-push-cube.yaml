@@ -1,5 +1,8 @@
-# ms-push-cube via the unified adapter. Env + offline data are resolved from env/registry by `task`.
+# ms-push-cube via the unified adapter. Regime-selectable: FB_DATA_ROOT points at the data root for
+# a given data_type (expert / play-noise / play-resample), each holding data/<family>/<env>.npz.
+# The env is built by the maniskill backend; obs/action layout matches the packed dataset.
 adapter: unified
 env_name: ms-push-cube          # run naming only
 task: ms-push-cube
+data_path: ${oc.env:FB_DATA_ROOT}/data/maniskill/ms-push-cube.npz
 render: false

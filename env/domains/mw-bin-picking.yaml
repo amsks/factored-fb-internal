@@ -1,0 +1,12 @@
+# mw-bin-picking via the unified adapter — the HARD task of the Metaworld pair, picked as the
+# structural analog of cube-single (grasp -> transport, an interaction variable, an
+# object-position hit coordinate) while avoiding mw-assembly's insertion-precision confound.
+#
+# Offline data is the PACKED HuggingFace export (data/<family>/<task>.npz, [N,T,·]); point
+# FB_HF_EXPORT at the download root (scripts/vista_train.slurm sets it). The env is built from
+# env/metaworld_env.py, which reproduces the wrapper the demonstrations were recorded through.
+adapter: unified
+env_name: mw-bin-picking          # run naming only
+task: mw-bin-picking
+data_path: ${oc.env:FB_HF_EXPORT}/data/metaworld/mw-bin-picking.npz
+render: false

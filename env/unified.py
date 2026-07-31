@@ -55,6 +55,32 @@ def _ep_index(p):
     return int(re.findall(r"\d+", Path(p).stem)[-1])
 
 
+def load_packed(npz_path):
+    """Flatten a PACKED per-task npz -- the HuggingFace hosting layout written by
+    hf_dataset/pack_and_manifest.py, `data/<family>/<task>.npz` with the 8 unified fields
+    stacked as [N, T, ...] -- into the same flat dict `load_unified` returns.
+
+    Same contract: `terminals` marks each episode's LAST step (the GCDataset trajectory
+    split), not the env's `terminal` flag, which for fixed-horizon collections never fires.
+    """
+    z = np.load(npz_path, allow_pickle=True)
+    obs, act, nobs = z["observation"], z["action"], z["next_observation"]
+    assert obs.ndim == 3, (
+        f"{npz_path}: expected packed [N,T,obs_dim], got {obs.shape} -- a ragged (object) "
+        f"pack means the task is not fixed-horizon and needs the per-episode path")
+    n_ep, T = obs.shape[0], obs.shape[1]
+    term = np.zeros((n_ep, T), np.float32)
+    term[:, -1] = 1.0
+
+    def flat(a):
+        a = np.asarray(a, np.float32)
+        return a.reshape(n_ep * T, a.shape[-1]) if a.ndim == 3 else a.reshape(n_ep * T)
+
+    return dict(observations=flat(obs), actions=np.clip(flat(act), -1.0, 1.0),
+                next_observations=flat(nobs), rewards=flat(z["reward"]),
+                terminals=flat(term))
+
+
 def load_unified(data_dir):
     """Flatten <data_dir>/buffer/episode_*.npz into one flat dataset dict."""
     eps = sorted(glob.glob(os.path.join(data_dir, "buffer", "episode_*.npz")), key=_ep_index)
@@ -75,6 +101,16 @@ def load_unified(data_dir):
                 terminals=np.concatenate(term))
 
 
+def load_domain_data(cfg):
+    """Offline data for a domain, either layout: a PACKED per-task npz when the config names
+    one (`data_path`, the HuggingFace export), else the per-episode collected directory
+    (`data_dir`, defaulting to the registry's path for the task)."""
+    path = cfg.get("data_path")
+    if path:
+        return load_packed(path)
+    return load_unified(cfg.get("data_dir") or registry.data_dir(cfg["task"]))
+
+
 def make_task_env(task, render=False):
     """-> (env, horizon). Obs is the RAW factored obs, identical to the collected data."""
     if task.startswith(("b2d-", "p2d-")):
@@ -91,15 +127,11 @@ def make_task_env(task, render=False):
         return env, episode_length_for(task)
     if task.startswith("mw-"):
         os.environ.setdefault("MUJOCO_GL", "egl")
-        from envs.metaworld import MetaWorldWrapper
-        from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
-        raw = ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task.split("-", 1)[-1] + "-v2-goal-observable"](
-            seed=0, render_mode="rgb_array")
-        return MetaWorldWrapper(raw, _Cfg()), 100
+        from env.metaworld_env import make_metaworld_env    # newt's wrapper, torch-free
+        return make_metaworld_env(task)
     if task.startswith("ms-"):
-        os.environ.setdefault("MUJOCO_GL", "egl")
-        from envs.maniskill import make_env as ms_make
-        return ms_make(_Cfg(task=task, seed=0, obs="state", render_size=128, num_envs=1)), 25
+        from env.maniskill_env import make_maniskill_env   # self-contained, no newt backend
+        return make_maniskill_env(task)
     raise ValueError(f"no env builder for task {task!r}")
 
 
@@ -127,9 +159,12 @@ class UnifiedAdapter:
     name = "unified"
 
     def make_env_and_datasets(self, cfg):
-        data = load_unified(cfg.get("data_dir") or registry.data_dir(cfg["task"]))
+        data = load_domain_data(cfg)
         env, horizon = make_task_env(cfg["task"], render=bool(cfg.get("render", True)))
         self._horizon = horizon
+        # The eval goal for goal-conditioned critics (see `evaluate`), cached here so eval
+        # never re-reads the dataset -- for a packed npz that reload costs tens of seconds.
+        self._goal = data["next_observations"][int(np.argmax(data["rewards"]))].astype(np.float32)
         n = len(data["observations"])
         # Hold out the tail as validation. The split lands mid-episode only if val_frac is
         # tiny; terminals still mark every boundary inside each side.
@@ -157,16 +192,21 @@ class UnifiedAdapter:
         provides = set(getattr(agent.critic, "PROVIDES_COND", ()) or ())
         goal = None
         if "goal" in provides and "z" not in provides:
-            d = load_unified(cfg.get("data_dir") or registry.data_dir(cfg["task"]))
-            goal = d["next_observations"][int(np.argmax(d["rewards"]))].astype(np.float32)
+            goal = getattr(self, "_goal", None)
+            if goal is None:                      # adapter used for eval only (campaign/eval)
+                d = load_domain_data(cfg)
+                goal = d["next_observations"][int(np.argmax(d["rewards"]))].astype(np.float32)
 
         successes, ticks, frames = [], [], []
-        for i in range(num_episodes):
+        # Metric episodes first, then num_video EXTRA rendered ones. Rendering costs ~7 ms a
+        # frame and must not perturb the episodes we report, so the reported set is never
+        # rendered — the same split OGBench's evaluate() uses.
+        for i in range(num_episodes + num_video):
+            record = i >= num_episodes
             obs, info = seeded_reset(env, slug, i)
             key = jax.random.PRNGKey(i)
             ep_success = _flag(info.get("success", 0))
             at_goal = int(_flag(info.get("success", 0)))
-            record = i < num_video
             ff = [env.render()] if record else None
             for _ in range(horizon):
                 key, sub = jax.random.split(key)
@@ -181,10 +221,11 @@ class UnifiedAdapter:
                     ff.append(env.render())
                 if _flag(term) or _flag(trunc):
                     break
-            successes.append(float(ep_success))
-            ticks.append(at_goal)                       # integer steps spent at goal
             if record:
                 frames.append(np.array(ff))
+            else:
+                successes.append(float(ep_success))
+                ticks.append(at_goal)                   # integer steps spent at goal
         out = {"success": float(np.mean(successes))}
         if is_box2d:                                    # at-goal ticks: Box2D only, integer scale
             out["at_goal_ticks"] = float(np.mean(ticks))

@@ -14,6 +14,7 @@ actor:
   hidden_layers: 2
   embedding_layers: 2
   bc_coeff: 3.0
+  q_coeff: 1.0          # weight on the critic value term; actor/bcflow.yaml sets it to 0
   flow_steps: 10
   lr_actor_vf: 3.0e-4
   flow_vf_hidden_dim: 512

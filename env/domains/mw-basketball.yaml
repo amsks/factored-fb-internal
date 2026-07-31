@@ -1,0 +1,8 @@
+# mw-basketball via the unified adapter — grasp then place-through-hoop; longer-horizon transport than bin-picking.
+# Same plumbing as mw-bin-picking.yaml: packed HuggingFace export under ${FB_HF_EXPORT},
+# env built by env/metaworld_env.py (newt-parity wrapper, action repeat 2, horizon 100).
+adapter: unified
+env_name: mw-basketball          # run naming only
+task: mw-basketball
+data_path: ${oc.env:FB_HF_EXPORT}/data/metaworld/mw-basketball.npz
+render: false

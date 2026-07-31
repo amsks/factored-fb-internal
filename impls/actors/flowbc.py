@@ -19,6 +19,11 @@ class FlowBCActor:
     flow_steps: int
     bc_coeff: float
     actor_pessimism_penalty: float
+    # Weight on the critic's value term in the ONE-STEP actor objective. 1.0 is FlowBC as
+    # published. 0.0 makes this a pure behaviour-cloning flow policy — the control that
+    # answers "does the critic buy anything over BC?" — with architecture, optimiser,
+    # conditioning and data identical to the agents it is the control for.
+    q_coeff: float = 1.0
 
     GROUPS = ("actor", "actor_vf")
     NEEDS_V = False
@@ -53,12 +58,19 @@ class FlowBCActor:
 
         a = self._actor(params["actor"], obs, c, noise)
         Q, Qs = critic.q_fn(params, obs, cond, a, stop_encoder_grad=True)
-        loss = -Q.mean()
+        loss = -self.q_coeff * Q.mean()
         info = {"q": Q.mean(), "bc_flow_loss": bc_flow}
         if self.bc_coeff > 0:
             tgt = jax.lax.stop_gradient(self._rollout(params["actor_vf"], obs, noise))
             distill = jnp.mean((a - tgt) ** 2)
-            loss = loss / jax.lax.stop_gradient(jnp.abs(Qs).mean()) + self.bc_coeff * distill
+            if self.q_coeff == 0.0:
+                # Pure BC. Q is still computed and logged (so the control observes the same
+                # critic as its treatment arms) but never reaches the gradient. The
+                # Q-normalisation is dropped rather than multiplied by zero: |Qs| can be ~0
+                # early in training, and 0/0 is nan.
+                loss = self.bc_coeff * distill
+            else:
+                loss = loss / jax.lax.stop_gradient(jnp.abs(Qs).mean()) + self.bc_coeff * distill
             info["bc_error"] = distill
         loss = loss + bc_flow
         info["actor_loss"] = loss
@@ -103,5 +115,6 @@ class FlowBCActor:
             "actor_vf": vf.init(rvf, ex_obs, ex_actions, ex_actions[..., :1])["params"],
         }
         obj = cls(actor=actor, actor_vf=vf, flow_steps=int(a_cfg["flow_steps"]),
-                  bc_coeff=float(a_cfg["bc_coeff"]), actor_pessimism_penalty=0.0)
+                  bc_coeff=float(a_cfg["bc_coeff"]), actor_pessimism_penalty=0.0,
+                  q_coeff=float(a_cfg.get("q_coeff", 1.0)))
         return obj, params

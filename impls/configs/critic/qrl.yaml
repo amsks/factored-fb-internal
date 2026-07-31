@@ -1,0 +1,27 @@
+# QRL critic — offline Quasimetric RL (arXiv:2304.01203), IQE head (arXiv:2211.15120).
+# d(s,g) maximized subject to E[relu(d(s,s') - step_cost)^2] <= eps^2 (learned Lagrange
+# multiplier). Representation-only: pair with the bcflow actor.
+lr: 3.0e-4
+batch_size: 1024
+value_hidden_dims: [512, 512, 512]
+layer_norm: true
+discount: 0.99            # used by GCDataset's geometric goal sampling, not by the loss
+
+# --- IQE head: latent width = components * dim_per_component ---
+qrl_components: 64        # k  (64 x 8 = 512-wide latent; use 8 x 8 for the small cell)
+qrl_dim_per_component: 8  # l  (paper recommends >= 8)
+qrl_step_cost: 1.0        # local per-step cost bound
+qrl_eps: 0.25             # constraint slack
+qrl_transform_t: 100.0    # T in the bounded global transform d/(d+T)
+
+# dataset (GCDataset goal sampling) — identical to critic/iql_bilinear.yaml for comparability
+dataset_class: GCDataset
+value_p_curgoal: 0.2
+value_p_trajgoal: 0.5
+value_p_randomgoal: 0.3
+value_geom_sample: true
+actor_p_curgoal: 0.0
+actor_p_trajgoal: 1.0
+actor_p_randomgoal: 0.0
+actor_geom_sample: false
+gc_negative: true

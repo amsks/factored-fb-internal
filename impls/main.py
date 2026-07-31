@@ -33,6 +33,9 @@ flags.DEFINE_integer("log_interval", 5000, "Log every N steps.")
 flags.DEFINE_integer("eval_interval", 100_000, "Eval every N steps.")
 flags.DEFINE_integer("save_interval", 1_000_000, "Checkpoint every N steps.")
 flags.DEFINE_integer("eval_episodes", 20, "Episodes per eval task.")
+flags.DEFINE_integer("num_video", 0,
+                     "Episodes to render per eval, written to <run_dir>/videos/. These are "
+                     "EXTRA episodes -- the metric episodes are never rendered.")
 flags.DEFINE_string("save_dir", "exp/", "Checkpoint directory.")
 flags.DEFINE_string("restore_path", "", "Glob matching exactly one run dir to restore from.")
 flags.DEFINE_integer("restore_epoch", 0, "Checkpoint step to restore (params_{epoch}.pkl).")
@@ -83,6 +86,33 @@ def _append_agg(agg_dir, group, seed, step, row, task):
                family=_FAMILY.get(str(task).split("-")[0]))
     with open(os.path.join(agg_dir, f"{group}__s{seed}.jsonl"), "a") as f:
         f.write(json.dumps(rec) + "\n")
+
+
+def _write_eval_video(run_dir, scope, step, frames):
+    """Tile this eval point's rendered episodes into <run_dir>/videos/<scope>_step<N>.mp4.
+
+    Best-effort by design: a codec or render failure must cost a video, never a 300k-step
+    training run, so anything raised here is reported and swallowed."""
+    if not frames:
+        return None
+    try:
+        from eval.video import save_video_grid
+        name = f"{scope.replace('/', '-')}_step{step}.mp4"
+        return save_video_grid(frames, os.path.join(run_dir, "videos", name))
+    except Exception as e:                                  # noqa: BLE001 - see docstring
+        warnings.warn(f"eval video at step {step} failed: {type(e).__name__}: {e}")
+        return None
+
+
+def _log_video(run, scope, step, video_path):
+    """Attach the eval video to the wandb run (works in offline mode; synced later)."""
+    if video_path is None:
+        return
+    try:
+        import wandb
+        run.log({f"{scope}/video": wandb.Video(video_path, format="mp4")}, step=step)
+    except Exception as e:                                  # noqa: BLE001
+        warnings.warn(f"wandb video log at step {step} failed: {type(e).__name__}: {e}")
 
 
 def main(_):
@@ -140,12 +170,14 @@ def main(_):
                             f"zero-shot z-inference result."
                         )
                 for task_id in adapter.eval_tasks(env, cfg):
-                    row, _frames = adapter.evaluate(eval_agent, env, task_id, cfg,
-                                                    FLAGS.eval_episodes, 0)
+                    row, frames = adapter.evaluate(eval_agent, env, task_id, cfg,
+                                                   FLAGS.eval_episodes, FLAGS.num_video)
                     scope = "eval" if task_id is None else f"eval/task{task_id}"
                     csv_eval.log({**row, "task_id": -1 if task_id is None else task_id}, step=i)
+                    video_path = _write_eval_video(run_dir, scope, i, frames)
                     if run is not None:
                         run.log({f"{scope}/{k}": v for k, v in row.items()}, step=i)
+                        _log_video(run, scope, i, video_path)
                     if FLAGS.agg_dir:
                         _append_agg(FLAGS.agg_dir, agg_group, FLAGS.seed, i, row,
                                     cfg.get("task", cfg.get("env_name")))

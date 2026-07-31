@@ -62,8 +62,12 @@ def test_pair_trains_or_is_rejected(critic, actor):
     assert jnp.isfinite(jnp.asarray(info["actor_loss"])).all()
 
 
-def test_all_thirtytwo_pairs_are_valid():
-    """Pins the gate's floor: all 32 critic x actor pairs are legitimate, none rejected."""
-    assert len(PAIRS) == 32
+def test_all_registered_pairs_are_valid():
+    """Pins the gate's floor: every registered critic x actor pair is legitimate, none
+    rejected. The count is derived from the registries so adding an actor (e.g. bcflow)
+    does not mean editing a magic number, but it is floored at the 32 pairs that existed
+    when this gate was written, so removing a critic or actor still fails."""
+    assert len(PAIRS) == len(CRITICS) * len(ACTORS)
+    assert len(PAIRS) >= 32
     assert EXPECTED_COMBO_ERRORS == set()
-    assert len(set(PAIRS) - EXPECTED_COMBO_ERRORS) == 32
+    assert len(set(PAIRS) - EXPECTED_COMBO_ERRORS) == len(PAIRS)

@@ -18,6 +18,9 @@ from impls.critics.simple_sf import SimpleSfCritic
 from impls.critics.sf_feature import SfFeatureCritic
 from impls.critics.centered_bilinear import CenteredBilinearCritic
 from impls.critics.fb_forward_bilinear import FbForwardBilinearCritic
+from impls.critics.crl import CRLCritic
+from impls.critics.qrl import QRLCritic
+from impls.critics.vip import VIPCritic
 from impls.actors.flowbc import FlowBCActor
 from impls.actors.ddpgbc import DDPGBCActor
 from impls.actors.awr import AWRActor
@@ -26,8 +29,12 @@ from impls.actors.fql import FQLActor
 CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "isfb": ISFBCritic,
            "iql_bilinear": IqlBilinearCritic, "simple_sf": SimpleSfCritic,
            "sf_feature": SfFeatureCritic, "centered_bilinear": CenteredBilinearCritic,
-           "fb_forward_bilinear": FbForwardBilinearCritic}
-ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor}
+           "fb_forward_bilinear": FbForwardBilinearCritic, "crl": CRLCritic,
+           "qrl": QRLCritic, "vip": VIPCritic}
+ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,
+          # bcflow is FlowBCActor with the value term switched off (actor/bcflow.yaml sets
+          # q_coeff: 0) — the pure-BC control, so it composes with exactly the same critics.
+          "bcflow": FlowBCActor}
 
 # per-group learning rates come from config; this maps group -> config key.
 _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",

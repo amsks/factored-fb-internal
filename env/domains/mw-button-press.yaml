@@ -1,0 +1,8 @@
+# mw-button-press via the unified adapter — the EASY task of the Metaworld pair, and the
+# domain-flip control: it has no grasp-transport phase at all, so it plays the role antmaze
+# plays against cube-single. Same data/env plumbing as mw-bin-picking.yaml.
+adapter: unified
+env_name: mw-button-press          # run naming only
+task: mw-button-press
+data_path: ${oc.env:FB_HF_EXPORT}/data/metaworld/mw-button-press.npz
+render: false

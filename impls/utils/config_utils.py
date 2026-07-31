@@ -35,6 +35,31 @@ REQUIRED_KEYS = {
         "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
         "dataset_class",
     ),
+    # crl.py:build() reads value_hidden_dims/latent_dim/layer_norm; the contrastive loss is
+    # not bootstrapped so there are no target/tau keys. GCDataset (built before Agent.create)
+    # reads the goal-sampling + dataset_class keys, same as gciql. Ported from tl-jax-unify.
+    "crl": (
+        "lr", "batch_size", "discount", "value_hidden_dims", "latent_dim", "layer_norm",
+        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
+        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
+        "gc_negative", "dataset_class",
+    ),
+    # qrl.py:build() reads the IQE-head knobs; stage_loss reads the qrl_* scalars. GCDataset
+    # (built before Agent.create) reads the goal-sampling + dataset_class keys.
+    "qrl": (
+        "lr", "lr_actor", "batch_size", "discount", "value_hidden_dims", "layer_norm",
+        "qrl_components", "qrl_dim_per_component", "qrl_step_cost", "qrl_eps",
+        "qrl_transform_t",
+        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
+        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
+        "gc_negative", "dataset_class",
+    ),
+    # vip.py:build() reads the encoder knobs; the loss reads discount. VIPDataset (built
+    # before Agent.create) needs only dataset_class — it has no goal-sampling knobs.
+    "vip": (
+        "lr", "lr_actor", "batch_size", "discount", "value_hidden_dims", "layer_norm",
+        "latent_dim", "dataset_class",
+    ),
     # isfb.py:build() bare-indexes every FB key (it builds the same forward/backward/
     # left_encoder modules) PLUS the ISFB terms; stage_loss reads batch['masks'], which only
     # GCDataset produces, so the GCDataset keys are required too (they are consumed by
