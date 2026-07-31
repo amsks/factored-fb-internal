@@ -72,6 +72,18 @@ class FullMeasure:
         # (set membership is geometry, not mass). None = the KDTree default.
         self.nhat_fn = nhat_fn
 
+    def nearest(self, centers) -> np.ndarray:
+        """Nearest dataset row for each center, in the spec's SCALED metric.
+
+        The tree is built on per-block-scaled coordinates, so querying it with
+        raw coordinates silently returns the wrong rows. Callers that need a
+        nearest-row lookup (e.g. the trained N-hat head) must go through here.
+        For a single-block spec the scaling is uniform, so this agrees exactly
+        with a raw-coordinate lookup — cube-single numbers are unaffected."""
+        centers = np.atleast_2d(np.asarray(centers, np.float64))
+        _, nn = self.tree.query(self.spec.scaled(centers), k=1)
+        return np.atleast_1d(nn)
+
     def _candidates(self, center, mult: float) -> np.ndarray:
         """Superset of the conjunctive region: scaled L-inf ball of radius mult."""
         c = self.spec.scaled(np.asarray(center, np.float64).reshape(1, -1))[0]

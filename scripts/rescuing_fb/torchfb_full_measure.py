@@ -163,9 +163,9 @@ def main() -> int:
     fm_head = None
     if head is not None:
         def nhat_fn(centers):
-            _, nn = fm_exact.tree.query(np.asarray(centers, np.float64), k=1)
+            nn = fm_exact.nearest(centers)
             with torch.no_grad():
-                return head(B_of(np.atleast_1d(nn))).squeeze(-1).float().cpu().numpy()
+                return head(B_of(nn)).squeeze(-1).float().cpu().numpy()
         fm_head = FullMeasure(cube_ds, spec=spec, nhat_fn=nhat_fn)
 
     # ---------------- B. calibration: model set-mass vs MC occupancy ----------

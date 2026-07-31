@@ -82,6 +82,30 @@ def test_legacy_half_key_still_supported():
     assert np.array_equal(got, want)
 
 
+def test_nearest_scales_before_querying_the_tree(world):
+    """The tree lives in scaled coordinates; nearest() must scale the query.
+    Regression: the L1 head path queried it raw and moved model_head_mean by
+    16-22% on cube-single (caught by the §5 gate, 2026-07-31)."""
+    fm, coords, spec = world
+    q = coords[::500]
+    got = fm.nearest(q)
+    brute = np.array([np.argmin(np.linalg.norm(spec.scaled(coords)
+                                               - spec.scaled(c[None])[0], axis=1))
+                      for c in q])
+    assert np.array_equal(got, brute)
+
+
+def test_nearest_matches_raw_lookup_for_a_single_block():
+    """Uniform scaling cannot reorder distances, so single-block (cube-single)
+    nearest-row lookups are unchanged by the scaled tree."""
+    rng = np.random.default_rng(3)
+    cube = rng.normal(0, 0.5, (2000, 3))
+    fm = FullMeasure(cube, eps=0.4, seed=0)
+    q = cube[::200] + rng.normal(0, 0.01, (10, 3))
+    raw = np.array([np.argmin(np.linalg.norm(cube - c, axis=1)) for c in q])
+    assert np.array_equal(fm.nearest(q), raw)
+
+
 def test_union_still_works_over_conjunctive_parts(world):
     fm, coords, spec = world
     p1 = {"kind": "ball", "center": coords[1], "mult": 1.0}
