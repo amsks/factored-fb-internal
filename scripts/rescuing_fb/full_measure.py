@@ -47,23 +47,51 @@ class FullMeasure:
         uniformly; the estimate stays unbiased, variance reported via n_used).
     """
 
-    def __init__(self, cube_ds, eps: float = EPS_OBS, floor_counts: float = 0.5,
-                 max_members: int = 64, seed: int = 0):
-        self.cube = np.asarray(cube_ds, np.float64)
+    def __init__(self, cube_ds, spec=None, eps: float = EPS_OBS,
+                 floor_counts: float = 0.5, max_members: int = 64,
+                 seed: int = 0, nhat_fn=None):
+        from env_geometry import HitSpec
+        self.cube = np.atleast_2d(np.asarray(cube_ds, np.float64))
         self.n = len(self.cube)
+        self.spec = spec if spec is not None else \
+            HitSpec.single(0, self.cube.shape[1], eps)
+        assert self.spec.dim == self.cube.shape[1], \
+            f"spec dim {self.spec.dim} != coords dim {self.cube.shape[1]}"
         self.eps = float(eps)
-        self.tree = cKDTree(self.cube)
+        # Chebyshev tree on per-block-scaled coords: a conjunctive hit implies
+        # every block's scaled L2 <= mult, hence scaled L-inf <= mult. The query
+        # is therefore a strict SUPERSET, refined by an exact filter below.
+        self._scaled = self.spec.scaled(self.cube)
+        self.tree = cKDTree(self._scaled)
         self.floor = float(floor_counts) / self.n
         self.rng = np.random.default_rng(seed)
         self.max_members = int(max_members)
+        # phase 2b hook: a TRAINED denominator N-hat(centers [N,3]) -> [N]
+        # (e.g. the checkpoint's nhat_head) used INSTEAD of the KDTree kernel
+        # count. The floor still applies; member_indices keeps using the tree
+        # (set membership is geometry, not mass). None = the KDTree default.
+        self.nhat_fn = nhat_fn
+
+    def _candidates(self, center, mult: float) -> np.ndarray:
+        """Superset of the conjunctive region: scaled L-inf ball of radius mult."""
+        c = self.spec.scaled(np.asarray(center, np.float64).reshape(1, -1))[0]
+        idx = self.tree.query_ball_point(c, float(mult), p=np.inf)
+        return np.asarray(sorted(idx), np.int64)
 
     # ------------------------------------------------------------- N-hat ----
     def nhat(self, centers) -> np.ndarray:
-        """rho(B_eps(center)) as a fraction of the dataset, floored."""
+        """rho(region(center)) as a fraction of the dataset, floored. With a
+        trained `nhat_fn` supplied, its predictions replace the kernel count."""
         centers = np.atleast_2d(np.asarray(centers, np.float64))
-        counts = self.tree.query_ball_point(centers, self.eps,
-                                            return_length=True)
-        return np.maximum(np.asarray(counts, np.float64) / self.n, self.floor)
+        if self.nhat_fn is not None:
+            return np.maximum(np.asarray(self.nhat_fn(centers), np.float64),
+                              self.floor)
+        counts = np.empty(len(centers), np.float64)
+        for i, c in enumerate(centers):
+            cand = self._candidates(c, 1.0)
+            counts[i] = self.spec.contains(self.cube[cand], c).sum() \
+                if len(cand) else 0.0
+        return np.maximum(counts / self.n, self.floor)
 
     # ----------------------------------------------------------- density ----
     def density(self, ball_vals, centers) -> np.ndarray:
@@ -73,23 +101,39 @@ class FullMeasure:
     # -------------------------------------------------------- set queries ----
     def member_indices(self, query: dict) -> np.ndarray:
         """Dataset row indices inside a query region.
-        query: {'kind':'ball','center':[3],'eps':r} | {'kind':'box','center':[3],
-        'half':[3]} | {'kind':'union','parts':[subqueries]}."""
+        query: {'kind':'ball','center':[dim],'mult':m} |
+               {'kind':'box','center':[dim],'mult':m}  |
+               {'kind':'union','parts':[subqueries]}
+        Legacy keys 'eps' (ball) and 'half' (box) are still honoured for
+        single-block specs so archived protocols reproduce exactly."""
         kind = query["kind"]
-        if kind == "ball":
-            idx = self.tree.query_ball_point(
-                np.asarray(query["center"], np.float64),
-                float(query.get("eps", self.eps)))
-            return np.asarray(sorted(idx), np.int64)
-        if kind == "box":
-            c = np.asarray(query["center"], np.float64)
-            h = np.asarray(query["half"], np.float64)
-            m = np.all(np.abs(self.cube - c) <= h, axis=1)
-            return np.nonzero(m)[0]
         if kind == "union":
             parts = [self.member_indices(p) for p in query["parts"]]
             return np.unique(np.concatenate(parts)) if parts else \
                 np.zeros(0, np.int64)
+
+        center = np.asarray(query["center"], np.float64).reshape(-1)
+        if kind == "ball":
+            if "eps" in query:                       # legacy single-block
+                mult = float(query["eps"]) / self.spec.blocks[0][2]
+            else:
+                mult = float(query.get("mult", 1.0))
+            cand = self._candidates(center, mult)
+            if not len(cand):
+                return np.zeros(0, np.int64)
+            return cand[self.spec.contains(self.cube[cand], center, mult=mult)]
+
+        if kind == "box":
+            if "half" in query:                      # legacy absolute half-widths
+                half = np.asarray(query["half"], np.float64)
+                m = np.all(np.abs(self.cube - center) <= half, axis=1)
+                return np.nonzero(m)[0]
+            mult = float(query.get("mult", 1.0))
+            cand = self._candidates(center, mult)
+            if not len(cand):
+                return np.zeros(0, np.int64)
+            return cand[self.spec.box_contains(self.cube[cand], center, mult=mult)]
+
         raise ValueError(f"unknown query kind {kind!r}")
 
     def set_mass(self, ball_value_fn, member_idx) -> dict:
