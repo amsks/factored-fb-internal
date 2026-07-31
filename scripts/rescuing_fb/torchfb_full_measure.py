@@ -169,9 +169,24 @@ def main() -> int:
         fm_head = FullMeasure(cube_ds, spec=spec, nhat_fn=nhat_fn)
 
     # ---------------- B. calibration: model set-mass vs MC occupancy ----------
-    # Query centers are drawn PER START under the env's probe-center policy
-    # (spec 14 §3.3): random on cube-single (archived protocol), hindsight on
-    # the conjunctive envs, where random centers give MC truth == 0.
+    # Query centers follow the env's probe-center policy (spec 14 §3.3).
+    #
+    # 'random' reproduces the ARCHIVED cube-single protocol bit-for-bit: centers
+    # are drawn ONCE, independently per multiplier, from the rho subsample, and
+    # BEFORE start/goal rows -- the rng draw order is part of the protocol, so
+    # reordering it silently re-rolls which starts get evaluated (caught by the
+    # §5 regression gate on 2026-07-31).
+    #
+    # 'hindsight' must draw per start, since the centers depend on the start's
+    # own episode tail; its draws therefore come after start_rows.
+    fixed_queries = None
+    if geo.probe_centers == "random":
+        fixed_queries = []
+        for mult in MULTS:
+            rows = probe_rows("random", bounds, 0, a.boxes, n_rho, rng)
+            for c in cube_ds[rows]:
+                fixed_queries.append({"kind": "box", "center": c, "mult": mult})
+
     start_rows = rng.choice(len(obs_all), a.starts, replace=False)
     goal_rows = rng.choice(len(obs_all), a.starts, replace=False)
     u = env.unwrapped
@@ -179,14 +194,17 @@ def main() -> int:
     n_skipped = 0
 
     for si, (s_row, g_row) in enumerate(zip(start_rows, goal_rows)):
-        centers_rows = probe_rows(geo.probe_centers, bounds, int(s_row),
-                                  a.boxes, len(obs_all), rng)
-        if len(centers_rows) == 0:          # start sits at its episode's end
-            n_skipped += 1
-            continue
-        centers = spec.coords(obs_all[centers_rows])
-        queries = [{"kind": "box", "center": c, "mult": mult}
-                   for mult in MULTS for c in centers]
+        if fixed_queries is not None:
+            queries = fixed_queries
+        else:
+            centers_rows = probe_rows(geo.probe_centers, bounds, int(s_row),
+                                      a.boxes, len(obs_all), rng)
+            if len(centers_rows) == 0:      # start sits at its episode's end
+                n_skipped += 1
+                continue
+            centers = spec.coords(obs_all[centers_rows])
+            queries = [{"kind": "box", "center": c, "mult": mult}
+                       for mult in MULTS for c in centers]
 
         s0 = torch.as_tensor(obs_all[s_row][None], device=dev)
         # on-manifold z: B(g) of a dataset state, projected (the training z law)
