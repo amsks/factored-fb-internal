@@ -13,14 +13,10 @@
 \newcommand{\E}{\mathbb{E}}
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\ip}[2]{\langle #1, #2 \rangle}
-\newcommand{\biql}{\textsc{biql}}
-\newcommand{\gciql}{\textsc{gciql}}
-\newcommand{\crl}{\textsc{crl}}
-\newcommand{\qrl}{\textsc{qrl}}
 
-\title{\vspace{-2em}The Bilinear GCIQL Critic Is Not a Learned Temporal Metric\\
-{\large An established negative on OGBench cube, and a mathematical account of what the
-critic is doing instead}}
+\title{\vspace{-2em}The Bilinear GCIQL Critic Is Not a Learned Distance Function\\
+{\large Evidence from OGBench cube manipulation, and a mathematical account of what the
+critic learns instead}}
 \author{}
 \date{August 2026}
 
@@ -28,193 +24,199 @@ critic is doing instead}}
 \maketitle
 \vspace{-3em}
 
-\paragraph{Scope.} This note isolates one result of the decoding-bilinear project: the
-refutation of the \emph{metric hypothesis} for bilinear GCIQL (\biql) on OGBench
-\texttt{cube-single-play-v0}, with every number from our own probe matrix
-(3 seeds $\times$ 500k steps per condition; probe battery of
-\texttt{docs/specs/2026-07-31-bilinear-gciql-metric-probe.md}). It ends
-(\S\ref{sec:instead}) with the mathematical argument for the surviving alternative.
-Companion notes: \texttt{phenomenon.tex} (pre-registered phenomena and kill-tests),
-\texttt{decoding-bilinear.tex} (kernel formalism).
+\paragraph{Setting.} All experiments are offline goal-conditioned RL on OGBench
+\texttt{cube-single-play-v0} (state-based single-cube manipulation, one million
+transitions of scripted, task-agnostic play data), 3 seeds $\times$ 500{,}000 gradient
+steps per method. The policy is a flow-matching behavior-cloning actor plus a critic-value
+ascent term; a control actor with the critic term removed isolates the critic's
+contribution. Methods compared: goal-conditioned IQL with a standard MLP critic
+(\textbf{GCIQL}), the same objective with a bilinear critic (\textbf{bilinear GCIQL}),
+contrastive RL (\textbf{CRL}), and quasimetric RL (\textbf{QRL}) as a reference that
+enforces distance structure by architecture.
 
 \section{The hypothesis under test}
 
-The critic is $\hat Q(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}/\sqrt d$ with
+The bilinear critic is $\hat Q(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}/\sqrt d$ with value
 $\hat V(s,g)=\ip{\varphi(s)}{\psi(g)}/\sqrt d$, trained by goal-conditioned expectile TD
-($\tau=0.9$, $\gamma=0.99$) on relabeled play data. Let $d^*(s,g)$ denote the minimal
-dataset-supported hitting time and, for any critic construction, let
-$\hat d(s,g)$ be its induced distance (for \biql: $\hat d = \log_\gamma(1+(1-\gamma)\hat V)$,
-or the self-subtracted logit $f(g,g)-f(s,g)$; both are monotone reparametrizations of
-$\hat V$ and rank-equivalent for every probe below).
+(expectile $0.9$, discount $\gamma=0.99$) on goal-relabeled data. Let $d^*(s,g)$ be the
+minimal number of steps from $s$ to $g$ supported by the dataset. Any value function
+induces an estimated distance $\hat d(s,g) = \log_\gamma\!\big(1+(1-\gamma)\hat V\big)$,
+a monotone transform of $\hat V$; every measurement below is rank-based and therefore
+identical for $\hat V$ and $\hat d$.
 
-\begin{hypothesis}[Metric hypothesis, H-metric]\label{hyp:metric}
-\biql's policy advantage over the monolithic \gciql\ ($92.7\pm1.4$ vs.\ $73.2\pm1.3$
-success at 500k; pure-BC floor $8$--$10$) is mediated by the \emph{fidelity of its learned
-geometry}: $\hat d_{\biql}$ approximates $d^*$ (equivalently, embeds a temporal metric)
-better than $\hat d_{\gciql}$, and this fidelity causes the better guidance.
+\begin{hypothesis}[The distance hypothesis]\label{hyp:metric}
+Bilinear GCIQL outperforms GCIQL ($92.7\pm1.4$ vs.\ $73.2\pm1.3$ success rate; the
+behavior-cloning control reaches $8$--$10$) because its $\hat d$ approximates the true
+distance $d^*$ more faithfully, and this faithfulness is what improves the policy.
 \end{hypothesis}
 
-If H-metric holds, \biql\ must (a) rank temporal distances at least as well as \gciql\ on
-held-out pairs, (b) agree geometrically with the architecturally metric-constrained
-references (\qrl; and \crl's contrastive embedding), and (c) improve its geometry over the
-training window in which success improves.
+If the hypothesis holds, the bilinear critic must (a) rank pairs by temporal distance at
+least as well as GCIQL on held-out data, (b) agree with the methods that estimate
+distances well by construction (QRL, CRL), and (c) improve its distance estimates over
+the training window in which its success rate improves.
 
 \section{The evidence: all three implications fail}
 
-\begin{finding}[Temporal ranking: \gciql\ is the better metric, and loses]\label{f:p1}
-Probe P1, Spearman $\rho(\hat d, \Delta t)$ over $10^5$ same-trajectory validation pairs
-(second number: partial correlation controlling raw-observation $L_2$):
+\begin{finding}[GCIQL estimates temporal distance better, and loses]\label{f:p1}
+Spearman rank correlation between $\hat d(s,g)$ and the time separation of $(s,g)$, over
+$10^5$ held-out same-trajectory pairs (second number: partial correlation controlling for
+Euclidean distance between raw observations):
 \[
-\gciql:\; 0.63\,/\,0.54 \qquad>\qquad \biql:\; 0.54\,/\,0.41 .
+\text{GCIQL}:\; 0.63\,/\,0.54 \qquad>\qquad \text{bilinear GCIQL}:\; 0.54\,/\,0.41 .
 \]
-The critic with the \emph{worse} temporal geometry wins by 20 success points.
-Fidelity of $\hat d$ to $d^*$ on the data distribution is therefore not sufficient
-(\gciql) and not necessary (\biql) for guidance value.
+The critic with the \emph{worse} distance estimate wins by 20 success points. Distance
+faithfulness on the data distribution is therefore neither sufficient (GCIQL) nor
+necessary (bilinear GCIQL) for policy improvement.
 \end{finding}
 
-\begin{finding}[Representational agreement: \biql\ is the geometric outlier]\label{f:rsa}
-RSA (Spearman between upper triangles of the $2000\times2000$ native distance matrices):
-$\mathrm{RSA}(\gciql,\qrl)=0.88$, $\mathrm{RSA}(\gciql,\crl)=0.54$ --- a three-method
-\emph{consensus geometry} among the metric-flavoured methods. \biql\ agrees with none of
-them ($\le 0.21$ against every learned method) and sits closest to \emph{raw observation
-distance} ($0.45$--$0.52$). If \biql\ had learned the temporal metric, it would join the
-consensus; instead the consensus members underperform it by 20--60 points.
+\begin{finding}[The bilinear critic disagrees with every good distance
+estimator]\label{f:rsa}
+Compute each method's $2000\times2000$ matrix of pairwise estimated distances on a fixed
+state sample, and correlate the matrices between methods (Spearman on the upper
+triangles). GCIQL--QRL correlate at $0.88$ and GCIQL--CRL at $0.54$: the three
+distance-flavored methods agree with one another. The bilinear critic agrees with none of
+them (at most $0.21$) and is instead closest to plain Euclidean distance between raw
+observations ($0.45$--$0.52$). If it had learned the temporal distance, it would agree
+with the methods that demonstrably do; instead, those methods underperform it by 20--60
+success points.
 \end{finding}
 
-\begin{finding}[The cosine structure is architectural, not learned]\label{f:cos}
-The trained head is numerically a scaled cosine
-($\mathrm{corr}(\ip{\varphi}{\psi},\cos\angle(\varphi,\psi))=0.996$; norm CVs
-$\le 0.09$) --- but the \emph{untrained} network already has cos-correlation $0.994$:
-LayerNorm concentrates tower norms at initialization. ``It learned a cosine similarity''
-is a property of the architecture class, not of training, and cannot explain a
-training-acquired advantage.
+\begin{finding}[The similarity structure is an artifact of the architecture, not of
+learning]\label{f:cos}
+After training, the bilinear output is numerically a scaled cosine similarity: the
+correlation between $\ip{\varphi}{\psi}$ and $\cos\angle(\varphi,\psi)$ is $0.996$, and
+the embedding norms vary by under $9\%$ across inputs. But the \emph{untrained} network
+already shows correlation $0.994$: layer normalization concentrates the norms at
+initialization. ``It learned a cosine similarity'' is a property of the architecture and
+cannot explain an advantage acquired during training.
 \end{finding}
 
-\begin{finding}[Temporal dissociation: geometry saturates, success does not]\label{f:time}
-From 100k to 500k steps, \biql's P1-partial moves $0.37\to0.41$ while success moves
-$65\to93$. The quantity H-metric says is causal is flat over the window in which the
-effect it must explain triples.
+\begin{finding}[Distance quality plateaus while performance keeps rising]\label{f:time}
+Between 100k and 500k gradient steps, the rank correlation of Finding~\ref{f:p1} moves
+only $0.37\to0.41$ while success moves $65\to93$. The quantity the hypothesis says is
+causal is flat over the window in which the effect it must explain triples.
 \end{finding}
 
-\begin{finding}[Where fidelity actually differs: eval-task rollouts, with the sign
-reversed]\label{f:p2}
-Probe P2 (2026-08-03): per-episode Spearman $\rho(\hat V(s_t,g),\,t)$ along temperature-0
-eval rollouts, full $2\times2$ of scoring critic $\times$ rollout-generating policy
-(3 seeds $\times$ 50 episodes; median over episodes, mean$\pm$sd over seeds):
+\begin{finding}[Where the two critics really differ: states visited at evaluation
+time]\label{f:p2}
+Roll out each trained policy on the evaluation tasks (deterministic actions, 3 seeds
+$\times$ 50 episodes) and record, for each episode, the Spearman correlation between
+$\hat V(s_t, g)$ and the timestep $t$ --- for a sound value function, value should rise
+as the policy approaches its goal. Score \emph{both} critics on \emph{both} policies'
+trajectories (median per episode, mean$\pm$sd over seeds):
 \begin{center}
 \begin{tabular}{lcc}
 \toprule
-scored on $\to$ & \biql-policy rollouts ($0.95$ succ.) & \gciql-policy rollouts ($0.73$ succ.)\\
+ & trajectories of the bilinear-GCIQL & trajectories of the GCIQL\\
+ & policy (success $0.95$) & policy (success $0.73$)\\
 \midrule
-\biql\ critic  & $0.983\pm0.003$ & $0.871\pm0.060$\\
-\gciql\ critic & $\mathbf{0.355\pm0.239}$ & $0.883\pm0.015$\\
+bilinear-GCIQL critic & $0.983\pm0.003$ & $0.871\pm0.060$\\
+GCIQL critic          & $\mathbf{0.355\pm0.239}$ & $0.883\pm0.015$\\
 \bottomrule
 \end{tabular}
 \end{center}
-On val-set pairs \gciql\ ranks better (Finding~\ref{f:p1}); on the eval-task states of
-the \emph{successful} policy its value signal is noise (per-task medians as low as
-$-0.80$), while \biql's is a near-perfect monotone ramp. Each critic is coherent along its
-own policy's trajectories (diagonal); only \biql\ \emph{transfers} to the other policy's
-state distribution. So the fidelity that discriminates the two critics is not metric
-fidelity on the data distribution --- it is \emph{off-distribution coherence} on exactly
-the $(s,g)$ pairs eval interrogates.
+On held-out dataset pairs GCIQL ranks better (Finding~\ref{f:p1}); on the states actually
+visited by the \emph{successful} policy at evaluation time, its value estimates are close
+to uninformative (on one task the median correlation is $-0.80$: value falls as the policy
+approaches the goal), while the bilinear critic's value rises almost perfectly
+monotonically. Each critic is coherent along its own policy's trajectories (diagonal);
+only the bilinear critic remains coherent on the \emph{other} policy's states. What
+separates the two critics is not distance quality on the data distribution but coherence
+on state--goal pairs \emph{outside} it --- exactly the pairs evaluation interrogates.
 \end{finding}
 
 \begin{remark}[Verdict]
-H-metric is refuted on every implication: (a) fails by Finding~\ref{f:p1}, (b) by
-Findings~\ref{f:rsa}--\ref{f:cos}, (c) by Finding~\ref{f:time}; and
-Finding~\ref{f:p2} locates the real discriminator elsewhere. \biql\ also violates metric
-axioms freely where it wins (asymmetry index and triangle-violation rates comparable to
-\gciql's in the trust region, magnitudes bounded) --- metric \emph{axioms} are neither
-enforced nor selected for. Whatever \biql\ learns, calling it a metric explains none of
-the observed orderings.
+Implication (a) fails by Finding~\ref{f:p1}, (b) by
+Findings~\ref{f:rsa}--\ref{f:cos}, (c) by Finding~\ref{f:time}, and
+Finding~\ref{f:p2} shows the real discriminator lies elsewhere. The bilinear critic also
+freely violates the defining axioms of a distance where it wins --- its estimates are
+asymmetric and violate the triangle inequality at rates comparable to GCIQL's. Whatever
+it learns, calling it a distance function explains none of the observed orderings.
 \end{remark}
 
-\section{What the critic is plausibly doing instead}\label{sec:instead}
+\section{What the critic is plausibly learning instead}\label{sec:instead}
 
-The surviving account is that the bilinear head is a \textbf{bounded low-rank completion
-of the in-sample-optimal reachability kernel}, and that its advantage is a property of the
-\emph{function class at the actor interface}, not of any geometry it encodes. We give the
-argument in three steps, each attached to a measured quantity.
+The surviving account: the bilinear critic learns a \textbf{bounded, low-rank
+approximation of the optimal goal-conditioned value function}, and its advantage comes
+from how that function class behaves under policy optimization --- not from any distance
+structure. The argument has three steps, each tied to a measured quantity.
 
-\paragraph{Setup.} Let $K^*(s,g)=\gamma^{d^*(s,g)}\in[0,1]$ and let
-$V^*=(K^*-1)/(1-\gamma)$ be the optimal goal-conditioned value under the $-1$-per-step
-convention, so $V^*\in[-1/(1-\gamma),\,0]=[-100,0]$ at $\gamma=0.99$. Expectile TD at
-$\tau\to1$ regresses toward the in-sample optimal $V^*$ on the relabeled pair measure
-$\mu$. The bilinear class with LayerNorm towers is
+\paragraph{Setup.} With reward $-1$ per step until the goal is reached, the optimal value
+is $V^*(s,g)=\big(\gamma^{d^*(s,g)}-1\big)/(1-\gamma)\in[-100,\,0]$ at $\gamma=0.99$.
+Expectile regression with expectile near $1$ pushes $\hat V$ toward this in-sample optimum
+on the distribution $\mu$ of relabeled state--goal pairs. Because layer normalization
+concentrates $\|\varphi\|$ and $\|\psi\|$, the bilinear class is uniformly bounded:
 \[
-\mathcal F_d \;=\;\Big\{(s,g)\mapsto \tfrac{1}{\sqrt d}\ip{\varphi(s)}{\psi(g)} \;:\;
-\|\varphi\|\approx\kappa_\varphi,\ \|\psi\|\approx\kappa_\psi\Big\},
-\qquad \kappa:=\kappa_\varphi\kappa_\psi/\sqrt d .
+|\hat V|,\,|\hat Q| \;\le\; \kappa := \|\varphi\|\,\|\psi\|/\sqrt d,
+\qquad \kappa\approx 75 \text{ as measured, realized } \hat V\in[-63,\,+6].
 \]
-Measured on \biql-$d50$: $\kappa\approx75$, realized $\hat V\in[-63,\,+6]$.
 
-\paragraph{Step 1 (boundedness caps actor exploitation).}
-The one-step actor maximizes $\hat Q$ against a BC anchor. For any policy $\pi$ reached by
-ascent, the standard decomposition gives
+\paragraph{Step 1: the bound caps how much the actor can exploit critic error.}
+The actor maximizes $\hat Q$ against a behavior-cloning anchor. For any policy $\pi$ the
+standard decomposition gives
 \[
-J(\pi)\;\ge\;J(\pi_{\mathrm{BC}})\;+\;\underbrace{\E_{s,g}\big[\hat Q(s,\pi)-\hat Q(s,\pi_{\mathrm{BC}})\big]}_{\text{what ascent collects}}
+J(\pi)\;\ge\;J(\pi_{\mathrm{BC}})
+\;+\;\E_{s,g}\big[\hat Q(s,\pi)-\hat Q(s,\pi_{\mathrm{BC}})\big]
 \;-\;2\sup_{s,a,g}\big|\hat Q-Q^*\big| .
 \]
-For an unbounded monolithic MLP the sup is uncontrolled precisely off the data
-distribution, where ascent goes hunting; within $\mathcal F_d$ it is at most
-$\kappa+\sup|Q^*|$, i.e.\ the class cannot manufacture value spikes: since
-$|\hat Q|\le\kappa\approx 75<100=\sup|V^*|$, the class cannot even \emph{represent} the
-most extreme values, let alone hallucinate beyond them. Errors are forced to be
-\emph{many, small, and spread} rather than rare and enormous --- exactly the measured
-triangle-violation profile (\biql\ magnitude $4.8$ steps vs.\ \gciql\ $9.5$ at comparable
-rates).
+For an unbounded MLP the supremum is uncontrolled precisely outside the data
+distribution, where the maximization goes hunting; in the bilinear class it is at most
+$\kappa+\sup|Q^*|$. Indeed $\kappa\approx75<100=\sup|V^*|$: the class cannot even
+represent the most extreme values, let alone hallucinate beyond them. Errors are forced
+to be many, small, and spread out rather than rare and enormous --- matching the
+measurement that GCIQL's triangle-inequality violations average $9.5$ steps in magnitude
+against the bilinear critic's $4.8$ at comparable rates.
 
-\paragraph{Step 2 (rank $d$ forces completion to unseen pairs).}
-Write the value table on supports $\mathcal S\times\mathcal G$ as a matrix
-$M_{sg}=\hat V(s,g)$; $\mathcal F_d$ constrains $\operatorname{rank}(M)\le d$. The training
-measure $\mu$ covers a sub-block pattern $\Omega\subset\mathcal S\times\mathcal G$
-(each state with \emph{some} goals, each goal with \emph{some} states --- play relabeling
-guarantees marginal coverage, not joint coverage). A rank-$d$ matrix has
-$d(|\mathcal S|+|\mathcal G|-d)$ degrees of freedom, and under standard incoherence
-conditions is \emph{uniquely determined} by $O\big(d\,(|\mathcal S|+|\mathcal G|)\,
-\mathrm{polylog}\big)$ generically positioned entries. Hence, once $\mu$ pins the factors
-on $\Omega$, the values on the \emph{unmeasured} block
-$(\mathcal S\times\mathcal G)\setminus\Omega$ --- which contains the eval pairs
-$(s,g^{\mathrm{task}})$ --- are not free parameters: the class extrapolates them by
-completion, $\hat V = \Phi\Psi^\top/\sqrt d$ with both factors identified on the covered
-marginals. A monolithic MLP obeys no such constraint; its off-$\Omega$ values are limited
-only by smoothness. This is Finding~\ref{f:p2} in mathematical form: the $2\times2$
-transfer asymmetry (coherent at $0.87$ off its training policy's distribution vs.\
-\gciql's $0.36$) is the completion property, observed.
+\paragraph{Step 2: low rank forces the critic to fill in unseen state--goal pairs
+consistently.}
+View the value function on the dataset's states and goals as a matrix
+$M_{sg}=\hat V(s,g)$; the bilinear form constrains $\operatorname{rank}(M)\le d$.
+Goal relabeling covers each state with \emph{some} goals and each goal with \emph{some}
+states, but not all combinations; evaluation asks about combinations never seen together.
+A rank-$d$ matrix has only $d(|\mathcal S|+|\mathcal G|-d)$ degrees of freedom and ---
+this is the standard matrix-completion fact --- is uniquely determined by a number of
+generically-positioned entries proportional to $d(|\mathcal S|+|\mathcal G|)$, up to
+logarithmic factors. Once training pins down the two factors on the covered pairs, the
+values on the \emph{uncovered} pairs are no longer free: the class extrapolates them
+consistently. An MLP critic obeys no such constraint; its values off the training
+distribution are limited only by smoothness. This is Finding~\ref{f:p2} in mathematical
+form: the bilinear critic stays coherent on another policy's states ($0.87$) where the
+MLP critic collapses ($0.36$).
 
-\paragraph{Step 3 (what is learned is a spectral object, not a metric).}
-The expectile regression solves, in the idealized linear-algebraic limit,
+\paragraph{Step 3: what is learned is a low-rank approximation of $V^*$, not a
+distance.}
+In the idealized limit, expectile TD in the rank-constrained class solves
 \[
-\min_{\operatorname{rank} M\le d}\ \big\|W_\tau\odot(M-V^*)\big\|_{\mu}^2 ,
+\min_{\operatorname{rank} M\le d}\ \big\|\,W\odot(M-V^*)\,\big\|_{\mu}^2 ,
 \]
-a $\tau$-weighted low-rank approximation of $V^*$: the learned object is (a reweighting
-of) the \textbf{top-$d$ spectral subspace of the optimal value kernel}, not a distance
-function. This predicts, and the data confirm:
+a weighted low-rank approximation of the optimal value function --- i.e.\ the critic
+retains (a reweighting of) the top-$d$ singular subspace of $V^*$. This predicts, and the
+data confirm:
 \begin{enumerate}[label=(\roman*)]
-\item performance depends on capturing the top spectral subspace, so success saturates
-once $d$ exceeds the kernel's effective spectral dimension: measured saturation at
-$d^\dagger\in[10,20]$ ($0.06/0.62/0.92/0.90/0.93$ at $d=5/10/20/30/50$), with learned
-effective rank tracking the container sublinearly ($4.1/8.0/14.7/19.6/28.0$) --- a
-capacity budget, not a learned constant;
-\item metric axioms (symmetry, triangle inequality) are epiphenomenal --- a truncated
-spectral approximation of $\gamma^{d^*}$ satisfies neither exactly, and \biql\ indeed
-violates both while winning;
-\item geometry probes on $\mu$ (P1, RSA) can prefer \gciql\ while the actor prefers
-\biql, because they measure pointwise ranking on $\Omega$, which is blind to both
-boundedness (Step~1) and off-$\Omega$ completion (Step~2).
+\item performance saturates once $d$ exceeds the effective dimension of that subspace:
+measured success $0.06/0.62/0.92/0.90/0.93$ at $d=5/10/20/30/50$, saturating between
+$d=10$ and $d=20$, while the trained embeddings' effective dimension keeps growing with
+$d$ ($4.1/8.0/14.7/19.6/28.0$) --- capacity, not a learned constant;
+\item the axioms of a distance (symmetry, triangle inequality) are incidental --- a
+truncated low-rank approximation of $V^*$ satisfies neither exactly, and the bilinear
+critic indeed violates both while winning;
+\item distance measurements on the data distribution (Findings~\ref{f:p1},
+\ref{f:rsa}) can prefer GCIQL while the actor prefers the bilinear critic, because such
+measurements are blind to both the bound of Step~1 and the off-distribution consistency
+of Step~2.
 \end{enumerate}
 
-\begin{proposition}[Value-completion account, falsifiable summary]
-\biql's guidance advantage $=$ bounded ($\kappa<\sup|V^*|$), rank-$d^\dagger$ completion
-of the expectile-optimal reachability kernel from marginal coverage. It predicts:
-(a) bounding a monolithic critic at $\kappa$ recovers part of the $73\to93$ gap
-(\texttt{gciql-qb75}, running); (b) destroying norm concentration degrades \biql\ at fixed
-rank (\texttt{biql-d50-nopsiln}, running); (c) the completion behaviour of
-Finding~\ref{f:p2} should survive any monotone reparametrization of $\hat V$ and vanish
-for $d<d^\dagger$. Any of these failing bounds how much of the account survives; none of
-them resurrects H-metric, which is refuted by Findings~\ref{f:p1}--\ref{f:p2}
-independently.
+\begin{proposition}[Summary of the account, and how it can fail]
+The bilinear critic's advantage $=$ a uniformly bounded ($\kappa<\sup|V^*|$), rank-$d$
+approximation of the optimal goal-conditioned value function, extended to unseen
+state--goal pairs by the low-rank constraint. Falsifiable consequences, currently under
+test: (a) imposing the same bound $\kappa$ on the MLP critic (squashing its output
+through $\kappa\tanh(\cdot/\kappa)$) should recover part of the $73\to93$ gap;
+(b) removing the layer normalization from the goal embedding, which destroys the uniform
+bound at fixed rank, should degrade the bilinear critic; (c) the off-distribution
+coherence of Finding~\ref{f:p2} should vanish for $d$ below the saturation dimension.
+Any of these failing narrows the account; none of them restores
+Hypothesis~\ref{hyp:metric}, which Findings~\ref{f:p1}--\ref{f:p2} refute independently.
 \end{proposition}
 
 \end{document}
