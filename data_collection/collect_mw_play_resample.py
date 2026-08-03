@@ -25,10 +25,13 @@ Output: one packed [N, traj_len, ·] npz, byte-compatible with env/unified.py::l
 import argparse
 import json
 import os
+import sys
 
 import numpy as np
 
 os.environ.setdefault("MUJOCO_GL", "egl")
+# Invoked by file path (not -m), so the repo root is not on sys.path; env.* needs it.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Mild exploration mixture per SEGMENT (between target re-draws), gentler than play-noise:
 # the point of this regime is coverage via relocation chaining, not via action noise.
