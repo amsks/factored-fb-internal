@@ -122,7 +122,62 @@ Learned effective rank at the same checkpoints: 4.1 / 8.0 / 14.7 / 19.6 / 28.0
   project — why the mechanism is invisible on MW/MS (headroom censoring, broken goal
   channel, kernel degeneracy); see phenomenon.tex Ph. I–III.
 
-## 3. Honest limits
+## 3. Grounding: the intrinsic RL property being captured (2026-08-03)
+
+"Low-rank completion works" is a description until we say what property of the *MDP* makes
+the value function low-rank. The claim: **the family of optimal goal-conditioned value
+functions {V\*(·, g) : g ∈ G} spans a low-dimensional function space, because the hitting
+time d\*(s, g) depends on (s, g) only through the low-dimensional controllable latent (the
+block pose), not the 28-dim observation.** This is the structure assumed by linear /
+low-rank MDP theory (transition kernel of rank d ⇒ every value function linear in d
+features), observed empirically by UVFA's goal-value matrix factorizations, and exploited
+by successor-measure / forward-backward methods; the bilinear critic is a spectral method
+for the optimal-value kernel.
+
+Measured, with no learning involved (`eval/kernel_spectrum.py`: shortest paths on a
+stride-5 graph over the validation data — temporal edges carry demonstrated step gaps, kNN
+shortcuts are radius-limited to the 5-step displacement quantile — then SVD of the
+centered value matrix V = (γ^D − 1)/(1 − γ)):
+
+| estimator setting | 90% energy | 95% energy | eff. rank |
+|---|---|---|---|
+| stride 5, radius q0.9 | 7 dims | 19 dims | 11.1 |
+| stride 5, radius q0.5 | 5 dims | 7 dims | 5.5 |
+| stride 3, radius q0.9 | 5 dims | 6 dims | 5.0 |
+
+Robust conclusion: the environment's own reachability kernel has ~5–7 dominant components
+(the top 3 carry 44/21–30/12–19% — the three spatial coordinates of the block latent, plus
+harmonics), effective dimension ≈ 5–11.
+
+**The learned critic converges to the same object, independent of capacity.** SVD of the
+trained value matrix Φ Ψᵀ/√d on the probe states (centered):
+
+| | 90% energy | 95% energy | eff. rank | top components |
+|---|---|---|---|---|
+| biql-d50 | 11 | 16 | 10.1 | 0.31 / 0.23 / 0.11 |
+| biql-d512 | 12 | 18 | 10.6 | 0.29 / 0.23 / 0.12 |
+
+Identical spectra at 10× different container sizes. So the d-sweep's "no invariant" verdict
+was about the wrong statistic: the *embedding spread* grows with d (28 → 48), but the
+*value function the critic expresses* is a fixed ≈ 10-dimensional spectral object matching
+the environment kernel — and success saturates exactly when the container covers it
+(d = 10: 0.62, d = 15: 0.84, d = 20: 0.92 ≈ the kernel's 95%-energy dimension).
+
+Cross-environment prediction this makes: the saturation dimension should track the
+dimension of the goal-relevant latent, not the observation size — e.g. cube-double should
+need roughly twice the rank; a 3-D-target Metaworld task should have a very low-rank
+kernel, which is precisely the regime where a monolithic MLP suffices and the bilinear
+advantage should shrink. This ties RQ1 and RQ2 together: the bilinear form pays off
+exactly when the task family's value spectrum is rich enough that unstructured critics
+fail to extrapolate it.
+
+Honest caveats: the graph estimator's absolute numbers move with its knobs (5–19 for the
+95% dimension); the critic factorizes Q(s, a, g), whose action conditioning adds rank over
+V; and matching spectra is consistency, not identifiability — the decisive causal test
+remains the d-sweep saturation, which the kernel spectrum now *predicts* rather than
+merely describes.
+
+## 4. Honest limits
 
 - The exploitation bound (§1, i) is an upper-bound argument, not an identity; its
   kill-test is gciql-qb75, not the algebra.

@@ -385,6 +385,28 @@ what explains how ascent on $\hat Q_{\textsc{biql}}$ can push the policy \emph{b
 critic-fidelity frontier of $\hat Q_{\textsc{gciql}}$ ($73\to93$).
 \end{remark}
 
+\begin{remark}[Post-registration: the grounding measurement (2026-08-03)]\label{rem:spectrum}
+The rank story is grounded in an intrinsic property of the environment. Graph-estimated
+ground truth (\texttt{eval/kernel\_spectrum.py}: shortest paths over the validation data,
+temporal edges + one-hop-radius kNN shortcuts; no learning): the centered optimal-value
+matrix $V=(\gamma^{D}-1)/(1-\gamma)$ has $5$--$7$ dominant components carrying $90\%$ of
+its energy (eff.\ rank $5$--$11$ across estimator settings; top three components
+$\approx$ the block's three spatial coordinates). The \emph{learned} value matrix
+$\Phi\Psi^\top/\sqrt d$ has the \textbf{same centered spectrum at both $d{=}50$ and
+$d{=}512$}: dims$_{90}=11/12$, dims$_{95}=16/18$, eff.\ rank $10.1/10.6$, top components
+$0.30/0.23/0.11$ --- capacity-independent, unlike the embedding eff.\ rank
+(Remark~\ref{rem:dsweep}). The invariant the $d$-sweep was looking for is the spectrum of
+the \emph{expressed value function}, which matches the environment kernel and predicts the
+success saturation ($d^\dagger\approx$ dims$_{95}$: $0.62/0.84/0.92$ at $d=10/15/20$).
+Mechanistically this is the low-rank-MDP / successor-feature structure: $\{V^*(\cdot,g)\}$
+spans a $\approx10$-dimensional function space because $d^*$ factors through the 3-D block
+latent; the bilinear head is a spectral estimator of that family, and its off-distribution
+coherence (Remark~\ref{rem:p2}) is inherited from the spectrum being a global object.
+Cross-env prediction: $d^\dagger$ tracks the goal-relevant latent dimension (cube-double
+$\Rightarrow$ roughly double), and near-rank-1 task families (single 3-D target) are the
+regime where monolithic critics suffice.
+\end{remark}
+
 \section{Interpretation discipline}
 
 The five phenomena are deliberately stated so that the six experiments in
