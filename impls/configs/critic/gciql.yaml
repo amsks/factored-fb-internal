@@ -6,6 +6,8 @@ layer_norm: true
 discount: 0.99
 tau: 0.005
 expectile: 0.9
+q_bound: 0.0      # >0: squash V and Q to |.| <= q_bound via kappa*tanh(x/kappa) — the
+                  # bounded-monolithic control (phenomenon.tex Pred. mech.1). 0 = vendored.
 
 # dataset (GCDataset goal sampling)
 dataset_class: GCDataset

@@ -18,6 +18,7 @@ ALLOC="${ALLOC:-ASC26008}"
 VENV="${VENV:-$SCRATCH/.venv-ms}"
 SAVE_DIR="${SAVE_DIR:-$SCRATCH/factored-fb-metric-probe}"
 SEEDS="${SEEDS:-0 1 2}"
+NUM_VIDEO="${NUM_VIDEO:-4}"
 MAX_QUEUE="${MAX_QUEUE:-38}"
 
 # One row per spec §5: "label|critic|actor|override". Seeds expanded below (row 10 is 1 seed).
@@ -55,8 +56,8 @@ for row in "${ROWS[@]}"; do
       while [ "$(squeue -h -u "$USER" 2>/dev/null | wc -l)" -ge "$MAX_QUEUE" ]; do sleep 30; done
       id=$(CRITIC="$critic" ACTOR="$actor" DOMAIN="cube-single" SEED="$SEED" \
            TRAIN_STEPS=500000 EVAL_INTERVAL=100000 SAVE_INTERVAL=100000 EVAL_EPISODES=50 \
-           NUM_VIDEO=0 OVERRIDE="$override" CODE_DIR="$CODE_DIR" VENV="$VENV" \
-           SAVE_DIR="$SAVE_DIR" \
+           NUM_VIDEO="$NUM_VIDEO" OVERRIDE="$override" CODE_DIR="$CODE_DIR" VENV="$VENV" \
+           SAVE_DIR="$SAVE_DIR/$label" \
            sbatch -A "$ALLOC" -J "$name" --parsable scripts/vista_train.slurm \
            | grep -oE '^[0-9]+$' | tail -1)
       echo "${id:-FAIL} $name" | tee -a "$MANIFEST"

@@ -409,6 +409,11 @@ class GCBilinearPsiValue(GCBilinearValue):
     """
     psi_base: str = "learned"
     project_z: bool = False
+    # None -> psi follows `layer_norm` (the vendored-identical default). False de-LayerNorms
+    # the goal tower ONLY: the norm-concentration ablation (phenomenon.tex Pred. mech.2) —
+    # psi norm CV is architectural under LayerNorm, so removing it here is the direct test
+    # of the goal-uniform-guidance-scale claim while phi stays vendored.
+    psi_layer_norm: Any = None
 
     def setup(self):
         mlp_class = MLP
@@ -417,9 +422,11 @@ class GCBilinearPsiValue(GCBilinearValue):
         self.phi = mlp_class((*self.hidden_dims, self.latent_dim),
                              activate_final=False, layer_norm=self.layer_norm)
         if self.psi_base != "identity":
-            # same name/shape/init order as GCBilinearValue.psi => param trees interchange.
+            psi_ln = self.layer_norm if self.psi_layer_norm is None else bool(self.psi_layer_norm)
+            # same name/shape/init order as GCBilinearValue.psi => param trees interchange
+            # (LayerNorm-free MLPs simply lack the LayerNorm_* entries).
             self.psi = mlp_class((*self.hidden_dims, self.latent_dim),
-                                 activate_final=False, layer_norm=self.layer_norm)
+                                 activate_final=False, layer_norm=psi_ln)
 
     def psi_of(self, goals):
         """The goal-leg embedding, i.e. the task vector z the actor may condition on.

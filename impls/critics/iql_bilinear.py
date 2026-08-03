@@ -296,7 +296,8 @@ class IqlBilinearCritic:
         project_z = bool(config["project_z"])
         # SYMMETRIC head kwargs (audit S3): value and critic differ ONLY in `ensemble`.
         head_kw = dict(hidden_dims=hd, latent_dim=d, layer_norm=ln,
-                       psi_base=psi_base, project_z=project_z)
+                       psi_base=psi_base, project_z=project_z,
+                       psi_layer_norm=config["psi_layer_norm"])
         value = GCBilinearPsiValue(ensemble=False, **head_kw)
         critic = GCBilinearPsiValue(ensemble=True, **head_kw)
 

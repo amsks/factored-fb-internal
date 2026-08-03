@@ -11,6 +11,9 @@ expectile: 0.9
 
 # --- bilinear head ---
 value_latent_dim: 512     # d; the rank of the goal bottleneck (the d-sweep axis)
+psi_layer_norm: true      # false: de-LayerNorm the goal tower ONLY (phi keeps layer_norm) —
+                          # the norm-concentration ablation (phenomenon.tex Pred. mech.2).
+                          # true matches vendored (psi LN == layer_norm).
 psi_base: learned         # learned | frozen | identity  (identity PINS d == goal dim)
 project_z: false          # hard sphere-Norm psi onto radius sqrt(d); reaches BOTH nets
 double_q: true            # false ablates the clipped double-Q to the single head q1

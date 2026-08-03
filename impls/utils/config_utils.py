@@ -30,7 +30,7 @@ REQUIRED_KEYS = {
     # reads the goal-sampling and dataset_class keys.
     "gciql": (
         "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
-        "value_hidden_dims", "layer_norm", "gc_negative",
+        "value_hidden_dims", "layer_norm", "gc_negative", "q_bound",
         "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
         "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
         "dataset_class",
@@ -86,7 +86,7 @@ REQUIRED_KEYS = {
         "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
         "value_hidden_dims", "layer_norm", "gc_negative",
         "value_latent_dim", "psi_base", "project_z", "double_q", "iql_ortho_coef",
-        "actor_cond", "actor_z_from_critic", "actor_z_infer",
+        "psi_layer_norm", "actor_cond", "actor_z_from_critic", "actor_z_infer",
         "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
         "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
         "dataset_class",

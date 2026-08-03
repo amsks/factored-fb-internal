@@ -23,6 +23,7 @@ class GCIQLCritic:
     expectile: float
     tau: float
     obs_dim: int
+    q_bound: float
 
     GROUPS = ("value", "critic")
     STAGES = ("iql",)
@@ -42,11 +43,19 @@ class GCIQLCritic:
         return self.GROUPS
 
     # --- module apply helpers ---
+    def _squash(self, x):
+        # q_bound > 0 restricts the hypothesis class to |V|,|Q| <= q_bound via
+        # kappa*tanh(x/kappa) — the bounded-monolithic control for the bilinear critic,
+        # whose norm-concentrated head satisfies |Q| <= ||phi||*||psi||/sqrt(d) by
+        # construction (phenomenon.tex, Pred. mech.1). Python-float condition: static
+        # under jit, so q_bound=0 (the default) compiles to the identity.
+        return self.q_bound * jnp.tanh(x / self.q_bound) if self.q_bound > 0 else x
+
     def _V(self, p, obs, goal):
-        return self.value.apply({"params": p}, obs, goal)            # (B,)
+        return self._squash(self.value.apply({"params": p}, obs, goal))            # (B,)
 
     def _Q(self, p, obs, goal, actions):
-        return self.critic.apply({"params": p}, obs, goal, actions)  # (2, B)
+        return self._squash(self.critic.apply({"params": p}, obs, goal, actions))  # (2, B)
 
     @staticmethod
     def _expectile_loss(adv, diff, expectile):
@@ -113,5 +122,6 @@ class GCIQLCritic:
         }
         targets = {"critic": copy.deepcopy(params["critic"])}
         obj = cls(value=value, critic=critic, discount=float(config["discount"]),
-                  expectile=float(config["expectile"]), tau=float(config["tau"]), obs_dim=int(obs_dim))
+                  expectile=float(config["expectile"]), tau=float(config["tau"]),
+                  obs_dim=int(obs_dim), q_bound=float(config["q_bound"]))
         return obj, params, targets
