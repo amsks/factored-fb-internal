@@ -401,6 +401,27 @@ by noise). Ph.~\ref{ph:headroom} is confirmed as \emph{a} cause (sufficient to u
 ordering on push), not the whole story.
 \end{remark}
 
+\begin{remark}[Post-registration result: P\ref{pred:kernel}(b) has run --- and re-censored
+itself (2026-08-03)]\label{rem:resample}
+OGBench-style play was collected for MW (200 trajectories $\times$ 500 steps, target
+re-drawn from the env goal space on every success and every 60 steps; 47.5 relocations
+per trajectory, dwell $0.095$). Every cell of the
+$\{$\textsc{biql},\textsc{gciql}$\}\times\{$BC, Flow$\}$ square lands at
+$0.95$--$0.98$ on both tasks --- \emph{including pure BC}. Diagnosis: on
+goal-\emph{observable} benchmarks (E8) any target-directed collection policy embeds its
+current target in the observation, so BC learns ``reach the target in your own
+observation'', which at eval \emph{is} the task: $H\approx0.03$, the square is censored
+again. This sharpens Ph.~\ref{ph:headroom}--\ref{ph:context} into one statement:
+\textbf{on goal-observable environments the guidance channel can only be measured if
+either the data is suboptimal (hard-noise, Remark~\ref{rem:headroom}) or the observation's
+goal dims are masked from the actor} (Pred.~\ref{pred:context}a). The cube regime is
+special because its observations contain no goal --- there BC \emph{cannot} shortcut, and
+all performance must flow through the critic. Next arm: play-resample-hard
+($\varepsilon_{\max}{=}0.5$, $\sigma_{\max}{=}0.3$ on the chained-relocation collector) ---
+opens headroom while keeping goal diversity, isolating the Ph.~\ref{ph:context} residual
+on pick-place.
+\end{remark}
+
 \begin{remark}[Post-registration results: P\ref{pred:mech}.1--2 have run (2026-08-03)]
 \label{rem:mech12}
 \textbf{P\ref{pred:mech}.1 (bounded monolithic)}: \textsc{gciql} with

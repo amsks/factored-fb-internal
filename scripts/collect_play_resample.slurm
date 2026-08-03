@@ -22,6 +22,9 @@ echo "== code: $(pwd) =="
 VENV="${VENV:-$SCRATCH/.venv-ms}"
 PY="$VENV/bin/python"
 OUT="${OUT:-$SCRATCH/fb-data/play-resample}"
+EPS_MAX="${EPS_MAX:-0.1}"
+NOISE_MAX="${NOISE_MAX:-0.1}"
+EXPERT_FRAC="${EXPERT_FRAC:-0.0}"
 export MUJOCO_GL=egl
 export CUDA_VISIBLE_DEVICES=0
 
@@ -29,9 +32,10 @@ FAIL=0
 for task in mw-push mw-pick-place; do
   npz="$OUT/data/metaworld/$task.npz"
   if [ -f "$npz" ]; then echo "== skip $task (exists)"; continue; fi
-  echo "== collect $task (play-resample) =="
+  echo "== collect $task (play-resample eps=$EPS_MAX noise=$NOISE_MAX clean=$EXPERT_FRAC) =="
   $PY data_collection/collect_mw_play_resample.py \
       --task "$task" --episodes 200 --seed 0 --out "$OUT" \
+      --eps_max "$EPS_MAX" --noise_max "$NOISE_MAX" --expert_frac "$EXPERT_FRAC" \
       || { echo "!! FAILED collect $task"; FAIL=1; }
 done
 echo "== DONE (FAIL=$FAIL) out=$OUT =="
