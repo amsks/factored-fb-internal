@@ -1,0 +1,220 @@
+\documentclass[10pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\setlist{itemsep=1pt,topsep=2pt}
+
+\newtheorem{hypothesis}{Hypothesis}
+\newtheorem{finding}{Finding}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\ip}[2]{\langle #1, #2 \rangle}
+\newcommand{\biql}{\textsc{biql}}
+\newcommand{\gciql}{\textsc{gciql}}
+\newcommand{\crl}{\textsc{crl}}
+\newcommand{\qrl}{\textsc{qrl}}
+
+\title{\vspace{-2em}The Bilinear GCIQL Critic Is Not a Learned Temporal Metric\\
+{\large An established negative on OGBench cube, and a mathematical account of what the
+critic is doing instead}}
+\author{}
+\date{August 2026}
+
+\begin{document}
+\maketitle
+\vspace{-3em}
+
+\paragraph{Scope.} This note isolates one result of the decoding-bilinear project: the
+refutation of the \emph{metric hypothesis} for bilinear GCIQL (\biql) on OGBench
+\texttt{cube-single-play-v0}, with every number from our own probe matrix
+(3 seeds $\times$ 500k steps per condition; probe battery of
+\texttt{docs/specs/2026-07-31-bilinear-gciql-metric-probe.md}). It ends
+(\S\ref{sec:instead}) with the mathematical argument for the surviving alternative.
+Companion notes: \texttt{phenomenon.tex} (pre-registered phenomena and kill-tests),
+\texttt{decoding-bilinear.tex} (kernel formalism).
+
+\section{The hypothesis under test}
+
+The critic is $\hat Q(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}/\sqrt d$ with
+$\hat V(s,g)=\ip{\varphi(s)}{\psi(g)}/\sqrt d$, trained by goal-conditioned expectile TD
+($\tau=0.9$, $\gamma=0.99$) on relabeled play data. Let $d^*(s,g)$ denote the minimal
+dataset-supported hitting time and, for any critic construction, let
+$\hat d(s,g)$ be its induced distance (for \biql: $\hat d = \log_\gamma(1+(1-\gamma)\hat V)$,
+or the self-subtracted logit $f(g,g)-f(s,g)$; both are monotone reparametrizations of
+$\hat V$ and rank-equivalent for every probe below).
+
+\begin{hypothesis}[Metric hypothesis, H-metric]\label{hyp:metric}
+\biql's policy advantage over the monolithic \gciql\ ($92.7\pm1.4$ vs.\ $73.2\pm1.3$
+success at 500k; pure-BC floor $8$--$10$) is mediated by the \emph{fidelity of its learned
+geometry}: $\hat d_{\biql}$ approximates $d^*$ (equivalently, embeds a temporal metric)
+better than $\hat d_{\gciql}$, and this fidelity causes the better guidance.
+\end{hypothesis}
+
+If H-metric holds, \biql\ must (a) rank temporal distances at least as well as \gciql\ on
+held-out pairs, (b) agree geometrically with the architecturally metric-constrained
+references (\qrl; and \crl's contrastive embedding), and (c) improve its geometry over the
+training window in which success improves.
+
+\section{The evidence: all three implications fail}
+
+\begin{finding}[Temporal ranking: \gciql\ is the better metric, and loses]\label{f:p1}
+Probe P1, Spearman $\rho(\hat d, \Delta t)$ over $10^5$ same-trajectory validation pairs
+(second number: partial correlation controlling raw-observation $L_2$):
+\[
+\gciql:\; 0.63\,/\,0.54 \qquad>\qquad \biql:\; 0.54\,/\,0.41 .
+\]
+The critic with the \emph{worse} temporal geometry wins by 20 success points.
+Fidelity of $\hat d$ to $d^*$ on the data distribution is therefore not sufficient
+(\gciql) and not necessary (\biql) for guidance value.
+\end{finding}
+
+\begin{finding}[Representational agreement: \biql\ is the geometric outlier]\label{f:rsa}
+RSA (Spearman between upper triangles of the $2000\times2000$ native distance matrices):
+$\mathrm{RSA}(\gciql,\qrl)=0.88$, $\mathrm{RSA}(\gciql,\crl)=0.54$ --- a three-method
+\emph{consensus geometry} among the metric-flavoured methods. \biql\ agrees with none of
+them ($\le 0.21$ against every learned method) and sits closest to \emph{raw observation
+distance} ($0.45$--$0.52$). If \biql\ had learned the temporal metric, it would join the
+consensus; instead the consensus members underperform it by 20--60 points.
+\end{finding}
+
+\begin{finding}[The cosine structure is architectural, not learned]\label{f:cos}
+The trained head is numerically a scaled cosine
+($\mathrm{corr}(\ip{\varphi}{\psi},\cos\angle(\varphi,\psi))=0.996$; norm CVs
+$\le 0.09$) --- but the \emph{untrained} network already has cos-correlation $0.994$:
+LayerNorm concentrates tower norms at initialization. ``It learned a cosine similarity''
+is a property of the architecture class, not of training, and cannot explain a
+training-acquired advantage.
+\end{finding}
+
+\begin{finding}[Temporal dissociation: geometry saturates, success does not]\label{f:time}
+From 100k to 500k steps, \biql's P1-partial moves $0.37\to0.41$ while success moves
+$65\to93$. The quantity H-metric says is causal is flat over the window in which the
+effect it must explain triples.
+\end{finding}
+
+\begin{finding}[Where fidelity actually differs: eval-task rollouts, with the sign
+reversed]\label{f:p2}
+Probe P2 (2026-08-03): per-episode Spearman $\rho(\hat V(s_t,g),\,t)$ along temperature-0
+eval rollouts, full $2\times2$ of scoring critic $\times$ rollout-generating policy
+(3 seeds $\times$ 50 episodes; median over episodes, mean$\pm$sd over seeds):
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+scored on $\to$ & \biql-policy rollouts ($0.95$ succ.) & \gciql-policy rollouts ($0.73$ succ.)\\
+\midrule
+\biql\ critic  & $0.983\pm0.003$ & $0.871\pm0.060$\\
+\gciql\ critic & $\mathbf{0.355\pm0.239}$ & $0.883\pm0.015$\\
+\bottomrule
+\end{tabular}
+\end{center}
+On val-set pairs \gciql\ ranks better (Finding~\ref{f:p1}); on the eval-task states of
+the \emph{successful} policy its value signal is noise (per-task medians as low as
+$-0.80$), while \biql's is a near-perfect monotone ramp. Each critic is coherent along its
+own policy's trajectories (diagonal); only \biql\ \emph{transfers} to the other policy's
+state distribution. So the fidelity that discriminates the two critics is not metric
+fidelity on the data distribution --- it is \emph{off-distribution coherence} on exactly
+the $(s,g)$ pairs eval interrogates.
+\end{finding}
+
+\begin{remark}[Verdict]
+H-metric is refuted on every implication: (a) fails by Finding~\ref{f:p1}, (b) by
+Findings~\ref{f:rsa}--\ref{f:cos}, (c) by Finding~\ref{f:time}; and
+Finding~\ref{f:p2} locates the real discriminator elsewhere. \biql\ also violates metric
+axioms freely where it wins (asymmetry index and triangle-violation rates comparable to
+\gciql's in the trust region, magnitudes bounded) --- metric \emph{axioms} are neither
+enforced nor selected for. Whatever \biql\ learns, calling it a metric explains none of
+the observed orderings.
+\end{remark}
+
+\section{What the critic is plausibly doing instead}\label{sec:instead}
+
+The surviving account is that the bilinear head is a \textbf{bounded low-rank completion
+of the in-sample-optimal reachability kernel}, and that its advantage is a property of the
+\emph{function class at the actor interface}, not of any geometry it encodes. We give the
+argument in three steps, each attached to a measured quantity.
+
+\paragraph{Setup.} Let $K^*(s,g)=\gamma^{d^*(s,g)}\in[0,1]$ and let
+$V^*=(K^*-1)/(1-\gamma)$ be the optimal goal-conditioned value under the $-1$-per-step
+convention, so $V^*\in[-1/(1-\gamma),\,0]=[-100,0]$ at $\gamma=0.99$. Expectile TD at
+$\tau\to1$ regresses toward the in-sample optimal $V^*$ on the relabeled pair measure
+$\mu$. The bilinear class with LayerNorm towers is
+\[
+\mathcal F_d \;=\;\Big\{(s,g)\mapsto \tfrac{1}{\sqrt d}\ip{\varphi(s)}{\psi(g)} \;:\;
+\|\varphi\|\approx\kappa_\varphi,\ \|\psi\|\approx\kappa_\psi\Big\},
+\qquad \kappa:=\kappa_\varphi\kappa_\psi/\sqrt d .
+\]
+Measured on \biql-$d50$: $\kappa\approx75$, realized $\hat V\in[-63,\,+6]$.
+
+\paragraph{Step 1 (boundedness caps actor exploitation).}
+The one-step actor maximizes $\hat Q$ against a BC anchor. For any policy $\pi$ reached by
+ascent, the standard decomposition gives
+\[
+J(\pi)\;\ge\;J(\pi_{\mathrm{BC}})\;+\;\underbrace{\E_{s,g}\big[\hat Q(s,\pi)-\hat Q(s,\pi_{\mathrm{BC}})\big]}_{\text{what ascent collects}}
+\;-\;2\sup_{s,a,g}\big|\hat Q-Q^*\big| .
+\]
+For an unbounded monolithic MLP the sup is uncontrolled precisely off the data
+distribution, where ascent goes hunting; within $\mathcal F_d$ it is at most
+$\kappa+\sup|Q^*|$, i.e.\ the class cannot manufacture value spikes: since
+$|\hat Q|\le\kappa\approx 75<100=\sup|V^*|$, the class cannot even \emph{represent} the
+most extreme values, let alone hallucinate beyond them. Errors are forced to be
+\emph{many, small, and spread} rather than rare and enormous --- exactly the measured
+triangle-violation profile (\biql\ magnitude $4.8$ steps vs.\ \gciql\ $9.5$ at comparable
+rates).
+
+\paragraph{Step 2 (rank $d$ forces completion to unseen pairs).}
+Write the value table on supports $\mathcal S\times\mathcal G$ as a matrix
+$M_{sg}=\hat V(s,g)$; $\mathcal F_d$ constrains $\operatorname{rank}(M)\le d$. The training
+measure $\mu$ covers a sub-block pattern $\Omega\subset\mathcal S\times\mathcal G$
+(each state with \emph{some} goals, each goal with \emph{some} states --- play relabeling
+guarantees marginal coverage, not joint coverage). A rank-$d$ matrix has
+$d(|\mathcal S|+|\mathcal G|-d)$ degrees of freedom, and under standard incoherence
+conditions is \emph{uniquely determined} by $O\big(d\,(|\mathcal S|+|\mathcal G|)\,
+\mathrm{polylog}\big)$ generically positioned entries. Hence, once $\mu$ pins the factors
+on $\Omega$, the values on the \emph{unmeasured} block
+$(\mathcal S\times\mathcal G)\setminus\Omega$ --- which contains the eval pairs
+$(s,g^{\mathrm{task}})$ --- are not free parameters: the class extrapolates them by
+completion, $\hat V = \Phi\Psi^\top/\sqrt d$ with both factors identified on the covered
+marginals. A monolithic MLP obeys no such constraint; its off-$\Omega$ values are limited
+only by smoothness. This is Finding~\ref{f:p2} in mathematical form: the $2\times2$
+transfer asymmetry (coherent at $0.87$ off its training policy's distribution vs.\
+\gciql's $0.36$) is the completion property, observed.
+
+\paragraph{Step 3 (what is learned is a spectral object, not a metric).}
+The expectile regression solves, in the idealized linear-algebraic limit,
+\[
+\min_{\operatorname{rank} M\le d}\ \big\|W_\tau\odot(M-V^*)\big\|_{\mu}^2 ,
+\]
+a $\tau$-weighted low-rank approximation of $V^*$: the learned object is (a reweighting
+of) the \textbf{top-$d$ spectral subspace of the optimal value kernel}, not a distance
+function. This predicts, and the data confirm:
+\begin{enumerate}[label=(\roman*)]
+\item performance depends on capturing the top spectral subspace, so success saturates
+once $d$ exceeds the kernel's effective spectral dimension: measured saturation at
+$d^\dagger\in[10,20]$ ($0.06/0.62/0.92/0.90/0.93$ at $d=5/10/20/30/50$), with learned
+effective rank tracking the container sublinearly ($4.1/8.0/14.7/19.6/28.0$) --- a
+capacity budget, not a learned constant;
+\item metric axioms (symmetry, triangle inequality) are epiphenomenal --- a truncated
+spectral approximation of $\gamma^{d^*}$ satisfies neither exactly, and \biql\ indeed
+violates both while winning;
+\item geometry probes on $\mu$ (P1, RSA) can prefer \gciql\ while the actor prefers
+\biql, because they measure pointwise ranking on $\Omega$, which is blind to both
+boundedness (Step~1) and off-$\Omega$ completion (Step~2).
+\end{enumerate}
+
+\begin{proposition}[Value-completion account, falsifiable summary]
+\biql's guidance advantage $=$ bounded ($\kappa<\sup|V^*|$), rank-$d^\dagger$ completion
+of the expectile-optimal reachability kernel from marginal coverage. It predicts:
+(a) bounding a monolithic critic at $\kappa$ recovers part of the $73\to93$ gap
+(\texttt{gciql-qb75}, running); (b) destroying norm concentration degrades \biql\ at fixed
+rank (\texttt{biql-d50-nopsiln}, running); (c) the completion behaviour of
+Finding~\ref{f:p2} should survive any monotone reparametrization of $\hat V$ and vanish
+for $d<d^\dagger$. Any of these failing bounds how much of the account survives; none of
+them resurrects H-metric, which is refuted by Findings~\ref{f:p1}--\ref{f:p2}
+independently.
+\end{proposition}
+
+\end{document}

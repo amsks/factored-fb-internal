@@ -1,0 +1,82 @@
+% Generated from results/table.tex (legacy 9-column fragment). Do not edit by hand.
+\documentclass[10pt]{article}
+\usepackage[margin=0.7in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{multirow}
+\pagestyle{empty}
+\begin{document}
+
+\begin{table}[t]\centering
+\caption{Success rate on the factored critic$\times$actor seam: mean over each run's last 3 eval points, $\pm$ sd over 3 seeds. \textbf{BC} is the \texttt{bcflow} control (the Flow actor with \texttt{q\_coeff}=0, so the critic's value term is removed). Only FB's BC control is available in this source table; because the actor conditions on the critic's conditioning vector (FB's learned $z$ for FB, the goal for the goal-conditioned critics), that row is not the matched control for the GCIQL, biGCIQL and CRL blocks.}
+\label{tab:critic-actor-grid}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{ll cccccccc}
+\toprule
+ &  & \multicolumn{4}{c}{ManiSkill} & \multicolumn{4}{c}{Metaworld} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10}
+ &  & \multicolumn{2}{c}{\texttt{ms-pick-cube}} & \multicolumn{2}{c}{\texttt{ms-push-cube}} & \multicolumn{2}{c}{\texttt{mw-pick-place}} & \multicolumn{2}{c}{\texttt{mw-push}} \\
+\cmidrule(lr){3-4} \cmidrule(lr){5-6} \cmidrule(lr){7-8} \cmidrule(lr){9-10}
+Critic & Actor & expert & play-noise & expert & play-noise & expert & play-noise & expert & play-noise \\
+\midrule
+\multirow{3}{*}{FB} & BC & $0.19 \pm 0.01$ & $0.57 \pm 0.06$ & $0.09 \pm 0.05$ & $0.82 \pm 0.04$ & $1.00 \pm 0.00$ & $0.88 \pm 0.03$ & $1.00 \pm 0.00$ & $0.93 \pm 0.04$ \\
+ & Flow & $0.21 \pm 0.08$ & $0.69 \pm 0.08$ & $0.04 \pm 0.04$ & $0.78 \pm 0.13$ & $1.00 \pm 0.00$ & $0.86 \pm 0.03$ & $1.00 \pm 0.00$ & $0.96 \pm 0.02$ \\
+ & DDPG & $0.20 \pm 0.03$ & $0.20 \pm 0.04$ & $0.10 \pm 0.10$ & $0.58 \pm 0.08$ & $1.00 \pm 0.00$ & $0.91 \pm 0.02$ & $1.00 \pm 0.00$ & $0.88 \pm 0.04$ \\
+\midrule
+\multirow{2}{*}{GCIQL} & Flow & $0.08 \pm 0.02$ & $0.14 \pm 0.03$ & $0.01 \pm 0.01$ & $0.31 \pm 0.16$ & $0.38 \pm 0.04$ & $0.88 \pm 0.06$ & $0.18 \pm 0.02$ & $0.94 \pm 0.03$ \\
+ & DDPG & $0.05 \pm 0.00$ & $0.06 \pm 0.01$ & $0.00 \pm 0.00$ & $0.13 \pm 0.05$ & $0.00 \pm 0.00$ & $0.58 \pm 0.01$ & $0.00 \pm 0.00$ & $0.80 \pm 0.03$ \\
+\midrule
+\multirow{2}{*}{biGCIQL} & Flow & $0.08 \pm 0.03$ & $0.08 \pm 0.03$ & $0.00 \pm 0.00$ & $0.19 \pm 0.06$ & $0.34 \pm 0.13$ & $0.85 \pm 0.10$ & $0.37 \pm 0.24$ & $0.90 \pm 0.02$ \\
+ & DDPG & $0.06 \pm 0.01$ & $0.05 \pm 0.00$ & $0.00 \pm 0.00$ & $0.16 \pm 0.13$ & $0.01 \pm 0.01$ & $0.39 \pm 0.15$ & $0.10 \pm 0.08$ & $0.64 \pm 0.05$ \\
+\midrule
+\multirow{2}{*}{CRL} & Flow & $0.05 \pm 0.00$ & $0.10 \pm 0.04$ & $0.01 \pm 0.01$ & $0.43 \pm 0.14$ & $0.79 \pm 0.07$ & $0.53 \pm 0.39$ & $0.64 \pm 0.55$ & $0.22 \pm 0.10$ \\
+ & DDPG & $0.05 \pm 0.00$ & $0.06 \pm 0.01$ & $0.01 \pm 0.01$ & $0.28 \pm 0.04$ & $0.40 \pm 0.30$ & $0.07 \pm 0.04$ & $0.73 \pm 0.09$ & $0.10 \pm 0.04$ \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+% ---- Kill-test arms launched 2026-08-03 (hand-maintained; filled as runs land) ----
+\begin{table}[t]\centering
+\caption{Pre-registered kill-test arms (phenomenon.tex), launched 2026-08-03.
+\emph{play-noise-hard} = scripted-oracle mixture with \texttt{expert\_frac}=0,
+$\varepsilon_{\max}=0.5$, $\sigma_{\max}=0.3$ (reopens headroom, Ph.~I only);
+\emph{play-resample} = OGBench-style play: 200 trajectories $\times$ 500 steps, target
+re-drawn from the env goal space on every success (no dwell) and every 60 steps
+(equalizes E7: horizon, dwell, goal diversity, kernel range; eval-side goal channel
+untouched). Cube arms test the Ph.~V mechanism. All cells 3 seeds; \textsc{pending} =
+submitted, awaiting results.}
+\label{tab:killtests}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lll cc}
+\toprule
+Setting & Critic & Actor & \texttt{mw-push} & \texttt{mw-pick-place} \\
+\midrule
+\multirow{4}{*}{play-noise-hard (Pred.~headroom)}
+ & biGCIQL & BC   & \textsc{pending} & \textsc{pending} \\
+ & biGCIQL & Flow & \textsc{pending} & \textsc{pending} \\
+ & GCIQL   & BC   & \textsc{pending} & \textsc{pending} \\
+ & GCIQL   & Flow & \textsc{pending} & \textsc{pending} \\
+\midrule
+\multirow{4}{*}{play-resample (Pred.~kernel(b))}
+ & biGCIQL & BC   & \textsc{pending} & \textsc{pending} \\
+ & biGCIQL & Flow & \textsc{pending} & \textsc{pending} \\
+ & GCIQL   & BC   & \textsc{pending} & \textsc{pending} \\
+ & GCIQL   & Flow & \textsc{pending} & \textsc{pending} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.8em}
+\begin{tabular}{llc}
+\toprule
+Cube arm (500k, 3 seeds) & Tests & Success \\
+\midrule
+GCIQL $+\;\kappa\tanh(\cdot/\kappa)$, $\kappa{=}75$ (\texttt{gciql-qb75}) & Ph.~V(a) boundedness & \textsc{pending} \\
+biGCIQL $d{=}50$, no $\psi$-LayerNorm (\texttt{biql-d50-nopsiln}) & Ph.~V(b) norm concentration & \textsc{pending} \\
+biGCIQL $d{=}15$ & $d^\dagger$ bracket & \textsc{pending} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}
