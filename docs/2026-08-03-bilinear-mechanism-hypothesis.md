@@ -110,17 +110,21 @@ Learned effective rank at the same checkpoints: 4.1 / 8.0 / 14.7 / 19.6 / 28.0
 - d = 5 collapses to 6% — *some* rank is necessary; boundedness alone with rank 5 is not
   sufficient. This is independent pressure toward the conjunction claim.
 
-### 2.5 What is still pending (launched, not yet landed)
+### 2.5 The two remaining kill-tests landed (2026-08-03): the weight shifts onto completion
 
-- **gciql-qb75** (κ·tanh(·/κ), κ = 75, on cube): if bounding the monolithic critic
-  recovers a large fraction of 73 → 93, boundedness (i) shares the credit; if none, the
-  completion property (iii) carries the phenomenon alone. Either way the hypothesis
-  refines rather than dies — that is what the P2 result already secured.
-- **biql-d50-nopsiln** (ψ tower without LayerNorm): tests whether norm concentration (ii)
-  is load-bearing; prediction: success drops toward gciql at identical rank.
-- Cross-env arms (MW play-noise-hard, MW play-resample) test the *other* half of the
-  project — why the mechanism is invisible on MW/MS (headroom censoring, broken goal
-  channel, kernel degeneracy); see phenomenon.tex Ph. I–III.
+- **gciql-qb75** (κ·tanh(·/κ), κ = 75): **0.760 ± 0.037** vs 0.732 unbounded — bounding
+  the monolithic critic recovers at most ~3 of the 19.5-point gap. Boundedness (i)
+  contributes little on its own.
+- **biql-d50-nopsiln** (ψ tower without LayerNorm): **0.909 ± 0.032** vs 0.927 baseline —
+  within noise; the predicted drop toward gciql did not happen. Norm concentration (ii)
+  is not load-bearing for performance.
+- Net verdict: the conjunction survives, but almost all of its weight sits on the
+  **completion property (iii)** — which is exactly the sub-claim the P2 transfer
+  asymmetry (§2.3) confirmed directly, and which §3 grounds in the environment's own
+  kernel spectrum.
+- Cross-env arms (MW play-noise-hard, MW play-resample) are still running; they test why
+  the mechanism is invisible on MW/MS (headroom censoring, broken goal channel, kernel
+  degeneracy); see phenomenon.tex Ph. I–III.
 
 ## 3. Grounding: the intrinsic RL property being captured (2026-08-03)
 

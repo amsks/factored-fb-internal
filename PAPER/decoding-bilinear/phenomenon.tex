@@ -385,6 +385,23 @@ what explains how ascent on $\hat Q_{\textsc{biql}}$ can push the policy \emph{b
 critic-fidelity frontier of $\hat Q_{\textsc{gciql}}$ ($73\to93$).
 \end{remark}
 
+\begin{remark}[Post-registration results: P\ref{pred:mech}.1--2 have run (2026-08-03)]
+\label{rem:mech12}
+\textbf{P\ref{pred:mech}.1 (bounded monolithic)}: \textsc{gciql} with
+$\kappa\tanh(\cdot/\kappa)$, $\kappa{=}75$, scores $0.760\pm0.037$ vs.\ $0.732\pm0.013$
+unbounded --- boundedness recovers at most $\sim3$ of the $19.5$-point gap. Per the
+decision tree, sub-claim (a) contributes little; completion (c) carries the phenomenon.
+\textbf{P\ref{pred:mech}.2 (de-concentrated $\psi$)}: removing the $\psi$-tower LayerNorm
+gives $0.909\pm0.032$ vs.\ $0.927\pm0.017$ --- within noise of baseline, nowhere near the
+predicted drop toward \textsc{gciql}; sub-claim (b) is not load-bearing for performance.
+\textbf{$d{=}15$}: $0.837\pm0.027$, completing the saturation curve
+($0.62/0.84/0.92$ at $d{=}10/15/20$). Net verdict on Ph.~\ref{ph:mechanism}: the
+conjunction survives but its weight shifts almost entirely onto (c) --- bounded scale and
+uniform goal norms are incidental; the rank-restricted \emph{completion} of the value
+family, grounded in the environment's own kernel spectrum
+(Remark~\ref{rem:spectrum}), is the mechanism.
+\end{remark}
+
 \begin{remark}[Post-registration: the grounding measurement (2026-08-03)]\label{rem:spectrum}
 The rank story is grounded in an intrinsic property of the environment. Graph-estimated
 ground truth (\texttt{eval/kernel\_spectrum.py}: shortest paths over the validation data,
