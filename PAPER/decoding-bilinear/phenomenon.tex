@@ -385,6 +385,22 @@ what explains how ascent on $\hat Q_{\textsc{biql}}$ can push the policy \emph{b
 critic-fidelity frontier of $\hat Q_{\textsc{gciql}}$ ($73\to93$).
 \end{remark}
 
+\begin{remark}[Post-registration result: P\ref{pred:headroom} has run --- first cross-env
+replication of the ordering (2026-08-03)]\label{rem:headroom}
+Hard-noise MW data ($\varepsilon_{\max}{=}0.5$, $\sigma_{\max}{=}0.3$, no clean episodes;
+collected dataset success $0.50/0.54$, dwell $0.21/0.25$) opened the headroom as
+predicted: BC floors dropped from $0.89$--$1.0$ to $0.52$--$0.67$. On \texttt{mw-push}
+the cube structure \textbf{reappears}: \textsc{biql} $0.600\to0.867$
+($S_1-S_0=+0.27$) vs.\ \textsc{gciql} $0.667\to0.717$ ($+0.05$); \textsc{biql} is the
+best cell by $0.15$ ($\approx2$ sd) --- the first replication of
+\textsc{biql}$>$\textsc{gciql} with positive guidance outside OGBench.
+On \texttt{mw-pick-place} headroom opened ($H\approx0.45$) but guidance stayed flat
+($+0.05$ / $-0.03$): per the decision tree this escalates pick-place to
+Ph.~\ref{ph:context}/\ref{ph:kernel} (the goal channel and horizon defects are untouched
+by noise). Ph.~\ref{ph:headroom} is confirmed as \emph{a} cause (sufficient to unmask the
+ordering on push), not the whole story.
+\end{remark}
+
 \begin{remark}[Post-registration results: P\ref{pred:mech}.1--2 have run (2026-08-03)]
 \label{rem:mech12}
 \textbf{P\ref{pred:mech}.1 (bounded monolithic)}: \textsc{gciql} with
