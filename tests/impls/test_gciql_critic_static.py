@@ -27,7 +27,7 @@ def _critic():
     return GCIQLCritic(value=GCValue(hidden_dims=hd, layer_norm=True, ensemble=False),
                        critic=GCValue(hidden_dims=hd, layer_norm=True, ensemble=True),
                        discount=float(_FX["meta/discount"]), expectile=float(_FX["meta/expectile"]),
-                       tau=0.005, obs_dim=8)
+                       tau=0.005, obs_dim=8, q_bound=0.0)
 
 
 def test_value_and_critic_loss_match():
