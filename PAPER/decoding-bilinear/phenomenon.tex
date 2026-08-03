@@ -422,6 +422,22 @@ opens headroom while keeping goal diversity, isolating the Ph.~\ref{ph:context} 
 on pick-place.
 \end{remark}
 
+\begin{remark}[Post-registration result: hard-noise chained-relocation play
+(2026-08-03)]\label{rem:resamplehard}
+The combined arm ($\varepsilon_{\max}{=}0.5$, $\sigma_{\max}{=}0.3$ on the relocation
+collector; dwell $<0.01$, but note relocations/trajectory fall to $3.4$--$4.9$ ---
+noise makes the oracle rarely reach targets, so most segments end by the 60-step timeout).
+BC floors reopen ($0.55$--$0.68$). \texttt{mw-pick-place}, which was \emph{flat} under
+hard-noise corridors (Remark~\ref{rem:headroom}), now shows guidance for the bilinear
+critic only: \textsc{biql} $0.550\to0.667$ ($+0.12$) vs.\ \textsc{gciql} $0.617\to0.617$
+($0.00$); on \texttt{mw-push} both critics are near-flat ($+0.02$/$+0.05$) with
+\textsc{biql} cells uniformly above \textsc{gciql}'s but overlapping at $n{=}3$.
+Suggestive, not decisive: consistent with goal-diverse long-horizon data being what
+pick-place guidance needed (Ph.~\ref{ph:kernel}), with the eval-side goal channel
+(Pred.~\ref{pred:context}a/b, still unimplemented) as the remaining unexercised repair
+and the obvious next arm alongside more seeds.
+\end{remark}
+
 \begin{remark}[Post-registration results: P\ref{pred:mech}.1--2 have run (2026-08-03)]
 \label{rem:mech12}
 \textbf{P\ref{pred:mech}.1 (bounded monolithic)}: \textsc{gciql} with
