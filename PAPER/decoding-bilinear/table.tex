@@ -85,4 +85,129 @@ biGCIQL $d{=}15$ & $d^\dagger$ bracket & $0.837\pm0.027$ \\
 \end{tabular}
 \end{table}
 
+\clearpage
+% ---- Dataset provenance (hand-maintained; mirrors docs/2026-08-03-datasets.md) ----
+\section*{Datasets}
+
+Every dataset above is one packed \texttt{npz} per task at
+\texttt{<root>/data/<family>/<task>.npz}, the eight unified fields stacked $[N,T,\cdot]$
+(\texttt{observation}, \texttt{action}, \texttt{next\_observation},
+\texttt{achieved\_goal}, \texttt{reward}, \texttt{terminal}, \texttt{timeout},
+\texttt{success}). \texttt{env/unified.py::load\_packed} flattens to $N\!\cdot\!T$
+transitions and \emph{synthesizes} the \texttt{terminals} that mark trajectory boundaries
+at each episode's last step: the env's own \texttt{terminal} flag never fires, since every
+collection here is fixed-horizon. Two schema facts matter for reading the grid.
+(i)~\texttt{achieved\_goal} is a zeros placeholder in all six datasets and is never read.
+(ii)~The eval goal for the goal-conditioned critics does not come from the data's goal
+field either --- it is the single highest-reward \texttt{next\_observation} in the dataset
+(\texttt{env/unified.py:167}), one fixed frame reused for every eval episode. The
+\emph{play-resample} arm deliberately leaves this eval-side channel unrepaired.
+
+All statistics in Table~\ref{tab:datasets} were recomputed from the packed files, not
+copied from the collection logs. \emph{ep-succ} is the fraction of episodes in which
+\texttt{success} ever fires; \emph{dwell} is the fraction of \emph{all} steps spent at the
+goal --- the quantity that separates ``reached it'' from ``sat on it''.
+
+\begin{table}[h]\centering
+\caption{Provenance and measured content of every dataset used above. The exploration
+mixture is drawn once per episode (per \emph{segment} for the resample regimes): a coin
+$f_{\mathrm{exp}}$ decides whether the episode stays clean, otherwise
+$\varepsilon\!\sim\!U(0,\varepsilon_{\max})$ and $\sigma\!\sim\!U(0,\sigma_{\max})$ give
+$a = \mathrm{clip}(\pi(s) + \sigma\mathcal{N}(0,I))$, replaced wholesale by $U(-1,1)$ with
+probability $\varepsilon$.}
+\label{tab:datasets}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lll ccccccc}
+\toprule
+Regime & Task & Collector / policy & $N\times T$ & obs/act
+ & $\varepsilon_{\max}/\sigma_{\max}/f_{\mathrm{exp}}$ & ep-succ & dwell & reloc/traj \\
+\midrule
+\multirow{4}{*}{\texttt{expert}}
+ & \texttt{ms-pick-cube}  & newt TD-MPC2 ckpt, planner on & $1000\times25$  & 42/4 & $0/0/1$ & 0.996 & 0.746 & -- \\
+ & \texttt{ms-push-cube}  & newt TD-MPC2 ckpt, planner on & $1000\times25$  & 35/7 & $0/0/1$ & 0.999 & 0.858 & -- \\
+ & \texttt{mw-pick-place} & MW scripted oracle            & $1000\times100$ & 39/4 & $0/0/1$ & 1.000 & 0.749 & -- \\
+ & \texttt{mw-push}       & MW scripted oracle            & $1000\times100$ & 39/4 & $0/0/1$ & 0.999 & 0.706 & -- \\
+\midrule
+\multirow{4}{*}{\texttt{play-noise}}
+ & \texttt{ms-pick-cube}  & TD-MPC2, \texttt{mpc=false} & $1000\times25$  & 42/4 & $0.25/0.15/0.3$ & 0.772 & 0.272 & -- \\
+ & \texttt{ms-push-cube}  & TD-MPC2, \texttt{mpc=false} & $1000\times25$  & 35/7 & $0.25/0.15/0.3$ & 0.955 & 0.691 & -- \\
+ & \texttt{mw-pick-place} & MW scripted oracle          & $1000\times100$ & 39/4 & $0.3/0.2/0.3$   & 0.860 & 0.531 & -- \\
+ & \texttt{mw-push}       & MW scripted oracle          & $1000\times100$ & 39/4 & $0.3/0.2/0.3$   & 0.820 & 0.484 & -- \\
+\midrule
+\multirow{2}{*}{\texttt{play-noise-hard}}
+ & \texttt{mw-pick-place} & as \texttt{play-noise}, hotter mixture & $1000\times100$ & 39/4 & $0.5/0.3/0$ & 0.544 & 0.245 & -- \\
+ & \texttt{mw-push}       & as \texttt{play-noise}, hotter mixture & $1000\times100$ & 39/4 & $0.5/0.3/0$ & 0.500 & 0.209 & -- \\
+\midrule
+\multirow{2}{*}{\texttt{play-resample}}
+ & \texttt{mw-pick-place} & oracle + target re-draw & $200\times500$ & 39/4 & $0.1/0.1/0$ & 0.960 & 0.095 & 47.5 \\
+ & \texttt{mw-push}       & oracle + target re-draw & $200\times500$ & 39/4 & $0.1/0.1/0$ & 0.965 & 0.062 & 31.0 \\
+\midrule
+\multirow{2}{*}{\texttt{play-resample-hard}}
+ & \texttt{mw-pick-place} & oracle + target re-draw & $200\times500$ & 39/4 & $0.5/0.3/0$ & 0.655 & 0.007 & 3.43 \\
+ & \texttt{mw-push}       & oracle + target re-draw & $200\times500$ & 39/4 & $0.5/0.3/0$ & 0.710 & 0.010 & 4.91 \\
+\midrule
+\texttt{cube-single} & \texttt{cube-single-play-v0} & OGBench (external) & \multicolumn{6}{c}{stock OGBench play data; eval = mean success over fixed \texttt{task\_infos}} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\paragraph{\texttt{expert}.}
+ManiSkill comes from the published Factor-FB-Offline pack: rollouts of the pretrained newt
+TD-MPC2 checkpoints (HF \texttt{nicklashansen/newt}, snapshot \texttt{7eef11e}) with the
+planner on and zero exploration, 50 parallel envs, failures kept
+(\texttt{success\_only=false}); newt's multitask obs/action padding is stripped back to the
+raw env dims. That pack has no \texttt{mw-pick-place}/\texttt{mw-push}, and its play
+counterpart is unreachable, so both Metaworld tasks were regenerated from Metaworld's
+built-in scripted oracle (\texttt{data\_collection/collect\_mw\_standalone.py}, torch-free,
+no checkpoint) through \texttt{env/metaworld\_env.py} --- action-repeat 2, horizon 100,
+byte-identical to the eval env. This regime is a saturated single-mode oracle corridor: BC
+already solves it, which is why the FB/BC row reads $1.00\pm0.00$ on both Metaworld expert
+columns and why no critic can earn its keep there (Ph.~I).
+
+\paragraph{\texttt{play-noise} and \texttt{play-noise-hard}.}
+Same collectors, exploration mixture on. Structurally this is still \emph{one target per
+episode}, held for the whole horizon, with heavy terminal dwell --- the oracle reaches the
+goal and then sits there for roughly half the episode, so the goal marginal collapses onto
+a single per-episode point. Only the action distribution differs from \texttt{expert}, not
+the goal distribution. \texttt{play-noise-hard} changes nothing but the mixture
+($f_{\mathrm{exp}}=0$, $\varepsilon_{\max}=0.5$, $\sigma_{\max}=0.3$); horizon, per-episode
+target and dwell are left untouched \emph{on purpose}, so the arm isolates Ph.~I from
+Ph.~II/III. It drops the BC floor to $\approx0.5$, which is the entire point: the benchmark
+measures guidance quality again rather than measuring the ceiling.
+
+\paragraph{\texttt{play-resample} and \texttt{play-resample-hard}.}
+A different \emph{shape} of data, from
+\texttt{collect\_mw\_play\_resample.py}:
+200 trajectories of 500 wrapper steps ($=1000$ simulator steps, cube-play scale). The target
+is re-drawn from the env's own \texttt{goal\_space} and written into
+\texttt{raw.\_target\_pos} --- exactly the quantity the observation's goal dims
+$\texttt{obs}[36{:}39]$ and the scripted oracle read --- immediately when \texttt{success}
+fires (no dwell, as in cube play) and every $\texttt{seg\_max}=60$ steps regardless, so no
+segment gets stuck. \texttt{raw.curr\_path\_length} is zeroed before each wrapper step to
+defeat Metaworld's $\texttt{max\_path\_length}=500$ truncation. Coverage here comes from
+relocation chaining, not action noise, so the mixture is deliberately gentle. Each
+trajectory becomes a chain of ${\sim}30\text{--}48$ reach-and-move segments, and
+within-trajectory relabeling now crosses target contexts through transitions the data
+actually contains (the train-side repair of Ph.~II). The regime nonetheless re-saturates:
+everything scores $0.95\text{--}0.98$, BC included. Under the hot mixture the chaining
+breaks --- relocations per trajectory collapse by an order of magnitude, because the oracle
+rarely completes a segment --- but \texttt{play-resample-hard} is thereby the only arm that
+is simultaneously un-saturated \emph{and} goal-diverse, which is what makes it informative.
+
+\begin{table}[h]\centering
+\caption{What each kill-test dataset actually varies, relative to \texttt{play-noise}.}
+\label{tab:dataset-axes}
+\begin{tabular}{lll}
+\toprule
+Dataset & Headroom (BC floor) & Goal diversity \\
+\midrule
+\texttt{play-noise}         & none (BC $\approx0.9$)          & none (1 target/ep, dwell $\approx0.5$) \\
+\texttt{play-noise-hard}    & \textbf{reopened} (BC $\approx0.5$)  & none \\
+\texttt{play-resample}      & none (BC $\approx0.96$)         & \textbf{high} (30--48 relocs, dwell $\approx0.08$) \\
+\texttt{play-resample-hard} & \textbf{reopened} (BC $\approx0.65$) & moderate (3--5 relocs, dwell $\approx0.01$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \end{document}
