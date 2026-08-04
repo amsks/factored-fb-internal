@@ -477,6 +477,38 @@ $\Rightarrow$ roughly double), and near-rank-1 task families (single 3-D target)
 regime where monolithic critics suffice.
 \end{remark}
 
+\begin{remark}[Pre-registration: best-of-$N$ reranking, cross-benchmark (2026-08-04) ---
+supersedes bridge Exp~1]\label{rem:bon}
+\textbf{Prior art (recovered from \texttt{origin/gciql-fb-bridge}, 2026-07-16).} The
+bridge-era program already ran the critic-as-selector design once, on cube, on the old code
+stack (\texttt{scripts/atlas/rerank\_eval.py}, ``Exp 1''): at every env step sample $N{=}32$
+candidates from one shared frozen BC flow and execute $\arg\max_i Q_m(s,a_i,g)$. Result:
+BC floor $0.06$; \textbf{bilinear rerank $0.960$} ($\approx$ its trained flow actor,
+$0.947$, with no actor training); \textbf{MLP rerank $0.592$} ($<$ its own trained actor,
+$0.747$); robust to which BC flow supplied the candidates ($0.912$/$0.568$ on the swapped
+source). The same program also recorded why weaker designs fail: shared-continuation
+AUC/ranking tests null out by continuation wash-out, and the bilinear critic's value
+\emph{calibration} is anti-correlated with success (in-hand rank-AUC $0.39$ vs.\ MLP
+$0.81$) even though its \emph{ordering} wins --- reranking uses only the ordering, which is
+exactly why it is the powered instrument.
+
+\textbf{The fleshed-out re-run (\texttt{eval/bon\_probe.py}, current factored stack).}
+Same policy-free selector, extended on four axes: (i) a dose-response $N$-sweep
+$\{1,8,64\}$ ($N{=}1$ \emph{is} the BC floor --- built-in control); (ii) both benchmarks
+under one protocol --- cube (500k checkpoints, OGBench task eval) and MW
+\texttt{play-noise-hard} (300k checkpoints, campaign eval protocol); (iii) a \textsc{crl}
+arm on cube (bilinear form, behavior-policy ordering --- separates the form from what it
+ranks); (iv) 3 critic seeds and candidate-source crossing (cube: \textsc{qrl}- vs
+\textsc{vip}-run BC flows; MW: \textsc{biql}- vs \textsc{gciql}-run BC flows).
+Pre-registered predictions: \textsc{biql}'s success rises monotonically in $N$ on
+\emph{both} benchmarks and approaches its trained-\textsc{flowbc} cell at $N{=}64$;
+\textsc{gciql} rises less and flattens or degrades at large $N$ (its ranking is only
+coherent near its own policy's states, Remark~\ref{rem:p2}); the \textsc{biql}--\textsc{gciql}
+gap widens with $N$; \textsc{crl} sits clearly below \textsc{biql} at all $N$. If the same
+curve shapes appear on both benchmarks, the completion phenomenon holds in both --- with
+proposal, states, and protocol identical, the critic's ordering is the only free variable.
+\end{remark}
+
 \section{Interpretation discipline}
 
 The five phenomena are deliberately stated so that the six experiments in
