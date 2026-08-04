@@ -507,6 +507,52 @@ coherent near its own policy's states, Remark~\ref{rem:p2}); the \textsc{biql}--
 gap widens with $N$; \textsc{crl} sits clearly below \textsc{biql} at all $N$. If the same
 curve shapes appear on both benchmarks, the completion phenomenon holds in both --- with
 proposal, states, and protocol identical, the critic's ordering is the only free variable.
+
+\medskip
+\noindent\textbf{Post-registration result (2026-08-04, all 28 rows landed).} Success by $N$,
+mean $\pm$ s.d.\ over 3 critic seeds (qrl-/biql-source proposals; the crossed-source single
+seeds match within noise):
+\begin{center}
+\small
+\begin{tabular}{llccc c}
+\toprule
+ & critic & $N{=}1$ & $N{=}8$ & $N{=}64$ & trained \textsc{flowbc} \\
+\midrule
+cube & \textsc{biql} & $0.13$ & $\mathbf{0.92\pm0.02}$ & $0.85\pm0.03$ & $0.93$ \\
+cube & \textsc{gciql} & $0.11$ & $0.61\pm0.09$ & $0.74\pm0.09$ & $0.73$ \\
+cube & \textsc{crl} & $0.14$ & $0.11\pm0.06$ & $0.15\pm0.04$ & $0.28$--$0.34$ \\
+\texttt{mw-push} (hard) & \textsc{biql} & $0.85$ & $0.62\pm0.08$ & $0.42\pm0.06$ & $0.87$ \\
+\texttt{mw-push} (hard) & \textsc{gciql} & $0.85$ & $0.37\pm0.03$ & $0.20\pm0.05$ & $0.72$ \\
+\texttt{mw-pick-place} (hard) & \textsc{biql} & $0.63$ & $0.57\pm0.03$ & $0.15\pm0.00$ & $0.67$ \\
+\texttt{mw-pick-place} (hard) & \textsc{gciql} & $0.65$ & $0.47\pm0.03$ & $0.05\pm0.09$ & $0.62$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Reading, prediction by prediction. (i) \emph{Ordering replicates cross-benchmark}:
+\textsc{biql} is above \textsc{gciql} in \textbf{every} matched (task, $N{>}1$, seed,
+source) pair --- 24 of 24 --- on both benchmarks and both candidate sources; \textsc{crl}
+ranks at chance everywhere, so the bilinear \emph{form} without the in-sample-optimal
+target contributes nothing to ordering. (ii) \emph{The dose-response shape was
+half-right}: on cube \textsc{biql} saturates at its trained-actor level with only
+$N{=}8$ samples (0.92 vs.\ 0.93 trained --- ordering alone reproduces the headline cell),
+but the ``gap widens with $N$'' clause failed: \textsc{gciql} \emph{catches up} to its own
+trained level by $N{=}64$ (0.74) while \textsc{biql} dips slightly (0.85). The bilinear
+advantage is per-sample ranking efficiency --- its top-of-8 is as good as its top-of-64 ---
+not an unbounded gap. (iii) \emph{On MW the selection value is negative and monotone in
+$N$}: the re-ranker scores against the fixed dataset goal frame (E8), and the harder it is
+trusted the worse the outcome ($0.85\to0.20$ for \textsc{gciql} on push), while
+\textsc{biql} degrades at roughly half the rate --- the ordering advantage survives even a
+corrupted conditioning channel. This also resolves why the trained \textsc{flowbc} actor
+\emph{gains} on the same data ($+0.27$ on push): its BC anchor rations trust in a
+poisoned $Q$, whereas argmax selection maximally exploits it. Net verdict: the phenomenon
+--- the bilinear critic's action ordering is strictly better on the proposal's support ---
+holds on both benchmarks; what the environment sets is only the \emph{sign} of acting on
+that ordering, via the goal channel (Ph.~\ref{ph:context}). The eval-side goal repair
+(Pred.~\ref{pred:context}b) now has a sharp quantitative prediction: with a per-episode
+synthesized goal, the MW curves should flip from monotone-decreasing to cube-shaped.
+Caveat: MW $N{=}1$ floors (0.85/0.65) sit above the 3-seed campaign \textsc{bcflow} means
+(0.60--0.67) --- single proposal seed, 20 episodes; the within-probe comparisons are
+unaffected.
 \end{remark}
 
 \section{Interpretation discipline}
