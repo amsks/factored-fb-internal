@@ -334,7 +334,17 @@ none of them is ``the bilinear form stops working.''
 headroom $\times$ guidance quality), and on Metaworld expert or mild-noise data BC is
 already at $0.89$--$1.00$: any critic is invisible. Opening headroom with hard-noise
 collection ($H\to0.3$--$0.5$) made the cube ordering reappear on \texttt{mw-push}
-(bilinear $+0.27$ from guidance vs.\ monolithic $+0.05$).
+(bilinear $+0.27$ from guidance vs.\ monolithic $+0.05$). The full baseline square on the
+hard datasets sharpens this: on \texttt{mw-push} hard-noise, bilinear's $0.87\pm0.08$ is
+the best cell outright --- above CRL ($0.80$), monolithic ($0.72$), and FB ($0.55$).
+Notably, \emph{FB collapses on hard data} (guidance $\le+0.05$ everywhere; its dominance
+of the original campaign was a mild-data phenomenon), while on the goal-diverse
+hard-relocation dataset CRL's guidance turns strongly positive on \texttt{mw-pick-place}
+($+0.25$, to $0.73\pm0.03$, the best cell there, ahead of bilinear's $+0.12$) ---
+consistent with its theory: on diverse play-like data the behavior-policy occupancy CRL
+ranks by approaches reachability, whereas on single-corridor data it is uninformative
+(chance-level ordering on cube, \S\ref{sec:selector}). No single critic dominates all
+regimes; what is stable is that the bilinear critic is never the one that collapses.
 
 \textbf{The goal-observable channel.} Metaworld and ManiSkill observations embed the
 episode's immutable target coordinates; OGBench cube observations contain no goal. This
