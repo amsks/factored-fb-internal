@@ -37,7 +37,9 @@ def build_agent(critic, actor, domain, override, seed, path, epoch, ex_obs, ex_a
     from impls.agents import Agent
     from impls.utils.flax_utils import restore_agent
 
-    cfg = make_config(critic, actor, domain, override)
+    # make_config takes a LIST of dotlist entries; a bare string would be iterated
+    # character-by-character by OmegaConf and silently dropped.
+    cfg = make_config(critic, actor, domain, override.split() if isinstance(override, str) else override)
     agent = Agent.create(critic, actor, seed, jnp.asarray(ex_obs), jnp.asarray(ex_act), cfg)
     return restore_agent(agent, path, epoch)
 
@@ -69,7 +71,7 @@ def main():
 
     # Env + example batch come from the PROPOSAL's config (same domain for both agents).
     pcfg = make_config(args.proposal_critic, args.proposal_actor, args.domain,
-                      args.proposal_override)
+                      args.proposal_override.split())
     adapter = get_adapter(pcfg)
     env, train_ds, _ = adapter.make_env_and_datasets(pcfg)
     ds = make_dataset(train_ds, pcfg)
