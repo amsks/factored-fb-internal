@@ -38,5 +38,6 @@ $PY -m eval.bon_probe \
   --critic "$CRITIC" --actor "${ACTOR:-flowbc}" \
   --critic_override "${CRITIC_OVERRIDE:-}" \
   --critic_path "$CRITIC_PATH" --critic_epoch "${CRITIC_EPOCH:-500000}" \
+  --goal_mode "${GOAL_MODE:-fixed}" \
   --n_list "${N_LIST:-1,8,64}" --episodes "${EPISODES:-10}" --seed "${SEED:-0}" \
   --out "$OUT"

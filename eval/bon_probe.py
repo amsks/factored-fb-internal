@@ -57,6 +57,12 @@ def main():
     ap.add_argument("--critic_override", default="")
     ap.add_argument("--critic_path", required=True)
     ap.add_argument("--critic_epoch", type=int, required=True)
+    ap.add_argument("--goal_mode", default="fixed", choices=["fixed", "synth"],
+                    help="unified (MW) only: 'fixed' = the campaign's dataset goal frame; "
+                         "'synth' = per-episode goal built from the episode's own first obs "
+                         "with hand+object slots set to the episode's true target (repairs "
+                         "the Ph.II context mismatch; obs layout verified: obj=4:7, "
+                         "prev copies at +18, target=36:39, and at success frames obj≈target)")
     ap.add_argument("--n_list", default="1,8,64")
     ap.add_argument("--episodes", type=int, default=10,
                     help="episodes per task (ogbench) or total (unified) per N")
@@ -102,7 +108,18 @@ def main():
             horizon = 10**9               # env terminates/truncates itself
         else:
             obs, info = seeded_reset(env, pcfg["task"], ep_idx)
-            goal = goal_fixed
+            if args.goal_mode == "synth":
+                # Per-episode goal: this episode's own obs with hand+object (and their
+                # prev-frame copies) moved to the episode's true target. Context dims
+                # 36:39 stay the episode's own -> the (s, g) pair is context-consistent,
+                # unlike the fixed dataset frame.
+                g = np.asarray(obs, np.float32).copy()
+                tgt = g[36:39].copy()
+                for a, b in ((0, 3), (4, 7), (18, 21), (22, 25)):
+                    g[a:b] = tgt
+                goal = g
+            else:
+                goal = goal_fixed
             horizon = getattr(adapter, "_horizon", None) or int(pcfg.get("horizon", 100))
         goal_t = jnp.asarray(np.broadcast_to(goal, (N, goal.shape[-1])))
         success = bool(np.any(np.asarray(info.get("success", 0), dtype=float)))
@@ -148,7 +165,7 @@ def main():
             "critic_path": args.critic_path, "critic_epoch": args.critic_epoch,
             "proposal": f"{args.proposal_critic}_{args.proposal_actor}",
             "proposal_path": args.proposal_path, "seed": args.seed,
-            "episodes_per_point": args.episodes,
+            "episodes_per_point": args.episodes, "goal_mode": args.goal_mode,
             "success_by_n": results,
         }, f, indent=2)
     print(f"wrote {args.out}")
