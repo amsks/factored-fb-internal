@@ -1,14 +1,11 @@
 \documentclass[10pt]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath,amssymb,amsthm}
-\usepackage{hyperref}
-\usepackage{graphicx} % for \resizebox
+\usepackage{booktabs}
+\usepackage{graphicx}
 \usepackage{enumitem}
+\usepackage{hyperref}
 \setlist{itemsep=1pt,topsep=2pt}
-
-% References (APA)
-\usepackage[backend=biber,style=apa,natbib=true]{biblatex}
-\addbibresource{references.bib}
 
 \newtheorem{proposition}{Proposition}
 \newtheorem{corollary}{Corollary}
@@ -17,101 +14,351 @@
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\ip}[2]{\langle #1, #2 \rangle}
 
-\title{\vspace{-2em}Bilinear GCIQL as a Low-Rank Factorization of Discounted Goal Reachability:\
-Connections to VIP, Quasimetric RL, and Contrastive RL}
+\title{\vspace{-2em}Decoding the Bilinear Critic:\\
+What a Low-Rank Goal-Conditioned Value Learns, and Why It Wins}
 \author{}
-\date{July 2026}
+\date{August 2026}
 
 \begin{document}
 \maketitle
-\vspace{-3em}
+\vspace{-2em}
 
-\paragraph{Setup.}
-Consider a goal-conditioned MDP with state space $\mathcal{S}$, deterministic dynamics (as in OGBench cube when the full state is observed), sparse reward $r(s;g) = \mathbf{1}[s{=}g] - 1$, termination upon reaching the goal, and discount factor $\gamma$. Let $d^*(s,g) \in {0,1,\dots,\infty}$ denote the minimum number of steps required to reach $g$ from $s$ under policies supported by the offline dataset. The optimal goal-conditioned value is
+\begin{abstract}
+Bilinear GCIQL --- expectile TD learning on a factored critic
+$Q(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}/\sqrt d$ --- reaches $92.7\%$ on OGBench
+\texttt{cube-single-play}, twenty points above the same objective with a monolithic MLP
+critic. We ask two questions: \emph{what property is the bilinear form leveraging}, and
+\emph{does it transfer across environments}? The theory half of this note shows that the
+critic's training target is a bounded quasimetric and that the bilinear head is a low-rank
+factorization of the discounted reachability kernel $K^*=\gamma^{d^*}$, which places
+bilinear GCIQL, Contrastive RL, VIP, and Quasimetric RL in one family. The experimental
+half then rejects the natural reading of that theory: probed against methods that provably
+learn a temporal metric, the bilinear critic has the \emph{weaker} distance --- the
+monolithic critic tracks temporal structure better and agrees with QRL and CRL (RSA
+$0.88$/$0.54$) while the bilinear critic agrees with nobody --- yet it is the better policy.
+A selector experiment isolates what it does have: with \emph{no actor training}, executing
+the best of $N$ actions from a frozen behavior-cloned flow under the bilinear critic's
+ranking reproduces the trained policy at $N{=}8$ ($0.92$ vs.\ $0.93$), where the monolithic
+critic needs $N{=}64$ and contrastive RL ranks at chance. The same ordering advantage
+appears on Metaworld in every matched comparison, inside a selection channel whose
+\emph{sign} is set by the environment's goal observability. The mechanism that survives
+ablation is rank-restricted \emph{completion}: the expressed value function has a
+capacity-independent $\approx$10-dimensional spectrum matching the environment's own
+reachability kernel, and it remains coherent on states beyond the region where it was fit.
+\end{abstract}
+
+\section{Introduction}
+
+Offline goal-conditioned RL on OGBench \texttt{cube-single-play-v0} produced a result we
+did not expect to be interesting: replacing GCIQL's monolithic value MLP with a bilinear
+head lifts success from $73.2\pm1.6$ to $92.7\pm1.7$ (500k steps, 3 seeds, flow-matching
+actor with a one-step value term), while behavior cloning alone reaches $9\%$. Nothing
+else changes --- objective, expectile, discount, networks, data, actor. Two questions
+follow.
+
+\textbf{RQ1: does this transfer?} Across a 288-run campaign on Metaworld and ManiSkill
+(expert and noisy-expert data), it does not: the bilinear and monolithic critics tie
+almost everywhere, and on ManiSkill the critic's contribution to the actor is negative for
+every goal-conditioned method.
+
+\textbf{RQ2: what is the bilinear form leveraging?} The obvious hypothesis --- the factored
+critic implicitly learns a similarity or metric over states, as VIP, QRL, and CRL do by
+construction --- is the one this note was originally written to formalize, and the one our
+own experiments then rejected.
+
+The paper is organized as theory (\S\ref{sec:setup}--\ref{sec:family}), experiments
+(\S\ref{sec:experiments}--\ref{sec:selector}), and mechanism (\S\ref{sec:mechanism}--%
+\ref{sec:transfer}). The full pre-registered phenomenon/kill-test log, including several
+informative failures, lives in the companion note \texttt{phenomenon.tex}; here we keep
+the results that survived.
+
+\section{Setup}\label{sec:setup}
+
+Consider a goal-conditioned MDP with state space $\mathcal S$, deterministic dynamics (as
+in OGBench cube when the full state is observed), sparse reward $r(s;g)=\mathbf 1[s{=}g]-1$,
+termination on reaching the goal, and discount $\gamma$. Let $d^*(s,g)\in\{0,1,\dots,\infty\}$
+be the minimum number of steps needed to reach $g$ from $s$ under policies supported by the
+offline dataset. The optimal goal-conditioned value is
 \begin{equation}
-V^*(s,g) ;=; -\frac{1-\gamma^{d^*(s,g)}}{1-\gamma}, \qquad \gamma^{\infty} := 0 .
+V^*(s,g) \;=\; -\frac{1-\gamma^{d^*(s,g)}}{1-\gamma}, \qquad \gamma^{\infty}:=0 .
 \label{eq:vstar}
 \end{equation}
-$d^*$ is a \emph{quasimetric}: $d^*(s,s)=0$ and $d^*(s,g) \le d^*(s,w) + d^*(w,g)$, while symmetry is not required (Wang et al.\ 2023, Thm.~1: quasimetrics are \emph{exactly} the class of optimal goal-reaching values). Bilinear GCIQL parametrizes $V(s,g) = \ip{\varphi(s)}{\psi(g)}/\sqrt{d}$ and $Q(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}/\sqrt{d}$ and trains these functions using expectile temporal-difference learning. As the expectile parameter $\tau \to 1$, $V$ approaches $V^*$ over actions supported by the offline dataset. We make the statement that ``the critic learns a metric'' precise through three identities.
+$d^*$ is a \emph{quasimetric}: $d^*(s,s)=0$ and
+$d^*(s,g)\le d^*(s,w)+d^*(w,g)$, while symmetry is not required (Wang et al.\ 2023,
+Thm.~1: quasimetrics are exactly the class of optimal goal-reaching values). Bilinear
+GCIQL parametrizes $V(s,g)=\ip{\varphi(s)}{\psi(g)}/\sqrt d$ and
+$Q(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}/\sqrt d$, trained with expectile TD learning; as the
+expectile $\tau\to1$, $V$ approaches $V^*$ over dataset-supported actions.
 
 \section{The negated value is a quasimetric}
 
 \begin{proposition}[Discounted quasimetric]\label{prop:qm}
-Let $\phi_\gamma(x) := \frac{1-\gamma^{x}}{1-\gamma}$. Then $D_\gamma := -V^* = \phi_\gamma \circ d^*$ is a bounded quasimetric ($D_\gamma \le \tfrac{1}{1-\gamma}$).
+Let $\phi_\gamma(x):=\frac{1-\gamma^x}{1-\gamma}$. Then
+$D_\gamma:=-V^*=\phi_\gamma\circ d^*$ is a bounded quasimetric
+($D_\gamma\le\frac{1}{1-\gamma}$).
 \end{proposition}
 \begin{proof}
-$\phi_\gamma$ is increasing, concave, and satisfies $\phi_\gamma(0)=0$; therefore, it is subadditive, $\phi_\gamma(a+b)\le\phi_\gamma(a)+\phi_\gamma(b)$. Thus,
-$\phi_\gamma(d^*(s,g)) \le \phi_\gamma(d^*(s,w)+d^*(w,g)) \le \phi_\gamma(d^*(s,w))+\phi_\gamma(d^*(w,g))$, and $D_\gamma(s,g)=0 \iff d^*(s,g)=0$. This is a metric-preserving transformation; the same argument appears implicitly in Wang et al.\ 2023.
+$\phi_\gamma$ is increasing, concave, and satisfies $\phi_\gamma(0)=0$; therefore it is
+subadditive, $\phi_\gamma(a+b)\le\phi_\gamma(a)+\phi_\gamma(b)$. Thus
+$\phi_\gamma(d^*(s,g))\le\phi_\gamma(d^*(s,w))+\phi_\gamma(d^*(w,g))$, and
+$D_\gamma(s,g)=0\iff d^*(s,g)=0$. This is a metric-preserving transformation; the same
+argument appears implicitly in Wang et al.\ 2023.
 \end{proof}
 
-Therefore, the training target of bilinear GCIQL is already a quasimetric and does not require a logarithmic transformation. Equivalently, define the \textbf{discounted goal-reachability function}
+The training target of bilinear GCIQL is therefore already a quasimetric. Equivalently,
+define the \textbf{discounted goal-reachability kernel}
 \begin{equation}
-K^*(s,g) := \gamma^{,d^*(s,g)} ;=; 1 + (1-\gamma),V^*(s,g) ;\in; [0,1].
+K^*(s,g) := \gamma^{d^*(s,g)} \;=\; 1+(1-\gamma)\,V^*(s,g)\;\in\;[0,1].
 \label{eq:kernel}
 \end{equation}
 
-\begin{corollary}[Composition inequality for discounted reachability]\label{cor:mult}
-$K^*(s,s)=1$ and $K^*(s,g) ;\ge; K^*(s,w),K^*(w,g)$ for all $s,w,g$. This follows directly from the triangle inequality and $\gamma<1$.
+\begin{corollary}[Composition inequality]\label{cor:mult}
+$K^*(s,s)=1$ and $K^*(s,g)\ge K^*(s,w)\,K^*(w,g)$ for all $s,w,g$.
 \end{corollary}
 
-\section{Bilinear GCIQL as a low-rank factorization of $K^*$}
+\section{Bilinear GCIQL as a low-rank factorization of $K^*$}\label{sec:lowrank}
 
-Substituting the bilinear parametrization into \eqref{eq:kernel}, with $\tilde\varphi(s) := \big(1,; \tfrac{1-\gamma}{\sqrt d}\varphi(s)\big)$ and $\tilde\psi(g) := \big(1,; \psi(g)\big)$, gives
+Substituting the bilinear parametrization into \eqref{eq:kernel}, with
+$\tilde\varphi(s):=\big(1,\tfrac{1-\gamma}{\sqrt d}\varphi(s)\big)$ and
+$\tilde\psi(g):=\big(1,\psi(g)\big)$,
 \begin{equation}
-K(s,g) ;=; \ip{\tilde\varphi(s)}{\tilde\psi(g)}, \qquad \operatorname{rank} \le d+1 .
+K(s,g) \;=\; \ip{\tilde\varphi(s)}{\tilde\psi(g)}, \qquad
+\operatorname{rank}\le d+1 .
 \label{eq:factorization}
 \end{equation}
-\emph{Bilinear GCIQL can represent the optimal discounted goal-reachability function exactly only when $\gamma^{d^*}$ admits a rank-$d$ factorization, and approximately when it admits an accurate rank-$d$ approximation.} This condition concerns the singular-value spectrum of the state-goal reachability matrix rather than the optimization procedure. The observed sharp performance transition on cube across representation dimensions (success $9.6\%$ at $d{=}5$ and $\sim 90\%$ at $d{=}50$) is consistent with the effective numerical rank of $K^*$ on state-goal pairs supported by the offline dataset. The discount factor controls how quickly reachability decreases with temporal distance: $K^* = e^{-\beta d^*}$ with $\beta = \ln(1/\gamma)$. A larger $\gamma$ reduces variation across temporal distances and may reduce the effective rank of the resulting state-goal matrix.
+Bilinear GCIQL can represent the optimal reachability kernel exactly only when
+$\gamma^{d^*}$ admits a rank-$d$ factorization, and approximately when it admits an
+accurate rank-$d$ approximation --- a condition on the singular-value spectrum of the
+state--goal reachability matrix, not on optimization. The discount controls how quickly
+reachability decays with distance ($K^*=e^{-\beta d^*}$, $\beta=\ln(1/\gamma)$): larger
+$\gamma$ compresses variation across temporal distances and can reduce effective rank.
+\S\ref{sec:mechanism} makes this quantitative: the environment's own kernel has an
+$\approx$10-dimensional spectrum, and the learned critic expresses exactly that spectrum
+at every capacity we trained.
 
-\section{Contrastive RL: discounted reachability under a logarithmic parametrization and the behavior policy}
+\section{One family: CRL, VIP, QRL}\label{sec:family}
 
-At the optimum of the binary noise-contrastive estimation objective, the CRL critic $f(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}$ satisfies (Eysenbach et al.\ 2022, Lem.~4.1) $\exp f^* = p^{\pi}*\gamma(s*+{=}g \mid s,a)/p(g)$, which is a discounted state-occupancy ratio. Under deterministic dynamics, suppose a trajectory generated by the behavior policy first visits $g$ at step $T^{\pi}(s,g)$ and does not revisit it. Then $p^{\pi}*\gamma(g|s) = (1-\gamma)\gamma^{T^{\pi}(s,g)}$, and
+\paragraph{CRL.} At the optimum of its binary NCE objective, the CRL critic
+$f(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}$ satisfies (Eysenbach et al.\ 2022, Lem.~4.1)
+$\exp f^*=p^\pi_\gamma(s_+{=}g\mid s,a)/p(g)$ --- a discounted state-occupancy ratio.
+Under deterministic dynamics with first hitting time $T^\pi(s,g)$ and no revisits,
+$p^\pi_\gamma(g|s)=(1-\gamma)\gamma^{T^\pi(s,g)}$, so
 \begin{equation}
-f^*(s,g) ;=; -\ln!\tfrac{1}{\gamma}; T^{\pi}(s,g) ;+; c(g), \qquad c(g) = \ln(1-\gamma) - \ln p(g).
+f^*(s,g) \;=\; -\ln\!\tfrac1\gamma\; T^{\pi}(s,g) + c(g), \qquad
+c(g)=\ln(1-\gamma)-\ln p(g).
 \label{eq:crl}
 \end{equation}
-Comparing \eqref{eq:factorization} and \eqref{eq:crl}, \textbf{both methods use a rank-$d$ bilinear parametrization for quantities derived from $\gamma^{,T(s,g)}$, but they use different transformations and correspond to different policies}. CRL represents $\log K^{\pi} + c(g)$, using a logarithmic parametrization of the behavior-policy hitting time with a goal-dependent additive term. GCIQL represents $K^*$ through an affine transformation of the optimal hitting time, without a goal-dependent additive term. Myers et al.\ (2024) recover a quasimetric from occupancy critics through self-subtraction, $d*{\mathrm{SD}}(s,g) := f(g,g)-f(s,g)$, which removes $c(g)$. Applied to GCIQL value estimates, where $V^*(g,g)=0$, self-subtraction gives $-V^* = D_\gamma$. Thus, for bilinear GCIQL, the construction of Myers et al.\ and the negated optimal value coincide, and Prop.~\ref{prop:qm} shows that the result is a quasimetric when the value function is optimal. FB representations provide a more general factorization: $F^\top B$ factorizes the successor measure, whose goal-state marginal ratio yields the quantity in \eqref{eq:crl}. GCIQL's $K^*$ is the corresponding optimal-policy case for the sparse goal-reaching reward.
+Both methods use a rank-$d$ bilinear head for quantities derived from
+$\gamma^{T(s,g)}$, but with different links and different policies: CRL represents
+$\log K^\pi+c(g)$ (behavior policy, log link, per-goal offset); GCIQL represents $K^*$
+(optimal over dataset-supported actions, affine link, no offset). Myers et al.\ (2024)
+recover a quasimetric from occupancy critics by self-subtraction
+$d_{\mathrm{SD}}(s,g):=f(g,g)-f(s,g)$, which removes $c(g)$; applied to GCIQL, where
+$V^*(g,g)=0$, self-subtraction returns $-V^*=D_\gamma$, so the two constructions coincide
+and Prop.~\ref{prop:qm} applies at the optimum.
 
-\section{VIP: the symmetric positive-semidefinite case yields a Euclidean embedding}
-
-VIP specifies $V(s;g) = -\lVert \phi(s)-\phi(g)\rVert_2$ and trains $\phi$ so that the embedding distance represents a KL-regularized optimal value. The connection to bilinear GCIQL follows from linear algebra. Suppose the learned factorization is approximately symmetric and positive semidefinite on the support of the offline dataset, so that $K(s,g)=\ip{u(s)}{u(g)}$ for a shared embedding $u$. Equivalently, the symmetric component of $K$ is dominant and positive semidefinite, in which case such an embedding exists by Mercer's theorem. Using $K(s,s) = 1 \iff V(s,s)=0$, polarization gives
+\paragraph{VIP.} VIP hard-codes $V(s;g)=-\lVert\phi(s)-\phi(g)\rVert_2$. If a learned
+bilinear factorization is approximately symmetric positive semidefinite on the data,
+$K(s,g)=\ip{u(s)}{u(g)}$ for a shared embedding $u$, and polarization with $K(s,s)=1$
+gives
 \begin{equation}
-\big\lVert u(s) - u(g) \big\rVert_2^2 ;=; K(s,s) + K(g,g) - 2K(s,g) ;=; 2\big(1-\gamma^{,d^*(s,g)}\big) ;=; 2(1-\gamma),\big({-}V^*(s,g)\big).
+\lVert u(s)-u(g)\rVert_2^2 \;=\; 2\big(1-\gamma^{d^*(s,g)}\big)
+\;=\; 2(1-\gamma)\big({-}V^*(s,g)\big) :
 \label{eq:polarization}
 \end{equation}
-\textbf{A symmetric positive-semidefinite bilinear GCIQL solution therefore defines an embedding of the form used by VIP}: squared Euclidean distance in the embedding space equals $2(1-\gamma)$ times the negated value. VIP uses $\lVert\cdot\rVert$, whereas GCIQL implies $\lVert\cdot\rVert^2$. Since $\sqrt{\cdot}$ is concave and satisfies $\sqrt{0}=0$, $\lVert u(s)-u(g)\rVert = \sqrt{2(1-\gamma)D_\gamma}$ is also a metric-preserving transformation, and $u$ defines a metric embedding into $\R^{d+1}$. Schoenberg's theorem gives the converse characterization: $e^{-\beta d}$ is positive semidefinite for all $\beta>0$ if and only if $d$ is conditionally negative definite, also called a metric of negative type or a Hilbert-embeddable metric. Therefore, bilinear GCIQL can represent a symmetric positive-semidefinite solution for every $\gamma$ if and only if the optimal goal-reaching distance is of negative type. The antisymmetric component of the learned $K$ measures deviation from this condition and is evaluated by diagnostic P4 in the experiment specification. Finally, if embedding norms are approximately constant, $\lVert u \rVert \approx c$, then \eqref{eq:polarization} gives $V \approx c^2\big(\cos\angle(u(s),u(g)) - 1\big)/(1-\gamma)$ up to constants. Thus, the statement that ``GCIQL learns cosine similarity'' applies only when the learned factorization is approximately symmetric and positive semidefinite and the embedding norms are concentrated, as evaluated by diagnostic P5.
+a symmetric PSD bilinear GCIQL solution defines exactly a VIP-style metric embedding
+(squared distance $\propto$ negated value). Schoenberg's theorem gives the converse
+condition: such a solution exists for every $\gamma$ iff $d^*$ is of negative type. The
+antisymmetric part of the learned $K$ measures the deviation --- our probe P4.
 
-\section{QRL: an alternative parametrization of the same target quantity}
-QRL learns $d_\theta \approx d^*$ directly, enforces the quasimetric axioms through the IQE architecture, and replaces temporal-difference learning with a constrained maximization objective. Prop.~\ref{prop:qm} shows that bilinear GCIQL targets a bounded transformation of the same optimal goal-reaching distance through a different parametrization. The bilinear parametrization is unconstrained, and a low-rank approximation does not necessarily preserve the composition inequality in Cor.~\ref{cor:mult}. Therefore, $\hat K$ is not guaranteed to define a valid discounted goal-reachability function outside the support of the training distribution. This gives a diagnostic that does not require ground-truth goal distances:
+\paragraph{QRL.} QRL learns $d_\theta\approx d^*$ directly with an architecture (IQE)
+that enforces the quasimetric axioms. Prop.~\ref{prop:qm} says bilinear GCIQL targets a
+bounded transform of the same quantity without the constraints; a low-rank approximation
+need not preserve Cor.~\ref{cor:mult}, so triangle-inequality violations of
+$\hat d:=\log_\gamma\hat K$ certify departure from \emph{any} optimal goal-reaching value
+--- our probe P3, requiring no ground truth.
 
-\begin{proposition}[Triangle-inequality diagnostic]\label{prop:cert}
-Let $\hat d(s,g) := \log_\gamma \hat K(s,g)$, where $\hat K = 1 + (1-\gamma)\hat V$ is clipped to $(0,1]$. If $\hat V$ is the optimal value function of any goal-reaching MDP, then $\hat d$ satisfies the triangle inequality. Therefore, any observed triangle-inequality violation implies $\hat V \notin {V^* : \text{goal-reaching MDPs}}$, without requiring ground-truth distances.
-\end{proposition}
-
-\section{Summary and testable predictions}
-
-All four methods can be related through the discounted reachability quantity $K = e^{-\beta d}$ induced by a quasimetric $d$.
 \begin{center}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{l l l l}
-\hline
-Method & Target quantity & Parametrization & Policy / constraint \\
-\hline
-Bilinear GCIQL & $K^* = \gamma^{d^*}$ & affine & optimal over dataset-supported actions; unconstrained rank $d$ \\
-CRL & $\log K^{\pi} + c(g)$ & logarithmic & behavior policy; unconstrained rank $d$ \\
-VIP & $-\phi_\gamma(d^*)$ (KL-reg.) & $-\lVert\phi(s)-\phi(g)\rVert$ & regularized optimal policy; symmetric by construction \\
-QRL & $d^*$ & direct distance parametrization & optimal policy; quasimetric constraints enforced architecturally \\
-\hline
-\end{tabular}}
+\small
+\begin{tabular}{llll}
+\toprule
+Method & Target & Link / parametrization & Policy, constraints \\
+\midrule
+Bilinear GCIQL & $K^*=\gamma^{d^*}$ & affine, rank $d$ & in-sample optimal; unconstrained \\
+CRL & $\log K^{\pi}+c(g)$ & log, rank $d$ & behavior; unconstrained \\
+VIP & $-\phi_\gamma(d^*)$ (KL-reg.) & $-\lVert\phi(s)-\phi(g)\rVert$ & regularized optimal; symmetric \\
+QRL & $d^*$ & direct distance & optimal; quasimetric by architecture \\
+\bottomrule
+\end{tabular}
 \end{center}
-These identities correspond directly to the diagnostics in the companion experiment specification. Equation~\eqref{eq:factorization} motivates comparing the singular-value spectrum and effective rank of $\hat K$ with the performance transition across representation dimensions (P7). Equation~\eqref{eq:crl} motivates measuring rank correlation between GCIQL's $-\hat V$ and CRL's $f(g,g)-f(s,g)$ (P6). Equation~\eqref{eq:polarization} predicts that, when the learned solution is approximately symmetric and positive semidefinite, squared distances $\lVert u(s)-u(g)\rVert^2$ in the embedding space should induce rankings similar to those produced by $-\hat V$ and the VIP distance (P4--P6). Norm concentration determines whether cosine similarity provides an adequate approximation (P5). Proposition~\ref{prop:cert} motivates measuring triangle-inequality violations of $\hat d$ as a diagnostic of whether the learned critic is consistent with an optimal goal-conditioned value function (P3).
 
-\paragraph{Caveats.} Equations~\eqref{eq:vstar}--\eqref{eq:crl} are exact under deterministic dynamics when trajectories visit the goal only once. Under stochastic dynamics, $\gamma^{d^*}$ is replaced by $\E[\gamma^{T}]$, and hitting-time expressions are replaced by discounted occupancy measures. OGBench cube is deterministic when the full state is observed, so these identities apply on the support of the offline dataset. An expectile parameter of $\tau=0.9$ approximates but does not attain the maximum over dataset-supported actions. The condition $V(g,g)=0$ holds at the fixed point but is not explicitly enforced; consequently, the diagonal estimate $\hat V(s,s)$ provides a simple convergence diagnostic. Finally, $d^*$ denotes reachability under policies supported by the offline dataset, not unrestricted reachability in the underlying MDP.
+This table is what motivated the experiment: if all four factorize the same kernel, the
+successful one should look like the others. It does not.
 
+% ---- Experiments I: the metric-probe study (plain-language experiments section) ----
+\input{experiments}
 
+\section{Experiments II: the critic as a pure action selector}\label{sec:selector}
 
+The probes say the bilinear critic's advantage is not in its distance. To find where it
+is, we remove actor training from the loop entirely. Freeze one proposal policy $\pi_0$
+--- the flow-matching BC policy, the same one that scores $9\%$ on cube --- and at every
+environment step draw $N$ actions from it, score all $N$ with a trained critic's
+$Q(s,a_i,g)$, and execute the argmax. No gradient ever reaches a policy, so nothing about
+actor optimization can confound the result. $N{=}1$ executes the raw proposal and must
+reproduce the BC floor; success as a function of $N$ reads out exactly the quality of the
+critic's action \emph{ordering} on the proposal's support. An earlier one-off version of
+this design on the pre-refactor code stack (bridge ``Exp 1'', $N{=}32$) found bilinear
+$0.96$ vs.\ monolithic $0.59$; the runs below are the pre-registered re-run: three critic
+seeds, both benchmarks, an $N$ dose--response, a CRL arm, and two candidate sources per
+benchmark (the BC flows of two different runs) to check that curves are properties of the
+critic, not the proposal.
 
+\begin{center}
+\small
+\begin{tabular}{llcccc}
+\toprule
+ & critic & $N{=}1$ & $N{=}8$ & $N{=}64$ & trained actor \\
+\midrule
+cube & bilinear & $0.13$ & $\mathbf{0.92\pm0.02}$ & $0.85\pm0.03$ & $0.93$ \\
+cube & GCIQL (MLP) & $0.11$ & $0.61\pm0.09$ & $0.74\pm0.09$ & $0.73$ \\
+cube & CRL & $0.14$ & $0.11\pm0.06$ & $0.15\pm0.04$ & $0.28$--$0.34$ \\
+\texttt{mw-push} (hard data) & bilinear & $0.85$ & $0.62\pm0.08$ & $0.42\pm0.06$ & $0.87$ \\
+\texttt{mw-push} (hard data) & GCIQL & $0.85$ & $0.37\pm0.03$ & $0.20\pm0.05$ & $0.72$ \\
+\texttt{mw-pick-place} (hard data) & bilinear & $0.63$ & $0.57\pm0.03$ & $0.15$ & $0.67$ \\
+\texttt{mw-pick-place} (hard data) & GCIQL & $0.65$ & $0.47\pm0.03$ & $0.05\pm0.09$ & $0.62$ \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-\printbibliography[title={References}]
+Four findings.
+
+\textbf{(1) On cube, ordering alone reproduces the headline result.} Selecting the best of
+eight BC proposals under the bilinear critic scores $0.92$ --- the trained actor's $0.93$
+--- with no actor training. The monolithic critic reaches only $0.61$ at the same budget
+and needs $N{=}64$ to attain its own trained level ($0.74$ vs.\ $0.73$). The bilinear
+advantage is \emph{per-sample ranking efficiency}: its top-of-8 is as good as its
+top-of-64. (The pre-registered ``gap widens with $N$'' clause failed, informatively: the
+gap is largest at moderate $N$ and the monolithic critic closes most of it given 8$\times$
+more samples.)
+
+\textbf{(2) The bilinear form alone contributes nothing.} CRL shares the architecture, the
+LayerNorm norm concentration, everything --- and its ranking is at chance at every $N$,
+on both candidate sources. What is ranked (an in-sample-optimal value, not
+behavior-policy occupancy) is as essential as the form doing the ranking.
+
+\textbf{(3) The ordering advantage replicates on Metaworld --- inside a channel with a
+negative sign.} On hard-noise Metaworld data the goal fed to the critic at evaluation is a
+fixed dataset frame whose embedded target contradicts each episode's true target
+(\S\ref{sec:transfer}); ranking against it is poisoned, and the harder it is trusted the
+worse the outcome --- success falls monotonically in $N$ for every critic. But the bilinear
+critic degrades at roughly half the monolithic rate, and is above it in \emph{every}
+matched (task, $N$, seed, source) comparison: 24 of 24 pairs across both benchmarks. It
+also explains an apparent paradox from the training campaign: the trained actor
+\emph{gains} $+0.27$ from the same poisoned critic because its BC anchor rations trust,
+while argmax selection maximally exploits it.
+
+\textbf{(4) Repairing the goal channel flips the sign.}
+Re-running the Metaworld rows with a per-episode synthesized goal --- the episode's own
+observation with the hand/object slots set to its true target, so the conditioning is
+context-consistent --- tests the channel explanation directly.
+\emph{[Twelve rows in flight; this paragraph is completed by the synthesis table when they
+land. Pre-registered prediction: the curves flip from monotone-decreasing toward
+cube-shaped, and the bilinear--monolithic ordering gap persists.]}
+
+\section{What the bilinear form is leveraging}\label{sec:mechanism}
+
+The ablation program (full log in \texttt{phenomenon.tex}) eliminated the seductive
+explanations one by one on cube:
+
+\begin{itemize}
+\item \emph{Not boundedness.} A monolithic critic squashed to the bilinear critic's range
+($\kappa\tanh(\cdot/\kappa)$, $\kappa{=}75$) recovers $\le3$ of the 19.5 points.
+\item \emph{Not norm concentration.} Removing the $\psi$-tower LayerNorm (norm CV
+$\le0.09\to$ unconstrained) leaves success unchanged ($0.93$ both).
+\item \emph{Not a better metric.} \S\ref{sec:experiments}.
+\end{itemize}
+
+What survives has two mutually consistent signatures. First, \emph{off-distribution
+coherence}: scoring each critic's value along the \emph{other} policy's eval rollouts, the
+monolithic value is coherent only on states its own policy visits (monotonicity
+$\rho=0.88$ there, $0.36$ on the bilinear policy's states) while the bilinear value stays
+coherent on both ($0.98/0.87$) --- an interaction, not a main effect. Second,
+\emph{spectral grounding}: a no-learning graph estimate of the environment's own kernel
+(shortest paths over validation data) gives a centered value matrix with an effective rank
+of $5$--$11$, top components aligned with the block's three spatial coordinates; the
+learned value matrix $\Phi\Psi^\top/\sqrt d$ expresses the \emph{same} $\approx$10-dim
+spectrum at $d{=}50$ and $d{=}512$, and policy success saturates exactly where capacity
+crosses it ($0.06/0.62/0.84/0.92/0.90/0.93$ at $d=5/10/15/20/30/50$). The picture is
+low-rank-MDP/successor-feature structure: $\{V^*(\cdot,g)\}_g$ spans a $\approx$10-dim
+function space because $d^*$ factors through the block's 3-D latent; the bilinear head is
+a spectral estimator of that family, and a spectrum is a \emph{global} object --- estimated
+anywhere, valid everywhere --- which is why its action ordering stays trustworthy on
+states beyond the fitting region, and why its top-of-8 already contains the right action
+(\S\ref{sec:selector}). The monolithic critic fits values pointwise; its ordering decays
+with distance from its own state distribution.
+
+\section{Why it does not transfer, and when it should}\label{sec:transfer}
+
+The cross-environment failures (RQ1) decompose into three confirmed, independent causes;
+none of them is ``the bilinear form stops working.''
+
+\textbf{Headroom censoring.} The benchmark measures $S_1-S_0=H\rho$ (BC-relative gain =
+headroom $\times$ guidance quality), and on Metaworld expert or mild-noise data BC is
+already at $0.89$--$1.00$: any critic is invisible. Opening headroom with hard-noise
+collection ($H\to0.3$--$0.5$) made the cube ordering reappear on \texttt{mw-push}
+(bilinear $+0.27$ from guidance vs.\ monolithic $+0.05$).
+
+\textbf{The goal-observable channel.} Metaworld and ManiSkill observations embed the
+episode's immutable target coordinates; OGBench cube observations contain no goal. This
+has three consequences: cross-episode relabeled goals are physically unreachable (the
+kernel factorizes as $K^*=\mathbf 1[c{=}c']\gamma^{d^*_c}$ over contexts $c$); the
+evaluation goal frame is context-inconsistent with almost every episode; and any
+target-directed data collection lets BC read the goal from its own observation and
+shortcut the guidance channel entirely (a goal-diverse ``play'' collection self-censored
+at BC $=0.95$ this way). The selector experiment measures the resulting sign directly
+(\S\ref{sec:selector}); FB-style methods are immune because their task conditioning is
+inferred from rewards, never from a goal frame.
+
+\textbf{Kernel degeneracy.} On 25-step ManiSkill episodes at $\gamma=0.99$, $K^*$ spans
+$[0.78,1]$ --- an affine, nearly rank-1 sliver of its range --- and 48--75\% of
+(noisy-)expert steps dwell at the goal, collapsing the relabeled goal marginal. There is
+nothing for a low-rank factorization to be better \emph{at}.
+
+The mechanism of \S\ref{sec:mechanism} then makes the positive cross-environment
+prediction: the bilinear advantage should track the dimensionality of the goal-relevant
+latent (cube-double roughly doubles it), and near-rank-1 task families --- a single 3-D
+target, as in most Metaworld tasks --- are exactly the regime where a monolithic critic's
+pointwise fit suffices once the channel is clean.
+
+\section{Caveats}
+
+Equations \eqref{eq:vstar}--\eqref{eq:crl} are exact under deterministic dynamics with
+single goal visits; under stochasticity $\gamma^{d^*}$ becomes $\E[\gamma^T]$. The
+expectile $\tau=0.9$ approximates the in-sample max. $d^*$ is reachability under
+dataset-supported policies. Experimental caveats: three seeds per cell throughout, 20--50
+episodes per evaluation point; the Metaworld selector floors at $N{=}1$ sit somewhat above
+the campaign's BC means (single proposal seed); VIP's runs collapsed to a rank-1 embedding
+and are excluded as a reference; and the synthesized-goal repair (\S\ref{sec:selector},
+finding 4) is the one arm still in flight.
+
+\section*{References}
+\begin{itemize}
+\item Wang, Isola. \emph{Improved Representation of Asymmetrical Distances with Interval
+Quasimetric Embeddings.} arXiv:2211.15120.
+\item Wang, Sobol, Isola, Eysenbach. \emph{Optimal Goal-Reaching Reinforcement Learning via
+Quasimetric Learning.} ICML 2023, arXiv:2304.01203.
+\item Eysenbach, Zhang, Levine, Salakhutdinov. \emph{Contrastive Learning as Goal-Conditioned
+Reinforcement Learning.} NeurIPS 2022, arXiv:2206.07568.
+\item Ma, Sodhani, Jayaraman, Bastani, Kumar, Zhang. \emph{VIP: Towards Universal Visual
+Reward and Representation via Value-Implicit Pre-Training.} ICLR 2023, arXiv:2210.00030.
+\item Myers, Zheng, Eysenbach et al. \emph{Learning Temporal Distances.} ICML 2024,
+arXiv:2406.17098.
+\item Park, Frans, Eysenbach, Levine. \emph{OGBench: Benchmarking Offline Goal-Conditioned
+RL.} arXiv:2410.20092.
+\item Touati, Ollivier. \emph{Learning One Representation to Optimize All Rewards.}
+(FB representations.) arXiv:2103.07945.
+\item TTGS triangle-violation protocol. arXiv:2510.07257.
+\end{itemize}
 
 \end{document}
