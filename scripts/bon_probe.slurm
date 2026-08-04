@@ -29,7 +29,7 @@ export XLA_PYTHON_CLIENT_PREALLOCATE=false
 export XLA_PYTHON_CLIENT_MEM_FRACTION="${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.6}"
 export WANDB_MODE=offline
 
-echo "== bon: $CRITIC on $DOMAIN (proposal $PROPOSAL_CRITIC/$PROPOSAL_ACTOR) =="
+echo "== bon: $CRITIC on $DOMAIN (proposal $PROPOSAL_CRITIC/${PROPOSAL_ACTOR:-bcflow}) =="
 $PY -m eval.bon_probe \
   --domain "$DOMAIN" \
   --proposal_critic "$PROPOSAL_CRITIC" --proposal_actor "${PROPOSAL_ACTOR:-bcflow}" \
