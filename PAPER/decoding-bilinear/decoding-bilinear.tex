@@ -258,13 +258,40 @@ also explains an apparent paradox from the training campaign: the trained actor
 \emph{gains} $+0.27$ from the same poisoned critic because its BC anchor rations trust,
 while argmax selection maximally exploits it.
 
-\textbf{(4) Repairing the goal channel flips the sign.}
-Re-running the Metaworld rows with a per-episode synthesized goal --- the episode's own
-observation with the hand/object slots set to its true target, so the conditioning is
-context-consistent --- tests the channel explanation directly.
-\emph{[Twelve rows in flight; this paragraph is completed by the synthesis table when they
-land. Pre-registered prediction: the curves flip from monotone-decreasing toward
-cube-shaped, and the bilinear--monolithic ordering gap persists.]}
+\textbf{(4) Repairing the goal channel recovers most of the damage --- and flips the
+$N{=}8$ sign for the bilinear critic only.} Re-running the Metaworld rows with a
+per-episode synthesized goal --- the episode's own observation with the hand/object slots
+set to its true target, so the conditioning is context-consistent --- tests the channel
+explanation directly (pre-registered: curves flip from monotone-decreasing toward
+cube-shaped; the ordering gap persists):
+
+\begin{center}
+\small
+\begin{tabular}{llccc}
+\toprule
+ & critic & $N{=}1$ & $N{=}8$ & $N{=}64$ \\
+\midrule
+\texttt{mw-push}, synthesized goal & bilinear & $0.80$ & $0.83\pm0.15$ & $0.65\pm0.13$ \\
+\texttt{mw-push}, synthesized goal & GCIQL & $0.80$ & $0.80\pm0.15$ & $0.40\pm0.05$ \\
+\texttt{mw-pick-place}, synthesized goal & bilinear & $0.70$ & $\mathbf{0.78\pm0.03}$ & $0.27\pm0.13$ \\
+\texttt{mw-pick-place}, synthesized goal & GCIQL & $0.70$ & $0.68\pm0.10$ & $0.32\pm0.03$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The repair lifts every selection cell by $+0.12$ to $+0.43$ (average $+0.23$) over the
+fixed-frame table --- direct causal confirmation that the fixed goal frame was poisoning
+the ranking. The sign at $N{=}8$ flips to neutral-or-positive for the bilinear critic on
+both tasks ($+0.03$/$+0.08$ over the floor, with one seed reaching $20/20$ on push) while
+GCIQL stays at-or-below its floor ($0.00$/$-0.02$). The flip is partial: at $N{=}64$
+selection still hurts everyone, so an eval-side repair does not fully clean the channel
+--- the critics were \emph{trained} with 30\% cross-context relabeled pairs and a
+synthesized frame is still slightly off the goal manifold, leaving residual value error
+for aggressive argmax to exploit. The remaining lever is the train-side repair (mask the
+context dims from $\psi$; set $p_{\mathrm{rand}}{=}0$), which is the one arm of the
+program not yet run. One caveat cuts the other way: at pick-place $N{=}64$ GCIQL edges
+bilinear ($0.32$ vs.\ $0.27$, within seed noise) --- the only inversion among the 24
+fixed-frame and 12 synthesized matched comparisons.
 
 \section{What the bilinear form is leveraging}\label{sec:mechanism}
 
@@ -340,7 +367,8 @@ dataset-supported policies. Experimental caveats: three seeds per cell throughou
 episodes per evaluation point; the Metaworld selector floors at $N{=}1$ sit somewhat above
 the campaign's BC means (single proposal seed); VIP's runs collapsed to a rank-1 embedding
 and are excluded as a reference; and the synthesized-goal repair (\S\ref{sec:selector},
-finding 4) is the one arm still in flight.
+finding 4) is eval-side only --- the train-side channel repair (context-dim masking,
+$p_{\mathrm{rand}}{=}0$) remains the one unexercised arm of the program.
 
 \section*{References}
 \begin{itemize}
