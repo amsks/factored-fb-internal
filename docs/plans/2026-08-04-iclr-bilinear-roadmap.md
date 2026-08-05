@@ -183,3 +183,18 @@ distance collapse), scene and antmaze unresolved until the grid lands.
 - cube-double at 500k may need longer training (harder task); budget a 1M-step pilot.
 - OOD-goal filtering interacts with p_randomgoal relabeling — implement the filter at
   the GCDataset level, not collection level, and validate with a goal-histogram audit.
+### 5c addendum — grid complete (locked pre-training)
+
+| env | dims95 bracket [min..med..max] | eff-rank (med) |
+|---|---|---|
+| cube-double | [9 .. **33** .. 62] (n=4) | 9.0 |
+| antmaze | [24 .. **24** .. 24] (n=3, stable) | 8.9 |
+| scene | [9 .. **15** .. 23] (n=4) | 7.3 |
+| cube-single | [8 .. **13** .. 19] (n=2) | 9.2 |
+
+Locked ordering prediction for the Arm A gap (bracket medians; overlapping brackets
+unordered): **cube-double > antmaze > {scene ~ cube-single}**. Two sharp claims: (i)
+antmaze — a maze, whose shortest-path family is high-rank — should show a *large*
+bilinear advantage if headroom is open, even though its goal latent is only 2-D torso
+position (this cleanly divorces kernel rank from goal-coordinate dimension); (ii)
+scene ~ cube-single predicts comparable gaps despite very different task semantics.
