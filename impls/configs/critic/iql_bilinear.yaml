@@ -16,6 +16,10 @@ psi_layer_norm: true      # false: de-LayerNorm the goal tower ONLY (phi keeps l
                           # true matches vendored (psi LN == layer_norm).
 psi_base: learned         # learned | frozen | identity  (identity PINS d == goal dim)
 project_z: false          # hard sphere-Norm psi onto radius sqrt(d); reaches BOTH nets
+output_scale: false       # true: v = exp(log_s)*<phi,psi>/sqrt(d), log_s learnable (init 0).
+                          # Decouples output RANGE from rank d: LayerNorm caps the raw dot
+                          # at ~O(sqrt(d)), which cannot reach |V*|~1/(1-gamma) on
+                          # long-horizon tasks (cube-double). false = byte-identical head.
 double_q: true            # false ablates the clipped double-Q to the single head q1
 iql_ortho_coef: 0.0       # FB orthonormality on the critic's goal leg (no measure). >0
                           # requires psi_base='learned' (it is inert on frozen/identity).

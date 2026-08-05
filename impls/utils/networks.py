@@ -414,6 +414,12 @@ class GCBilinearPsiValue(GCBilinearValue):
     # psi norm CV is architectural under LayerNorm, so removing it here is the direct test
     # of the goal-uniform-guidance-scale claim while phi stays vendored.
     psi_layer_norm: Any = None
+    # Learnable scalar on the dot-product output: v = exp(log_s) * <phi,psi>/sqrt(d).
+    # The LayerNorm towers cap |<phi,psi>|/sqrt(d) at ~O(sqrt(d)), so on long-horizon
+    # tasks (|V*| ~ 1/(1-gamma)) the head cannot reach the value scale at all; this
+    # decouples output RANGE from rank d with one parameter. Off by default: existing
+    # runs are byte-identical (no param is created when False).
+    output_scale: bool = False
 
     def setup(self):
         mlp_class = MLP
@@ -450,6 +456,10 @@ class GCBilinearPsiValue(GCBilinearValue):
             psi = jnp.broadcast_to(psi, phi.shape)
 
         v = (phi * psi / jnp.sqrt(self.latent_dim)).sum(axis=-1)
+        if self.output_scale:
+            # exp-parametrized so the scale stays positive and can grow multiplicatively;
+            # init exp(0)=1 -> starts exactly at the unscaled head.
+            v = v * jnp.exp(self.param("log_output_scale", nn.initializers.zeros, ()))
 
         if self.value_exp:
             v = jnp.exp(v)
