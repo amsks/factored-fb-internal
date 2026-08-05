@@ -198,3 +198,29 @@ antmaze — a maze, whose shortest-path family is high-rank — should show a *l
 bilinear advantage if headroom is open, even though its goal latent is only 2-D torso
 position (this cleanly divorces kernel rank from goal-coordinate dimension); (ii)
 scene ~ cube-single predicts comparable gaps despite very different task semantics.
+## 5d. Cube-double inversion at 300k — revised mechanism (recorded pre-outcome)
+
+Observation: biql-d50 0.196 +/- 0.045 < gciql 0.276 +/- 0.008 at 300k (BC floor 0.02).
+Two candidate explanations REJECTED against data before proposing a third:
+(a) rank under-capacity — wrong failure signature (true under-capacity craters: d5 -> 0.06
+on single; here biql trails gently and trains stably);
+(b) value-scale saturation — biql expresses shallower values than gciql at the SAME ratio
+on single (-18.5 vs -33.3) where it WINS, and double (-24.8 vs -36.9) where it loses;
+depth is not the discriminator.
+
+Proposed: **gamma-horizon truncation of the kernel.** K = gamma^d carries ordering
+information only for d within its informative band (~[10, 300] at gamma=0.99).
+cube-single distances (median ~40) sit mid-band -> full spectrum exists -> completion is
+valuable. cube-double's compositional pairs (both blocks, ~300-500 steps) lie BEYOND the
+band -> K ~= 0 uniformly there -> no far-field spectrum to factorize; the bilinear
+advantage operates on structure this (gamma, task-scale) pair erases, while the
+monolithic critic's local ordering survives. Mirror image of the ManiSkill failure
+(task below band); one statement covers all three envs: *the bilinear advantage requires
+the kernel's informative band to straddle the task's distance distribution.*
+
+Discriminating runs launched (aA2-cd-*, 3 seeds each, zero new code):
+- biql-d50 + gamma=0.995 (band -> ~600): predict biql recovers and passes gciql;
+- gciql + gamma=0.995 control;
+- crl (log-link; log K affine in d, never truncates; additive over AND-composed blocks):
+  predict CRL relatively much stronger on double than it was on single;
+- gciql q_bound=75 (range control): predict little change (else (b) revives).
