@@ -1,0 +1,5 @@
+# antmaze (OGBench antmaze-medium-navigate-v0) via the ogbench adapter — Arm A low-rank
+# control (replaces pointmaze, which OGBench flags as behaviorally anomalous).
+adapter: ogbench
+env_name: antmaze-medium-navigate-v0
+eval_aggregate: true

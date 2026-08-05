@@ -28,7 +28,9 @@ submit() { # NAME [sbatch extra args via SBEXTRA]; knobs via environment
 }
 
 # ---- Arm A: rank scaling --------------------------------------------------------------
-for DOM in cube-double scene pointmaze; do
+# antmaze replaced pointmaze (OGBench flags pointmaze as behaviorally anomalous).
+# ARMA_ENVS override lets a resume pass run before the antmaze dataset is downloaded.
+for DOM in ${ARMA_ENVS:-cube-double scene antmaze}; do
   SD=$SCRATCH/factored-fb-armA/$DOM
   for ROW in "iql_bilinear|flowbc|value_latent_dim=50|biql-d50" \
              "iql_bilinear|flowbc|value_latent_dim=512|biql-d512" \
@@ -46,7 +48,7 @@ for DOM in cube-double scene pointmaze; do
 done
 
 # ---- Arm A: ground-truth kernel spectra (cheap, gh-dev) --------------------------------
-for DOM in cube-double-play-v0 scene-play-v0 pointmaze-medium-navigate-v0; do
+for DOM in cube-double-play-v0 scene-play-v0 antmaze-medium-navigate-v0; do
   NAME=aA-spec-${DOM%%-play*}; NAME=${NAME%%-navigate*}
   if ! squeue -h -u "$USER" -n "$NAME" 2>/dev/null | grep -q . && \
      [ ! -f "$SCRATCH/factored-fb-armA/spectrum_$DOM.json" ]; then
