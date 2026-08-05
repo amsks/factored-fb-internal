@@ -95,6 +95,18 @@ class GCDataset:
         c = self.config
         assert np.isclose(c['value_p_curgoal'] + c['value_p_trajgoal'] + c['value_p_randomgoal'], 1.0)
         assert np.isclose(c['actor_p_curgoal'] + c['actor_p_trajgoal'] + c['actor_p_randomgoal'], 1.0)
+        # Optional OOD-goal split (Arm D): restrict every training goal to one side of a
+        # hyperplane in observation space (e.g. cube block-x = dim 19, threshold 0).
+        # Goals sampled on the held-out side are replaced by uniform draws from the
+        # allowed pool, so eval goals on that side are never trained on.
+        self.goal_ok = None
+        if c.get('goal_filter_dim') is not None:
+            col = np.asarray(self.dataset['observations'][:, int(c['goal_filter_dim'])])
+            thresh = float(c.get('goal_filter_thresh', 0.0))
+            side = c.get('goal_filter_side', 'below')
+            self.goal_ok = col < thresh if side == 'below' else col >= thresh
+            self.goal_pool = np.nonzero(self.goal_ok)[0]
+            assert len(self.goal_pool) > 0, "goal_filter excludes every state"
 
     def sample(self, batch_size, idxs=None):
         if idxs is None:
@@ -105,6 +117,9 @@ class GCDataset:
             idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'], c['value_geom_sample'])
         actor_goal_idxs = self.sample_goals(
             idxs, c['actor_p_curgoal'], c['actor_p_trajgoal'], c['actor_p_randomgoal'], c['actor_geom_sample'])
+        if self.goal_ok is not None:
+            value_goal_idxs = self._filter_goals(value_goal_idxs)
+            actor_goal_idxs = self._filter_goals(actor_goal_idxs)
         obs = self.dataset['observations']
         batch['observations'] = np.asarray(batch['observations'], np.float32)
         batch['next_observations'] = np.asarray(batch['next_observations'], np.float32)
@@ -114,7 +129,21 @@ class GCDataset:
         successes = (idxs == value_goal_idxs).astype(np.float32)
         batch['masks'] = 1.0 - successes
         batch['rewards'] = successes - (1.0 if c['gc_negative'] else 0.0)
+        # Optional goal-context masking (Arm C): zero the listed obs dims in the emitted
+        # goals only (e.g. the embedded target coords on goal-observable envs). Applied
+        # after the reward/mask computation, which is index-based and unaffected.
+        mask_dims = c.get('goal_mask_dims')
+        if mask_dims:
+            batch['value_goals'][:, list(mask_dims)] = 0.0
+            batch['actor_goals'][:, list(mask_dims)] = 0.0
         return batch
+
+    def _filter_goals(self, goal_idxs):
+        bad = ~self.goal_ok[goal_idxs]
+        if bad.any():
+            goal_idxs = goal_idxs.copy()
+            goal_idxs[bad] = self.goal_pool[np.random.randint(len(self.goal_pool), size=int(bad.sum()))]
+        return goal_idxs
 
     def sample_goals(self, idxs, p_curgoal, p_trajgoal, p_randomgoal, geom_sample):
         batch_size = len(idxs)

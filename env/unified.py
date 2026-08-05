@@ -196,6 +196,12 @@ class UnifiedAdapter:
             if goal is None:                      # adapter used for eval only (campaign/eval)
                 d = load_domain_data(cfg)
                 goal = d["next_observations"][int(np.argmax(d["rewards"]))].astype(np.float32)
+            # Keep eval conditioning consistent with training-side goal-context masking
+            # (GCDataset goal_mask_dims): zero the same dims in the eval goal frame.
+            mask_dims = cfg.get("goal_mask_dims")
+            if mask_dims:
+                goal = np.array(goal, copy=True)
+                goal[list(mask_dims)] = 0.0
 
         successes, ticks, frames = [], [], []
         # Metric episodes first, then num_video EXTRA rendered ones. Rendering costs ~7 ms a

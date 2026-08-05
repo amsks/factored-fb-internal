@@ -120,6 +120,10 @@ def main():
                 goal = g
             else:
                 goal = goal_fixed
+            mask_dims = pcfg.get("goal_mask_dims")
+            if mask_dims:
+                goal = np.array(goal, copy=True)
+                goal[list(mask_dims)] = 0.0
             horizon = getattr(adapter, "_horizon", None) or int(pcfg.get("horizon", 100))
         goal_t = jnp.asarray(np.broadcast_to(goal, (N, goal.shape[-1])))
         success = bool(np.any(np.asarray(info.get("success", 0), dtype=float)))
