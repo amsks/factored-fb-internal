@@ -123,4 +123,28 @@ benchmarks whose observations leak the goal --- the MLP with a well-chosen disco
 the safer choice. No critic dominates everywhere; what this project adds is that you can
 tell \emph{in advance} which one to use.
 
+\section{A one-parameter fix for the long-horizon failure}
+
+The long-horizon failure (condition 1) has a mechanical cause that suggests its own fix.
+The two embeddings are normalized inside the network, so their dot product can only
+output numbers up to about $\sqrt d$ in size --- around $75$ at $d{=}50$. But the values
+a task demands grow with the horizon: at $\gamma=0.99$ they reach $-100$, at
+$\gamma=0.995$ around $-200$, at $\gamma=0.999$ around $-1000$. The MLP just outputs
+bigger numbers; the dot product physically cannot. Making $d$ bigger does raise the cap,
+but only like $\sqrt d$ --- reaching $-1000$ from $75$ would take roughly $9000$
+dimensions, and it wastes capacity, because $d$ then controls two unrelated things at
+once: how much structure is shared across goals, and how big the outputs can get.
+
+The fix is to separate the two with a single learnable scalar on the output:
+\[
+Q(s,a,g) \;=\; e^{s}\cdot \langle \varphi(s,a), \psi(g)\rangle/\sqrt d,
+\qquad s \text{ learnable, initialized at } 0 .
+\]
+The exponent keeps the scale positive and lets it grow multiplicatively; at
+initialization the critic is exactly the original one. Now the number size is free ---
+like the MLP's output layer --- and $d$ is left to do the one job it is good at. If this
+plus a longer-sighted discount recovers the bilinear critic on the two-cube task, it also
+proves the failure there was number size, not the shared-structure idea; if it does not,
+the failure is deeper. Runs are in flight; the prediction is on record before they land.
+
 \end{document}
