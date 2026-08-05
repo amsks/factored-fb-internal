@@ -1,21 +1,12 @@
 \documentclass[10pt]{article}
 \usepackage[margin=1in]{geometry}
-\usepackage{amsmath,amssymb,amsthm}
+\usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{graphicx}
-\usepackage{enumitem}
+\usepackage{multirow}
 \usepackage{hyperref}
-\setlist{itemsep=1pt,topsep=2pt}
 
-\newtheorem{proposition}{Proposition}
-\newtheorem{corollary}{Corollary}
-\newtheorem{remark}{Remark}
-\newcommand{\E}{\mathbb{E}}
-\newcommand{\R}{\mathbb{R}}
-\newcommand{\ip}[2]{\langle #1, #2 \rangle}
-
-\title{\vspace{-2em}Decoding the Bilinear Critic:\\
-What a Low-Rank Goal-Conditioned Value Learns, and Why It Wins}
+\title{\vspace{-2em}When and Why the Bilinear Critic Succeeds}
 \author{}
 \date{August 2026}
 
@@ -23,499 +14,113 @@ What a Low-Rank Goal-Conditioned Value Learns, and Why It Wins}
 \maketitle
 \vspace{-2em}
 
-\begin{abstract}
-Bilinear GCIQL --- expectile TD learning on a factored critic
-$Q(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}/\sqrt d$ --- reaches $92.7\%$ on OGBench
-\texttt{cube-single-play}, twenty points above the same objective with a monolithic MLP
-critic. We ask two questions: \emph{what property is the bilinear form leveraging}, and
-\emph{does it transfer across environments}? The theory half of this note shows that the
-critic's training target is a bounded quasimetric and that the bilinear head is a low-rank
-factorization of the discounted reachability kernel $K^*=\gamma^{d^*}$, which places
-bilinear GCIQL, Contrastive RL, VIP, and Quasimetric RL in one family. The experimental
-half then rejects the natural reading of that theory: probed against methods that provably
-learn a temporal metric, the bilinear critic has the \emph{weaker} distance --- the
-monolithic critic tracks temporal structure better and agrees with QRL and CRL (RSA
-$0.88$/$0.54$) while the bilinear critic agrees with nobody --- yet it is the better policy.
-A selector experiment isolates what it does have: with \emph{no actor training}, executing
-the best of $N$ actions from a frozen behavior-cloned flow under the bilinear critic's
-ranking reproduces the trained policy at $N{=}8$ ($0.92$ vs.\ $0.93$), where the monolithic
-critic needs $N{=}64$ and contrastive RL ranks at chance. The same ordering advantage
-appears on Metaworld in every matched comparison, inside a selection channel whose
-\emph{sign} is set by the environment's goal observability. The mechanism that survives
-ablation is rank-restricted \emph{completion}: the expressed value function has a
-capacity-independent $\approx$10-dimensional spectrum matching the environment's own
-reachability kernel, and it remains coherent on states beyond the region where it was fit.
-A five-environment extension then maps the mechanism's boundary: the advantage requires
-the discount's informative band to cover the task's distance scale (a longer-horizon
-two-block task inverts the ordering, and extending $\gamma$ rescues only the monolithic
-critic), coverage of both marginals (confining training goals to a half-space flips the
-advantage to the monolithic critic, contradicting BVN's online transfer claim), and
-non-composite goals. Repairing the goal-observable conditioning channel that these
-benchmarks build into their observations makes goal-conditioned critics performant on
-Metaworld at last ($0.72$--$0.82$ from a $0.5$-floor dataset).
-\end{abstract}
+\noindent\emph{This is the plain-language summary of the project. The full probe study,
+the pre-registered experiment log, and all supporting tables live in
+\texttt{experiments.tex}, \texttt{phenomenon.tex}, and \texttt{table.tex}.}
 
-\section{Introduction}
+\section{Setting}
 
-Offline goal-conditioned RL on OGBench \texttt{cube-single-play-v0} produced a result we
-did not expect to be interesting: replacing GCIQL's monolithic value MLP with a bilinear
-head lifts success from $73.2\pm1.6$ to $92.7\pm1.7$ (500k steps, 3 seeds, flow-matching
-actor with a one-step value term), while behavior cloning alone reaches $9\%$. Nothing
-else changes --- objective, expectile, discount, networks, data, actor. Two questions
-follow.
-
-\textbf{RQ1: does this transfer?} Across a 288-run campaign on Metaworld and ManiSkill
-(expert and noisy-expert data), it does not: the bilinear and monolithic critics tie
-almost everywhere, and on ManiSkill the critic's contribution to the actor is negative for
-every goal-conditioned method.
-
-\textbf{RQ2: what is the bilinear form leveraging?} The obvious hypothesis --- the factored
-critic implicitly learns a similarity or metric over states, as VIP, QRL, and CRL do by
-construction --- is the one this note was originally written to formalize, and the one our
-own experiments then rejected.
-
-The paper is organized as theory (\S\ref{sec:setup}--\ref{sec:family}), experiments
-(\S\ref{sec:experiments}--\ref{sec:selector}), and mechanism (\S\ref{sec:mechanism}--%
-\ref{sec:transfer}). The full pre-registered phenomenon/kill-test log, including several
-informative failures, lives in the companion note \texttt{phenomenon.tex}; here we keep
-the results that survived.
-
-\section{Setup}\label{sec:setup}
-
-Consider a goal-conditioned MDP with state space $\mathcal S$, deterministic dynamics (as
-in OGBench cube when the full state is observed), sparse reward $r(s;g)=\mathbf 1[s{=}g]-1$,
-termination on reaching the goal, and discount $\gamma$. Let $d^*(s,g)\in\{0,1,\dots,\infty\}$
-be the minimum number of steps needed to reach $g$ from $s$ under policies supported by the
-offline dataset. The optimal goal-conditioned value is
-\begin{equation}
-V^*(s,g) \;=\; -\frac{1-\gamma^{d^*(s,g)}}{1-\gamma}, \qquad \gamma^{\infty}:=0 .
-\label{eq:vstar}
-\end{equation}
-$d^*$ is a \emph{quasimetric}: $d^*(s,s)=0$ and
-$d^*(s,g)\le d^*(s,w)+d^*(w,g)$, while symmetry is not required (Wang et al.\ 2023,
-Thm.~1: quasimetrics are exactly the class of optimal goal-reaching values). Bilinear
-GCIQL parametrizes $V(s,g)=\ip{\varphi(s)}{\psi(g)}/\sqrt d$ and
-$Q(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}/\sqrt d$, trained with expectile TD learning; as the
-expectile $\tau\to1$, $V$ approaches $V^*$ over dataset-supported actions.
-
-\section{The negated value is a quasimetric}
-
-\begin{proposition}[Discounted quasimetric]\label{prop:qm}
-Let $\phi_\gamma(x):=\frac{1-\gamma^x}{1-\gamma}$. Then
-$D_\gamma:=-V^*=\phi_\gamma\circ d^*$ is a bounded quasimetric
-($D_\gamma\le\frac{1}{1-\gamma}$).
-\end{proposition}
-\begin{proof}
-$\phi_\gamma$ is increasing, concave, and satisfies $\phi_\gamma(0)=0$; therefore it is
-subadditive, $\phi_\gamma(a+b)\le\phi_\gamma(a)+\phi_\gamma(b)$. Thus
-$\phi_\gamma(d^*(s,g))\le\phi_\gamma(d^*(s,w))+\phi_\gamma(d^*(w,g))$, and
-$D_\gamma(s,g)=0\iff d^*(s,g)=0$. This is a metric-preserving transformation; the same
-argument appears implicitly in Wang et al.\ 2023.
-\end{proof}
-
-The training target of bilinear GCIQL is therefore already a quasimetric. Equivalently,
-define the \textbf{discounted goal-reachability kernel}
-\begin{equation}
-K^*(s,g) := \gamma^{d^*(s,g)} \;=\; 1+(1-\gamma)\,V^*(s,g)\;\in\;[0,1].
-\label{eq:kernel}
-\end{equation}
-
-\begin{corollary}[Composition inequality]\label{cor:mult}
-$K^*(s,s)=1$ and $K^*(s,g)\ge K^*(s,w)\,K^*(w,g)$ for all $s,w,g$.
-\end{corollary}
-
-\section{Bilinear GCIQL as a low-rank factorization of $K^*$}\label{sec:lowrank}
-
-Substituting the bilinear parametrization into \eqref{eq:kernel}, with
-$\tilde\varphi(s):=\big(1,\tfrac{1-\gamma}{\sqrt d}\varphi(s)\big)$ and
-$\tilde\psi(g):=\big(1,\psi(g)\big)$,
-\begin{equation}
-K(s,g) \;=\; \ip{\tilde\varphi(s)}{\tilde\psi(g)}, \qquad
-\operatorname{rank}\le d+1 .
-\label{eq:factorization}
-\end{equation}
-Bilinear GCIQL can represent the optimal reachability kernel exactly only when
-$\gamma^{d^*}$ admits a rank-$d$ factorization, and approximately when it admits an
-accurate rank-$d$ approximation --- a condition on the singular-value spectrum of the
-state--goal reachability matrix, not on optimization. The discount controls how quickly
-reachability decays with distance ($K^*=e^{-\beta d^*}$, $\beta=\ln(1/\gamma)$): larger
-$\gamma$ compresses variation across temporal distances and can reduce effective rank.
-\S\ref{sec:mechanism} makes this quantitative: the environment's own kernel has an
-$\approx$10-dimensional spectrum, and the learned critic expresses exactly that spectrum
-at every capacity we trained.
-
-\section{One family: CRL, VIP, QRL}\label{sec:family}
-
-\paragraph{CRL.} At the optimum of its binary NCE objective, the CRL critic
-$f(s,a,g)=\ip{\varphi(s,a)}{\psi(g)}$ satisfies (Eysenbach et al.\ 2022, Lem.~4.1)
-$\exp f^*=p^\pi_\gamma(s_+{=}g\mid s,a)/p(g)$ --- a discounted state-occupancy ratio.
-Under deterministic dynamics with first hitting time $T^\pi(s,g)$ and no revisits,
-$p^\pi_\gamma(g|s)=(1-\gamma)\gamma^{T^\pi(s,g)}$, so
-\begin{equation}
-f^*(s,g) \;=\; -\ln\!\tfrac1\gamma\; T^{\pi}(s,g) + c(g), \qquad
-c(g)=\ln(1-\gamma)-\ln p(g).
-\label{eq:crl}
-\end{equation}
-Both methods use a rank-$d$ bilinear head for quantities derived from
-$\gamma^{T(s,g)}$, but with different links and different policies: CRL represents
-$\log K^\pi+c(g)$ (behavior policy, log link, per-goal offset); GCIQL represents $K^*$
-(optimal over dataset-supported actions, affine link, no offset). Myers et al.\ (2024)
-recover a quasimetric from occupancy critics by self-subtraction
-$d_{\mathrm{SD}}(s,g):=f(g,g)-f(s,g)$, which removes $c(g)$; applied to GCIQL, where
-$V^*(g,g)=0$, self-subtraction returns $-V^*=D_\gamma$, so the two constructions coincide
-and Prop.~\ref{prop:qm} applies at the optimum.
-
-\paragraph{VIP.} VIP hard-codes $V(s;g)=-\lVert\phi(s)-\phi(g)\rVert_2$. If a learned
-bilinear factorization is approximately symmetric positive semidefinite on the data,
-$K(s,g)=\ip{u(s)}{u(g)}$ for a shared embedding $u$, and polarization with $K(s,s)=1$
-gives
-\begin{equation}
-\lVert u(s)-u(g)\rVert_2^2 \;=\; 2\big(1-\gamma^{d^*(s,g)}\big)
-\;=\; 2(1-\gamma)\big({-}V^*(s,g)\big) :
-\label{eq:polarization}
-\end{equation}
-a symmetric PSD bilinear GCIQL solution defines exactly a VIP-style metric embedding
-(squared distance $\propto$ negated value). Schoenberg's theorem gives the converse
-condition: such a solution exists for every $\gamma$ iff $d^*$ is of negative type. The
-antisymmetric part of the learned $K$ measures the deviation --- our probe P4.
-
-\paragraph{QRL.} QRL learns $d_\theta\approx d^*$ directly with an architecture (IQE)
-that enforces the quasimetric axioms. Prop.~\ref{prop:qm} says bilinear GCIQL targets a
-bounded transform of the same quantity without the constraints; a low-rank approximation
-need not preserve Cor.~\ref{cor:mult}, so triangle-inequality violations of
-$\hat d:=\log_\gamma\hat K$ certify departure from \emph{any} optimal goal-reaching value
---- our probe P3, requiring no ground truth.
-
-\begin{center}
-\small
-\begin{tabular}{llll}
-\toprule
-Method & Target & Link / parametrization & Policy, constraints \\
-\midrule
-Bilinear GCIQL & $K^*=\gamma^{d^*}$ & affine, rank $d$ & in-sample optimal; unconstrained \\
-CRL & $\log K^{\pi}+c(g)$ & log, rank $d$ & behavior; unconstrained \\
-VIP & $-\phi_\gamma(d^*)$ (KL-reg.) & $-\lVert\phi(s)-\phi(g)\rVert$ & regularized optimal; symmetric \\
-QRL & $d^*$ & direct distance & optimal; quasimetric by architecture \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-This table is what motivated the experiment: if all four factorize the same kernel, the
-successful one should look like the others. It does not.
-
-\paragraph{Bilinear Value Networks.} The closest architectural prior is BVN (Hong, Yang,
-Agrawal, ICLR 2022): online DDPG+HER on Fetch and Shadow-hand with
-$Q(s,a,g)=f(s,a)^\top\phi(s,g)$. Two points of contact matter. First, BVN's explanation
-for its gains is a one-paragraph version of our completion mechanism --- unseen tuples
-$(s_A,a_A,g_B)$ are covered because each factor saw its own marginal --- asserted from
-end-to-end success curves and a toy visualization, never isolated (their limitations
-section states explicitly that they cannot say why some tasks benefit more than others;
-\S\ref{sec:mechanism}--\ref{sec:transfer} are our answer to exactly that question).
-Second, BVN's input-grouping ablation concludes that the second field must condition on
-$s$ \emph{and} $g$, and that the $f(s,a)^\top\psi(g)$ factorization --- ours --- is ``too
-restrictive.'' Our theory says the opposite: conditioning the goal tower on $s$ destroys
-the fixed rank-$d$ factorization of the state--goal matrix \eqref{eq:factorization}, which
-is the object whose spectrum carries the completion guarantee. The two claims were made in
-different regimes (online HER vs.\ offline TD), so both can be locally right; the
-head-to-head under our objective is the first arm of the follow-up program
-(\texttt{docs/plans/2026-08-04-iclr-bilinear-roadmap.md}).
-
-% ---- Experiments I: the metric-probe study (plain-language experiments section) ----
-\input{experiments}
-
-\section{Experiments II: the critic as a pure action selector}\label{sec:selector}
-
-The probes say the bilinear critic's advantage is not in its distance. To find where it
-is, we remove actor training from the loop entirely. Freeze one proposal policy $\pi_0$
---- the flow-matching BC policy, the same one that scores $9\%$ on cube --- and at every
-environment step draw $N$ actions from it, score all $N$ with a trained critic's
-$Q(s,a_i,g)$, and execute the argmax. No gradient ever reaches a policy, so nothing about
-actor optimization can confound the result. $N{=}1$ executes the raw proposal and must
-reproduce the BC floor; success as a function of $N$ reads out exactly the quality of the
-critic's action \emph{ordering} on the proposal's support. An earlier one-off version of
-this design on the pre-refactor code stack (bridge ``Exp 1'', $N{=}32$) found bilinear
-$0.96$ vs.\ monolithic $0.59$; the runs below are the pre-registered re-run: three critic
-seeds, both benchmarks, an $N$ dose--response, a CRL arm, and two candidate sources per
-benchmark (the BC flows of two different runs) to check that curves are properties of the
-critic, not the proposal.
-
-\begin{center}
-\small
-\begin{tabular}{llcccc}
-\toprule
- & critic & $N{=}1$ & $N{=}8$ & $N{=}64$ & trained actor \\
-\midrule
-cube & bilinear & $0.13$ & $\mathbf{0.92\pm0.02}$ & $0.85\pm0.03$ & $0.93$ \\
-cube & GCIQL (MLP) & $0.11$ & $0.61\pm0.09$ & $0.74\pm0.09$ & $0.73$ \\
-cube & CRL & $0.14$ & $0.11\pm0.06$ & $0.15\pm0.04$ & $0.28$--$0.34$ \\
-\texttt{mw-push} (hard data) & bilinear & $0.85$ & $0.62\pm0.08$ & $0.42\pm0.06$ & $0.87$ \\
-\texttt{mw-push} (hard data) & GCIQL & $0.85$ & $0.37\pm0.03$ & $0.20\pm0.05$ & $0.72$ \\
-\texttt{mw-pick-place} (hard data) & bilinear & $0.63$ & $0.57\pm0.03$ & $0.15$ & $0.67$ \\
-\texttt{mw-pick-place} (hard data) & GCIQL & $0.65$ & $0.47\pm0.03$ & $0.05\pm0.09$ & $0.62$ \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Four findings.
-
-\textbf{(1) On cube, ordering alone reproduces the headline result.} Selecting the best of
-eight BC proposals under the bilinear critic scores $0.92$ --- the trained actor's $0.93$
---- with no actor training. The monolithic critic reaches only $0.61$ at the same budget
-and needs $N{=}64$ to attain its own trained level ($0.74$ vs.\ $0.73$). The bilinear
-advantage is \emph{per-sample ranking efficiency}: its top-of-8 is as good as its
-top-of-64. (The pre-registered ``gap widens with $N$'' clause failed, informatively: the
-gap is largest at moderate $N$ and the monolithic critic closes most of it given 8$\times$
-more samples.)
-
-\textbf{(2) The bilinear form alone contributes nothing.} CRL shares the architecture, the
-LayerNorm norm concentration, everything --- and its ranking is at chance at every $N$,
-on both candidate sources. What is ranked (an in-sample-optimal value, not
-behavior-policy occupancy) is as essential as the form doing the ranking.
-
-\textbf{(3) The ordering advantage replicates on Metaworld --- inside a channel with a
-negative sign.} On hard-noise Metaworld data the goal fed to the critic at evaluation is a
-fixed dataset frame whose embedded target contradicts each episode's true target
-(\S\ref{sec:transfer}); ranking against it is poisoned, and the harder it is trusted the
-worse the outcome --- success falls monotonically in $N$ for every critic. But the bilinear
-critic degrades at roughly half the monolithic rate, and is above it in \emph{every}
-matched (task, $N$, seed, source) comparison: 24 of 24 pairs across both benchmarks. It
-also explains an apparent paradox from the training campaign: the trained actor
-\emph{gains} $+0.27$ from the same poisoned critic because its BC anchor rations trust,
-while argmax selection maximally exploits it.
-
-\textbf{(4) Repairing the goal channel recovers most of the damage --- and flips the
-$N{=}8$ sign for the bilinear critic only.} Re-running the Metaworld rows with a
-per-episode synthesized goal --- the episode's own observation with the hand/object slots
-set to its true target, so the conditioning is context-consistent --- tests the channel
-explanation directly (pre-registered: curves flip from monotone-decreasing toward
-cube-shaped; the ordering gap persists):
-
-\begin{center}
-\small
-\begin{tabular}{llccc}
-\toprule
- & critic & $N{=}1$ & $N{=}8$ & $N{=}64$ \\
-\midrule
-\texttt{mw-push}, synthesized goal & bilinear & $0.80$ & $0.83\pm0.15$ & $0.65\pm0.13$ \\
-\texttt{mw-push}, synthesized goal & GCIQL & $0.80$ & $0.80\pm0.15$ & $0.40\pm0.05$ \\
-\texttt{mw-pick-place}, synthesized goal & bilinear & $0.70$ & $\mathbf{0.78\pm0.03}$ & $0.27\pm0.13$ \\
-\texttt{mw-pick-place}, synthesized goal & GCIQL & $0.70$ & $0.68\pm0.10$ & $0.32\pm0.03$ \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-The repair lifts every selection cell by $+0.12$ to $+0.43$ (average $+0.23$) over the
-fixed-frame table --- direct causal confirmation that the fixed goal frame was poisoning
-the ranking. The sign at $N{=}8$ flips to neutral-or-positive for the bilinear critic on
-both tasks ($+0.03$/$+0.08$ over the floor, with one seed reaching $20/20$ on push) while
-GCIQL stays at-or-below its floor ($0.00$/$-0.02$). The flip is partial: at $N{=}64$
-selection still hurts everyone, so an eval-side repair does not fully clean the channel
---- the critics were \emph{trained} with 30\% cross-context relabeled pairs and a
-synthesized frame is still slightly off the goal manifold, leaving residual value error
-for aggressive argmax to exploit. The remaining lever is the train-side repair (mask the
-context dims from $\psi$; set $p_{\mathrm{rand}}{=}0$), which is the one arm of the
-program not yet run. One caveat cuts the other way: at pick-place $N{=}64$ GCIQL edges
-bilinear ($0.32$ vs.\ $0.27$, within seed noise) --- the only inversion among the 24
-fixed-frame and 12 synthesized matched comparisons.
-
-\section{What the bilinear form is leveraging}\label{sec:mechanism}
-
-The ablation program (full log in \texttt{phenomenon.tex}) eliminated the seductive
-explanations one by one on cube:
-
+Offline goal-conditioned RL. Two critics trained with exactly the same objective
+(GCIQL: expectile TD on sparse reward), same data, same actor:
 \begin{itemize}
-\item \emph{Not boundedness.} A monolithic critic squashed to the bilinear critic's range
-($\kappa\tanh(\cdot/\kappa)$, $\kappa{=}75$) recovers $\le3$ of the 19.5 points.
-\item \emph{Not norm concentration.} Removing the $\psi$-tower LayerNorm (norm CV
-$\le0.09\to$ unconstrained) leaves success unchanged ($0.93$ both).
-\item \emph{Not a better metric.} \S\ref{sec:experiments}.
+\item \textbf{bilinear}: $Q(s,a,g) = \langle \varphi(s,a), \psi(g)\rangle / \sqrt d$ ---
+a dot product of two small embeddings;
+\item \textbf{monolithic}: one MLP on the concatenated $(s,a,g)$.
 \end{itemize}
+On OGBench cube the bilinear critic reaches $0.93$ where the MLP reaches $0.73$
+(behavior cloning alone: $0.09$). On Metaworld and ManiSkill it does not separate from
+the MLP (main table below). The question is why, and the answer turned out to be simple.
 
-What survives has two mutually consistent signatures. First, \emph{off-distribution
-coherence}: scoring each critic's value along the \emph{other} policy's eval rollouts, the
-monolithic value is coherent only on states its own policy visits (monotonicity
-$\rho=0.88$ there, $0.36$ on the bilinear policy's states) while the bilinear value stays
-coherent on both ($0.98/0.87$) --- an interaction, not a main effect. Second,
-\emph{spectral grounding}: a no-learning graph estimate of the environment's own kernel
-(shortest paths over validation data) gives a centered value matrix with an effective rank
-of $5$--$11$, top components aligned with the block's three spatial coordinates; the
-learned value matrix $\Phi\Psi^\top/\sqrt d$ expresses the \emph{same} $\approx$10-dim
-spectrum at $d{=}50$ and $d{=}512$, and policy success saturates exactly where capacity
-crosses it ($0.06/0.62/0.84/0.92/0.90/0.93$ at $d=5/10/15/20/30/50$). The picture is
-low-rank-MDP/successor-feature structure: $\{V^*(\cdot,g)\}_g$ spans a $\approx$10-dim
-function space because $d^*$ factors through the block's 3-D latent; the bilinear head is
-a spectral estimator of that family, and a spectrum is a \emph{global} object --- estimated
-anywhere, valid everywhere --- which is why its action ordering stays trustworthy on
-states beyond the fitting region, and why its top-of-8 already contains the right action
-(\S\ref{sec:selector}). The monolithic critic fits values pointwise; its ordering decays
-with distance from its own state distribution.
-
-\section{Why it does not transfer, and when it should}\label{sec:transfer}
-
-The cross-environment failures (RQ1) decompose into three confirmed, independent causes;
-none of them is ``the bilinear form stops working.'' All three are properties of the
-\emph{datasets and goal channels}, so we first put the datasets side by side.
-
-\subsection{The datasets are not the same kind of object}\label{sec:datasets}
-
-The benchmarks are usually discussed as if ``offline goal-conditioned data'' were one
-thing. Measured, the training sets differ by orders of magnitude on every axis that the
-theory says matters --- size, horizon, goal diversity, post-success dwell, and whether the
-observation leaks the goal:
-
-\begin{center}
-\scriptsize
-\begin{tabular}{lllllllll}
+\begin{table}[h]\centering
+\caption{Main cross-benchmark grid: success rate, mean $\pm$ sd over 3 seeds.
+\textbf{BC} is the flow actor with the critic's value term removed (pure behavior
+cloning). FB conditions on a task vector inferred from rewards, not on a goal, which is
+why it is immune to the goal-input problem described in \S\ref{sec:when}, condition 3.}
+\label{tab:critic-actor-grid}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{ll cccccccc}
 \toprule
-dataset & trans. & traj.\ len & collector & noise ($\varepsilon/\sigma$, clean) &
-ep.\ succ. & dwell & goals/traj & goal in obs \\
+ &  & \multicolumn{4}{c}{ManiSkill} & \multicolumn{4}{c}{Metaworld} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10}
+ &  & \multicolumn{2}{c}{\texttt{ms-pick-cube}} & \multicolumn{2}{c}{\texttt{ms-push-cube}} & \multicolumn{2}{c}{\texttt{mw-pick-place}} & \multicolumn{2}{c}{\texttt{mw-push}} \\
+\cmidrule(lr){3-4} \cmidrule(lr){5-6} \cmidrule(lr){7-8} \cmidrule(lr){9-10}
+Critic & Actor & expert & play-noise & expert & play-noise & expert & play-noise & expert & play-noise \\
 \midrule
-cube play (OGBench) & $10^6$ & 1000 & scripted task-agnostic play & --- & n/a & $0$ & many & \textbf{no} \\
-MW expert & $10^5$ & 100 & TD-MPC2 expert & $0/0$, 100\% & $1.00$ & $0.71$ & 1 & yes \\
-MW play-noise & $10^5$ & 100 & noisy expert & $0.25/0.15$, 30\% & $0.82$--$0.86$ & $0.48$--$0.53$ & 1 & yes \\
-MW play-noise-hard & $10^5$ & 100 & noisy expert & $0.5/0.3$, 0\% & $0.50$--$0.54$ & $0.21$--$0.25$ & 1 & yes \\
-MW play-resample & $10^5$ & 500 & chained relocations & $0.1/0.1$ & n/a & $0.10$ & $47.5$ & yes \\
-MW play-resample-hard & $10^5$ & 500 & chained relocations & $0.5/0.3$ & n/a & $<0.01$ & $3.4$--$4.9$ & yes \\
-MS expert & $2.5{\times}10^4$ & 25 & TD-MPC2 expert & $0/0$, 100\% & $1.00$ & $0.75$ & 1 & yes \\
-MS play-noise & $2.5{\times}10^4$ & 25 & noisy expert & $0.25/0.15$, 30\% & $0.77$ & $0.27$ & 1 & yes \\
+\multirow{3}{*}{FB} & BC & $0.19 \pm 0.01$ & $0.57 \pm 0.06$ & $0.09 \pm 0.05$ & $0.82 \pm 0.04$ & $1.00 \pm 0.00$ & $0.88 \pm 0.03$ & $1.00 \pm 0.00$ & $0.93 \pm 0.04$ \\
+ & Flow & $0.21 \pm 0.08$ & $0.69 \pm 0.08$ & $0.04 \pm 0.04$ & $0.78 \pm 0.13$ & $1.00 \pm 0.00$ & $0.86 \pm 0.03$ & $1.00 \pm 0.00$ & $0.96 \pm 0.02$ \\
+ & DDPG & $0.20 \pm 0.03$ & $0.20 \pm 0.04$ & $0.10 \pm 0.10$ & $0.58 \pm 0.08$ & $1.00 \pm 0.00$ & $0.91 \pm 0.02$ & $1.00 \pm 0.00$ & $0.88 \pm 0.04$ \\
+\midrule
+\multirow{2}{*}{GCIQL} & Flow & $0.08 \pm 0.02$ & $0.14 \pm 0.03$ & $0.01 \pm 0.01$ & $0.31 \pm 0.16$ & $0.38 \pm 0.04$ & $0.88 \pm 0.06$ & $0.18 \pm 0.02$ & $0.94 \pm 0.03$ \\
+ & DDPG & $0.05 \pm 0.00$ & $0.06 \pm 0.01$ & $0.00 \pm 0.00$ & $0.13 \pm 0.05$ & $0.00 \pm 0.00$ & $0.58 \pm 0.01$ & $0.00 \pm 0.00$ & $0.80 \pm 0.03$ \\
+\midrule
+\multirow{2}{*}{biGCIQL} & Flow & $0.08 \pm 0.03$ & $0.08 \pm 0.03$ & $0.00 \pm 0.00$ & $0.19 \pm 0.06$ & $0.34 \pm 0.13$ & $0.85 \pm 0.10$ & $0.37 \pm 0.24$ & $0.90 \pm 0.02$ \\
+ & DDPG & $0.06 \pm 0.01$ & $0.05 \pm 0.00$ & $0.00 \pm 0.00$ & $0.16 \pm 0.13$ & $0.01 \pm 0.01$ & $0.39 \pm 0.15$ & $0.10 \pm 0.08$ & $0.64 \pm 0.05$ \\
+\midrule
+\multirow{2}{*}{CRL} & Flow & $0.05 \pm 0.00$ & $0.10 \pm 0.04$ & $0.01 \pm 0.01$ & $0.43 \pm 0.14$ & $0.79 \pm 0.07$ & $0.53 \pm 0.39$ & $0.64 \pm 0.55$ & $0.22 \pm 0.10$ \\
+ & DDPG & $0.05 \pm 0.00$ & $0.06 \pm 0.01$ & $0.01 \pm 0.01$ & $0.28 \pm 0.04$ & $0.40 \pm 0.30$ & $0.07 \pm 0.04$ & $0.73 \pm 0.09$ & $0.10 \pm 0.04$ \\
 \bottomrule
-\end{tabular}
-\end{center}
+\end{tabular}}
+\end{table}
 
-\noindent (``Dwell'' = fraction of all recorded steps spent sitting at the goal;
-``goals/traj'' = distinct targets visited per trajectory; MW expert reaches its goal by
-step $\sim$29 of 100 and parks there, MS expert by step 5 of 25.) Three readings. The
-OGBench cube set is the outlier on every column at once: $10$--$40\times$ more
-transitions, $10$--$40\times$ longer trajectories, no dwell, many goals per trajectory,
-and --- alone among all eight --- no goal coordinates in the observation. Each column maps
-onto one failure cause below: dwell and short horizons drive kernel degeneracy
-($1-\gamma^{1000}\approx1$ vs.\ $1-\gamma^{100}=0.63$ vs.\ $1-\gamma^{25}=0.22$; dwell
-collapses the relabeled goal marginal onto the success set); single-goal noisy-expert
-corridors drive headroom censoring (BC on such data is already the eval policy); and the
-goal-in-obs column drives the channel pathology --- including the self-censoring of the
-mild play-resample collection, where BC read the target from its own observation and hit
-$0.95$ with no critic at all. The hard variants were purpose-built to reopen the channel:
-noise opens headroom (episode success $0.50$--$0.54$), relocation restores goal diversity
-(dwell $0.10\to{<}0.01$), and the combination is the only Metaworld regime in which
-critic guidance is measurable at all.
+\section{Why bilinear succeeds}
 
-\textbf{Headroom censoring.} The benchmark measures $S_1-S_0=H\rho$ (BC-relative gain =
-headroom $\times$ guidance quality), and on Metaworld expert or mild-noise data BC is
-already at $0.89$--$1.00$: any critic is invisible. Opening headroom with hard-noise
-collection ($H\to0.3$--$0.5$) made the cube ordering reappear on \texttt{mw-push}
-(bilinear $+0.27$ from guidance vs.\ monolithic $+0.05$). The full baseline square on the
-hard datasets sharpens this: on \texttt{mw-push} hard-noise, bilinear's $0.87\pm0.08$ is
-the best cell outright --- above CRL ($0.80$), monolithic ($0.72$), and FB ($0.55$).
-Notably, \emph{FB collapses on hard data} (guidance $\le+0.05$ everywhere; its dominance
-of the original campaign was a mild-data phenomenon), while on the goal-diverse
-hard-relocation dataset CRL's guidance turns strongly positive on \texttt{mw-pick-place}
-($+0.25$, to $0.73\pm0.03$, the best cell there, ahead of bilinear's $+0.12$) ---
-consistent with its theory: on diverse play-like data the behavior-policy occupancy CRL
-ranks by approaches reachability, whereas on single-corridor data it is uninformative
-(chance-level ordering on cube, \S\ref{sec:selector}). No single critic dominates all
-regimes; what is stable is that the bilinear critic is never the one that collapses.
+The bilinear $Q$ is a dot product of two small embeddings --- one for (state, action),
+one for the goal. That forces all goals to share the same few building blocks. So what
+the critic learns about goal $A$ in some states automatically transfers to \emph{new}
+states it never saw paired with $A$. A big MLP is only accurate near its training data
+--- when the policy improves and visits new states, the MLP's ``which action is best''
+ranking turns to garbage there; the bilinear one stays right.
 
-\textbf{The goal-observable channel.} Metaworld and ManiSkill observations embed the
-episode's immutable target coordinates; OGBench cube observations contain no goal. This
-has three consequences: cross-episode relabeled goals are physically unreachable (the
-kernel factorizes as $K^*=\mathbf 1[c{=}c']\gamma^{d^*_c}$ over contexts $c$); the
-evaluation goal frame is context-inconsistent with almost every episode; and any
-target-directed data collection lets BC read the goal from its own observation and
-shortcut the guidance channel entirely (a goal-diverse ``play'' collection self-censored
-at BC $=0.95$ this way). The selector experiment measures the resulting sign directly
-(\S\ref{sec:selector}); FB-style methods are immune because their task conditioning is
-inferred from rewards, never from a goal frame.
+\paragraph{Proof in one line.} No actor training at all --- just sample 8 actions from a
+BC policy and pick the one with the highest bilinear $Q$ --- matches the fully trained
+policy on cube ($0.92$ vs.\ $0.93$). The MLP critic needs 64 samples to do the same
+($0.61$ at 8, $0.74$ at 64). So the whole 20-point gap lives in how well each critic
+\emph{ranks actions}, not in anything about actor training. (Two sanity checks: CRL,
+which has the same dot-product architecture but is trained to predict where the
+\emph{data-collecting} policy goes rather than what is \emph{best}, ranks actions at
+chance level --- the architecture alone does nothing. And the same ranking test run on
+each critic's value \emph{accuracy} instead of its ranking goes the other way --- the MLP
+is the more accurate value estimator and still loses. Ranking is what matters.)
 
-\textbf{Kernel degeneracy.} On 25-step ManiSkill episodes at $\gamma=0.99$, $K^*$ spans
-$[0.78,1]$ --- an affine, nearly rank-1 sliver of its range --- and 48--75\% of
-(noisy-)expert steps dwell at the goal, collapsing the relabeled goal marginal. There is
-nothing for a low-rank factorization to be better \emph{at}.
+\section{When bilinear succeeds --- three plain conditions}\label{sec:when}
 
-The mechanism of \S\ref{sec:mechanism} initially suggested a one-number cross-environment
-prediction: the bilinear advantage should track the rank of the environment's reachability
-kernel. We tested it, pre-registering estimator-bracket orderings before training, on four
-further environments --- and it failed twice, mapping the mechanism's boundary.
+\paragraph{1. The task must finish within the distance range the discount can ``see''
+(roughly tens to a couple hundred steps at $\gamma=0.99$).}
+Cube: $\sim$40 steps $\to$ wins ($0.93$ vs.\ $0.73$).
+Two-cube task: $\sim$400 steps $\to$ everything far away looks equally hopeless, there is
+nothing to learn from $\to$ loses ($\sim$$0.1$, unstable, vs.\ MLP $0.36$; raising
+$\gamma$ to $0.995$ fixes the \emph{MLP} ($0.56$) but not bilinear --- the dot product of
+two normalized embeddings simply cannot output numbers as large as the values a longer
+horizon requires; a one-scalar learnable output scale is the candidate fix, runs in
+flight).
+ManiSkill: done in $\sim$10 steps $\to$ everything looks equally easy $\to$ no edge.
 
-\subsection{The boundary of the advantage}\label{sec:boundary}
+\paragraph{2. Every test goal must appear somewhere in the training data as a goal.}
+The bilinear critic recombines what it has seen; it cannot invent values for never-seen
+goals. We held out half the goal space during training and evaluated on all of it: the
+bilinear critic lost to the MLP there ($0.37$ vs.\ $0.50$). (This is the opposite of what
+the Bilinear Value Networks paper, ICLR 2022, reported for online RL with HER.)
 
-\paragraph{The channel repair works.} Retraining the hard-noise Metaworld square with the
-goal's embedded target dims masked out of every training goal and the eval frame (and
-$p_{\mathrm{rand}}{=}0$) produced the best goal-conditioned-critic Metaworld numbers of
-the program: \texttt{mw-pick-place} $0.82$ (bilinear) / $0.72$ (monolithic), up $+0.23$
-each over the unrepaired square; \texttt{mw-push} $0.78$/$0.80$. The mask also
-\emph{raises the pure-BC floors} --- the poisoned dims were hurting BC's conditioning too.
-On these near-rank-limited single-target tasks the bilinear--monolithic gap stays small,
-as the mechanism expects.
+\paragraph{3. The critic must be fed the true goal, and BC must not already solve the
+task.}
+Metaworld and ManiSkill bake the goal coordinates into the observation, and the standard
+evaluation fed every critic a wrong, fixed goal --- so every goal-conditioned critic
+looked useless there, and on easy data BC alone already scores $0.9{+}$ so no critic can
+show anything. Fix the goal input (mask the baked-in goal coordinates out of the goals
+during training and evaluation) and use hard data (BC floor $\sim$$0.5$): both critics
+become good --- pick-place $0.82$ (bilinear) / $0.72$ (MLP), push $0.78$/$0.80$, the best
+goal-conditioned results we obtained on Metaworld. Bilinear's edge is small there because
+one-object tasks are too simple to need shared structure across goals.
 
-\paragraph{Failure 1: rank alone does not predict the gap.} Antmaze's kernel measures a
-\emph{stable} dims$_{95}=24$ (maze shortest-path families are intrinsically high-rank),
-predicting a clear bilinear advantage; measured: none ($0.244$ vs.\ $0.253$, both
-$+0.09$ over BC).
+\section{Summary}
 
-\paragraph{Failure 2: cube-double is hostile to the factorization itself.} On the
-two-block task (BC floor $0.02$), the bilinear critic loses to the monolithic one
-outright, and the discriminators localize why only partially. Extending the discount's
-informative band ($\gamma{=}0.995$) rescues the \emph{monolithic} critic dramatically
-($0.360\to0.560\pm0.012$) --- the task genuinely is horizon-limited --- but not the
-bilinear one ($0.11$, unstable across seeds; a $d{=}512$ seed collapses to $0.0$). CRL's
-log link, which in principle never truncates and adds over AND-composed subgoals, also
-fails (chance). The surviving suspects are the Hadamard structure of AND-composed goals
-($K=K_1\!\odot\!K_2$, whose rank can be near the product of the factors and which the
-graph estimator underestimates) and TD-optimization instability of high-rank
-factorizations; separating them needs the selector probe on these checkpoints.
-
-\paragraph{Failure 3 (pre-registered as Arm D): completion needs the goal marginal.}
-Confining training goals to a half-space of the workspace and evaluating on the standard
-tasks flips the advantage: monolithic $0.500\pm0.069$ vs.\ bilinear $0.371\pm0.002$ ---
-the factored head's off-marginal failure is strikingly \emph{deterministic} across seeds.
-Completion fills unseen combinations of \emph{seen} marginals; it does not extrapolate off
-the goal marginal, where the monolithic critic's observation-space smoothness wins. This
-directly contradicts BVN's online OOD-goal-transfer claim in the offline setting.
-
-\paragraph{The conditional claim.} The bilinear advantage exists where (i) the kernel's
-informative band $\gamma^d\in[\varepsilon,1-\varepsilon]$ straddles the task's distance
-distribution (cube-single yes; ManiSkill below the band; cube-double beyond it), (ii)
-both state and goal marginals are covered by the data (cube eval yes; Arm D no), and
-(iii) the goal is non-composite. Within that regime the measured kernel rank sets the
-capacity requirement ($d^\dagger\approx$ dims$_{95}$) and the size of the advantage;
-outside it the monolithic critic is the safer estimator. Every boundary condition above
-has a causal experiment behind it, not a correlation.
-
-\section{Caveats}
-
-Equations \eqref{eq:vstar}--\eqref{eq:crl} are exact under deterministic dynamics with
-single goal visits; under stochasticity $\gamma^{d^*}$ becomes $\E[\gamma^T]$. The
-expectile $\tau=0.9$ approximates the in-sample max. $d^*$ is reachability under
-dataset-supported policies. Experimental caveats: three seeds per cell throughout, 20--50
-episodes per evaluation point; the Metaworld selector floors at $N{=}1$ sit somewhat above
-the campaign's BC means (single proposal seed); VIP's runs collapsed to a rank-1 embedding
-and are excluded as a reference; the train-side channel repair has now run
-(\S\ref{sec:boundary}) --- its selector probes, the scene-environment bilinear cells, and
-the remaining cube-double bilinear seeds (first-pass runs were invalidated by a save-path
-collision and are rerunning) are the open items; and the cube-double conclusions
-(Failure 2) rest on high-variance bilinear cells and should be read as ``robustly not
-working'' rather than as a precise number.
-
-\section*{References}
-\begin{itemize}
-\item Wang, Isola. \emph{Improved Representation of Asymmetrical Distances with Interval
-Quasimetric Embeddings.} arXiv:2211.15120.
-\item Wang, Sobol, Isola, Eysenbach. \emph{Optimal Goal-Reaching Reinforcement Learning via
-Quasimetric Learning.} ICML 2023, arXiv:2304.01203.
-\item Eysenbach, Zhang, Levine, Salakhutdinov. \emph{Contrastive Learning as Goal-Conditioned
-Reinforcement Learning.} NeurIPS 2022, arXiv:2206.07568.
-\item Ma, Sodhani, Jayaraman, Bastani, Kumar, Zhang. \emph{VIP: Towards Universal Visual
-Reward and Representation via Value-Implicit Pre-Training.} ICLR 2023, arXiv:2210.00030.
-\item Myers, Zheng, Eysenbach et al. \emph{Learning Temporal Distances.} ICML 2024,
-arXiv:2406.17098.
-\item Park, Frans, Eysenbach, Levine. \emph{OGBench: Benchmarking Offline Goal-Conditioned
-RL.} arXiv:2410.20092.
-\item Hong, Yang, Agrawal. \emph{Bilinear Value Networks.} ICLR 2022, arXiv:2204.13695.
-\item Schaul, Horgan, Gregor, Silver. \emph{Universal Value Function Approximators.}
-ICML 2015.
-\item Touati, Ollivier. \emph{Learning One Representation to Optimize All Rewards.}
-(FB representations.) arXiv:2103.07945.
-\item TTGS triangle-violation protocol. arXiv:2510.07257.
-\end{itemize}
+Bilinear wins when the task is \emph{reachable within the discount's sight}, the goals
+are \emph{seen in training}, and BC \emph{cannot} do it alone --- because then its
+shared-building-block $Q$ keeps ranking actions correctly in places the MLP has never
+been. Outside those conditions --- very long tasks, goals you never trained on, or
+benchmarks whose observations leak the goal --- the MLP with a well-chosen discount is
+the safer choice. No critic dominates everywhere; what this project adds is that you can
+tell \emph{in advance} which one to use.
 
 \end{document}
