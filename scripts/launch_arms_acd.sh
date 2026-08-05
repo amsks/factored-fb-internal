@@ -39,9 +39,20 @@ for DOM in ${ARMA_ENVS:-cube-double scene antmaze}; do
     IFS='|' read -r CR AC OV TAG <<< "$ROW"
     for S in 0 1 2; do
       NAME=aA-$DOM-$TAG-s$S
+      # File-based skip: a finished 500k run at either the per-TAG path (new layout) or
+      # the SAVE_DIR root (pre-dirclash-fix layout, collision-free rows only) counts done.
+      ENVN=$(grep -oE 'env_name: \S+' env/domains/$DOM.yaml | cut -d' ' -f2)
+      done=0
+      for base in "$SD/$TAG" "$SD"; do
+        f="$base/${ENVN}_${CR}_${AC}_seed_${S}/eval.csv"
+        [ -f "$f" ] && tail -1 "$f" | tr -d '\0' | grep -q ",500000$" && done=1
+      done
+      [ "$done" = 1 ] && { echo "SKIP(done) $NAME" | tee -a "$MANIFEST"; continue; }
+      # SAVE_DIR gets a per-TAG subdir: the run-dir name is {domain}_{critic}_{actor}_seed
+      # and does NOT encode overrides, so d50/d512 rows would clobber each other otherwise.
       CRITIC=$CR ACTOR=$AC DOMAIN=$DOM SEED=$S OVERRIDE="$OV" \
       TRAIN_STEPS=500000 EVAL_INTERVAL=100000 SAVE_INTERVAL=100000 EVAL_EPISODES=50 NUM_VIDEO=2 \
-      CODE_DIR=$CODE_DIR VENV=$VENV SAVE_DIR=$SD \
+      CODE_DIR=$CODE_DIR VENV=$VENV SAVE_DIR=$SD/$TAG \
       submit "$NAME"
     done
   done
