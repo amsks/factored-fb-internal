@@ -45,6 +45,14 @@ appears on Metaworld in every matched comparison, inside a selection channel who
 ablation is rank-restricted \emph{completion}: the expressed value function has a
 capacity-independent $\approx$10-dimensional spectrum matching the environment's own
 reachability kernel, and it remains coherent on states beyond the region where it was fit.
+A five-environment extension then maps the mechanism's boundary: the advantage requires
+the discount's informative band to cover the task's distance scale (a longer-horizon
+two-block task inverts the ordering, and extending $\gamma$ rescues only the monolithic
+critic), coverage of both marginals (confining training goals to a half-space flips the
+advantage to the monolithic critic, contradicting BVN's online transfer claim), and
+non-composite goals. Repairing the goal-observable conditioning channel that these
+benchmarks build into their observations makes goal-conditioned critics performant on
+Metaworld at last ($0.72$--$0.82$ from a $0.5$-floor dataset).
 \end{abstract}
 
 \section{Introduction}
@@ -423,11 +431,55 @@ $[0.78,1]$ --- an affine, nearly rank-1 sliver of its range --- and 48--75\% of
 (noisy-)expert steps dwell at the goal, collapsing the relabeled goal marginal. There is
 nothing for a low-rank factorization to be better \emph{at}.
 
-The mechanism of \S\ref{sec:mechanism} then makes the positive cross-environment
-prediction: the bilinear advantage should track the dimensionality of the goal-relevant
-latent (cube-double roughly doubles it), and near-rank-1 task families --- a single 3-D
-target, as in most Metaworld tasks --- are exactly the regime where a monolithic critic's
-pointwise fit suffices once the channel is clean.
+The mechanism of \S\ref{sec:mechanism} initially suggested a one-number cross-environment
+prediction: the bilinear advantage should track the rank of the environment's reachability
+kernel. We tested it, pre-registering estimator-bracket orderings before training, on four
+further environments --- and it failed twice, mapping the mechanism's boundary.
+
+\subsection{The boundary of the advantage}\label{sec:boundary}
+
+\paragraph{The channel repair works.} Retraining the hard-noise Metaworld square with the
+goal's embedded target dims masked out of every training goal and the eval frame (and
+$p_{\mathrm{rand}}{=}0$) produced the best goal-conditioned-critic Metaworld numbers of
+the program: \texttt{mw-pick-place} $0.82$ (bilinear) / $0.72$ (monolithic), up $+0.23$
+each over the unrepaired square; \texttt{mw-push} $0.78$/$0.80$. The mask also
+\emph{raises the pure-BC floors} --- the poisoned dims were hurting BC's conditioning too.
+On these near-rank-limited single-target tasks the bilinear--monolithic gap stays small,
+as the mechanism expects.
+
+\paragraph{Failure 1: rank alone does not predict the gap.} Antmaze's kernel measures a
+\emph{stable} dims$_{95}=24$ (maze shortest-path families are intrinsically high-rank),
+predicting a clear bilinear advantage; measured: none ($0.244$ vs.\ $0.253$, both
+$+0.09$ over BC).
+
+\paragraph{Failure 2: cube-double is hostile to the factorization itself.} On the
+two-block task (BC floor $0.02$), the bilinear critic loses to the monolithic one
+outright, and the discriminators localize why only partially. Extending the discount's
+informative band ($\gamma{=}0.995$) rescues the \emph{monolithic} critic dramatically
+($0.360\to0.560\pm0.012$) --- the task genuinely is horizon-limited --- but not the
+bilinear one ($0.11$, unstable across seeds; a $d{=}512$ seed collapses to $0.0$). CRL's
+log link, which in principle never truncates and adds over AND-composed subgoals, also
+fails (chance). The surviving suspects are the Hadamard structure of AND-composed goals
+($K=K_1\!\odot\!K_2$, whose rank can be near the product of the factors and which the
+graph estimator underestimates) and TD-optimization instability of high-rank
+factorizations; separating them needs the selector probe on these checkpoints.
+
+\paragraph{Failure 3 (pre-registered as Arm D): completion needs the goal marginal.}
+Confining training goals to a half-space of the workspace and evaluating on the standard
+tasks flips the advantage: monolithic $0.500\pm0.069$ vs.\ bilinear $0.371\pm0.002$ ---
+the factored head's off-marginal failure is strikingly \emph{deterministic} across seeds.
+Completion fills unseen combinations of \emph{seen} marginals; it does not extrapolate off
+the goal marginal, where the monolithic critic's observation-space smoothness wins. This
+directly contradicts BVN's online OOD-goal-transfer claim in the offline setting.
+
+\paragraph{The conditional claim.} The bilinear advantage exists where (i) the kernel's
+informative band $\gamma^d\in[\varepsilon,1-\varepsilon]$ straddles the task's distance
+distribution (cube-single yes; ManiSkill below the band; cube-double beyond it), (ii)
+both state and goal marginals are covered by the data (cube eval yes; Arm D no), and
+(iii) the goal is non-composite. Within that regime the measured kernel rank sets the
+capacity requirement ($d^\dagger\approx$ dims$_{95}$) and the size of the advantage;
+outside it the monolithic critic is the safer estimator. Every boundary condition above
+has a causal experiment behind it, not a correlation.
 
 \section{Caveats}
 
@@ -437,9 +489,12 @@ expectile $\tau=0.9$ approximates the in-sample max. $d^*$ is reachability under
 dataset-supported policies. Experimental caveats: three seeds per cell throughout, 20--50
 episodes per evaluation point; the Metaworld selector floors at $N{=}1$ sit somewhat above
 the campaign's BC means (single proposal seed); VIP's runs collapsed to a rank-1 embedding
-and are excluded as a reference; and the synthesized-goal repair (\S\ref{sec:selector},
-finding 4) is eval-side only --- the train-side channel repair (context-dim masking,
-$p_{\mathrm{rand}}{=}0$) remains the one unexercised arm of the program.
+and are excluded as a reference; the train-side channel repair has now run
+(\S\ref{sec:boundary}) --- its selector probes, the scene-environment bilinear cells, and
+the remaining cube-double bilinear seeds (first-pass runs were invalidated by a save-path
+collision and are rerunning) are the open items; and the cube-double conclusions
+(Failure 2) rest on high-variance bilinear cells and should be read as ``robustly not
+working'' rather than as a precise number.
 
 \section*{References}
 \begin{itemize}

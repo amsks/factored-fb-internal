@@ -85,6 +85,54 @@ biGCIQL $d{=}15$ & $d^\dagger$ bracket & $0.837\pm0.027$ \\
 \end{tabular}
 \end{table}
 
+% ---- Arms A/C/D, launched 2026-08-04, landed 2026-08-05 ----
+\begin{table}[t]\centering
+\caption{Arm C — train-side goal-channel repair on \emph{play-noise-hard}
+(\texttt{goal\_mask\_dims}=[36{:}39] zeroed in all training goals and the eval frame;
+\texttt{p\_randomgoal}=0). 300k steps, 3 seeds. Best goal-conditioned-critic Metaworld
+numbers of the program; the repair also \emph{raises the BC floors} (the poisoned goal
+dims were hurting BC's conditioning too), so guidance deltas shrink while absolute
+performance rises. Unrepaired cells from the play-noise-hard block above.}
+\label{tab:armC}
+\begin{tabular}{lll cc}
+\toprule
+ & Critic & Actor & \texttt{mw-push} & \texttt{mw-pick-place} \\
+\midrule
+\multirow{4}{*}{goal-channel repaired}
+ & biGCIQL & BC   & $0.700\pm0.087$ & $0.750\pm0.050$ \\
+ & biGCIQL & Flow & $0.783\pm0.104$ & $\mathbf{0.817\pm0.058}$ \\
+ & GCIQL   & BC   & $0.600\pm0.132$ & $0.833\pm0.076$ \\
+ & GCIQL   & Flow & $\mathbf{0.800\pm0.132}$ & $0.717\pm0.029$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]\centering
+\caption{Arm A (rank scaling, 500k, 3 seeds) and Arm D (OOD-goal split). dims$_{95}$
+brackets are [min..med..max] over the 4-setting estimator grid. Flow actor throughout;
+BC = matched \texttt{bcflow} floor. cube-double discriminators: $\gamma{=}0.995$ doubles
+the kernel's informative band; qb75 $=\kappa\tanh(\cdot/\kappa)$, $\kappa{=}75$.
+$^{p}$ = rerun in flight (first-pass runs invalidated by a save-dir collision).}
+\label{tab:armAD}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l c ccccc}
+\toprule
+Env & dims$_{95}$ & BC & GCIQL & biGCIQL $d50$ & biGCIQL $d512$ & discriminators \\
+\midrule
+\texttt{cube-single} (ref.) & [8..13..19] & $0.09$ & $0.732\pm0.016$ & $\mathbf{0.927\pm0.017}$ & $0.892\pm0.007$ & --- \\
+\texttt{scene} & [9..15..23] & $0.067\pm0.016$ & $0.584\pm0.034$ & $^{p}$ & $^{p}$ & --- \\
+\texttt{antmaze} & [24..24..24] & $0.160\pm0.021$ & $0.253\pm0.039$ & $0.244\pm0.028$ & $0.253\pm0.028$ & --- \\
+\texttt{cube-double} & [9..33..62] & $0.015\pm0.006$ & $0.360\pm0.045$ & $^{p}$ & $0.000^{\,(n=1,p)}$ &
+ \begin{tabular}{@{}c@{}}$\gamma{=}.995$: GCIQL $\mathbf{0.560\pm0.012}$, bi $0.113\pm0.196$\\
+ CRL $0.015\pm0.002$; qb75 $0.381\pm0.062$\end{tabular} \\
+\midrule
+\multicolumn{7}{l}{\emph{Arm D} (\texttt{cube-single}, training goals confined to block-$x<0$, standard eval):
+ BC $0.091\pm0.006$; GCIQL $\mathbf{0.500\pm0.069}$; biGCIQL $d50$ $0.371\pm0.002$.}\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
 \clearpage
 % ---- Dataset provenance (hand-maintained; mirrors docs/2026-08-03-datasets.md) ----
 \section*{Datasets}
@@ -148,6 +196,7 @@ Regime & Task & Collector / policy & $N\times T$ & obs/act
  & \texttt{mw-push}       & oracle + target re-draw & $200\times500$ & 39/4 & $0.5/0.3/0$ & 0.710 & 0.010 & 4.91 \\
 \midrule
 \texttt{cube-single} & \texttt{cube-single-play-v0} & OGBench (external) & \multicolumn{6}{c}{stock OGBench play data; eval = mean success over fixed \texttt{task\_infos}} \\
+OGBench (Arm A) & \texttt{cube-double/scene/antmaze} & OGBench (external) & \multicolumn{6}{c}{stock \texttt{-play-v0}/\texttt{-navigate-v0} data, same protocol; obs 46/40/29-dim, no goal in obs} \\
 \bottomrule
 \end{tabular}}
 \end{table}

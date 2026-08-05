@@ -555,6 +555,26 @@ Caveat: MW $N{=}1$ floors (0.85/0.65) sit above the 3-seed campaign \textsc{bcfl
 unaffected.
 \end{remark}
 
+\begin{remark}[Post-registration results: the boundary campaign (2026-08-05)]\label{rem:arms}
+Arms A/C/D of the follow-up program (roadmap \S5) landed. \textbf{Arm C
+(train-side Ph.~\ref{ph:context} repair)}: masking the goal's embedded target dims +
+$p_{\mathrm{rand}}{=}0$ on hard-noise MW gives the best GC-critic Metaworld cells of the
+program (\texttt{pick-place} $0.82$ bilinear / $0.72$ monolithic, $+0.23$ each; the mask
+also raises BC floors --- the poisoned dims hurt BC conditioning too). Ph.~\ref{ph:context}
+is now confirmed at train time as well as eval time. \textbf{Arm A}: the rank-alone
+prediction \emph{failed twice} --- antmaze (stable dims$_{95}{=}24$) shows no bilinear
+separation ($0.244$ vs.\ $0.253$), and cube-double is hostile to the factorization
+outright ($\gamma{=}0.995$ rescues only the monolithic critic, $0.36\to0.56$; bilinear
+unstable at $0.11$; CRL at chance --- the log-link prediction also failed).
+\textbf{Arm D}: with training goals confined to a half-space, the advantage flips
+(monolithic $0.500$ vs.\ bilinear $0.371\pm0.002$) --- completion requires goal-marginal
+coverage; BVN's online OOD-transfer claim does not hold offline. Net: Ph.~\ref{ph:mechanism}(c)
+survives as a \emph{conditional} mechanism with a three-sided boundary ($\gamma$-band
+coverage, marginal coverage, non-composite goals), stated with causal evidence per side in
+the paper's \S{}Boundary. The failed predictions are retained here deliberately: they are
+what turned a slogan into a scoped claim.
+\end{remark}
+
 \section{Interpretation discipline}
 
 The five phenomena are deliberately stated so that the six experiments in
