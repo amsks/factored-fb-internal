@@ -195,6 +195,23 @@ QRL & $d^*$ & direct distance & optimal; quasimetric by architecture \\
 This table is what motivated the experiment: if all four factorize the same kernel, the
 successful one should look like the others. It does not.
 
+\paragraph{Bilinear Value Networks.} The closest architectural prior is BVN (Hong, Yang,
+Agrawal, ICLR 2022): online DDPG+HER on Fetch and Shadow-hand with
+$Q(s,a,g)=f(s,a)^\top\phi(s,g)$. Two points of contact matter. First, BVN's explanation
+for its gains is a one-paragraph version of our completion mechanism --- unseen tuples
+$(s_A,a_A,g_B)$ are covered because each factor saw its own marginal --- asserted from
+end-to-end success curves and a toy visualization, never isolated (their limitations
+section states explicitly that they cannot say why some tasks benefit more than others;
+\S\ref{sec:mechanism}--\ref{sec:transfer} are our answer to exactly that question).
+Second, BVN's input-grouping ablation concludes that the second field must condition on
+$s$ \emph{and} $g$, and that the $f(s,a)^\top\psi(g)$ factorization --- ours --- is ``too
+restrictive.'' Our theory says the opposite: conditioning the goal tower on $s$ destroys
+the fixed rank-$d$ factorization of the state--goal matrix \eqref{eq:factorization}, which
+is the object whose spectrum carries the completion guarantee. The two claims were made in
+different regimes (online HER vs.\ offline TD), so both can be locally right; the
+head-to-head under our objective is the first arm of the follow-up program
+(\texttt{docs/plans/2026-08-04-iclr-bilinear-roadmap.md}).
+
 % ---- Experiments I: the metric-probe study (plain-language experiments section) ----
 \input{experiments}
 
@@ -328,7 +345,51 @@ with distance from its own state distribution.
 \section{Why it does not transfer, and when it should}\label{sec:transfer}
 
 The cross-environment failures (RQ1) decompose into three confirmed, independent causes;
-none of them is ``the bilinear form stops working.''
+none of them is ``the bilinear form stops working.'' All three are properties of the
+\emph{datasets and goal channels}, so we first put the datasets side by side.
+
+\subsection{The datasets are not the same kind of object}\label{sec:datasets}
+
+The benchmarks are usually discussed as if ``offline goal-conditioned data'' were one
+thing. Measured, the training sets differ by orders of magnitude on every axis that the
+theory says matters --- size, horizon, goal diversity, post-success dwell, and whether the
+observation leaks the goal:
+
+\begin{center}
+\scriptsize
+\begin{tabular}{lllllllll}
+\toprule
+dataset & trans. & traj.\ len & collector & noise ($\varepsilon/\sigma$, clean) &
+ep.\ succ. & dwell & goals/traj & goal in obs \\
+\midrule
+cube play (OGBench) & $10^6$ & 1000 & scripted task-agnostic play & --- & n/a & $0$ & many & \textbf{no} \\
+MW expert & $10^5$ & 100 & TD-MPC2 expert & $0/0$, 100\% & $1.00$ & $0.71$ & 1 & yes \\
+MW play-noise & $10^5$ & 100 & noisy expert & $0.25/0.15$, 30\% & $0.82$--$0.86$ & $0.48$--$0.53$ & 1 & yes \\
+MW play-noise-hard & $10^5$ & 100 & noisy expert & $0.5/0.3$, 0\% & $0.50$--$0.54$ & $0.21$--$0.25$ & 1 & yes \\
+MW play-resample & $10^5$ & 500 & chained relocations & $0.1/0.1$ & n/a & $0.10$ & $47.5$ & yes \\
+MW play-resample-hard & $10^5$ & 500 & chained relocations & $0.5/0.3$ & n/a & $<0.01$ & $3.4$--$4.9$ & yes \\
+MS expert & $2.5{\times}10^4$ & 25 & TD-MPC2 expert & $0/0$, 100\% & $1.00$ & $0.75$ & 1 & yes \\
+MS play-noise & $2.5{\times}10^4$ & 25 & noisy expert & $0.25/0.15$, 30\% & $0.77$ & $0.27$ & 1 & yes \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent (``Dwell'' = fraction of all recorded steps spent sitting at the goal;
+``goals/traj'' = distinct targets visited per trajectory; MW expert reaches its goal by
+step $\sim$29 of 100 and parks there, MS expert by step 5 of 25.) Three readings. The
+OGBench cube set is the outlier on every column at once: $10$--$40\times$ more
+transitions, $10$--$40\times$ longer trajectories, no dwell, many goals per trajectory,
+and --- alone among all eight --- no goal coordinates in the observation. Each column maps
+onto one failure cause below: dwell and short horizons drive kernel degeneracy
+($1-\gamma^{1000}\approx1$ vs.\ $1-\gamma^{100}=0.63$ vs.\ $1-\gamma^{25}=0.22$; dwell
+collapses the relabeled goal marginal onto the success set); single-goal noisy-expert
+corridors drive headroom censoring (BC on such data is already the eval policy); and the
+goal-in-obs column drives the channel pathology --- including the self-censoring of the
+mild play-resample collection, where BC read the target from its own observation and hit
+$0.95$ with no critic at all. The hard variants were purpose-built to reopen the channel:
+noise opens headroom (episode success $0.50$--$0.54$), relocation restores goal diversity
+(dwell $0.10\to{<}0.01$), and the combination is the only Metaworld regime in which
+critic guidance is measurable at all.
 
 \textbf{Headroom censoring.} The benchmark measures $S_1-S_0=H\rho$ (BC-relative gain =
 headroom $\times$ guidance quality), and on Metaworld expert or mild-noise data BC is
@@ -394,6 +455,9 @@ Reward and Representation via Value-Implicit Pre-Training.} ICLR 2023, arXiv:221
 arXiv:2406.17098.
 \item Park, Frans, Eysenbach, Levine. \emph{OGBench: Benchmarking Offline Goal-Conditioned
 RL.} arXiv:2410.20092.
+\item Hong, Yang, Agrawal. \emph{Bilinear Value Networks.} ICLR 2022, arXiv:2204.13695.
+\item Schaul, Horgan, Gregor, Silver. \emph{Universal Value Function Approximators.}
+ICML 2015.
 \item Touati, Ollivier. \emph{Learning One Representation to Optimize All Rewards.}
 (FB representations.) arXiv:2103.07945.
 \item TTGS triangle-violation protocol. arXiv:2510.07257.
