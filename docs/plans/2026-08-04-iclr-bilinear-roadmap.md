@@ -133,6 +133,35 @@ reward this).
 A is the headline; C closes the one open phenomenon; D is the direct BVN-protocol
 comparison reviewers will ask for).
 
+## 5b. Arm A spectra landed BEFORE training (pre-registration order preserved)
+
+Centered-value statistic (the one that matched cube-single: dims95=16, eff-rank ~10),
+default estimator (n_anchors=2500, radius_q=0.9):
+
+| env | dims90 | dims95 | dims99 | eff-rank | d* median |
+|---|---|---|---|---|---|
+| scene-play | 9 | **22** | 398 | 9.3 | 40 |
+| cube-single (prior) | 11 | **16** | — | 10.1 | ~40 |
+| cube-double | 5 | **9** | 55 | 5.1 | 75 |
+| pointmaze-medium | 5 | **5** | 13 | 5.3 | 75 |
+
+Two pre-registration updates, recorded before any Arm A training run finishes:
+
+1. **cube-double under-resolution caveat.** dims95=9 < cube-single's 16 contradicts the
+   naive "double the blocks, double the rank" guess — but knn_radius had to stretch to
+   2.20 to keep the graph connected at 2500 anchors in the ~46-dim obs space, exactly the
+   distance-collapse failure mode the estimator notes warn about. Hi-res re-runs
+   (n_anchors=6000, radius_q=0.75; jobs 889249/889250) decide which number is real. If
+   dims95 stays ~9, the honest revised prediction is that cube-double's biql-gciql gap is
+   *comparable to or smaller than* cube-single's — the rank hypothesis then predicts gap
+   from the *measured* spectrum, not from intuitive latent-dimension counting.
+2. **pointmaze is not the rank-1 control we assumed.** A maze's shortest-path metric is
+   the textbook non-Euclidean distance; measured dims95=5, not 1-2. The revised control
+   reading: pointmaze is *low* rank (5) rather than *near-rank-1*, so the predicted
+   ordering of the bilinear advantage by dims95 is now
+   **scene (22) > cube-single (16) > cube-double (9, pending hi-res) ≥ pointmaze (5)**,
+   with pointmaze additionally headroom-limited if BC is strong there.
+
 ## 6. Risks
 
 - BVN head might *win* offline too → then the completion story needs refinement (their
