@@ -162,6 +162,19 @@ Two pre-registration updates, recorded before any Arm A training run finishes:
    **scene (22) > cube-single (16) > cube-double (9, pending hi-res) ≥ pointmaze (5)**,
    with pointmaze additionally headroom-limited if BC is strong there.
 
+## 5c. Estimator robustness (2026-08-04, before Arm A training lands)
+
+The single-setting spectra are NOT stable across estimator resolution: cube-double dims95
+went 9 (a2500, q0.9) -> 58 (a6000, q0.75); scene went 22 -> 9; antmaze reads 24 at its
+first setting (knn radius 16.7 — the ant's proprio dims dominate distances; antmaze is
+*not* a low-rank control either, and pointmaze was dropped as anomalous per OGBench).
+Consequence: the cross-env prediction must be stated over estimator **brackets**, not
+points. An 8-cell robustness grid (envs x {a2500,a6000} x {q0.75,0.9}, incl.\ cube-single
+recalibration) is running (`specgrid_*.json`); the pre-registered comparison for Arm A is
+gap-vs-**median-bracket** dims95, with envs whose brackets overlap treated as unordered.
+Honest current state: cube-double plausibly >= cube-single (the low first reading was
+distance collapse), scene and antmaze unresolved until the grid lands.
+
 ## 6. Risks
 
 - BVN head might *win* offline too → then the completion story needs refinement (their
