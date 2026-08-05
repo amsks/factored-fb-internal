@@ -224,3 +224,29 @@ Discriminating runs launched (aA2-cd-*, 3 seeds each, zero new code):
 - crl (log-link; log K affine in d, never truncates; additive over AND-composed blocks):
   predict CRL relatively much stronger on double than it was on single;
 - gciql q_bound=75 (range control): predict little change (else (b) revives).
+## 5e. Overnight verdicts (2026-08-05, committed as landed)
+
+**Arm C (MW train-side channel repair: goal_mask_dims + p_rand=0, pnh data, 300k):**
+best GC-critic MW numbers of the program. pick-place: biql flowbc 0.817+/-0.058 (was
+0.583 unrepaired, +0.23); gciql flowbc 0.717 (was 0.483, +0.23). push: gciql 0.800 (was
+0.717), biql 0.783 (was 0.867, within ~1sd). Masking also RAISES the BC floors
+(pick-place 0.75-0.83 vs 0.52-0.65): zeroing the poisoned goal dims helps the BC
+conditioning too, shrinking measurable headroom while raising absolute performance.
+Ph.II train-side repair: CONFIRMED for absolute performance; biql-vs-gciql gap on MW
+remains small (near-rank-1 value family, as the theory now expects).
+
+**Arm A antmaze (dims95=24 predicted biql>gciql): NULL.** biql-d50 0.244, d512 0.253,
+gciql 0.253 (BC 0.160). Guidance positive (+0.09) but no bilinear separation -> second
+strike against rank-alone as the predictor.
+
+**cube-double discriminators:** gamma=0.995 rescues the MONOLITHIC critic dramatically
+(gciql 0.360 -> 0.560+/-0.012) but NOT bilinear (biql-d50-g995 0.113+/-0.196, unstable;
+biql-d512 rerun first seed 0.000). CRL log-link: 0.015 (chance) — prediction FAILED.
+qb75 0.381 ~= unbounded (range story stays dead, as predicted). Reading: the gamma-band
+mattered (task genuinely horizon-limited: +0.20 for MLP), but cube-double is hostile to
+the bilinear factorization itself — consistent with the AND-composed kernel K=K1*K2
+(Hadamard) having rank ~ rank^2 that the graph estimator underestimates, AND/OR
+TD-optimization of a high-rank factorization being unstable (d512 seed collapse).
+The bilinear advantage's boundary is now three-sided: gamma-band coverage, marginal
+coverage (Arm D: biql 0.371 vs gciql 0.500 on held-out-half goals), and non-composite
+goal structure.
