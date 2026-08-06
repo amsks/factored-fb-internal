@@ -1047,6 +1047,22 @@ class GCIQLFlowAgent(GCIQLAgent):
             logits_a = self.network.select('delta_head')(
                 jnp.concatenate([obs, actor_actions, goals], -1))              # frozen params
             q1, q2 = (jax.nn.softmax(logits_a, -1) * z_g[None]).sum(-1)
+        elif self.config.get('measure_density', False):
+            # spec 18: q_h = sum_j w_h(s,a,g,u_j) * kernel(goal,u_j), density_f/density_b
+            # at FROZEN params (no params=grad_params -- crl f7b623d grad-hygiene lesson).
+            # kg is the goal's kernel row against the SAME batch-resampled query support
+            # density_loss trains against (train-eval z match), stop-gradded (the kernel
+            # is fixed, not trained through the actor).
+            blocks18 = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+            u_raw18 = self._raw_block_cols(batch['next_observations'], blocks18)
+            u_sc18 = self._density_queries(batch['next_observations'], blocks18)
+            kg = jax.lax.stop_gradient(self._delta_phi(goals, u_raw18, blocks18))     # [B, M]
+            b_emb18 = self.network.select('density_b')(u_sc18)                        # frozen params
+            f_emb18 = self.network.select('density_f')(
+                jnp.concatenate([obs, actor_actions, goals], -1))                     # frozen params
+            w18 = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb18, b_emb18)
+                                 / self.config['measure_density_temp'], -1)
+            q1, q2 = (w18 * kg[None]).sum(-1)
         else:
             # fb_forward_z: q = F(s,a,z).B(g)/sqrt(d) with z=sg(psi(g)) -> the FB greedy readout.
             zarg = (goals,) if self.config.get('fb_forward_z', False) else ()
@@ -1339,6 +1355,28 @@ class GCIQLFlowAgent(GCIQLAgent):
         diffs = xc[:, None, :] - pc[None, :, :]           # [B, K, d_c]
         logits = -0.5 * jnp.sum(diffs ** 2, axis=-1)      # [B, K]
         return jax.nn.softmax(logits, axis=-1)
+
+    @staticmethod
+    def _density_queries(nobs, blocks):
+        """[B, d_c] eps-scaled block coords of next_observations -- the resampled
+        query support U-tilde AND the B-tower input rows. Raw-unit twin for the
+        kernel term is the plain block slice (no scaling); _delta_phi does its
+        own scaling internally, so the kernel path passes RAW rows (see
+        _raw_block_cols below) -- do NOT double-scale."""
+        parts = []
+        for (a, b, e) in blocks:
+            parts.append(nobs[:, a:b] / e)
+        return jnp.concatenate(parts, axis=-1)
+
+    @staticmethod
+    def _raw_block_cols(obs_rows, blocks):
+        """[B, d_c] RAW (unscaled) concatenated block columns of obs_rows -- the
+        twin of _density_queries used as the `protos` argument to _delta_phi,
+        which applies its own per-block eps scaling internally (spec 18 §4.2)."""
+        parts = []
+        for (a, b, e) in blocks:
+            parts.append(obs_rows[:, a:b])
+        return jnp.concatenate(parts, axis=-1)
 
     @staticmethod
     def _measure_terms(M, tM, gamma, scale_norm, eps=1e-6, hit=None, absorbing=True):
@@ -1828,6 +1866,85 @@ class GCIQLFlowAgent(GCIQLAgent):
         }
         return loss, info
 
+    def density_loss(self, batch, grad_params, rng):
+        """Spec 18: continuous normalized successor density CE. Replaces 17b's fixed
+        K-prototype partition by a two-tower score f(s,a,g,u)=F(s,a,g).B(u)/tau over
+        a query support U resampled EVERY update as the batch's own next-state object
+        coords (round 1: no extra iid draws, spec 18 §3):
+
+            w_ij   = softmax_j f(s_i, a_i, g_i, u_j)                    (online, [2,B,M])
+            k_ij   = softmax_j( -0.5 sum_b ||(x'_i,b - u_j,b)/eps_b||^2 ) = _delta_phi(nobs, u_raw)
+            wbar_ij = softmax_j f_bar(s'_i, a+_i, g_i, u_j)              (target towers)
+            t_ij   = sg[ (1-gamma)*k_ij + gamma*wbar_ij ]                (rows on the simplex)
+            L      = -E_i[ sum_j t_ij * log_softmax(logits)_ij ]
+
+        The bootstrap action a+ is a ONE-SHOT flow-actor draw at (s', g), stop-gradded,
+        drawing its noise directly off the rng key passed in -- same no-split rng
+        convention as delta_partition_loss. No coef knob: this is the ONLY loss on the
+        measure_only path when the knob is on, weight 1 (17b's measure_coef lesson --
+        total_loss must not gate this a second time).
+
+        measure_density_hard (ablation): the immediate term becomes a one-hot at the
+        row's own successor (k = I, M == B) instead of the eps-kernel softmax --
+        attributes smoothing vs simplex-TD."""
+        obs, nobs = batch['observations'], batch['next_observations']
+        acts, g = batch['actions'], batch['value_goals']
+        blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+        gamma, tau = self.config['discount'], self.config['measure_density_temp']
+
+        u_raw = self._raw_block_cols(nobs, blocks)                            # [M, d_c] RAW
+        u_sc = self._density_queries(nobs, blocks)                            # [M, d_c] eps-scaled
+        b_emb = self.network.select('density_b')(u_sc, params=grad_params)    # [M, d]
+        f_emb = self.network.select('density_f')(
+            jnp.concatenate([obs, acts, g], -1), params=grad_params)          # [2, B, d]
+        logits = jnp.einsum('hbd,md->hbm', f_emb, b_emb) / tau                # [2, B, M]
+        w = jax.nn.softmax(logits, -1)
+        logp = jax.nn.log_softmax(logits, -1)                                 # [2, B, M]
+
+        noise = jax.random.normal(rng, acts.shape)
+        a_plus = jax.lax.stop_gradient(self.network.select('actor')(nobs, g, noise))
+        tb = self.network.select('target_density_b')(u_sc)                    # frozen target
+        tf = self.network.select('target_density_f')(
+            jnp.concatenate([nobs, a_plus, g], -1))                           # frozen target
+        w_bar = jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / tau, -1)   # [2, B, M]
+
+        if self.config.get('measure_density_hard', False):
+            k = jnp.eye(nobs.shape[0])                                        # [B, M], M == B
+        else:
+            k = self._delta_phi(nobs, u_raw, blocks)                          # [B, M]
+        t = jax.lax.stop_gradient((1.0 - gamma) * k[None] + gamma * w_bar)
+        ce = -jnp.mean(jnp.sum(t * logp, axis=-1))
+
+        ess_rows = 1.0 / jnp.sum(w ** 2, axis=-1)                              # [2, B]
+        # G2 (spec 18 §7) pre-registers the MEDIAN, not the mean: a mean over
+        # rows*heads hides a bimodal collapse or a single degenerating head
+        # (17 audit precedent -- msq computed-and-discarded left G2 without an
+        # instrument at all). Log the mean for continuity, the median as the
+        # actual gate statistic, and a per-head split so a one-head collapse
+        # is visible even though a healthy average over a sick head would
+        # read fine -- double_q's min at actor/eval means the SICK head is
+        # what the policy/eval readout actually feel.
+        ess = jnp.mean(ess_rows)
+        ess_median = jnp.median(ess_rows)
+        ess_h0 = jnp.mean(ess_rows[0])
+        ess_h1 = jnp.mean(ess_rows[1])
+        w_entropy = -jnp.mean(jnp.sum(w * logp, axis=-1))
+        tgt_entropy = -jnp.mean(jnp.sum(t * jnp.log(t + 1e-8), axis=-1))
+        logit_max = jnp.mean(jnp.max(logits, axis=-1))
+        k_self = jnp.mean(jnp.diagonal(k))
+        info = {
+            'density_ce': ce,
+            'density_ess': ess,
+            'density_ess_median': ess_median,
+            'density_ess_h0': ess_h0,
+            'density_ess_h1': ess_h1,
+            'density_w_entropy': w_entropy,
+            'density_tgt_entropy': tgt_entropy,
+            'density_logit_max': logit_max,
+            'density_k_self': k_self,
+        }
+        return ce, info
+
     def centered_measure_loss(self, batch, grad_params, rng):
         """T10 -- centered (advantage) successor measure (PAPER/rescuing-fb/
         04-centered-measure-spec.md). Every failed measure cell trains raw M, whose
@@ -2192,17 +2309,21 @@ class GCIQLFlowAgent(GCIQLAgent):
                 # spec 17b: one-stage simplex successor measure CE INSTEAD of the
                 # bilinear measure TD -- same measure_only wiring/prefix, different loss.
                 m_loss, m_info = self.delta_partition_loss(batch, grad_params, m_rng)
+            elif self.config.get('measure_density', False):
+                # spec 18: continuous normalized successor density CE INSTEAD of the
+                # bilinear measure TD / 17b partition CE -- same measure_only wiring/prefix.
+                m_loss, m_info = self.density_loss(batch, grad_params, m_rng)
             else:
                 m_loss, m_info = self.measure_loss(batch, grad_params, m_rng)
             for k, v in m_info.items():
                 info[f'measure/{k}'] = v
-            if self.config.get('measure_delta_partition', False):
-                # CRITICAL 1 fix (round 1 review): delta_partition_loss already applies
-                # measure_delta_coef internally. measure_coef defaults to 0.0 and the
-                # 17b launch config deliberately DROPS it (spec 17b §6) -- gating this
-                # path by measure_coef too would silently zero the CE's gradient
-                # (delta_head never trains, target frozen forever) while total_loss
-                # still returns a finite, plausible-looking loss and info dict.
+            if self.config.get('measure_delta_partition', False) or self.config.get('measure_density', False):
+                # CRITICAL 1 fix (round 1 review, 17b): delta_partition_loss/density_loss
+                # already ARE the whole objective. measure_coef defaults to 0.0 and the
+                # 17b/18 launch configs deliberately DROP it (spec 17b §6, spec 18 §4.3) --
+                # gating this path by measure_coef too would silently zero the CE's
+                # gradient (the towers never train, targets frozen forever) while
+                # total_loss still returns a finite, plausible-looking loss and info dict.
                 loss = m_loss + actor_loss
             else:
                 loss = self.config.get('measure_coef', 1.0) * m_loss + actor_loss
@@ -2295,12 +2416,13 @@ class GCIQLFlowAgent(GCIQLAgent):
 
     @jax.jit
     def update(self, batch):
-        """Identical to GCIQLAgent.update (agents/gciql.py) plus a conditional extra
-        target soft-update for spec 17b's delta_head. GCIQLFlowAgent otherwise inherits
-        update from GCIQLAgent, which only soft-updates 'critic' -- without this override
-        target_delta_head would stay frozen at its init values forever. self.config is a
-        static (nonpytree) field, so the branch resolves at trace time: bit-identical to
-        the inherited update when the knob is off."""
+        """Identical to GCIQLAgent.update (agents/gciql.py) plus conditional extra
+        target soft-updates for spec 17b's delta_head and spec 18's density_f/density_b
+        towers. GCIQLFlowAgent otherwise inherits update from GCIQLAgent, which only
+        soft-updates 'critic' -- without this override target_delta_head/
+        target_density_f/target_density_b would stay frozen at their init values
+        forever. self.config is a static (nonpytree) field, so the branch resolves at
+        trace time: bit-identical to the inherited update when both knobs are off."""
         new_rng, rng = jax.random.split(self.rng)
 
         def loss_fn(grad_params):
@@ -2310,6 +2432,9 @@ class GCIQLFlowAgent(GCIQLAgent):
         self.target_update(new_network, 'critic')
         if self.config.get('measure_delta_partition', False):
             self.target_update(new_network, 'delta_head')
+        if self.config.get('measure_density', False):
+            self.target_update(new_network, 'density_f')
+            self.target_update(new_network, 'density_b')
 
         return self.replace(network=new_network, rng=new_rng), info
 
@@ -2790,6 +2915,8 @@ class GCIQLFlowAgent(GCIQLAgent):
                 "measure_delta refuses the task_prior arms (same discipline as the other measure knobs)"
             assert not config.get('measure_delta_partition', False), \
                 "measure_delta and measure_delta_partition are mutually exclusive (17a vs 17b)"
+            assert not config.get('measure_density', False), \
+                "measure_delta (17a) and measure_density (spec 18) are mutually exclusive"
 
         # Spec 17b (variant B): one-stage simplex successor measure over a fixed
         # K-prototype partition. Refuse anything that changes the target's meaning,
@@ -2832,6 +2959,40 @@ class GCIQLFlowAgent(GCIQLAgent):
                 "measure_delta_partition refuses the task_prior arms"
             assert config.get('task_prior_actor', 'dirac') == 'dirac', \
                 "measure_delta_partition refuses the task_prior_actor arms"
+            assert not config.get('measure_density', False), \
+                "measure_delta_partition (17b) and measure_density (spec 18) are mutually exclusive"
+
+        # Spec 18: continuous normalized successor density -- a two-tower score
+        # f(s,a,g,u)=F(s,a,g).B(u)/tau over a resampled query support, softmax-CE
+        # fit to sg[(1-gamma)*k + gamma*w_bar+] (k=_delta_phi(nobs, queries)).
+        # Refuse anything that changes the target's meaning, the bootstrap policy,
+        # or composes with the region-matrix / 17a / 17b paths.
+        if config.get('measure_density', False):
+            assert config.get('measure_only', False)
+            assert not config.get('measure_delta', False) and not config.get('measure_delta_partition', False)
+            assert not config.get('measure_first_passage', False)
+            assert config.get('actor_kind', 'flow') == 'flow' and config.get('actor_cond', 'goal') == 'goal'
+            assert config.get('actor_q_center', False)
+            assert config['encoder'] is None, "state obs only"
+            assert float(config.get('measure_density_temp', 1.0)) > 0.0
+            assert int(config.get('measure_density_dim', 50)) >= 2
+            assert config.get('measure_ortho_coef', 0.0) == 0.0
+            assert float(config.get('measure_coef', 0.0)) <= 0.0, "17b lesson: no inert coef knobs"
+            for bad in ('fb_forward_z', 'sf_feature_td', 'measure_expectile', 'measure_nhat_head',
+                        'actor_z_infer', 'fwd_two_tower', 'isfb', 'freeze_critic_ckpt', 'warm_start_ckpt'):
+                assert not config.get(bad, False)
+            assert int(config.get('measure_nstep', 0) or 0) == 0 and not config.get('measure_eps_multiscale', '')
+            assert config.get('centered_measure', 'off') == 'off' \
+                and config.get('task_prior', 'dirac') == 'dirac' \
+                and config.get('task_prior_actor', 'dirac') == 'dirac'
+            assert not config.get('measure_delta_protos', ''), "density has no prototype file"
+            assert config.get('value_arch', 'mlp') != 'dueling', \
+                "value_arch='dueling' takes actor_loss's dueling branch (A_bil off a never-" \
+                "trained critic) BEFORE the measure_density branch is reached -- the density " \
+                "CE would train while the actor silently maximizes a dead critic"
+            assert not config.get('task_prior_critic_mix', False), \
+                "task_prior_critic_mix adds a scalar FP-TD leg on top of total_loss's measure_only " \
+                "branch; measure_density has no task-conditioned critic for it to mix with"
 
         # RG-FB v1 task-prior lattice (spec 06 item 4). 'mix' evaluates the scalar IQL TD and
         # the flow actor AT THE SAMPLED z (a raw d-dim task vector), so it needs the bilinear
@@ -3181,6 +3342,24 @@ class GCIQLFlowAgent(GCIQLAgent):
             ex_dh = (jnp.concatenate([ex_observations, ex_actions, ex_goals], -1),)
             network_info['delta_head'] = (dh_def, ex_dh)
             network_info['target_delta_head'] = (copy.deepcopy(dh_def), ex_dh)
+        if config.get('measure_density', False):
+            # spec 18: two-tower continuous normalized successor density -- F(s,a,g) (2
+            # heads, matching the critic's double_q) and B(u) (single tower; a second B
+            # buys nothing the min needs, spec 18 §3). Registered only when the knob is
+            # on, so the default param tree stays byte-identical.
+            _blocks18_create = _parse_hit_spec(config.get('measure_hit_spec', '19:22:0.4'))
+            _d_c18 = sum(b - a for (a, b, e) in _blocks18_create)
+            _d18 = int(config['measure_density_dim'])
+            f_def = ensemblize(MLP, 2)((*config['value_hidden_dims'], _d18),
+                                       activate_final=False, layer_norm=config['layer_norm'])
+            b_def = MLP((*config['value_hidden_dims'], _d18),
+                        activate_final=False, layer_norm=config['layer_norm'])
+            ex_f = (jnp.concatenate([ex_observations, ex_actions, ex_goals], -1),)
+            ex_b = (cls._density_queries(ex_observations, _blocks18_create),)   # [1, d_c] eps-scaled
+            network_info['density_f'] = (f_def, ex_f)
+            network_info['density_b'] = (b_def, ex_b)
+            network_info['target_density_f'] = (copy.deepcopy(f_def), ex_f)
+            network_info['target_density_b'] = (copy.deepcopy(b_def), ex_b)
         if config.get('actor_kind', 'flow') == 'ddpgbc':
             # Stock GCIQL gaussian DDPG+BC actor on the (possibly bilinear) critic.
             actor_def = GCActor(
@@ -3355,6 +3534,9 @@ class GCIQLFlowAgent(GCIQLAgent):
         params['modules_target_critic'] = params['modules_critic']
         if config.get('measure_delta_partition', False):
             params['modules_target_delta_head'] = params['modules_delta_head']
+        if config.get('measure_density', False):
+            params['modules_target_density_f'] = params['modules_density_f']
+            params['modules_target_density_b'] = params['modules_density_b']
 
         # nonpytree/static field (CRITICAL 2 fix): a hashable nested tuple of Python
         # floats, NOT a jnp/np array -- see the field's docstring for why.
@@ -3453,6 +3635,17 @@ def get_config():
         config.measure_delta_protos = ''   # 17b: path to the [K, d_c] .npy prototype file (raw obs units,
           # rows = dataset draws of the concatenated measure_hit_spec blocks). Required when the knob is on.
         config.measure_delta_coef = 1.0    # 17b: weight on the CE loss (keep 1.0; no dose sweeps round 1)
+        config.measure_density = False   # spec 18: continuous normalized successor density.
+          # f(s,a,g,u) = F(s,a,g).B(u)/temp scored against the batch's own next-state object
+          # coords as queries, softmax-normalized; CE fit to sg[(1-gamma)*k + gamma*w_bar+];
+          # k = _delta_phi(nobs, queries). Actor q = sum_j w_j * kernel(goal, u_j) at frozen
+          # params. Requires measure_only + flow actor + actor_q_center + state obs; mutually
+          # exclusive with measure_delta (17a) and measure_delta_partition (17b).
+          # False = off, bit-identical.
+        config.measure_density_dim = 50        # d of the F/B towers (the slot's latent dim)
+        config.measure_density_temp = 1.0      # softmax temperature tau (fixed, not learned)
+        config.measure_density_hard = False    # ablation: immediate term = one-hot at the row's own
+          # successor (k = I) instead of the eps-kernel softmax. Attributes smoothing vs simplex-TD.
         config.measure_expectile = False      # item6: state-only measure value V_M=phiV(s).psi~(s+)/sqrt(d); per-column expectile fit ell2_tau(sg[M]-V_M) + backup M<-r_delta+gamma*mask*sg[V_M(s')] (NO a'). Composes with measure_first_passage (supplies r_delta=hit and (1-hit) mask). Adds the measure_v_phi tower ONLY when on
         config.measure_expectile_tau = 0.9    # expectile for the measure-value fit (item6)
         config.measure_testpoint_dist = 'batch'  # item7: off-diagonal test points s+. 'batch' -> psi(next_observations), the rho-referenced measure (bit-identical) | 'hindsight' -> psi(value_goals), the OGBench scalar-side mix (0.5 traj-future/0.3 random/0.2 current); NO importance correction (intentional -- object is no longer the rho-referenced measure)

@@ -1,0 +1,38 @@
+# Spec 18 -- `measure_density` smoothing ablation: `measure_density_hard=True`.
+# Identical to cube_single_state_measure_density_d50.yaml EXCEPT the immediate term
+# becomes a one-hot at the row's own successor (k = I, the delta_partition-style
+# hard target) instead of the eps-kernel softmax k = _delta_phi(nobs, queries).
+# Attributes smoothing vs simplex-TD (spec section 7, wave d18_cs_hard, seed 0).
+#
+# Distinct run_group from the PRIMARY density arm -- run-group names lie, audit by
+# config (MEMORY.md standing rule); this file's own agent_overrides are the ground
+# truth for what actually trained.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityHard-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_hard: true
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+wandb_mode: online

@@ -1,0 +1,48 @@
+# Spec 18 -- `measure_density`: continuous normalized successor density
+# (PAPER/Multistep-FB/specs/18-density-measure.md). Removes 17b's fixed K-prototype
+# simplex head; replaces MLP([s,a,g]) -> K logits with a two-tower score
+# f(s,a,g,u) = F(s,a,g).B(u)/temp over a query support U resampled from the batch's
+# own next-state object coords EVERY update (no protos file, no .npy, no
+# checkpoint<->file coupling). NO ortho, NO anchors, NO hinges, NO entropy
+# regularizer, NO learned temperature (spec section 8 anti-scope) -- a from-scratch
+# one-stage cell (the lattice refuses warm start).
+#
+# Wave d18_cs_dens (spec section 7), PRIMARY arm. Gates: G1 success >= 0.5 at 500k
+# (real target ~= part's 0.884); G2 median density_ess >= 4 at 500k; G3 PRIMARY
+# readout stable across the eval pool sweep; G4 Spearman region-mass ordering >= 0.65.
+#
+# The measure-matrix knobs the ballvisit base carries (measure_coef,
+# measure_legs, measure_scale_norm, measure_first_passage, measure_fp_absorbing,
+# measure_stopgrad_psi, measure_ortho_coef) are DELIBERATELY dropped -- the
+# assert-lattice refuses measure_first_passage/measure_ortho_coef>0/measure_coef>0,
+# and the rest would just record misleading provenance for a path that doesn't
+# read them. Likewise dropped: measure_delta_protos (density has no prototype file
+# at all -- the lattice refuses it explicitly).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-Density-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+wandb_mode: online

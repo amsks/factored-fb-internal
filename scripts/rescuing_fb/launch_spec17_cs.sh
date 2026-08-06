@@ -87,6 +87,10 @@ for j in "${JOBS[@]}"; do
   if [ "$DRY_RUN" = "1" ]; then
     echo "      DRY: --config-name $cfg seed=$seed output_root=$OUTROOT exp_name=$tag"; continue
   fi
+  # XLA_FLAGS: disable CUDA-graph/command-buffer capture. d17_cs_part_s1 died TWICE
+  # (70k on GPU4, 230k on GPU0) with CUDA_ERROR_STREAM_CAPTURE_INVALIDATED raised from a
+  # device_get at logging time -- different GPUs, so not a bad card. Costs a little speed.
+  XLA_FLAGS=--xla_gpu_enable_command_buffer= \
   XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=$g \
     "$PY" run_gciql.py --config-name "$cfg" seed="$seed" \
       output_root="$OUTROOT" exp_name="$tag" \
