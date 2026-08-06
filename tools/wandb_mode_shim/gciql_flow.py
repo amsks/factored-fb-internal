@@ -763,6 +763,24 @@ class GCIQLFlowAgent(GCIQLAgent):
     # per-call hash of a K x d_c (e.g. 256x3) nested tuple is negligible.
     delta_protos: Any = nonpytree_field(default=None)
 
+    # Spec 19b (ORS extractor): three more static/nonpytree fields, same discipline as
+    # delta_protos above -- never pytree leaves (checkpoint restore only walks
+    # pytree_node=True fields), rebuilt/interpreted fresh at create()/call time, None
+    # when ors_reward_ckpt is off (every pre-19b checkpoint keeps restoring).
+    #   ors_pool        : hashable nested tuple [P, d_c], RAW obs units -- the fixed query
+    #                     pool U_P (see _eps_sqdist's `protos` convention, same as delta_protos).
+    #   ors_pool_b_emb  : hashable nested tuple [P, ors_dim] -- B_D(pool) PRECOMPUTED ONCE at
+    #                     create() from the frozen, spliced ors_b params (never recomputed
+    #                     per-step; the tower is frozen so its output on a FIXED pool is a
+    #                     constant for the whole run).
+    #   ors_tau         : python float, the resolved softmax temperature (ors_temp if >0,
+    #                     else the frozen ckpt's own measure_density_temp) -- resolved ONCE
+    #                     at create() since it depends on the LOADED ckpt's config, not any
+    #                     of the extractor's own knobs.
+    ors_pool: Any = nonpytree_field(default=None)
+    ors_pool_b_emb: Any = nonpytree_field(default=None)
+    ors_tau: Any = nonpytree_field(default=None)
+
     def _flow_rollout(self, obs, noise, params):
         """Euler-integrate the BC velocity field from noise -> action (flow_steps).
         `obs` is the vf's obs input -- under actor_vf_cond != 'none' the caller
@@ -880,7 +898,28 @@ class GCIQLFlowAgent(GCIQLAgent):
                           'q_mean': (0.5 * (q1 + q2)).mean(), 'q_max': jnp.maximum(q1, q2).max(),
                           'occ_B_normsq': jnp.mean(jnp.sum(Bo ** 2, axis=-1))}
         next_v = self.network.select('value')(batch['next_observations'], batch['value_goals'])
-        q = batch['rewards'] + self.config['discount'] * batch['masks'] * next_v
+        rewards = batch['rewards']
+        ors_info = {}
+        if self.config.get('ors_reward_ckpt', ''):
+            # Spec 19b: r_W REPLACES the sparse reward for every non-terminal (mask==1)
+            # row; the success-index row (mask==0, GCDataset's own convention: masks =
+            # 1-successes) is FORCE-SET to 1.0 REGARDLESS of r_W -- the paper's literal
+            # convention (Appendix B.3's TD target + the released code's
+            # `batch['rewards'] = jnp.where(successes, 1.0, batch['rewards'])`, quoted in
+            # PAPER/Multistep-FB/specs/19b-ors-transcription.md (a)), not a pure
+            # replace-everywhere scheme and not this repo's own gc_negative {-1,0}
+            # convention. `batch['rewards']` itself is NEVER referenced again on this path
+            # (test_reward_substitution poisons it with NaN to prove the substitution is
+            # total, not a blend).
+            r_w = self._ors_reward(batch['observations'], batch['actions'], batch['value_goals'])
+            success = batch['masks'] == 0.0
+            rewards = jnp.where(success, 1.0, r_w)
+            ors_info = {
+                'ors_r_mean': r_w.mean(), 'ors_r_std': r_w.std(),
+                'ors_r_min': r_w.min(), 'ors_r_max': r_w.max(),
+                'ors_reward_mean': rewards.mean(),
+            }
+        q = rewards + self.config['discount'] * batch['masks'] * next_v
         if self.config.get('value_arch', 'mlp') == 'dueling':
             out = self.network.select('critic')(
                 batch['observations'], batch['value_goals'], batch['actions'],
@@ -900,13 +939,13 @@ class GCIQLFlowAgent(GCIQLAgent):
                                  'q_max': q.max(), 'q_min': q.min(),
                                  'dueling_b_loss': b_loss, 'dueling_b_scale': b_scale,
                                  'dueling_A_mean': out['A_bil'].mean(),
-                                 'dueling_U_mean': out['U'].mean()}
+                                 'dueling_U_mean': out['U'].mean(), **ors_info}
         zarg = (batch['value_goals'],) if self.config.get('fb_forward_z', False) else ()
         q1, q2 = self.network.select('critic')(
             batch['observations'], batch['value_goals'], batch['actions'], *zarg, params=grad_params)
         critic_loss = ((q1 - q) ** 2 + (q2 - q) ** 2).mean()
         return critic_loss, {'critic_loss': critic_loss, 'q_mean': q.mean(),
-                             'q_max': q.max(), 'q_min': q.min()}
+                             'q_max': q.max(), 'q_min': q.min(), **ors_info}
 
     def actor_loss(self, batch, grad_params, rng=None, task_z=None):
         # task_z (RG-FB v1, spec06 item4): when supplied, the flow actor conditions on the
@@ -1091,6 +1130,18 @@ class GCIQLFlowAgent(GCIQLAgent):
                 q2 = jnp.where(pick1, qg[1], q2d)
             else:
                 q1, q2 = self.network.select('critic')(obs, goals, actor_actions, *zarg)
+        if self.config.get('actor_bc_only', False):
+            # spec 19 P0.2 (BC-only control): zero the q-term REGARDLESS of which branch
+            # above computed it (measure/z/dueling/greedy-mix/plain critic -- every one of
+            # them), giving a flow actor extracted ONLY by cloning (bc_coeff), at the same
+            # recipe otherwise. Reuses the EXISTING off-switch spec 19a's
+            # measure_density_behavior already established (q1=q2=None -> the `if q1 is
+            # None:` guard just below reduces actor_loss to the pure BC-flow terms) instead
+            # of duplicating that logic -- this knob just reaches that same state from ANY
+            # config, not only the behavior-density one. No cube-single (or any env) number
+            # in the program is currently attributable to the measure/critic Q over the
+            # cloning term without this control.
+            q1 = q2 = None
         if q1 is None:
             # spec 19a: measure_density_behavior skipped the q-term branch above -- there is
             # no actor q at all in this mode.
@@ -1395,6 +1446,42 @@ class GCIQLFlowAgent(GCIQLAgent):
         parts = []
         for (a, b, e) in blocks:
             parts.append(obs_rows[:, a:b])
+        return jnp.concatenate(parts, axis=-1)
+
+    @staticmethod
+    def _eps_sqdist(obs_rows, protos, blocks):
+        """[B, K] sum over blocks of ||(x_blk - proto_blk)/eps_blk||^2 -- the RAW
+        (pre -0.5, pre-softmax) squared eps-scaled distance _delta_phi's logits are built
+        from, generalized to two arbitrary point sets instead of a fixed simplex head.
+        Spec 19b S2: the ORS reward needs d^2(u,g) itself, not a membership distribution.
+        Same slicing/scaling convention as _delta_phi (kept as an independent, undisturbed
+        implementation rather than refactoring _delta_phi to call this, to avoid touching
+        already-shipped/tested spec 17b/18 code paths)."""
+        protos = jnp.asarray(protos, jnp.float32)
+        parts_x, parts_p, off = [], [], 0
+        for (a, b, e) in blocks:
+            w = b - a
+            parts_x.append(obs_rows[:, a:b] / e)
+            parts_p.append(protos[:, off:off + w] / e)
+            off += w
+        xc = jnp.concatenate(parts_x, axis=-1)          # [B, d_c]
+        pc = jnp.concatenate(parts_p, axis=-1)           # [K, d_c]
+        diffs = xc[:, None, :] - pc[None, :, :]           # [B, K, d_c]
+        return jnp.sum(diffs ** 2, axis=-1)               # [B, K]
+
+    @staticmethod
+    def _scale_block_cols(raw_cols, blocks):
+        """[P, d_c] RAW block-concatenated columns (the _raw_block_cols/delta_protos
+        convention) -> eps-scaled, matching _density_queries' per-block scaling but
+        starting from an ALREADY-concatenated array (e.g. the ORS pool file) instead of
+        full observation rows. Spec 19b: the ors_b tower's input convention is the same
+        eps-scaled coords density_b consumes (_density_queries), just applied to a
+        pool that was pre-extracted to block columns rather than full obs."""
+        parts, off = [], 0
+        for (a, b, e) in blocks:
+            w = b - a
+            parts.append(raw_cols[:, off:off + w] / e)
+            off += w
         return jnp.concatenate(parts, axis=-1)
 
     @staticmethod
@@ -1988,6 +2075,44 @@ class GCIQLFlowAgent(GCIQLAgent):
             # of the per-row substitution indicator GCDataset attaches.
             info['density_sarsa_subst'] = jnp.mean(batch['next_actions_subst'])
         return ce, info
+
+    def _ors_reward(self, obs, acts, goals):
+        """Spec 19b S2.3: the ORS shaping reward r_W(s,a,g), read off the FROZEN
+        (F_D, B_D) = (ors_f, ors_b) towers spliced in from a measure_density_behavior
+        checkpoint (spec 19a) at create():
+
+            logits_j = F_D(s,a).B_D(u_j) / tau                          [2, B, P]
+            w        = mean_h softmax_j(logits)_hj                       [B, P]  <- MEAN of
+                       the two heads' softmax weight distributions, NOT a min. measure_density's
+                       OWN actor q-term keeps its 2 heads separate for a downstream double_q
+                       min -- that discipline exists because that q feeds a POLICY-IMPROVEMENT
+                       max. r_W is a scalar REWARD substituted straight into a TD target (a
+                       fixed quantity to regress to, not something being maximized against),
+                       so there is no min/max asymmetry to preserve; the two heads are just two
+                       noisy estimates of the same behavior-occupancy softmax, and averaging
+                       them is the ordinary MC-variance-reduction move (spec 19b S2.3 pseudocode
+                       calls this out explicitly: "no min; record this convention" -- recorded).
+            r_W      = ors_reward_scale * (1 - gamma_frozen) * sum_j w_j * (-d^2(u_j, g))
+
+        `obs`/`acts` are the [s,a] pair (the behavior-density F tower is goal-free, spec
+        19a); `goals` is whichever goal key the caller paired the reward with (value_goals,
+        matching the stock loss's own pairing -- spec 19b S2.3). ors_f/ors_b are called at
+        their OWN stored (frozen, spliced, optimizer-masked) params -- this method never
+        passes params=grad_params for them, so they are structurally invisible to
+        jax.grad(total_loss) regardless of any stop_gradient discipline (test_grad_hygiene
+        asserts this directly, not by convention)."""
+        blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+        gamma_frozen = self.config['discount']    # asserted == the loaded ckpt's own discount
+        tau = self.ors_tau
+        pool_raw = jnp.asarray(self.ors_pool, jnp.float32)             # [P, d_c] RAW
+        pool_b_emb = jnp.asarray(self.ors_pool_b_emb, jnp.float32)     # [P, d]  precomputed B_D(pool)
+        f_emb = self.network.select('ors_f')(jnp.concatenate([obs, acts], -1))    # [2, B, d]
+        logits = jnp.einsum('hbd,pd->hbp', f_emb, pool_b_emb) / tau               # [2, B, P]
+        w = jax.nn.softmax(logits, -1)
+        w = w.mean(0)                                                             # [B, P]
+        d2 = self._eps_sqdist(goals, pool_raw, blocks)                            # [B, P]
+        r_w = self.config['ors_reward_scale'] * (1.0 - gamma_frozen) * jnp.sum(w * (-d2), axis=-1)
+        return r_w
 
     def centered_measure_loss(self, batch, grad_params, rng):
         """T10 -- centered (advantage) successor measure (PAPER/rescuing-fb/
@@ -3070,6 +3195,52 @@ class GCIQLFlowAgent(GCIQLAgent):
             config['next_actions'] = True
             orig_config['next_actions'] = True
 
+        # Spec 19 P0.2: BC-only control lattice. actor_bc_only only affects the flow
+        # actor's q1/q2 branch chain inside actor_loss -- actor_kind='ddpgbc'/'awr_flow'
+        # return before that chain is ever reached, so the knob would be silently inert
+        # there (17b measure_coef fake-NULL hazard). measure_density_behavior already
+        # zeroes the actor's q-term by construction (spec 19a) -- composing the two would
+        # be a redundant, provably-inert override, not a tested/load-bearing composition.
+        if config.get('actor_bc_only', False):
+            assert config.get('actor_kind', 'flow') == 'flow', \
+                "actor_bc_only only affects the flow actor's q-term branch chain in " \
+                "actor_loss (ddpgbc/awr_flow return before reaching it)"
+            assert not config.get('measure_density_behavior', False), \
+                "measure_density_behavior already zeroes the actor's q-term (spec 19a); " \
+                "actor_bc_only would be a redundant, provably-inert override there"
+
+        # Spec 19b: ORS extractor lattice. ors_reward_ckpt turns on a plain, stock
+        # g-conditioned GCIQL-flow run whose critic reward is r_W (read off a frozen
+        # measure_density_behavior checkpoint's F_D/B_D towers) instead of
+        # batch['rewards'] -- refuse anything that would make "stock GCIQL-flow" not
+        # simply true, or that would silently compose with a knob that ALSO owns the
+        # reward/critic-loss path (a 17b measure_coef fake-NULL hazard otherwise: the
+        # ckpt would load, r_W would be computed, and the run would still train on
+        # something else entirely without any error).
+        if config.get('ors_reward_ckpt', ''):
+            assert not config.get('measure_only', False), \
+                "ors_reward_ckpt is a plain GCIQL run: measure_only would drop the IQL " \
+                "value/critic losses the reward substitution lives inside"
+            for bad in ('measure_density', 'measure_delta', 'measure_delta_partition',
+                        'measure_first_passage', 'warm_start_ckpt', 'freeze_critic_ckpt'):
+                assert not config.get(bad, False), f"ors_reward_ckpt is incompatible with {bad}"
+            assert config.get('actor_kind', 'flow') == 'flow' and config.get('actor_cond', 'goal') == 'goal', \
+                "ors_reward_ckpt requires the stock flow actor on raw goals"
+            assert config['encoder'] is None, "ors_reward_ckpt supports state observations only"
+            assert int(config.get('ors_pool_size', 0)) >= 256, \
+                f"ors_pool_size must be >= 256, got {config.get('ors_pool_size', 0)}"
+            assert config.get('value_arch', 'mlp') != 'occupancy', \
+                "value_arch='occupancy' computes its OWN reward (r_B, from a shared-B critic " \
+                "leg) inside critic_loss's EARLY-RETURN branch, before the ORS reward " \
+                "substitution below is ever reached -- composing them would silently ignore " \
+                "ors_reward_ckpt rather than error, the exact 17b measure_coef fake-NULL hazard"
+            assert config.get('ors_pool_path', ''), \
+                "ors_reward_ckpt requires ors_pool_path (a precomputed .npy pool of the train " \
+                "dataset's hit-spec block coords -- create() only sees an example batch, not " \
+                "the full dataset, so the pool cannot be drawn in-process; generate it with " \
+                "scripts/rescuing_fb/make_delta_prototypes.py --k <ors_pool_size> the same way " \
+                "measure_delta_protos is generated for 17b)"
+
         # RG-FB v1 task-prior lattice (spec 06 item 4). 'mix' evaluates the scalar IQL TD and
         # the flow actor AT THE SAMPLED z (a raw d-dim task vector), so it needs the bilinear
         # inner-product head + the z-conditioned actor/vf, on the plain scalar-TD cell (no
@@ -3440,6 +3611,75 @@ class GCIQLFlowAgent(GCIQLAgent):
             network_info['density_b'] = (b_def, ex_b)
             network_info['target_density_f'] = (copy.deepcopy(f_def), ex_f)
             network_info['target_density_b'] = (copy.deepcopy(b_def), ex_b)
+        ors_pool_np = ors_pool_b_emb_np = None    # spec 19b: set below only when ors_reward_ckpt is on
+        ors_tau_resolved = None
+        if config.get('ors_reward_ckpt', ''):
+            # spec 19b S2.2: mirrors freeze_critic_ckpt/warm_start_ckpt's own glob-one-dir
+            # convention, but reads the run's ARCHITECTURE from its flags.json (main.py writes
+            # get_flag_dict()['agent'] there at launch -- the same file
+            # scripts/rescuing_fb/eval_rgfb_zeroshot.py / eval_measure_g4_spearman.py already
+            # use to recover a run's config without re-deriving it from CLI flags) rather than
+            # assuming it matches THIS run's own config: ors_f/ors_b's architecture (hidden
+            # dims, dim, layer_norm) is whatever the behavior-density run trained, not whatever
+            # this extractor's own value_hidden_dims happens to be set to (the extractor is a
+            # plain GCIQL run and doesn't even define measure_density_dim semantics).
+            import glob as _glob_ors
+            import json as _json_ors
+            import os as _os_ors
+            _ors_cand = _glob_ors.glob(_os_ors.path.expanduser(config['ors_reward_ckpt']))
+            assert len(_ors_cand) == 1, f"ors_reward_ckpt matched {len(_ors_cand)}: {_ors_cand}"
+            _ors_dir = _ors_cand[0]
+            with open(_os_ors.path.join(_ors_dir, 'flags.json')) as _f_ors:
+                _ors_flags = _json_ors.load(_f_ors)
+            _ors_agent_cfg = _ors_flags['agent']
+            # Consistency refusals, both directions of the composition (17b lesson: refuse
+            # loudly rather than silently mix conventions):
+            assert _ors_agent_cfg.get('measure_density_behavior', False), (
+                f"ors_reward_ckpt={_ors_dir!r} is not a measure_density_behavior run "
+                f"(measure_density_behavior={_ors_agent_cfg.get('measure_density_behavior')!r} "
+                "in its flags.json) -- refused")
+            assert _ors_agent_cfg.get('measure_density', False), (
+                f"ors_reward_ckpt={_ors_dir!r} does not have measure_density=True -- refused")
+            _ors_hit_spec = _ors_agent_cfg.get('measure_hit_spec', '19:22:0.4')
+            _own_hit_spec = config.get('measure_hit_spec', '19:22:0.4')
+            assert _ors_hit_spec == _own_hit_spec, (
+                f"ors_reward_ckpt hit_spec {_ors_hit_spec!r} != extractor's own measure_hit_spec "
+                f"{_own_hit_spec!r} -- refused (the pool/goal distances must be measured in the "
+                "SAME blocks the frozen towers were trained on)")
+            _ors_gamma = float(_ors_agent_cfg['discount'])
+            assert _ors_gamma == float(config['discount']), (
+                f"ors_reward_ckpt discount {_ors_gamma} != extractor discount {config['discount']} "
+                "-- refused (a stricter-than-paper choice, deliberate -- see "
+                "PAPER/Multistep-FB/specs/19b-ors-transcription.md (c))")
+            _ors_dim = int(_ors_agent_cfg['measure_density_dim'])
+            _ors_hidden = tuple(_ors_agent_cfg['value_hidden_dims'])
+            _ors_ln = bool(_ors_agent_cfg['layer_norm'])
+            _ors_own_temp = float(config.get('ors_temp', 0.0) or 0.0)
+            ors_tau_resolved = (_ors_own_temp if _ors_own_temp > 0.0
+                               else float(_ors_agent_cfg['measure_density_temp']))
+            _ors_blocks = _parse_hit_spec(_own_hit_spec)
+            _ors_d_c = sum(bb - aa for (aa, bb, ee) in _ors_blocks)
+
+            assert config.get('ors_pool_path', ''), \
+                "ors_reward_ckpt requires ors_pool_path (also asserted in the lattice block; " \
+                "re-checked here since building the pool needs the file, not just its presence)"
+            ors_pool_np = np.load(config['ors_pool_path'])
+            assert ors_pool_np.ndim == 2 and ors_pool_np.shape[1] == _ors_d_c, (
+                f"ors_pool_path must be [P, {_ors_d_c}] (d_c={_ors_d_c} from hit_spec "
+                f"{_own_hit_spec!r}), got {ors_pool_np.shape}")
+            assert ors_pool_np.shape[0] == int(config['ors_pool_size']), (
+                f"ors_pool_path row count {ors_pool_np.shape[0]} != ors_pool_size "
+                f"{config['ors_pool_size']} -- the config knob would record misleading "
+                "provenance about the pool actually in use")
+
+            _orsf_def = ensemblize(MLP, 2)((*_ors_hidden, _ors_dim), activate_final=False,
+                                           layer_norm=_ors_ln)
+            _orsb_def = MLP((*_ors_hidden, _ors_dim), activate_final=False, layer_norm=_ors_ln)
+            # goal-free F (spec 19a's behavior-mode input convention: [s,a], no goal leg).
+            _ex_orsf = (jnp.concatenate([ex_observations, ex_actions], -1),)
+            _ex_orsb = (cls._density_queries(ex_observations, _ors_blocks),)
+            network_info['ors_f'] = (_orsf_def, _ex_orsf)
+            network_info['ors_b'] = (_orsb_def, _ex_orsb)
         if config.get('actor_kind', 'flow') == 'ddpgbc':
             # Stock GCIQL gaussian DDPG+BC actor on the (possibly bilinear) critic.
             actor_def = GCActor(
@@ -3567,6 +3807,45 @@ class GCIQLFlowAgent(GCIQLAgent):
                 f"warm_start spliced neither critic nor value (copied={_copied}); arch must match the checkpoint"
             print(f"[warm_start] spliced {_copied} from {_pkl}; fresh-init {_fresh}; ALL trainable", flush=True)
 
+        # spec 19b S2.2: splice ors_f/ors_b from the frozen measure_density_behavior
+        # checkpoint's density_f/density_b (same restore machinery as freeze_critic_ckpt/
+        # warm_start_ckpt above: glob-one-dir already done at registration time, load
+        # params_<epoch>.pkl, splice into the freshly-initialized param tree). Optimizer-
+        # masked to zero (belt-and-suspenders: they are also never called with
+        # params=grad_params anywhere -- see _ors_reward -- so their gradient is
+        # structurally zero regardless; test_grad_hygiene checks both facts). B_D(pool) is
+        # precomputed ONCE, right here, from the just-spliced (frozen, correct) params --
+        # the tower is fixed for the whole run, so caching its output on the FIXED pool
+        # avoids re-running a frozen forward pass every single training step.
+        if config.get('ors_reward_ckpt', ''):
+            import pickle as _pickle_ors2
+            from flax.core import unfreeze as _unfreeze_ors2
+            _ors_epoch = int(config['ors_reward_epoch'])
+            _ors_pkl = _os_ors.path.join(_ors_dir, f"params_{_ors_epoch}.pkl")
+            with open(_ors_pkl, 'rb') as _f_ors2:
+                _ors_ck = _pickle_ors2.load(_f_ors2)['agent']['network']['params']
+            network_params = _unfreeze_ors2(network_params)
+            for _src, _dst in (('modules_density_f', 'modules_ors_f'),
+                               ('modules_density_b', 'modules_ors_b')):
+                assert _src in _ors_ck, (
+                    f"checkpoint {_ors_pkl} missing {_src}; ors_reward_ckpt must be a "
+                    "measure_density_behavior run's checkpoint")
+                network_params[_dst] = _ors_ck[_src]
+            _ORS_FREEZE = ('modules_ors_f', 'modules_ors_b')
+
+            def _ors_freeze_labels(params):
+                return {k: jax.tree_util.tree_map(lambda _l: ('freeze' if k in _ORS_FREEZE else 'train'), v)
+                        for k, v in params.items()}
+            network_tx = optax.multi_transform(
+                {'train': network_tx, 'freeze': optax.set_to_zero()}, _ors_freeze_labels)
+            _ors_pool_sc = np.asarray(
+                cls._scale_block_cols(jnp.asarray(ors_pool_np), _ors_blocks))
+            ors_pool_b_emb_np = np.asarray(_orsb_def.apply(
+                {'params': network_params['modules_ors_b']}, jnp.asarray(_ors_pool_sc, jnp.float32)))
+            print(f"[ors_reward] spliced {_ORS_FREEZE} from {_ors_pkl}; optimizer-masked frozen; "
+                 f"tau={ors_tau_resolved}; pool={config['ors_pool_path']} shape={ors_pool_np.shape}; "
+                 f"pool_b_emb shape={ors_pool_b_emb_np.shape}", flush=True)
+
         # freeze_actor (spec 08 E2): mask the optimizer to zero-out ALL actor modules
         # (modules_actor + modules_actor_vf) so phase 2 is fixed-policy visitation
         # evaluation -- pi stays at the warm-started phase-1 policy while phi trains against
@@ -3622,8 +3901,15 @@ class GCIQLFlowAgent(GCIQLAgent):
         # floats, NOT a jnp/np array -- see the field's docstring for why.
         delta_protos = (tuple(tuple(float(v) for v in row) for row in delta_protos_np)
                         if delta_protos_np is not None else None)
+        # Spec 19b: same static/nonpytree discipline as delta_protos -- hashable nested
+        # tuples, None when ors_reward_ckpt is off.
+        ors_pool = (tuple(tuple(float(v) for v in row) for row in ors_pool_np)
+                   if ors_pool_np is not None else None)
+        ors_pool_b_emb = (tuple(tuple(float(v) for v in row) for row in ors_pool_b_emb_np)
+                          if ors_pool_b_emb_np is not None else None)
         return cls(rng, network=network, config=flax.core.FrozenDict(**config),
-                  delta_protos=delta_protos)
+                  delta_protos=delta_protos, ors_pool=ors_pool,
+                  ors_pool_b_emb=ors_pool_b_emb, ors_tau=ors_tau_resolved)
 
 
 def get_config():
@@ -3680,6 +3966,15 @@ def get_config():
         # Flow actor hyperparameters.
         config.flow_steps = 10  # Euler steps for the BC flow rollout / distillation.
         config.bc_coeff = 3.0  # Distillation (BC) coefficient; the key actor knob.
+        config.actor_bc_only = False  # spec 19 P0.2: zero the flow actor's q-term (q1=q2=None,
+          # reusing the SAME "pure BC flow" code path spec 19a's measure_density_behavior
+          # already established) regardless of which q-term branch the rest of the config
+          # would otherwise select -- a pure-cloning-extraction control at whatever recipe
+          # (bc_coeff, value_arch, measure knobs, ...) is otherwise configured. Isolates
+          # whether a run's success is attributable to the critic/measure Q or just the BC
+          # cloning term. Requires actor_kind='flow'; incompatible with
+          # measure_density_behavior (already q-term-free, so this would be a redundant,
+          # provably-inert override there). False = off, bit-identical.
         config.actor_q_center = False  # flow actor q-loss normalizer: sg[mean|q - mean(q)|] (CENTERED scale, affine-offset invariant) instead of sg[mean|q|]. Cell W's M=1+(1-gamma)Q offset makes |q|~1 while the controllable variation is (1-gamma)-scaled, diluting the greedy signal ~3.8x vs bc_loss (wave-2 forensics 2026-07-22). Default off = bit-identical
         config.awr_alpha = 10.0  # AWR temperature for actor_kind='awr_flow' (OGBench GCIVL value).
         config.actor_vf_hidden_dim = 512
@@ -3736,6 +4031,48 @@ def get_config():
           # final-state rows substitute the current action, batch['next_actions_subst'] carries the
           # per-row substitution indicator). Forced on by measure_density_behavior; off otherwise
           # (default off = every produced batch dict byte-identical).
+        # --- Spec 19b: ORS (occupancy reward shaping) extractor. Stock g-conditioned
+        # GCIQL-flow (IQL value/critic + flow actor -- NO measure_only, NO hindsight
+        # columns, NO phase switch) whose critic TD target replaces batch['rewards'] by
+        # r_W, a shaping reward read off a FROZEN measure_density_behavior checkpoint's
+        # (F_D, B_D) towers. ors_reward_ckpt='' = off, bit-identical (no ors_f/ors_b
+        # modules registered, critic_loss's reward path untouched). ---
+        config.ors_reward_ckpt = ''    # glob path to a measure_density_behavior run dir (spec 19a
+          # product). When set: critic_loss substitutes r_W for batch['rewards'] on every
+          # non-terminal (mask==1) row; the success-index row (mask==0) is force-set to 1.0
+          # regardless of r_W (the paper's own convention -- PAPER/Multistep-FB/specs/
+          # 19b-ors-transcription.md (a)). '' = off, bit-identical.
+        config.ors_reward_epoch = 0    # checkpoint step to load (looks for params_<epoch>.pkl
+          # in ors_reward_ckpt)
+        config.ors_pool_path = ''      # path to a precomputed [P, d_c] .npy pool of the train
+          # dataset's measure_hit_spec block coords (RAW obs units, same _parse_hit_spec column
+          # convention as measure_delta_protos) -- create() only sees an example batch, not the
+          # full dataset, so spec 19b S2.2's "drawn at create" is infeasible as literally written;
+          # this is the documented out-of-band fallback the spec itself anticipates ("if create
+          # genuinely cannot see the dataset, generate the pool in the launcher into the run dir
+          # and load by path... 17b-style, documented"). Generated with the EXISTING
+          # scripts/rescuing_fb/make_delta_prototypes.py --k <ors_pool_size> (same object as 17b's
+          # prototypes -- K distinct dataset-row draws of the hit-spec block columns; no new
+          # script needed). Required when ors_reward_ckpt is set.
+        config.ors_pool_size = 4096    # expected pool row count P (verified against
+          # ors_pool_path's actual row count at create()); also the >=256 lattice floor
+        config.ors_pool_seed = 0       # recorded provenance only: the --seed passed to
+          # make_delta_prototypes.py when ors_pool_path was generated. The .npy file itself is
+          # the source of truth for what pool is actually in use -- this is NOT re-derived or
+          # re-checked from the file's contents (there is nothing in a plain .npy to check it
+          # against); it exists so the launch config records how the pool was drawn.
+        config.ors_reward_scale = 1.0  # SHIPPED KNOB DEFAULT stays 1.0/off (bit-identical-off
+          # discipline). The PRIMARY arm's per-env value is set by the launch CONFIG FILE, not
+          # this default: PAPER/Multistep-FB/specs/19b-ors-transcription.md (b) -- the paper's
+          # Table 10 "reward scaling for ORS (linear scaling x : r/x)" is a PER-TASK divisor,
+          # not a universal constant (their own released code hardcodes a single 0.75x, which
+          # this repo does NOT adopt): cube-double x=0.25 -> ors_reward_scale=1/0.25=4.0;
+          # scene x=0.75 -> ors_reward_scale=1/0.75~=1.3333. Every 19b launch config must set
+          # this explicitly per env and record which value + provenance in its header.
+        config.ors_temp = 0.0          # 0.0 = read tau from the frozen ckpt's OWN
+          # measure_density_temp (default -- the frozen towers were trained at that
+          # temperature, so reading it off the softmax at a DIFFERENT temperature would silently
+          # change what "occupancy" the readout means); >0 overrides it (ablation only).
         config.measure_expectile = False      # item6: state-only measure value V_M=phiV(s).psi~(s+)/sqrt(d); per-column expectile fit ell2_tau(sg[M]-V_M) + backup M<-r_delta+gamma*mask*sg[V_M(s')] (NO a'). Composes with measure_first_passage (supplies r_delta=hit and (1-hit) mask). Adds the measure_v_phi tower ONLY when on
         config.measure_expectile_tau = 0.9    # expectile for the measure-value fit (item6)
         config.measure_testpoint_dist = 'batch'  # item7: off-diagonal test points s+. 'batch' -> psi(next_observations), the rho-referenced measure (bit-identical) | 'hindsight' -> psi(value_goals), the OGBench scalar-side mix (0.5 traj-future/0.3 random/0.2 current); NO importance correction (intentional -- object is no longer the rho-referenced measure)

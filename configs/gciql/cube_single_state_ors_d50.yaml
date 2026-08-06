@@ -1,0 +1,69 @@
+# Spec 19b section 2/4 -- the ORS extractor (PAPER/Multistep-FB/specs/
+# 19b-ors-extractor-impl.md), cube-single arm. Stock GCIQL-flow at the standing
+# bilinear-d50 bridge recipe (matched to cube_single_state_gciql_flow_bilinear_d50.yaml
+# in every slot setting except the horizon/eval cadence, which follow the measure
+# cells' 500k/eval_interval=50000 -- spec 19 section 4) -- NO measure_only, NO
+# hindsight columns, NO phase switch. The critic's TD target reward is r_W, read off
+# the frozen (F_D, B_D) towers of a `measure_density_behavior` (spec 19a) checkpoint,
+# instead of batch['rewards'].
+#
+# NOT YET LAUNCHABLE AS-IS: ors_reward_ckpt/ors_pool_path below are PLACEHOLDERS (spec
+# 19 section 1 P1.1's cube-single behavior-density run has not been trained yet -- runs
+# are hours out at the time this config was written). Before launch:
+#   1. Train cube_single_state_measure_density_behavior_d50.yaml to completion (P1.1).
+#   2. Generate the pool: scripts/rescuing_fb/make_delta_prototypes.py --dataset
+#      <cube-single npz> --hit_spec "19:22:0.4" --k 4096 --seed 0 --out
+#      results/ors_pool/cube_single_K4096_s0.npy (same script 17b uses for its
+#      prototypes -- the pool IS a prototype file, just bigger; spec 19b section 2.2's
+#      "drawn at create" is infeasible -- create() only ever sees an example batch,
+#      never the training dataset -- so this is the documented out-of-band fallback).
+#   3. Run the P1.2 calibration probe (spec 19b section 1) on the P1.1 checkpoint --
+#      HARD GATE, Spearman(r_W ordering vs MC ground truth) >= 0.65 -- before launching
+#      this extractor at all.
+#   4. Fill in ors_reward_ckpt (glob to the completed P1.1 run dir) and ors_pool_path
+#      (the .npy from step 2) below, e.g. via
+#      +agent_overrides.ors_reward_ckpt=<dir> +agent_overrides.ors_pool_path=<path>
+#      at launch time (the repo's standing convention for not-yet-existing checkpoint
+#      paths -- see warm_start_ckpt's usage across scripts/rescuing_fb/launch_*.sh,
+#      which is never baked into a static config file for the same reason).
+#
+# ors_reward_scale provenance (PAPER/Multistep-FB/specs/19b-ors-transcription.md (b)):
+# cube-single-play is NOT one of the rows in the paper's Appendix B.7 Table 10 (only
+# cube-double/cube-triple/puzzle/scene/antmaze are listed) -- there is no verified
+# per-task value for this env. 4.0 (= 1/0.25) is used here by INFERENCE, not
+# transcription: it is the SAME divisor Table 10 gives cube-double-play AND
+# cube-triple-play (both x=0.25), and cube-single's r_W has the identical physical
+# object family and hit-tolerance geometry (single cube xyz, 4cm) as one leg of
+# cube-double's conjunctive region -- the closest analogy available. Flagged
+# explicitly as inferred, not verified; cs is the program's TIE gate (spec 19 section
+# 1 P1.3: "cs LOSS is a red flag for the shaping signal"), not a discriminator, so
+# getting this constant exactly right matters less here than for cd/scene.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-ORS-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_hit_spec: "19:22:0.4"
+  ors_reward_ckpt: "/dev/shm/gciql_outputs/OGBench/GCIQL-CubeSingle-Flow-Measure-DensityBehavior-d50/sd000_*"  # PLACEHOLDER -- fill in once P1.1 completes
+  ors_reward_epoch: 500000
+  ors_pool_path: "results/ors_pool/cube_single_K4096_s0.npy"  # PLACEHOLDER -- generate via make_delta_prototypes.py first
+  ors_pool_size: 4096
+  ors_pool_seed: 0
+  ors_reward_scale: 4.0  # INFERRED (not in Table 10) -- see header
+wandb_mode: online

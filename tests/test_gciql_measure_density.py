@@ -33,14 +33,33 @@ what each does and does not prove.
 Runner: `.venv/bin/python -m pytest tests/test_gciql_measure_density.py -x -q`
 (NOT uv; the jax subprocess harness resolves the jax venv itself).
 """
+import subprocess
 import textwrap
 
 import numpy as np
+import pytest
 
 from tests.jax_subprocess import run_jax, REPO
 
 OBS_D = 40
 D = 8   # value_latent_dim AND measure_density_dim, matches the spec's harness
+
+# Pinned pre-measure_density baseline commit for test_default_off_bit_identical --
+# NOT "HEAD". HEAD moves forward on this shared branch as other sessions/tracks land
+# commits (verified in practice: it moved from c5348cf to bf70d20 mid-way through the
+# spec-19b session that added this pin), so a `git show HEAD` baseline diff eventually
+# always finds measure_density already merged and false-fails forever once spec 18
+# itself is committed -- not just transiently while a PR is in flight. A pinned SHA is
+# immune to that: it names a specific, permanent point in history that is known (and
+# re-verified below) to predate measure_density, regardless of where HEAD is today.
+# Re-pin only if this SHA becomes unreachable (see _baseline_reachable / the skip path).
+DENSITY_PRE_SPEC18_SHA = "370938f"
+
+
+def _baseline_reachable(sha):
+    r = subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+                        cwd=str(REPO), capture_output=True, text=True)
+    return r.returncode == 0
 
 COMMON = f"""
     import jax, jax.numpy as jnp, numpy as np, flax
@@ -143,26 +162,46 @@ def test_default_off_bit_identical():
     target_density_b modules registered, and total_loss bit-identical on a fixed
     batch.
 
-    Round-2 review item 3 (bullet 3): comparing two knob-off configs BUILT FROM
-    THE SAME (current) gciql_flow.py cannot detect an off-path regression --
-    if spec 18's edits themselves broke something on the default path, both
-    cfg0 and cfg1 would break identically and this comparison would stay
-    green. The discriminating half of this test instead loads the file as it
-    stood at `git show HEAD` (this repo's actual pre-spec-18 baseline --
-    verified below to contain zero occurrences of measure_density) as a
-    SEPARATE module and diffs the CURRENT knob-off agent against THAT one:
-    a genuine off-path regression (wrong param count, a changed default,
-    reordered rng splits) would show up here even though both configs in the
-    comparison have the knob off, because the two sides run different code."""
+    WHAT THIS PROVES: turning measure_density off today reproduces, byte-for-byte
+    (param tree AND total_loss), the code as it stood at the pinned commit
+    DENSITY_PRE_SPEC18_SHA -- a real historical baseline that predates spec 18 (and
+    therefore every later spec 19a/19b/etc. change too). That catches a genuine
+    off-path regression (wrong param count, a changed default, reordered rng
+    splits) introduced by ANY change since that commit, because the two sides run
+    different code -- comparing two knob-off configs built from the SAME current
+    file (kept below as a cheap redundant sanity check, not the load-bearing half)
+    cannot detect that: if a later edit broke the default path, both configs would
+    break identically and stay green.
+
+    WHAT THIS DOES NOT PROVE: that the off-path matches "whatever commit most
+    recently touched this file" -- it deliberately does NOT track HEAD. Round-2
+    review originally pinned this diff to `git show HEAD`, reasoning that HEAD was
+    the pre-spec-18 baseline at the time the test was written; that assumption
+    broke the very first time another commit landed on this shared branch (this
+    file's own git log moved past it while spec 19b was being implemented in the
+    SAME session), so the test started failing on code that was never touched by
+    spec 18 or by whatever the "off" path is only exercised. A HEAD-relative diff
+    is not a fix for the off-path being wrong; it is a fix that expires with the
+    next commit. Pinning a SHA instead means: (1) it never expires as HEAD moves,
+    and (2) if the pinned SHA itself is ever unreachable (a shallow clone, a
+    history rewrite), the test SKIPS with a clear reason instead of either
+    silently passing on a stale assumption or failing on an infrastructure
+    problem unrelated to this feature -- see _baseline_reachable above."""
+    if not _baseline_reachable(DENSITY_PRE_SPEC18_SHA):
+        pytest.skip(f"pinned baseline commit {DENSITY_PRE_SPEC18_SHA} is not reachable in "
+                    "this checkout (e.g. a shallow clone) -- cannot run the off-path "
+                    "regression diff against it")
     _run("""
     import subprocess, importlib.util, tempfile, os
 
     baseline_src = subprocess.run(
-        ["git", "show", "HEAD:tools/wandb_mode_shim/gciql_flow.py"],
+        ["git", "show", "%s:tools/wandb_mode_shim/gciql_flow.py"],
         cwd=%r, capture_output=True, text=True, check=True).stdout
-    assert "measure_density" not in baseline_src, \\
-        "HEAD already contains measure_density -- this repo's baseline moved; " \\
-        "re-point the diff target (e.g. to the commit before spec 18 landed)"
+    assert "measure_density" not in baseline_src, (
+        "pinned baseline %s no longer predates measure_density -- the pin has gone "
+        "stale (e.g. history was rewritten); re-pin DENSITY_PRE_SPEC18_SHA to a commit "
+        "that genuinely predates spec 18 (see `git log --oneline -- "
+        "tools/wandb_mode_shim/gciql_flow.py`)")
     baseline_path = os.path.join(tempfile.mkdtemp(), "gciql_flow_baseline.py")
     with open(baseline_path, "w") as f:
         f.write(baseline_src)
@@ -203,7 +242,7 @@ def test_default_off_bit_identical():
     l0, _ = total_loss_of(a0, b)
     assert l0 == l1, (l0, l1)
     print("OK")
-    """ % str(REPO))
+    """ % (DENSITY_PRE_SPEC18_SHA, str(REPO), DENSITY_PRE_SPEC18_SHA))
 
 
 # --------------------------------------------------------------------------
