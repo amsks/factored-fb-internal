@@ -1048,21 +1048,29 @@ class GCIQLFlowAgent(GCIQLAgent):
                 jnp.concatenate([obs, actor_actions, goals], -1))              # frozen params
             q1, q2 = (jax.nn.softmax(logits_a, -1) * z_g[None]).sum(-1)
         elif self.config.get('measure_density', False):
-            # spec 18: q_h = sum_j w_h(s,a,g,u_j) * kernel(goal,u_j), density_f/density_b
-            # at FROZEN params (no params=grad_params -- crl f7b623d grad-hygiene lesson).
-            # kg is the goal's kernel row against the SAME batch-resampled query support
-            # density_loss trains against (train-eval z match), stop-gradded (the kernel
-            # is fixed, not trained through the actor).
-            blocks18 = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
-            u_raw18 = self._raw_block_cols(batch['next_observations'], blocks18)
-            u_sc18 = self._density_queries(batch['next_observations'], blocks18)
-            kg = jax.lax.stop_gradient(self._delta_phi(goals, u_raw18, blocks18))     # [B, M]
-            b_emb18 = self.network.select('density_b')(u_sc18)                        # frozen params
-            f_emb18 = self.network.select('density_f')(
-                jnp.concatenate([obs, actor_actions, goals], -1))                     # frozen params
-            w18 = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb18, b_emb18)
-                                 / self.config['measure_density_temp'], -1)
-            q1, q2 = (w18 * kg[None]).sum(-1)
+            if self.config.get('measure_density_behavior', False):
+                # spec 19a: no actor q-term in behavior mode -- density_f/density_b are the
+                # goal-free [s,a] behavior-occupancy towers (F(s,a), no g leg), so there is
+                # no goal-conditioned measure for the actor to read. SKIP the spec-18 density
+                # q-term branch entirely; q1=q2=None makes actor_loss below reduce to the
+                # pure BC-flow terms (see the q1 is None guard just past this if/elif chain).
+                q1 = q2 = None
+            else:
+                # spec 18: q_h = sum_j w_h(s,a,g,u_j) * kernel(goal,u_j), density_f/density_b
+                # at FROZEN params (no params=grad_params -- crl f7b623d grad-hygiene lesson).
+                # kg is the goal's kernel row against the SAME batch-resampled query support
+                # density_loss trains against (train-eval z match), stop-gradded (the kernel
+                # is fixed, not trained through the actor).
+                blocks18 = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+                u_raw18 = self._raw_block_cols(batch['next_observations'], blocks18)
+                u_sc18 = self._density_queries(batch['next_observations'], blocks18)
+                kg = jax.lax.stop_gradient(self._delta_phi(goals, u_raw18, blocks18))     # [B, M]
+                b_emb18 = self.network.select('density_b')(u_sc18)                        # frozen params
+                f_emb18 = self.network.select('density_f')(
+                    jnp.concatenate([obs, actor_actions, goals], -1))                     # frozen params
+                w18 = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb18, b_emb18)
+                                     / self.config['measure_density_temp'], -1)
+                q1, q2 = (w18 * kg[None]).sum(-1)
         else:
             # fb_forward_z: q = F(s,a,z).B(g)/sqrt(d) with z=sg(psi(g)) -> the FB greedy readout.
             zarg = (goals,) if self.config.get('fb_forward_z', False) else ()
@@ -1083,8 +1091,14 @@ class GCIQLFlowAgent(GCIQLAgent):
                 q2 = jnp.where(pick1, qg[1], q2d)
             else:
                 q1, q2 = self.network.select('critic')(obs, goals, actor_actions, *zarg)
-        q = jnp.minimum(q1, q2) if self.config['double_q'] else q1
-        actor_loss = -q.mean()
+        if q1 is None:
+            # spec 19a: measure_density_behavior skipped the q-term branch above -- there is
+            # no actor q at all in this mode.
+            q = None
+            actor_loss = 0.0
+        else:
+            q = jnp.minimum(q1, q2) if self.config['double_q'] else q1
+            actor_loss = -q.mean()
 
         # 3) BC-distillation: one-shot actor -> frozen multi-step flow rollout (FQL
         # one-step distillation). Q-loss is normalized by |q| mean to be scale
@@ -1095,23 +1109,28 @@ class GCIQLFlowAgent(GCIQLAgent):
             target = self._flow_rollout(vf_obs, noise, jax.lax.stop_gradient(grad_params))
             distill_error = jnp.mean((actor_actions - target) ** 2)
             bc_loss = self.config['bc_coeff'] * distill_error
-            # actor_q_center: normalize by the CENTERED magnitude sg[mean|q - mean(q)|] so the
-            # q/bc balance is invariant to an affine offset in Q. Cell W's M = 1+(1-gamma)Q puts
-            # |q|~1 while the controllable variation is (1-gamma)-scaled, diluting the greedy
-            # signal vs bc_loss; -q.mean()'s gradient is unchanged by the centering itself.
-            if self.config.get('actor_q_center', False):
-                q_scale = jnp.abs(q - q.mean()).mean()
+            if q is None:
+                # spec 19a: no q-term to normalize against -- the actor loss IS the
+                # distillation term (plus bc_flow_loss below), pure BC flow.
+                actor_loss = bc_loss
             else:
-                q_scale = jnp.abs(q).mean()
-            actor_loss = actor_loss / jax.lax.stop_gradient(q_scale + 1e-6) + bc_loss
+                # actor_q_center: normalize by the CENTERED magnitude sg[mean|q - mean(q)|] so the
+                # q/bc balance is invariant to an affine offset in Q. Cell W's M = 1+(1-gamma)Q puts
+                # |q|~1 while the controllable variation is (1-gamma)-scaled, diluting the greedy
+                # signal vs bc_loss; -q.mean()'s gradient is unchanged by the centering itself.
+                if self.config.get('actor_q_center', False):
+                    q_scale = jnp.abs(q - q.mean()).mean()
+                else:
+                    q_scale = jnp.abs(q).mean()
+                actor_loss = actor_loss / jax.lax.stop_gradient(q_scale + 1e-6) + bc_loss
         actor_loss = actor_loss + bc_flow_loss
 
         return actor_loss, {
             'actor_loss': actor_loss,
             'bc_flow_loss': bc_flow_loss,
             'distill_loss': distill_error,
-            'q_mean': q.mean(),
-            'q_abs_mean': jnp.abs(q).mean(),
+            'q_mean': q.mean() if q is not None else jnp.asarray(0.0),
+            'q_abs_mean': jnp.abs(q).mean() if q is not None else jnp.asarray(0.0),
         }
 
     def _sample_tasks(self, batch, grad_params, rng):
@@ -1886,26 +1905,45 @@ class GCIQLFlowAgent(GCIQLAgent):
 
         measure_density_hard (ablation): the immediate term becomes a one-hot at the
         row's own successor (k = I, M == B) instead of the eps-kernel softmax --
-        attributes smoothing vs simplex-TD."""
+        attributes smoothing vs simplex-TD.
+
+        measure_density_behavior (spec 19a): the behavior-policy variant. F's input
+        drops the goal leg ([s,a] instead of [s,a,g] -- the behavior policy ignores
+        goals) and the bootstrap action is the DATASET's next action a'_D =
+        batch['next_actions'] (SARSA) instead of a one-shot draw from the learned
+        (goal-conditioned) flow actor -- bootstrapping with that actor would estimate
+        a different policy's occupancy. rng stays unconsumed on this path so the
+        off-branch (measure_density_behavior=False) is bit-identical to the shipped
+        spec-18 code -- same rng draw, same actor call, same ops."""
         obs, nobs = batch['observations'], batch['next_observations']
         acts, g = batch['actions'], batch['value_goals']
         blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
         gamma, tau = self.config['discount'], self.config['measure_density_temp']
+        behavior = self.config.get('measure_density_behavior', False)
 
         u_raw = self._raw_block_cols(nobs, blocks)                            # [M, d_c] RAW
         u_sc = self._density_queries(nobs, blocks)                            # [M, d_c] eps-scaled
         b_emb = self.network.select('density_b')(u_sc, params=grad_params)    # [M, d]
-        f_emb = self.network.select('density_f')(
-            jnp.concatenate([obs, acts, g], -1), params=grad_params)          # [2, B, d]
+        if behavior:
+            f_emb = self.network.select('density_f')(
+                jnp.concatenate([obs, acts], -1), params=grad_params)         # [2, B, d], no goal leg
+        else:
+            f_emb = self.network.select('density_f')(
+                jnp.concatenate([obs, acts, g], -1), params=grad_params)      # [2, B, d]
         logits = jnp.einsum('hbd,md->hbm', f_emb, b_emb) / tau                # [2, B, M]
         w = jax.nn.softmax(logits, -1)
         logp = jax.nn.log_softmax(logits, -1)                                 # [2, B, M]
 
-        noise = jax.random.normal(rng, acts.shape)
-        a_plus = jax.lax.stop_gradient(self.network.select('actor')(nobs, g, noise))
         tb = self.network.select('target_density_b')(u_sc)                    # frozen target
-        tf = self.network.select('target_density_f')(
-            jnp.concatenate([nobs, a_plus, g], -1))                           # frozen target
+        if behavior:
+            a_plus = batch['next_actions']                                    # SARSA: dataset's next action, not sampled
+            tf = self.network.select('target_density_f')(
+                jnp.concatenate([nobs, a_plus], -1))                          # frozen target, no goal leg
+        else:
+            noise = jax.random.normal(rng, acts.shape)
+            a_plus = jax.lax.stop_gradient(self.network.select('actor')(nobs, g, noise))
+            tf = self.network.select('target_density_f')(
+                jnp.concatenate([nobs, a_plus, g], -1))                       # frozen target
         w_bar = jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / tau, -1)   # [2, B, M]
 
         if self.config.get('measure_density_hard', False):
@@ -1943,6 +1981,12 @@ class GCIQLFlowAgent(GCIQLAgent):
             'density_logit_max': logit_max,
             'density_k_self': k_self,
         }
+        if behavior:
+            # spec 19a: the SARSA substitution fraction (final-state rows, where the
+            # dataset has no same-trajectory next action, fell back to the current
+            # action) -- exactly the statistic named in spec 19a §1/§3, a plain mean
+            # of the per-row substitution indicator GCDataset attaches.
+            info['density_sarsa_subst'] = jnp.mean(batch['next_actions_subst'])
         return ce, info
 
     def centered_measure_loss(self, batch, grad_params, rng):
@@ -2489,6 +2533,14 @@ class GCIQLFlowAgent(GCIQLAgent):
         rng, init_rng = jax.random.split(rng, 2)
         ex_goals = ex_observations
         action_dim = ex_actions.shape[-1]
+        # spec 19a: keep a handle to the CALLER's own config object (an ml_collections
+        # ConfigDict in the real training entrypoint, third_party/ogbench/impls/main.py --
+        # the SAME object GCDataset holds a reference to, since main.py constructs the
+        # dataset from it before calling create()) before the `dict(config)` copy below
+        # detaches every later `config[...] = ...` mutation from it. The
+        # measure_density_behavior lattice block writes next_actions=True onto BOTH, so
+        # the dataset actually sees the forced flag on its next .sample() call.
+        orig_config = config
         config = dict(config)
         config['action_dim'] = action_dim
 
@@ -2972,7 +3024,8 @@ class GCIQLFlowAgent(GCIQLAgent):
             assert not config.get('measure_delta', False) and not config.get('measure_delta_partition', False)
             assert not config.get('measure_first_passage', False)
             assert config.get('actor_kind', 'flow') == 'flow' and config.get('actor_cond', 'goal') == 'goal'
-            assert config.get('actor_q_center', False)
+            if not config.get('measure_density_behavior', False):
+                assert config.get('actor_q_center', False)
             assert config['encoder'] is None, "state obs only"
             assert float(config.get('measure_density_temp', 1.0)) > 0.0
             assert int(config.get('measure_density_dim', 50)) >= 2
@@ -2993,6 +3046,29 @@ class GCIQLFlowAgent(GCIQLAgent):
             assert not config.get('task_prior_critic_mix', False), \
                 "task_prior_critic_mix adds a scalar FP-TD leg on top of total_loss's measure_only " \
                 "branch; measure_density has no task-conditioned critic for it to mix with"
+
+        # Spec 19a: behavior-policy variant of measure_density -- goal-free F tower
+        # [s,a], SARSA bootstrap from the DATASET's next action (batch['next_actions']),
+        # pure BC-flow actor (no q-term -- there is no goal-conditioned measure for the
+        # actor to read). Product = frozen (F_D, B_D) for the spec-19b ORS reward; the
+        # actor checkpoint trained alongside it is a byproduct, not evaluated.
+        if config.get('measure_density_behavior', False):
+            assert config.get('measure_density', False), \
+                "measure_density_behavior is a variant of measure_density: set measure_density=True"
+            assert config.get('actor_kind', 'flow') == 'flow', \
+                "measure_density_behavior requires actor_kind='flow'"
+            assert not config.get('actor_q_center', False), \
+                "behavior mode has no actor q-term; actor_q_center would be an inert knob " \
+                "(17b measure_coef lesson: refuse dead knobs, don't let them silently no-op)"
+            # Force the dataset's SARSA next-action key on -- a behavior run that silently
+            # bootstrapped without it would be a fake result (spec 19a §2.4). Write it onto
+            # BOTH the local copy (so agent.config / every assert below sees it too) and
+            # orig_config (the caller's own object, identical to what GCDataset holds a
+            # reference to in the real entrypoint -- main.py constructs the dataset from
+            # this same config before calling create() -- so mutating only the local `dict(config)`
+            # copy would never reach it).
+            config['next_actions'] = True
+            orig_config['next_actions'] = True
 
         # RG-FB v1 task-prior lattice (spec 06 item 4). 'mix' evaluates the scalar IQL TD and
         # the flow actor AT THE SAMPLED z (a raw d-dim task vector), so it needs the bilinear
@@ -3354,7 +3430,11 @@ class GCIQLFlowAgent(GCIQLAgent):
                                        activate_final=False, layer_norm=config['layer_norm'])
             b_def = MLP((*config['value_hidden_dims'], _d18),
                         activate_final=False, layer_norm=config['layer_norm'])
-            ex_f = (jnp.concatenate([ex_observations, ex_actions, ex_goals], -1),)
+            if config.get('measure_density_behavior', False):
+                # spec 19a: goal-free F(s,a) -- the behavior policy ignores goals.
+                ex_f = (jnp.concatenate([ex_observations, ex_actions], -1),)
+            else:
+                ex_f = (jnp.concatenate([ex_observations, ex_actions, ex_goals], -1),)
             ex_b = (cls._density_queries(ex_observations, _blocks18_create),)   # [1, d_c] eps-scaled
             network_info['density_f'] = (f_def, ex_f)
             network_info['density_b'] = (b_def, ex_b)
@@ -3646,6 +3726,16 @@ def get_config():
         config.measure_density_temp = 1.0      # softmax temperature tau (fixed, not learned)
         config.measure_density_hard = False    # ablation: immediate term = one-hot at the row's own
           # successor (k = I) instead of the eps-kernel softmax. Attributes smoothing vs simplex-TD.
+        config.measure_density_behavior = False  # spec 19a: behavior-policy variant of
+          # measure_density -- F tower input [s,a] (no goal), bootstrap action = the dataset's
+          # next action (SARSA). Product = frozen (F_D, B_D) for the spec-19b ORS reward.
+          # Requires measure_density=True; actor q-term disabled (pure BC flow).
+          # False = off, bit-identical.
+        config.next_actions = False   # GCDataset: gate batch['next_actions'] = the dataset's
+          # SARSA next action (same trajectory-boundary arithmetic as sample_goals/measure_nstep;
+          # final-state rows substitute the current action, batch['next_actions_subst'] carries the
+          # per-row substitution indicator). Forced on by measure_density_behavior; off otherwise
+          # (default off = every produced batch dict byte-identical).
         config.measure_expectile = False      # item6: state-only measure value V_M=phiV(s).psi~(s+)/sqrt(d); per-column expectile fit ell2_tau(sg[M]-V_M) + backup M<-r_delta+gamma*mask*sg[V_M(s')] (NO a'). Composes with measure_first_passage (supplies r_delta=hit and (1-hit) mask). Adds the measure_v_phi tower ONLY when on
         config.measure_expectile_tau = 0.9    # expectile for the measure-value fit (item6)
         config.measure_testpoint_dist = 'batch'  # item7: off-diagonal test points s+. 'batch' -> psi(next_observations), the rho-referenced measure (bit-identical) | 'hindsight' -> psi(value_goals), the OGBench scalar-side mix (0.5 traj-future/0.3 random/0.2 current); NO importance correction (intentional -- object is no longer the rho-referenced measure)

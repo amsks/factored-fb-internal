@@ -222,6 +222,25 @@ class GCDataset:
             batch['observations'] = self.get_observations(idxs)
             batch['next_observations'] = self.get_observations(idxs + 1)
 
+        if self.config.get('next_actions', False):
+            # Spec 19a (behavior-policy density measure): the dataset's next action
+            # a'_D, for a SARSA bootstrap. Uses the SAME trajectory-boundary index
+            # arithmetic as sample_goals/the measure_nstep window below (self.terminal_locs
+            # + searchsorted) -- NOT a bare min(idx+1, size-1), which is only boundary-safe
+            # for compact datasets (where 'valids' excludes every trajectory's final row from
+            # ever being drawn as idxs); a regular (non-compact) dataset's rows are trimmed
+            # per-trajectory at load time (ogbench.utils.load_dataset), so idx+1 can cross
+            # into the NEXT trajectory's first action at a terminal row.
+            # Final-state rows (idxs[i] == final_state_idxs[i]: no same-trajectory next
+            # action) substitute the CURRENT action; next_actions_subst carries the
+            # per-row indicator so the agent can log the exact substitution fraction.
+            final_state_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
+            next_action_idxs = np.minimum(idxs + 1, self.size - 1)
+            is_final = idxs == final_state_idxs
+            next_actions = self.dataset['actions'][next_action_idxs]
+            batch['next_actions'] = np.where(is_final[:, None], batch['actions'], next_actions)
+            batch['next_actions_subst'] = is_final.astype(np.float32)
+
         value_goal_idxs = self.sample_goals(
             idxs,
             self.config['value_p_curgoal'],

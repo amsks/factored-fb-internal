@@ -1,0 +1,49 @@
+# Spec 19a -- `measure_density_behavior`: behavior-policy variant of `measure_density`
+# (spec 18) (PAPER/Multistep-FB/specs/19a-behavior-density-impl.md). F tower drops the
+# goal leg (F(s,a), not F(s,a,g) -- the behavior policy ignores goals) and the
+# bootstrap action is the DATASET's own next action a'_D = batch['next_actions']
+# (SARSA), not a draw from the learned goal-conditioned flow actor. The actor here is
+# PURE BC flow (its q-term is disabled -- there is no goal-conditioned measure for it
+# to read); actor_q_center is refused by the lattice (an inert knob in this mode, the
+# 17b measure_coef fake-NULL lesson) and is therefore DROPPED from this config.
+#
+# measure_hit_spec is the two-block cube-double region (both cube xyz's ANDed, the
+# same conjunctive spec the d17/d18 delta/density configs use on this env).
+#
+# The dataset's `next_actions` SARSA key is forced on by measure_density_behavior at
+# agent-create time (tools/wandb_mode_shim/gciql_flow.py, the measure_density_behavior
+# lattice block) -- not set here; nothing in this file needs to set it.
+#
+# Product: frozen (density_f, density_b) towers consumed by spec 19b's ORS reward. The
+# actor checkpoint trained alongside it is a byproduct and is not evaluated. This is
+# the FIRST training run for the density-behavior family on a multi-object env (spec
+# 19a section 4) -- standing cd/scene eval cadence per spec 19 section 4 (eval_interval
+# 10000, not cube-single's 50000).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Measure-DensityBehavior-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_behavior: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+wandb_mode: online
