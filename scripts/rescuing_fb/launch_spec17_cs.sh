@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Spec 17 (PAPER/rescuing-fb/specs/17-delta-measure.md) -- the cube-single arms of the
+# Spec 17 (PAPER/Multistep-FB/specs/17-delta-measure.md) -- the cube-single arms of the
 # joint delta wave, 3 seeds each, 500k, FROM SCRATCH (no warm start on either arm).
 #
 #   d17_cs_delta   variant A: measure_delta -- the region measure's target reward becomes the

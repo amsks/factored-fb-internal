@@ -1,6 +1,6 @@
 # Spec 17b -- variant B, `measure_delta_partition`: one-stage simplex successor
 # measure over a fixed K=256 dataset-drawn prototype partition of the hit-spec
-# object blocks (PAPER/rescuing-fb/specs/17b-delta-partition-impl.md). NO
+# object blocks (PAPER/Multistep-FB/specs/17b-delta-partition-impl.md). NO
 # goal-region queries, NO hindsight columns, NO phase switch, NO bilinear
 # measure matrix -- a from-scratch one-stage cell (the lattice refuses warm
 # start). PRIMARY gate (spec 17 §6, d17_cs_part): success >= 0.5 AND

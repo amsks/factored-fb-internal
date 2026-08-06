@@ -4,7 +4,7 @@
 Draws K fixed prototypes of the measure_hit_spec object-configuration blocks
 from an OGBench dataset npz, for the `measure_delta_partition` (variant B)
 one-stage simplex successor measure
-(PAPER/rescuing-fb/specs/17b-delta-partition-impl.md). phi_k(x) is a
+(PAPER/Multistep-FB/specs/17b-delta-partition-impl.md). phi_k(x) is a
 softmax-RBF over these K prototypes (GCIQLFlowAgent._delta_phi); this script
 only draws the prototypes -- no training happens here.
 

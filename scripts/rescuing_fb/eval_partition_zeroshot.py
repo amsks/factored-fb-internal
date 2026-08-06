@@ -2,8 +2,8 @@
 """scripts/rescuing_fb/eval_partition_zeroshot.py -- spec 17b (variant B) zero-shot
 multi-reward readout for `measure_delta_partition` checkpoints.
 
-Background: `PAPER/rescuing-fb/specs/17b-delta-partition-impl.md` sec.0/3,
-`PAPER/rescuing-fb/specs/17-delta-measure.md` sec.1 variant B. 17b trains a
+Background: `PAPER/Multistep-FB/specs/17b-delta-partition-impl.md` sec.0/3,
+`PAPER/Multistep-FB/specs/17-delta-measure.md` sec.1 variant B. 17b trains a
 one-stage simplex successor measure over a FIXED partition of K dataset-drawn
 prototypes of the hit-spec object-configuration blocks:
 
@@ -793,8 +793,8 @@ def main() -> int:
             "decode": args.decode,
             "unvalidated": "NEW design choice by this script, no golden reference "
                            "-- UNVALIDATED absent a real checkpoint (module docstring)",
-            "spec": "PAPER/rescuing-fb/specs/17b-delta-partition-impl.md sec.3 + "
-                    "specs/17-delta-measure.md sec.1 variant B",
+            "spec": "PAPER/Multistep-FB/specs/17b-delta-partition-impl.md sec.3 + "
+                    "PAPER/Multistep-FB/specs/17-delta-measure.md sec.1 variant B",
         },
         "decode": args.decode, "retrieval_k": args.retrieval_k,
         "n_candidates": args.n_candidates, "tasks": task_ids, "families": families,

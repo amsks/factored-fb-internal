@@ -1,6 +1,6 @@
 """Tests for scripts/rescuing_fb/eval_partition_zeroshot.py (spec 17b sec.3 zero-shot
-readout: `PAPER/rescuing-fb/specs/17b-delta-partition-impl.md`, and
-`PAPER/rescuing-fb/specs/17-delta-measure.md` sec.1 variant B).
+readout: `PAPER/Multistep-FB/specs/17b-delta-partition-impl.md`, and
+`PAPER/Multistep-FB/specs/17-delta-measure.md` sec.1 variant B).
 
 Pure numpy — no env, no checkpoint, no jax (the script stays jax-free at module
 level, same discipline as tests/test_eval_zeroshot_rewards.py). Covers:

@@ -1,6 +1,6 @@
 """Tests for the spec 17a `--delta` conversion added to
-scripts/rescuing_fb/eval_zeroshot_rewards.py (PAPER/rescuing-fb/specs/17-delta-
-measure.md section 1 / specs/17a-delta-measure-impl.md).
+scripts/rescuing_fb/eval_zeroshot_rewards.py (PAPER/Multistep-FB/specs/17-delta-
+measure.md section 1 / PAPER/Multistep-FB/specs/17a-delta-measure-impl.md).
 
 A `measure_delta=True` checkpoint's critic learns J(s,a,g), not M(s,a,g):
     J(s,a,g) = (1-gamma)*M(s,a,g) - h_g(x0)

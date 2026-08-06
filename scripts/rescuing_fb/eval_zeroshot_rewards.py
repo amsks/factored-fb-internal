@@ -341,7 +341,7 @@ def gpi_pick_actions(acts_big, jstar, n: int, C: int) -> np.ndarray:
 
 
 # ======================= spec 17: delta-measure eval-side conversion ==============
-# Background: PAPER/rescuing-fb/specs/17-delta-measure.md section 1 / 17a section 2.
+# Background: PAPER/Multistep-FB/specs/17-delta-measure.md section 1 / 17a section 2.
 # A `measure_delta=True` checkpoint's critic learns J(s,a,g), not M(s,a,g):
 #     J(s,a,g) = (1-gamma)*M(s,a,g) - h_g(x0),   h_g(x0) = 1[obj(observations) in
 #     region(g)] computed EXACTLY as GCIQLFlowAgent._hit_matrix computes it from
@@ -419,7 +419,7 @@ def check_delta_consistency(ckpt_is_delta: bool, requested_delta: bool,
     if ckpt_is_delta and not requested_delta:
         msg = (f"checkpoint {run_dir} was trained with measure_delta=True (recorded "
                f"config) but --delta was NOT passed -- quoting raw J as M is exactly "
-               f"the failure spec 17 warns about (specs/17-delta-measure.md section 1).")
+               f"the failure spec 17 warns about (PAPER/Multistep-FB/specs/17-delta-measure.md section 1).")
         if force:
             warnings.append("FORCE OVERRIDE (numbers below are WRONG raw-J-as-M): " + msg)
         else:
@@ -757,7 +757,7 @@ def build_parser() -> argparse.ArgumentParser:
                          "before it is used. Auto-checked against the checkpoint's own "
                          "recorded config (flags.json agent.measure_delta); a mismatch "
                          "in EITHER direction errors out unless --force-delta-mismatch "
-                         "is also passed (specs/17-delta-measure.md section 1: "
+                         "is also passed (PAPER/Multistep-FB/specs/17-delta-measure.md section 1: "
                          "'quote nothing raw').")
     ap.add_argument("--force-delta-mismatch", action="store_true",
                     help="override a --delta / checkpoint measure_delta mismatch. Prints "
@@ -1040,7 +1040,7 @@ def main() -> int:
                  "Mhat = (h_g(x0) + Jhat) / (1 - gamma), h_g via the z_r NEAREST-"
                  f"DATASET-STATE PROXY decode (ridge fallback: n={len(Psi)} exceeds "
                  f"RIDGE_EXACT_MAX_N={RIDGE_EXACT_MAX_N}) -- APPROXIMATE, not exact"
-                 ) + " (PAPER/rescuing-fb/specs/17-delta-measure.md section 1); applies "
+                 ) + " (PAPER/Multistep-FB/specs/17-delta-measure.md section 1); applies "
                 "only to the GPI critic readout (q_at_z, mixture --gpi family) -- "
                 "the harness's sole raw critic-measure readout site"
                 if args.delta else

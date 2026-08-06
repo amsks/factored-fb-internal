@@ -1,8 +1,8 @@
 """`measure_delta_partition` -- spec 17b variant B: a one-stage simplex successor
 measure over a FIXED partition of the hit-spec object-configuration space (K
 dataset-drawn prototypes). Contract:
-`PAPER/rescuing-fb/specs/17b-delta-partition-impl.md`; science context
-`PAPER/rescuing-fb/specs/17-delta-measure.md` section 1 variant B.
+`PAPER/Multistep-FB/specs/17b-delta-partition-impl.md`; science context
+`PAPER/Multistep-FB/specs/17-delta-measure.md` section 1 variant B.
 
     phi_k(x)      = softmax_k( -0.5 * sum_blocks ||(x_blk - proto_k,blk)/eps_blk||^2 )  in Delta^K
     p(s,a,g)      = softmax( delta_head([s, a, g]) )                                     in Delta^K

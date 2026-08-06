@@ -1,7 +1,7 @@
 # Spec 17a -- variant A, `measure_delta`, on scene (analogous to
 # cube_double_state_measure_delta_d50.yaml): the region successor-measure TD target
 # becomes the signed event indicator hit(x')-hit(x) instead of the raw arrival
-# indicator hit(x') (PAPER/rescuing-fb/specs/17a-delta-measure-impl.md). Same phase-2
+# indicator hit(x') (PAPER/Multistep-FB/specs/17a-delta-measure-impl.md). Same phase-2
 # warm-start recipe as scene_state_measure_ballvisit_d50.yaml (frozen psi, centered
 # actor normalizer, batch test-point columns) and scene's unchanged 5-way goal region
 # -- ONLY the target reward moves. PRIMARY vs the §9.16 batch-column collapse (spec 17

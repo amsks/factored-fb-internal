@@ -2,7 +2,7 @@
 # centering alone against the fp-noortho anchor 0.967, without any phase-2 warm-start
 # confound). The region successor-measure TD target becomes the signed event
 # indicator hit(x')-hit(x) instead of the raw arrival indicator hit(x')
-# (PAPER/rescuing-fb/specs/17a-delta-measure-impl.md).
+# (PAPER/Multistep-FB/specs/17a-delta-measure-impl.md).
 #
 # WARNING (spec 17a §5): the ballvisit d50 base this config is copied from
 # (cube_single_state_measure_ballvisit_d50.yaml) is the PHASE-2 FROZEN-PSI recipe

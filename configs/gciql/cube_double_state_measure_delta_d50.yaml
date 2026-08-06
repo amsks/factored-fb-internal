@@ -1,6 +1,6 @@
 # Spec 17a -- variant A, `measure_delta`: the region successor-measure TD target
 # becomes the signed event indicator hit(x')-hit(x) (enter +1 / dwell 0 / exit -1)
-# instead of the raw arrival indicator hit(x') (PAPER/rescuing-fb/specs/17a-delta-
+# instead of the raw arrival indicator hit(x') (PAPER/Multistep-FB/specs/17a-delta-
 # measure-impl.md). Non-absorbing, bounded in [-1,1]; fixed point
 # J = (1-gamma)*M_visitation - h(x0), same action argmax as the ball-visitation
 # measure this arm replaces. Same warm-start / phase-2 recipe as
