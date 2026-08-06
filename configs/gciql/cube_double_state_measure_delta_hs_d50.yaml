@@ -1,0 +1,41 @@
+# Spec 17a -- variant A, `measure_delta`, HINDSIGHT test-point columns (spec06 item7:
+# columns = psi(value_goals) instead of psi(next_observations)). Grounding-at-actor-
+# goals arm vs the batch-column sibling (cube_double_state_measure_delta_d50.yaml):
+# if delta-batch still decays while delta-hindsight holds, grounding-at-actor-goals is
+# independent of the level-vs-centering axis (spec 17 §3). Same phase-2 warm-start
+# recipe (frozen psi, centered actor normalizer) as
+# cube_double_state_measure_ballvisit_hs_d50.yaml -- ONLY the target reward moves.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Measure-Delta-Hindsight-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  measure_fp_absorbing: false
+  measure_stopgrad_psi: true
+  actor_q_center: true
+  measure_testpoint_dist: hindsight
+  measure_delta: true
+wandb_mode: online

@@ -1,0 +1,48 @@
+# Spec 17a -- variant A, `measure_delta`, FROM-SCRATCH on cube-single (isolates
+# centering alone against the fp-noortho anchor 0.967, without any phase-2 warm-start
+# confound). The region successor-measure TD target becomes the signed event
+# indicator hit(x')-hit(x) instead of the raw arrival indicator hit(x')
+# (PAPER/rescuing-fb/specs/17a-delta-measure-impl.md).
+#
+# WARNING (spec 17a §5): the ballvisit d50 base this config is copied from
+# (cube_single_state_measure_ballvisit_d50.yaml) is the PHASE-2 FROZEN-PSI recipe
+# (measure_stopgrad_psi=true), which is correct ONLY when a warm-started phase-1
+# checkpoint supplies a trained psi. This arm trains FROM SCRATCH (no warm start), so
+# measure_stopgrad_psi is explicitly set to false here -- leaving it true would freeze
+# psi at random init and floor the cell for a fake reason.
+#
+# eval_interval stays 50000 (this is not a phase-2 warm-start arm, so no 0->10k shock
+# window to instrument).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-Delta-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:22:0.4"
+  measure_fp_absorbing: false
+  measure_stopgrad_psi: false
+  actor_q_center: true
+  measure_delta: true
+wandb_mode: online

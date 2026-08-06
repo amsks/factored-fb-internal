@@ -1,0 +1,46 @@
+# Spec 17a -- variant A, `measure_delta`: the region successor-measure TD target
+# becomes the signed event indicator hit(x')-hit(x) (enter +1 / dwell 0 / exit -1)
+# instead of the raw arrival indicator hit(x') (PAPER/rescuing-fb/specs/17a-delta-
+# measure-impl.md). Non-absorbing, bounded in [-1,1]; fixed point
+# J = (1-gamma)*M_visitation - h(x0), same action argmax as the ball-visitation
+# measure this arm replaces. Same warm-start / phase-2 recipe as
+# cube_double_state_measure_ballvisit_d50.yaml (frozen psi carried from phase 1,
+# centered actor normalizer, batch test-point columns) -- ONLY the target reward
+# moves. PRIMARY vs the §9.16 batch-column collapse (spec 17 §6, d17_cd_delta_b).
+#
+# eval_interval=10000 (not the usual 50000): the §9.16 dense-wave finding is that
+# phase-2 damage is a 0->10k SHOCK, not a slow decay -- this arm needs the shock
+# window instrumented.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Measure-Delta-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  measure_fp_absorbing: false
+  measure_stopgrad_psi: true
+  actor_q_center: true
+  measure_delta: true
+wandb_mode: online

@@ -243,6 +243,30 @@ class GCDataset:
         batch['masks'] = 1.0 - successes
         batch['rewards'] = successes - (1.0 if self.config['gc_negative'] else 0.0)
 
+        K = int(self.config.get('measure_nstep', 0) or 0)
+        if K > 0:
+            # Spec 16 multi-step measure windows: next-state windows s_{t+1..t+K} plus the
+            # realized horizon k_i = min(draw, K, steps-to-final-state). Window step u
+            # (0-indexed u-1) is next_observations[idx+u-1] clamped at the trajectory's
+            # final row, so u=1 is exactly the batch's next_observations and the maximum
+            # horizon ends on the trajectory's true final state. Same raw trajectory-window
+            # access class as sample_goals -- no event detection, no preprocessing.
+            final_state_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
+            lam = float(self.config.get('measure_nstep_lambda', 0.0) or 0.0)
+            if lam > 0.0:
+                draws = np.random.geometric(p=1.0 - lam, size=len(idxs))
+            else:
+                draws = np.full(len(idxs), K, dtype=np.int64)
+            ks = np.minimum(np.minimum(draws, K), np.maximum(final_state_idxs - idxs + 1, 1))
+            steps = np.minimum(idxs[:, None] + np.arange(K)[None, :], final_state_idxs[:, None])
+            flat = steps.reshape(-1)
+            if 'next_observations' in self.dataset:
+                obs_w = jax.tree_util.tree_map(lambda arr: arr[flat], self.dataset['next_observations'])
+            else:
+                obs_w = self.get_observations(np.minimum(flat + 1, self.size - 1))
+            batch['mstep_next_obs'] = obs_w.reshape(len(idxs), K, *obs_w.shape[1:])
+            batch['mstep_k'] = ks.astype(np.int32)
+
         if self.config['p_aug'] is not None and not evaluation:
             if np.random.rand() < self.config['p_aug']:
                 self.augment(batch, ['observations', 'next_observations', 'value_goals', 'actor_goals'])

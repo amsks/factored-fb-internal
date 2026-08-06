@@ -1,0 +1,44 @@
+# Spec 17b -- variant B, `measure_delta_partition`: one-stage simplex successor
+# measure over a fixed K=256 dataset-drawn prototype partition of the hit-spec
+# object blocks (PAPER/rescuing-fb/specs/17b-delta-partition-impl.md). NO
+# goal-region queries, NO hindsight columns, NO phase switch, NO bilinear
+# measure matrix -- a from-scratch one-stage cell (the lattice refuses warm
+# start). PRIMARY gate (spec 17 §6, d17_cs_part): success >= 0.5 AND
+# p-entropy < 0.9*log(K) at 500k.
+#
+# The measure-matrix knobs the ballvisit base carries (measure_coef,
+# measure_legs, measure_scale_norm, measure_first_passage, measure_fp_absorbing,
+# measure_stopgrad_psi, measure_ortho_coef) are DELIBERATELY dropped: the
+# assert-lattice refuses measure_first_passage, and the rest would just record
+# misleading provenance for a path that doesn't read them.
+#
+# The prototypes file itself is generated at launch time (spec 17 §6):
+#   make_delta_prototypes.py --dataset <cube-single npz> --hit_spec '19:22:0.4' \
+#       --k 256 --seed 0 --out results/delta_protos/cube_single_K256_s0.npy
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DeltaPartition-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_delta_partition: true
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_delta_protos: /home/adityamohan/git/Factored-FB/results/delta_protos/cube_single_K256_s0.npy
+wandb_mode: online
