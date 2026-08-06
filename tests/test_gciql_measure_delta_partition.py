@@ -20,18 +20,20 @@ Originally written TEST-FIRST against the spec's contract, in the same
 subprocess-jax harness as tests/test_gciql_measure_nstep.py, before
 `GCIQLFlowAgent` implemented `_delta_phi` / `delta_partition_loss` / the
 `delta_head` module / the `measure_delta_partition` knob
-(tools/wandb_mode_shim/gciql_flow.py section 2 of the spec). All 10 tests are
+(tools/wandb_mode_shim/gciql_flow.py section 2 of the spec). All 12 tests are
 green now that the agent-side implementation has landed, INCLUDING the round-1
 review fixes: total_loss no longer double-gates the partition CE by
-measure_coef (CRITICAL 1), and delta_protos is a static/nonpytree field so
-pre-17b checkpoints keep restoring (CRITICAL 2, tested in
-tests/test_gciql_checkpoint_restore.py). Test 9 (test_prototype_script) tests
-only scripts/rescuing_fb/make_delta_prototypes.py (spec section 1.1, this
-repo's own deliverable) and needs no jax.
+measure_coef (CRITICAL 1, regression test #11
+test_shipped_config_trains_delta_head), and delta_protos is a static/nonpytree
+field so pre-17b checkpoints keep restoring (CRITICAL 2, regression test #12
+test_delta_protos_not_serialized_and_old_checkpoint_restores, in THIS file --
+there is no separate tests/test_gciql_checkpoint_restore.py). Test 9
+(test_prototype_script) tests only scripts/rescuing_fb/make_delta_prototypes.py
+(spec section 1.1, this repo's own deliverable) and needs no jax.
 
 Runner: `.venv/bin/python -m pytest tests/test_gciql_measure_delta_partition.py -x -q`
 (NOT uv; the jax subprocess harness resolves the jax venv itself for tests
-1-8/10 -- test 9 runs in the plain repo .venv, no jax needed).
+1-8/10-12 -- test 9 runs in the plain repo .venv, no jax needed).
 """
 import os
 import subprocess
@@ -420,7 +422,14 @@ def test_actor_q_reads_goal_cell():
 def test_assert_lattice():
     """Refusals: no measure_only; with measure_delta (17a); with measure_first_passage;
     empty/missing protos path; wrong-width protos file; actor_q_center=False; with
-    warm_start_ckpt; with measure_ortho_coef>0. Accepts the base config."""
+    warm_start_ckpt; with measure_ortho_coef>0; with measure_coef>0 (round-2 review
+    LOW: measure_coef is inert on the 17b path -- delta_partition_loss already
+    applies measure_delta_coef and total_loss's measure_only branch does not
+    multiply the partition CE by measure_coef -- so a nonzero measure_coef would
+    record misleading provenance for an identical run; refused explicitly rather
+    than silently ignored). Accepts the base config AND the base config with
+    measure_coef explicitly left at its 0.0 default (the shipped launch config's
+    own knob set -- must NOT trip the new assert)."""
     _run("""
     def refuses(**kw):
         try:
@@ -438,7 +447,10 @@ def test_assert_lattice():
     assert refuses(actor_q_center=False)
     assert refuses(warm_start_ckpt='/nonexistent/does/not/exist*')
     assert refuses(measure_ortho_coef=1.0)
+    assert refuses(measure_coef=1.0)
+    assert refuses(measure_coef=0.1)
     assert not refuses()
+    assert not refuses(measure_coef=0.0)   # the shipped config's own knob set (measure_coef absent)
     print("OK")
     """)
 
@@ -565,15 +577,35 @@ def test_delta_protos_not_serialized_and_old_checkpoint_restores():
     flax.serialization.from_state_dict on the WHOLE agent, not just the network.
     If delta_protos were a pytree (data) field, EVERY pre-17b checkpoint's agent
     dict (which only ever has {'rng','network'}) would fail restore with
-    "Missing field delta_protos". Proves the fix two ways: (a) to_state_dict of a
-    live agent (knob OFF, matching every existing checkpoint's provenance) never
-    emits a 'delta_protos' key -- it must not be part of the serialized pytree at
-    all; (b) from_state_dict against a state dict containing ONLY {'rng','network'}
-    (the literal shape of a pre-17b checkpoint's agent dict) succeeds without
-    raising, and the restored agent still has SOME delta_protos value (its own
-    field, untouched by the restore -- static fields are not overwritten by
-    from_state_dict). See task-17b-agent-report.md for a hand-verification against
-    the real anchor checkpoint cd_fp_s0/params_500000.pkl."""
+    "Missing field delta_protos". Proves the fix four ways:
+    (a) to_state_dict of a live agent (knob OFF, matching every existing
+        checkpoint's provenance) never emits a 'delta_protos' key.
+    (b) to_state_dict of an ON-knob agent ALSO never emits 'delta_protos' -- it is
+        the DATACLASS FIELD (nonpytree), not the knob, that determines pytree-ness.
+    (c) round-2 review fix: an ON-knob agent (agent_on2, built from a DIFFERENT
+        prototype file than agent_on, so its delta_protos differs in VALUE while
+        matching agent_on's K/d_c -- same network module shapes) is restored from
+        an old-style {'rng','network'} dict sourced from agent_on's OWN
+        to_state_dict (a dict that, like a real checkpoint's, never mentions
+        delta_protos). This is NOT the tautological `None == None` check from
+        round 1: it asserts (i) restore succeeds, (ii) restored.delta_protos is
+        the FULL prototype tuple agent_on2 was built with -- unchanged, i.e. NOT
+        clobbered to None and NOT overwritten by agent_on's (different) protos --
+        and (iii) `_delta_phi` on the restored agent's own protos reproduces
+        agent_on2's ORIGINAL (pre-restore) phi output bit-for-bit.
+    (d) documents the genuinely-impossible case explicitly (per round-2 review
+        instruction): restoring an ON-knob agent from a dict whose NETWORK never
+        had delta_head/target_delta_head modules at all (built from an OFF-knob
+        agent -- the literal shape of an actual pre-17b checkpoint) fails, but for
+        a STRUCTURAL reason (the network's own nested from_state_dict is missing
+        the delta_head/target_delta_head module keys) that has nothing to do with
+        delta_protos -- asserted by name in the raised error, not just "some
+        exception". This is expected and correct: you cannot restore a
+        pre-17b-architecture checkpoint into a measure_delta_partition=True agent,
+        because that checkpoint never trained a delta_head at all.
+    See task-17b-agent-report.md for a hand-verification against the real anchor
+    checkpoint cd_fp_s0/params_500000.pkl (restoring an OFF-knob agent, the
+    realistic restore_agent path)."""
     _run("""
     cfg_off = dict(get_config()); cfg_off["encoder"] = None; cfg_off["frame_stack"] = None
     agent_off = agent_for(cfg_off)
@@ -583,25 +615,51 @@ def test_delta_protos_not_serialized_and_old_checkpoint_restores():
         f"delta_protos leaked into the serialized state dict: {sorted(full_sd.keys())}"
     assert "delta_protos" not in full_sd
 
-    # also prove it for an ON-knob agent: the field must be excluded from
-    # serialization regardless of the knob (it is the DATACLASS FIELD, not the
-    # knob, that determines pytree-ness) -- an on-knob agent's own to_state_dict
-    # must equally never mention delta_protos.
-    agent_on = agent_for(base_cfg())
+    # (b) ON-knob agent's own to_state_dict also never mentions delta_protos.
+    protos_a_path, _ = make_protos(k=K, d_c=3, seed=0)
+    agent_on = agent_for(base_cfg(protos_path=protos_a_path))
     assert agent_on.delta_protos is not None
     full_sd_on = flax.serialization.to_state_dict(agent_on)
     assert "delta_protos" not in full_sd_on
     assert set(full_sd_on.keys()) <= {"rng", "network"}
 
-    # the LITERAL shape of a pre-17b checkpoint's agent dict (pickle['agent']),
-    # restored into an agent whose CONFIG (hence network architecture) matches --
-    # exactly what restore_agent does in practice (the checkpoint's own recorded
-    # config always matches its own architecture; 17b only adds a NEW top-level
-    # agent field, it doesn't change any existing checkpoint's shape):
-    old_style_sd = {"rng": full_sd["rng"], "network": full_sd["network"]}
-    restored = flax.serialization.from_state_dict(agent_off, old_style_sd)
-    assert restored is not None
-    # static field: untouched by restore, still whatever the constructing agent had
-    assert restored.delta_protos == agent_off.delta_protos
+    # (c) the REAL regression check: a second ON-knob agent with DIFFERENT proto
+    # VALUES (same K/d_c, so the network module shapes match), restored from
+    # agent_on's dict -- delta_protos must survive as agent_on2's OWN value.
+    protos_b_path, _ = make_protos(k=K, d_c=3, seed=42)
+    agent_on2 = agent_for(base_cfg(protos_path=protos_b_path))
+    assert agent_on2.delta_protos != agent_on.delta_protos, \\
+        "test setup bug: the two ON-knob agents must have DIFFERENT prototypes"
+    old_style_sd_on = {"rng": full_sd_on["rng"], "network": full_sd_on["network"]}
+
+    blocks = _parse_hit_spec(base_cfg()["measure_hit_spec"])
+    probe_obs = jnp.asarray(np.random.default_rng(3).normal(size=(4, OBS_D)).astype(np.float32))
+    phi_before = GCIQLFlowAgent._delta_phi(probe_obs, agent_on2.delta_protos, blocks)
+
+    restored2 = flax.serialization.from_state_dict(agent_on2, old_style_sd_on)
+    assert restored2 is not None
+    assert restored2.delta_protos == agent_on2.delta_protos, \\
+        "delta_protos was NOT preserved across restore (clobbered to something else)"
+    assert restored2.delta_protos != agent_on.delta_protos, \\
+        "delta_protos was overwritten by the SOURCE dict's agent -- it must be untouched"
+    phi_after = GCIQLFlowAgent._delta_phi(probe_obs, restored2.delta_protos, blocks)
+    assert np.array_equal(np.asarray(phi_before), np.asarray(phi_after)), \\
+        "restored delta_protos changed _delta_phi's output"
+
+    # (d) genuinely-impossible case, stated explicitly: restoring an ON-knob agent
+    # from a dict whose network was NEVER built with delta_head modules (the
+    # literal pre-17b checkpoint shape) must fail -- and for a NAMED structural
+    # reason (missing delta_head/target_delta_head in the NETWORK's own state
+    # dict), not because of delta_protos.
+    old_style_sd_off = {"rng": full_sd["rng"], "network": full_sd["network"]}
+    try:
+        flax.serialization.from_state_dict(agent_on, old_style_sd_off)
+        raise AssertionError("expected a structural restore failure (no delta_head in the source network)")
+    except ValueError as e:
+        msg = str(e)
+        assert "delta_head" in msg or "modules_delta_head" in msg, \\
+            f"expected the failure to name the missing delta_head module, got: {msg!r}"
+        assert "delta_protos" not in msg, \\
+            f"the failure must be about the NETWORK's delta_head module, not the delta_protos field: {msg!r}"
     print("OK")
     """)

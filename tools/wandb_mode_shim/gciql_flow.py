@@ -2813,6 +2813,11 @@ class GCIQLFlowAgent(GCIQLAgent):
                 "measure_delta_partition needs measure_delta_protos (.npy path)"
             assert config.get('measure_ortho_coef', 0.0) == 0.0, \
                 "no ortho anywhere near measure_delta_partition (fp-noortho lesson)"
+            assert config.get('measure_coef', 0.0) <= 0.0, \
+                "measure_delta_partition ignores measure_coef (total_loss's measure_only branch " \
+                "does not multiply the partition CE by it -- see round-1 review CRITICAL 1); use " \
+                "measure_delta_coef to weight the CE instead, or a dose sweep would silently record " \
+                "the wrong knob's provenance while every run trains identically"
             for bad in ('fb_forward_z', 'sf_feature_td', 'measure_expectile', 'measure_nhat_head',
                         'actor_z_infer', 'fwd_two_tower', 'isfb', 'freeze_critic_ckpt', 'warm_start_ckpt'):
                 assert not config.get(bad, False), \
