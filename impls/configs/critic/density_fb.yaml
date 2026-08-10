@@ -1,0 +1,32 @@
+# density_fb critic — the continuous normalized successor density (bridge spec 18).
+# One-stage, from-scratch, two-tower softmax density f(s,a,g,u) = F(s,a,g)^T B(u) / tau
+# over a query support resampled every update from the batch's own next-state object
+# coords. Cube-single 0.929 on origin/gciql-fb-bridge @ 542c058
+# (tools/wandb_mode_shim/gciql_flow.py). Knob names kept verbatim from that file for
+# greppability. NO ortho, NO mass anchor, NO scale norm on this path (impls/critics/
+# density_fb.py — each was separately measured harmful on the bridge).
+lr: 3.0e-4
+batch_size: 1024
+value_hidden_dims: [512, 512, 512]
+layer_norm: true
+discount: 0.99
+tau: 0.005                        # polyak rate for BOTH density_f/density_b targets
+measure_hit_spec: "19:22:0.4"     # cube-single default; "a:b:eps" blocks, comma-joined for a conjunction
+measure_density_dim: 50
+measure_density_temp: 1.0
+# Known gap (spec §2): the bridge centers the actor's Q-loss NORMALIZER; our FlowBCActor
+# has no such knob, so this is implemented inside q_fn as batch-mean subtraction of Q
+# instead — composes with the actor's own sg[|Q|.mean()] normalization.
+actor_q_center: true
+
+# dataset (GCDataset goal sampling) — same convention as critic/gciql.yaml
+dataset_class: GCDataset
+value_p_curgoal: 0.2
+value_p_trajgoal: 0.5
+value_p_randomgoal: 0.3
+value_geom_sample: true
+actor_p_curgoal: 0.0
+actor_p_trajgoal: 1.0
+actor_p_randomgoal: 0.0
+actor_geom_sample: false
+gc_negative: true
