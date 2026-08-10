@@ -112,6 +112,24 @@ def _min_cfg_for(critic_kind, actor_kind):
             actor_cond="goal", actor_z_from_critic=False, actor_z_infer=False,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
         )
+    elif critic_kind == "density_fb":
+        base = dict(
+            value_hidden_dims=[32, 32], layer_norm=True, discount=0.99, tau=0.005,
+            lr=3e-4, lr_actor=3e-4,
+            measure_hit_spec="0:2:0.4", measure_density_dim=8, measure_density_temp=1.0,
+            actor_q_center=True,
+            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
+        )
+    elif critic_kind == "td_fb":
+        base = dict(
+            value_hidden_dims=[32, 32], layer_norm=True, value_latent_dim=8,
+            discount=0.99, tau=0.005, lr=3e-4, lr_actor=3e-4,
+            measure_hit_spec="0:2:0.4", measure_scale_norm=True,
+            measure_first_passage=True, measure_fp_absorbing=True,
+            measure_stopgrad_psi=False, measure_testpoint_dist="hindsight",
+            measure_ortho_coef=0.0, actor_q_center=False, warm_start=False,
+            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
+        )
     else:  # gciql
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
