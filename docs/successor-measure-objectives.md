@@ -1,13 +1,28 @@
-# The density successor measure — code guide
+# Successor-measure objectives — code guide
 
-`measure_density` (spec 18) and its behavior-policy variant `measure_density_behavior`
-(spec 19a). This is the reading order for someone who wants to understand the objective
-from the code, plus how to train and evaluate it.
+Two successor measures live in `tools/wandb_mode_shim/gciql_flow.py`, and this is the
+reading order for both — what the objective is, which symbols to read, how to train it,
+and how to evaluate it.
+
+| | method | stages | best numbers |
+|---|---|---|---|
+| §1-§5 | **density** (`measure_density`, spec 18) | one, from scratch | cube-single 0.929 |
+| §6-§10 | **two-phase ball-visitation + hindsight** | two, warm-started | scene 0.927, cube-double 0.53, cube-single ~0.93 |
+
+Density is the better single-stage method and the one with a normalized, structurally
+valid parameterization. The two-phase variant is the better method *overall* today,
+because it is the only one measured on all three environments. Both learn the same
+underlying object — expected discounted time spent in a goal region — and differ in how
+they parameterize and supervise it.
 
 Specs (untracked, local only): `PAPER/Multistep-FB/specs/18-density-measure.md`,
-`19a-behavior-density-impl.md`. Derivations: `PAPER/Multistep-FB/delta-measure.tex`.
+`19a-behavior-density-impl.md`, `PAPER/rescuing-fb/specs/08-two-phase-next-experiments.md`.
+Derivations: `PAPER/Multistep-FB/delta-measure.tex`. Ledger:
+`PAPER/rescuing-fb/PHASE2-LEDGER.md`.
 
 ---
+
+# The density successor measure
 
 ## 1. What the objective is
 
@@ -208,7 +223,162 @@ support pays off exactly where a finite prototype set has to interpolate).
 environments that discriminate between methods are cube-double and scene, where the
 two-phase numbers exist and density's do not.
 
-## 5. Gotchas worth knowing before you change anything
+---
+
+# The two-phase ball-visitation measure — the other successor measure
+
+The density objective above is one stage. The older and, across environments, still the
+best-performing successor measure is the **two-phase curriculum**: pretrain a
+first-passage measure, then warm-start a ball-visitation occupancy measure from it. This
+section is the same kind of guide for that method.
+
+Specs: `PAPER/rescuing-fb/specs/08-two-phase-next-experiments.md`; ledger
+`PAPER/rescuing-fb/PHASE2-LEDGER.md` (the §9.16 sections are the mechanism work).
+
+## 6. What the objective is
+
+Two different objects, learned in sequence over the same bilinear critic
+`M(s,a,g) = phi(s,a)^T psi(g) / sqrt(d)`.
+
+**Phase 1 — first-passage (absorbing).** How soon do you FIRST enter the goal region:
+
+```
+diff = M - hit - gamma * (1 - hit) * sg[tM]
+```
+
+The `(1 - hit)` factor is the absorption: once you land in the region the recursion
+stops, so the fixed point is bounded in `[0,1]` and behaves like `E[gamma^T]` for the
+first arrival time `T`. This is NOT occupancy — it cannot answer "how much time do I
+spend there", so it does not give you a zero-shot reward readout on its own. It is
+trained to provide the representation (in particular the backward map `psi`) that phase 2
+starts from.
+
+**Phase 2 — ball-visitation (non-absorbing).** Drop the absorption and you get genuine
+occupancy, revisits counted:
+
+```
+diff = M - hit - gamma * sg[tM]          # M = E[ sum_t gamma^t * 1[x_{t+1} in region] ]
+```
+
+That IS the successor measure — the same object the density head represents, but as an
+unbounded scalar per `(s,a,g)` rather than a normalized distribution. Fixed point up to
+`1/(1-gamma)`.
+
+Phase 2 does not train from scratch, which is the entire reason the curriculum exists.
+
+**The columns.** The measure is fit as a `[B,B]` matrix: rows are batch transitions,
+columns are test points `g_j`, and `hit[i,j] = 1[obj(s'_i) is within eps of g_j]`. Which
+states serve as columns is the `measure_testpoint_dist` knob and it turns out to be the
+load-bearing choice:
+
+- `batch` — columns are the batch's own next states. On conjunctive environments the
+  off-diagonal hit rate is ~0.046%, the targets collapse to the action-independent dwell
+  constant `E[h]/(1-gamma)`, and the actor decays.
+- `hindsight` — columns are `value_goals` (trajectory futures). Grounded hit events
+  appear at a rate independent of the region's sparsity. This is the only arm that works
+  on multi-object environments.
+
+## 7. Files to read, in order
+
+Same file, `tools/wandb_mode_shim/gciql_flow.py`.
+
+| what | symbol | ~line |
+|---|---|---|
+| hit-spec grammar (blocks + per-block eps) | `_parse_hit_spec` | 35 |
+| the `[B,B]` arrival indicator | `_hit_matrix` | 1384 |
+| **the TD residual reduction** (absorbing vs not, scale_norm) | `_measure_terms` | 1488 |
+| **the objective itself** (columns, bootstrap, ortho, hindsight branch) | `measure_loss` | 1574 |
+| the hindsight/batch column switch | `tpd = ...` inside `measure_loss` | 1674 |
+| knobs | `measure_first_passage` / `measure_fp_absorbing` / `measure_stopgrad_psi` / `measure_testpoint_dist` | 3994 / 3996 / 3991 / 4078 |
+| warm-start restore | `warm_start_ckpt` | 4128 |
+
+`_measure_terms`'s docstring is the best single explanation of the residual, including
+why `measure_scale_norm` exists (it makes the gradient dimensionless so the unbounded
+`<F,z>` cannot blow up the shared critic).
+
+Reading order that works: `_parse_hit_spec` -> `_hit_matrix` -> `_measure_terms` ->
+`measure_loss`.
+
+## 8. How to run it
+
+Two stages. Phase 1 first:
+
+```bash
+XLA_FLAGS=--xla_gpu_enable_command_buffer= XLA_PYTHON_CLIENT_PREALLOCATE=false \
+CUDA_VISIBLE_DEVICES=0 .venv/bin/python run_gciql.py \
+  --config-name cube_double_state_measure_firstpassage_noortho_d50 \
+  seed=0 output_root=$OUT exp_name=cd_fp_s0
+```
+
+Then phase 2, warm-started from that run directory:
+
+```bash
+XLA_FLAGS=--xla_gpu_enable_command_buffer= XLA_PYTHON_CLIENT_PREALLOCATE=false \
+CUDA_VISIBLE_DEVICES=1 .venv/bin/python run_gciql.py \
+  --config-name cube_double_state_measure_ballvisit_hs_d50 seed=0 \
+  ++agent_overrides.warm_start_ckpt=$OUT/factored-fb/<phase1 group>/cd_fp_s0 \
+  ++agent_overrides.warm_start_epoch=500000 \
+  output_root=$OUT exp_name=cd_p2h_s0
+```
+
+`scripts/rescuing_fb/launch_p2fix_arms.sh` is the worked example of the whole pattern
+(it also demonstrates the pre-flight check that the phase-1 checkpoint exists before
+launching, which is worth keeping).
+
+Configs:
+
+| stage | config |
+|---|---|
+| phase 1 | `configs/gciql/{cube_single,cube_double,scene}_state_measure_firstpassage_noortho_d50.yaml` |
+| phase 2, hindsight (the good arm) | `configs/gciql/{cube_double,scene}_state_measure_ballvisit_hs_d50.yaml` |
+| phase 2, batch columns (the arm that collapses) | `configs/gciql/*_state_measure_ballvisit_d50.yaml` |
+
+The phase-2 recipe is: `measure_fp_absorbing: false` (drop absorption),
+`measure_stopgrad_psi: true` (freeze the backward map carried from phase 1),
+`actor_q_center: true` (the occupancy carries a large shared baseline that otherwise
+dilutes the greedy signal), `measure_ortho_coef: 0.0`, plus the warm start.
+
+## 9. Results on the record
+
+| arm | cube-single | cube-double | scene |
+|---|---|---|---|
+| phase 1 (first-passage, no ortho) | 0.967 | 0.549 | 0.484 |
+| phase 2, hindsight columns | ~0.93 | 0.53 | **0.927** |
+| phase 2, batch columns | 0.952 | 0.358 | 0.342 |
+
+Phase 2 with batch columns REGRESSES against its own phase-1 start on both multi-object
+environments. Hindsight columns rescue scene outright (0.484 -> 0.927) and roughly hold
+on cube-double. On the zero-shot axis the spec-14 harness found zero-shot tracking native
+goal-conditioned success within 0.06 on all six multi-env checkpoints, with scene
+hindsight at 0.872 — the best zero-shot number in the project.
+
+This is why the two-phase + hindsight variant is still the best method *overall*: it is
+the only successor measure with strong numbers on all three environments. Density beats
+it on cube-single (0.929 one-stage vs ~0.93 two-stage) but has never been run on
+cube-double or scene.
+
+## 10. Two-phase gotchas
+
+- **Orthonormalization is toxic here.** With ortho on, cube-single first-passage goes
+  0.967 -> 0.225. Every measure config in this family sets `measure_ortho_coef: 0.0`.
+- **The FrozenPsi trap.** The `*_ballvisit_*_d50.yaml` configs are the phase-2 recipe and
+  set `measure_stopgrad_psi: true`, which is correct only WITH a warm start. Copying one
+  of them for a from-scratch run freezes `psi` at random init and floors the cell for a
+  reason that has nothing to do with the hypothesis being tested.
+- **Batch columns are dead on conjunctive environments.** Freezing the actor holds the
+  parent number, but unfreezing decays to the control anyway (ledger §9.16j/k) — the
+  batch-column fixed point itself damages the actor. Do not spend runs re-testing this.
+- **Never add pessimism to a measure cell.** Min-aggregation took cube-single 0.42 ->
+  0.240 (T7).
+- **Success is blind to measure validity.** A cell can score well on goal-reaching while
+  its region-mass ordering is poor, and vice versa. Quote the calibration read
+  (`eval_measure_g4_spearman.py`) alongside any success number.
+
+---
+
+# Shared gotchas — read before changing either method
+
+## 11. Lessons that cost real time
 
 - Any new knob must be provably load-bearing. Spec 17b once shipped a loss silently
   multiplied by a coefficient defaulting to `0.0`: it trained nothing while logging a
