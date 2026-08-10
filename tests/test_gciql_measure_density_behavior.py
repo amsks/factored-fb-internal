@@ -26,15 +26,35 @@ Runner: `.venv/bin/python -m pytest tests/test_gciql_measure_density_behavior.py
 (NOT uv; the jax subprocess harness resolves the jax venv itself), then the
 spec-18/17a/17b suites (shared code touched).
 """
+import subprocess
 import textwrap
 
 import numpy as np
+import pytest
 
 from tests.jax_subprocess import run_jax, REPO
 
 OBS_D = 40
 D = 8   # value_latent_dim AND measure_density_dim, matches the spec-18 harness
 ACT_D = 5
+
+# Pinned pre-measure_density_behavior baseline commit for test_default_off_bit_identical
+# -- NOT "HEAD". See tests/test_gciql_measure_density.py's DENSITY_PRE_SPEC18_SHA for the
+# full rationale (this is the same disease at the next feature boundary): HEAD moves
+# forward on this shared branch as other sessions/tracks land commits, so a `git show
+# HEAD` baseline diff eventually always finds measure_density_behavior already merged
+# and false-fails forever once spec 19a itself is committed -- which is exactly what
+# happened to THIS test mid-session (HEAD moved from c5348cf, spec 19a's own commit, to
+# bf70d20 while spec 19b was being implemented). This SHA is the commit right after spec
+# 18 landed and right before spec 19a did: it has measure_density but not
+# measure_density_behavior, permanently.
+BEHAVIOR_PRE_SPEC19A_SHA = "74e861d"
+
+
+def _baseline_reachable(sha):
+    r = subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+                        cwd=str(REPO), capture_output=True, text=True)
+    return r.returncode == 0
 
 COMMON = f"""
     import jax, jax.numpy as jnp, numpy as np, flax
@@ -129,22 +149,35 @@ def _run(body, **kw):
 # --------------------------------------------------------------------------
 def test_default_off_bit_identical():
     """behavior=False (measure_density=True): param tree AND total_loss bit-identical
-    to the shipped spec-18 arm loaded from `git show HEAD` (a genuine off-path
-    regression -- wrong param count, changed default, reordered rng splits -- would
-    show up here even though both configs have behavior off, because the two sides
-    run different code). BOTH knobs off: bit-identical to a no-knob config, on both
-    sides."""
+    to the shipped spec-18 arm loaded from the PINNED commit BEHAVIOR_PRE_SPEC19A_SHA
+    (a genuine off-path regression -- wrong param count, changed default, reordered rng
+    splits -- would show up here even though both configs have behavior off, because
+    the two sides run different code). BOTH knobs off: bit-identical to a no-knob
+    config, on both sides.
+
+    WHAT THIS PROVES / DOES NOT PROVE / WHY A SHA AND NOT HEAD: see
+    tests/test_gciql_measure_density.py::test_default_off_bit_identical's docstring --
+    same construction, same reasoning, one feature boundary later. This test failed for
+    exactly the predicted reason mid-way through the spec-19b session that added this
+    pin (HEAD moved past its `git show HEAD` assumption from another commit landing on
+    this shared branch), which is the concrete case study for why HEAD-relative
+    baselines in this style of test are unsound in general, not just here."""
+    if not _baseline_reachable(BEHAVIOR_PRE_SPEC19A_SHA):
+        pytest.skip(f"pinned baseline commit {BEHAVIOR_PRE_SPEC19A_SHA} is not reachable "
+                    "in this checkout (e.g. a shallow clone) -- cannot run the off-path "
+                    "regression diff against it")
     _run("""
     import subprocess, importlib.util, tempfile, os
 
     baseline_src = subprocess.run(
-        ["git", "show", "HEAD:tools/wandb_mode_shim/gciql_flow.py"],
+        ["git", "show", "%s:tools/wandb_mode_shim/gciql_flow.py"],
         cwd=%r, capture_output=True, text=True, check=True).stdout
-    assert "measure_density_behavior" not in baseline_src, \\
-        "HEAD already contains measure_density_behavior -- this repo's baseline moved; " \\
-        "re-point the diff target (e.g. to the commit before spec 19a landed)"
+    assert "measure_density_behavior" not in baseline_src, (
+        "pinned baseline %s no longer predates measure_density_behavior -- the pin has "
+        "gone stale (e.g. history was rewritten); re-pin BEHAVIOR_PRE_SPEC19A_SHA to a "
+        "commit that genuinely predates spec 19a")
     assert "measure_density" in baseline_src, \\
-        "HEAD is missing measure_density entirely -- spec 18 must already be shipped there"
+        "pinned baseline is missing measure_density entirely -- spec 18 must already be shipped there"
     baseline_path = os.path.join(tempfile.mkdtemp(), "gciql_flow_baseline.py")
     with open(baseline_path, "w") as f:
         f.write(baseline_src)
@@ -202,7 +235,7 @@ def test_default_off_bit_identical():
     ln, _ = a_nk.total_loss(bj, a_nk.network.params, jax.random.PRNGKey(7))
     assert np.allclose(float(ln_base), float(ln), atol=1e-6)
     print("OK")
-    """ % str(REPO))
+    """ % (BEHAVIOR_PRE_SPEC19A_SHA, str(REPO), BEHAVIOR_PRE_SPEC19A_SHA))
 
 
 # --------------------------------------------------------------------------
