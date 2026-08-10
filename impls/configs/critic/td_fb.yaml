@@ -1,0 +1,45 @@
+# td_fb critic — the two-phase ball-visitation + hindsight successor measure (bridge
+# origin/gciql-fb-bridge @ 542c058, tools/wandb_mode_shim/gciql_flow.py). One module, both
+# phases as loss flags (impls/critics/td_fb.py module docstring has the full phase table)
+# — the param tree is identical across phases, so phase 2 is a straight params warm start.
+#
+# This file is the PHASE-1 (first-passage, from-scratch) recipe. Phase 2 (ball-
+# visitation + hindsight, warm-started) is reached via --override at launch, NOT a
+# separate yaml (only the loss flags differ):
+#   measure_fp_absorbing=false measure_stopgrad_psi=true actor_q_center=true \
+#   warm_start=true
+# plus --warm_start_path/--warm_start_epoch pointing at the same-seed phase-1 run dir
+# (impls/main.py, impls/utils/flax_utils.py::warm_start_agent). measure_stopgrad_psi=true
+# without warm_start=true is a hard error in td_fb.py:build() (the bridge's FrozenPsi trap
+# — freezing psi at random init floors the cell for a reason unrelated to any hypothesis).
+lr: 3.0e-4
+batch_size: 1024
+value_hidden_dims: [512, 512, 512]
+layer_norm: true
+value_latent_dim: 50
+discount: 0.99
+tau: 0.005
+measure_hit_spec: "19:22:0.4"     # cube-single default; "a:b:eps" blocks, comma-joined for a conjunction
+measure_scale_norm: true          # dimensionless TD gradient (impls/critics/td_fb.py::_measure_terms)
+# Both phases: true. Phase 2 is NOT measure_first_passage=false — that drops the hit
+# indicator entirely and falls back to plain FB TD (neither phase). Phase 2 is reached by
+# measure_fp_absorbing=false (see td_fb.py module docstring).
+measure_first_passage: true
+measure_fp_absorbing: true        # phase 1. phase 2 override: false
+measure_stopgrad_psi: false       # phase 1. phase 2 override: true (needs warm_start: true)
+measure_testpoint_dist: hindsight # columns = value_goals (trajectory futures); both phases
+measure_ortho_coef: 0.0           # locked — ortho is toxic on this family (0.967 -> 0.225)
+actor_q_center: false             # phase 1. phase 2 override: true
+warm_start: false                 # phase 1. phase 2 override: true (see build()'s assert)
+
+# dataset (GCDataset goal sampling) — same convention as critic/gciql.yaml
+dataset_class: GCDataset
+value_p_curgoal: 0.2
+value_p_trajgoal: 0.5
+value_p_randomgoal: 0.3
+value_geom_sample: true
+actor_p_curgoal: 0.0
+actor_p_trajgoal: 1.0
+actor_p_randomgoal: 0.0
+actor_geom_sample: false
+gc_negative: true
