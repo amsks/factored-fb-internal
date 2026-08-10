@@ -1,0 +1,209 @@
+\documentclass{article}
+\usepackage{iclr2027_conference,times}
+\input{math_commands.tex}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+
+\providecommand{\E}{\mathbb{E}}
+\newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
+\newcommand{\sg}{\mathrm{sg}}
+\newcommand{\dnu}{\nu}
+
+\title{Density FB: a normalized successor measure over resampled queries}
+
+\author{Working note --- Factored-FB project\\
+\texttt{2026-08-10, v1 (method + cross-environment results)}}
+
+\iclrfinalcopy
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We learn the successor measure as a \emph{normalized probability density} over object
+configurations rather than as an unbounded scalar per goal. A two-tower score
+$F(s,a,g)^\top B(u)/\tau$ is softmax-normalized over a query set redrawn from the data at
+every update, and fit by cross-entropy to the one-step target
+$(1-\gamma)\kappa(x') + \gamma\bar p$. Non-negativity and unit mass are then structural,
+so the method carries none of the machinery that previous successor-measure cells in this
+project needed and that each measured as harmful: no orthonormalization, no mass anchor,
+no scale normalization, no two-phase curriculum. It trains from scratch in one stage.
+On OGBench manipulation it reaches $0.929$ on cube-single and $0.736$ on cube-double,
+the latter $+0.19$ over the best prior method on that environment and roughly
+$3\times$ goal-conditioned IQL, against a measured behavior-cloning floor of $0.019$.
+\end{abstract}
+
+\section{The object}
+
+Let $x=\phi_{\mathrm{obj}}(s)$ be the object coordinates carried by the observation and
+$\gamma$ the discount. For a policy $\pi(\cdot\mid\cdot,g)$ the successor measure is the
+discounted occupancy of configuration sets,
+\begin{equation}
+M(\cdot\mid s,a,g) \;=\; \E\Big[\textstyle\sum_{t\ge0}\gamma^{t}\,\delta_{x_{t+1}}\Big],
+\label{eq:M}
+\end{equation}
+counted at the NEXT state. Its total mass is $1/(1-\gamma)$ for every $(s,a,g)$, so
+\begin{equation}
+\dnu(\cdot\mid s,a,g) \;=\; (1-\gamma)\,M(\cdot\mid s,a,g)
+\label{eq:nu}
+\end{equation}
+is a \emph{probability measure} over object configurations: where the discounted future
+time goes. Equations \eqref{eq:M} and \eqref{eq:nu} carry the same information; the
+difference is entirely in what a network is asked to output, and that difference is the
+method.
+
+\paragraph{Why the normalization matters here.} The unnormalized form has a degenerate
+solution that fits the data well: a constant $c^\star=\E_\mathcal{D}[h]/(1-\gamma)$ solves
+the scalar Bellman equation for an indicator reward $h$, is large, well-scaled, and
+action-independent, and yields a critic from which no policy can be extracted. Every
+failed occupancy cell in this project converged there. Under \eqref{eq:nu} the analogous
+degenerate answer is the uniform distribution, which a cross-entropy objective against a
+peaked target penalizes rather than rewards.
+
+\section{Parameterization}
+
+A finite partition of configuration space (a previous variant of this work used $K=256$
+dataset-drawn prototypes) makes \eqref{eq:nu} representable but fixes the support in
+advance. We instead score arbitrary queries with two towers,
+\begin{equation}
+f(s,a,g,u) \;=\; F(s,a,g)^{\top} B(\tilde u)\,/\,\tau ,
+\label{eq:score}
+\end{equation}
+where $\tilde u$ denotes per-block $\varepsilon$-scaled coordinates so that environments
+with heterogeneous tolerances contribute comparably. Given a query set
+$U=\{u_j\}_{j=1}^{M}$ the predicted distribution is
+\begin{equation}
+w_j(s,a,g) \;=\; \mathrm{softmax}_j\, f(s,a,g,u_j) .
+\label{eq:w}
+\end{equation}
+$F$ is two-headed; $B$ is single, since it is a feature map of a configuration alone.
+
+\paragraph{The queries are resampled, not fixed.} $U$ is redrawn at every update from the
+object marginal --- in round 1, the batch's own next-state object coordinates, so $M$
+equals the batch size. Consequently $M$ is a \emph{Monte-Carlo sample size}, not a spatial
+resolution: increasing it reduces integration error rather than changing the represented
+space, evaluation may use a larger pool than training, and no prototype artifact needs to
+be stored alongside the checkpoint. Empirically the readout is under-converged at
+$M{=}4096$ and converged by $16384$ (per-task drift $0.000$ from $16384$ to $32768$),
+while the induced \emph{ordering} is insensitive to $M$ ($0.8450$ vs $0.8448$).
+
+\section{Estimator}
+
+With $\kappa(\cdot\mid x')$ an $\varepsilon$-kernel mollifier around the observed next
+state, evaluated at the query points, and $\bar p$ the target towers' distribution at the
+bootstrap action $a^{+}\sim\pi(\cdot\mid s',g)$,
+\begin{align}
+t &= \sg\big[(1-\gamma)\,\kappa(\cdot\mid x') \;+\; \gamma\,\bar p(s',a^{+},g)\big],
+\label{eq:target}\\
+\mathcal{L} &= -\,\E\Big[\textstyle\sum_j t_j\,\log w_j\Big].
+\label{eq:ce}
+\end{align}
+Both terms of \eqref{eq:target} lie on the simplex and their weights sum to one, so $t$ is
+a probability vector and \eqref{eq:ce} is a proper cross-entropy: a projection of one
+distribution onto another, not a regression onto an unbounded scalar.
+
+Two properties follow that the scalar estimator lacks. Validity ($w\ge0$, $\sum_j w_j=1$)
+is structural, so nothing has to be added to enforce it. And supervision is dense: every
+transition supplies a full $M$-vector target, where the indicator reward of the scalar form
+is non-zero on roughly $1.5\%$ of transitions on cube-single and far less for off-diagonal
+goals on conjunctive environments.
+
+\paragraph{Control.} The actor maximizes the mass its own goal receives,
+$q(s,a,g)=w(s,a,g)^{\top}\kappa(\cdot\mid g)$, evaluated at frozen head parameters so no
+actor gradient reaches the measure. Because $q$ contains an action-independent level, a
+centered normalizer is required.
+
+\paragraph{Zero-shot reward evaluation.} For a reward $r$ presented at test time, evaluate
+it at the query pool and take an inner product,
+\begin{equation}
+\widehat{Q}_r(s,a) \;=\; \frac{r(x_0) + \big(w - \kappa(\cdot\mid x_0)\big)^{\top} r(U)}{1-\gamma},
+\label{eq:readout}
+\end{equation}
+which is the classical successor-representation identity --- occupancy dotted with reward
+--- recovered in a continuous space. \eqref{eq:readout} is exactly linear in $r$.
+
+\section{What this removes}
+
+Each of the following was a component of previous successor-measure cells in this project,
+and each was independently measured to be harmful or unnecessary once \eqref{eq:nu} is the
+learned object.
+
+\begin{itemize}
+\item \textbf{Orthonormalization.} Removing it took cube-single first-passage from $0.225$
+to $0.967$. Density has no scale degeneracy for it to fix.
+\item \textbf{Mass anchors and non-negativity hinges.} A campaign on measure validity found
+the mass anchor itself responsible for an ordering loss (Spearman $.68\to.48$). Under a
+softmax, mass conservation is not something to enforce.
+\item \textbf{Scale normalization.} Introduced to stop unbounded $\langle F,z\rangle$
+inflation from destabilizing a shared critic; a normalized output cannot inflate.
+\item \textbf{The two-phase curriculum.} The ball-visitation objective does not train from
+scratch, which is why a first-passage pretraining stage and a warm start existed. Density
+trains from scratch, so there is no phase switch, no frozen backward map, and no
+regression between phases to explain.
+\item \textbf{Hindsight test-point columns.} The one repair that rescued the two-phase
+program on conjunctive environments. Density does not use them.
+\end{itemize}
+
+\section{Results}
+
+OGBench manipulation, state observations, $500$k gradient steps, three seeds, evaluated by
+the environment's own goal-conditioned success over its five tasks at $50$ episodes.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccc}
+\toprule
+method & cube-single & cube-double & scene \\
+\midrule
+behavior cloning (floor) & $.111$ & $.019$ & --- \\
+plain FB & $.42$ & $.00$ & $.047$ \\
+goal-conditioned IQL & $.879$ & $.265$ & $.26$--$.287$ \\
+two-phase, phase 1 (first-passage) & $\mathbf{.967}$ & $.549$ & $.484$ \\
+two-phase, phase 2 (batch columns) & $.952$ & $.358$ & $.342$ \\
+two-phase, phase 2 (hindsight columns) & ${\sim}.93$ & $.53$ & $\mathbf{.927}$ \\
+occupancy reward shaping & $.739$ & $.364$ & --- \\
+\textbf{density (this note)} & $.929$ & $\mathbf{.736}$ & in progress \\
+\bottomrule
+\end{tabular}
+\caption{Native goal-conditioned success. Density's cube-double result is $+0.19$ over the
+best prior method on that environment and ${\sim}3\times$ goal-conditioned IQL. Cube-single
+is the environment where nothing discriminates: four methods lie between $.88$ and $.97$.
+Scene was still training at the time of writing and is deliberately not quoted.}
+\end{table}
+
+\paragraph{Reading.} The cube-double column is the informative one. Cube-single separates
+almost nothing --- the cloning floor is $.111$ and four methods cluster near the top --- so
+density's $.929$ there was, on its own, weak evidence. On cube-double, where the region is
+a two-block conjunction and the two-phase program lost success moving from phase 1 to phase
+2, density trained from scratch exceeds every prior arm by a wide margin. The behavior-only
+control at $.019$ establishes that essentially none of this is the cloning term.
+
+\paragraph{Diagnostics.} Health is stable across seeds (cross-entropy $2.86$--$2.91$,
+median effective support ${\approx}9.3$--$9.7$ of $M{=}1024$ on cube-double). The
+self-mass $\kappa$ at the row's own successor is ${\approx}.057$ on cube-single and
+${\approx}.51$ on cube-double: a six-dimensional conjunctive space separates points more at
+the same $\varepsilon$, so the same kernel is effectively sharper. Calibration against
+Monte-Carlo region masses passes the pre-registered Spearman gate ($\ge.65$) on the
+checkpoints tested, with the honest caveat that ordering is strong at coarse scale
+($.83$--$.85$ at $4\varepsilon$) and only moderate at the native $\varepsilon$
+($.41$--$.48$).
+
+\section{Limitations}
+
+Scene is unresolved at the time of writing; its partial trajectory shows a stark and
+reproducible split, with three of five tasks near-solved and two at zero, which is a
+specific signature to explain rather than an average to quote. The zero-shot reward-family
+comparison against the two-phase measure is valid on multi-object environments but not on
+cube-single, where the two evaluation harnesses draw their region rewards differently ---
+a trap that produces an apparent $2.5\times$ gap out of two different reward sets. Finally,
+the query set in round 1 is the batch's own successors; whether an independent or
+replay-based query pool matters on sparser conjunctive regions is untested.
+
+\end{document}

@@ -1,0 +1,276 @@
+\documentclass{article}
+\usepackage{iclr2027_conference,times}
+\input{math_commands.tex}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{assumption}{Assumption}
+\newtheorem{remark}{Remark}
+
+\newcommand{\M}{M}
+\newcommand{\Tk}{\mathcal{T}_k}
+\newcommand{\Tlam}{\mathcal{T}_\lambda}
+\providecommand{\E}{\mathbb{E}}
+\newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
+
+\title{Multi-Step Successor-Measure TD for Play Data:\\
+Dwell Structure as the Approximation Scheme}
+
+\author{Working note --- Factored-FB project\\
+\texttt{2026-08-06, v0 (derivation only; experiments pending)}}
+
+\newcommand{\fix}[1]{\textcolor{red}{#1}}
+
+\iclrfinalcopy
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Successor-measure methods (FB and relatives) learn the discounted state-occupancy
+of a policy by one-step temporal-difference (TD) learning. On manipulation
+\emph{play} data, occupancy over goal-relevant object coordinates is dominated by
+\emph{dwell}: objects rest at stable configurations for tens to hundreds of steps
+between brief, action-driven transports. We show that one-step TD is structurally
+mismatched to this regime---its fixed point under sparse anchoring degenerates to
+the action-independent dwell constant---and derive a multi-step (\(k\)-step /
+\(\lambda\)-return) measure-TD operator whose error decomposition is
+\emph{gated by the data's interaction sparsity}: the off-policy bias of the
+observed \(k\)-step window is bounded by \(\gamma^{T_{\mathrm{int}}}\), where
+\(T_{\mathrm{int}}\) is the time to the first interaction with the tracked
+object. Play data thus licenses long observed returns precisely where one-step
+bootstrapping fails. The dwell scale sets the lower edge of the useful horizon
+and the discount half-life the upper; a geometric horizon recovers the
+\(\lambda\)-return with a strictly better contraction modulus and no
+dataset-specific constant. The data are untouched: the structure enters through
+the estimator only.
+\end{abstract}
+
+\section{Setup}
+
+Let \((\mathcal{S},\mathcal{A},P,\gamma)\) be an MDP with \(\gamma\in(0,1)\).
+A known projection \(c:\mathcal{S}\to\mathbb{R}^{d_c}\) extracts the
+goal-relevant object coordinate (e.g.\ cube position). For a goal \(g\) and
+radius \(\varepsilon\), write \(X=B_\varepsilon(g)\) and
+\(h(s)=\ind{c(s)\in X}\). Data are collected by a behavior policy \(\beta\); we
+seek the successor measure of a target policy \(\pi\),
+\begin{equation}
+\M^\pi(s,a,X)\;=\;\E^\pi\!\Big[\textstyle\sum_{t=1}^{\infty}\gamma^{\,t-1}h(s_t)\;\Big|\;s_0=s,\,a_0=a\Big],
+\label{eq:measure}
+\end{equation}
+counting from the next state and bounded by \((1-\gamma)^{-1}\). Evaluating
+\(\M^\pi\) against a reward \(r\) supported on object coordinates yields
+\(Q^\pi_r(s,a)=\int \M^\pi(s,a,\mathrm{d}x)\,r(x)\), the identity underlying
+zero-shot readout in FB-style methods.
+
+\paragraph{Empirical regime (measured, not assumed).}
+Across eleven manipulation datasets (OGBench cube single/double/triple/quadruple
+and scene; Metaworld play-resample in two regimes and two tasks; two expert
+sets), region occupancy factors as
+\(\text{mass}\approx P(\text{arrive})\cdot\E[\gamma^{T_{\mathrm{arr}}}]\cdot
+\frac{1-\gamma^{L}}{1-\gamma}\)
+with log-correlation \(\ge 0.91\), where \(L\) is the in-region sojourn length;
+the single longest sojourn carries \(74\)--\(99\%\) of in-region time; and mean
+sojourns grow from \(22\) steps (cube-single) to \(140\) steps
+(cube-quadruple). Object coordinates are exactly stationary on
+\(48\)--\(92\%\) of transitions. We refer to this two-timescale,
+piecewise-constant structure as \emph{dwell structure}.
+
+\section{The \texorpdfstring{$k$}{k}-step Bellman operator for measures}
+
+Splitting the sum in \eqref{eq:measure} at time \(k\ge 1\),
+\begin{equation}
+\sum_{t=1}^{\infty}\gamma^{t-1}h(s_t)
+=\underbrace{\sum_{t=1}^{k}\gamma^{t-1}h(s_t)}_{\text{observed}}
+\;+\;\gamma^{k}\sum_{u=1}^{\infty}\gamma^{u-1}h(s_{k+u}),
+\end{equation}
+and taking expectations under \(\pi\) gives, for every \(k\),
+\begin{equation}
+\M^\pi(s,a,X)=(\Tk \M^\pi)(s,a,X)
+\;\mathrel{{:}{=}}\;
+\E^\pi\!\Big[\sum_{t=1}^{k}\gamma^{t-1}h(s_t)\Big]
++\gamma^{k}\,\E^\pi\big[\M^\pi(s_k,a_k,X)\big].
+\label{eq:kstep}
+\end{equation}
+
+\begin{proposition}[Contraction and fixed point]
+\label{prop:contraction}
+For any bounded \(\M,\M'\),
+\(\|\Tk \M-\Tk \M'\|_\infty\le\gamma^{k}\|\M-\M'\|_\infty\).
+Hence \(\Tk\) is a \(\gamma^k\)-contraction whose unique fixed point is
+\(\M^\pi\) for every \(k\ge1\).
+\end{proposition}
+\begin{proof}
+The observed term is \(\M\)-independent; the bootstrap terms differ by
+\(\gamma^k\E^\pi[\M-\M']\le\gamma^k\|\M-\M'\|_\infty\). Uniqueness by Banach;
+\eqref{eq:kstep} shows \(\M^\pi\) is a fixed point.
+\end{proof}
+
+The choice of \(k\) therefore never changes the target, only the error
+dynamics: \(k{=}1\) is standard measure TD, \(k\to\infty\) is Monte-Carlo
+occupancy counting.
+
+\section{Error decomposition and the off-policy bias}
+
+Write a learned measure as \(\widehat{\M}=\M^\pi+e\). Applying the
+\emph{empirical} operator---trajectory actions from \(\beta\), bootstrap action
+from \(\pi\)---the post-update error decomposes as
+\begin{align}
+e' \;&=\;
+\underbrace{\gamma^{k}\,\E\big[e(s_k,a_k)\big]}_{\text{bootstrap error,}\ \gamma^k\text{-shrunk}}
+\;+\;
+\underbrace{\Delta_k^{\beta\pi}}_{\text{off-policy bias}}
+\;+\;\text{sampling noise},
+\label{eq:bias}\\
+\Delta_k^{\beta\pi}\;&=\;
+\E^{\beta}\!\Big[\sum_{t=1}^{k}\gamma^{t-1}h(s_t)\Big]-
+\E^{\pi}\!\Big[\sum_{t=1}^{k}\gamma^{t-1}h(s_t)\Big].\nonumber
+\end{align}
+\(\Delta_1^{\beta\pi}=0\) since the first transition is conditioned on
+\((s,a)\); generically \(|\Delta_k|\) grows with \(k\)---the classical argument
+for small \(k\). Dwell structure breaks that argument.
+
+\begin{assumption}[Interaction-gated object dynamics]
+\label{ass:contact}
+There is an interaction indicator \(\iota(s,a)\in\{0,1\}\) (contact with the
+tracked object) such that \(c(s_{t+1})=c(s_t)\) whenever
+\(\iota(s_t,a_t)=0\).
+\end{assumption}
+
+This is the measured piecewise-constancy above (exact to numerical precision in
+the simulators considered). Let
+\(T_{\mathrm{int}}=\min\{t\ge1:\iota(s_t,a_t)=1\}\)
+be the first interaction time after \((s_0,a_0)\).
+
+\begin{lemma}[Dwell invariance]
+\label{lem:dwell}
+On the event \(\{k\le T_{\mathrm{int}}\}\), the observed sum is
+policy-independent:
+\(\sum_{t=1}^{k}\gamma^{t-1}h(s_t)=h(s_1)\,\frac{1-\gamma^{k}}{1-\gamma}\),
+a function of the initial object position only. Consequently
+\begin{equation}
+\big|\Delta_k^{\beta\pi}\big|\;\le\;
+\E^{\beta}\Big[\gamma^{\,T_{\mathrm{int}}}\Big]\cdot
+\frac{1-\gamma^{\,(k-T_{\mathrm{int}})^+}}{1-\gamma}.
+\label{eq:dwellbound}
+\end{equation}
+\end{lemma}
+\begin{proof}
+While \(t<T_{\mathrm{int}}\), Assumption~\ref{ass:contact} freezes
+\(c(s_t)=c(s_1)\), hence \(h(s_t)=h(s_1)\) regardless of the actions taken;
+the partial sum is the stated geometric series under \emph{every} policy.
+Policies can disagree only at \(t>T_{\mathrm{int}}\); bounding the disagreement
+of the remaining \((k-T_{\mathrm{int}})^+\) terms by the maximal indicator sum
+and discounting by \(\gamma^{T_{\mathrm{int}}}\) yields \eqref{eq:dwellbound}.
+\end{proof}
+
+\begin{remark}[Where the bound bites]
+The bias is gated by \(\E[\gamma^{T_{\mathrm{int}}}]\): the discount decays the
+window before the policies can disagree about the object. Measured interaction
+gaps give \(\gamma^{T_{\mathrm{int}}}\!\approx\!0.4\)--\(0.55\) on cube-single
+(\(T_{\mathrm{int}}\!\sim\!60\)--\(90\)) and \(\approx\!0.17\) on cube-double
+(\(T_{\mathrm{int}}\!\sim\!176\)): the safe-horizon budget is \emph{largest} on
+the multi-object environments where one-step TD fails hardest. In the opposite
+regime (navigation: the agent is the object, \(\iota\equiv1\),
+\(T_{\mathrm{int}}=1\)) the bound is vacuous and small-\(k\) orthodoxy applies.
+The admissible horizon is itself a function of the data's dwell structure.
+\end{remark}
+
+\section{Choosing the horizon}
+
+\paragraph{Lower edge: the dwell scale.}
+For a rest region with sojourn length \(L\) and arrival time
+\(T_{\mathrm{arr}}\), the observed part of the target carries
+\(\E[G^{(k)}_{\mathrm{obs}}]\approx
+P(T_{\mathrm{arr}}\!\le\!k)\cdot\frac{1-\gamma^{\min(L,\,k-T_{\mathrm{arr}})}}{1-\gamma}\)
+while the bootstrap carries weight \(\gamma^{k}\). For \(k\ll L\) the dwell
+mass \(\frac{1-\gamma^{L}}{1-\gamma}\) (\(\approx\!43\) at \(L{=}56\),
+\(\gamma{=}0.99\)) sits inside the bootstrap---the quantity TD must
+reconstruct by iterating on itself. At \(k{=}1\) the observed signal fires at
+the one-step hit rate (\(0.05\%\) per sample on cube-double regions). For
+\(k\gtrsim L\) the full sojourn mass moves into the observed, policy-invariant
+part. Hence \(k\) should exceed the median sojourn (\(22\)--\(60\) steps on our
+datasets).
+
+\paragraph{Upper edge: the discount half-life.}
+Past \(k^\ast=\ln 2/\ln(1/\gamma)\approx 69\) steps (\(\gamma{=}0.99\)),
+\(\gamma^{k}\) has halved and further observed steps contribute
+\(O(\gamma^{k})\) mass while adding variance; the useful range is
+\(k\in[L_{\mathrm{med}},\,\sim\!2k^\ast]\approx[50,150]\), fixed by two
+measurable quantities rather than tuned.
+
+\paragraph{No fixed \(k\): the \(\lambda\)-return.}
+Drawing \(k\sim\mathrm{Geom}(1-\lambda)\) per update yields the expected
+operator
+\begin{equation}
+\Tlam=(1-\lambda)\sum_{n\ge1}\lambda^{\,n-1}\,\mathcal{T}_n ,
+\end{equation}
+the classical \(\lambda\)-return for measures.
+
+\begin{proposition}[Modulus of \(\Tlam\)]
+\(\Tlam\) is a contraction with modulus
+\((1-\lambda)\sum_{n\ge1}\lambda^{n-1}\gamma^{n}
+=\frac{\gamma(1-\lambda)}{1-\lambda\gamma}\;<\;\gamma\)
+for every \(\lambda\in(0,1)\), with on-policy fixed point \(\M^\pi\) for all
+\(\lambda\).
+\end{proposition}
+\begin{proof}
+Mix Proposition~\ref{prop:contraction} over the geometric weights; the series
+sums to the stated modulus. The fixed point is shared by every \(\mathcal{T}_n\).
+\end{proof}
+
+Off-policy without corrections, the fixed point of the mixed empirical operator
+interpolates between \(\M^\beta\) (\(\lambda\to1\)) and the one-step
+off-policy solution (\(\lambda\to0\)); Lemma~\ref{lem:dwell} applies to each
+\(\mathcal{T}_n\) inside the mixture, so the interpolation error is again gated
+by \(\gamma^{T_{\mathrm{int}}}\). Setting the mean horizon
+\((1-\lambda)^{-1}\approx(1-\gamma)^{-1}\) matches the mixture to the discount
+and removes the per-dataset constant. Truncation at an episode boundary
+replaces the tail with the \(\gamma^{k}\)-weighted bootstrap and preserves the
+operator.
+
+\section{Contrast: the one-step collapse}
+
+At \(k{=}1\), \(\mathcal{T}_1\M=\E[h(s_1)]+\gamma\E[\M(s_1,a_1)]\). For a
+sparse region, \(\E[h(s_1)]\approx0\) on almost every sample, so the empirical
+operator is approximately \(\gamma\times\)(a projection of \(\M\)'s own
+average). Any near-constant function \(C\) satisfies
+\(\mathcal{T}_1 C\approx\bar p+\gamma C\) with \(\bar p\) the dataset-average
+one-step hit rate, whose stable point \(C^\ast=\bar p/(1-\gamma)\) is the
+dataset-average mass of the region---the dwell-implied constant. This is the
+degenerate fixed point we observe empirically on cube-double (measured mass
+\(43.5\) vs.\ dwell-implied \(43.0\), with no state--action variation): starved
+of anchors, one-step TD converges to the mass \emph{level} and loses the
+\emph{ranking}. Under \(\Tk\) with \(k\gtrsim L\), the anchor probability per
+update grows from \(P(\text{hit in one step})\) to
+\(P(\text{hit within }k)\), and the constant arrives pre-assembled in the
+observed term; the degenerate fixed point loses its basin.
+
+\section{Estimator, not data}
+
+No preprocessing is performed: no event detection, no trajectory segmentation,
+no relabeling into aligned sub-demonstrations. The sampler reads raw
+length-\(k\) windows from stored trajectories (the same access pattern used by
+hindsight goal sampling), and the structure enters exclusively through
+(i) the multi-step operator above, and (ii) optionally a structured measure head
+\(\M(s,a,g)=D(g)\cdot H(s,a,g)\) with \(D\ge0\) a goal-only magnitude and
+\(H\in[0,1]\) a bounded bilinear factor \(\phi(s,a)^{\!\top}\psi(g)\), which
+gives the action-independent dwell magnitude a dedicated low-capacity container
+(a dueling-style decomposition for measures). The zero-shot readout
+\(z_r=\E_{\rho}[\psi(g)D(g)r(g)]\), \(Q_r=\phi^{\top}z_r\) is unchanged from FB.
+
+\subsection*{Pre-registered empirical gates (to be run)}
+(1) On cube-double phase-2 conditions, the learned mass must \emph{not} pin to
+the dwell constant, and signed state--action variation must survive.
+(2) Performance should be flat in \(k\) once \(k\gtrsim L_{\mathrm{med}}\) and
+degrade only as \(k\to1\); sharp tuning in \(k\) falsifies the mechanism as
+stated. (3) Calibration is scored against the \(\lambda\)-return fixed point,
+not the one-step one, when \(\lambda>0\).
+
+\bibliography{references}
+\bibliographystyle{iclr2027_conference}
+
+\end{document}

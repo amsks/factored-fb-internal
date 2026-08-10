@@ -1,0 +1,348 @@
+\documentclass{article}
+\usepackage{iclr2027_conference,times}
+\input{math_commands.tex}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+
+\providecommand{\E}{\mathbb{E}}
+\newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
+\newcommand{\sg}{\mathrm{sg}}
+\newcommand{\simplex}{\Delta^{K}}
+
+\title{Two Reparameterizations of the Region Successor Measure:\\
+Temporal Differencing and a Fixed-Partition Simplex}
+
+\author{Working note --- Factored-FB project\\
+\texttt{2026-08-06, v1 (derivations + first cube-single wave)}}
+
+\iclrfinalcopy
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Learning the region successor measure by temporal-difference regression on the
+occupancy indicator fails on manipulation play data in a specific way: the
+targets are dominated by an action-independent \emph{dwell} term and the critic
+converges to the constant that term implies. This note states two
+reparameterizations that leave the object and its greedy policy unchanged while
+changing what is regressed. \textsc{Delta} regresses the temporal difference of
+the indicator; we prove the identity $J=(1-\gamma)M-h(x_0)$, show it preserves
+the action $\arg\max$, and show that the estimator's degenerate constant
+\emph{relocates} to zero rather than disappearing. \textsc{Part} replaces the
+scalar measure by a distribution over a fixed $K$-cell partition fitted by
+cross-entropy, making validity structural and supervision dense. On
+\texttt{cube-single-play-v0}, \textsc{Delta} exhibits precisely the zero-flux
+collapse the analysis predicts, while \textsc{Part} reaches $0.884$ goal success
+and transfers zero-shot to point-goal reward families. Both are alternatives to
+the multi-step operator of the companion note: that one keeps the target and
+lengthens the horizon; these keep the horizon and change the target.
+\end{abstract}
+
+\section{Setting and the object}
+
+Offline unlabeled ``play'' data $\mathcal{D}$ from OGBench
+\citep{park2024ogbench}, state observations. Write $x=\phi_{\mathrm{obj}}(s)$ for
+the object coordinates carried by the observation (for \texttt{cube-single}, the
+cube position $s_{19:22}$). For a goal $g$ and tolerance $\varepsilon$ define the
+\emph{region indicator}
+\begin{equation}
+h_g(x) \;=\; \ind{\|x-g\|\le\varepsilon} \;\in\;\{0,1\},
+\label{eq:indicator}
+\end{equation}
+extended to a conjunction of blocks with per-block tolerances for multi-object
+environments. Under the goal-conditioned policy $\pi(\cdot\mid\cdot,g)$ the
+object of interest is the ball-visitation region successor measure
+\citep{dayan1993improving,blier2021learning,touati2021learning}
+\begin{equation}
+M(s,a,g) \;=\; \E\Big[\textstyle\sum_{t\ge0}\gamma^{t}\,h_g(x_{t+1})
+\;\Big|\; s_0=s,\ a_0=a\Big],
+\label{eq:M}
+\end{equation}
+the expected discounted time spent inside the region, with rewards counted at
+the \emph{next} state. Its Bellman equation is
+\begin{equation}
+M(s,a,g) \;=\; \E\big[\,h_g(x_1) \;+\; \gamma\,M(s_1,a_1,g)\,\big],
+\qquad a_1\sim\pi(\cdot\mid s_1,g),
+\label{eq:M-bellman}
+\end{equation}
+and the estimator regresses
+$\delta = M(s,a,g) - h_g(x') - \gamma\,\sg[\bar M(s',a',g)]$ against a batch of
+columns. Note $M\in[0,\tfrac{1}{1-\gamma}]$, which is $[0,100]$ at
+$\gamma=0.99$.
+
+\paragraph{The defect.} A trajectory that enters the region at step $T$ and
+leaves at $T+L$ contributes $L$ identical labels $h_g=1$ to
+\eqref{eq:M-bellman}. The mass of the target is thus governed by the dwell
+length $L$, a property of the region and the data rather than of the action
+taken at $(s,a)$. The fitted critic settles near the constant $c^{\star}$
+solving $c=\E[h]+\gamma c$,
+\begin{equation}
+c^{\star} \;=\; \frac{\E_{\mathcal{D}}[h]}{1-\gamma},
+\label{eq:dwell-constant}
+\end{equation}
+which is large, well scaled, and action-independent, and from which the actor
+extracts nothing. The companion note attacks this by lengthening the horizon of
+the operator so the dwell mass enters the \emph{observed} term. The two variants
+below instead keep the one-step operator and change what is predicted. Neither
+changes $M$.
+
+\section{Variant A (\textsc{Delta}): temporal differencing of the indicator}
+
+\subsection{Definition and the exact identity}
+
+Replace the target reward in \eqref{eq:M} by the temporal difference of the
+indicator,
+\begin{equation}
+J(s,a,g) \;=\; \E\Big[\textstyle\sum_{t\ge0}\gamma^{t}
+\big(h_g(x_{t+1})-h_g(x_{t})\big)\Big].
+\label{eq:J}
+\end{equation}
+
+\begin{proposition}[Reparameterization]
+\label{prop:identity}
+For every $(s,a,g)$ and every policy, with both series counted under the
+convention of \eqref{eq:M},
+\begin{equation}
+J(s,a,g) \;=\; (1-\gamma)\,M(s,a,g) \;-\; h_g(x_0),
+\qquad x_0=\phi_{\mathrm{obj}}(s).
+\label{eq:identity}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Split \eqref{eq:J}. The first series is $M$ by definition. For the second,
+re-index and use that $x_0$ is deterministic given $s$:
+\[
+\sum_{t\ge0}\gamma^{t}h_g(x_t)
+= h_g(x_0)+\sum_{t\ge1}\gamma^{t}h_g(x_t)
+= h_g(x_0)+\gamma\sum_{t\ge0}\gamma^{t}h_g(x_{t+1}).
+\]
+Taking expectations the second series equals $h_g(x_0)+\gamma M$, so
+$J = M-\big(h_g(x_0)+\gamma M\big) = (1-\gamma)M-h_g(x_0)$.
+\end{proof}
+
+\begin{corollary}[Policy invariance]
+\label{cor:argmax}
+$h_g(x_0)$ depends on $(s,g)$ but not on $a$, and $1-\gamma>0$; hence
+$\arg\max_{a} J(s,a,g) = \arg\max_{a} M(s,a,g)$ for every $(s,g)$. $J$ is a
+reparameterization of the same object, not a different objective.
+\end{corollary}
+
+\begin{corollary}[Boundedness]
+Since $M\in[0,\tfrac{1}{1-\gamma}]$ and $h_g(x_0)\in\{0,1\}$, we have
+$(1-\gamma)M\in[0,1]$ and $J\in[-1,1]$, uniformly in $\gamma$.
+\end{corollary}
+
+\subsection{Estimator}
+
+$J$ obeys the Bellman equation obtained from \eqref{eq:M-bellman} by
+substituting the signed reward,
+\begin{equation}
+J(s,a,g) \;=\; \E\big[\big(h_g(x_1)-h_g(x_0)\big) \;+\; \gamma\,J(s_1,a_1,g)\big],
+\label{eq:J-bellman}
+\end{equation}
+so the estimator differs from the baseline in exactly one term:
+\begin{equation}
+\underbrace{\delta = M - h_g(x') - \gamma\,\sg[\bar M]}_{\text{visitation}}
+\quad\longrightarrow\quad
+\underbrace{\delta = M - \big(h_g(x') - h_g(x)\big) - \gamma\,\sg[\bar M]}_{\textsc{delta}} .
+\label{eq:residual}
+\end{equation}
+The per-transition target takes four values: $0$ for outside$\,\to\,$outside,
+$+1$ on entry, $0$ throughout a dwell, and $-1$ on exit. The counting convention
+is load-bearing --- $h_g(x')$ on \texttt{next\_observations} and $h_g(x)$ on
+\texttt{observations}. An off-by-one there silently learns a different object
+while leaving every loss curve plausible, and is pinned by a regression test.
+
+\subsection{What the differencing does to the supervision}
+
+\begin{lemma}[Dwell telescoping]
+\label{lem:telescope}
+For a trajectory entering the region at step $T$ and leaving at $T+L$, the
+contributions to the two targets are
+\[
+\underbrace{\gamma^{T}\,\frac{1-\gamma^{L}}{1-\gamma}}_{\text{visitation: }L\text{ labels}}
+\qquad\text{and}\qquad
+\underbrace{\gamma^{T}(+1)+\gamma^{T+L}(-1)=\gamma^{T}\big(1-\gamma^{L}\big)}_{\textsc{delta}:\ 2\text{ labels}},
+\]
+which agree exactly after the factor $(1-\gamma)$ of
+Proposition~\ref{prop:identity}.
+\end{lemma}
+
+The dwell length is therefore not discarded but re-encoded as the discounted
+\emph{gap} between an entry and an exit, rather than $L$ repeated identical
+labels. The action-independent bulk leaves the regression while the information
+it carried is retained.
+
+\subsection{Relocation, not elimination, of the degenerate solution}
+
+\begin{proposition}[Zero-flux constant]
+\label{prop:zeroflux}
+The constant critic consistent with \eqref{eq:J-bellman} is
+\begin{equation}
+c^{\star}_{J} \;=\; \frac{\E_{\mathcal{D}}\!\left[\Delta h\right]}{1-\gamma},
+\qquad \Delta h = h_g(x')-h_g(x).
+\label{eq:zeroflux}
+\end{equation}
+Over a dataset in which every entry into a region is eventually matched by an
+exit, $\E_{\mathcal{D}}[\Delta h]\approx 0$, hence $c^{\star}_{J}\approx0$.
+\end{proposition}
+
+Comparing \eqref{eq:dwell-constant} with \eqref{eq:zeroflux}, the lazy solution
+does not disappear: it moves. Its diagnostic value changes qualitatively,
+though. The visitation constant is large and well scaled and can be mistaken for
+a calibrated measure; the delta constant is $\approx0$, so a critic that has
+learned nothing announces itself. We pre-registered $\mathrm{msq}=\E[M^{2}]\to0$
+with flat loss and behavior-cloning-floor success as the \emph{zero-flux
+collapse} signature.
+
+\section{Variant B (\textsc{Part}): fixed-partition simplex measure}
+
+\subsection{Definition}
+
+Fix $K$ prototypes $\{p_k\}_{k=1}^{K}$ drawn from the dataset's object
+coordinates and define a soft partition by a per-block scaled radial-basis
+softmax,
+\begin{equation}
+\varphi_k(x) \;=\;
+\frac{\exp\!\big(-\tfrac12\sum_{b}\|(x^{(b)}-p_k^{(b)})/\varepsilon_b\|^{2}\big)}
+{\sum_{k'}\exp\!\big(-\tfrac12\sum_{b}\|(x^{(b)}-p_{k'}^{(b)})/\varepsilon_b\|^{2}\big)}
+\;\in\;\simplex ,
+\label{eq:phi}
+\end{equation}
+where $b$ indexes the blocks of the hit specification and $\varepsilon_b$ is that
+block's tolerance, so heterogeneous tolerances contribute comparably. The learned
+object is the \emph{normalized} occupancy over cells,
+\begin{equation}
+p^{\star}(s,a,g) \;=\; (1-\gamma)\,\E\Big[\textstyle\sum_{t\ge0}\gamma^{t}
+\varphi(x_{t+1})\Big] \;\in\;\simplex .
+\label{eq:pstar}
+\end{equation}
+The normalization is exactly the factor of Proposition~\ref{prop:identity}: the
+$k$-th coordinate of \eqref{eq:pstar} is $(1-\gamma)M$ integrated against cell
+$k$. Since $\sum_k\varphi_k\equiv1$, total mass is conserved by construction and
+$p^{\star}$ lies on the simplex with no penalty enforcing it.
+
+\subsection{Estimator}
+
+A network emits $K$ logits from $(s,a,g)$ with $p=\mathrm{softmax}$; the target
+mixes the observed cell with the target network's prediction at a bootstrap
+action $a^{+}\sim\pi(\cdot\mid s',g)$,
+\begin{align}
+p_{\mathrm{tgt}} &= \sg\big[(1-\gamma)\,\varphi(x') \;+\; \gamma\,\bar p(s',a^{+},g)\big] \;\in\;\simplex,
+\label{eq:ptgt}\\
+\mathcal{L} &= -\,\E\Big[\textstyle\sum_{k} p_{\mathrm{tgt},k}\,\log p_k\Big].
+\label{eq:ce}
+\end{align}
+Both terms of \eqref{eq:ptgt} lie on $\simplex$ and the weights sum to one, so
+$p_{\mathrm{tgt}}\in\simplex$ and \eqref{eq:ce} is a proper cross-entropy between
+distributions. Two properties follow that the scalar estimator lacks: validity
+($p\ge0$, $\sum_k p_k=1$) is structural rather than penalized, and every
+transition supplies a dense $K$-vector target instead of a mostly-zero scalar.
+
+\subsection{Control and zero-shot reward evaluation}
+
+The actor maximizes the mass its own goal's cell receives,
+\begin{equation}
+q(s,a,g) \;=\; p(s,a,g)^{\top} z_g,
+\qquad z_g = \sg\big[\varphi(g)\big],
+\label{eq:actor}
+\end{equation}
+evaluated at frozen head parameters so that no actor gradient reaches the
+measure. By \eqref{eq:pstar}, $q=(1-\gamma)\,M\cdot z_g$ up to the
+action-independent level $\varphi(x_0)^{\top}z_g$, whence a centered normalizer is
+required.
+
+For an arbitrary reward $r$ presented at test time, evaluate it at the prototypes
+and read the value off with no retraining:
+\begin{equation}
+z_{r,k} = r(p_k),
+\qquad
+F^{\Delta} = p - \varphi(x_0),
+\qquad
+Q_r(s,a) \;=\; \frac{r(x_0) + F^{\Delta\top} z_r}{1-\gamma}.
+\label{eq:qr}
+\end{equation}
+Equation~\eqref{eq:qr} is the variant-B analogue of \eqref{eq:identity}: the
+$(1-\gamma)^{-1}$ and the $-\varphi(x_0)$ are the same normalization and the same
+action-independent offset, in vector form.
+
+\paragraph{Conversion for variant A.} A checkpoint trained under
+\eqref{eq:residual} represents $J$, not $M$; any calibration or reward readout
+must invert \eqref{eq:identity} first,
+\begin{equation}
+\widehat{M} \;=\; \frac{h_g(x_0)+\widehat{J}}{1-\gamma}.
+\label{eq:convert}
+\end{equation}
+For a composite task vector $z_r=\sum_j w_j\psi(g_j)$ the correct offset is the
+same-weights hit sum $\sum_j w_j h_{g_j}(x_0)$, by linearity of
+\eqref{eq:identity} in the columns. By Corollary~\ref{cor:argmax} the conversion
+does not change action selection; it is required for \emph{quoting} $\widehat M$.
+
+\section{Empirical status}
+
+Both variants were run on \texttt{cube-single-play-v0}, three seeds, $500$k
+gradient steps, trained from scratch, otherwise identical to the standing
+recipe. Goal success is the environment's own evaluation over its five tasks at
+$50$ episodes; the zero-shot columns apply \eqref{eq:convert} for \textsc{Delta}
+and \eqref{eq:qr} for \textsc{Part}.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4.5pt}
+\begin{tabular}{llcccccc}
+\toprule
+& & & & \multicolumn{3}{c}{zero-shot reward family} \\
+\cmidrule(lr){5-7}
+variant & seeds & goal success & diagnostic & dirac & dense & region \\
+\midrule
+\textsc{Delta} (A) & 0/1/2 & $.152$ / $.264$ / $.204$ & $\mathrm{msq}=.0042$--$.0100$ & $.36$--$.44$ & --- & $.05$--$.23$ \\
+\textsc{Part} (B)  & 0/2   & $.884$ / $.884$          & $H(p)=3.44$ ($\log K{=}5.55$) & $.80$--$.82$ & $.70$--$.86$ & $.17$--$.20$ \\
+\bottomrule
+\end{tabular}
+\caption{Cube-single, 500k steps. Zero-shot columns are provisional ($10$
+episodes; the protocol is $25$). Seed 1 of \textsc{Part} is re-running after an
+unrelated CUDA fault. Same-environment reference points: first-passage without
+orthonormalization attains $0.967$; visitation trained from scratch is unstable
+in $[0.004,0.5]$.}
+\label{tab:results}
+\end{table}
+
+\paragraph{Reading.} \textsc{Delta} follows Proposition~\ref{prop:zeroflux}
+exactly: $\mathrm{msq}=\E[M^2]$ falls from $0.34$--$1.70$ at $25$k to
+$0.0042$--$0.0100$ at $500$k --- two to three orders of magnitude toward zero ---
+while the event rate $\E|\Delta h|$ holds flat at $0.0011$ against a level
+$\E[h]=0.0148$. The critic converges to the relocated constant. Temporal
+centering therefore relocates the degenerate solution and makes it legible, but
+does not by itself yield a usable measure.
+
+\textsc{Part} passes its pre-registered gate (success $\ge0.5$ and entropy
+$<0.9\log K=4.99$) on every seed and transfers zero-shot to point-goal reward
+families while degrading on extended regions. The contrast is informative
+because both variants share the same underlying object: what differs is the
+\emph{parameterization} of the prediction --- a normalized distribution over
+cells versus an unbounded scalar --- and the density of supervision, not the
+semantics of occupancy.
+
+\paragraph{Caveat.} The wave contains no behavior-cloning-only control, so
+\textsc{Part}'s $0.884$ clears its gate but is not yet attributable to the
+measure term rather than the cloning term.
+
+\paragraph{Relation to the multi-step note.} The companion note keeps the
+indicator target and lengthens the operator's horizon, moving the dwell mass into
+the observed term; the variants here keep the one-step operator and change the
+predicted quantity. The two are rival explanations of the same collapse ---
+starved bootstrap versus level-dominated regression --- and are designed to be
+run head-to-head in identical slots.
+
+\bibliography{references}
+\bibliographystyle{iclr2027_conference}
+
+\end{document}
