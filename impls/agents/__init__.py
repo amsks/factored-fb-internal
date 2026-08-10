@@ -21,6 +21,8 @@ from impls.critics.fb_forward_bilinear import FbForwardBilinearCritic
 from impls.critics.crl import CRLCritic
 from impls.critics.qrl import QRLCritic
 from impls.critics.vip import VIPCritic
+from impls.critics.density_fb import DensityFBCritic
+from impls.critics.td_fb import TDFBCritic
 from impls.actors.flowbc import FlowBCActor
 from impls.actors.ddpgbc import DDPGBCActor
 from impls.actors.awr import AWRActor
@@ -30,7 +32,8 @@ CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "isfb": ISFBCritic,
            "iql_bilinear": IqlBilinearCritic, "simple_sf": SimpleSfCritic,
            "sf_feature": SfFeatureCritic, "centered_bilinear": CenteredBilinearCritic,
            "fb_forward_bilinear": FbForwardBilinearCritic, "crl": CRLCritic,
-           "qrl": QRLCritic, "vip": VIPCritic}
+           "qrl": QRLCritic, "vip": VIPCritic,
+           "density_fb": DensityFBCritic, "td_fb": TDFBCritic}
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,
           # bcflow is FlowBCActor with the value term switched off (actor/bcflow.yaml sets
           # q_coeff: 0) — the pure-BC control, so it composes with exactly the same critics.
@@ -40,6 +43,7 @@ ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": 
 _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            "value_forward": "lr_f",                       # isfb F_V rides the forward group
            "value": "lr", "critic": "lr", "center_b": "lr",  # gciql / centered_bilinear groups
+           "density_f": "lr", "density_b": "lr",           # density_fb's two towers
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf
            "actor_bc_flow": "lr_actor", "actor_onestep": "lr_actor"}  # fql groups
 

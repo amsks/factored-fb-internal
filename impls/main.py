@@ -15,11 +15,12 @@ os.environ.setdefault("MUJOCO_EGL_DEVICE_ID", _cvd.split(",")[0].strip() or "0")
 
 from absl import app, flags
 import jax.numpy as jnp
+import numpy as np
 
 from impls.agents import Agent
 from impls.utils.datasets import make_dataset
 from env import get_adapter, make_config
-from impls.utils.flax_utils import restore_agent, save_agent
+from impls.utils.flax_utils import restore_agent, save_agent, warm_start_agent
 from impls.utils.log_utils import CsvLogger, get_exp_name, setup_wandb
 
 FLAGS = flags.FLAGS
@@ -39,6 +40,12 @@ flags.DEFINE_integer("num_video", 0,
 flags.DEFINE_string("save_dir", "exp/", "Checkpoint directory.")
 flags.DEFINE_string("restore_path", "", "Glob matching exactly one run dir to restore from.")
 flags.DEFINE_integer("restore_epoch", 0, "Checkpoint step to restore (params_{epoch}.pkl).")
+flags.DEFINE_string("warm_start_path", "",
+                    "Glob matching exactly one run dir to warm-start params from (params + "
+                    "target params only, fresh optimizer state and rng -- distinct from "
+                    "--restore_path, which is a full-state resume). td_fb's phase-2 recipe "
+                    "(measure_stopgrad_psi=true) requires this.")
+flags.DEFINE_integer("warm_start_epoch", 0, "Checkpoint step to warm-start from (params_{epoch}.pkl).")
 flags.DEFINE_string("agg_dir", None, "optional: dir for per-seed eval jsonls (campaign/wandb_agg_daemon.py)")
 flags.DEFINE_string("agg_group", None, "optional aggregation key; default <critic>_<actor>__<domain>")
 flags.DEFINE_integer("infer_cond_episodes", 0,
@@ -88,6 +95,27 @@ def _append_agg(agg_dir, group, seed, step, row, task):
         f.write(json.dumps(rec) + "\n")
 
 
+def _drain_per_episode(run_dir, scope, step, row):
+    """Pop the `_per_episode` payload out of an eval row and append it to
+    <run_dir>/eval_episodes.jsonl, returning the scalar-only row.
+
+    Spec E0.2: E5 re-scores success at a sweep of goal radii, which needs the per-episode
+    distances, not their mean. They cannot ride in the eval row -- CsvLogger freezes its
+    header on the first row and wandb's scalar log would choke on a list -- so they get their
+    own append-only file, keyed by (step, scope) so a re-eval pass adds rows rather than
+    overwriting (the eval.csv corruption mode in the spec's gotchas)."""
+    per = row.pop("_per_episode", None)
+    if per is None:
+        return row
+    try:
+        import json as _json
+        with open(os.path.join(run_dir, "eval_episodes.jsonl"), "a") as f:
+            f.write(_json.dumps({"step": int(step), "scope": scope, **per}) + "\n")
+    except Exception as e:                                  # noqa: BLE001 - reporting only
+        warnings.warn(f"per-episode eval log at step {step} failed: {type(e).__name__}: {e}")
+    return row
+
+
 def _write_eval_video(run_dir, scope, step, frames):
     """Tile this eval point's rendered episodes into <run_dir>/videos/<scope>_step<N>.mp4.
 
@@ -118,6 +146,12 @@ def _log_video(run, scope, step, video_path):
 def main(_):
     cfg = make_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
 
+    # GCDataset draws every batch index, goal index and relabel coin from the global NumPy
+    # RNG (impls/utils/datasets.py), so --seed has to reach it or two seeds replay the same
+    # batch stream and the reported seed-to-seed sd is not a seed estimate. (The other half
+    # of that bug lives in env/unified.py::seeded_reset, which restores the global state.)
+    np.random.seed(FLAGS.seed)
+
     exp_name = get_exp_name(FLAGS.seed, FLAGS.critic, FLAGS.actor, cfg["env_name"])
     # Each run gets its own subdirectory so two seeds or two critic x actor pairs sharing a
     # --save_dir don't overwrite each other's train.csv/eval.csv/params_N.pkl.
@@ -125,6 +159,19 @@ def main(_):
     # it should now point at save_dir/exp_name for a prior run.
     run_dir = os.path.join(FLAGS.save_dir, exp_name)
     os.makedirs(run_dir, exist_ok=True)
+
+    # Dump the RESOLVED config next to the results. Without this the only record of what a run
+    # actually used is the binary wandb file, so answering "was the mask on for this row?"
+    # months later means parsing an offline wandb record -- and --seed never appears there at
+    # all, since it is injected after make_config.
+    try:
+        import json as _json
+        with open(os.path.join(run_dir, "config.json"), "w") as _f:
+            _json.dump({"seed": FLAGS.seed, "critic": FLAGS.critic, "actor": FLAGS.actor,
+                        "domain": FLAGS.domain, "override": list(FLAGS.override or []),
+                        "config": cfg}, _f, indent=2, default=str)
+    except Exception as e:                                  # noqa: BLE001
+        warnings.warn(f"could not write config.json: {type(e).__name__}: {e}")
 
     agg_group = FLAGS.agg_group or f"{FLAGS.critic}_{FLAGS.actor}__{FLAGS.domain}"
     run = setup_wandb(cfg, group=f"{FLAGS.critic}-{FLAGS.actor}", name=exp_name)
@@ -138,6 +185,8 @@ def main(_):
         ex = train_ds.sample(1)
         agent = Agent.create(FLAGS.critic, FLAGS.actor, FLAGS.seed,
                              jnp.asarray(ex["observations"]), jnp.asarray(ex["actions"]), cfg)
+        if FLAGS.warm_start_path:
+            agent = warm_start_agent(agent, FLAGS.warm_start_path, FLAGS.warm_start_epoch)
 
         start_step = 1
         if FLAGS.restore_path:
@@ -173,6 +222,10 @@ def main(_):
                     row, frames = adapter.evaluate(eval_agent, env, task_id, cfg,
                                                    FLAGS.eval_episodes, FLAGS.num_video)
                     scope = "eval" if task_id is None else f"eval/task{task_id}"
+                    # Non-scalar eval payloads (per-episode goal distances, spec E0.2) go to
+                    # their own jsonl: eval.csv fixes its header on the first row and wandb
+                    # takes scalars, so anything array-shaped has to leave the row first.
+                    row = _drain_per_episode(run_dir, scope, i, row)
                     csv_eval.log({**row, "task_id": -1 if task_id is None else task_id}, step=i)
                     video_path = _write_eval_video(run_dir, scope, i, frames)
                     if run is not None:
