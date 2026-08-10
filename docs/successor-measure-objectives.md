@@ -378,7 +378,39 @@ cube-double or scene.
 
 # Shared gotchas — read before changing either method
 
-## 11. Lessons that cost real time
+## 11. Comparing methods across the two eval harnesses
+
+The two objectives are read out by different scripts — `eval_zeroshot_rewards.py` for the
+bilinear/z path (normal FB, GCIQL, both two-phase stages) and `eval_density_zeroshot.py`
+for the density head. Before putting their numbers in one table, know this:
+
+**The `region` family is not constructed the same way on every env.**
+`eval_zeroshot_rewards.py` draws hindsight centers only when the env is multi-object
+(`if "region" in families and multi`, ~line 1168); on cube-single it falls back to legacy
+FIXED probe centers `R1/R2/R3` from `env_geometry`. `eval_density_zeroshot.py` always
+draws hindsight centers. Consequences:
+
+| column | cube-single | cube-double / scene |
+|---|---|---|
+| `dirac` (the env's 5 task goals) | comparable | comparable |
+| `region` | **NOT comparable** — 3 fixed centers vs 4 hindsight-drawn | comparable (both hindsight) |
+| `dense` | density harness only | density harness only |
+
+A concrete near-miss: on cube-single, two-phase phase-2 scores region 0.688 and density
+scores 0.27. That reads as a 2.5x gap and is not a result — they were scored on different
+reward sets. The dirac column on the same checkpoints (0.875 vs 0.77) is the comparable
+one, and it overlaps within per-seed spread.
+
+If you need a cube-single region comparison, put both methods on the same centers first
+(either teach the density harness the fixed probe centers, or let the zsr harness take
+the hindsight path on single-object envs) — do not compare the two as they stand.
+
+Also check before comparing: `--episodes`, `--seed`, `--relabel-size`, and the decode
+(`--z-inference retrieval --retrieval-k 1` vs `--decode retrieval --retrieval-k 1`) must
+match, and the JSON `meta` block of every run records all of them for exactly this
+reason.
+
+## 12. Lessons that cost real time
 
 - Any new knob must be provably load-bearing. Spec 17b once shipped a loss silently
   multiplied by a coefficient defaulting to `0.0`: it trained nothing while logging a
