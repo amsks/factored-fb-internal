@@ -420,7 +420,7 @@ Goal-conditioned IQL & $0.879$ & $0.265$ & $0.26$--$0.287$ \\
 \TDFB{} occupancy, hindsight queries & $\sim0.93$ & $\sim0.53$ & $\mathbf{0.927}$ \\
 \midrule
 Occupancy reward shaping & $0.739$ & $0.364$ & --- \\
-\DensityFB{} & $0.929 \pm 0.028$ & $\mathbf{0.736 \pm 0.046}$ & \emph{in progress} \\
+\DensityFB{} & $0.929 \pm 0.028$ & $\mathbf{0.736 \pm 0.046}$ & $0.628 \pm 0.054$ \\
 \bottomrule
 \end{tabular}
 \caption{Native goal-conditioned success on OGBench manipulation. \texttt{cube-double} is the most discriminative current environment: the behavior-cloning floor is $0.019$, plain FB fails, and \DensityFB{} reaches $0.736$. \DensityFB{} entries are mean $\pm$ s.d.\ over three seeds at the final ($500$k) evaluation (\texttt{cube-single} $.896/.928/.964$; \texttt{cube-double} $.680/.736/.792$). All rows in this table use the environment's native training-loop evaluation ($50$ episodes per task); the appendix Table~\ref{tab:multi} uses the separate zero-shot harness and its direct-GC pass, whose numbers differ slightly for the same checkpoints. The occupancy-reward-shaping row is the reward-scale $4.0$ arm (three seeds); other scales were screened at one seed only.}
@@ -443,9 +443,9 @@ The behavior-cloning floor of $0.019$ indicates that the result is not explained
 
 
 \paragraph{Scene.}
-\TDFB{} with hindsight queries currently reaches $0.927$.
-\DensityFB{} remains unresolved on \texttt{scene}: two seeds are complete at $0.672$ and $0.644$ ($500$k), with the third finishing after a mid-run fault, and the per-task split is consistent across seeds --- the first three tasks near solved (\texttt{open}, \texttt{unlock-and-lock}, \texttt{rearrange-medium} at $0.88$--$1.0$) while the two long-composition tasks fail (\texttt{put-in-drawer} at $0.06$--$0.48$, \texttt{rearrange-hard} at $0.0$--$0.02$).
-Because the split, not the average, is the informative object, we do not yet report an aggregate Density-FB Scene score.
+\TDFB{} with hindsight queries reaches $0.927$; \DensityFB{} reaches $0.628 \pm 0.054$ ($0.672/0.568/0.644$ at $500$k).
+The aggregate hides a per-task split that is consistent across all three seeds: the first three tasks are near solved (\texttt{open}, \texttt{unlock-and-lock}, \texttt{rearrange-medium} at $0.88$--$1.0$) while the two long-composition tasks fail (\texttt{put-in-drawer} at $0.02$--$0.48$, \texttt{rearrange-hard} at $0.0$--$0.02$).
+\DensityFB{} therefore clears every non-hindsight arm on \texttt{scene} but does not replace hindsight grounding there; why the two composed-rearrangement tasks fail while \texttt{rearrange-medium} succeeds is an open question rather than an averaged-away detail.
 
 
 % ----------------------------------------------------------------------
@@ -586,7 +586,7 @@ The difficulty is that a finite-capacity estimator must preserve action-sensitiv
 \DensityFB{} retains the complete occupancy from the beginning but learns it as a probability distribution with fixed total mass.
 
 The \texttt{cube-double} result favors the latter approach: normalization and dense continuous-query supervision avoid both the scalar-scale problem and the sparse conjunction problem that appears in region TD.
-At the same time, \texttt{scene} remains unresolved for \DensityFB{}, and fine-scale Monte-Carlo calibration remains weaker than coarse occupancy ordering.
+At the same time, \DensityFB{} on \texttt{scene} solves only three of the five tasks ($0.628$ aggregate vs $0.927$ for hindsight-grounded \TDFB{}), and fine-scale Monte-Carlo calibration remains weaker than coarse occupancy ordering.
 Understanding these limitations is necessary before claiming a general manipulation behavior foundation model.
 
 
@@ -602,8 +602,7 @@ Whether independent replay queries give the same result, especially in sparse mu
 
 Third, \DensityFB{} recovers coarse occupancy ordering more reliably than occupancy at the smallest evaluated spatial scale.
 
-Finally, Density-FB results on heterogeneous \texttt{scene} tasks are not yet complete.
-The current partial result solves three tasks while failing on two, suggesting that additional structure beyond simple geometric object coordinates may be required.
+Finally, on heterogeneous \texttt{scene} tasks Density-FB solves three of five tasks across all seeds while failing on the two composed-rearrangement tasks, suggesting that additional structure beyond simple geometric object coordinates may be required there; hindsight-grounded \TDFB{} remains the stronger method on that environment.
 
 
 % ======================================================================
@@ -706,8 +705,10 @@ Monte-Carlo calibration was pre-registered as a Spearman ordering gate ($\ge0.65
 The gate passes on the pooled cross-scale statistic ($0.77$--$0.79$) and at $4\epsilon$ ($0.83$--$0.85$), and fails at the native $\epsilon$ scale ($0.41$--$0.48$, a high-ties regime with a largely degenerate Monte-Carlo reference).
 We therefore report the split rather than a single pass/fail: coarse occupancy ordering is strong; fine-scale set mass is only moderately ordered.
 
-At evaluation time the readout is deterministic in the query pool.
-Absolute integration is under-converged at $4096$ queries; rollout success at $4096$ differs from the $16384$-query readout by up to $0.12$ on individual tasks.
+At evaluation time the readout is deterministic given the query pool, and its stability was measured with full rollouts at $4096/16384/32768$ queries in a single run (one seed, all else fixed).
+Point-goal (dirac) and region successes are pool-size stable (maximum per-task change $0.08$ and $0.00$ respectively), while dense-reward per-task successes flip by up to $0.48$ between $4096$ and $16384$ and by up to $0.12$ between $16384$ and $32768$; the absolute $Q$ readout grows monotonically with pool size and is not converged at $32768$.
+The discontinuity is in the decode, not the value estimate: goal decoding retrieves a single proxy observation by maximizing the readout over the pool, so a changed pool can switch the proxy and flip an entire rollout.
+Per-task numbers are therefore quoted only with the pool pinned (size and contents); family means move by ${\lesssim}0.1$.
 
 
 % ======================================================================
