@@ -1,0 +1,50 @@
+# Spec 18 `measure_density` on cube-double-play-v0 -- the missing cross-environment cell.
+#
+# WHY THIS EXISTS: spec 18's density wave was cube-single ONLY (.929 vs a .111 cloning
+# floor, the best one-stage occupancy measure we have). Cube-single is also the env where
+# nothing discriminates -- four methods land between .88 and .97 there. The environments
+# that separate methods are cube-double and scene, where the two-phase numbers exist and
+# density's do not. Until this runs, "density is our best successor measure" is a
+# one-environment claim.
+#
+# cube-double: the two-block conjunctive region (both cube xyz's ANDed), same spec the
+# d17/d19 cube-double cells use. Region density here is ~27x sparser than cube-single's,
+# which is exactly why this cell is the interesting one.
+#
+# Anchors to read against on this env (native GC success, 500k):
+#   phase-1 fp-noortho .549 | phase-2 hindsight .53 | phase-2 batch .358 | GCIQL .265 | plain FB .00 | BC floor .019
+# eval_interval 10000 (not 50000) -- the standing cd/scene cadence; the 0->10k window is
+# where the phase-2 arms did their damage, so it is instrumented densely.
+#
+# From scratch, one stage: NO warm start, NO phase switch, NO ortho/anchor/scale_norm
+# (validity is structural in the softmax). Do NOT copy a *_ballvisit_* config for this --
+# those carry measure_stopgrad_psi=true, which without a warm start freezes psi at random
+# init and floors the cell for a reason unrelated to the hypothesis.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Measure-Density-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  actor_q_center: true
+wandb_mode: online
