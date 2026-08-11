@@ -121,16 +121,72 @@ caller's config and re-reads the flag per sample.
 Run: `.venv/bin/python -m pytest tests/test_gciql_measure_density.py -q` (NOT `uv run`;
 the jax subprocess harness resolves the jax venv itself).
 
-### 2.4 Configs
+### 2.4 The two immediate-target variants: SOFT and HARD
 
-- `configs/gciql/cube_single_state_measure_density_d50.yaml` — the main arm
-- `configs/gciql/cube_single_state_measure_density_hard_d50.yaml` — `measure_density_hard`
-  ablation (immediate term becomes a one-hot at the row's own successor instead of the
-  eps-kernel), which separates "smoothing matters" from "simplex TD matters"
-- `configs/gciql/{cube_single,cube_double,scene}_state_measure_density_behavior_d50.yaml`
-- `configs/gciql/cube_single_state_bconly_d50.yaml` — the BC-only control; same recipe
-  with the actor's q-term zeroed, so a gap isolates the measure reaching the actor from
-  the `bc_coeff=3.0` cloning term
+The CE target is `t = sg[(1-gamma)*k + gamma*w_bar+]`. The **immediate term `k`** has two
+forms, and which one you want is now settled:
+
+| | `k` | knob |
+|---|---|---|
+| **soft** | the eps-kernel `_delta_phi(nobs, u_raw)` — the row's `(1-gamma)` mass is smeared over kernel-near queries | default (nothing set) |
+| **hard** | a one-hot at the row's OWN successor — all the `(1-gamma)` mass on the observed next state | `measure_density_hard: true` |
+
+**Use HARD.** Spec 21 seeded both to three seeds on cube-single and the gate read out:
+
+| cube-single, 3 seeds | goal success | zero-shot dirac | dense | region |
+|---|---|---|---|---|
+| soft | 0.929 | 0.816 | 0.725 | 0.293 |
+| **hard** | 0.915 (last-4 0.951) | **0.888** | **0.912** | **0.647** |
+
+Hard more than doubles region-family transfer and wins both point-goal families, at no
+goal-reaching cost — the 0.929/0.915 difference is inside seed noise, and on last-4-eval
+means hard is actually ahead. The soft kernel was diluting the readout.
+
+A soft/hard **mixture** knob (`measure_density_hard_mix`, alpha in [0,1]) was fully
+specified in spec 21 §3 and then deliberately NOT implemented: the goal-success cost that
+motivated it turned out to be a single noisy seed (one hard run's mid-training evals swung
+1.00 -> .876). If you are tempted to build it, re-read that spec's §1 decision table first.
+
+⚠ Every density number in the paper as of 2026-08-11 is the **soft** arm (cube-single
+.929, cube-double .736, scene .628). Hard reruns of cube-double/scene are in flight.
+
+### 2.5 Actor kinds
+
+The density q-readout plugs into three extraction paths (spec 22), selected by
+`actor_kind`, all sharing `_density_actor_q`:
+
+- `flow` (default) — the FlowBC actor
+- `ddpgbc` — stock gaussian DDPG+BC; needs `alpha` (OGBench's own value: 1.0 for
+  cube-single/double/scene, 0.3 for antmaze) and `actor_q_center: true`
+- `awr_flow` — advantage-weighted, baseline = min-head density q at a stop-gradded flow
+  rollout
+
+Use this when you need to show a result is not extraction-carried. On cube-single,
+swapping flow -> ddpgbc costs density .05 (.929 -> .879) while stock GCIQL loses .31
+(.870 -> .563).
+
+⚠ `ddpgbc`/`awr_flow` must never delegate to `GCIQLAgent.actor_loss` under `measure_only`:
+the bilinear critic is dead weight there, so delegation silently maximizes a never-trained
+critic while the density CE trains beside it. This is tested
+(`tests/test_gciql_density_actors.py`) — do not "simplify" those branches back into a
+delegation.
+
+### 2.6 Configs
+
+| config | what |
+|---|---|
+| `{cube_single,cube_double,scene}_state_measure_density_d50.yaml` | soft, flow actor |
+| `{cube_single,cube_double,scene}_state_measure_density_hard_d50.yaml` | **hard**, flow actor |
+| `{cube_single,cube_double,scene}_state_measure_density_d50_ddpgbc.yaml` | soft, DDPG+BC |
+| `{cube_double,scene}_state_measure_density_hard_d50_ddpgbc.yaml` | hard, DDPG+BC |
+| `cube_single_state_measure_density_d50_awrflow.yaml` | soft, AWR-flow |
+| `antmaze_medium_state_measure_density_d50{,_ddpgbc,_awrflow}.yaml` | locomotion, hit-spec `0:2:0.5` |
+| `point_mass_maze_rnd_seed0_measure_density_d50.yaml` | ExoRL/DMC (spec 23 P0) |
+| `{cube_single,cube_double,scene}_state_measure_density_behavior_d50.yaml` | behavior mode (19a), for ORS |
+| `{cube_single,cube_double}_state_bconly_d50.yaml` | BC-only floor: same recipe, actor q-term zeroed |
+
+The BC-only floors are what make any of these numbers attributable: cube-single 0.111,
+cube-double 0.019.
 
 ---
 
@@ -139,11 +195,33 @@ the jax subprocess harness resolves the jax venv itself).
 ### 3.1 Train
 
 ```bash
+# SOFT (the historical default)
 XLA_FLAGS=--xla_gpu_enable_command_buffer= \
 XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=0 \
   .venv/bin/python run_gciql.py --config-name cube_single_state_measure_density_d50 \
     seed=0 output_root=/home/adityamohan/exp_density exp_name=dens_s0
+
+# HARD (what you should actually run -- see 2.4)
+XLA_FLAGS=--xla_gpu_enable_command_buffer= \
+XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=0 \
+  .venv/bin/python run_gciql.py --config-name cube_double_state_measure_density_hard_d50 \
+    seed=0 output_root=/home/adityamohan/exp_density exp_name=hard_s0
+
+# HARD + a stock actor (actor-independence check)
+XLA_FLAGS=--xla_gpu_enable_command_buffer= \
+XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=0 \
+  .venv/bin/python run_gciql.py --config-name scene_state_measure_density_hard_d50_ddpgbc \
+    seed=0 output_root=/home/adityamohan/exp_density exp_name=hard_ddpgbc_s0
 ```
+
+Multi-cell waves: `scripts/rescuing_fb/launch_hard_xenv.sh` (hard on cube-double/scene),
+`launch_density_ddpgbc_xenv.sh` (DDPG+BC on both, soft and hard), `launch_spec22.sh`
+(antmaze + actor ablation). Two hazards baked into their headers, both learned the hard
+way: every launcher's `active()` counts EVERY `main.py` job so waves share the box without
+oversubscribing, and **do not kill a dispatcher to change `MAX`** — it is the pipeline
+parent of its children and the signal propagates (that killed two cells). One launcher
+also short-circuits `DRY_RUN` before the concurrency wait; the older ones block forever on
+a full box instead of printing the plan.
 
 `XLA_FLAGS=--xla_gpu_enable_command_buffer=` disables XLA's CUDA-graph capture. Without
 it we lost two runs to `CUDA_ERROR_STREAM_CAPTURE_INVALIDATED` raised from a device_get
