@@ -1,0 +1,42 @@
+# Spec 21 follow-up: the HARD immediate target on cube_double.
+#
+# WHY: spec 21 stage 1 seeded the cube-single hard arm and its gate read out
+#   S1a PASS (zero-shot win survives 3 seeds: dirac .888, dense .912, region .647)
+#   S1b FAIL (no goal-success cost: hard .915 final / .951 last-4 vs soft .929)
+# => per spec 21 section 1's decision table, adopt measure_density_hard OUTRIGHT and do NOT
+# implement the mixture knob. The soft eps-kernel was diluting the readout: region-family
+# zero-shot more than DOUBLES (.293 -> .647) at no cost in goal reaching.
+#
+# Every density number in the paper so far (cs .929, cd .736, scene .628) is the SOFT arm.
+# This config reruns cube_double under hard so the headline uses the configuration we now
+# believe is better, and so we learn whether the hard advantage is cube-single-specific.
+# Identical to the soft config in every other slot setting -- only measure_density_hard moves.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Measure-DensityHard-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_hard: true
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  actor_q_center: true
+wandb_mode: online

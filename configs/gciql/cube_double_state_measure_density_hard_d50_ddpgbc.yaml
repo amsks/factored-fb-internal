@@ -1,0 +1,44 @@
+# Density + DDPG+BC actor on cube_double (hard immediate target) -- closing the
+# actor-independence claim.
+#
+# WHY: spec 22's cube-single mirror showed our headline is NOT flow-carried (density+ddpgbc
+# .879 vs density+flow .929, while stock GCIQL loses .87 -> .56 under the same actor swap).
+# But that was ONE manipulation env. Without cube-double and scene under ddpgbc, a table that
+# drops the flow actor rests on a single environment. These four cells (2 envs x soft/hard)
+# are what let the comparison against published OGBench numbers be made with a stock actor.
+#
+# alpha=1.0 is OGBench's OWN GCIQL value for both envs (third_party/ogbench/impls/
+# hyperparameters.sh:617 cube-double, :708 scene), and their eval_episodes=50 matches ours.
+# Everything else is byte-equal to the corresponding flow-actor density config -- only
+# actor_kind and alpha move, so a gap against the flow cell is attributable to the actor.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Measure-DensityHard-DDPGBC-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_kind: ddpgbc
+  alpha: 1.0
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_hard: true
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  actor_q_center: true
+wandb_mode: online
