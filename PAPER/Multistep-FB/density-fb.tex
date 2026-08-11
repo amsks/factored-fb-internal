@@ -180,9 +180,12 @@ During a long resting segment, many different robot states and actions correspon
 These transitions legitimately contribute large successor mass near $x_{\mathrm{rest}}$.
 But they provide much less information about which earlier actions caused the object to arrive there.
 
-Standard FB compounds this imbalance.
-Its observed-successor term is linear in the matched score, so repeated successors continually reward larger values of $F^\top B$ at persistent configurations.
-The model must therefore recover small action-dependent differences inside a much larger occupancy signal.
+Standard FB compounds this imbalance, and the way play data inflates the loss can be stated directly.
+A resting segment of length $L$ contributes $L$ near-identical positive terms to the observed-successor part of the loss, one per transition, while the reaching decision that produced the rest contributed once; on \texttt{cube-single} the median resting segment has $L=44$, so the objective weights ``the cube stays here'' about forty times more heavily than ``this action brought it here.''
+The observed-successor term is also linear in the matched score, so repeated successors keep rewarding larger values of $F^\top B$ at persistent configurations; Section~\ref{sec:frozen} shows the resulting scale growth directly.
+Region-indicator variants of the objective admit the same failure in a different form: the constant $c^\star = \E_\rho[h]/(1-\gamma)$ satisfies the Bellman equation on average, is large and well scaled, and carries no action information.
+In both forms a critic reaches a low loss without learning anything about actions, and play data pushes the optimizer toward exactly that solution.
+The model must otherwise recover small action-dependent differences inside a much larger occupancy signal.
 
 This issue is distinct from the formal singularity of point densities under deterministic continuous dynamics.
 That singularity is also present in locomotion domains where FB performs well.
@@ -309,7 +312,7 @@ The checkpoint retains only the continuous functions $F$ and $B$.
 
 
 \paragraph{Distributional Bellman learning.}
-Let $\kappa(\cdot\mid x')$ be a normalized kernel around the observed next object configuration.
+Let $\kappa(\cdot\mid x')$ be an immediate distribution centered on the observed next object configuration (two concrete choices below).
 The normalized successor Bellman target is
 \begin{equation}
 \label{eq:density-target}
@@ -331,13 +334,28 @@ Every transition supplies a complete distributional target.
 This avoids the sparse conjunctive indicator required by \TDFB{} on multi-object tasks.
 
 
-\paragraph{Why normalization matters on play.}
-Persistent configurations should receive large successor mass.
-\DensityFB{} does not remove this mass.
-Instead, it forces all configurations to compete for a fixed total amount of probability.
+\paragraph{Two immediate targets: soft and hard.}
+The immediate distribution admits two natural choices, and we evaluate both.
+The \emph{soft} variant places a normalized $\epsilon$-kernel around the observed successor,
+\begin{equation}
+\label{eq:kappa-soft}
+\kappa_\epsilon(u_j\mid x') \propto \exp\!\left( -\tfrac12 \|(u_j-x')/\epsilon\|^2 \right),
+\end{equation}
+with $\epsilon$ the task tolerance, so the $(1-\gamma)$ immediate mass is spread over the successor's $\epsilon$-neighborhood, matching the resolution at which goals are judged.
+The \emph{hard} variant is a one-hot at the row's own successor,
+\begin{equation}
+\label{eq:kappa-hard}
+\kappa(u_j\mid x') = \ind{u_j = x'},
+\end{equation}
+well defined because the query set contains each row's successor by construction; all immediate mass credits exactly the realized outcome.
+Soft supervision is spatially denser per transition; hard supervision is the sharpest possible attribution of future occupancy to the transition that produced it.
 
-Repeated observations of a resting configuration can therefore make the predicted distribution increasingly concentrated there, but cannot increase the total magnitude of the critic without bound.
-The analogous action-independent solution is a broad or uniform distribution, which is penalized by cross-entropy whenever the Bellman target is concentrated.
+\paragraph{How the parameterization removes the inflation.}
+Neither variant deletes dwell mass; both keep it and remove its ability to distort the estimator.
+Normalization closes the scale channel: repeated resting transitions can concentrate the predicted distribution at the resting configuration, but they cannot grow the critic, because total mass is fixed at one.
+The action-independent solution becomes the broad or uniform distribution, which cross-entropy penalizes whenever the target is concentrated, so the lazy solution turns from the loss minimizer into a poor fit that is visible in the entropy of the prediction.
+The immediate target then sets how the dwell bulk is credited: under the hard variant every transition of a rest supervises the same single atom, a repeated but consistent point target, while under the soft variant the same mass is smeared over the $\epsilon$-neighborhood.
+Section~\ref{sec:main-results} and Section~\ref{sec:reward-transfer} compare the two.
 
 
 \paragraph{Control.}
@@ -411,7 +429,7 @@ Table~\ref{tab:main} reports goal-conditioned success.
 \toprule
 Method & \texttt{cube-single} & \texttt{cube-double} & \texttt{scene} \\
 \midrule
-Behavior cloning & $0.111$ & $0.019$ & --- \\
+Behavior cloning & $0.111$ & $0.019$ & -- \\
 Plain FB & $0.420$ & $0.000$ & $0.047$ \\
 Goal-conditioned IQL & $0.879$ & $0.265$ & $0.26$--$0.287$ \\
 \midrule
@@ -419,11 +437,12 @@ Goal-conditioned IQL & $0.879$ & $0.265$ & $0.26$--$0.287$ \\
 \TDFB{} occupancy, dataset queries & $0.952$ & $0.358$ & $0.342$ \\
 \TDFB{} occupancy, hindsight queries & $\sim0.93$ & $\sim0.53$ & $\mathbf{0.927}$ \\
 \midrule
-Occupancy reward shaping & $0.739$ & $0.364$ & --- \\
-\DensityFB{} & $0.929 \pm 0.028$ & $\mathbf{0.736 \pm 0.046}$ & $0.628 \pm 0.054$ \\
+Occupancy reward shaping & $0.739$ & $0.364$ & -- \\
+\DensityFB{} (soft) & $0.929 \pm 0.085$ & $\mathbf{0.736 \pm 0.139}$ & $0.628 \pm 0.134$ \\
+\DensityFB{} (hard) & $0.915 \pm 0.087$ & \emph{pending} & \emph{pending} \\
 \bottomrule
 \end{tabular}
-\caption{Native goal-conditioned success on OGBench manipulation. \texttt{cube-double} is the most discriminative current environment: the behavior-cloning floor is $0.019$, plain FB fails, and \DensityFB{} reaches $0.736$. \DensityFB{} entries are mean $\pm$ s.d.\ over three seeds at the final ($500$k) evaluation (\texttt{cube-single} $.896/.928/.964$; \texttt{cube-double} $.680/.736/.792$). All rows in this table use the environment's native training-loop evaluation ($50$ episodes per task); the appendix Table~\ref{tab:multi} uses the separate zero-shot harness and its direct-GC pass, whose numbers differ slightly for the same checkpoints. The occupancy-reward-shaping row is the reward-scale $4.0$ arm (three seeds); other scales were screened at one seed only.}
+\caption{Native goal-conditioned success on OGBench manipulation. \texttt{cube-double} is the most discriminative environment: the behavior-cloning floor is $0.019$, plain FB fails, and \DensityFB{} reaches $0.736$. \DensityFB{} entries are mean $\pm$ $95\%$ confidence interval over three seeds at the final ($500$k) evaluation ($t$-based, $n{=}3$; seeds: soft \texttt{cube-single} $.896/.928/.964$, \texttt{cube-double} $.680/.736/.792$, \texttt{scene} $.672/.568/.644$; hard \texttt{cube-single} $.876/.944/.924$). All rows use the environment's native training-loop evaluation ($50$ episodes per task); appendix Table~\ref{tab:multi} uses the separate zero-shot harness, whose numbers differ slightly for the same checkpoints. The occupancy-reward-shaping row is the reward-scale $4.0$ arm (three seeds); other scales were screened at one seed.}
 \label{tab:main}
 \end{table}
 
@@ -505,12 +524,25 @@ The method therefore retains dense grounding even as the dimensionality of the o
 Strong control does not by itself establish that a model recovers the successor measure.
 We therefore compare predicted set occupancy with Monte-Carlo rollouts.
 
-For \DensityFB{}, coarse-scale ordering is strong: Spearman correlation reaches approximately $0.83$--$0.85$ at $4\epsilon$.
-At the native $\epsilon$ scale, ordering is more moderate, approximately $0.41$--$0.48$.
-Thus the current model recovers broad occupancy geometry more reliably than fine-grained set mass.
+Table~\ref{tab:calib} reports Spearman correlation between predicted and Monte-Carlo set masses at three spatial scales, for \DensityFB{} (soft) and for the fixed-partition control, each scored under its own deployed head aggregation.
 
-A symmetric comparison against the fixed-partition variant --- each method scored under its own deployed head aggregation --- gives partition Spearman of $0.778$--$0.790$ pooled, $0.423$--$0.477$ at native $\epsilon$, and $0.830$--$0.834$ at $4\epsilon$ across seeds, indistinguishable from \DensityFB{} ($0.767$--$0.789$ / $0.407$--$0.462$ / $0.831$--$0.848$).
-The two parameterizations are calibration-equivalent at every scale; the control and transfer gains of the continuous support therefore do not come from a better-calibrated measure, and the native-$\epsilon$ weakness is a property of the estimator family rather than of either support.
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+Method & pooled & native $\epsilon$ & $2\epsilon$ & $4\epsilon$ \\
+\midrule
+\DensityFB{} (soft) & $0.767$--$0.789$ & $0.407$--$0.462$ & $0.590$--$0.641$ & $0.831$--$0.848$ \\
+Fixed partition ($K{=}256$) & $0.778$--$0.790$ & $0.423$--$0.477$ & $0.610$--$0.640$ & $0.830$--$0.834$ \\
+\bottomrule
+\end{tabular}
+\caption{Successor-measure calibration: Spearman correlation of predicted vs Monte-Carlo region masses (range over three seeds; \texttt{cube-single}, $500$k checkpoints). The pre-registered gate ($\ge 0.65$) passes on the pooled statistic and at $4\epsilon$ for both methods, and fails at the native $\epsilon$ scale for both (a high-ties regime with a largely degenerate Monte-Carlo reference). The hard variant's calibration has not yet been measured.}
+\label{tab:calib}
+\end{table}
+
+Coarse-scale ordering is strong and fine-scale ordering is moderate: the models recover broad occupancy geometry more reliably than set mass at the smallest scale.
+The two parameterizations are calibration-equivalent at every scale, so the control and transfer gains of the continuous support do not come from a better-calibrated measure, and the native-$\epsilon$ weakness belongs to the estimator family rather than to either support.
 
 The normalized parameterization nevertheless satisfies two properties structurally:
 \begin{equation}
@@ -548,8 +580,27 @@ $+$ measure constraints & $\mathbf{26.1}$ & $\mathbf{41.6}$ & $\mathbf{33.0}$ & 
 \label{tab:transfer}
 \end{table}
 
-\DensityFB{} admits the direct linear reward readout in Equation~\ref{eq:density-readout}.
-A matched reward-transfer evaluation is ongoing.
+\DensityFB{} admits the direct linear reward readout in Equation~\ref{eq:density-readout}, and Table~\ref{tab:zeroshot} evaluates it on three held-out reward families with no retraining: point goals (dirac), shaped point goals (dense), and extended regions.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Method & dirac & dense & region \\
+\midrule
+\DensityFB{} (soft) & $0.816 \pm 0.269$ & $0.725 \pm 0.301$ & $0.293 \pm 0.052$ \\
+\DensityFB{} (hard) & $\mathbf{0.888 \pm 0.091}$ & $\mathbf{0.912 \pm 0.087}$ & $\mathbf{0.647 \pm 0.301}$ \\
+Fixed partition ($K{=}256$) & $0.725 \pm 0.121$ & $0.723 \pm 0.298$ & $0.133 \pm 0.201$ \\
+\bottomrule
+\end{tabular}
+\caption{Zero-shot reward transfer on \texttt{cube-single}: success under the successor-measure readout with no retraining, mean $\pm$ $95\%$ confidence interval over three seeds ($t$-based, $n{=}3$; $25$ episodes per task; readout pool of $16{,}384$ dataset draws for the density variants, the native $256$ prototypes for the partition). The hard variant improves every family and more than doubles the extended-region family, where the soft kernel and the fixed prototypes must interpolate.}
+\label{tab:zeroshot}
+\end{table}
+
+Two readings.
+First, the continuous support pays off exactly where a finite support must interpolate: the partition's region-family transfer ($0.133$) is the weakest cell in the table, the soft density more than doubles it ($0.293$), and the hard density more than doubles it again ($0.647$).
+Second, the hard immediate target improves every family while leaving goal-reaching statistically unchanged (Table~\ref{tab:main}), so the soft kernel's smoothing was costing transfer rather than protecting it; a soft/hard mixture was specified and then not built, because the goal-success deficit that motivated it came from a single noisy seed.
 
 
 % ======================================================================
@@ -638,7 +689,7 @@ For \texttt{cube-double-play-v0}, each cube is stationary on $72\%$ of transitio
 \begin{equation}
 3.3\times10^{-4}.
 \end{equation}
-(This is the $\rho$-measure of the joint region itself; the $4.6\times10^{-4}$ quoted in Section~\ref{sec:multi} is the transition-level rate of non-zero immediate indicators over sampled state-goal pairs --- two related but distinct statistics.)
+(This is the $\rho$-measure of the joint region itself; the $4.6\times10^{-4}$ quoted in Section~\ref{sec:multi} is a distinct statistic, the transition-level rate of non-zero immediate indicators over sampled state-goal pairs.)
 Post-arrival occupancy has mean $32.2$ and median $43$.
 
 For \texttt{scene-play-v0}, the cube is stationary on $74\%$ of transitions, drawer and window on $91\%$, buttons on $99.6\%$, and all tracked variables simultaneously on $60\%$.
@@ -765,7 +816,7 @@ Environment & Checkpoint & Zero-shot & Direct GC \\
 & $+$ occupancy, hindsight queries & $\mathbf{0.872}$ & $\mathbf{0.916}$ \\
 \bottomrule
 \end{tabular}
-\caption{Additional zero-shot and direct goal-conditioned evaluation of \TDFB{} on multi-object manipulation. These numbers come from the standalone zero-shot harness ($25$ episodes; direct-GC pass), not the training-loop evaluation used in Table~\ref{tab:main} ($50$ episodes) --- hence the small differences for the same checkpoints (e.g.\ scene hindsight $0.916$ here vs $0.927$ in Table~\ref{tab:main}).}
+\caption{Additional zero-shot and direct goal-conditioned evaluation of \TDFB{} on multi-object manipulation. These numbers come from the standalone zero-shot harness ($25$ episodes; direct-GC pass), not the training-loop evaluation used in Table~\ref{tab:main} ($50$ episodes), hence the small differences for the same checkpoints (e.g.\ scene hindsight $0.916$ here vs $0.927$ in Table~\ref{tab:main}).}
 \label{tab:multi}
 \end{table}
 
@@ -801,8 +852,8 @@ immediate & actor & \texttt{antmaze-med.} & \texttt{cube-single} & \texttt{cube-
 \midrule
 soft & flow    & $0.563$ & $0.929$ & $0.736$ & $0.628$ \\
 soft & ddpgbc  & $0.829$ & $0.879$ & \emph{pending} & \emph{pending} \\
-hard & flow    & ---     & $0.915$ & \emph{pending} & \emph{pending} \\
-hard & ddpgbc  & ---     & ---     & \emph{pending} & \emph{pending} \\
+hard & flow    & --     & $0.915$ & \emph{pending} & \emph{pending} \\
+hard & ddpgbc  & --     & --     & \emph{pending} & \emph{pending} \\
 \midrule
 \multicolumn{2}{l}{published GCIQL} & $0.71$ & $0.68$ & $0.40$ & $0.51$ \\
 \multicolumn{2}{l}{published best}  & $0.96$ & $0.68$ & $0.40$ & $0.51$ \\
@@ -812,7 +863,7 @@ hard & ddpgbc  & ---     & ---     & \emph{pending} & \emph{pending} \\
 \caption{Native goal-conditioned success by immediate-target variant and actor, against
 the published OGBench baselines \citep{park2024ogbench}. Ours: $500$k gradient steps,
 three seeds. Published: $1$M gradient steps, eight seeds, same five test-time goals and
-$50$ evaluation episodes --- we train on half the budget with fewer seeds, which cuts
+$50$ evaluation episodes; we train on half the budget with fewer seeds, which cuts
 against us. \emph{Pending} cells are in progress. On manipulation \DensityFB{} exceeds
 every published baseline on all three environments; on locomotion it does not, and is not
 claimed to: \texttt{antmaze} has no dwell asymmetry for an occupancy measure to resolve,
