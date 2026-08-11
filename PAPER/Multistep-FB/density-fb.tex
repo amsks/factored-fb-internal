@@ -770,4 +770,66 @@ Environment & Checkpoint & Zero-shot & Direct GC \\
 \end{table}
 
 
+\section{Actor ablation, immediate-target variant, and published baselines}
+\label{app:actors}
+
+Two questions this appendix answers, both pre-registered before the runs: whether
+\DensityFB{}'s manipulation result depends on the flow actor, and whether the soft
+$\varepsilon$-kernel immediate target is the right default.
+
+\paragraph{The result is not flow-carried.} Swapping the flow actor for stock DDPG+BC
+costs \DensityFB{} $0.05$ on \texttt{cube-single} ($0.929 \to 0.879$), while stock
+goal-conditioned IQL loses $0.31$ under the same swap ($0.870 \to 0.563$). The advantage
+therefore lives in the measure, not in the extraction.
+
+\paragraph{The hard immediate target dominates on transfer.} Replacing the soft
+$\varepsilon$-kernel immediate term with a one-hot at the row's own successor leaves
+goal-reaching unchanged ($0.915$ final / $0.951$ last-four-evaluation mean vs the soft
+arm's $0.929$, three seeds each) while more than doubling region-family zero-shot
+transfer ($0.647$ vs $0.293$) and improving both point-goal families (dirac
+$0.888$ vs $0.816$; dense $0.912$ vs $0.725$; $P{=}16{,}384$, $25$ episodes). A
+soft/hard mixture was specified and then deliberately not implemented: the
+goal-success deficit that motivated it was a single noisy seed.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llcccc}
+\toprule
+immediate & actor & \texttt{antmaze-med.} & \texttt{cube-single} & \texttt{cube-double} & \texttt{scene} \\
+\midrule
+soft & flow    & $0.563$ & $0.929$ & $0.736$ & $0.628$ \\
+soft & ddpgbc  & $0.829$ & $0.879$ & \emph{pending} & \emph{pending} \\
+hard & flow    & ---     & $0.915$ & \emph{pending} & \emph{pending} \\
+hard & ddpgbc  & ---     & ---     & \emph{pending} & \emph{pending} \\
+\midrule
+\multicolumn{2}{l}{published GCIQL} & $0.71$ & $0.68$ & $0.40$ & $0.51$ \\
+\multicolumn{2}{l}{published best}  & $0.96$ & $0.68$ & $0.40$ & $0.51$ \\
+\multicolumn{2}{l}{\quad(best method)} & \emph{HIQL} & \emph{GCIQL} & \emph{GCIQL} & \emph{GCIQL} \\
+\bottomrule
+\end{tabular}
+\caption{Native goal-conditioned success by immediate-target variant and actor, against
+the published OGBench baselines \citep{park2024ogbench}. Ours: $500$k gradient steps,
+three seeds. Published: $1$M gradient steps, eight seeds, same five test-time goals and
+$50$ evaluation episodes --- we train on half the budget with fewer seeds, which cuts
+against us. \emph{Pending} cells are in progress. On manipulation \DensityFB{} exceeds
+every published baseline on all three environments; on locomotion it does not, and is not
+claimed to: \texttt{antmaze} has no dwell asymmetry for an occupancy measure to resolve,
+so density $\approx$ goal-conditioned IQL is the expected null there, and the
+density+ddpgbc cell ($0.829$) lands within $0.008$ of our own stock control ($0.837$)
+while remaining below HIQL, CRL and QRL.}
+\label{tab:actors}
+\end{table}
+
+\paragraph{Which baseline to compare against.} Our own goal-conditioned IQL reproduction
+is architecture-dependent, and only one variant tracks the published numbers. The MLP
+value network reproduces them closely (\texttt{cube-single} $0.703$ vs published $0.68$;
+\texttt{scene} $0.516$ vs $0.51$; \texttt{antmaze-medium} $0.695$ vs $0.71$), whereas the
+bilinear-$d50$ variant used elsewhere in this paper diverges in both directions
+($0.879$, $0.265$, $0.26$--$0.287$ on \texttt{cube-single}/\texttt{cube-double}/\texttt{scene}).
+Comparisons against published numbers should therefore use the MLP row, and any table
+quoting ``goal-conditioned IQL'' should say which value architecture it means.
+
+
 \end{document}
