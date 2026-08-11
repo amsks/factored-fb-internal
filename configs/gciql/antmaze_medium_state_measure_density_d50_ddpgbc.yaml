@@ -1,0 +1,42 @@
+# Spec 22 -- density+ddpgbc on antmaze-medium. actor_kind='ddpgbc' plugs the SAME
+# density q-readout into the stock gaussian DDPG+BC extraction via an EXPLICIT
+# branch in actor_loss (gciql_flow.py) -- it never delegates to
+# GCIQLAgent.actor_loss, which would silently maximize the never-trained bilinear
+# critic under measure_only (the 17b measure_coef fake-NULL species this spec
+# exists to avoid). alpha=0.3 is the antmaze DDPG+BC value (matches the collected
+# gciql+ddpgbc antmaze anchor 0.837/3s, results/summary_agents.csv:64); no
+# bc_coeff (that knob only exists on the flow actor's distillation term).
+# actor_q_center=true is REQUIRED by the lattice for ddpgbc (the density q
+# carries an action-independent kernel level, same as flow).
+#
+# G1/G2 discriminator (spec 22 sec 7): this is the cell the "locomotion
+# viability" and "actor attribution" gates read.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: antmaze-medium-navigate-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 0
+run_group: GCIQL-AntMaze-Medium-DDPGBC-Measure-Density-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_kind: ddpgbc
+  alpha: 0.3
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "0:2:0.5"
+  actor_q_center: true
+wandb_mode: online

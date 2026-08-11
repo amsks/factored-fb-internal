@@ -1,0 +1,41 @@
+# Spec 22 -- density+awr_flow on antmaze-medium (1-seed screen). actor_kind=
+# 'awr_flow' plugs the density q into the AWR advantage: adv = q(s,a_data,g) -
+# q(s,a_bar,g), a_bar = the stop-gradded Euler rollout of actor_vf (the min-head
+# density q at that rollout is the baseline -- the stock 'value' net is
+# IQL-trained and stays dead weight under measure_only, and is NOT read).
+# actor_q_center=false is REQUIRED by the lattice (AWR has no q-scale
+# normalizer to center -- it would be an inert knob, spec 19a rule). awr_alpha=
+# 10.0 is the collected awr_flow control's value (matches
+# antmaze_medium_gciql_awrflow_bilinear_d50.yaml's default).
+#
+# 1-seed screen (spec 22 sec 7): promotes to 3 seeds only if it lands within
+# 0.05 of the same-env ddpgbc density cell.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: antmaze-medium-navigate-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 0
+run_group: GCIQL-AntMaze-Medium-AWRFlow-Measure-Density-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_kind: awr_flow
+  awr_alpha: 10.0
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "0:2:0.5"
+  actor_q_center: false
+wandb_mode: online

@@ -1,0 +1,42 @@
+# Spec 22 -- density+ddpgbc on cube-single: the manipulation-side actor-attribution
+# mirror (does the cube density headline 0.929/3s, results/bridge_grafts.csv:97,
+# need the flow actor?). Identical to cube_single_state_measure_density_d50.yaml
+# with ONLY the actor knobs changed: actor_kind='ddpgbc' (explicit density branch
+# in actor_loss, never delegates to the dead bilinear critic -- same
+# anti-fake-NULL guard as the antmaze ddpgbc cell) and alpha=1.0 (the OGBench
+# cube DDPG+BC value). bc_coeff is left as-is (3.0) though inert under ddpgbc --
+# it is a flow-actor-only knob (see actor_loss's distillation term); "changing
+# ONLY actor_kind" per spec 22 sec 3/4.5.
+#
+# Read against density+flow 0.929 and stock ddpgbc 0.563 bilinear / 0.703 mlp
+# (spec 22 sec 1, sec 7 G4 -- no threshold, both readings are the deliverable).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-DDPGBC-Measure-Density-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_kind: ddpgbc
+  alpha: 1.0
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+wandb_mode: online

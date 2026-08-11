@@ -1,0 +1,42 @@
+# Spec 22 -- density+awr_flow on cube-single (1-seed screen), the manipulation-side
+# mirror of the antmaze awr screen. Identical to
+# cube_single_state_measure_density_d50.yaml with the actor knobs changed:
+# actor_kind='awr_flow' (density q feeds the AWR advantage; the min-head density
+# q at the stop-gradded Euler rollout of actor_vf is the baseline -- the stock
+# 'value' net stays dead weight and unread) and actor_q_center=false (LATTICE
+# REQUIRED -- AWR has no q-scale normalizer to center, spec 19a rule; this is not
+# a domain-tuning choice like alpha=1.0 for ddpgbc, it is mandatory or agent
+# construction fails the assert lattice). bc_coeff is inert here (flow-actor-only
+# knob) and left as-is. awr_alpha keeps the config default (10.0).
+#
+# 1-seed screen (spec 22 sec 7): promotes to 3 seeds only if it lands within 0.05
+# of density+ddpgbc(cube).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-AWRFlow-Measure-Density-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_kind: awr_flow
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: false
+wandb_mode: online

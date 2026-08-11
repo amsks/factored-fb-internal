@@ -1,0 +1,40 @@
+# Spec 22 -- `measure_density` (spec 18) on antmaze-medium-navigate, flow actor
+# extraction. Tests whether the normalized successor density transfers to
+# locomotion, a domain with no dwell asymmetry (PAPER/Multistep-FB/specs/
+# 22-antmaze-actor-ablation.md sec 1). Scaffolded from the antmaze bc03 flow
+# config (eval_interval 100000, bc_coeff 0.3 -- the domain-correct BC strength,
+# NOT the cube-tuned 3.0) with the cube density cell's measure overrides, hit
+# spec swapped to the agent's own xy ('0:2:0.5': ant obs = [qpos(15);qvel(14)],
+# xy = qpos[:2] = obs cols 0-1, eps = OGBench's own ant goal_tol 0.5).
+#
+# Read against the collected stock controls (NOT relaunched): gciql+flow antmaze
+# 0.383/3s bc0.3 (results/summary_agents.csv:67); density+ddpgbc/awr siblings in
+# this same directory. Gates: spec 22 sec 7 (G1-G4).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: antmaze-medium-navigate-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 0
+run_group: GCIQL-AntMaze-Medium-Flow-Measure-Density-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 0.3
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "0:2:0.5"
+  actor_q_center: true
+wandb_mode: online
