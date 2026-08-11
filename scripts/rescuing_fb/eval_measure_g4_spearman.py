@@ -136,6 +136,21 @@ from measure_readout_head import spearman  # noqa: E402 -- ordinal-rank referenc
 MULTS = (1.0, 2.0, 4.0)   # env_geometry.MULTS -- box half-width multipliers
 
 
+def partition_box_mass(p_h, z_r, double_q):
+    """Partition box mass under the DEPLOYED head aggregation: dot each head's
+    softmax with z_r, then min the SCALARS -- exactly eval_partition_zeroshot.py's
+    `qh = einsum('hnk,k->hn', p, z_r); q = min(qh, axis=0)`. RESCORING FIX
+    2026-08-11 (code-review finding 1): the first version of this probe instead
+    took the ELEMENTWISE min of the two softmax vectors and dotted once --
+    density's convention, a sub-normalized vector whose box masses are
+    systematically deflated relative to the estimator the method actually
+    deploys. The G4 statistic must be computed on the deployed estimator; g4
+    JSONs written before this fix carry no `head_agg` meta key and quote the
+    mismatched one."""
+    q_h = np.einsum("hnk,k->hn", np.asarray(p_h, np.float64), np.asarray(z_r, np.float64))
+    return q_h.min(axis=0) if (double_q and q_h.shape[0] > 1) else q_h[0]
+
+
 def spearman_tie(x, y) -> float:
     """Tie-corrected Spearman (average ranks via scipy.stats.rankdata), used for
     the gate. BUGFIX (g4-verification.md item 3): `measure_readout_head.spearman`
@@ -321,13 +336,13 @@ def run_one_checkpoint(args) -> dict:
             logits = np.asarray(agent.network.select("delta_head")(
                 jnp.concatenate([s0_j, jnp.asarray(a0), g_j], -1)))                 # [2,1,K]
             p_h = np.exp(logits - logits.max(-1, keepdims=True))
-            p_h = p_h / p_h.sum(-1, keepdims=True)
-            p = p_h.min(axis=0) if double_q else p_h[0]                            # [1,K]
+            p_h = p_h / p_h.sum(-1, keepdims=True)                                 # [2,1,K]
             model_mass = np.empty(n_q)
             for qi in range(n_q):
                 z_r = spec.box_contains(protos, q_centers[qi], mult=q_mults[qi]).astype(np.float64)
+                q = partition_box_mass(p_h, z_r, double_q)                     # [1], dot-then-min
                 model_mass[qi] = float(compute_Qr_from_dots(
-                    0.0, float(p[0] @ z_r), 0.0, gamma))                       # p^T z_r / (1-gamma)
+                    0.0, float(q[0]), 0.0, gamma))                             # min_h p_h^T z_r / (1-gamma)
 
         # ---- MC ground truth: teleport to (qpos,qvel)[s_row], step a0, roll g-cond policy ----
         occ = np.zeros(n_q)
@@ -424,8 +439,13 @@ def run_one_checkpoint(args) -> dict:
                        "and kappa(x0) are a de-biasing PAIR that cancels; dropping only r(x0) "
                        "while keeping -kappa(x0) was the bug fixed 2026-08-06]"
                        if obj == "density" else
-                       "p^T box_indicator(protos) / (1-gamma)  [compute_Qr_from_dots(r_x0=0, "
-                       "p.box_indicator, phi(x0)_term=0, gamma) -- same fix, phi(x0) pair dropped]"),
+                       "min_h(p_h^T box_indicator(protos)) / (1-gamma)  [compute_Qr_from_dots(r_x0=0, "
+                       "partition_box_mass, phi(x0)_term=0, gamma) -- phi(x0) pair dropped (2026-08-06 "
+                       "fix) AND dot-then-min head aggregation matching eval_partition_zeroshot "
+                       "(2026-08-11 rescore fix; pre-rescore JSONs used vector-min-then-dot)]"),
+            "head_agg": ("elementwise-vector-min of softmax heads (deployed density convention)"
+                         if obj == "density" else
+                         "dot-then-min of scalars (deployed partition convention, 2026-08-11)"),
             "mc_ground_truth": "sum_k gamma^k 1[x_{1+k} in box], box=env_geometry.HitSpec.box_contains "
                               "(L-inf), teleport to dataset (qpos,qvel)[s_row], a0 then g-conditioned "
                               "policy rollout (exact torchfb_full_measure.py part B translation)",

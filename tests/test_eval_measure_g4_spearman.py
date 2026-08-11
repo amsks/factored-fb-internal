@@ -141,3 +141,30 @@ def test_build_parser_defaults(g4):
     assert args.object == "auto"
     assert args.starts == 24 and args.mc == 2 and args.horizon == 200 and args.boxes == 12
     assert args.pool_size == 16384
+
+
+# ==================== head aggregation (2026-08-11 rescore fix) ====================
+# The deployed partition readout (eval_partition_zeroshot.py) computes the dot with
+# z_r PER HEAD and then mins the SCALARS. The probe's first version instead took the
+# elementwise min of the two softmax vectors (a sub-normalized vector, density's
+# convention) and dotted once -- a different, systematically deflated estimator. The
+# G4 statistic must be computed on the estimator the method actually deploys.
+
+def test_partition_head_agg_is_dot_then_min(g4):
+    rng = np.random.default_rng(0)
+    p_h = rng.dirichlet(np.ones(6), size=(2, 1))          # [2, 1, K] two softmax heads
+    z_r = np.array([1.0, 0.0, 1.0, 0.0, 0.0, 1.0])
+    got = g4.partition_box_mass(p_h, z_r, double_q=True)   # [1]
+    want = min(float(p_h[0, 0] @ z_r), float(p_h[1, 0] @ z_r))
+    assert got[0] == pytest.approx(want, abs=1e-12)
+    vecmin = float(np.minimum(p_h[0, 0], p_h[1, 0]) @ z_r)
+    assert vecmin < want - 1e-9, "construction must separate the two conventions"
+    assert got[0] != pytest.approx(vecmin, abs=1e-9), (
+        "regressed to elementwise-vector-min-then-dot (the mismatched estimator)")
+
+
+def test_partition_head_agg_single_head(g4):
+    p_h = np.array([[[0.2, 0.3, 0.5]]])                    # [1, 1, K]
+    z_r = np.array([1.0, 0.0, 1.0])
+    got = g4.partition_box_mass(p_h, z_r, double_q=False)
+    assert got[0] == pytest.approx(0.7, abs=1e-12)
