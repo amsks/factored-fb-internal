@@ -1,0 +1,63 @@
+# Spec 23 P0 -- density measure on ExoRL point_mass_maze / RND buffer, seed 0
+# (PAPER/Multistep-FB/specs/23-humanoid-eval.md section 5). Mirrors
+# cube_single_state_measure_density_d50.yaml's recipe exactly (same
+# value_arch/value_latent_dim/measure_density_* knobs, d=50) -- only the
+# domain-specific pieces (env_name, measure_hit_spec) change, per spec 23
+# section 4.3's "structurally IDENTICAL to cube-single" framing.
+#
+# measure_hit_spec: "0:2:0.03" -- block = (x, y) at dims 0:2 of the 4-dim
+# obs [x, y, vx, vy]. VERIFIED against the real downloaded RND buffer AND a
+# real env instantiation (not assumed from the spec's stated layout) -- see
+# .superpowers/sdd/spec23-p0/task-report.md. eps=0.03 = the published FB
+# zero-shot-RL 20-goal maze protocol's tolerance radius (MazeMultiGoal
+# target_size, url_benchmark/goals.py in
+# https://github.com/facebookresearch/controllable_agent @
+# 5a9950b07f1edcb4bddd04f5819379541793d975); see task-report.md for the
+# derivation (the published protocol itself reports a dense tolerance-shaped
+# reward, not a binary threshold -- 0.03 is the SAME full-credit radius that
+# reward uses, not a copied binary-success number).
+#
+# LAUNCHABLE (the P0 blocker is closed): env_name below routes through the
+# ExoRL extension point in tools/wandb_mode_shim/exorl_env.py (installed by
+# sitecustomize.py, PYTHONPATH-auto-imported into the vendored child
+# process). `utils.env_utils.make_env_and_datasets` is wrapped so any
+# env_name starting with "exorl:" loads the converted GCDataset-format
+# train/val .npz at
+#   ~/exorl_data/converted/point_mass_maze_rnd_seed0/point_mass_maze_rnd.npz
+#   ~/exorl_data/converted/point_mass_maze_rnd_seed0/point_mass_maze_rnd-val.npz
+# plus a gym-shim (`_ExoRLPointMassMazeEnv`) wrapping the already-tested
+# scripts/exorl/point_mass_maze_env.py dm_control adapter, so the vendored
+# `evaluate()` eval loop runs completely unmodified. Every other env_name is
+# untouched -- the wrapper calls straight through to the original vendored
+# loader with unchanged arguments; see
+# tests/test_exorl_env_extension_point.py and task-report.md section "P0
+# blocker closed" for the byte-identical-default-path proof.
+# third_party/ogbench/ itself was NOT edited (PROVENANCE.md rule intact).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: exorl:point_mass_maze_rnd_seed0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-PointMassMaze-RND-Flow-Measure-Density-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "0:2:0.03"
+  actor_q_center: true
+wandb_mode: online

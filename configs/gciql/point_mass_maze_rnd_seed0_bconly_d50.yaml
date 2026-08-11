@@ -1,0 +1,33 @@
+# Spec 23 P0 CONTROL: BC-only floor on point_mass_maze (RND buffer).
+# G0b requires density AND stock GCIQL to beat this by >= 0.1 absolute. Identical to the
+# density cell except actor_bc_only zeroes the actor's q-term, so the gap isolates the
+# measure reaching the actor from the cloning term alone.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: exorl:point_mass_maze_rnd_seed0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-PointMassMaze-RND-Flow-BCOnly-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  actor_bc_only: true
+  measure_hit_spec: "0:2:0.03"
+  actor_q_center: true
+wandb_mode: online

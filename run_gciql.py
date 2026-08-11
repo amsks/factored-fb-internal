@@ -51,6 +51,14 @@ def build_ogbench_argv(cfg: Mapping[str, Any]) -> list[str]:
         argv.append(f"--restore_path={cfg['restore_path']}")
     if cfg.get("restore_epoch") is not None:
         argv.append(f"--restore_epoch={cfg['restore_epoch']}")
+    # Optional passthrough flags, only emitted when the config sets them
+    # (absent by default in every existing config) -- lets a smoke run
+    # shrink OGBench's eval loop (e.g. spec 23 P0's ExoRL cell, whose eval
+    # env is a slow dm_control rollout) without touching the default path.
+    if cfg.get("eval_tasks") is not None:
+        argv.append(f"--eval_tasks={cfg['eval_tasks']}")
+    if cfg.get("video_episodes") is not None:
+        argv.append(f"--video_episodes={cfg['video_episodes']}")
     overrides = cfg.get("agent_overrides") or {}
     for key in sorted(overrides):
         argv.append(f"--agent.{key}={overrides[key]}")

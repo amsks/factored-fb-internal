@@ -1,0 +1,26 @@
+# Spec 23 P0 CONTROL: stock GCIQL-flow on point_mass_maze (RND buffer).
+# G0b compares density against 0.8x THIS number; without it the density cell's .315
+# decides nothing. Identical scaffolding to the density cell -- only the measure knobs
+# are removed, so the gap is attributable to the measure.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: exorl:point_mass_maze_rnd_seed0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-PointMassMaze-RND-Flow-Bilinear-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+wandb_mode: online

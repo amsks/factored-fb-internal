@@ -312,6 +312,21 @@ if _exp_name or _step_offset or _csv_append:
     except Exception:
         pass
 
+# --- ExoRL dataset-loading extension point (spec 23 P0) ---
+# Wraps utils.env_utils.make_env_and_datasets so env_name="exorl:<key>" loads
+# a converted ExoRL buffer + the dm_control eval adapter instead of going
+# through gymnasium.make/ogbench.make_env_and_datasets. Every other env_name
+# is untouched: the wrapper calls straight through to the original vendored
+# function with the same arguments (see tools/wandb_mode_shim/exorl_env.py
+# and tests/test_exorl_env_extension_point.py). Guarded like the blocks
+# above: inert in any process where utils.env_utils isn't importable.
+try:
+    import exorl_env as _exorl_env
+
+    _exorl_env.install()
+except Exception:
+    pass
+
 # wandb step offset is patched separately: it must compose with the _fb_keys
 # wrapper installed above and stay independent of utils.* importability.
 if _step_offset:
