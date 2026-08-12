@@ -116,8 +116,8 @@ w_j(s,a,g) = \frac{\exp f(s,a,g,u_j)}{\sum_k \exp f(s,a,g,u_k)},
 over a query set $U=\{u_j\}$ redrawn from the dataset marginal at every update (the batch's own next object configurations).
 Non-negativity and unit mass hold by construction, and the query count is a Monte-Carlo sample size, not a discretization: the checkpoint stores only $F$ and $B$.
 
-Each update asks one question: how should one unit of normalized future occupancy be distributed across candidate object configurations?
-The target mixes an immediate distribution around the observed successor with the bootstrapped prediction, and is fit by cross-entropy:
+Each update predicts how one unit of normalized future occupancy is distributed across candidate object configurations.
+The target assigns $1-\gamma$ mass to the observed successor and bootstraps the remaining $\gamma$ from the next state, and is fit by cross-entropy:
 \begin{equation}
 \label{eq:density-loss}
 t = \sg \left[ (1-\gamma)\, \kappa(\cdot\mid x') + \gamma\, \bar w(s',a^+,g) \right],
@@ -152,7 +152,7 @@ Writing $\mathcal T\nu \,(\cdot\mid s,a) = (1-\gamma)\,\E[\kappa(\cdot\mid x_1)]
 \;\le\; \gamma\, \sup_{s,a}\, \big\| \nu_1 - \nu_2 \big\|_{\mathrm{TV}},
 \end{equation}
 since the immediate term cancels and the expectation is an average.
-The operator is therefore a $\gamma$-contraction in total variation, exactly as the scalar Bellman operator underlying FB is a $\gamma$-contraction with $M$ as its fixed point.
+The operator is therefore a $\gamma$-contraction in total variation.
 For the hard target, normalization changes the scale and fitting objective but leaves the underlying successor-measure fixed point unchanged.
 The soft target additionally replaces each successor with an $\epsilon$-smoothed distribution.
 In either case, critic scale is no longer a free parameter.
@@ -164,7 +164,7 @@ For control, the actor maximizes the predicted mass near its goal, $q(s,a,g) = w
 \qquad s_q = \E\big[\,\big|q - \E[q]\big|\,\big],\ \lambda_{\mathrm{BC}} = 3,
 \end{equation}
 where $\mathcal L_{\mathrm{BC\text{-}flow}}$ is the flow-matching behavior-cloning loss and $s_q$ normalizes the magnitude of the critic term.
-The mean is subtracted because $q$ carries a large action-independent level: the goal region receives similar occupancy under every action from a given state, and only the variation across actions is informative.
+The predicted occupancy contains a large action-independent component. The actor only needs differences between actions, so we center $q$ before computing its magnitude normalizer.
 The behavior-cloning row in Table~\ref{tab:main} trains the same actor with the $q$ term removed.
 
 Algorithm~\ref{alg:densityfb} summarizes one gradient step.
@@ -207,8 +207,8 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
 \texttt{cube-single} & flow & $0.410 \pm 0.061$ & $\mathbf{0.929 \pm 0.085}$ & $0.915 \pm 0.087$ & -- \\
  & ddpgbc & $0.353 \pm 0.38$ & $0.879 \pm 0.095$ & $0.856$\,(1 seed) & $0.68 \pm 0.06$ \\
 \midrule
-\texttt{cube-double} & flow & $0.000 \pm 0.000$\,(2) & $\mathbf{0.736 \pm 0.139}$ & $0.674 \pm 0.33$\,(2) & -- \\
- & ddpgbc & \emph{pending} & $0.640 \pm 0.102$\,(2) & $0.614 \pm 0.69$\,(2) & $0.40 \pm 0.05$ \\
+\texttt{cube-double} & flow & $0.000$, $0.000$ & $\mathbf{0.736 \pm 0.139}$ & $0.700$, $0.648$ & -- \\
+ & ddpgbc & \emph{pending} & $0.648$, $0.632$ & $0.668$, $0.560$ & $0.40 \pm 0.05$ \\
 \midrule
 \texttt{scene} & flow & $0.047 \pm 0.057$ & $0.628 \pm 0.134$ & $\mathbf{0.641 \pm 0.109}$ & -- \\
  & ddpgbc & \emph{pending} & $0.563 \pm 0.011$ & \emph{pending} & $0.51 \pm 0.04$ \\
@@ -217,7 +217,7 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
  & ddpgbc & \emph{pending} & $\mathbf{0.829 \pm 0.058}$ & \emph{pending} & $0.71 \pm 0.04$ \\
 \bottomrule
 \end{tabular}
-\caption{Native goal-conditioned success by environment and policy-extraction rule. Cells marked $(n)$ have $n<3$ seeds and correspondingly wide intervals; \emph{pending} cells are still training. Seeds for the completed manipulation cells: soft flow \texttt{cube-single} $.896/.928/.964$, \texttt{cube-double} $.680/.736/.792$, \texttt{scene} $.672/.568/.644$; hard flow \texttt{cube-single} $.876/.944/.924$, \texttt{scene} $.692/.620/.612$.}
+\caption{Native goal-conditioned success by environment and policy-extraction rule. Cells with two seeds list both seed values instead of an interval; \emph{pending} cells are still training. Seeds for the completed manipulation cells: soft flow \texttt{cube-single} $.896/.928/.964$, \texttt{cube-double} $.680/.736/.792$, \texttt{scene} $.672/.568/.644$; hard flow \texttt{cube-single} $.876/.944/.924$, \texttt{scene} $.692/.620/.612$.}
 \label{tab:main}
 \end{table}
 
@@ -227,7 +227,7 @@ On \texttt{cube-double}, soft \DensityFB{} reaches $0.736$ with the flow actor, 
 On \texttt{scene}, \DensityFB{} reaches about $0.64$ while plain FB remains near zero.
 The \texttt{scene} average also hides a consistent task split: all seeds solve \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} ($0.88$--$1.0$). \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) remain difficult.
 
-\paragraph{Manipulation gains persist across actor extractors.}
+\paragraph{Manipulation results are similar under DDPG+BC.}
 Switching from flow behavior cloning to DDPG+BC lowers soft \DensityFB{} from $0.929$ to $0.879$ on \texttt{cube-single} and from $0.736$ to $0.640$ on \texttt{cube-double}. The improvement is not specific to the flow actor.
 On \texttt{antmaze-medium} the same switch moves \DensityFB{} from $0.563$ to $0.829$, so actor extraction matters much more there.
 
@@ -243,8 +243,8 @@ This supports the narrower hypothesis that \DensityFB{} helps when play data con
 Goal reaching only tests whether the learned measure supports the benchmark goals.
 Reward transfer asks whether the same measure can evaluate a reward that was never used for training.
 At test time we approximate the integral of $r$ against the learned successor distribution with a pool $U_P$ of $16{,}384$ object configurations drawn from the dataset: we evaluate $r$ on the pool once and take its expectation under the predicted occupancy $w$, which gives $w^\top r(U_P)/(1-\gamma)$.
-Finite-pool evaluation introduces the largest smoothing error near the current object configuration, where the predicted occupancy is concentrated on stationary transitions.
-We therefore apply a local correction.
+Because stationary transitions concentrate predicted occupancy near the current object configuration, finite-pool smoothing matters most there.
+We therefore correct the reward estimate at $x_0$ explicitly.
 Writing $\kappa(\cdot\mid x_0)$ for the kernel weights of $x_0$ over the pool, we replace the smoothed estimate of the reward at that configuration, $\kappa(\cdot\mid x_0)^\top r(U_P)$, with its exact value $r(x_0)$:
 \begin{equation}
 \label{eq:density-readout}
@@ -324,7 +324,7 @@ Table~\ref{tab:published} places our sparse-reward results alongside published s
 This is not a controlled comparison: the published results use $1$M gradient steps, $10$ seeds, and $10$ evaluation episodes per task, whereas ours use $500$k steps, three seeds, and $25$ episodes.
 The task index also differs: their methods infer it by linear regression on relabeled data, while \DensityFB{} searches over candidate goals.
 We therefore use these numbers as external context and list matched reruns as open work below.
-Our implementation is derived from the same codebase and reproduces the published FB result on \texttt{cube-single} reasonably closely ($41.0$ versus $49.6$), but we have not yet matched the full protocol.
+Our implementation comes from the same codebase; on \texttt{cube-single} our FB rerun reaches $41.0$, compared with the published $49.6$. We have not yet matched the full protocol.
 
 \begin{table}[h]
 \centering
@@ -343,14 +343,14 @@ HILP \citep{park-iclr24a} & $74.2 \pm 3.5$ & $20.0 \pm 2.7$ & $43.8 \pm 1.9$ \\
 BYOL-$\gamma$ & $79.4 \pm 2.8$ & $2.6 \pm 0.7$ & $14.4 \pm 2.3$ \\
 \midrule
 \DensityFB{} (soft) & $81.6 \pm 26.9$ & $\mathbf{54.9 \pm 24.0}$ & $39.5 \pm 9.2$ \\
-\DensityFB{} (hard) & $\mathbf{88.8 \pm 9.1}$ & $54.4 \pm 0.0$\,(2) & $\mathbf{64.0 \pm 11.1}$ \\
+\DensityFB{} (hard) & $\mathbf{88.8 \pm 9.1}$ & $54.4$, $54.4$ & $\mathbf{64.0 \pm 11.1}$ \\
 \bottomrule
 \end{tabular}
-\caption{Zero-shot success rate (\%) on state-based OGBench. Rows above the line are as reported by \citet{bagatella-iclr26a} at $1$M gradient steps, $10$ seeds and $10$ episodes per task, with the task index inferred by linear regression. Rows below are our sparse reward family at $500$k steps, three seeds and $25$ episodes, with the index chosen by search. Our confidence intervals are wide because they are $t$-based on three seeds.}
+\caption{Zero-shot success rate (\%) on state-based OGBench. Rows above the line are as reported by \citet{bagatella-iclr26a} at $1$M gradient steps, $10$ seeds and $10$ episodes per task, with the task index inferred by linear regression. Rows below are our sparse reward family at $500$k steps, three seeds and $25$ episodes, with the index chosen by search. Our intervals are $t$-based on three seeds. Two-seed cells list both seed values.}
 \label{tab:published}
 \end{table}
 
-The most striking gap is on \texttt{cube-double}: the strongest published result is $20.0$, while both \DensityFB{} variants exceed $54$.
+The largest numerical gap is on \texttt{cube-double}: the strongest published result is $20.0$, while both \DensityFB{} variants exceed $54$.
 On \texttt{scene}, hard \DensityFB{} reaches $64.0$ versus $45.4$ for the strongest published result.
 The \texttt{cube-single} comparison is less informative: hard \DensityFB{} reaches $88.8$ versus $79.4$, but the difference lies within our three-seed confidence interval.
 These comparisons are suggestive until the protocols are matched.
