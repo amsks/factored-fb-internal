@@ -1,0 +1,38 @@
+# Spec 24 -- z-indexed density-FB on ExoRL point_mass_maze / RND buffer, seed 0
+# (PAPER/Multistep-FB/specs/24-z-indexed-density.md section 4). Byte-identical to
+# point_mass_maze_rnd_seed0_measure_density_d50.yaml (the P0 g-indexed density
+# anchor: .315 goal success, seed 0, 500k) with exactly ONE agent_override added
+# (measure_density_z: true) so the ONLY difference between the two runs is the
+# policy-family index (goals vs FB-style latent z) -- that byte-identity of the
+# g-indexed path is the experiment's validity, per spec 24's "What this
+# experiment is for". hit_spec reused verbatim from the P0 config, not re-derived
+# (spec 24 says: read it, do not re-derive).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: exorl:point_mass_maze_rnd_seed0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-PointMassMaze-RND-Flow-Measure-DensityZ-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "0:2:0.03"
+  actor_q_center: true
+  measure_density_z: true
+wandb_mode: online

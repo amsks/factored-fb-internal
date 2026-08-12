@@ -966,6 +966,65 @@ class GCIQLFlowAgent(GCIQLAgent):
                              / self.config['measure_density_temp'], -1)
         return (w18 * kg[None]).sum(-1)
 
+    def _density_z_encode(self, goal_obs):
+        """Spec 24 (Definitions §1): the deterministic half of the z mix,
+        z(x) = sqrt(d) * B̄(x̃) / ||B̄(x̃)||, B̄ := target_density_b (frozen -- never
+        called with params=grad_params), x̃ := _density_queries' eps-scaled hit-spec
+        block coords of goal_obs. This is also the EXACT transform E1's direct goal
+        conditioning reads (z* = z(phi(g_eval))): no rng anywhere in this method, so it
+        is bit-for-bit reproducible from a restored checkpoint's target_density_b
+        params alone (test 5)."""
+        d = float(self.config['measure_density_dim'])
+        blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+        x_sc = self._density_queries(goal_obs, blocks)                  # [B, d_c] eps-scaled
+        b_emb = self.network.select('target_density_b')(x_sc)           # [B, d], frozen tower
+        z = _sphere(b_emb, d)
+        return jax.lax.stop_gradient(z)
+
+    def _density_z(self, goal_obs, rng):
+        """Spec 24 (Definitions §1): the full z mix -- z_i = z(x_{g,i})
+        (_density_z_encode) with probability 1 - measure_density_z_rand_frac, else a
+        FRESH uniform sqrt(d)-sphere draw (FB's standard task-prior mix), drawn per row
+        per call. Both branches carry ||z||=sqrt(d) (test 2). The whole result is
+        wrapped in stop_gradient (belt-and-suspenders: _density_z_encode's target-tower
+        call is already never in grad_params, and z_rand never touches any network) so
+        the index cannot chase the ONLINE B tower within a step and is never
+        differentiated as an input anywhere it is consumed (F's conditioning leg, the
+        actor's goal leg, the actor-q reward embedding)."""
+        z_g = self._density_z_encode(goal_obs)
+        d = int(self.config['measure_density_dim'])
+        B = goal_obs.shape[0]
+        rng_sphere, rng_mix = jax.random.split(rng)
+        z_rand = _sphere(jax.random.normal(rng_sphere, (B, d)), d)
+        rand_frac = float(self.config.get('measure_density_z_rand_frac', 0.5))
+        use_rand = jax.random.bernoulli(rng_mix, rand_frac, (B, 1))
+        z = jnp.where(use_rand, z_rand, z_g)
+        return jax.lax.stop_gradient(z)
+
+    def _density_actor_q_z(self, batch, obs, actions, z):
+        """Spec 24 (Definitions §1): the z-analog of `_density_actor_q`.
+            q_i = sum_j w_j(s_i, a_i, z_i) * ( B̃(u_j)^T z_i / sqrt(d) )
+        The reward implied by index z is FB's own linear model r_z(u) = B(u)^T z; the
+        actor maximizes its expectation under the predicted occupancy -- the density
+        readout of r_z. w_j = softmax_j F(s,a,z)^T B(u_j)/tau at the ONLINE F/B towers,
+        called at FROZEN params exactly like `_density_actor_q` (no params=grad_params
+        anywhere). B̃ is the TARGET tower (target_density_b) for the reward embedding
+        itself, stop-gradded -- matching the frozen-params discipline of the g-indexed
+        actor branch's kg (spec 24 §1, grad-hygiene test §5.4). queries = the batch's
+        own next-state block coords (train-eval z match, the SAME resampled query
+        support density_loss trains against)."""
+        blocks24 = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+        u_sc24 = self._density_queries(batch['next_observations'], blocks24)
+        d24 = self.config['measure_density_dim']
+        b_emb24 = self.network.select('density_b')(u_sc24)                        # frozen params
+        f_emb24 = self.network.select('density_f')(
+            jnp.concatenate([obs, actions, z], -1))                              # frozen params
+        w24 = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb24, b_emb24)
+                             / self.config['measure_density_temp'], -1)
+        tb24 = jax.lax.stop_gradient(self.network.select('target_density_b')(u_sc24))
+        rz24 = jnp.einsum('md,bd->bm', tb24, z) / jnp.sqrt(d24)                    # [B, M]
+        return (w24 * rz24[None]).sum(-1)
+
     def actor_loss(self, batch, grad_params, rng=None, task_z=None):
         # task_z (RG-FB v1, spec06 item4): when supplied, the flow actor conditions on the
         # SAMPLED task vector z (per-sample [B,d], stop-gradded) instead of psi(actor_goals) --
@@ -1099,6 +1158,11 @@ class GCIQLFlowAgent(GCIQLAgent):
             actor_cond_input = z_infer
         elif self.config['actor_cond'] == 'z':
             actor_cond_input = jax.lax.stop_gradient(self._actor_z(goals, grad_params))
+        elif self.config.get('measure_density_z', False):
+            # spec 24: the actor's goal leg becomes z=_density_z(actor_goals) -- built
+            # from the TARGET density_b tower, stop-gradded (actor_cond stays 'goal';
+            # this is a SEPARATE mechanism from the actor_cond='z' branch above).
+            actor_cond_input = self._density_z(goals, z_rng)
         else:
             actor_cond_input = goals
         # actor_z_greedy_frac (campaign v2 knob 2): per-sample, with probability frac,
@@ -1148,6 +1212,11 @@ class GCIQLFlowAgent(GCIQLAgent):
                 # q-term branch entirely; q1=q2=None makes actor_loss below reduce to the
                 # pure BC-flow terms (see the q1 is None guard just past this if/elif chain).
                 q1 = q2 = None
+            elif self.config.get('measure_density_z', False):
+                # spec 24: q_h = sum_j w_h(s,a,z,u_j) * (B̃(u_j)^T z)/sqrt(d) -- the
+                # z-analog of the goal-mass q-term (_density_actor_q_z), reusing the
+                # SAME z that conditioned actor_actions above (actor_cond_input).
+                q1, q2 = self._density_actor_q_z(batch, obs, actor_actions, actor_cond_input)
             else:
                 # spec 18: q_h = sum_j w_h(s,a,g,u_j) * kernel(goal,u_j), density_f/density_b
                 # at FROZEN params (no params=grad_params -- crl f7b623d grad-hygiene lesson).
@@ -2053,19 +2122,41 @@ class GCIQLFlowAgent(GCIQLAgent):
         mode()/sample() (mirrors measure_loss's own ddpgbc branch), awr_flow (which
         registers no one-shot actor) Euler-rolls actor_vf at frozen current params.
         The flow branch itself is untouched (same rng draw, same actor call, same
-        ops as pre-spec-22)."""
+        ops as pre-spec-22).
+
+        measure_density_z (spec 24): swaps the policy-family index from goals to an
+        FB-style latent z (z replaces g in F's input AND in the bootstrap actor's
+        conditioning -- the SAME z_i for both, drawn once per row via _density_z off a
+        split of the rng key). The immediate term k is untouched -- it never referenced
+        g/z at all, only nobs vs the resampled query support. Requires actor_kind='flow'
+        (lattice-enforced), so this branch is mutually exclusive with the ddpgbc/
+        awr_flow branches below. Off (measure_density_z=False): bit-identical, this
+        branch is never reached."""
         obs, nobs = batch['observations'], batch['next_observations']
         acts, g = batch['actions'], batch['value_goals']
         blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
         gamma, tau = self.config['discount'], self.config['measure_density_temp']
         behavior = self.config.get('measure_density_behavior', False)
+        z_on = self.config.get('measure_density_z', False)
 
         u_raw = self._raw_block_cols(nobs, blocks)                            # [M, d_c] RAW
         u_sc = self._density_queries(nobs, blocks)                            # [M, d_c] eps-scaled
         b_emb = self.network.select('density_b')(u_sc, params=grad_params)    # [M, d]
+
+        z = None
+        if z_on:
+            # spec 24: z built ONCE per row, off a split of the incoming rng -- the
+            # off-branch (z_on=False) never executes this split, so its rng usage stays
+            # bit-identical to the shipped spec-18/19a code below.
+            rng, z_rng = jax.random.split(rng)
+            z = self._density_z(g, z_rng)                                    # [B, d], stop-gradded
+
         if behavior:
             f_emb = self.network.select('density_f')(
                 jnp.concatenate([obs, acts], -1), params=grad_params)         # [2, B, d], no goal leg
+        elif z_on:
+            f_emb = self.network.select('density_f')(
+                jnp.concatenate([obs, acts, z], -1), params=grad_params)      # [2, B, d], z leg
         else:
             f_emb = self.network.select('density_f')(
                 jnp.concatenate([obs, acts, g], -1), params=grad_params)      # [2, B, d]
@@ -2100,6 +2191,14 @@ class GCIQLFlowAgent(GCIQLAgent):
             a_plus = jax.lax.stop_gradient(self._flow_rollout(obs_goal, noise, self.network.params))
             tf = self.network.select('target_density_f')(
                 jnp.concatenate([nobs, a_plus, g], -1))                       # frozen target
+        elif z_on:
+            # spec 24: bootstrap a+ ~ pi(s', z) at the SAME z_i (Definitions §1) --
+            # same one-shot flow-actor construction as the g-indexed branch below, z
+            # replacing g in both the actor's conditioning and target_density_f's input.
+            noise = jax.random.normal(rng, acts.shape)
+            a_plus = jax.lax.stop_gradient(self.network.select('actor')(nobs, z, noise))
+            tf = self.network.select('target_density_f')(
+                jnp.concatenate([nobs, a_plus, z], -1))                       # frozen target
         else:
             noise = jax.random.normal(rng, acts.shape)
             a_plus = jax.lax.stop_gradient(self.network.select('actor')(nobs, g, noise))
@@ -2148,6 +2247,15 @@ class GCIQLFlowAgent(GCIQLAgent):
             # action) -- exactly the statistic named in spec 19a §1/§3, a plain mean
             # of the per-row substitution indicator GCDataset attaches.
             info['density_sarsa_subst'] = jnp.mean(batch['next_actions_subst'])
+        if z_on:
+            # spec 24 §3 E3 / §4 G2: mean pairwise |cos| of the batch's z's -- an
+            # index-collapse instrument (-> 1 means every row's z points the same way,
+            # so the z-family has effectively collapsed to a single task).
+            z_n = z / (jnp.linalg.norm(z, axis=-1, keepdims=True) + 1e-8)
+            cos = jnp.abs(z_n @ z_n.T)                                        # [B, B]
+            Bn = z.shape[0]
+            off_mask = 1.0 - jnp.eye(Bn)
+            info['z_cos_spread'] = jnp.sum(cos * off_mask) / jnp.sum(off_mask)
         return ce, info
 
     def _ors_reward(self, obs, acts, goals):
@@ -2712,6 +2820,22 @@ class GCIQLFlowAgent(GCIQLAgent):
         # For an arbitrary precomputed z, use sample_actions_with_z (no mapping).
         if self.config['actor_cond'] == 'z':
             goals = self._actor_z(goals)
+        elif self.config.get('measure_density_z', False):
+            # spec 24 E1: the in-training/standalone eval loop hands the RAW goal obs
+            # too, but the actor module here was registered z-wide (measure_density_dim,
+            # not obs width) -- map it through the deterministic half of the z mix
+            # (_density_z_encode, no rng/random-sphere mixing at eval time: E1's direct
+            # goal conditioning z* = z(phi(g_eval))). Without this the actor call below
+            # gets a goal-width input against a z-wide kernel -> ScopeParamShapeError.
+            # _density_z_encode slices hit-spec blocks with an explicit batch axis
+            # (_density_queries's `nobs[:, a:b]`), unlike _actor_z's plain Dense calls
+            # which broadcast over any leading shape -- so an UNBATCHED single-eval-step
+            # goal (batch_shape == (), per this method's own docstring above) needs a
+            # temporary batch dim added and stripped back off.
+            unbatched_goal = goals.ndim == 1
+            z_in = goals[None] if unbatched_goal else goals
+            z_out = self._density_z_encode(z_in)
+            goals = z_out[0] if unbatched_goal else z_out
         actions = self.network.select('actor')(observations, goals, noise)
         return jnp.clip(actions, -1.0, 1.0)
 
@@ -2990,6 +3114,13 @@ class GCIQLFlowAgent(GCIQLAgent):
             assert config.get('value_arch', 'mlp') == 'bilinear', \
                 "actor_cond='z'/actor_z_infer requires value_arch='bilinear' (B := value net's psi)"
             ex_actor_goals = jnp.zeros((ex_observations.shape[0], config['value_latent_dim']))
+        elif config.get('measure_density_z', False):
+            # spec 24: the actor's goal leg becomes z (measure_density_dim-wide), a SEPARATE
+            # mechanism from actor_cond='z' above (which needs value_arch='bilinear' and reads
+            # z from the value/critic psi) -- measure_density_z keeps actor_cond='goal'
+            # throughout (asserted by measure_density's own lattice) and instead swaps what
+            # 'goal' means for this actor at the architecture level.
+            ex_actor_goals = jnp.zeros((ex_observations.shape[0], config['measure_density_dim']))
         else:
             ex_actor_goals = ex_goals
 
@@ -3284,6 +3415,30 @@ class GCIQLFlowAgent(GCIQLAgent):
             # copy would never reach it).
             config['next_actions'] = True
             orig_config['next_actions'] = True
+
+        # Spec 24: z-indexed density-FB -- swap the density policy family's index from
+        # goals to an FB-style latent z built from the TARGET backward tower. This is a
+        # DELIBERATE, scoped relaxation of the blanket z-knob refusals baked into every
+        # other z path in this file (actor_cond='z', fb_forward_z, actor_z_infer,
+        # task_prior='mix', ...): those stay refused everywhere else (stack-divergence
+        # 2026-08-05 -- z-conditioned actors floored multi-object manipulation). This
+        # knob is the ONE deliberate exception, scoped to the spec-24 point-mass-maze
+        # question; manipulation (cube/scene) configs with this knob are round-1 out of
+        # scope, refused at the env_name/LAUNCHER level (a config comment), not here --
+        # create() only ever sees an example batch, never env_name.
+        if config.get('measure_density_z', False):
+            assert config.get('measure_density', False), \
+                "measure_density_z is a variant of measure_density: set measure_density=True"
+            assert not config.get('measure_density_behavior', False), \
+                "measure_density_z and measure_density_behavior are mutually exclusive -- " \
+                "behavior mode drops the actor's q-term instead of z-indexing it (spec 24 §2)"
+            _zrf = float(config.get('measure_density_z_rand_frac', 0.5))
+            assert 0.0 <= _zrf <= 1.0, \
+                f"measure_density_z_rand_frac must be in [0,1], got {_zrf}"
+            assert config.get('actor_kind', 'flow') == 'flow', \
+                "spec 24 round 1 is scoped to the flow actor only -- the architecture change " \
+                "(F's [obs,actions,z] input and the actor's z-conditioned goal leg) is only " \
+                "implemented on that path; ddpgbc/awr_flow are untouched and out of scope"
 
         # Spec 19 P0.2: BC-only control lattice. actor_bc_only only affects the flow
         # actor's q1/q2 branch chain inside actor_loss -- actor_kind='ddpgbc'/'awr_flow'
@@ -3694,6 +3849,11 @@ class GCIQLFlowAgent(GCIQLAgent):
             if config.get('measure_density_behavior', False):
                 # spec 19a: goal-free F(s,a) -- the behavior policy ignores goals.
                 ex_f = (jnp.concatenate([ex_observations, ex_actions], -1),)
+            elif config.get('measure_density_z', False):
+                # spec 24: F conditions on z (measure_density_dim-wide) instead of the raw
+                # goal observation -- input width is d, not obs width.
+                ex_z18 = jnp.zeros((ex_observations.shape[0], _d18))
+                ex_f = (jnp.concatenate([ex_observations, ex_actions, ex_z18], -1),)
             else:
                 ex_f = (jnp.concatenate([ex_observations, ex_actions, ex_goals], -1),)
             ex_b = (cls._density_queries(ex_observations, _blocks18_create),)   # [1, d_c] eps-scaled
@@ -4116,6 +4276,19 @@ def get_config():
           # next action (SARSA). Product = frozen (F_D, B_D) for the spec-19b ORS reward.
           # Requires measure_density=True; actor q-term disabled (pure BC flow).
           # False = off, bit-identical.
+        config.measure_density_z = False   # spec 24: index the density policy family by FB-style
+          # latent z instead of goals. z = sqrt(d)*normalize(target_density_b(eps-scaled block
+          # coords of a relabeled goal)) mixed per-row with fresh uniform sqrt(d)-sphere draws at
+          # rate measure_density_z_rand_frac; F conditions on z instead of g (input width d, not
+          # obs width) and the actor's goal input is replaced by z (actor network width -> d).
+          # Requires measure_density=True; mutually exclusive with measure_density_behavior;
+          # scoped to actor_kind='flow' (round 1). Point-mass-maze only (stack-divergence
+          # 2026-08-05: z-conditioning floors multi-object manipulation) -- cube/scene are
+          # refused at the LAUNCHER/config level, not here (create() has no env_name).
+          # False = off, bit-identical.
+        config.measure_density_z_rand_frac = 0.5   # spec 24: fraction of z rows drawn as a
+          # fresh uniform sqrt(d)-sphere direction instead of the relabeled-goal embedding
+          # (FB's standard task-prior mix). Only read when measure_density_z=True.
         config.next_actions = False   # GCDataset: gate batch['next_actions'] = the dataset's
           # SARSA next action (same trajectory-boundary arithmetic as sample_goals/measure_nstep;
           # final-state rows substitute the current action, batch['next_actions_subst'] carries the
