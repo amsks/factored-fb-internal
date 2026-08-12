@@ -101,11 +101,10 @@ Since the total discounted mass is $1/(1-\gamma)$ for every $(s,a)$, multiplying
 \nu(\cdot\mid s,a,g) = (1-\gamma)\, M(\cdot\mid s,a,g).
 \end{equation}
 \paragraph{Role of the goal.}
-The goal $g$ is not part of the successor-measure concept; it is our index into a policy family.
-A successor measure is always some policy's measure, and the useful object for control is the occupancy of a directed policy rather than of the play data's behavior policy, so like FB we learn a family of measures jointly with a family of policies: FB indexes both by a latent task vector $z$, we index both by goals, and the $g$ in $F(s,a,g)$ plays exactly the role $z$ plays in $F(s,a,z)$.
-Training uses no rewards and no task labels in either case; our goals come free from hindsight relabeling of the unlabeled data, as FB's $z$ come free from sampling.
-Evaluating an arbitrary reward under a family member is index-free (Section~\ref{sec:reward-transfer}: the readout is an expectation of $r$ under the predicted distribution, whatever the form of $r$); only \emph{acting} for a new reward requires choosing an index, which FB does analytically via $z_r$ and we do by search over candidate goals.
-The trade-off is expressiveness for composite rewards: FB's linear index can in principle encode a mixture of modes in one $z$, while our family offers the best single goal per state; Section~\ref{sec:reward-transfer} shows the search-based route working on concentrated rewards, and conditioning the actor on a learned reward embedding is the natural extension we have not run.
+Goals are not required by \DensityFB{}; they index the policies whose successor measures we learn.
+For a fixed policy, $g$ could simply be removed.
+Hindsight relabeling of the play data gives us a family of goal-conditioned policies $\pi_g$, and we learn the corresponding family of measures $M^{\pi_g}$.
+This is analogous to standard FB, where a latent variable $z$ indexes a family of policies and measures; training uses no rewards or task labels in either case.
 
 The key change relative to FB's estimator is that $F^\top B$ becomes a score rather than an unconstrained density: a softmax over sampled query configurations turns the scores into a normalized distribution,
 \begin{equation}
@@ -140,9 +139,10 @@ with $\epsilon$ the task tolerance.
 The hard target is an index-level one-hot: $U$ is built from the batch's next configurations, so row $i$'s successor occupies slot $i$.
 This keeps the target on the simplex even when several rows share the same object coordinates, which stationary segments make common; a coordinate-equality indicator would place mass greater than one on duplicates.
 
-This removes the inflation without deleting dwell mass.
-A long rest can make the predicted occupancy concentrate at that configuration, as it should, but it cannot increase the total amount of successor mass; the action-independent solution becomes the uniform distribution, which cross-entropy penalizes against any concentrated target and which is visible in the prediction's entropy.
-Hard and soft differ only in where they place the immediate $1-\gamma$ mass: exactly on the realized successor, or across its $\epsilon$-neighborhood.
+This removes the scale inflation without removing dwell occupancy.
+A long rest can still place high probability on that configuration, but the total predicted mass remains one.
+The model can therefore represent that the cube tends to stay where it was left, without increasing the magnitude of the critic simply because the same configuration appears many times.
+Hard and soft targets differ only in how they assign the immediate $1-\gamma$ mass: exactly to the observed successor, or across its $\epsilon$-neighborhood.
 
 \paragraph{Fixed point and contraction.}
 Normalization preserves the successor-measure fixed point: for the hard variant it only rescales the measure by $1-\gamma$, constraining total mass; the soft variant additionally smooths the immediate successor over an $\epsilon$-neighborhood, so its fixed point is the correspondingly smoothed measure.
@@ -152,16 +152,19 @@ Writing $\mathcal T\nu \,(\cdot\mid s,a) = (1-\gamma)\,\E[\kappa(\cdot\mid x_1)]
 \;\le\; \gamma\, \sup_{s,a}\, \big\| \nu_1 - \nu_2 \big\|_{\mathrm{TV}},
 \end{equation}
 since the immediate term cancels and the expectation is an average.
-$\mathcal T$ is therefore a $\gamma$-contraction in total variation with the ($\epsilon$-smoothed, for the soft variant) normalized successor measure as its unique fixed point, exactly as the scalar Bellman operator underlying FB is a $\gamma$-contraction with $M$ as its fixed point.
-What differs between the methods is only the projection under function approximation: FB projects in squared error onto the bilinear class, where the play-induced inflation of Section~\ref{sec:play} lives, while \DensityFB{} projects in cross-entropy onto softmax distributions, where scale is not a degree of freedom.
+$\mathcal T$ is therefore a $\gamma$-contraction in total variation, exactly as the scalar Bellman operator underlying FB is a $\gamma$-contraction with $M$ as its fixed point.
+For the hard variant, normalization changes the scale and the fitting objective, but not the underlying successor-measure fixed point.
+The soft variant additionally replaces each immediate successor with an $\epsilon$-smoothed distribution, so its fixed point is the correspondingly smoothed measure.
+In both cases the softmax removes critic scale as a free parameter.
 
 For control, the actor maximizes the predicted mass near its goal, $q(s,a,g) = w(s,a,g)^\top \kappa(\cdot\mid g)$, computed at frozen measure parameters, inside the standard flow behavior-cloning objective:
 \begin{equation}
 \label{eq:actor}
 \mathcal L_\pi = \lambda_{\mathrm{BC}}\, \mathcal L_{\mathrm{BC\text{-}flow}} \;-\; \E\!\left[ \frac{ q(s, \pi(s,g), g) }{ s_q } \right],
-\qquad s_q = \E\big[\,|q|\,\big],\ \lambda_{\mathrm{BC}} = 3,
+\qquad s_q = \E\big[\,\big|q - \E[q]\big|\,\big],\ \lambda_{\mathrm{BC}} = 3,
 \end{equation}
-where $\mathcal L_{\mathrm{BC\text{-}flow}}$ is the flow-matching behavior-cloning loss and $s_q$ is the usual magnitude normalizer (centered, since $q$ carries an action-independent level).
+where $\mathcal L_{\mathrm{BC\text{-}flow}}$ is the flow-matching behavior-cloning loss and $s_q$ normalizes the magnitude of the critic term.
+The mean is subtracted because $q$ carries a large action-independent level: the goal region receives similar occupancy under every action from a given state, and only the variation across actions is informative.
 The behavior-cloning row in Table~\ref{tab:main} trains the same actor with the $q$ term removed.
 
 Algorithm~\ref{alg:densityfb} summarizes one gradient step.
@@ -189,9 +192,9 @@ Black lines are shared with standard FB; {\color{fbdiff}blue} lines are where \D
 \label{sec:main-results}
 
 OGBench state-based manipulation and locomotion \citep{park2024ogbench}, $500$k gradient steps, no reward labels during training, native evaluation (five tasks, $50$ episodes each), three seeds, mean $\pm$ $95\%$ confidence interval ($t$-based).
-Every method is reported under two policy-extraction rules, because extraction and representation are separable and the benchmark's own record shows the choice can dominate: a flow behavior-cloning actor and a Gaussian DDPG+BC actor.
-We include behavior cloning as an imitation-only baseline: it trains the same actor with the $q$ term removed and learns no successor representation, isolating the improvement beyond imitation ($0.111$ on \texttt{cube-single}, $0.019$ on \texttt{cube-double}).
-For external reference we quote the published goal-conditioned IQL numbers, which use $1$M gradient steps and eight seeds --- twice our training budget --- and are therefore a favourable comparison for that baseline, not for ours.
+We evaluate each representation with two actor extractors, flow behavior cloning and Gaussian DDPG+BC, to separate representation quality from policy extraction.
+Behavior cloning trains the same actor with the $q$ term removed and learns no successor representation: $0.111$ on \texttt{cube-single}, $0.019$ on \texttt{cube-double}.
+Published goal-conditioned IQL results use $1$M gradient steps and eight seeds; we include them as an external reference rather than a matched baseline.
 
 \begin{table}[h]
 \centering
@@ -218,39 +221,39 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
 \label{tab:main}
 \end{table}
 
-Plain FB remains well below goal-conditioned IQL on \texttt{cube-single} and collapses on the multi-object environments, consistent with Section~\ref{sec:play}.
-\texttt{cube-single} is close to saturated: both \DensityFB{} variants reach about $0.92$, so it provides limited separation between the strongest methods.
-Differences are largest on \texttt{cube-double}: \DensityFB{} reaches $0.736$ from scratch against $0.000$ for plain FB, $0.019$ for the imitation-only baseline, and a published $0.40$ for goal-conditioned IQL at twice the training budget.
-The \texttt{scene} result is structured rather than noisy: every seed of both variants solves \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} ($0.88$--$1.0$), while \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) remain the bottlenecks.
+On \texttt{cube-single}, both \DensityFB{} variants reach about $0.92$, leaving little room to distinguish them.
+The harder manipulation tasks separate the methods more clearly.
+On \texttt{cube-double}, soft \DensityFB{} reaches $0.736$ with the flow actor, compared with $0.000$ for plain FB and $0.019$ for behavior cloning; with DDPG+BC it reaches $0.640$, against a published $0.40$ for goal-conditioned IQL at twice the training budget.
+On \texttt{scene}, \DensityFB{} reaches about $0.64$ while plain FB remains near zero.
+The \texttt{scene} average also hides a consistent task split: all seeds solve \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} ($0.88$--$1.0$), whereas \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) remain difficult.
 
-\paragraph{The result does not depend on the extraction rule.}
-Replacing the flow actor with Gaussian DDPG+BC costs \DensityFB{} $0.05$ on \texttt{cube-single} ($0.929 \to 0.879$) and $0.10$ on \texttt{cube-double} ($0.736 \to 0.640$), and the ordering against every baseline is unchanged.
-The same substitution costs our own goal-conditioned IQL reproduction $0.31$ on \texttt{cube-single} ($0.870 \to 0.563$).
-The improvement therefore lives in the learned measure rather than in the policy-extraction rule --- a distinction worth making explicitly, since on \texttt{antmaze-medium} the extraction rule is the dominant factor for every method we ran.
+\paragraph{Manipulation gains persist across actor extractors.}
+Switching from flow behavior cloning to DDPG+BC lowers soft \DensityFB{} from $0.929$ to $0.879$ on \texttt{cube-single} and from $0.736$ to $0.640$ on \texttt{cube-double}, but the manipulation gains remain.
+In contrast, actor extraction matters substantially on \texttt{antmaze-medium}, where the same switch moves \DensityFB{} from $0.563$ to $0.829$.
 
-\paragraph{Locomotion is a null, as expected.}
-On \texttt{antmaze-medium} the agent is the object: there is no separate manipulated entity that alternates between moving and stationary, so the structure Section~\ref{sec:play} identifies is absent and there is no reason to expect an occupancy-shaped estimator to help.
-It does not: with the DDPG+BC actor \DensityFB{} reaches $0.829 \pm 0.058$ against $0.837$ for our own goal-conditioned IQL control at the same recipe, a difference of $0.008$.
-Both sit below the strongest published methods on that benchmark ($0.96$ for HIQL).
-We report this because it delimits the claim: the estimator addresses a property of manipulation play, not a general deficiency of successor learning.
+\paragraph{\DensityFB{} does not improve AntMaze.}
+\texttt{antmaze-medium} removes the structure that motivated \DensityFB{}: the goal-relevant variable is the agent itself, so there is no manipulated object that remains stationary while actions continue.
+Consistent with this, \DensityFB{} does not improve over our matched goal-conditioned IQL control under DDPG+BC ($0.829$ versus $0.837$), and both sit below the strongest published method on that benchmark ($0.96$ for HIQL).
+This suggests the gain is specific to the occupancy structure of manipulation play rather than a general advantage of the estimator.
 
 % ======================================================================
 \section{Reward evaluation}
 \label{sec:reward-transfer}
 
-The reward-transfer experiment asks a different question from goal reaching: does the learned object represent only the five benchmark goals, or can it be integrated against a new reward?
+Goal reaching only tests whether the learned measure supports the benchmark goals.
+Reward transfer asks whether the same measure can evaluate a reward that was never used for training.
 At test time we approximate the integral of $r$ against the learned successor distribution with a pool $U_P$ of $16{,}384$ object configurations drawn from the dataset: we evaluate $r$ on the pool once and take its expectation under the predicted occupancy $w$, which gives $w^\top r(U_P)/(1-\gamma)$.
 One correction improves this estimate.
-Let $x_0$ be the current state's object configuration, which need not appear in $U_P$, and let $\kappa(\cdot\mid x_0)$ be its kernel weights over the pool.
-The finite pool and the kernel smooth the reward, and the smoothing error is largest around $x_0$, where the predicted occupancy concentrates at small $t$.
-We therefore replace the smoothed estimate of the current configuration's reward, $\kappa(\cdot\mid x_0)^\top r(U_P)$, with its exact value $r(x_0)$:
+The measure counts from $x_1$ onward, but in manipulation play $x_1$ is usually $x_0$ --- the object does not move on most transitions --- so the predicted occupancy concentrates near the current configuration, and that is exactly where the finite pool and the kernel smooth the reward most.
+Writing $\kappa(\cdot\mid x_0)$ for the kernel weights of $x_0$ over the pool, we replace the smoothed estimate of the reward at that configuration, $\kappa(\cdot\mid x_0)^\top r(U_P)$, with its exact value $r(x_0)$:
 \begin{equation}
 \label{eq:density-readout}
 \widehat Q_r(s,a) = \frac{ r(x_0) + \left( w-\kappa(\cdot\mid x_0) \right)^\top r(U_P) }{ 1-\gamma }.
 \end{equation}
 The correction is action independent, so it changes calibration but never action ranking.
 The resulting readout is linear in $r$ and requires no retraining.
-To act, we retrieve the pool observation that maximizes $\widehat Q_r$ from the initial state, condition the goal-reaching actor on it, and roll out: a one-step generalized policy improvement over the goal-indexed family, playing the role FB's analytic $r \mapsto z_r$ assignment plays over its $z$-indexed family.
+To act, we score candidate goals under the new reward, choose the highest-valued one from the initial state, and execute its goal-conditioned policy.
+This replaces FB's analytic reward-to-$z$ mapping with search over the learned goal-conditioned policy family.
 
 \paragraph{Reward construction.}
 We test three reward families, all defined only from object coordinates, valued in $[0,1]$, and never observed during training (Figure~\ref{fig:rewardfams}; internal names \texttt{dirac}/\texttt{dense}/\texttt{region}):
@@ -304,18 +307,22 @@ Environment & Reward family & Plain FB & \DensityFB{} (soft) & \DensityFB{} (har
 Fixed partition ($K{=}256$) & $0.725 \pm 0.121$ & $0.723 \pm 0.298$ & $0.133 \pm 0.201$ \\
 \bottomrule
 \end{tabular}
-\caption{Replacing the resampled query set with $256$ fixed prototypes, at otherwise identical settings. The discretization costs most where the reward sits away from the prototypes.}
+\caption{Replacing the resampled query set with $256$ fixed prototypes, at otherwise identical settings. The largest drop occurs on held-out regions.}
 \label{tab:partition}
 \end{table}
 
 The largest difference appears on rewards centered away from the benchmark goals: on \texttt{cube-single}, held-out-region transfer rises from $0.133$ with the fixed partition to $0.293$ with soft \DensityFB{} and $0.647$ with the hard variant (Table~\ref{tab:partition}).
 This is consistent with continuous query representations helping most when the reward sits between or away from fixed prototypes.
 
-The comparison between the two immediate targets is environment dependent, and the pattern is not the one a single environment would suggest.
-On \texttt{cube-single} and \texttt{scene} the hard target is better on all three families --- most sharply on \texttt{scene}, where sparse transfer rises from $0.395$ to $0.640$ --- while the two are within noise on goal reaching (Table~\ref{tab:main}).
-On \texttt{cube-double}, however, the two are indistinguishable on every family ($0.549$ vs $0.544$, $0.488$ vs $0.532$, $0.177$ vs $0.165$).
-Kernel smoothing of the immediate target therefore appears to cost readout fidelity on some object geometries and not others, rather than being uniformly unnecessary; we report the dependence rather than a single recommendation.
-Reward transfer is also consistently harder than goal reaching on the multi-object environments: on \texttt{cube-double} the same checkpoints score $0.736$ on benchmark goals and $0.549$ on the sparse family built from those same goals, so the gap reflects the readout and the retrieval-based action selection, not only the learned measure.
+Hard and soft targets behave differently across environments.
+On \texttt{cube-single} and \texttt{scene} the hard target improves all three reward families; on \texttt{scene}, for example, sparse transfer rises from $0.395$ to $0.640$.
+On \texttt{cube-double}, however, the two targets are nearly indistinguishable ($0.549$ vs $0.544$, $0.488$ vs $0.532$, $0.177$ vs $0.165$).
+Hard targets therefore improve reward readout on some manipulation tasks, but the effect is not universal, and on goal reaching the two are within noise everywhere (Table~\ref{tab:main}).
+
+Reward transfer remains harder than direct goal reaching.
+On \texttt{cube-double}, the same soft checkpoint reaches $0.736$ under ordinary goal conditioning but only $0.549$ when the same goal is specified through the sparse reward readout.
+The gap therefore comes after representation learning, from reward integration and the subsequent goal-selection step.
+Separating the two would require comparing our retrieved goal against an oracle that selects the reward center directly, which we have not run.
 
 \bibliography{references}
 \bibliographystyle{iclr2027_conference}
