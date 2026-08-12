@@ -1,4 +1,9 @@
-% Generated from results/table.tex (legacy 9-column fragment). Do not edit by hand.
+% 1M-ONLY POLICY (2026-08-12): every result in this document trains on a ~1,001,000-
+% transition dataset; smaller-data results are non-citable and live only in git history.
+% The single exception is the E1 size ladder, which is ABOUT dataset size.
+%
+% Hand-maintained. Quarantined (non-1M) tables removed on 2026-08-12:
+% tab:critic-actor-grid (25k/100k), tab:killtests (100k), tab:armC (100k), tab:armE (48k).
 \documentclass[10pt]{article}
 \usepackage[margin=0.7in]{geometry}
 \usepackage{booktabs}
@@ -8,111 +13,17 @@
 \pagestyle{empty}
 \begin{document}
 
-\begin{table}[t]\centering
-\caption{Success rate on the factored critic$\times$actor seam: mean over each run's last 3 eval points, $\pm$ sd over 3 seeds. \textbf{BC} is the \texttt{bcflow} control (the Flow actor with \texttt{q\_coeff}=0, so the critic's value term is removed). Only FB's BC control is available in this source table; because the actor conditions on the critic's conditioning vector (FB's learned $z$ for FB, the goal for the goal-conditioned critics), that row is not the matched control for the GCIQL, biGCIQL and CRL blocks.}
-\label{tab:critic-actor-grid}
-\setlength{\tabcolsep}{4pt}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{ll cccccccc}
-\toprule
- &  & \multicolumn{4}{c}{ManiSkill} & \multicolumn{4}{c}{Metaworld} \\
-\cmidrule(lr){3-6} \cmidrule(lr){7-10}
- &  & \multicolumn{2}{c}{\texttt{ms-pick-cube}} & \multicolumn{2}{c}{\texttt{ms-push-cube}} & \multicolumn{2}{c}{\texttt{mw-pick-place}} & \multicolumn{2}{c}{\texttt{mw-push}} \\
-\cmidrule(lr){3-4} \cmidrule(lr){5-6} \cmidrule(lr){7-8} \cmidrule(lr){9-10}
-Critic & Actor & expert & play-noise & expert & play-noise & expert & play-noise & expert & play-noise \\
-\midrule
-\multirow{3}{*}{FB} & BC & $0.19 \pm 0.01$ & $0.57 \pm 0.06$ & $0.09 \pm 0.05$ & $0.82 \pm 0.04$ & $1.00 \pm 0.00$ & $0.88 \pm 0.03$ & $1.00 \pm 0.00$ & $0.93 \pm 0.04$ \\
- & Flow & $0.21 \pm 0.08$ & $0.69 \pm 0.08$ & $0.04 \pm 0.04$ & $0.78 \pm 0.13$ & $1.00 \pm 0.00$ & $0.86 \pm 0.03$ & $1.00 \pm 0.00$ & $0.96 \pm 0.02$ \\
- & DDPG & $0.20 \pm 0.03$ & $0.20 \pm 0.04$ & $0.10 \pm 0.10$ & $0.58 \pm 0.08$ & $1.00 \pm 0.00$ & $0.91 \pm 0.02$ & $1.00 \pm 0.00$ & $0.88 \pm 0.04$ \\
-\midrule
-\multirow{2}{*}{GCIQL} & Flow & $0.08 \pm 0.02$ & $0.14 \pm 0.03$ & $0.01 \pm 0.01$ & $0.31 \pm 0.16$ & $0.38 \pm 0.04$ & $0.88 \pm 0.06$ & $0.18 \pm 0.02$ & $0.94 \pm 0.03$ \\
- & DDPG & $0.05 \pm 0.00$ & $0.06 \pm 0.01$ & $0.00 \pm 0.00$ & $0.13 \pm 0.05$ & $0.00 \pm 0.00$ & $0.58 \pm 0.01$ & $0.00 \pm 0.00$ & $0.80 \pm 0.03$ \\
-\midrule
-\multirow{2}{*}{biGCIQL} & Flow & $0.08 \pm 0.03$ & $0.08 \pm 0.03$ & $0.00 \pm 0.00$ & $0.19 \pm 0.06$ & $0.34 \pm 0.13$ & $0.85 \pm 0.10$ & $0.37 \pm 0.24$ & $0.90 \pm 0.02$ \\
- & DDPG & $0.06 \pm 0.01$ & $0.05 \pm 0.00$ & $0.00 \pm 0.00$ & $0.16 \pm 0.13$ & $0.01 \pm 0.01$ & $0.39 \pm 0.15$ & $0.10 \pm 0.08$ & $0.64 \pm 0.05$ \\
-\midrule
-\multirow{2}{*}{CRL} & Flow & $0.05 \pm 0.00$ & $0.10 \pm 0.04$ & $0.01 \pm 0.01$ & $0.43 \pm 0.14$ & $0.79 \pm 0.07$ & $0.53 \pm 0.39$ & $0.64 \pm 0.55$ & $0.22 \pm 0.10$ \\
- & DDPG & $0.05 \pm 0.00$ & $0.06 \pm 0.01$ & $0.01 \pm 0.01$ & $0.28 \pm 0.04$ & $0.40 \pm 0.30$ & $0.07 \pm 0.04$ & $0.73 \pm 0.09$ & $0.10 \pm 0.04$ \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
-% ---- Kill-test arms launched 2026-08-03 (hand-maintained; filled as runs land) ----
-\begin{table}[t]\centering
-\caption{Pre-registered kill-test arms (phenomenon.tex), launched 2026-08-03.
-\emph{play-noise-hard} = scripted-oracle mixture with \texttt{expert\_frac}=0,
-$\varepsilon_{\max}=0.5$, $\sigma_{\max}=0.3$ (reopens headroom, Ph.~I only);
-\emph{play-resample} = OGBench-style play: 200 trajectories $\times$ 500 steps, target
-re-drawn from the env goal space on every success (no dwell) and every 60 steps
-(equalizes E7: horizon, dwell, goal diversity, kernel range; eval-side goal channel
-untouched). Cube arms test the Ph.~V mechanism. All cells 3 seeds; \textsc{pending} =
-submitted, awaiting results.}
-\label{tab:killtests}
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{lll cc}
-\toprule
-Setting & Critic & Actor & \texttt{mw-push} & \texttt{mw-pick-place} \\
-\midrule
-\multirow{4}{*}{play-noise-hard (Pred.~headroom)}
- & biGCIQL & BC   & $0.600\pm0.050$ & $0.533\pm0.058$ \\
- & biGCIQL & Flow & $\mathbf{0.867\pm0.076}$ & $0.583\pm0.058$ \\
- & GCIQL   & BC   & $0.667\pm0.029$ & $0.517\pm0.076$ \\
- & GCIQL   & Flow & $0.717\pm0.076$ & $0.483\pm0.058$ \\
-\midrule
-\multirow{4}{*}{play-resample (Pred.~kernel(b))}
- & biGCIQL & BC   & $0.967\pm0.029$ & $0.950\pm0.000$ \\
- & biGCIQL & Flow & $0.983\pm0.029$ & $0.983\pm0.029$ \\
- & GCIQL   & BC   & $0.967\pm0.029$ & $0.983\pm0.029$ \\
- & GCIQL   & Flow & $0.950\pm0.000$ & $0.983\pm0.029$ \\
-\midrule
-\multirow{4}{*}{play-resample-hard ($\varepsilon_{\max}{=}0.5$, $\sigma_{\max}{=}0.3$)}
- & biGCIQL & BC   & $0.683\pm0.126$ & $0.550\pm0.050$ \\
- & biGCIQL & Flow & $0.700\pm0.087$ & $\mathbf{0.667\pm0.029}$ \\
- & GCIQL   & BC   & $0.600\pm0.100$ & $0.617\pm0.115$ \\
- & GCIQL   & Flow & $0.650\pm0.050$ & $0.617\pm0.076$ \\
-\bottomrule
-\end{tabular}
-
-\vspace{0.8em}
-\begin{tabular}{llc}
-\toprule
-Cube arm (500k, 3 seeds) & Tests & Success \\
-\midrule
-GCIQL $+\;\kappa\tanh(\cdot/\kappa)$, $\kappa{=}75$ (\texttt{gciql-qb75}) & Ph.~V(a) boundedness & $0.760\pm0.037$ \\
-biGCIQL $d{=}50$, no $\psi$-LayerNorm (\texttt{biql-d50-nopsiln}) & Ph.~V(b) norm concentration & $0.909\pm0.032$ \\
-biGCIQL $d{=}15$ & $d^\dagger$ bracket & $0.837\pm0.027$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-% ---- Arms A/C/D, launched 2026-08-04, landed 2026-08-05 ----
-\begin{table}[t]\centering
-\caption{Arm C — train-side goal-channel repair on \emph{play-noise-hard}
-(\texttt{goal\_mask\_dims}=[36{:}39] zeroed in all training goals and the eval frame;
-\texttt{p\_randomgoal}=0). 300k steps, 3 seeds. Best goal-conditioned-critic Metaworld
-numbers of the program; the repair also \emph{raises the BC floors} (the poisoned goal
-dims were hurting BC's conditioning too), so guidance deltas shrink while absolute
-performance rises. Unrepaired cells from the play-noise-hard block above.}
-\label{tab:armC}
-\begin{tabular}{lll cc}
-\toprule
- & Critic & Actor & \texttt{mw-push} & \texttt{mw-pick-place} \\
-\midrule
-\multirow{4}{*}{goal-channel repaired}
- & biGCIQL & BC   & $0.700\pm0.087$ & $0.750\pm0.050$ \\
- & biGCIQL & Flow & $0.783\pm0.104$ & $\mathbf{0.817\pm0.058}$ \\
- & GCIQL   & BC   & $0.600\pm0.132$ & $0.833\pm0.076$ \\
- & GCIQL   & Flow & $\mathbf{0.800\pm0.132}$ & $0.717\pm0.029$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
+% ---- Arms A/D, launched 2026-08-04, landed 2026-08-05 (all cells 1M OGBench data) ----
 \begin{table}[t]\centering
 \caption{Arm A (rank scaling, 500k, 3 seeds) and Arm D (OOD-goal split). dims$_{95}$
 brackets are [min..med..max] over the 4-setting estimator grid. Flow actor throughout;
-BC = matched \texttt{bcflow} floor. cube-double discriminators: $\gamma{=}0.995$ doubles
-the kernel's informative band; qb75 $=\kappa\tanh(\cdot/\kappa)$, $\kappa{=}75$.
-$^{p}$ = rerun in flight (first-pass runs invalidated by a save-dir collision).}
+BC = matched \texttt{bcflow} floor. All cube-double, scene and Arm~D cells are from the
+post-save-dir-fix rerun generation (jobs 890775--890808, landed 2026-08-05 evening); the
+invalidated first-pass biGCIQL rows remain quarantined on disk
+(\texttt{*.CORRUPT-dirclash}). cube-double discriminators: $\gamma{=}0.995$/$0.999$
+widen the kernel's informative band; qb75 $=\kappa\tanh(\cdot/\kappa)$, $\kappa{=}75$.
+$^{b}$ = bimodal: two of three seeds collapse to $0.000$, so mean$\pm$sd is a poor
+summary (per-seed finals in the run dirs).}
 \label{tab:armAD}
 \setlength{\tabcolsep}{4pt}
 \resizebox{\textwidth}{!}{%
@@ -121,16 +32,163 @@ $^{p}$ = rerun in flight (first-pass runs invalidated by a save-dir collision).}
 Env & dims$_{95}$ & BC & GCIQL & biGCIQL $d50$ & biGCIQL $d512$ & discriminators \\
 \midrule
 \texttt{cube-single} (ref.) & [8..13..19] & $0.09$ & $0.732\pm0.016$ & $\mathbf{0.927\pm0.017}$ & $0.892\pm0.007$ & --- \\
-\texttt{scene} & [9..15..23] & $0.067\pm0.016$ & $0.584\pm0.034$ & $^{p}$ & $^{p}$ & --- \\
+\texttt{scene} & [9..15..23] & $0.048\pm0.017$ & $\mathbf{0.589\pm0.018}$ & $0.255\pm0.018$ & $0.372\pm0.012$ & --- \\
 \texttt{antmaze} & [24..24..24] & $0.160\pm0.021$ & $0.253\pm0.039$ & $0.244\pm0.028$ & $0.253\pm0.028$ & --- \\
-\texttt{cube-double} & [9..33..62] & $0.015\pm0.006$ & $0.360\pm0.045$ & $^{p}$ & $0.000^{\,(n=1,p)}$ &
- \begin{tabular}{@{}c@{}}$\gamma{=}.995$: GCIQL $\mathbf{0.560\pm0.012}$, bi $0.113\pm0.196$\\
+\texttt{cube-double} & [9..33..62] & $0.023\pm0.012$ & $\mathbf{0.377\pm0.098}$ & $0.257\pm0.038$ & $0.131\pm0.226^{\,b}$ &
+ \begin{tabular}{@{}c@{}}$\gamma{=}.995$: GCIQL $0.560\pm0.012$, bi $0.113\pm0.196^{\,b}$\\
+ $\gamma{=}.999$: GCIQL $\mathbf{0.632\pm0.066}$, bi $0.000\pm0.000$\\
  CRL $0.015\pm0.002$; qb75 $0.381\pm0.062$\end{tabular} \\
 \midrule
 \multicolumn{7}{l}{\emph{Arm D} (\texttt{cube-single}, training goals confined to block-$x<0$, standard eval):
- BC $0.091\pm0.006$; GCIQL $\mathbf{0.500\pm0.069}$; biGCIQL $d50$ $0.371\pm0.002$.}\\
+ BC $0.073\pm0.034$; GCIQL $\mathbf{0.492\pm0.022}$; biGCIQL $d50$ $0.364\pm0.012$.}\\
 \bottomrule
 \end{tabular}}
+\end{table}
+
+% ---- Mechanism discriminators, re-homed 2026-08-12 from the deleted tab:killtests ----
+\begin{table}[t]\centering
+\caption{Mechanism discriminators on \texttt{cube-single} (1M, 500k, 3 seeds): the two
+eliminations that leave off-distribution ranking coherence as the surviving mechanism,
+and the latent-dim bracket. Read against the Table~\ref{tab:armAD} reference pair --- MLP
+$0.732$, bilinear $d50$ $0.927$, a $19.5$-point gap. Bounding the monolithic critic's
+output recovers at most $3$ of those points, so boundedness is not what the bilinear
+critic is buying; removing the $\psi$-LayerNorm leaves the bilinear critic essentially
+where it was, so norm concentration is not load-bearing either. What survives both
+eliminations is the ranking-coherence account. The bracket locates $d^\dagger$: the edge
+is already most of the way there by $d{=}15$ and saturated by $d{=}20$, so the useful
+latent dimension is small.}
+\label{tab:cube-mech}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{llc}
+\toprule
+Arm & Tests & Success \\
+\midrule
+GCIQL $+\;\kappa\tanh(\cdot/\kappa)$, $\kappa{=}75$ (\texttt{gciql-qb75}) & Ph.~V(a) boundedness & $0.760\pm0.037$ \\
+biGCIQL $d{=}50$, no $\psi$-LayerNorm (\texttt{biql-d50-nopsiln}) & Ph.~V(b) norm concentration & $0.909\pm0.032$ \\
+biGCIQL $d{=}15$ & $d^\dagger$ bracket ($10{\to}0.62$, $15{\to}0.84$, $20{\to}0.92$) & $0.837\pm0.027$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---- Tier-1 Metaworld matrix at OGBench scale (play-resample v3, 1M) ----
+\begin{table}[t]\centering
+\caption{Tier-1 Metaworld matrix, \texttt{play-resample} v3 ($2000\times500 = 1$M
+transitions per task), 500k steps, repaired protocol
+(\texttt{obs}/\texttt{goal\_mask\_dims} $=[36{:}39]$, \texttt{p\_randomgoal}$=0$,
+per-episode synthesized eval goals), 50 eval episodes; final eval, mean $\pm$ sd over
+3 seeds. \emph{density-hard} is the spec-21 successor-measure critic. This is the
+Metaworld benchmark \emph{after} every known protocol defect is repaired, and the
+verdict inverts the small-data story: the monolithic critic takes pick-place outright
+($0.99$, with BC at $0.44$ the guidance delta is real, not a ceiling artifact), and
+bilinear does not win either cell. Three readings the table has to carry.
+(i)~biGCIQL on push is \emph{bimodal} --- per-seed finals $0.30/0.32/0.76$ --- the same
+collapse signature as cube-double $d{=}512$ in Table~\ref{tab:armAD}, so its
+$0.460\pm0.260$ is a poor summary of a two-mode distribution rather than a noisy middling
+score; note it sits \emph{below} the BC floor. (ii)~density-hard's pick-place failure is
+not a hyperparameter accident: it survives the pre-registered \texttt{p\_randomgoal}$=0.3$
+ablation ($0.140\pm0.150$), and the failure mode is diagnostic --- final goal distances
+park at $0.20$--$0.28$\,m, the in-air transient-occupancy boundary, where a successor
+\emph{measure} has almost no mass to integrate. (iii)~The \texttt{play-noise-hard} regime
+rows are \emph{absent} because that dataset was 100k and is therefore non-citable; the 1M
+regeneration (\texttt{play-noise-hard-1m}) is collected and its rerun is in flight.}
+\label{tab:tier1}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{l cccc}
+\toprule
+Task & BC & GCIQL & biGCIQL $d50$ & density-hard \\
+\midrule
+\texttt{mw-pick-place} & $0.440\pm0.072$ & $\mathbf{0.993\pm0.012}$ & $0.920\pm0.040$ & $0.133\pm0.050$ \\
+\texttt{mw-push}       & $0.540\pm0.000$ & $0.733\pm0.175$ & $0.460\pm0.260$ & $\mathbf{0.820\pm0.040}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---- E1: the sanctioned size ablation ----
+\begin{table}[t]\centering
+\caption{E1: \texttt{cube-single} size ladder --- whole-trajectory truncations of the 1M
+play dataset, 500k steps, 3 seeds (final eval, mean $\pm$ sd). \emph{The one sanctioned
+sub-1M experiment in this document, because it is about dataset size.} The
+bilinear-versus-monolithic gap is a function of sample budget: it is \emph{absent} at 48k
+($0.343$ vs.\ $0.315$, inside one seed-sd), \emph{half-formed} at 100k
+($0.701$ vs.\ $0.508$), and at full strength by 250k ($0.904$ vs.\ $0.704$), after which
+it barely moves. That is the reason no arm below 1M is citable as a \emph{method}
+comparison: at 48k--100k the ladder cannot tell ``no architectural edge here'' apart from
+``not enough data to form one'', and every quarantined Metaworld/ManiSkill arm lived in
+exactly that band. The truncation knob itself is a verified no-op at full size
+(single-seed sanity at \texttt{full}: $0.908$, against the $0.927\pm0.017$ untruncated
+reference in Table~\ref{tab:armAD}).}
+\label{tab:e1}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{l ccc}
+\toprule
+Transitions & BC & GCIQL & biGCIQL $d50$ \\
+\midrule
+48k          & $0.052\pm0.024$ & $0.315\pm0.052$ & $0.343\pm0.027$ \\
+100k         & $0.055\pm0.008$ & $0.508\pm0.028$ & $0.701\pm0.012$ \\
+250k         & $0.072\pm0.021$ & $0.704\pm0.062$ & $0.904\pm0.016$ \\
+full (1.00M) & $0.09$          & $0.732\pm0.016$ & $\mathbf{0.927\pm0.017}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---- E2: ManiSkill at cube scale ----
+\begin{table}[t]\centering
+\caption{E2: ManiSkill at cube scale (\texttt{ms-play-resample}, 1M transitions per task,
+300k steps, 3 seeds, final eval). ``masked'' = the baked-in goal coordinates removed from
+observations \emph{and} goals; the unmasked BC row is the goal-visible control. Read the
+two columns separately, because they fail for opposite reasons. \texttt{ms-push-cube} is
+the declared \emph{structure-mismatched control}: its goal is deterministic given the cube
+pose, so a goal-blind BC saturates ($0.987$ masked, $0.980$ unmasked) and critic guidance
+can only subtract --- which is exactly what it does ($0.60$ GCIQL, $0.77$ bilinear).
+\texttt{ms-pick-cube} under the mask defeats \emph{every} method at $0.02$--$0.04$, and
+that floor is a contact-precision limit rather than an evaluation artifact: re-evaluating
+the same checkpoints under the corrected grasp-offset synthetic goal frame reproduces
+$0.02$--$0.04$, while the unmasked control re-evaluates at $0.98$. At 1M and at
+cube-matched structure, ManiSkill therefore contributes \emph{no}
+architecture-discriminating cell in either direction.}
+\label{tab:e2}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{l cc}
+\toprule
+Method & \texttt{ms-pick-cube} & \texttt{ms-push-cube} \\
+\midrule
+BC, goal visible (unmasked control) & $0.967\pm0.031$ & $0.980\pm0.020$ \\
+\midrule
+BC, masked            & $0.020\pm0.000$ & $\mathbf{0.987\pm0.023}$ \\
+GCIQL, masked         & $0.040\pm0.020$ & $0.600\pm0.122$ \\
+biGCIQL $d50$, masked & $0.040\pm0.000$ & $0.767\pm0.140$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---- Port anchors for the successor-measure critics ----
+\begin{table}[t]\centering
+\caption{Successor-measure port anchors (\texttt{cube-single}, 1M, 500k steps,
+\texttt{flowbc} actor). \emph{bridge} is the reference implementation run through our
+harness on the identical config; the anchor gates a port as correct when our number lands
+within seed noise of it. These are the gates that certified the ports after three
+found-and-fixed porting bugs: (a)~missing $q$-center numerator centering; (b)~the
+bootstrap-goal convention, which differs by critic family --- the \emph{value goal} for
+the goal-conditioned density $F(s,a,g)$, the \emph{actor goal} for the goal-free
+\texttt{td\_fb} $\varphi(s,a)$ --- and was uniformly wrong before; (c)~stale test configs
+that silently pinned superseded hyperparameters. Only after all three did the ported
+critics reproduce the bridge, which is what licenses the density-hard column of
+Table~\ref{tab:tier1}. \texttt{td\_fb} phase 2 was \emph{cancelled} on 2026-08-12; a
+redesigned variant will be tested after the GCIQL/biGCIQL characterization is complete.
+Phase 1 ($0.952$) therefore stands as port certification only, and no \texttt{td\_fb}
+result is claimed anywhere in this document.}
+\label{tab:anchors}
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{l cc}
+\toprule
+Port & ours & bridge \\
+\midrule
+density, soft            & $0.892\pm0.014$ & $0.929$ \\
+density, hard            & $0.916\pm0.014$ & $0.915$ \\
+\texttt{td\_fb} phase 1  & $0.952$ (single seed) & $0.967$ \\
+\texttt{td\_fb} phase 2  & \textsc{cancelled 2026-08-12} & --- \\
+\bottomrule
+\end{tabular}
 \end{table}
 
 \clearpage
@@ -144,119 +202,128 @@ Every dataset above is one packed \texttt{npz} per task at
 \texttt{success}). \texttt{env/unified.py::load\_packed} flattens to $N\!\cdot\!T$
 transitions and \emph{synthesizes} the \texttt{terminals} that mark trajectory boundaries
 at each episode's last step: the env's own \texttt{terminal} flag never fires, since every
-collection here is fixed-horizon. Two schema facts matter for reading the grid.
-(i)~\texttt{achieved\_goal} is a zeros placeholder in all six datasets and is never read.
-(ii)~The eval goal for the goal-conditioned critics does not come from the data's goal
-field either --- it is the single highest-reward \texttt{next\_observation} in the dataset
-(\texttt{env/unified.py:167}), one fixed frame reused for every eval episode. The
-\emph{play-resample} arm deliberately leaves this eval-side channel unrepaired.
+collection here is fixed-horizon. Two schema facts matter for reading the tables.
+(i)~\texttt{achieved\_goal} is a zeros placeholder in every pack and is never read.
+(ii)~The eval goal is \emph{not} taken from the data's goal field. The original loader
+reused a single fixed frame --- the highest-reward \texttt{next\_observation} in the whole
+dataset --- for every eval episode, which fed every goal-conditioned critic the same wrong
+goal and is the defect the repaired protocol removes. The standard now is a
+\emph{per-episode synthesized eval goal}: the episode's own target is written into the
+masked goal frame, so the critic is evaluated against the goal the episode is actually
+being scored on. Every result in this document uses that synthesized eval.
 
-All statistics in Table~\ref{tab:datasets} were recomputed from the packed files, not
-copied from the collection logs. \emph{ep-succ} is the fraction of episodes in which
+Statistics in Table~\ref{tab:datasets} were recomputed from the packed files rather than
+copied from the collection logs, except for the \texttt{play-resample} v3 rows, whose
+content statistics are carried by the collector changelog instead (see the caption).
+\emph{ep-succ} is the fraction of episodes in which
 \texttt{success} ever fires; \emph{dwell} is the fraction of \emph{all} steps spent at the
 goal --- the quantity that separates ``reached it'' from ``sat on it''.
 
 \begin{table}[h]\centering
-\caption{Provenance and measured content of every dataset used above. The exploration
+\caption{Provenance and measured content of every dataset a \emph{cited} result trains on.
+\textbf{trans} $=N\!\cdot\!T$, the quantity that sets the offline sample budget; under the
+1M-only policy this column is now constant by construction at $\approx\!10^6$, which is
+the entire point --- sample budget is no longer a confound between rows. The exploration
 mixture is drawn once per episode (per \emph{segment} for the resample regimes): a coin
 $f_{\mathrm{exp}}$ decides whether the episode stays clean, otherwise
 $\varepsilon\!\sim\!U(0,\varepsilon_{\max})$ and $\sigma\!\sim\!U(0,\sigma_{\max})$ give
 $a = \mathrm{clip}(\pi(s) + \sigma\mathcal{N}(0,I))$, replaced wholesale by $U(-1,1)$ with
-probability $\varepsilon$.}
+probability $\varepsilon$. For \texttt{play-resample} v3 the per-task content statistics
+are not recomputed here; the v3 changelog in \texttt{hf\_dataset/README\_play.md} is
+authoritative. The E1 ladder (Table~\ref{tab:e1}) trains on whole-trajectory truncations
+of the \texttt{cube-single} row.}
 \label{tab:datasets}
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{3.5pt}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lll ccccccc}
+\begin{tabular}{lll cc cccccc}
 \toprule
-Regime & Task & Collector / policy & $N\times T$ & obs/act
+Regime & Task & Collector / policy & $N\times T$ & trans & obs/act
  & $\varepsilon_{\max}/\sigma_{\max}/f_{\mathrm{exp}}$ & ep-succ & dwell & reloc/traj \\
 \midrule
-\multirow{4}{*}{\texttt{expert}}
- & \texttt{ms-pick-cube}  & newt TD-MPC2 ckpt, planner on & $1000\times25$  & 42/4 & $0/0/1$ & 0.996 & 0.746 & -- \\
- & \texttt{ms-push-cube}  & newt TD-MPC2 ckpt, planner on & $1000\times25$  & 35/7 & $0/0/1$ & 0.999 & 0.858 & -- \\
- & \texttt{mw-pick-place} & MW scripted oracle            & $1000\times100$ & 39/4 & $0/0/1$ & 1.000 & 0.749 & -- \\
- & \texttt{mw-push}       & MW scripted oracle            & $1000\times100$ & 39/4 & $0/0/1$ & 0.999 & 0.706 & -- \\
+\multirow{4}{*}{\shortstack[l]{OGBench\\(external, stock)}}
+ & \texttt{cube-single-play-v0}         & OGBench play & $1000\times1001$ & \textbf{1.00M} & 28/5 & --- & --- & --- & -- \\
+ & \texttt{scene-play-v0}               & OGBench play & $1000\times1001$ & \textbf{1.00M} & 40/5 & --- & --- & --- & -- \\
+ & \texttt{cube-double-play-v0}         & OGBench play & $1000\times1001$ & \textbf{1.00M} & 37/5 & --- & --- & --- & -- \\
+ & \texttt{antmaze-medium-navigate-v0}  & OGBench navigate & $1000\times1001$ & \textbf{1.00M} & 29/8 & --- & --- & --- & -- \\
 \midrule
-\multirow{4}{*}{\texttt{play-noise}}
- & \texttt{ms-pick-cube}  & TD-MPC2, \texttt{mpc=false} & $1000\times25$  & 42/4 & $0.25/0.15/0.3$ & 0.772 & 0.272 & -- \\
- & \texttt{ms-push-cube}  & TD-MPC2, \texttt{mpc=false} & $1000\times25$  & 35/7 & $0.25/0.15/0.3$ & 0.955 & 0.691 & -- \\
- & \texttt{mw-pick-place} & MW scripted oracle          & $1000\times100$ & 39/4 & $0.3/0.2/0.3$   & 0.860 & 0.531 & -- \\
- & \texttt{mw-push}       & MW scripted oracle          & $1000\times100$ & 39/4 & $0.3/0.2/0.3$   & 0.820 & 0.484 & -- \\
+\multirow{2}{*}{\shortstack[l]{\texttt{play-resample} v3\\(Tab.~\ref{tab:tier1})}}
+ & \texttt{mw-pick-place} & oracle + target re-draw, reject-and-retry & $2000\times500$ & \textbf{1.00M} & 39/4 & $0/0.02/0$ & \multicolumn{3}{c}{see \texttt{README\_play.md} (v3 changelog)} \\
+ & \texttt{mw-push}       & oracle + target re-draw, reject-and-retry & $2000\times500$ & \textbf{1.00M} & 39/4 & $0/0.02/0$ & \multicolumn{3}{c}{see \texttt{README\_play.md} (v3 changelog)} \\
 \midrule
-\multirow{2}{*}{\texttt{play-noise-hard}}
- & \texttt{mw-pick-place} & as \texttt{play-noise}, hotter mixture & $1000\times100$ & 39/4 & $0.5/0.3/0$ & 0.544 & 0.245 & -- \\
- & \texttt{mw-push}       & as \texttt{play-noise}, hotter mixture & $1000\times100$ & 39/4 & $0.5/0.3/0$ & 0.500 & 0.209 & -- \\
+\multirow{2}{*}{\shortstack[l]{\texttt{ms-play-resample}\\(Tab.~\ref{tab:e2})}}
+ & \texttt{ms-pick-cube}  & TD-MPC2 goal-resample & $8000\times125$  & \textbf{1.00M} & 42/4 & $0/0.05/0$ & --- & 0.279 & 11.0 \\
+ & \texttt{ms-push-cube}  & TD-MPC2 goal-resample (declared control) & $20000\times50$ & \textbf{1.00M} & 35/7 & $0/0.05/0$ & --- & --- & 1.0 \\
 \midrule
-\multirow{2}{*}{\texttt{play-resample}}
- & \texttt{mw-pick-place} & oracle + target re-draw & $200\times500$ & 39/4 & $0.1/0.1/0$ & 0.960 & 0.095 & 47.5 \\
- & \texttt{mw-push}       & oracle + target re-draw & $200\times500$ & 39/4 & $0.1/0.1/0$ & 0.965 & 0.062 & 31.0 \\
-\midrule
-\multirow{2}{*}{\texttt{play-resample-hard}}
- & \texttt{mw-pick-place} & oracle + target re-draw & $200\times500$ & 39/4 & $0.5/0.3/0$ & 0.655 & 0.007 & 3.43 \\
- & \texttt{mw-push}       & oracle + target re-draw & $200\times500$ & 39/4 & $0.5/0.3/0$ & 0.710 & 0.010 & 4.91 \\
-\midrule
-\texttt{cube-single} & \texttt{cube-single-play-v0} & OGBench (external) & \multicolumn{6}{c}{stock OGBench play data; eval = mean success over fixed \texttt{task\_infos}} \\
-OGBench (Arm A) & \texttt{cube-double/scene/antmaze} & OGBench (external) & \multicolumn{6}{c}{stock \texttt{-play-v0}/\texttt{-navigate-v0} data, same protocol; obs 46/40/29-dim, no goal in obs} \\
+\multirow{2}{*}{\shortstack[l]{\texttt{play-noise-hard-1m}\\\textsc{collected 2026-08-12}}}
+ & \texttt{mw-pick-place} & MW scripted oracle, hot mixture & $10000\times100$ & \textbf{1.00M} & 39/4 & $0.5/0.3/0$ & \multicolumn{3}{c}{training pending --- no result cited} \\
+ & \texttt{mw-push}       & MW scripted oracle, hot mixture & $10000\times100$ & \textbf{1.00M} & 39/4 & $0.5/0.3/0$ & \multicolumn{3}{c}{training pending --- no result cited} \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-\paragraph{\texttt{expert}.}
-ManiSkill comes from the published Factor-FB-Offline pack: rollouts of the pretrained newt
-TD-MPC2 checkpoints (HF \texttt{nicklashansen/newt}, snapshot \texttt{7eef11e}) with the
-planner on and zero exploration, 50 parallel envs, failures kept
-(\texttt{success\_only=false}); newt's multitask obs/action padding is stripped back to the
-raw env dims. That pack has no \texttt{mw-pick-place}/\texttt{mw-push}, and its play
-counterpart is unreachable, so both Metaworld tasks were regenerated from Metaworld's
-built-in scripted oracle (\texttt{data\_collection/collect\_mw\_standalone.py}, torch-free,
-no checkpoint) through \texttt{env/metaworld\_env.py} --- action-repeat 2, horizon 100,
-byte-identical to the eval env. This regime is a saturated single-mode oracle corridor: BC
-already solves it, which is why the FB/BC row reads $1.00\pm0.00$ on both Metaworld expert
-columns and why no critic can earn its keep there (Ph.~I).
+\emph{Every earlier collection below OGBench scale --- the $2.5\times10^4$ ManiSkill
+packs, the $10^5$ Metaworld packs, the $4.8\times10^4$ upstream ManiSkill pack, the
+$2\times10^5$ Box2D packs --- is quarantined, together with every result trained on it.
+Those datasets and those numbers live in git history only; they are not citable and are
+deliberately not summarized here.}
 
-\paragraph{\texttt{play-noise} and \texttt{play-noise-hard}.}
-Same collectors, exploration mixture on. Structurally this is still \emph{one target per
-episode}, held for the whole horizon, with heavy terminal dwell --- the oracle reaches the
-goal and then sits there for roughly half the episode, so the goal marginal collapses onto
-a single per-episode point. Only the action distribution differs from \texttt{expert}, not
-the goal distribution. \texttt{play-noise-hard} changes nothing but the mixture
-($f_{\mathrm{exp}}=0$, $\varepsilon_{\max}=0.5$, $\sigma_{\max}=0.3$); horizon, per-episode
-target and dwell are left untouched \emph{on purpose}, so the arm isolates Ph.~I from
-Ph.~II/III. It drops the BC floor to $\approx0.5$, which is the entire point: the benchmark
-measures guidance quality again rather than measuring the ceiling.
+\paragraph{Sample budget.}
+The \texttt{trans} column used to be the single most under-reported difference between our
+arms and the OGBench reference: every Metaworld and ManiSkill result was trained on
+$2.5\times10^4$--$10^5$ transitions against OGBench's $1.00\times10^6$, a 10--40$\times$
+gap. Table~\ref{tab:e1} shows why that gap was not a detail --- the architectural effect
+under study does not exist below ${\sim}10^5$ transitions and is only fully formed by
+$2.5\times10^5$, so those arms were measuring sample budget and reporting it as
+architecture. Every cited row above is now at OGBench scale, and the comparison is
+finally apples-to-apples. One residual asymmetry remains: OGBench ships a held-out
+validation split ($100{,}100$ transitions per env) that our packs have no counterpart for;
+\texttt{env/unified.py} instead carves a \texttt{val\_frac} tail out of the same
+trajectories.
 
-\paragraph{\texttt{play-resample} and \texttt{play-resample-hard}.}
-A different \emph{shape} of data, from
-\texttt{collect\_mw\_play\_resample.py}:
-200 trajectories of 500 wrapper steps ($=1000$ simulator steps, cube-play scale). The target
-is re-drawn from the env's own \texttt{goal\_space} and written into
+\paragraph{\texttt{play-resample} v3 (Metaworld).}
+From \texttt{data\_collection/collect\_mw\_play\_resample.py}: 2000 trajectories of 500
+wrapper steps ($=1000$ simulator steps, cube-play scale, $1.00$M transitions per task).
+The target is re-drawn from the env's own \texttt{goal\_space} and written into
 \texttt{raw.\_target\_pos} --- exactly the quantity the observation's goal dims
-$\texttt{obs}[36{:}39]$ and the scripted oracle read --- immediately when \texttt{success}
-fires (no dwell, as in cube play) and every $\texttt{seg\_max}=60$ steps regardless, so no
-segment gets stuck. \texttt{raw.curr\_path\_length} is zeroed before each wrapper step to
-defeat Metaworld's $\texttt{max\_path\_length}=500$ truncation. Coverage here comes from
-relocation chaining, not action noise, so the mixture is deliberately gentle. Each
-trajectory becomes a chain of ${\sim}30\text{--}48$ reach-and-move segments, and
-within-trajectory relabeling now crosses target contexts through transitions the data
-actually contains (the train-side repair of Ph.~II). The regime nonetheless re-saturates:
-everything scores $0.95\text{--}0.98$, BC included. Under the hot mixture the chaining
-breaks --- relocations per trajectory collapse by an order of magnitude, because the oracle
-rarely completes a segment --- but \texttt{play-resample-hard} is thereby the only arm that
-is simultaneously un-saturated \emph{and} goal-diverse, which is what makes it informative.
+$\texttt{obs}[36{:}39]$ and the scripted oracle read --- on a fixed timer with
+reject-and-retry on the drawn target, so no segment is stuck and no target is
+unreachable. \texttt{raw.curr\_path\_length} is zeroed before each wrapper step to defeat
+Metaworld's $\texttt{max\_path\_length}=500$ truncation. Coverage comes from relocation
+chaining rather than action noise, so the mixture is deliberately gentle; each trajectory
+becomes a chain of reach-and-move segments, and within-trajectory relabeling therefore
+crosses target contexts through transitions the data actually contains. v3 supersedes v1
+(archived as \texttt{play-resample-v1}) on four counts: $2000\times500$ instead of
+$200\times500$, timer-only re-draw, goal-channel staleness fixed on 7--10\% of
+transitions, and the removal of below-table push targets and degenerate one-step segments.
+Full changelog in \texttt{hf\_dataset/README\_play.md}.
+
+\paragraph{\texttt{ms-play-resample} (ManiSkill).}
+Regenerated at cube scale so that E2 (Table~\ref{tab:e2}) is size-matched to
+\texttt{cube-single}: TD-MPC2 goal-resample rollouts with the target re-drawn on success,
+$\sigma=0.05$, $8000\times125$ for pick and $20000\times50$ for push, $1.00$M transitions
+each. The two halves are structurally different on purpose. Pick carries $11.0$
+relocations per trajectory at dwell $0.279$ --- genuine goal diversity. Push carries
+essentially one target per trajectory, because \texttt{ms-push-cube}'s goal is
+deterministic given the cube pose: there is nothing for a re-draw to vary. That is why
+push is entered as a \emph{declared control} rather than a test cell, and why its
+goal-blind BC saturates in Table~\ref{tab:e2}.
 
 \begin{table}[h]\centering
-\caption{What each kill-test dataset actually varies, relative to \texttt{play-noise}.}
+\caption{What each cited dataset actually varies. All rows are 1M; the headroom and
+goal-diversity columns are now the only axes on which they differ, which is what the
+1M-only policy buys.}
 \label{tab:dataset-axes}
-\begin{tabular}{lll}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llll}
 \toprule
-Dataset & Headroom (BC floor) & Goal diversity \\
+Dataset & trans & Headroom (BC floor) & Goal diversity \\
 \midrule
-\texttt{play-noise}         & none (BC $\approx0.9$)          & none (1 target/ep, dwell $\approx0.5$) \\
-\texttt{play-noise-hard}    & \textbf{reopened} (BC $\approx0.5$)  & none \\
-\texttt{play-resample}      & none (BC $\approx0.96$)         & \textbf{high} (30--48 relocs, dwell $\approx0.08$) \\
-\texttt{play-resample-hard} & \textbf{reopened} (BC $\approx0.65$) & moderate (3--5 relocs, dwell $\approx0.01$) \\
+\texttt{play-resample} v3 (MW)       & \textbf{1.00M} & \textbf{open} (BC $0.44$--$0.54$, via mask) & \textbf{high} (chained relocations) \\
+\texttt{ms-play-resample} pick       & \textbf{1.00M} & \textbf{open} (BC $0.02$, contact-limited)  & \textbf{high} (11.0 relocs, dwell $0.28$) \\
+\texttt{ms-play-resample} push       & \textbf{1.00M} & none (BC $0.99$; declared control)          & none (goal determined by cube pose) \\
+OGBench \texttt{-play-v0}            & \textbf{1.00M} & \textbf{open} (BC $0.02$--$0.16$)           & \textbf{high} (task-agnostic play) \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \end{table}
 
 \end{document}

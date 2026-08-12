@@ -28,40 +28,16 @@ a dot product of two small embeddings;
 \item \textbf{monolithic}: one MLP on the concatenated $(s,a,g)$.
 \end{itemize}
 On OGBench cube the bilinear critic reaches $0.93$ where the MLP reaches $0.73$
-(behavior cloning alone: $0.09$). On Metaworld and ManiSkill it does not separate from
-the MLP (main table below). The question is why, and the answer turned out to be simple.
+(behavior cloning alone: $0.09$). Nowhere else, once the comparison is run at the same
+data scale, does it separate from the MLP --- and on the repaired Metaworld benchmark it
+loses outright. The question is why, and the answer turned out to be simple.
 
-\begin{table}[h]\centering
-\caption{Main cross-benchmark grid: success rate, mean $\pm$ sd over 3 seeds.
-\textbf{BC} is the flow actor with the critic's value term removed (pure behavior
-cloning). FB conditions on a task vector inferred from rewards, not on a goal, which is
-why it is immune to the goal-input problem described in \S\ref{sec:when}, condition 3.}
-\label{tab:critic-actor-grid}
-\setlength{\tabcolsep}{4pt}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{ll cccccccc}
-\toprule
- &  & \multicolumn{4}{c}{ManiSkill} & \multicolumn{4}{c}{Metaworld} \\
-\cmidrule(lr){3-6} \cmidrule(lr){7-10}
- &  & \multicolumn{2}{c}{\texttt{ms-pick-cube}} & \multicolumn{2}{c}{\texttt{ms-push-cube}} & \multicolumn{2}{c}{\texttt{mw-pick-place}} & \multicolumn{2}{c}{\texttt{mw-push}} \\
-\cmidrule(lr){3-4} \cmidrule(lr){5-6} \cmidrule(lr){7-8} \cmidrule(lr){9-10}
-Critic & Actor & expert & play-noise & expert & play-noise & expert & play-noise & expert & play-noise \\
-\midrule
-\multirow{3}{*}{FB} & BC & $0.19 \pm 0.01$ & $0.57 \pm 0.06$ & $0.09 \pm 0.05$ & $0.82 \pm 0.04$ & $1.00 \pm 0.00$ & $0.88 \pm 0.03$ & $1.00 \pm 0.00$ & $0.93 \pm 0.04$ \\
- & Flow & $0.21 \pm 0.08$ & $0.69 \pm 0.08$ & $0.04 \pm 0.04$ & $0.78 \pm 0.13$ & $1.00 \pm 0.00$ & $0.86 \pm 0.03$ & $1.00 \pm 0.00$ & $0.96 \pm 0.02$ \\
- & DDPG & $0.20 \pm 0.03$ & $0.20 \pm 0.04$ & $0.10 \pm 0.10$ & $0.58 \pm 0.08$ & $1.00 \pm 0.00$ & $0.91 \pm 0.02$ & $1.00 \pm 0.00$ & $0.88 \pm 0.04$ \\
-\midrule
-\multirow{2}{*}{GCIQL} & Flow & $0.08 \pm 0.02$ & $0.14 \pm 0.03$ & $0.01 \pm 0.01$ & $0.31 \pm 0.16$ & $0.38 \pm 0.04$ & $0.88 \pm 0.06$ & $0.18 \pm 0.02$ & $0.94 \pm 0.03$ \\
- & DDPG & $0.05 \pm 0.00$ & $0.06 \pm 0.01$ & $0.00 \pm 0.00$ & $0.13 \pm 0.05$ & $0.00 \pm 0.00$ & $0.58 \pm 0.01$ & $0.00 \pm 0.00$ & $0.80 \pm 0.03$ \\
-\midrule
-\multirow{2}{*}{biGCIQL} & Flow & $0.08 \pm 0.03$ & $0.08 \pm 0.03$ & $0.00 \pm 0.00$ & $0.19 \pm 0.06$ & $0.34 \pm 0.13$ & $0.85 \pm 0.10$ & $0.37 \pm 0.24$ & $0.90 \pm 0.02$ \\
- & DDPG & $0.06 \pm 0.01$ & $0.05 \pm 0.00$ & $0.00 \pm 0.00$ & $0.16 \pm 0.13$ & $0.01 \pm 0.01$ & $0.39 \pm 0.15$ & $0.10 \pm 0.08$ & $0.64 \pm 0.05$ \\
-\midrule
-\multirow{2}{*}{CRL} & Flow & $0.05 \pm 0.00$ & $0.10 \pm 0.04$ & $0.01 \pm 0.01$ & $0.43 \pm 0.14$ & $0.79 \pm 0.07$ & $0.53 \pm 0.39$ & $0.64 \pm 0.55$ & $0.22 \pm 0.10$ \\
- & DDPG & $0.05 \pm 0.00$ & $0.06 \pm 0.01$ & $0.01 \pm 0.01$ & $0.28 \pm 0.04$ & $0.40 \pm 0.30$ & $0.07 \pm 0.04$ & $0.73 \pm 0.09$ & $0.10 \pm 0.04$ \\
-\bottomrule
-\end{tabular}}
-\end{table}
+\emph{A note on what counts as evidence.} Every number in this document is from a run
+trained on ${\sim}10^6$ transitions, OGBench scale. Earlier arms at $2.5\times10^4$ to
+$10^5$ transitions have been withdrawn: condition 4 below shows the effect under study
+does not exist at those budgets even on cube, so those arms could not have measured it.
+The one exception is the size ladder itself, which is \emph{about} dataset size. All
+supporting tables are in \texttt{table.tex}.
 
 \section{Why bilinear succeeds}
 
@@ -83,23 +59,38 @@ chance level --- the architecture alone does nothing. And the same ranking test 
 each critic's value \emph{accuracy} instead of its ranking goes the other way --- the MLP
 is the more accurate value estimator and still loses. Ranking is what matters.)
 
-\section{When bilinear succeeds --- three plain conditions}\label{sec:when}
+\section{When bilinear succeeds --- four plain conditions}\label{sec:when}
 
 \paragraph{1. The task must finish within the distance range the discount can ``see''
 (roughly tens to a couple hundred steps at $\gamma=0.99$).}
 Cube: $\sim$40 steps $\to$ wins ($0.93$ vs.\ $0.73$).
 Two-cube task: $\sim$400 steps $\to$ everything far away looks equally hopeless, there is
-nothing to learn from $\to$ loses ($\sim$$0.1$, unstable, vs.\ MLP $0.36$; raising
-$\gamma$ to $0.995$ fixes the \emph{MLP} ($0.56$) but not bilinear --- the dot product of
-two normalized embeddings simply cannot output numbers as large as the values a longer
-horizon requires; a one-scalar learnable output scale is the candidate fix, runs in
-flight).
-ManiSkill: done in $\sim$10 steps $\to$ everything looks equally easy $\to$ no edge.
+nothing to learn from $\to$ loses ($0.26$ at $d{=}50$, bimodal collapse at $d{=}512$,
+vs.\ MLP $0.38$). The discount sweep makes the contrast monotone and extreme: as $\gamma$
+goes $0.99 \to 0.995 \to 0.999$ the MLP climbs $0.38 \to 0.56 \to 0.63$ --- its best
+two-cube numbers, confirming the task really was horizon-limited --- while bilinear falls
+$0.26 \to 0.11 \to$ exactly $0.000$ on all three seeds. The longer the sight the task
+needs, the better the MLP does and the harder bilinear dies: the dot product of two
+normalized embeddings simply cannot output numbers as large as the values a longer
+horizon requires (a one-scalar learnable output scale is the candidate fix, \S5).
+The short end of the same prediction --- tasks finished in ${\sim}10$ steps, where
+everything looks equally easy and there should likewise be no edge --- cannot be tested
+on ManiSkill. It was rerun at cube-matched size ($10^6$ transitions) and cube-matched
+structure, to close the loophole that its flatness might be the goal-input problem in
+disguise, and it turns out to answer neither way, for two different reasons. With the baked-in goal
+coordinates masked out, \texttt{ms-pick-cube} defeats \emph{every} method at
+$0.02$--$0.04$ --- BC, MLP and bilinear alike --- and that floor is a contact-precision
+limit rather than an evaluation artifact: re-evaluating the same checkpoints under the
+corrected grasp-offset synthetic goal frame reproduces $0.02$--$0.04$, while the
+goal-visible control re-evaluates at $0.98$. \texttt{ms-push-cube} is degenerate in the
+opposite direction: its goal is determined by the cube's pose, so a goal-blind BC already
+scores $0.99$ and guidance can only subtract from it. ManiSkill therefore supplies no
+architecture-discriminating cell at $10^6$ in either direction (\texttt{tab:e2}).
 
 \paragraph{2. Every test goal must appear somewhere in the training data as a goal.}
 The bilinear critic recombines what it has seen; it cannot invent values for never-seen
 goals. We held out half the goal space during training and evaluated on all of it: the
-bilinear critic lost to the MLP there ($0.37$ vs.\ $0.50$). (This is the opposite of what
+bilinear critic lost to the MLP there ($0.36$ vs.\ $0.49$). (This is the opposite of what
 the Bilinear Value Networks paper, ICLR 2022, reported for online RL with HER.)
 
 \paragraph{3. The critic must be fed the true goal, and BC must not already solve the
@@ -107,21 +98,46 @@ task.}
 Metaworld and ManiSkill bake the goal coordinates into the observation, and the standard
 evaluation fed every critic a wrong, fixed goal --- so every goal-conditioned critic
 looked useless there, and on easy data BC alone already scores $0.9{+}$ so no critic can
-show anything. Fix the goal input (mask the baked-in goal coordinates out of the goals
-during training and evaluation) and use hard data (BC floor $\sim$$0.5$): both critics
-become good --- pick-place $0.82$ (bilinear) / $0.72$ (MLP), push $0.78$/$0.80$, the best
-goal-conditioned results we obtained on Metaworld. Bilinear's edge is small there because
-one-object tasks are too simple to need shared structure across goals.
+show anything. Repair all of it --- mask the baked-in goal coordinates out of
+observations and goals, synthesize the eval goal per episode, drop the random-goal
+relabeling, and run on $10^6$ Metaworld play transitions where the BC floor sits near
+$0.5$ --- and the goal-conditioned critics finally work. But the winner is the MLP.
+Repaired \texttt{mw-pick-place}: MLP $0.99$ against bilinear $0.92$, over a BC floor of
+$0.44$. Repaired \texttt{mw-push}: MLP $0.73$ against bilinear $0.46$, over a BC floor of
+$0.54$ --- bilinear is \emph{below the floor}, and bimodally so (per-seed $0.30/0.32/0.76$,
+the same two-mode collapse signature as the two-cube task at $d{=}512$). The message is
+sharper than ``the edge is small on one-object tasks'': fixing the benchmark is what makes
+critics shine on Metaworld, and it makes the bilinear one specifically not-win
+(\texttt{tab:tier1}).
+
+\paragraph{4. There must be enough data --- roughly $10^5$ transitions to see anything,
+$2.5\times10^5$ for the full effect.}
+The edge is not a property of the architecture alone; it has to be earned from samples.
+Truncate the very dataset bilinear wins on --- whole trajectories dropped from
+\texttt{cube-single} play --- and the gap appears gradually: at 48k transitions there is
+\emph{no} gap ($0.34$ bilinear vs.\ $0.32$ MLP, inside one seed-sd), at 100k it is
+half-formed ($0.70$ vs.\ $0.51$), and only by 250k is it at full size ($0.90$ vs.\ $0.70$),
+after which it barely moves (1M: $0.93$ vs.\ $0.73$). BC stays flat at $0.05$--$0.09$
+throughout, so this is a critic effect, not a general data effect
+(\texttt{tab:e1}; the truncation knob is a verified no-op at full size). This is why no
+method comparison in this project is read off a dataset smaller than $10^6$: down in the
+48k--100k band, ``there is no architectural edge on this benchmark'' and ``there is not
+enough data here to form one'' produce the same table.
 
 \section{Summary}
 
 Bilinear wins when the task is \emph{reachable within the discount's sight}, the goals
-are \emph{seen in training}, and BC \emph{cannot} do it alone --- because then its
-shared-building-block $Q$ keeps ranking actions correctly in places the MLP has never
-been. Outside those conditions --- very long tasks, goals you never trained on, or
-benchmarks whose observations leak the goal --- the MLP with a well-chosen discount is
-the safer choice. No critic dominates everywhere; what this project adds is that you can
-tell \emph{in advance} which one to use.
+are \emph{seen in training}, BC \emph{cannot} do it alone while the critic is fed the
+\emph{true} goal, and there is \emph{enough data} for the shared structure to be
+estimated at all --- because then its shared-building-block $Q$ keeps ranking actions
+correctly in places the MLP has never been. Outside those four conditions --- very long
+tasks, goals you never trained on, benchmarks whose observations leak the goal, or
+datasets below ${\sim}10^5$ transitions --- the MLP with a well-chosen discount is the
+safer choice. And ``the MLP'' is not the only alternative: on the repaired
+\texttt{mw-push} cell that bilinear loses, the cell is held by neither of the two critics
+this document contrasts but by a successor-measure critic at $0.82$ (which in turn fails
+pick-place at $0.13$). No critic dominates everywhere; what this project adds is that you
+can tell \emph{in advance} which one to use.
 
 \section{A one-parameter fix for the long-horizon failure}
 
@@ -145,6 +161,14 @@ initialization the critic is exactly the original one. Now the number size is fr
 like the MLP's output layer --- and $d$ is left to do the one job it is good at. If this
 plus a longer-sighted discount recovers the bilinear critic on the two-cube task, it also
 proves the failure there was number size, not the shared-structure idea; if it does not,
-the failure is deeper. Runs are in flight; the prediction is on record before they land.
+the failure is deeper.
+
+Status: the prediction remains on record and \emph{untested}. The first attempt (six
+runs: $\gamma\in\{0.995, 0.999\}$, 3 seeds, 2026-08-05) produced no data --- every run
+crashed at initialization because the scale parameter was created outside a
+\texttt{@compact} method (a Flax constraint; \texttt{impls/utils/networks.py}). What did
+land meanwhile raises the stakes: without the scale, $\gamma{=}0.999$ lifts the MLP to
+$0.63$ while bilinear collapses to $0.000$ on every seed, exactly the regime the
+one-scalar fix is supposed to rescue. The runs need a code fix and a relaunch.
 
 \end{document}
