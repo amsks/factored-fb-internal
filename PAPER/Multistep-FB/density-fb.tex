@@ -193,7 +193,7 @@ Black lines are shared with standard FB; {\color{fbdiff}blue} lines are where \D
 
 OGBench state-based manipulation and locomotion \citep{park2024ogbench}, $500$k gradient steps, no reward labels during training, native evaluation (five tasks, $50$ episodes each), three seeds, mean $\pm$ $95\%$ confidence interval ($t$-based).
 We evaluate each representation with two actor extractors, flow behavior cloning and Gaussian DDPG+BC, to separate representation quality from policy extraction.
-Behavior cloning trains the same actor with the $q$ term removed and learns no successor representation: $0.111$ on \texttt{cube-single}, $0.019$ on \texttt{cube-double}.
+Behavior cloning trains the same actor with the $q$ term removed and learns no successor representation: $0.111$ on \texttt{cube-single}, $0.019$ on \texttt{cube-double}, $0.071$ on \texttt{scene} ($0.064/0.080/0.068$, three seeds).
 Published goal-conditioned IQL results use $1$M gradient steps and eight seeds. We include them as an external reference; they are not a matched baseline.
 
 \begin{table}[h]
