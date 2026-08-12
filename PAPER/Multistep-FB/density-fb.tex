@@ -128,10 +128,10 @@ This keeps the target on the simplex even when several rows share the same objec
 
 This removes the inflation without deleting dwell mass.
 A long rest can make the predicted occupancy concentrate at that configuration, as it should, but it cannot increase the total amount of successor mass; the action-independent solution becomes the uniform distribution, which cross-entropy penalizes against any concentrated target and which is visible in the prediction's entropy.
-Hard and soft differ only in where the immediate mass goes: hard puts it on the realized successor, soft distributes it over the successor's $\epsilon$-neighborhood.
+Hard and soft differ only in where they place the immediate $1-\gamma$ mass: exactly on the realized successor, or across its $\epsilon$-neighborhood.
 
 \paragraph{Fixed point and contraction.}
-Normalization does not change the underlying successor fixed point: for the hard variant it only rescales the measure by $1-\gamma$, so the Bellman operator retains the same fixed-point information while constraining total mass; the soft variant additionally smooths the immediate successor over an $\epsilon$-neighborhood, so its fixed point is the correspondingly smoothed measure.
+Normalization preserves the successor-measure fixed point: for the hard variant it only rescales the measure by $1-\gamma$, constraining total mass; the soft variant additionally smooths the immediate successor over an $\epsilon$-neighborhood, so its fixed point is the correspondingly smoothed measure.
 Writing $\mathcal T\nu \,(\cdot\mid s,a) = (1-\gamma)\,\E[\kappa(\cdot\mid x_1)] + \gamma\,\E_{s_1,a^+}\left[ \nu(\cdot\mid s_1,a^+) \right]$ for the operator whose sample version is Equation~\ref{eq:density-loss}, for any two conditional measures
 \begin{equation}
 \sup_{s,a}\, \big\| \mathcal T\nu_1 - \mathcal T\nu_2 \big\|_{\mathrm{TV}}
@@ -234,7 +234,7 @@ Fixed partition ($K{=}256$) & $0.725 \pm 0.121$ & $0.723 \pm 0.298$ & $0.133 \pm
 
 The largest difference appears on rewards centered away from the benchmark goals: held-out-region transfer rises from $0.133$ with the fixed partition to $0.293$ with soft \DensityFB{} and $0.647$ with the hard variant.
 This is consistent with continuous query representations helping most when the reward sits between or away from fixed prototypes.
-The hard target outperforms the soft target on all three reward families while the two perform almost identically on goal reaching (Table~\ref{tab:main}), suggesting that kernel smoothing degrades reward transfer in this setting without helping control.
+The hard target outperforms the soft target on all three reward families while the two perform almost identically on goal reaching (Table~\ref{tab:main}), suggesting that kernel smoothing is unnecessary for control here and can reduce the fidelity of the zero-shot reward readout.
 
 % ======================================================================
 \section{Related work}
