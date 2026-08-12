@@ -100,7 +100,14 @@ Since the total discounted mass is $1/(1-\gamma)$ for every $(s,a)$, multiplying
 \label{eq:nu}
 \nu(\cdot\mid s,a,g) = (1-\gamma)\, M(\cdot\mid s,a,g).
 \end{equation}
-The key change is that $F^\top B$ becomes a score rather than an unconstrained density: a softmax over sampled query configurations turns the scores into a normalized distribution,
+\paragraph{Role of the goal.}
+The goal $g$ is not part of the successor-measure concept; it is our index into a policy family.
+A successor measure is always some policy's measure, and the useful object for control is the occupancy of a directed policy rather than of the play data's behavior policy, so like FB we learn a family of measures jointly with a family of policies: FB indexes both by a latent task vector $z$, we index both by goals, and the $g$ in $F(s,a,g)$ plays exactly the role $z$ plays in $F(s,a,z)$.
+Training uses no rewards and no task labels in either case; our goals come free from hindsight relabeling of the unlabeled data, as FB's $z$ come free from sampling.
+Evaluating an arbitrary reward under a family member is index-free (Section~\ref{sec:reward-transfer}: the readout is an expectation of $r$ under the predicted distribution, whatever the form of $r$); only \emph{acting} for a new reward requires choosing an index, which FB does analytically via $z_r$ and we do by search over candidate goals.
+The trade-off is expressiveness for composite rewards: FB's linear index can in principle encode a mixture of modes in one $z$, while our family offers the best single goal per state; Section~\ref{sec:reward-transfer} shows the search-based route working on concentrated rewards, and conditioning the actor on a learned reward embedding is the natural extension we have not run.
+
+The key change relative to FB's estimator is that $F^\top B$ becomes a score rather than an unconstrained density: a softmax over sampled query configurations turns the scores into a normalized distribution,
 \begin{equation}
 \label{eq:density-softmax}
 f(s,a,g,u) = F(s,a,g)^\top B(\tilde u)/\tau,
@@ -225,7 +232,7 @@ We therefore replace the smoothed estimate of the current configuration's reward
 \end{equation}
 The correction is action independent, so it changes calibration but never action ranking.
 The resulting readout is linear in $r$ and requires no retraining.
-To act, we retrieve the pool observation that maximizes $\widehat Q_r$ from the initial state, condition the goal-reaching actor on it, and roll out.
+To act, we retrieve the pool observation that maximizes $\widehat Q_r$ from the initial state, condition the goal-reaching actor on it, and roll out: a one-step generalized policy improvement over the goal-indexed family, playing the role FB's analytic $r \mapsto z_r$ assignment plays over its $z$-indexed family.
 
 \paragraph{Reward construction.}
 We test three reward families, all defined only from object coordinates, valued in $[0,1]$, and never observed during training (Figure~\ref{fig:rewardfams}; internal names \texttt{dirac}/\texttt{dense}/\texttt{region}):
@@ -238,7 +245,7 @@ The fixed-partition row is the same objective with the continuous query set repl
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/reward_families.png}
+\includegraphics[width=0.95\textwidth]{ICLR/figures/reward-families.png}
 \caption{The three test reward families on the cube workspace (cube-position plane, $\epsilon$-balls to scale). Sparse and dense share task-style centers and differ in shaping; held-out regions keep the sparse form at hindsight-drawn dataset centers.}
 \label{fig:rewardfams}
 \end{figure}
@@ -262,23 +269,6 @@ Fixed partition ($K{=}256$) & $0.725 \pm 0.121$ & $0.723 \pm 0.298$ & $0.133 \pm
 The largest difference appears on rewards centered away from the benchmark goals: held-out-region transfer rises from $0.133$ with the fixed partition to $0.293$ with soft \DensityFB{} and $0.647$ with the hard variant.
 This is consistent with continuous query representations helping most when the reward sits between or away from fixed prototypes.
 The hard target outperforms the soft target on all three reward families while the two perform almost identically on goal reaching (Table~\ref{tab:main}), suggesting that kernel smoothing is unnecessary for control here and can reduce the fidelity of the zero-shot reward readout.
-
-% ======================================================================
-\section{Related work}
-\label{sec:related}
-
-Successor representations and measures predict discounted future occupancy \citep{dayan1993improving,blier2021learning}; FB factorizes the density and retargets a policy family to downstream rewards \citep{touati2021learning,touati2023does}.
-Goal-conditioned offline RL studies the same reach-a-goal problem with sparse rewards and hindsight relabeling \citep{kaelbling1993learning,andrychowicz2017hindsight,kostrikov2021offline,park2023hiql}; goal-conditioned IQL is our representative baseline from that family.
-Contrastive RL \citep{eysenbach2022contrastive} learns future-state discrimination; \DensityFB{} keeps the FB factorization and an explicit normalized successor-measure interpretation.
-
-% ======================================================================
-\section{Limitations}
-\label{sec:limitations}
-
-The method is given the object coordinates that define goals; pixels would need a learned object representation.
-Queries are the batch's own successors; independent query pools are untested.
-Calibration against Monte-Carlo region masses is strong at coarse scale (Spearman $0.83$--$0.85$ at $4\epsilon$) and moderate at the native scale ($0.41$--$0.48$), for the partition variant as well, so fine-scale set mass is a limit of the estimator family; the hard variant's calibration is not yet measured.
-On \texttt{scene}, both composed-rearrangement tasks fail across seeds and both variants, suggesting that structure beyond geometric object coordinates is needed there.
 
 \bibliography{references}
 \bibliographystyle{iclr2027_conference}
