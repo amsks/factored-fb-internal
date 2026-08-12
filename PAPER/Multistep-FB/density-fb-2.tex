@@ -165,9 +165,20 @@ Now
 \nu^{\pi_g}(\mathcal X\mid s,a)=1.
 \end{equation}
 
-For the hard variant below, $\nu$ is simply a constant rescaling of the original successor measure.
-No successor information is removed.
-The quantity being predicted is now a probability distribution rather than an unconstrained density.
+This normalization only rescales the usual successor-measure Bellman equation.
+
+\begin{align}
+    M^{\pi_g}(\cdot\mid s,a)    &= P_\phi(\cdot\mid s,a) + \gamma\,\E_{s^+,a^+} \left[ M^{\pi_g}(\cdot\mid s^+,a^+) \right], \\
+    \nu^{\pi_g}(\cdot\mid s,a)  &= (1-\gamma)P_\phi(\cdot\mid s,a) + \gamma\,\E_{s^+,a^+} \left[ \nu^{\pi_g}(\cdot\mid s^+,a^+) \right],
+\label{eq:normalized-bellman}
+\end{align}
+where the second line follows by multiplying the first by $1-\gamma$ and using $\nu=(1-\gamma)M$.
+Thus the factor $1-\gamma$ appears only in the immediate term because we normalize the measure to unit mass; the recursive coefficient remains $\gamma$.
+Consequently, for any $\nu_1,\nu_2$, the immediate term cancels and
+\begin{equation}
+    \|\mathcal T\nu_1-\mathcal T\nu_2\|_{\mathrm{TV}} \le \gamma\|\nu_1-\nu_2\|_{\mathrm{TV}},
+\end{equation}
+so the normalized Bellman operator has the same $\gamma$-contraction as the original successor-measure operator.
 
 \subsection{Normalize the FB scores}
 
@@ -295,41 +306,6 @@ Soft \DensityFB{} changes only the immediate term:
 Everything else is unchanged.
 The hard variant learns the normalized successor measure itself, whereas the soft variant smooths each one-step successor over an $\epsilon$-neighborhood before propagating occupancy.
 
-\subsection{Fixed point and contraction}
-
-At the measure level, define
-\begin{equation}
-(\mathcal T\nu)(\cdot\mid s,a,g)
-=
-(1-\gamma)
-P_\phi(\cdot\mid s,a)
-+
-\gamma
-\E_{s^+,a^+}
-\left[
-    \nu(\cdot\mid s^+,a^+,g)
-\right].
-\end{equation}
-For any two conditional measures $\nu_1,\nu_2$,
-\begin{equation}
-\sup_{s,a,g}
-\left\|
-    \mathcal T\nu_1
-    -
-    \mathcal T\nu_2
-\right\|_{\mathrm{TV}}
-\le
-\gamma
-\sup_{s,a,g}
-\left\|
-    \nu_1-\nu_2
-\right\|_{\mathrm{TV}}.
-\end{equation}
-The immediate term cancels and expectation cannot increase total variation, so $\mathcal T$ is a $\gamma$-contraction.
-
-For the hard variant, its unique fixed point is exactly the normalized successor measure in Equation~\ref{eq:normalized-sm}.
-The soft variant has the same contraction but replaces the one-step transition distribution with its $\epsilon$-smoothed version.
-
 \subsection{Role of the goal}
 
 Goal conditioning is not required by the \DensityFB{} estimator.
@@ -347,11 +323,9 @@ q_g(s,a)
 \sum_j
 p_j(s,a,g)\,
 k_j^\epsilon(g),
-\qquad
-k_j^{\epsilon}(g) = \frac{ \exp\!\left( -\frac12 \|(u_j-g)/\epsilon\|^2 \right)}{ \sum_m \exp\!\left( -\frac12 \|(u_m-g)/\epsilon\|^2 \right)},
 \end{equation}
-with the per-block tolerances for multi-object goals.
-(The kernel weighting is used by both training variants; the hard/soft choice affects only the immediate term of the measure loss.)
+with $k^\epsilon$ from Equation~\ref{eq:soft-target}'s kernel and the per-block tolerances for multi-object goals.
+The kernel weighting is used by both training variants; the hard/soft choice affects only the immediate term of the measure loss, never the actor's goal weighting.
 
 For the flow actor, we use this inside the behavior-regularized objective
 \begin{equation}
@@ -481,7 +455,7 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
 \midrule
 \texttt{cube-single}
 & FQL + BC
-& $0.410 \pm 0.061$
+& $0.420$\,(10 seeds)
 & $\mathbf{0.929 \pm 0.085}$
 & $0.915 \pm 0.087$
 & -- \\
@@ -489,7 +463,7 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
 & DDPG + BC
 & $0.353 \pm 0.38$
 & $0.879 \pm 0.095$
-& $0.856$\,(1 seed)
+& $0.887 \pm 0.066$
 & $0.68 \pm 0.06$ \\
 \midrule
 
@@ -517,7 +491,7 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
 & DDPG + BC
 & \emph{pending}
 & $0.563 \pm 0.011$
-& \emph{pending}
+& $0.664$, $0.648$
 & $0.51 \pm 0.04$ \\
 \midrule
 
@@ -525,7 +499,7 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
 & FQL + BC
 & $0.593 \pm 0.25$
 & $0.563 \pm 0.167$
-& $0.772$\,(1 seed)
+& $0.772$, $0.580$
 & -- \\
 
 & DDPG + BC
@@ -660,17 +634,17 @@ Environment & Reward family & Plain FB & \DensityFB{} (soft) & \DensityFB{} (har
 & sparse
 & \emph{pending}
 & $0.549 \pm 0.240$
-& $0.544 \pm 0.000$\,(2) \\
+& $0.544$, $0.544$ \\
 
 & dense
 & \emph{pending}
 & $0.488 \pm 0.163$
-& $0.532 \pm 0.559$\,(2) \\
+& $0.488$, $0.576$ \\
 
 & held-out regions
 & \emph{pending}
 & $0.177 \pm 0.160$
-& $0.165 \pm 0.064$\,(2) \\
+& $0.160$, $0.170$ \\
 \midrule
 
 \texttt{scene}
@@ -873,7 +847,7 @@ If both objectives behave similarly, the main effect comes from normalization; i
 \paragraph{Orthonormalization.}
 Equation~\ref{eq:fb-loss} includes the orthonormalization term used by standard FB; \DensityFB{} removes it entirely.
 No orthonormalization, mass, or non-negativity penalty appears anywhere in the implementation (the configuration layer refuses them), because the softmax supplies the normalization those terms approximate.
-This is deliberate: in the frozen-representation experiment of Section~\ref{sec:play}, orthonormalization bounded the scale but capped success at $0.225$.
+This is deliberate: with a frozen capable representation, orthonormalization bounds the critic scale but caps success at $0.225$.
 
 \paragraph{Separating readout error from goal-selection error.}
 The gap between goal reaching and reward transfer on \texttt{cube-double} currently combines errors from reward integration and goal selection.
