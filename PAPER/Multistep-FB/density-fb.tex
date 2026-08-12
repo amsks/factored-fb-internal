@@ -134,16 +134,16 @@ Goal-conditioned IQL & $0.879$ & $0.265$ & $0.26$--$0.287$ \\
 \TDFB{} occupancy, hindsight queries & $\sim0.93$ & $\sim0.53$ & $\mathbf{0.927}$ \\
 \midrule
 \DensityFB{} (soft) & $0.929 \pm 0.085$ & $\mathbf{0.736 \pm 0.139}$ & $0.628 \pm 0.134$ \\
-\DensityFB{} (hard) & $0.915 \pm 0.087$ & \emph{pending} & \emph{pending} \\
+\DensityFB{} (hard) & $0.915 \pm 0.087$ & \emph{pending} & $0.641 \pm 0.109$ \\
 \bottomrule
 \end{tabular}
-\caption{Native goal-conditioned success. Seeds: soft \texttt{cube-single} $.896/.928/.964$, \texttt{cube-double} $.680/.736/.792$, \texttt{scene} $.672/.568/.644$; hard \texttt{cube-single} $.876/.944/.924$.}
+\caption{Native goal-conditioned success. Seeds: soft \texttt{cube-single} $.896/.928/.964$, \texttt{cube-double} $.680/.736/.792$, \texttt{scene} $.672/.568/.644$; hard \texttt{cube-single} $.876/.944/.924$, \texttt{scene} $.692/.620/.612$. The hard \texttt{cube-double} cell has one seed still training.}
 \label{tab:main}
 \end{table}
 
 \texttt{cube-single} separates little: the cloning floor is $0.111$ and four methods sit between $0.88$ and $0.97$.
 \texttt{cube-double} is the discriminative environment: a random conjunctive goal gives \TDFB{} a positive region target on only $0.046\%$ of state-goal pairs, occupancy training there loses success ($0.549 \to 0.358$), and hindsight only recovers it ($\sim0.53$), while \DensityFB{} reaches $0.736$ from scratch with no curriculum and no hindsight, against a cloning floor of $0.019$.
-On \texttt{scene}, \DensityFB{} clears every non-hindsight arm but not hindsight \TDFB{}: all three seeds solve \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} ($0.88$--$1.0$) and fail \texttt{put-in-drawer} ($0.02$--$0.48$) and \texttt{rearrange-hard} ($0.0$--$0.02$).
+On \texttt{scene}, \DensityFB{} clears every non-hindsight arm but not hindsight \TDFB{}, and both variants show the same per-task split on every seed: \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} are solved ($0.88$--$1.0$) while \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) fail.
 
 % ======================================================================
 \section{Reward evaluation}
