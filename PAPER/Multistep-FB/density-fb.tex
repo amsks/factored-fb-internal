@@ -43,7 +43,7 @@ The standard estimator is
 random queries get a squared residual; the observed successor gets a linear positive term.
 
 % ======================================================================
-\section{The issue: play data inflates the successor loss}
+\section{Why stationary segments dominate the FB objective}
 \label{sec:play}
 
 Manipulation play alternates brief object-changing interactions with long periods at persistent configurations: approach, grasp, transport, release, then rest.
@@ -59,11 +59,14 @@ On \texttt{cube-double} each cube is stationary on $72\%$ of transitions; on \te
 
 This structure repeatedly reinforces the same successor.
 A rest of length $L$ contributes $L$ near-identical positive terms, one per transition, whereas the transition that brought the cube there appears only once; a $44$-step rest therefore gives the same configuration roughly forty opportunities to influence the objective.
-The linear observed-successor term in Equation~\ref{eq:fb-loss} turns this repetition into unbounded growth of the critic scale, and the region-indicator form of the objective admits a large, well-scaled, action-independent constant $c^\star = \E_\rho[h]/(1-\gamma)$ that satisfies the Bellman equation on average.
-Either way, the critic can reduce the objective without learning meaningful action dependence.
+Repeated stationary transitions create two problems.
+First, the linear positive term in Equation~\ref{eq:fb-loss} can increase the scale of the critic without bound.
+Second, when the successor target is a region indicator $h(s',g)=\ind{s'\in B_\epsilon(g)}$, the Bellman objective admits an action-independent constant solution $c^\star = \E_\rho[h]/(1-\gamma)$.
+In either case, the objective can be reduced without learning which actions move the object.
 
-The failure is the estimator, not the representation (Figure~\ref{fig:divergence}).
-With a backward representation frozen from a checkpoint supporting $0.97$ task success, the scalar FB loss grows the critic scale from $154$ to $5.4\times10^4$ within $65$k steps and success falls to $0.42$; orthonormalization bounds the scale but caps success at $0.225$.
+A frozen-representation experiment separates the objective from representation capacity (Figure~\ref{fig:divergence}).
+With a backward representation frozen from a checkpoint supporting $0.97$ task success, the standard FB objective grows the critic scale from $154$ to $5.4\times10^4$ within $65$k steps and success falls to $0.42$; orthonormalization bounds the scale but caps success at $0.225$.
+A capable representation therefore does not rescue the objective: the instability follows the estimator.
 
 \begin{figure}[t]
 \centering
@@ -76,7 +79,7 @@ With a backward representation frozen from a checkpoint supporting $0.97$ task s
 \centering
 \includegraphics[width=\textwidth]{figures/2_curves.png}
 \end{minipage}
-\caption{A useful representation does not rescue the scalar FB loss. \emph{Left:} critic scale. \emph{Right:} goal-conditioned success. Bounded TD objectives stay stable on the same frozen backward representation, while the scalar FB objective inflates and degrades.}
+\caption{A useful representation does not rescue the standard FB objective. \emph{Left:} critic scale. \emph{Right:} goal-conditioned success. Bounded TD objectives stay stable on the same frozen backward representation, while the standard FB objective inflates and degrades.}
 \label{fig:divergence}
 \end{figure}
 
@@ -84,13 +87,12 @@ With a backward representation frozen from a checkpoint supporting $0.97$ task s
 \section{\DensityFB: soft and hard variants}
 \label{sec:method}
 
-Since $M(\mathcal X\mid s,a) = 1/(1-\gamma)$ for every $(s,a)$, the normalized measure
+We consider a goal-conditioned policy $\pi(a\mid s,g)$ and write $M(\cdot\mid s,a,g)$ for its successor measure, restricted to the goal-relevant object coordinates $x=\phi_{\mathrm{obj}}(s)$ (the pushforward of the state successor measure, which is exact for any reward defined on object coordinates).
+Since the total discounted mass is $1/(1-\gamma)$ for every $(s,a)$, multiplying by $1-\gamma$ yields a probability distribution:
 \begin{equation}
 \label{eq:nu}
-\nu(\cdot\mid s,a,g) = (1-\gamma)\, M(\cdot\mid s,a,g)
+\nu(\cdot\mid s,a,g) = (1-\gamma)\, M(\cdot\mid s,a,g).
 \end{equation}
-is a probability distribution.
-In our setting we model this distribution over the goal-relevant object coordinates $x=\phi_{\mathrm{obj}}(s)$.
 The key change is that $F^\top B$ becomes a score rather than an unconstrained density: a softmax over sampled query configurations turns the scores into a normalized distribution,
 \begin{equation}
 \label{eq:density-softmax}
@@ -105,21 +107,24 @@ Each update asks one question: how should one unit of normalized future occupanc
 The target mixes an immediate distribution around the observed successor with the bootstrapped prediction, and is fit by cross-entropy:
 \begin{equation}
 \label{eq:density-loss}
-t = \sg \left[ (1-\gamma)\, \kappa(\cdot\mid x') + \gamma\, \bar p(s',a^+,g) \right],
+t = \sg \left[ (1-\gamma)\, \kappa(\cdot\mid x') + \gamma\, \bar w(s',a^+,g) \right],
 \qquad
 \mathcal L = - \E \Big[ \sum_j t_j \log w_j \Big],
-\qquad a^+ \sim \pi_{\bar\omega}(\cdot\mid s',g).
+\qquad a^+ \sim \pi_{\bar\omega}(\cdot\mid s',g),
 \end{equation}
+where $\bar w$ is the target-network prediction and $\pi_{\bar\omega}$ is the target copy of the goal-conditioned actor introduced below.
 The first term places $1-\gamma$ of the probability mass around the observed next configuration; the remaining $\gamma$ is inherited from the next state's predicted occupancy.
 Both terms lie on the simplex, so $t$ is itself a distribution.
 We evaluate two immediate targets, differing only in how the immediate mass is assigned:
 \begin{align}
 \text{soft:}\quad &\kappa_\epsilon(u_j\mid x') \propto \exp\!\left( -\tfrac12 \|(u_j-x')/\epsilon\|^2 \right),
 \label{eq:kappa-soft}\\
-\text{hard:}\quad &\kappa(u_j\mid x') = \ind{u_j = x'},
+\text{hard:}\quad &\kappa_j(x'_i) = \ind{j = i},
 \label{eq:kappa-hard}
 \end{align}
-with $\epsilon$ the task tolerance; the hard target is well defined because $U$ contains each row's successor.
+with $\epsilon$ the task tolerance.
+The hard target is an index-level one-hot: $U$ is built from the batch's next configurations, so row $i$'s successor occupies slot $i$.
+This keeps the target on the simplex even when several rows share the same object coordinates, which stationary segments make common; a coordinate-equality indicator would place mass greater than one on duplicates.
 
 This removes the inflation without deleting dwell mass.
 A long rest can make the predicted occupancy concentrate at that configuration, as it should, but it cannot increase the total amount of successor mass; the action-independent solution becomes the uniform distribution, which cross-entropy penalizes against any concentrated target and which is visible in the prediction's entropy.
@@ -150,7 +155,7 @@ The behavior-cloning row in Table~\ref{tab:main} trains the same actor with the 
 \label{sec:main-results}
 
 OGBench state-based manipulation \citep{park2024ogbench}, $500$k gradient steps, no reward labels during training, native evaluation (five tasks, $50$ episodes each), three seeds, mean $\pm$ $95\%$ confidence interval ($t$-based, $n{=}3$).
-Behavior cloning is the floor: it shares the actor's cloning term and nothing else, so it measures how much success imitation alone buys.
+We include behavior cloning as an imitation-only baseline: it trains the same actor with the $q$ term removed and learns no successor representation, isolating the improvement beyond imitation.
 
 \begin{table}[h]
 \centering
@@ -174,7 +179,7 @@ Goal-conditioned IQL & $0.879$ & $0.265$ & $0.26$--$0.287$ \\
 
 Plain FB remains well below goal-conditioned IQL on \texttt{cube-single} and collapses on the multi-object environments, consistent with Section~\ref{sec:play}.
 \texttt{cube-single} is close to saturated: both \DensityFB{} variants reach about $0.92$ against $0.879$ for goal-conditioned IQL, so it provides limited separation between the strongest methods.
-\texttt{cube-double} provides the clearest separation: \DensityFB{} reaches $0.736$ from scratch against $0.265$ for goal-conditioned IQL, $0.000$ for plain FB, and a cloning floor of $0.019$.
+Differences are largest on \texttt{cube-double}: \DensityFB{} reaches $0.736$ from scratch against $0.265$ for goal-conditioned IQL, $0.000$ for plain FB, and $0.019$ for the imitation-only baseline.
 The \texttt{scene} result is structured rather than noisy: every seed of both variants solves \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} ($0.88$--$1.0$), while \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) remain the bottlenecks.
 
 % ======================================================================
@@ -184,7 +189,9 @@ The \texttt{scene} result is structured rather than noisy: every seed of both va
 The reward-transfer experiment asks a different question from goal reaching: does the learned object represent only the five benchmark goals, or can it be integrated against a new reward?
 At test time we approximate the integral of $r$ against the learned successor distribution with a pool $U_P$ of $16{,}384$ object configurations drawn from the dataset: we evaluate $r$ on the pool once and take its expectation under the predicted occupancy $w$, which gives $w^\top r(U_P)/(1-\gamma)$.
 One correction improves this estimate.
-Here $x_0$ is the current state's object configuration (not necessarily in $U_P$), and $\kappa(\cdot\mid x_0)$ are its kernel weights over the pool: the finite pool and the kernel smooth the reward most exactly around $x_0$, where the predicted occupancy concentrates at small $t$, so we replace the smoothed estimate of the current configuration's reward, $\kappa(\cdot\mid x_0)^\top r(U_P)$, with its exact value $r(x_0)$:
+Let $x_0$ be the current state's object configuration, which need not appear in $U_P$, and let $\kappa(\cdot\mid x_0)$ be its kernel weights over the pool.
+The finite pool and the kernel smooth the reward, and the smoothing error is largest around $x_0$, where the predicted occupancy concentrates at small $t$.
+We therefore replace the smoothed estimate of the current configuration's reward, $\kappa(\cdot\mid x_0)^\top r(U_P)$, with its exact value $r(x_0)$:
 \begin{equation}
 \label{eq:density-readout}
 \widehat Q_r(s,a) = \frac{ r(x_0) + \left( w-\kappa(\cdot\mid x_0) \right)^\top r(U_P) }{ 1-\gamma }.
@@ -227,7 +234,7 @@ Fixed partition ($K{=}256$) & $0.725 \pm 0.121$ & $0.723 \pm 0.298$ & $0.133 \pm
 
 The largest difference appears on rewards centered away from the benchmark goals: held-out-region transfer rises from $0.133$ with the fixed partition to $0.293$ with soft \DensityFB{} and $0.647$ with the hard variant.
 This is consistent with continuous query representations helping most when the reward sits between or away from fixed prototypes.
-Since hard and soft perform almost identically on goal reaching (Table~\ref{tab:main}) but separate sharply on reward transfer, the smoothing appears unnecessary for control and harmful when the learned measure is queried with new rewards.
+The hard target outperforms the soft target on all three reward families while the two perform almost identically on goal reaching (Table~\ref{tab:main}), suggesting that kernel smoothing degrades reward transfer in this setting without helping control.
 
 % ======================================================================
 \section{Related work}
