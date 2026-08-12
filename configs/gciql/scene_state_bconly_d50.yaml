@@ -1,0 +1,39 @@
+# Scene BC-only control: the missing cloning floor for the scene column of the
+# density-fb note (the cs/cd floors are d19_*_bconly; scene had none -- the old
+# scenesplit_bc group is a FULL GCIQL despite its name, verified from flags).
+# Byte-equal to scene_state_measure_density_d50.yaml slot settings plus
+# actor_bc_only: true (q-term zeroed, pure BC flow actor).
+# Gate: cs success here vs the density arm (cube_single_state_measure_density_d50.yaml,
+# anchor ~0.93 avg / fp-noortho 0.967) -- a LARGE gap (BC-only far below) says the
+# density measure IS doing work through the actor's q-term; a SMALL gap says bc_coeff
+# alone is carrying cube-single and the density number is not yet attributable to the
+# measure (spec 19 section 1 P0.2 pre-registration).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: scene-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-Scene-Flow-BCOnly-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6"
+  actor_q_center: true
+  actor_bc_only: true
+wandb_mode: online
