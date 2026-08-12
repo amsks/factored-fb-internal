@@ -188,33 +188,51 @@ Black lines are shared with standard FB; {\color{fbdiff}blue} lines are where \D
 \section{Goal-conditioned results}
 \label{sec:main-results}
 
-OGBench state-based manipulation \citep{park2024ogbench}, $500$k gradient steps, no reward labels during training, native evaluation (five tasks, $50$ episodes each), three seeds, mean $\pm$ $95\%$ confidence interval ($t$-based, $n{=}3$).
-We include behavior cloning as an imitation-only baseline: it trains the same actor with the $q$ term removed and learns no successor representation, isolating the improvement beyond imitation.
+OGBench state-based manipulation and locomotion \citep{park2024ogbench}, $500$k gradient steps, no reward labels during training, native evaluation (five tasks, $50$ episodes each), three seeds, mean $\pm$ $95\%$ confidence interval ($t$-based).
+Every method is reported under two policy-extraction rules, because extraction and representation are separable and the benchmark's own record shows the choice can dominate: a flow behavior-cloning actor and a Gaussian DDPG+BC actor.
+We include behavior cloning as an imitation-only baseline: it trains the same actor with the $q$ term removed and learns no successor representation, isolating the improvement beyond imitation ($0.111$ on \texttt{cube-single}, $0.019$ on \texttt{cube-double}).
+For external reference we quote the published goal-conditioned IQL numbers, which use $1$M gradient steps and eight seeds --- twice our training budget --- and are therefore a favourable comparison for that baseline, not for ours.
 
 \begin{table}[h]
 \centering
 \small
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{lccc}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llcccc}
 \toprule
-Method & \texttt{cube-single} & \texttt{cube-double} & \texttt{scene} \\
+Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \shortstack{GC-IQL\\(published)} \\
 \midrule
-Behavior cloning & $0.111$ & $0.019$ & -- \\
-Plain FB & $0.420$ & $0.000$ & $0.047$ \\
-Goal-conditioned IQL & $0.879$ & $0.265$ & $0.26$--$0.287$ \\
+\texttt{cube-single} & flow & $0.410 \pm 0.061$ & $\mathbf{0.929 \pm 0.085}$ & $0.915 \pm 0.087$ & -- \\
+ & ddpgbc & $0.353 \pm 0.38$ & $0.879 \pm 0.095$ & $0.856$\,(1 seed) & $0.68 \pm 0.06$ \\
 \midrule
-\DensityFB{} (soft) & $\mathbf{0.929 \pm 0.085}$ & $\mathbf{0.736 \pm 0.139}$ & $0.628 \pm 0.134$ \\
-\DensityFB{} (hard) & $0.915 \pm 0.087$ & \emph{pending} & $\mathbf{0.641 \pm 0.109}$ \\
+\texttt{cube-double} & flow & $0.000 \pm 0.000$\,(2) & $\mathbf{0.736 \pm 0.139}$ & $0.674 \pm 0.33$\,(2) & -- \\
+ & ddpgbc & \emph{pending} & $0.640 \pm 0.102$\,(2) & $0.614 \pm 0.69$\,(2) & $0.40 \pm 0.05$ \\
+\midrule
+\texttt{scene} & flow & $0.047 \pm 0.057$ & $0.628 \pm 0.134$ & $\mathbf{0.641 \pm 0.109}$ & -- \\
+ & ddpgbc & \emph{pending} & $0.563 \pm 0.011$ & \emph{pending} & $0.51 \pm 0.04$ \\
+\midrule
+\texttt{antmaze-medium} & flow & $0.593 \pm 0.25$ & $0.563 \pm 0.167$ & $0.772$\,(1 seed) & -- \\
+ & ddpgbc & \emph{pending} & $\mathbf{0.829 \pm 0.058}$ & \emph{pending} & $0.71 \pm 0.04$ \\
 \bottomrule
 \end{tabular}
-\caption{Native goal-conditioned success. Seeds: soft \texttt{cube-single} $.896/.928/.964$, \texttt{cube-double} $.680/.736/.792$, \texttt{scene} $.672/.568/.644$; hard \texttt{cube-single} $.876/.944/.924$, \texttt{scene} $.692/.620/.612$. The hard \texttt{cube-double} cell has one seed still training.}
+\caption{Native goal-conditioned success by environment and policy-extraction rule. Cells marked $(n)$ have $n<3$ seeds and correspondingly wide intervals; \emph{pending} cells are still training. Seeds for the completed manipulation cells: soft flow \texttt{cube-single} $.896/.928/.964$, \texttt{cube-double} $.680/.736/.792$, \texttt{scene} $.672/.568/.644$; hard flow \texttt{cube-single} $.876/.944/.924$, \texttt{scene} $.692/.620/.612$.}
 \label{tab:main}
 \end{table}
 
 Plain FB remains well below goal-conditioned IQL on \texttt{cube-single} and collapses on the multi-object environments, consistent with Section~\ref{sec:play}.
-\texttt{cube-single} is close to saturated: both \DensityFB{} variants reach about $0.92$ against $0.879$ for goal-conditioned IQL, so it provides limited separation between the strongest methods.
-Differences are largest on \texttt{cube-double}: \DensityFB{} reaches $0.736$ from scratch against $0.265$ for goal-conditioned IQL, $0.000$ for plain FB, and $0.019$ for the imitation-only baseline.
+\texttt{cube-single} is close to saturated: both \DensityFB{} variants reach about $0.92$, so it provides limited separation between the strongest methods.
+Differences are largest on \texttt{cube-double}: \DensityFB{} reaches $0.736$ from scratch against $0.000$ for plain FB, $0.019$ for the imitation-only baseline, and a published $0.40$ for goal-conditioned IQL at twice the training budget.
 The \texttt{scene} result is structured rather than noisy: every seed of both variants solves \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} ($0.88$--$1.0$), while \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) remain the bottlenecks.
+
+\paragraph{The result does not depend on the extraction rule.}
+Replacing the flow actor with Gaussian DDPG+BC costs \DensityFB{} $0.05$ on \texttt{cube-single} ($0.929 \to 0.879$) and $0.10$ on \texttt{cube-double} ($0.736 \to 0.640$), and the ordering against every baseline is unchanged.
+The same substitution costs our own goal-conditioned IQL reproduction $0.31$ on \texttt{cube-single} ($0.870 \to 0.563$).
+The improvement therefore lives in the learned measure rather than in the policy-extraction rule --- a distinction worth making explicitly, since on \texttt{antmaze-medium} the extraction rule is the dominant factor for every method we ran.
+
+\paragraph{Locomotion is a null, as expected.}
+On \texttt{antmaze-medium} the agent is the object: there is no separate manipulated entity that alternates between moving and stationary, so the structure Section~\ref{sec:play} identifies is absent and there is no reason to expect an occupancy-shaped estimator to help.
+It does not: with the DDPG+BC actor \DensityFB{} reaches $0.829 \pm 0.058$ against $0.837$ for our own goal-conditioned IQL control at the same recipe, a difference of $0.008$.
+Both sit below the strongest published methods on that benchmark ($0.96$ for HIQL).
+We report this because it delimits the claim: the estimator addresses a property of manipulation play, not a general deficiency of successor learning.
 
 % ======================================================================
 \section{Reward evaluation}
@@ -253,22 +271,51 @@ The fixed-partition row is the same objective with the continuous query set repl
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{lccc}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llccc}
 \toprule
-Method & sparse & dense & held-out regions \\
+Environment & Reward family & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) \\
 \midrule
-\DensityFB{} (soft) & $0.816 \pm 0.269$ & $0.725 \pm 0.301$ & $0.293 \pm 0.052$ \\
-\DensityFB{} (hard) & $\mathbf{0.888 \pm 0.091}$ & $\mathbf{0.912 \pm 0.087}$ & $\mathbf{0.647 \pm 0.301}$ \\
-Fixed partition ($K{=}256$) & $0.725 \pm 0.121$ & $0.723 \pm 0.298$ & $0.133 \pm 0.201$ \\
+\texttt{cube-single} & sparse & \emph{pending} & $0.816 \pm 0.269$ & $\mathbf{0.888 \pm 0.091}$ \\
+ & dense & \emph{pending} & $0.725 \pm 0.301$ & $\mathbf{0.912 \pm 0.087}$ \\
+ & held-out regions & \emph{pending} & $0.293 \pm 0.052$ & $\mathbf{0.647 \pm 0.301}$ \\
+\midrule
+\texttt{cube-double} & sparse & \emph{pending} & $0.549 \pm 0.240$ & $0.544 \pm 0.000$\,(2) \\
+ & dense & \emph{pending} & $0.488 \pm 0.163$ & $0.532 \pm 0.559$\,(2) \\
+ & held-out regions & \emph{pending} & $0.177 \pm 0.160$ & $0.165 \pm 0.064$\,(2) \\
+\midrule
+\texttt{scene} & sparse & \emph{pending} & $0.395 \pm 0.092$ & $\mathbf{0.640 \pm 0.111}$ \\
+ & dense & \emph{pending} & $0.347 \pm 0.219$ & $\mathbf{0.627 \pm 0.094}$ \\
+ & held-out regions & \emph{pending} & $0.220 \pm 0.086$ & $\mathbf{0.347 \pm 0.038}$ \\
 \bottomrule
 \end{tabular}
-\caption{Zero-shot reward transfer on \texttt{cube-single} (mean $\pm$ $95\%$ CI, three seeds).}
+\caption{Zero-shot reward transfer (mean $\pm$ $95\%$ CI, three seeds unless marked). Goal-conditioned IQL has no reward readout of this kind and is therefore absent; the plain-FB column requires torch checkpoints that are still training. Cells marked $(2)$ have two seeds. All numbers use a $16{,}384$-configuration pool and $25$ episodes per task.}
 \label{tab:zeroshot}
 \end{table}
 
-The largest difference appears on rewards centered away from the benchmark goals: held-out-region transfer rises from $0.133$ with the fixed partition to $0.293$ with soft \DensityFB{} and $0.647$ with the hard variant.
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\texttt{cube-single} ablation & sparse & dense & held-out regions \\
+\midrule
+\DensityFB{} (soft) & $0.816 \pm 0.269$ & $0.725 \pm 0.301$ & $0.293 \pm 0.052$ \\
+Fixed partition ($K{=}256$) & $0.725 \pm 0.121$ & $0.723 \pm 0.298$ & $0.133 \pm 0.201$ \\
+\bottomrule
+\end{tabular}
+\caption{Replacing the resampled query set with $256$ fixed prototypes, at otherwise identical settings. The discretization costs most where the reward sits away from the prototypes.}
+\label{tab:partition}
+\end{table}
+
+The largest difference appears on rewards centered away from the benchmark goals: on \texttt{cube-single}, held-out-region transfer rises from $0.133$ with the fixed partition to $0.293$ with soft \DensityFB{} and $0.647$ with the hard variant (Table~\ref{tab:partition}).
 This is consistent with continuous query representations helping most when the reward sits between or away from fixed prototypes.
-The hard target outperforms the soft target on all three reward families while the two perform almost identically on goal reaching (Table~\ref{tab:main}), suggesting that kernel smoothing is unnecessary for control here and can reduce the fidelity of the zero-shot reward readout.
+
+The comparison between the two immediate targets is environment dependent, and the pattern is not the one a single environment would suggest.
+On \texttt{cube-single} and \texttt{scene} the hard target is better on all three families --- most sharply on \texttt{scene}, where sparse transfer rises from $0.395$ to $0.640$ --- while the two are within noise on goal reaching (Table~\ref{tab:main}).
+On \texttt{cube-double}, however, the two are indistinguishable on every family ($0.549$ vs $0.544$, $0.488$ vs $0.532$, $0.177$ vs $0.165$).
+Kernel smoothing of the immediate target therefore appears to cost readout fidelity on some object geometries and not others, rather than being uniformly unnecessary; we report the dependence rather than a single recommendation.
+Reward transfer is also consistently harder than goal reaching on the multi-object environments: on \texttt{cube-double} the same checkpoints score $0.736$ on benchmark goals and $0.549$ on the sparse family built from those same goals, so the gap reflects the readout and the retrieval-based action selection, not only the learned measure.
 
 \bibliography{references}
 \bibliographystyle{iclr2027_conference}
