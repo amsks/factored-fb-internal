@@ -62,8 +62,23 @@ A rest of length $L$ contributes $L$ near-identical positive terms, one per tran
 The linear observed-successor term in Equation~\ref{eq:fb-loss} turns this into unbounded scale growth, and the region-indicator form of the objective admits a large, well-scaled, action-independent constant $c^\star = \E_\rho[h]/(1-\gamma)$ that satisfies the Bellman equation on average.
 Either way, a critic reaches a low loss without learning anything about actions.
 
-The failure is the estimator, not the representation.
+The failure is the estimator, not the representation (Figure~\ref{fig:divergence}).
 With a backward representation frozen from a checkpoint supporting $0.97$ task success, the scalar FB loss grows the critic scale from $154$ to $5.4\times10^4$ within $65$k steps and success falls to $0.42$; orthonormalization bounds the scale but caps success at $0.225$.
+
+\begin{figure}[t]
+\centering
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/scale_divergence.png}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/2_curves.png}
+\end{minipage}
+\caption{A useful representation does not rescue the scalar FB loss. \emph{Left:} critic scale. \emph{Right:} goal-conditioned success. Bounded TD objectives stay stable on the same frozen backward representation, while the scalar FB objective inflates and degrades.}
+\label{fig:divergence}
+\end{figure}
 
 % ======================================================================
 \section{\DensityFB: soft and hard variants}
@@ -106,6 +121,17 @@ with $\epsilon$ the task tolerance; the hard target is well defined because $U$ 
 This removes the inflation without deleting dwell mass.
 Rests can concentrate the predicted distribution but cannot grow the critic, because total mass is fixed; the action-independent solution becomes the uniform distribution, which cross-entropy penalizes against any concentrated target and which is visible in the prediction's entropy.
 The immediate target sets how dwell is credited: hard credits the realized successor exactly, soft spreads the same mass over its $\epsilon$-neighborhood.
+
+\paragraph{Fixed point and contraction.}
+Nothing is lost relative to FB at the level of the Bellman operator.
+Writing $\mathcal T\nu \,(\cdot\mid s,a) = (1-\gamma)\,\E[\kappa(\cdot\mid x_1)] + \gamma\,\E_{s_1,a^+}\left[ \nu(\cdot\mid s_1,a^+) \right]$ for the operator whose sample version is Equation~\ref{eq:density-loss}, for any two conditional measures
+\begin{equation}
+\sup_{s,a}\, \big\| \mathcal T\nu_1 - \mathcal T\nu_2 \big\|_{\mathrm{TV}}
+\;\le\; \gamma\, \sup_{s,a}\, \big\| \nu_1 - \nu_2 \big\|_{\mathrm{TV}},
+\end{equation}
+since the immediate term cancels and the expectation is an average.
+$\mathcal T$ is therefore a $\gamma$-contraction in total variation with the ($\epsilon$-smoothed, for the soft variant) normalized successor measure as its unique fixed point, exactly as the scalar Bellman operator underlying FB is a $\gamma$-contraction with $M$ as its fixed point.
+What differs between the methods is only the projection under function approximation: FB projects in squared error onto the bilinear class, where the play-induced inflation of Section~\ref{sec:play} lives, while \DensityFB{} projects in cross-entropy onto softmax distributions, where scale is not a degree of freedom.
 
 For control, the actor maximizes the predicted mass near its goal, $q(s,a,g) = w(s,a,g)^\top \kappa(\cdot\mid g)$, computed at frozen measure parameters.
 
@@ -153,8 +179,22 @@ For a test reward $r$ we draw a pool $U_P$ of $16{,}384$ object configurations f
 \end{equation}
 which is exactly linear in $r$ and needs no retraining.
 To act, we retrieve the pool observation that maximizes $\widehat Q_r$ from the initial state, condition the goal-reaching actor on it, and roll out.
-Three held-out reward families, $25$ episodes per task, three seeds: point goals (dirac), shaped point goals (dense), and extended regions.
+
+\paragraph{Reward construction.}
+All test rewards are functions of the object coordinates only, take values in $[0,1]$, and are never seen during training (Figure~\ref{fig:rewardfams}).
+The \emph{dirac} family is the conjunctive tolerance indicator $r(x)=\ind{\text{every block of } x \text{ within } \epsilon \text{ of the center}}$ at the environment's five task-goal configurations: the sparsest signal, and the one the benchmark's own evaluation implies.
+The \emph{dense} family is $r(x)=\exp(-d(x,g)/2\epsilon)$ in tolerance-scaled coordinates at the same centers: the same tasks with a shaped signal, isolating whether the readout needs shaping.
+The \emph{region} family keeps the dirac form but moves the centers off the task goals: four centers drawn by hindsight from the dataset (a configuration visited later within a random episode, kept only if at least five relabeled samples fall inside its region), so each is reachable and data-supported but held out.
+The three families separate the two ways a measure readout can fail: dense against dirac varies the shaping at fixed centers, and region against dirac varies the centers at fixed form, probing the measure away from the five configurations the actor was ever evaluated on.
+$25$ episodes per task, three seeds.
 The fixed-partition row is the same objective with the continuous query set replaced by $256$ fixed prototypes, the discretized ablation.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/reward_families.png}
+\caption{The three held-out reward families on the cube workspace (cube-position plane, $\epsilon$-balls to scale). Dirac and dense share task-style centers and differ in shaping; region keeps the dirac form at hindsight-drawn dataset centers.}
+\label{fig:rewardfams}
+\end{figure}
 
 \begin{table}[h]
 \centering
