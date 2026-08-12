@@ -322,10 +322,14 @@ Hard targets therefore improve reward readout on some manipulation tasks and not
 \paragraph{Comparison with published zero-shot methods.}
 Published zero-shot methods specify the task the same way this section does: the reward is given at test time and the task index is inferred, with no goal handed to the policy.
 Table~\ref{tab:published} places our sparse-family numbers next to the OGBench results reported by \citet{bagatella2025tdjepa} for eight zero-shot algorithms on the same state-based datasets.
-Three differences in protocol should be read with the table.
+
+The rows above the line are quoted from that paper.
+We did not re-run them, and the comparison is not yet matched.
 Those numbers use $1$M gradient steps, $10$ seeds and $10$ episodes per task, against our $500$k steps, three seeds and $25$ episodes.
 Their task index is inferred by linear regression on relabeled data; ours is chosen by search over candidate goals.
 Their FB entry uses a deep state encoder and a tuned orthonormalization coefficient, and reaches $49.6$ on \texttt{cube-single} against $41.0$ for our own plain-FB reproduction at half the budget.
+Our confidence in the quoted numbers comes from provenance: our FB implementation is a port of the same codebase those results were produced with, and our FB re-run at the start of this project reproduced its published behavior on \texttt{cube-single}.
+The gaps on \texttt{cube-double} and \texttt{scene} are large enough that the protocol differences are unlikely to account for them, and the ordering on \texttt{cube-single} is inside our interval either way.
 
 \begin{table}[h]
 \centering
@@ -360,6 +364,29 @@ Reward transfer remains harder than direct goal reaching.
 On \texttt{cube-double}, the same soft checkpoint reaches $0.736$ under ordinary goal conditioning and $0.549$ when the same goal is specified through the sparse reward readout.
 The gap therefore comes after representation learning, from reward integration and the subsequent goal-selection step.
 Separating the two would require comparing our retrieved goal against an oracle that selects the reward center directly, which we have not run.
+
+% ======================================================================
+\section{Open items}
+\label{sec:todo}
+
+The following are not yet done, and the claims above should be read with them in mind.
+
+\paragraph{Matched-protocol baselines.}
+Every published number in Table~\ref{tab:published} is quoted rather than re-run.
+Closing this requires running FB, HILP, ICVF, RLDP and TD-JEPA ourselves at our budget and evaluation settings, so that steps, seeds, episodes and the index-inference procedure are identical on both sides of the table.
+Until that is done, the table shows our numbers next to published ones, not a controlled comparison.
+We have re-run FB from the same codebase and reproduced its published behavior on \texttt{cube-single}; the remaining environments and the remaining methods have not been checked this way.
+
+\paragraph{Seed parity.}
+Our cells use three seeds against ten in the published results, which is why several of our confidence intervals are wider than the differences they bracket.
+The \texttt{cube-single} comparison in Table~\ref{tab:published} is inside our interval and should not be read as a separation until the seed count matches.
+
+\paragraph{Cells still training.}
+Plain FB with the DDPG+BC actor on \texttt{cube-double}, \texttt{scene} and \texttt{antmaze-medium}; the hard variant with that actor on \texttt{scene} and \texttt{antmaze-medium}; and plain FB throughout Table~\ref{tab:zeroshot}.
+
+\paragraph{Separating readout error from goal-selection error.}
+The gap between goal reaching and reward transfer on \texttt{cube-double} is currently attributed to the readout and the goal-selection step together.
+Comparing our retrieved goal against an oracle that selects the reward center directly would separate them.
 
 \bibliography{references}
 \bibliographystyle{iclr2027_conference}
