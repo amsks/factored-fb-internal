@@ -57,7 +57,7 @@ Manipulation play alternates brief object-changing interactions with long period
 On \texttt{cube-single-play-v0} the cube is stationary on $48\%$ of transitions and stationary runs have median length $44$ steps; after entering a $4$\,cm region a trajectory accumulates $25$--$31$ discounted visits there.
 On \texttt{cube-double} each cube is stationary on $72\%$ of transitions; on \texttt{scene}, drawer and window on $91\%$ and buttons on $99.6\%$ (Figure~\ref{fig:playdata}).
 
-\begin{figure}[t]
+\begin{figure}[ht]
 \centering
 \includegraphics[width=0.95\textwidth]{figures/playdata.png}
 \caption{\emph{Left:} three \texttt{cube-single} play trajectories. \emph{Right:} discounted occupancy accumulated after first entering a $4$\,cm goal region. Most successor mass accumulates after arrival.}
@@ -140,8 +140,8 @@ The hard target is an index-level one-hot: $U$ is built from the batch's next co
 This keeps the target on the simplex even when several rows share the same object coordinates, which stationary segments make common; a coordinate-equality indicator would place mass greater than one on duplicates.
 
 This removes the scale inflation without removing dwell occupancy.
-A long rest can still place high probability on that configuration. The total predicted mass remains one.
-The model can therefore represent that the cube tends to stay where it was left, without increasing the magnitude of the critic simply because the same configuration appears many times.
+A long rest can still place high probability on that configuration, but the total predicted mass remains one.
+The model can therefore represent that the cube tends to stay where it was left without increasing critic scale simply because the same configuration appears many times.
 Hard and soft targets differ only in how they assign the immediate $1-\gamma$ mass: exactly to the observed successor, or across its $\epsilon$-neighborhood.
 
 \paragraph{Fixed point and contraction.}
@@ -152,10 +152,10 @@ Writing $\mathcal T\nu \,(\cdot\mid s,a) = (1-\gamma)\,\E[\kappa(\cdot\mid x_1)]
 \;\le\; \gamma\, \sup_{s,a}\, \big\| \nu_1 - \nu_2 \big\|_{\mathrm{TV}},
 \end{equation}
 since the immediate term cancels and the expectation is an average.
-$\mathcal T$ is therefore a $\gamma$-contraction in total variation, exactly as the scalar Bellman operator underlying FB is a $\gamma$-contraction with $M$ as its fixed point.
-For the hard variant, normalization changes the scale and the fitting objective. The underlying successor-measure fixed point is unchanged.
-The soft variant additionally replaces each immediate successor with an $\epsilon$-smoothed distribution, so its fixed point is the correspondingly smoothed measure.
-In both cases the softmax removes critic scale as a free parameter.
+The operator is therefore a $\gamma$-contraction in total variation, exactly as the scalar Bellman operator underlying FB is a $\gamma$-contraction with $M$ as its fixed point.
+For the hard target, normalization changes the scale and fitting objective but leaves the underlying successor-measure fixed point unchanged.
+The soft target additionally replaces each successor with an $\epsilon$-smoothed distribution.
+In either case, critic scale is no longer a free parameter.
 
 For control, the actor maximizes the predicted mass near its goal, $q(s,a,g) = w(s,a,g)^\top \kappa(\cdot\mid g)$, computed at frozen measure parameters, inside the standard flow behavior-cloning objective:
 \begin{equation}
@@ -228,13 +228,13 @@ On \texttt{scene}, \DensityFB{} reaches about $0.64$ while plain FB remains near
 The \texttt{scene} average also hides a consistent task split: all seeds solve \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} ($0.88$--$1.0$). \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) remain difficult.
 
 \paragraph{Manipulation gains persist across actor extractors.}
-Switching from flow behavior cloning to DDPG+BC lowers soft \DensityFB{} from $0.929$ to $0.879$ on \texttt{cube-single} and from $0.736$ to $0.640$ on \texttt{cube-double}. The gains over plain FB and behavior cloning remain under both extractors.
+Switching from flow behavior cloning to DDPG+BC lowers soft \DensityFB{} from $0.929$ to $0.879$ on \texttt{cube-single} and from $0.736$ to $0.640$ on \texttt{cube-double}. The improvement is not specific to the flow actor.
 On \texttt{antmaze-medium} the same switch moves \DensityFB{} from $0.563$ to $0.829$, so actor extraction matters much more there.
 
 \paragraph{\DensityFB{} does not improve AntMaze.}
 \texttt{antmaze-medium} removes the structure that motivated \DensityFB{}: the goal-relevant variable is the agent itself, so there is no manipulated object that remains stationary while actions continue.
 Consistent with this, \DensityFB{} does not improve over our matched goal-conditioned IQL control under DDPG+BC ($0.829$ versus $0.837$), and both sit below the strongest published method on that benchmark ($0.96$ for HIQL).
-This suggests the gain is specific to the occupancy structure of manipulation play.
+This supports the narrower hypothesis that \DensityFB{} helps when play data contains long stationary segments in the goal-relevant object variables.
 
 % ======================================================================
 \section{Reward evaluation}
@@ -243,8 +243,8 @@ This suggests the gain is specific to the occupancy structure of manipulation pl
 Goal reaching only tests whether the learned measure supports the benchmark goals.
 Reward transfer asks whether the same measure can evaluate a reward that was never used for training.
 At test time we approximate the integral of $r$ against the learned successor distribution with a pool $U_P$ of $16{,}384$ object configurations drawn from the dataset: we evaluate $r$ on the pool once and take its expectation under the predicted occupancy $w$, which gives $w^\top r(U_P)/(1-\gamma)$.
-One correction improves this estimate.
-The measure counts from $x_1$ onward. In manipulation play the object does not move on most transitions, so $x_1$ is usually $x_0$ and the predicted occupancy concentrates near the current configuration. The finite pool and the kernel smooth the reward most at that configuration.
+Finite-pool evaluation introduces the largest smoothing error near the current object configuration, where the predicted occupancy is concentrated on stationary transitions.
+We therefore apply a local correction.
 Writing $\kappa(\cdot\mid x_0)$ for the kernel weights of $x_0$ over the pool, we replace the smoothed estimate of the reward at that configuration, $\kappa(\cdot\mid x_0)^\top r(U_P)$, with its exact value $r(x_0)$:
 \begin{equation}
 \label{eq:density-readout}
@@ -266,7 +266,7 @@ The fixed-partition row is the same objective with the continuous query set repl
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.95\textwidth]{figures/reward_families.png}
+\includegraphics[width=0.95\textwidth]{figures/reward-families.png}
 \caption{The three test reward families on the cube workspace (cube-position plane, $\epsilon$-balls to scale). Sparse and dense share task-style centers and differ in shaping; held-out regions keep the sparse form at hindsight-drawn dataset centers.}
 \label{fig:rewardfams}
 \end{figure}
@@ -320,16 +320,11 @@ On \texttt{cube-double}, however, the two targets are nearly indistinguishable (
 Hard targets therefore improve reward readout on some manipulation tasks and not others. On goal reaching the two are within noise everywhere (Table~\ref{tab:main}).
 
 \paragraph{Comparison with published zero-shot methods.}
-Published zero-shot methods specify the task the same way this section does: the reward is given at test time and the task index is inferred, with no goal handed to the policy.
-Table~\ref{tab:published} places our sparse-family numbers next to the OGBench results reported by \citet{bagatella2025tdjepa} for eight zero-shot algorithms on the same state-based datasets.
-
-The rows above the line are quoted from that paper.
-We did not re-run them, and the comparison is not yet matched.
-Those numbers use $1$M gradient steps, $10$ seeds and $10$ episodes per task, against our $500$k steps, three seeds and $25$ episodes.
-Their task index is inferred by linear regression on relabeled data; ours is chosen by search over candidate goals.
-Their FB entry uses a deep state encoder and a tuned orthonormalization coefficient, and reaches $49.6$ on \texttt{cube-single} against $41.0$ for our own plain-FB reproduction at half the budget.
-Our confidence in the quoted numbers comes from provenance: our FB implementation is a port of the same codebase those results were produced with, and our FB re-run at the start of this project reproduced its published behavior on \texttt{cube-single}.
-The gaps on \texttt{cube-double} and \texttt{scene} are large enough that the protocol differences are unlikely to account for them, and the ordering on \texttt{cube-single} is inside our interval either way.
+Table~\ref{tab:published} places our sparse-reward results alongside published state-based OGBench results from \citet{bagatella-iclr26a}.
+This is not a controlled comparison: the published results use $1$M gradient steps, $10$ seeds, and $10$ evaluation episodes per task, whereas ours use $500$k steps, three seeds, and $25$ episodes.
+The task index also differs: their methods infer it by linear regression on relabeled data, while \DensityFB{} searches over candidate goals.
+We therefore use these numbers as external context and list matched reruns as open work below.
+Our implementation is derived from the same codebase and reproduces the published FB result on \texttt{cube-single} reasonably closely ($41.0$ versus $49.6$), but we have not yet matched the full protocol.
 
 \begin{table}[h]
 \centering
@@ -338,32 +333,33 @@ The gaps on \texttt{cube-double} and \texttt{scene} are large enough that the pr
 \toprule
 Method & \texttt{cube-single} & \texttt{cube-double} & \texttt{scene} \\
 \midrule
-Laplacian \citep{wu2019laplacian} & $15.1 \pm 1.5$ & $2.0 \pm 0.4$ & $7.8 \pm 1.3$ \\
-RLDP \citep{jajoo2025rldp} & $19.8 \pm 2.4$ & $3.8 \pm 0.8$ & $11.6 \pm 1.6$ \\
-ICVF \citep{ghosh2023icvf} & $20.4 \pm 1.9$ & $5.0 \pm 0.8$ & $45.4 \pm 2.3$ \\
+Laplacian \citep{wu2018laplacian} & $15.1 \pm 1.5$ & $2.0 \pm 0.4$ & $7.8 \pm 1.3$ \\
+RLDP \citep{jajoo-iclr26a} & $19.8 \pm 2.4$ & $3.8 \pm 0.8$ & $11.6 \pm 1.6$ \\
+ICVF \citep{ghosh2023reinforcement} & $20.4 \pm 1.9$ & $5.0 \pm 0.8$ & $45.4 \pm 2.3$ \\
 BYOL & $22.0 \pm 3.2$ & $4.4 \pm 0.7$ & $15.4 \pm 1.4$ \\
-TD-JEPA \citep{bagatella2025tdjepa} & $34.2 \pm 2.9$ & $3.6 \pm 0.8$ & $38.4 \pm 1.4$ \\
+TD-JEPA \citep{bagatella-iclr26a} & $34.2 \pm 2.9$ & $3.6 \pm 0.8$ & $38.4 \pm 1.4$ \\
 FB \citep{touati2021learning} & $49.6 \pm 3.8$ & $2.6 \pm 0.4$ & $12.8 \pm 1.6$ \\
-HILP \citep{park2024hilp} & $74.2 \pm 3.5$ & $20.0 \pm 2.7$ & $43.8 \pm 1.9$ \\
+HILP \citep{park-iclr24a} & $74.2 \pm 3.5$ & $20.0 \pm 2.7$ & $43.8 \pm 1.9$ \\
 BYOL-$\gamma$ & $79.4 \pm 2.8$ & $2.6 \pm 0.7$ & $14.4 \pm 2.3$ \\
 \midrule
 \DensityFB{} (soft) & $81.6 \pm 26.9$ & $\mathbf{54.9 \pm 24.0}$ & $39.5 \pm 9.2$ \\
 \DensityFB{} (hard) & $\mathbf{88.8 \pm 9.1}$ & $54.4 \pm 0.0$\,(2) & $\mathbf{64.0 \pm 11.1}$ \\
 \bottomrule
 \end{tabular}
-\caption{Zero-shot success rate (\%) on state-based OGBench. Rows above the line are as reported by \citet{bagatella2025tdjepa} at $1$M gradient steps, $10$ seeds and $10$ episodes per task, with the task index inferred by linear regression. Rows below are our sparse reward family at $500$k steps, three seeds and $25$ episodes, with the index chosen by search. Our confidence intervals are wide because they are $t$-based on three seeds.}
+\caption{Zero-shot success rate (\%) on state-based OGBench. Rows above the line are as reported by \citet{bagatella-iclr26a} at $1$M gradient steps, $10$ seeds and $10$ episodes per task, with the task index inferred by linear regression. Rows below are our sparse reward family at $500$k steps, three seeds and $25$ episodes, with the index chosen by search. Our confidence intervals are wide because they are $t$-based on three seeds.}
 \label{tab:published}
 \end{table}
 
-The ordering is unchanged by the interval widths on \texttt{cube-double}, where the strongest published method reaches $20.0$ and both of our variants exceed $54$.
-On \texttt{cube-single} our hard variant reaches $88.8$ against $79.4$ for the strongest published method, a gap inside our confidence interval.
-On \texttt{scene} the hard variant reaches $64.0$ against $45.4$.
+The most striking gap is on \texttt{cube-double}: the strongest published result is $20.0$, while both \DensityFB{} variants exceed $54$.
+On \texttt{scene}, hard \DensityFB{} reaches $64.0$ versus $45.4$ for the strongest published result.
+The \texttt{cube-single} comparison is less informative: hard \DensityFB{} reaches $88.8$ versus $79.4$, but the difference lies within our three-seed confidence interval.
+These comparisons are suggestive until the protocols are matched.
 \texttt{cube-double} is also where the published methods are closest to each other and to zero: six of the eight fall below $5$.
 
 Reward transfer remains harder than direct goal reaching.
 On \texttt{cube-double}, the same soft checkpoint reaches $0.736$ under ordinary goal conditioning and $0.549$ when the same goal is specified through the sparse reward readout.
-The gap therefore comes after representation learning, from reward integration and the subsequent goal-selection step.
-Separating the two would require comparing our retrieved goal against an oracle that selects the reward center directly, which we have not run.
+Because the checkpoint is identical, this gap is introduced by the reward-readout and goal-selection pipeline rather than by training the representation itself.
+An oracle that selects the reward center directly would separate readout error from goal-selection error.
 
 % ======================================================================
 \section{Open items}
@@ -373,7 +369,7 @@ The following are not yet done, and the claims above should be read with them in
 
 \paragraph{Matched-protocol baselines.}
 Every published number in Table~\ref{tab:published} is quoted rather than re-run.
-Closing this requires running FB, HILP, ICVF, RLDP and TD-JEPA ourselves at our budget and evaluation settings, so that steps, seeds, episodes and the index-inference procedure are identical on both sides of the table.
+A controlled comparison requires rerunning these methods with the same training budget, seeds, evaluation episodes, and task-index inference.
 Until that is done, the table shows our numbers next to published ones, not a controlled comparison.
 We have re-run FB from the same codebase and reproduced its published behavior on \texttt{cube-single}; the remaining environments and the remaining methods have not been checked this way.
 
@@ -388,7 +384,7 @@ Plain FB with the DDPG+BC actor on \texttt{cube-double}, \texttt{scene} and \tex
 The gap between goal reaching and reward transfer on \texttt{cube-double} is currently attributed to the readout and the goal-selection step together.
 Comparing our retrieved goal against an oracle that selects the reward center directly would separate them.
 
-\bibliography{references}
+\bibliography{bib/strings,bib/lib,bib/local,bib/proc}
 \bibliographystyle{iclr2027_conference}
 
 \end{document}
