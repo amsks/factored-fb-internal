@@ -1,0 +1,48 @@
+# Spec 24's z-indexed density on CUBE-DOUBLE.
+#
+# DEVIATION FROM SPEC 24, recorded deliberately. That spec confines the z arm to
+# point-mass-maze and lists manipulation z-configs as round-1 anti-scope, on the
+# stack-divergence verdict of 2026-08-05 (z-conditioned actors floored multi-object
+# manipulation). Two things changed since that verdict: it was reached with the
+# bilinear scalar critic, not the normalized density estimator, and the intended
+# venue turned out to have almost no resolving power. On point-mass-maze the whole
+# spread between the g-indexed density arm (.315) and behavior cloning (.235) is
+# .080, narrower than the .05 band spec 24 G1 uses to call the interface restored
+# and comparable to eval noise. Cube-double separates methods over .019 to .736, so
+# a z-vs-g difference there is measurable.
+#
+# Read against the g-indexed cube-double arm (soft, flow actor, 3 seeds): .736.
+# If the z arm lands near it, the density estimator survives FB's full interface on
+# an env where z-conditioning previously failed. If it floors, the stack-divergence
+# verdict extends to this estimator too, which is the informative negative.
+# Everything except the index is byte-identical to the soft cube-double config.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Measure-DensityZ-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_z: true
+  measure_density_z_rand_frac: 0.5
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  actor_q_center: true
+wandb_mode: online
