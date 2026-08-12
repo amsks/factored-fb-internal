@@ -57,10 +57,10 @@ On \texttt{cube-double} each cube is stationary on $72\%$ of transitions; on \te
 \label{fig:playdata}
 \end{figure}
 
-This structure inflates the loss.
-A rest of length $L$ contributes $L$ near-identical positive terms, one per transition, while the reaching decision that produced it contributed once; at the median $L=44$ the objective weights ``the cube stays here'' about forty times more heavily than ``this action brought it here.''
-The linear observed-successor term in Equation~\ref{eq:fb-loss} turns this into unbounded scale growth, and the region-indicator form of the objective admits a large, well-scaled, action-independent constant $c^\star = \E_\rho[h]/(1-\gamma)$ that satisfies the Bellman equation on average.
-Either way, a critic reaches a low loss without learning anything about actions.
+This structure repeatedly reinforces the same successor.
+A rest of length $L$ contributes $L$ near-identical positive terms, one per transition, whereas the transition that brought the cube there appears only once; a $44$-step rest therefore gives the same configuration roughly forty opportunities to influence the objective.
+The linear observed-successor term in Equation~\ref{eq:fb-loss} turns this repetition into unbounded growth of the critic scale, and the region-indicator form of the objective admits a large, well-scaled, action-independent constant $c^\star = \E_\rho[h]/(1-\gamma)$ that satisfies the Bellman equation on average.
+Either way, the critic can reduce the objective without learning meaningful action dependence.
 
 The failure is the estimator, not the representation (Figure~\ref{fig:divergence}).
 With a backward representation frozen from a checkpoint supporting $0.97$ task success, the scalar FB loss grows the critic scale from $154$ to $5.4\times10^4$ within $65$k steps and success falls to $0.42$; orthonormalization bounds the scale but caps success at $0.225$.
@@ -89,8 +89,9 @@ Since $M(\mathcal X\mid s,a) = 1/(1-\gamma)$ for every $(s,a)$, the normalized m
 \label{eq:nu}
 \nu(\cdot\mid s,a,g) = (1-\gamma)\, M(\cdot\mid s,a,g)
 \end{equation}
-is a probability distribution over object coordinates $x=\phi_{\mathrm{obj}}(s)$ carrying the same information as $M$.
-We keep the FB two towers but use the dot product as a score rather than a density,
+is a probability distribution.
+In our setting we model this distribution over the goal-relevant object coordinates $x=\phi_{\mathrm{obj}}(s)$.
+The key change is that $F^\top B$ becomes a score rather than an unconstrained density: a softmax over sampled query configurations turns the scores into a normalized distribution,
 \begin{equation}
 \label{eq:density-softmax}
 f(s,a,g,u) = F(s,a,g)^\top B(\tilde u)/\tau,
@@ -100,6 +101,7 @@ w_j(s,a,g) = \frac{\exp f(s,a,g,u_j)}{\sum_k \exp f(s,a,g,u_k)},
 over a query set $U=\{u_j\}$ redrawn from the dataset marginal at every update (the batch's own next object configurations).
 Non-negativity and unit mass hold by construction, and the query count is a Monte-Carlo sample size, not a discretization: the checkpoint stores only $F$ and $B$.
 
+Each update asks one question: how should one unit of normalized future occupancy be distributed across candidate object configurations?
 The target mixes an immediate distribution around the observed successor with the bootstrapped prediction, and is fit by cross-entropy:
 \begin{equation}
 \label{eq:density-loss}
@@ -108,8 +110,9 @@ t = \sg \left[ (1-\gamma)\, \kappa(\cdot\mid x') + \gamma\, \bar p(s',a^+,g) \ri
 \mathcal L = - \E \Big[ \sum_j t_j \log w_j \Big],
 \qquad a^+ \sim \pi_{\bar\omega}(\cdot\mid s',g).
 \end{equation}
+The first term places $1-\gamma$ of the probability mass around the observed next configuration; the remaining $\gamma$ is inherited from the next state's predicted occupancy.
 Both terms lie on the simplex, so $t$ is itself a distribution.
-We evaluate two immediate targets:
+We evaluate two immediate targets, differing only in how the immediate mass is assigned:
 \begin{align}
 \text{soft:}\quad &\kappa_\epsilon(u_j\mid x') \propto \exp\!\left( -\tfrac12 \|(u_j-x')/\epsilon\|^2 \right),
 \label{eq:kappa-soft}\\
@@ -119,11 +122,11 @@ We evaluate two immediate targets:
 with $\epsilon$ the task tolerance; the hard target is well defined because $U$ contains each row's successor.
 
 This removes the inflation without deleting dwell mass.
-Rests can concentrate the predicted distribution but cannot grow the critic, because total mass is fixed; the action-independent solution becomes the uniform distribution, which cross-entropy penalizes against any concentrated target and which is visible in the prediction's entropy.
-The immediate target sets how dwell is credited: hard credits the realized successor exactly, soft spreads the same mass over its $\epsilon$-neighborhood.
+A long rest can make the predicted occupancy concentrate at that configuration, as it should, but it cannot increase the total amount of successor mass; the action-independent solution becomes the uniform distribution, which cross-entropy penalizes against any concentrated target and which is visible in the prediction's entropy.
+Hard and soft differ only in where the immediate mass goes: hard puts it on the realized successor, soft distributes it over the successor's $\epsilon$-neighborhood.
 
 \paragraph{Fixed point and contraction.}
-Nothing is lost relative to FB at the level of the Bellman operator.
+Normalization does not change the underlying successor fixed point: for the hard variant it only rescales the measure by $1-\gamma$, so the Bellman operator retains the same fixed-point information while constraining total mass; the soft variant additionally smooths the immediate successor over an $\epsilon$-neighborhood, so its fixed point is the correspondingly smoothed measure.
 Writing $\mathcal T\nu \,(\cdot\mid s,a) = (1-\gamma)\,\E[\kappa(\cdot\mid x_1)] + \gamma\,\E_{s_1,a^+}\left[ \nu(\cdot\mid s_1,a^+) \right]$ for the operator whose sample version is Equation~\ref{eq:density-loss}, for any two conditional measures
 \begin{equation}
 \sup_{s,a}\, \big\| \mathcal T\nu_1 - \mathcal T\nu_2 \big\|_{\mathrm{TV}}
@@ -133,7 +136,14 @@ since the immediate term cancels and the expectation is an average.
 $\mathcal T$ is therefore a $\gamma$-contraction in total variation with the ($\epsilon$-smoothed, for the soft variant) normalized successor measure as its unique fixed point, exactly as the scalar Bellman operator underlying FB is a $\gamma$-contraction with $M$ as its fixed point.
 What differs between the methods is only the projection under function approximation: FB projects in squared error onto the bilinear class, where the play-induced inflation of Section~\ref{sec:play} lives, while \DensityFB{} projects in cross-entropy onto softmax distributions, where scale is not a degree of freedom.
 
-For control, the actor maximizes the predicted mass near its goal, $q(s,a,g) = w(s,a,g)^\top \kappa(\cdot\mid g)$, computed at frozen measure parameters.
+For control, the actor maximizes the predicted mass near its goal, $q(s,a,g) = w(s,a,g)^\top \kappa(\cdot\mid g)$, computed at frozen measure parameters, inside the standard flow behavior-cloning objective:
+\begin{equation}
+\label{eq:actor}
+\mathcal L_\pi = \lambda_{\mathrm{BC}}\, \mathcal L_{\mathrm{BC\text{-}flow}} \;-\; \E\!\left[ \frac{ q(s, \pi(s,g), g) }{ s_q } \right],
+\qquad s_q = \E\big[\,|q|\,\big],\ \lambda_{\mathrm{BC}} = 3,
+\end{equation}
+where $\mathcal L_{\mathrm{BC\text{-}flow}}$ is the flow-matching behavior-cloning loss and $s_q$ is the usual magnitude normalizer (centered, since $q$ carries an action-independent level).
+The behavior-cloning row in Table~\ref{tab:main} trains the same actor with the $q$ term removed.
 
 % ======================================================================
 \section{Goal-conditioned results}
@@ -162,37 +172,40 @@ Goal-conditioned IQL & $0.879$ & $0.265$ & $0.26$--$0.287$ \\
 \label{tab:main}
 \end{table}
 
-Plain FB fails on every environment and collapses entirely beyond one object, consistent with Section~\ref{sec:play}.
-On \texttt{cube-single} both variants sit near the top of the range; the environment separates little above the $0.879$ of goal-conditioned IQL.
-\texttt{cube-double} is the discriminative environment: \DensityFB{} reaches $0.736$ from scratch against $0.265$ for goal-conditioned IQL, $0.000$ for plain FB, and a cloning floor of $0.019$.
-On \texttt{scene} both variants more than double goal-conditioned IQL, with the same per-task split on every seed: \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} are solved ($0.88$--$1.0$) while \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) fail.
+Plain FB remains well below goal-conditioned IQL on \texttt{cube-single} and collapses on the multi-object environments, consistent with Section~\ref{sec:play}.
+\texttt{cube-single} is close to saturated: both \DensityFB{} variants reach about $0.92$ against $0.879$ for goal-conditioned IQL, so it provides limited separation between the strongest methods.
+\texttt{cube-double} provides the clearest separation: \DensityFB{} reaches $0.736$ from scratch against $0.265$ for goal-conditioned IQL, $0.000$ for plain FB, and a cloning floor of $0.019$.
+The \texttt{scene} result is structured rather than noisy: every seed of both variants solves \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} ($0.88$--$1.0$), while \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) remain the bottlenecks.
 
 % ======================================================================
 \section{Reward evaluation}
 \label{sec:reward-transfer}
 
-The point of a successor measure is that one model evaluates any reward.
-For a test reward $r$ we draw a pool $U_P$ of $16{,}384$ object configurations from the dataset, evaluate $r$ on the pool, and read
+The reward-transfer experiment asks a different question from goal reaching: does the learned object represent only the five benchmark goals, or can it be integrated against a new reward?
+At test time we approximate the integral of $r$ against the learned successor distribution with a pool $U_P$ of $16{,}384$ object configurations drawn from the dataset: we evaluate $r$ on the pool once and take its expectation under the predicted occupancy $w$, which gives $w^\top r(U_P)/(1-\gamma)$.
+One correction improves this estimate.
+Here $x_0$ is the current state's object configuration (not necessarily in $U_P$), and $\kappa(\cdot\mid x_0)$ are its kernel weights over the pool: the finite pool and the kernel smooth the reward most exactly around $x_0$, where the predicted occupancy concentrates at small $t$, so we replace the smoothed estimate of the current configuration's reward, $\kappa(\cdot\mid x_0)^\top r(U_P)$, with its exact value $r(x_0)$:
 \begin{equation}
 \label{eq:density-readout}
-\widehat Q_r(s,a) = \frac{ r(x_0) + \left( w-\kappa(\cdot\mid x_0) \right)^\top r(U_P) }{ 1-\gamma },
+\widehat Q_r(s,a) = \frac{ r(x_0) + \left( w-\kappa(\cdot\mid x_0) \right)^\top r(U_P) }{ 1-\gamma }.
 \end{equation}
-which is exactly linear in $r$ and needs no retraining.
+The correction is action independent, so it changes calibration but never action ranking.
+The resulting readout is linear in $r$ and requires no retraining.
 To act, we retrieve the pool observation that maximizes $\widehat Q_r$ from the initial state, condition the goal-reaching actor on it, and roll out.
 
 \paragraph{Reward construction.}
-All test rewards are functions of the object coordinates only, take values in $[0,1]$, and are never seen during training (Figure~\ref{fig:rewardfams}).
-The \emph{dirac} family is the conjunctive tolerance indicator $r(x)=\ind{\text{every block of } x \text{ within } \epsilon \text{ of the center}}$ at the environment's five task-goal configurations: the sparsest signal, and the one the benchmark's own evaluation implies.
-The \emph{dense} family is $r(x)=\exp(-d(x,g)/2\epsilon)$ in tolerance-scaled coordinates at the same centers: the same tasks with a shaped signal, isolating whether the readout needs shaping.
-The \emph{region} family keeps the dirac form but moves the centers off the task goals: four centers drawn by hindsight from the dataset (a configuration visited later within a random episode, kept only if at least five relabeled samples fall inside its region), so each is reachable and data-supported but held out.
-The three families separate the two ways a measure readout can fail: dense against dirac varies the shaping at fixed centers, and region against dirac varies the centers at fixed form, probing the measure away from the five configurations the actor was ever evaluated on.
+We test three reward families, all defined only from object coordinates, valued in $[0,1]$, and never observed during training (Figure~\ref{fig:rewardfams}; internal names \texttt{dirac}/\texttt{dense}/\texttt{region}):
+\emph{sparse}, the benchmark's tolerance indicator $\ind{\|x-g\|\le\epsilon}$ (conjunctive over object blocks) at the five task goals;
+\emph{dense}, the same centers with distance-based shaping $\exp(-d(x,g)/2\epsilon)$ in tolerance-scaled coordinates;
+and \emph{held-out regions}, the same sparse indicator centered at reachable dataset configurations that are not benchmark goals (drawn by hindsight from within episodes, kept only with at least five relabeled samples inside the region).
+Dense versus sparse tests sensitivity to reward shaping while keeping the goals fixed; sparse versus held-out regions keeps the reward form fixed while changing where in object space the reward sits.
 $25$ episodes per task, three seeds.
 The fixed-partition row is the same objective with the continuous query set replaced by $256$ fixed prototypes, the discretized ablation.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.95\textwidth]{figures/reward_families.png}
-\caption{The three held-out reward families on the cube workspace (cube-position plane, $\epsilon$-balls to scale). Dirac and dense share task-style centers and differ in shaping; region keeps the dirac form at hindsight-drawn dataset centers.}
+\caption{The three test reward families on the cube workspace (cube-position plane, $\epsilon$-balls to scale). Sparse and dense share task-style centers and differ in shaping; held-out regions keep the sparse form at hindsight-drawn dataset centers.}
 \label{fig:rewardfams}
 \end{figure}
 
@@ -201,7 +214,7 @@ The fixed-partition row is the same objective with the continuous query set repl
 \small
 \begin{tabular}{lccc}
 \toprule
-Method & dirac & dense & region \\
+Method & sparse & dense & held-out regions \\
 \midrule
 \DensityFB{} (soft) & $0.816 \pm 0.269$ & $0.725 \pm 0.301$ & $0.293 \pm 0.052$ \\
 \DensityFB{} (hard) & $\mathbf{0.888 \pm 0.091}$ & $\mathbf{0.912 \pm 0.087}$ & $\mathbf{0.647 \pm 0.301}$ \\
@@ -212,8 +225,9 @@ Fixed partition ($K{=}256$) & $0.725 \pm 0.121$ & $0.723 \pm 0.298$ & $0.133 \pm
 \label{tab:zeroshot}
 \end{table}
 
-The continuous support pays off where a finite support must interpolate: region-family transfer goes $0.133$ (partition) to $0.293$ (soft) to $0.647$ (hard).
-The hard target improves every family while leaving goal reaching unchanged (Table~\ref{tab:main}), so the soft kernel's smoothing was costing transfer rather than protecting it.
+The largest difference appears on rewards centered away from the benchmark goals: held-out-region transfer rises from $0.133$ with the fixed partition to $0.293$ with soft \DensityFB{} and $0.647$ with the hard variant.
+This is consistent with continuous query representations helping most when the reward sits between or away from fixed prototypes.
+Since hard and soft perform almost identically on goal reaching (Table~\ref{tab:main}) but separate sharply on reward transfer, the smoothing appears unnecessary for control and harmful when the learned measure is queried with new rewards.
 
 % ======================================================================
 \section{Related work}

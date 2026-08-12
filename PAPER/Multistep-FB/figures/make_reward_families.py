@@ -29,11 +29,11 @@ def dist(c):
 
 fig, axes = plt.subplots(1, 3, figsize=(9.4, 3.1))
 panels = [
-    ("dirac:  $r=\\mathbf{1}[\\|c-g\\|\\leq\\epsilon]$, task goals",
+    ("sparse:  $r=\\mathbf{1}[\\|c-g\\|\\leq\\epsilon]$, task goals",
      (dist(C) <= EPS).astype(float)),
     ("dense:  $r=\\exp(-\\|c-g\\|/2\\epsilon)$, task goals",
      np.exp(-dist(C) / (2 * EPS))),
-    ("region:  $r=\\mathbf{1}[\\|c-c_k\\|\\leq\\epsilon]$, held-out centers",
+    ("held-out regions:  $r=\\mathbf{1}[\\|c-c_k\\|\\leq\\epsilon]$, dataset centers",
      np.max([(dist(h) <= EPS) for h in H], axis=0).astype(float)),
 ]
 for ax, (title, Z) in zip(axes.flat, panels):
