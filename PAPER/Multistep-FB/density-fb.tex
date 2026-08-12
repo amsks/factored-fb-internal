@@ -12,7 +12,6 @@
 \newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
 \newcommand{\sg}{\mathrm{sg}}
 \newcommand{\cube}{c}
-\newcommand{\TDFB}{\textsc{TDFB}}
 \newcommand{\DensityFB}{\textsc{Density-FB}}
 
 \title{Learning Successor Measures from Manipulation Play}
@@ -115,7 +114,7 @@ For control, the actor maximizes the predicted mass near its goal, $q(s,a,g) = w
 \label{sec:main-results}
 
 OGBench state-based manipulation \citep{park2024ogbench}, $500$k gradient steps, no reward labels during training, native evaluation (five tasks, $50$ episodes each), three seeds, mean $\pm$ $95\%$ confidence interval ($t$-based, $n{=}3$).
-\TDFB{} is our two-phase region-TD baseline on the same representation class: a first-passage value learned first, then occupancy, with region queries drawn from the dataset or by hindsight.
+Behavior cloning is the floor: it shares the actor's cloning term and nothing else, so it measures how much success imitation alone buys.
 
 \begin{table}[h]
 \centering
@@ -129,21 +128,18 @@ Behavior cloning & $0.111$ & $0.019$ & -- \\
 Plain FB & $0.420$ & $0.000$ & $0.047$ \\
 Goal-conditioned IQL & $0.879$ & $0.265$ & $0.26$--$0.287$ \\
 \midrule
-\TDFB{} reachability & $\mathbf{0.967}$ & $0.549$ & $0.484$ \\
-\TDFB{} occupancy, dataset queries & $0.952$ & $0.358$ & $0.342$ \\
-\TDFB{} occupancy, hindsight queries & $\sim0.93$ & $\sim0.53$ & $\mathbf{0.927}$ \\
-\midrule
-\DensityFB{} (soft) & $0.929 \pm 0.085$ & $\mathbf{0.736 \pm 0.139}$ & $0.628 \pm 0.134$ \\
-\DensityFB{} (hard) & $0.915 \pm 0.087$ & \emph{pending} & $0.641 \pm 0.109$ \\
+\DensityFB{} (soft) & $\mathbf{0.929 \pm 0.085}$ & $\mathbf{0.736 \pm 0.139}$ & $0.628 \pm 0.134$ \\
+\DensityFB{} (hard) & $0.915 \pm 0.087$ & \emph{pending} & $\mathbf{0.641 \pm 0.109}$ \\
 \bottomrule
 \end{tabular}
 \caption{Native goal-conditioned success. Seeds: soft \texttt{cube-single} $.896/.928/.964$, \texttt{cube-double} $.680/.736/.792$, \texttt{scene} $.672/.568/.644$; hard \texttt{cube-single} $.876/.944/.924$, \texttt{scene} $.692/.620/.612$. The hard \texttt{cube-double} cell has one seed still training.}
 \label{tab:main}
 \end{table}
 
-\texttt{cube-single} separates little: the cloning floor is $0.111$ and four methods sit between $0.88$ and $0.97$.
-\texttt{cube-double} is the discriminative environment: a random conjunctive goal gives \TDFB{} a positive region target on only $0.046\%$ of state-goal pairs, occupancy training there loses success ($0.549 \to 0.358$), and hindsight only recovers it ($\sim0.53$), while \DensityFB{} reaches $0.736$ from scratch with no curriculum and no hindsight, against a cloning floor of $0.019$.
-On \texttt{scene}, \DensityFB{} clears every non-hindsight arm but not hindsight \TDFB{}, and both variants show the same per-task split on every seed: \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} are solved ($0.88$--$1.0$) while \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) fail.
+Plain FB fails on every environment and collapses entirely beyond one object, consistent with Section~\ref{sec:play}.
+On \texttt{cube-single} both variants sit near the top of the range; the environment separates little above the $0.879$ of goal-conditioned IQL.
+\texttt{cube-double} is the discriminative environment: \DensityFB{} reaches $0.736$ from scratch against $0.265$ for goal-conditioned IQL, $0.000$ for plain FB, and a cloning floor of $0.019$.
+On \texttt{scene} both variants more than double goal-conditioned IQL, with the same per-task split on every seed: \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} are solved ($0.88$--$1.0$) while \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) fail.
 
 % ======================================================================
 \section{Reward evaluation}
@@ -184,7 +180,7 @@ The hard target improves every family while leaving goal reaching unchanged (Tab
 \label{sec:related}
 
 Successor representations and measures predict discounted future occupancy \citep{dayan1993improving,blier2021learning}; FB factorizes the density and retargets a policy family to downstream rewards \citep{touati2021learning,touati2023does}.
-Goal-conditioned offline RL supplies the sparse-reward and hindsight machinery our region-TD baseline uses \citep{kaelbling1993learning,andrychowicz2017hindsight,kostrikov2021offline,park2023hiql}.
+Goal-conditioned offline RL studies the same reach-a-goal problem with sparse rewards and hindsight relabeling \citep{kaelbling1993learning,andrychowicz2017hindsight,kostrikov2021offline,park2023hiql}; goal-conditioned IQL is our representative baseline from that family.
 Contrastive RL \citep{eysenbach2022contrastive} learns future-state discrimination; \DensityFB{} keeps the FB factorization and an explicit normalized successor-measure interpretation.
 
 % ======================================================================
@@ -194,7 +190,7 @@ Contrastive RL \citep{eysenbach2022contrastive} learns future-state discriminati
 The method is given the object coordinates that define goals; pixels would need a learned object representation.
 Queries are the batch's own successors; independent query pools are untested.
 Calibration against Monte-Carlo region masses is strong at coarse scale (Spearman $0.83$--$0.85$ at $4\epsilon$) and moderate at the native scale ($0.41$--$0.48$), for the partition variant as well, so fine-scale set mass is a limit of the estimator family; the hard variant's calibration is not yet measured.
-On \texttt{scene}, both composed-rearrangement tasks fail across seeds, and hindsight-grounded region TD remains stronger there.
+On \texttt{scene}, both composed-rearrangement tasks fail across seeds and both variants, suggesting that structure beyond geometric object coordinates is needed there.
 
 \bibliography{references}
 \bibliographystyle{iclr2027_conference}
