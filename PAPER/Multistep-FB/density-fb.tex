@@ -5,8 +5,15 @@
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 \usepackage[colorlinks=true,linkcolor=blue,citecolor=blue]{hyperref}
 \usepackage{url}
+
+\definecolor{fbdiff}{HTML}{2A78D6}   % lines that differ from standard FB
+\definecolor{softvar}{HTML}{EB6834}  % soft-variant line
+\definecolor{hardvar}{HTML}{1A9E77}  % hard-variant line
 
 \newcommand{\E}{\mathbb{E}}
 \newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
@@ -149,6 +156,26 @@ For control, the actor maximizes the predicted mass near its goal, $q(s,a,g) = w
 \end{equation}
 where $\mathcal L_{\mathrm{BC\text{-}flow}}$ is the flow-matching behavior-cloning loss and $s_q$ is the usual magnitude normalizer (centered, since $q$ carries an action-independent level).
 The behavior-cloning row in Table~\ref{tab:main} trains the same actor with the $q$ term removed.
+
+Algorithm~\ref{alg:densityfb} summarizes one gradient step.
+Black lines are shared with standard FB; {\color{fbdiff}blue} lines are where \DensityFB{} differs; the immediate target is the single line where the two variants differ ({\color{softvar}soft}, {\color{hardvar}hard}).
+
+\begin{algorithm}[t]
+\caption{\DensityFB{}, one gradient step. Black: shared with standard FB (which draws task vectors $z$ where we draw goals $g$). {\color{fbdiff}Blue}: changed relative to FB. {\color{softvar}Orange}/{\color{hardvar}teal}: the soft/hard fork, one line.}
+\label{alg:densityfb}
+\begin{algorithmic}[1]
+\State Sample transitions $\{(s_i,a_i,s'_i)\}_{i=1}^{n}$ and goals $\{g_i\}$ from $\mathcal D$
+\State {\color{fbdiff} Build the query set from the batch's own successors: $u_j = \phi_{\mathrm{obj}}(s'_j)$ for $j=1,\dots,n$}
+\State Compute scores $f_{ij} = F(s_i,a_i,g_i)^\top B(\tilde u_j)/\tau$
+\State {\color{fbdiff} Normalize the scores into distributions: $w_{ij} = \operatorname{softmax}_j(f_{ij})$ \Comment{FB reads $f$ as an unconstrained density}}
+\State {\color{softvar} soft: $\kappa_{ij} \propto \exp\!\big({-\tfrac12}\|(u_j-x'_i)/\epsilon\|^2\big)$} \textbf{~or~} {\color{hardvar} hard: $\kappa_{ij} = \ind{j=i}$}
+\State Sample bootstrap actions $a^+_i \sim \pi_{\bar\omega}(\cdot\mid s'_i,g_i)$
+\State {\color{fbdiff} Form simplex targets $t_i = \sg\!\left[(1-\gamma)\,\kappa_i + \gamma\,\bar w(s'_i,a^+_i,g_i)\right]$}
+\State {\color{fbdiff} Update $F,B$ with cross-entropy $-\tfrac1n\sum_i\sum_j t_{ij}\log w_{ij}$ \Comment{FB: squared loss, Eq.~\ref{eq:fb-loss}}}
+\State {\color{fbdiff} Update the actor by Eq.~\ref{eq:actor} with $q_i = w(s_i,\pi(s_i,g_i),g_i)^\top \kappa(\cdot\mid g_i)$ at frozen $F,B$}
+\State Soft-update the target networks $\bar F,\bar B,\pi_{\bar\omega}$
+\end{algorithmic}
+\end{algorithm}
 
 % ======================================================================
 \section{Goal-conditioned results}
