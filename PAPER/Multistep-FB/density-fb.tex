@@ -319,6 +319,43 @@ On \texttt{cube-single} and \texttt{scene} the hard target improves all three re
 On \texttt{cube-double}, however, the two targets are nearly indistinguishable ($0.549$ vs $0.544$, $0.488$ vs $0.532$, $0.177$ vs $0.165$).
 Hard targets therefore improve reward readout on some manipulation tasks and not others. On goal reaching the two are within noise everywhere (Table~\ref{tab:main}).
 
+\paragraph{Comparison with published zero-shot methods.}
+Published zero-shot methods specify the task the same way this section does: the reward is given at test time and the task index is inferred, with no goal handed to the policy.
+Table~\ref{tab:published} places our sparse-family numbers next to the OGBench results reported by \citet{bagatella2025tdjepa} for eight zero-shot algorithms on the same state-based datasets.
+Three differences in protocol should be read with the table.
+Those numbers use $1$M gradient steps, $10$ seeds and $10$ episodes per task, against our $500$k steps, three seeds and $25$ episodes.
+Their task index is inferred by linear regression on relabeled data; ours is chosen by search over candidate goals.
+Their FB entry uses a deep state encoder and a tuned orthonormalization coefficient, and reaches $49.6$ on \texttt{cube-single} against $41.0$ for our own plain-FB reproduction at half the budget.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Method & \texttt{cube-single} & \texttt{cube-double} & \texttt{scene} \\
+\midrule
+Laplacian \citep{wu2019laplacian} & $15.1 \pm 1.5$ & $2.0 \pm 0.4$ & $7.8 \pm 1.3$ \\
+RLDP \citep{jajoo2025rldp} & $19.8 \pm 2.4$ & $3.8 \pm 0.8$ & $11.6 \pm 1.6$ \\
+ICVF \citep{ghosh2023icvf} & $20.4 \pm 1.9$ & $5.0 \pm 0.8$ & $45.4 \pm 2.3$ \\
+BYOL & $22.0 \pm 3.2$ & $4.4 \pm 0.7$ & $15.4 \pm 1.4$ \\
+TD-JEPA \citep{bagatella2025tdjepa} & $34.2 \pm 2.9$ & $3.6 \pm 0.8$ & $38.4 \pm 1.4$ \\
+FB \citep{touati2021learning} & $49.6 \pm 3.8$ & $2.6 \pm 0.4$ & $12.8 \pm 1.6$ \\
+HILP \citep{park2024hilp} & $74.2 \pm 3.5$ & $20.0 \pm 2.7$ & $43.8 \pm 1.9$ \\
+BYOL-$\gamma$ & $79.4 \pm 2.8$ & $2.6 \pm 0.7$ & $14.4 \pm 2.3$ \\
+\midrule
+\DensityFB{} (soft) & $81.6 \pm 26.9$ & $\mathbf{54.9 \pm 24.0}$ & $39.5 \pm 9.2$ \\
+\DensityFB{} (hard) & $\mathbf{88.8 \pm 9.1}$ & $54.4 \pm 0.0$\,(2) & $\mathbf{64.0 \pm 11.1}$ \\
+\bottomrule
+\end{tabular}
+\caption{Zero-shot success rate (\%) on state-based OGBench. Rows above the line are as reported by \citet{bagatella2025tdjepa} at $1$M gradient steps, $10$ seeds and $10$ episodes per task, with the task index inferred by linear regression. Rows below are our sparse reward family at $500$k steps, three seeds and $25$ episodes, with the index chosen by search. Our confidence intervals are wide because they are $t$-based on three seeds.}
+\label{tab:published}
+\end{table}
+
+The ordering is unchanged by the interval widths on \texttt{cube-double}, where the strongest published method reaches $20.0$ and both of our variants exceed $54$.
+On \texttt{cube-single} our hard variant reaches $88.8$ against $79.4$ for the strongest published method, a gap inside our confidence interval.
+On \texttt{scene} the hard variant reaches $64.0$ against $45.4$.
+\texttt{cube-double} is also where the published methods are closest to each other and to zero: six of the eight fall below $5$.
+
 Reward transfer remains harder than direct goal reaching.
 On \texttt{cube-double}, the same soft checkpoint reaches $0.736$ under ordinary goal conditioning and $0.549$ when the same goal is specified through the sparse reward readout.
 The gap therefore comes after representation learning, from reward integration and the subsequent goal-selection step.
