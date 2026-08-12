@@ -3,6 +3,7 @@
 
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{booktabs}
+\usepackage{paralist}   % inparaenum (inline enumeration in sec:play)
 \usepackage{graphicx}
 \usepackage{microtype}
 \usepackage{xcolor}
@@ -41,11 +42,11 @@ M^\pi(s,a,X) = \E_\pi\!\left[ \sum_{t\ge0}\gamma^t \ind{s_{t+1}\in X} \;\middle|
 Q_r^\pi(s,a) = \int r(x)\,dM^\pi(s,a,x),
 \end{equation}
 so one learned measure evaluates any downstream reward \citep{dayan1993improving,blier2021learning}.
-Forward-backward (FB) representations \citep{touati2021learning,touati2023does} factorize its density against the dataset marginal $\rho$, $m_z(s,a,x) = F(s,a,z)^\top B(x)$, embed a reward as $z_r \propto \E_{x\sim\rho}[r(x)B(x)]$, and read values as $Q_r \approx F(s,a,z_r)^\top z_r$.
+Forward-backward (FB) representations \citep{touati2021learning,touati2023does} factorize its density against the dataset marginal $\rho$, $m_z(s,a,x) = F(s,a,z)^\top B(x)$, with $F$ on the current state and action and $B$ on a candidate future state, embed a reward as $z_r \propto \E_{x\sim\rho}[r(x)B(x)]$, and read values as $Q_r \approx F(s,a,z_r)^\top z_r$.
 The standard estimator is
 \begin{equation}
 \label{eq:fb-loss}
-\mathcal L_{\mathrm{FB}} = \tfrac12 \E_{x\sim\rho} \left[ (m_z-\gamma\bar m_z)^2 \right] - \E \left[ m_z(s,a,s') - \gamma\bar m_z(s,a,s') \right] + \lambda_{\mathrm{ortho}} \mathcal L_{\mathrm{ortho}}:
+\mathcal L_{\mathrm{FB}} = \tfrac12 \E_{x\sim\rho} \left[ (m_z-\gamma\bar m_z)^2 \right] - \E \left[ m_z(s,a,s^+) - \gamma\bar m_z(s,a,s^+) \right] + \lambda_{\mathrm{ortho}} \mathcal L_{\mathrm{ortho}}:
 \end{equation}
 random queries get a squared residual; the observed successor gets a linear positive term.
 
@@ -53,53 +54,41 @@ random queries get a squared residual; the observed successor gets a linear posi
 \section{Why stationary segments dominate the FB objective}
 \label{sec:play}
 
-Manipulation play alternates brief object-changing interactions with long periods at persistent configurations: approach, grasp, transport, release, then rest.
+Manipulation play data alternates brief object-changing interactions with long periods at persistent configurations: approach, grasp, transport, release, then rest.
 On \texttt{cube-single-play-v0} the cube is stationary on $48\%$ of transitions and stationary runs have median length $44$ steps; after entering a $4$\,cm region a trajectory accumulates $25$--$31$ discounted visits there.
-On \texttt{cube-double} each cube is stationary on $72\%$ of transitions; on \texttt{scene}, drawer and window on $91\%$ and buttons on $99.6\%$ (Figure~\ref{fig:playdata}).
-
-\begin{figure}[ht]
-\centering
-\includegraphics[width=0.95\textwidth]{figures/playdata.png}
-\caption{\emph{Left:} three \texttt{cube-single} play trajectories. \emph{Right:} discounted occupancy accumulated after first entering a $4$\,cm goal region. Most successor mass accumulates after arrival.}
-\label{fig:playdata}
-\end{figure}
-
+On \texttt{cube-double} each cube is stationary on $72\%$ of transitions; on \texttt{scene}, drawer and window on $91\%$ and buttons on $99.6\%$.
 This structure repeatedly reinforces the same successor.
-A rest of length $L$ contributes $L$ near-identical positive terms, one per transition. The transition that brought the cube there appears once. A $44$-step rest therefore gives the same configuration roughly forty opportunities to influence the objective.
-Repeated stationary transitions create two problems.
-First, the linear positive term in Equation~\ref{eq:fb-loss} can increase the scale of the critic without bound.
-Second, when the successor target is a region indicator $h(s',g)=\ind{s'\in B_\epsilon(g)}$, the Bellman objective admits an action-independent constant solution $c^\star = \E_\rho[h]/(1-\gamma)$.
+A rest of length $L$ contributes $L$ near-identical positive terms, one per transition. 
+The transition that brought the cube there appears once. 
+A $44$-step rest therefore gives the same configuration roughly forty opportunities to influence the objective.
+Repeated stationary transitions create two problems:
+\begin{inparaenum}
+    \item the linear positive term in Equation~\ref{eq:fb-loss} can increase the scale of the critic without bound.
+    \item  when the successor target is a region indicator $h(s^+,g)=\ind{s^+\in B_\epsilon(g)}$, the Bellman objective admits an action-independent constant solution $c^\star = \E_\rho[h]/(1-\gamma)$.
+\end{inparaenum}
 In either case, the objective can be reduced without learning which actions move the object.
-
-A frozen-representation experiment separates the objective from representation capacity (Figure~\ref{fig:divergence}).
-With a backward representation frozen from a checkpoint supporting $0.97$ task success, the standard FB objective grows the critic scale from $154$ to $5.4\times10^4$ within $65$k steps and success falls to $0.42$; orthonormalization bounds the scale and caps success at $0.225$.
-A capable representation therefore does not rescue the objective. The instability follows the estimator.
-
-\begin{figure}[t]
-\centering
-\begin{minipage}[t]{0.48\textwidth}
-\centering
-\includegraphics[width=\textwidth]{figures/scale_divergence.png}
-\end{minipage}
-\hfill
-\begin{minipage}[t]{0.48\textwidth}
-\centering
-\includegraphics[width=\textwidth]{figures/2_curves.png}
-\end{minipage}
-\caption{A useful representation does not rescue the standard FB objective. \emph{Left:} critic scale. \emph{Right:} goal-conditioned success. Bounded TD objectives stay stable on the same frozen backward representation. The standard FB objective inflates and degrades.}
-\label{fig:divergence}
-\end{figure}
 
 % ======================================================================
 \section{\DensityFB: soft and hard variants}
 \label{sec:method}
-
-We consider a goal-conditioned policy $\pi(a\mid s,g)$ and write $M(\cdot\mid s,a,g)$ for its successor measure, restricted to the goal-relevant object coordinates $x=\phi_{\mathrm{obj}}(s)$ (the pushforward of the state successor measure, which is exact for any reward defined on object coordinates).
+Write $(s,a,s^+)$ for a transition from the offline dataset and $x^+ = \phi(s^+)$ for the part of the next state whose future occupancy we predict.
+We consider a goal-conditioned policy $\pi(a\mid s,g)$ and write $M(\cdot\mid s,a,g)$ for the successor measure of $x$ under that policy.
+The two representations see different things:
+\begin{equation}
+\label{eq:fb-args}
+\underbrace{F(s,a,g) \in \mathbb R^d}_{\text{full current state}},
+\qquad
+\underbrace{B(x) \in \mathbb R^d}_{\text{candidate future configuration}}.
+\end{equation}
+The choice of $\phi$ is separate from \DensityFB{}.
+Our manipulation experiments take $\phi$ to be the object coordinates, so $B$ receives an object configuration and the measure is the pushforward of the state successor measure, which is exact for any reward defined on those coordinates.
+Taking $\phi$ to be the identity gives $x = s$ and hands $B$ the full state; that is the ablation reported in Section~\ref{sec:main-results}.
 Since the total discounted mass is $1/(1-\gamma)$ for every $(s,a)$, multiplying by $1-\gamma$ yields a probability distribution:
 \begin{equation}
-\label{eq:nu}
-\nu(\cdot\mid s,a,g) = (1-\gamma)\, M(\cdot\mid s,a,g).
+    \label{eq:nu}
+    \nu(\cdot\mid s,a,g) = (1-\gamma)\, M(\cdot\mid s,a,g).
 \end{equation}
+
 \paragraph{Role of the goal.}
 Goals are not required by \DensityFB{}; they index the policies whose successor measures we learn.
 For a fixed policy, $g$ could simply be removed.
@@ -120,19 +109,19 @@ Each update predicts how one unit of normalized future occupancy is distributed 
 The target assigns $1-\gamma$ mass to the observed successor and bootstraps the remaining $\gamma$ from the next state, and is fit by cross-entropy:
 \begin{equation}
 \label{eq:density-loss}
-t = \sg \left[ (1-\gamma)\, \kappa(\cdot\mid x') + \gamma\, \bar w(s',a^+,g) \right],
+t = \sg \left[ (1-\gamma)\, \kappa(\cdot\mid x^+) + \gamma\, \bar w(s^+,a^+,g) \right],
 \qquad
 \mathcal L = - \E \Big[ \sum_j t_j \log w_j \Big],
-\qquad a^+ \sim \pi_{\bar\omega}(\cdot\mid s',g),
+\quad a^+ \sim \pi_{\bar\omega}(\cdot\mid s^+,g),
 \end{equation}
 where $\bar w$ is the target-network prediction and $\pi_{\bar\omega}$ is the target copy of the goal-conditioned actor introduced below.
 The first term places $1-\gamma$ of the probability mass around the observed next configuration; the remaining $\gamma$ is inherited from the next state's predicted occupancy.
 Both terms lie on the simplex, so $t$ is itself a distribution.
 We evaluate two immediate targets, differing only in how the immediate mass is assigned:
 \begin{align}
-\text{soft:}\quad &\kappa_\epsilon(u_j\mid x') \propto \exp\!\left( -\tfrac12 \|(u_j-x')/\epsilon\|^2 \right),
+\text{soft:}\quad &\kappa_\epsilon(u_j\mid x^+) \propto \exp\!\left( -\tfrac12 \|(u_j-x^+)/\epsilon\|^2 \right),
 \label{eq:kappa-soft}\\
-\text{hard:}\quad &\kappa_j(x'_i) = \ind{j = i},
+\text{hard:}\quad &\kappa_j(x^+_i) = \ind{j = i},
 \label{eq:kappa-hard}
 \end{align}
 with $\epsilon$ the task tolerance.
@@ -146,7 +135,7 @@ Hard and soft targets differ only in how they assign the immediate $1-\gamma$ ma
 
 \paragraph{Fixed point and contraction.}
 Normalization preserves the successor-measure fixed point: for the hard variant it only rescales the measure by $1-\gamma$, constraining total mass; the soft variant additionally smooths the immediate successor over an $\epsilon$-neighborhood, so its fixed point is the correspondingly smoothed measure.
-Writing $\mathcal T\nu \,(\cdot\mid s,a) = (1-\gamma)\,\E[\kappa(\cdot\mid x_1)] + \gamma\,\E_{s_1,a^+}\left[ \nu(\cdot\mid s_1,a^+) \right]$ for the operator whose sample version is Equation~\ref{eq:density-loss}, for any two conditional measures
+Writing $\mathcal T\nu \,(\cdot\mid s,a) = (1-\gamma)\,\E[\kappa(\cdot\mid x^+)] + \gamma\,\E_{s^+,a^+}\left[ \nu(\cdot\mid s^+,a^+) \right]$ for the operator whose sample version is Equation~\ref{eq:density-loss}, for any two conditional measures
 \begin{equation}
 \sup_{s,a}\, \big\| \mathcal T\nu_1 - \mathcal T\nu_2 \big\|_{\mathrm{TV}}
 \;\le\; \gamma\, \sup_{s,a}\, \big\| \nu_1 - \nu_2 \big\|_{\mathrm{TV}},
@@ -174,13 +163,13 @@ Black lines are shared with standard FB; {\color{fbdiff}blue} lines are where \D
 \caption{\DensityFB{}, one gradient step. Black: shared with standard FB (which draws task vectors $z$ where we draw goals $g$). {\color{fbdiff}Blue}: changed relative to FB. {\color{softvar}Orange}/{\color{hardvar}teal}: the soft/hard fork, one line.}
 \label{alg:densityfb}
 \begin{algorithmic}[1]
-\State Sample transitions $\{(s_i,a_i,s'_i)\}_{i=1}^{n}$ and goals $\{g_i\}$ from $\mathcal D$
-\State {\color{fbdiff} Build the query set from the batch's own successors: $u_j = \phi_{\mathrm{obj}}(s'_j)$ for $j=1,\dots,n$}
+\State Sample transitions $\{(s_i,a_i,s^+_i)\}_{i=1}^{n}$ and goals $\{g_i\}$ from $\mathcal D$
+\State {\color{fbdiff} Build the query set from the batch's own successors: $u_j = \phi(s^+_j)$ for $j=1,\dots,n$}
 \State Compute scores $f_{ij} = F(s_i,a_i,g_i)^\top B(\tilde u_j)/\tau$
 \State {\color{fbdiff} Normalize the scores into distributions: $w_{ij} = \operatorname{softmax}_j(f_{ij})$ \Comment{FB reads $f$ as an unconstrained density}}
-\State {\color{softvar} soft: $\kappa_{ij} \propto \exp\!\big({-\tfrac12}\|(u_j-x'_i)/\epsilon\|^2\big)$} \textbf{~or~} {\color{hardvar} hard: $\kappa_{ij} = \ind{j=i}$}
-\State Sample bootstrap actions $a^+_i \sim \pi_{\bar\omega}(\cdot\mid s'_i,g_i)$
-\State {\color{fbdiff} Form simplex targets $t_i = \sg\!\left[(1-\gamma)\,\kappa_i + \gamma\,\bar w(s'_i,a^+_i,g_i)\right]$}
+\State {\color{softvar} soft: $\kappa_{ij} \propto \exp\!\big({-\tfrac12}\|(u_j-x^+_i)/\epsilon\|^2\big)$} \textbf{~or~} {\color{hardvar} hard: $\kappa_{ij} = \ind{j=i}$}
+\State Sample bootstrap actions $a^+_i \sim \pi_{\bar\omega}(\cdot\mid s^+_i,g_i)$
+\State {\color{fbdiff} Form simplex targets $t_i = \sg\!\left[(1-\gamma)\,\kappa_i + \gamma\,\bar w(s^+_i,a^+_i,g_i)\right]$}
 \State {\color{fbdiff} Update $F,B$ with cross-entropy $-\tfrac1n\sum_i\sum_j t_{ij}\log w_{ij}$ \Comment{FB: squared loss, Eq.~\ref{eq:fb-loss}}}
 \State {\color{fbdiff} Update the actor by Eq.~\ref{eq:actor} with $q_i = w(s_i,\pi(s_i,g_i),g_i)^\top \kappa(\cdot\mid g_i)$ at frozen $F,B$}
 \State Soft-update the target networks $\bar F,\bar B,\pi_{\bar\omega}$
@@ -193,8 +182,8 @@ Black lines are shared with standard FB; {\color{fbdiff}blue} lines are where \D
 
 OGBench state-based manipulation and locomotion \citep{park2024ogbench}, $500$k gradient steps, no reward labels during training, native evaluation (five tasks, $50$ episodes each), three seeds, mean $\pm$ $95\%$ confidence interval ($t$-based).
 We evaluate each representation with two actor extractors, flow behavior cloning and Gaussian DDPG+BC, to separate representation quality from policy extraction.
-Behavior cloning trains the same actor with the $q$ term removed and learns no successor representation: $0.111$ on \texttt{cube-single}, $0.019$ on \texttt{cube-double}, $0.071$ on \texttt{scene} ($0.064/0.080/0.068$, three seeds).
-Published goal-conditioned IQL results use $1$M gradient steps and eight seeds. We include them as an external reference; they are not a matched baseline.
+Behavior cloning trains the same actor with the $q$ term removed and learns no successor representation: $0.111$ on \texttt{cube-single}, $0.019$ on \texttt{cube-double}.
+Published GCIQL results use $1$M gradient steps and eight seeds. We include them as an external reference; they are not a matched baseline.
 
 \begin{table}[h]
 \centering
@@ -223,7 +212,7 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
 
 On \texttt{cube-single}, both \DensityFB{} variants reach about $0.92$, leaving little room to distinguish them.
 The harder manipulation tasks separate the methods more clearly.
-On \texttt{cube-double}, soft \DensityFB{} reaches $0.736$ with the flow actor, compared with $0.000$ for plain FB and $0.019$ for behavior cloning; with DDPG+BC it reaches $0.640$, against a published $0.40$ for goal-conditioned IQL at twice the training budget.
+On \texttt{cube-double}, soft \DensityFB{} reaches $0.736$ with the flow actor, compared with $0.000$ for plain FB and $0.019$ for behavior cloning; with DDPG+BC it reaches $0.640$, against a published $0.40$ for GCIQL at twice the training budget.
 On \texttt{scene}, \DensityFB{} reaches about $0.64$ while plain FB remains near zero.
 The \texttt{scene} average also hides a consistent task split: all seeds solve \texttt{open}, \texttt{unlock-and-lock} and \texttt{rearrange-medium} ($0.88$--$1.0$). \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) remain difficult.
 
@@ -233,7 +222,7 @@ On \texttt{antmaze-medium} the same switch moves \DensityFB{} from $0.563$ to $0
 
 \paragraph{\DensityFB{} does not improve AntMaze.}
 \texttt{antmaze-medium} removes the structure that motivated \DensityFB{}: the goal-relevant variable is the agent itself, so there is no manipulated object that remains stationary while actions continue.
-Consistent with this, \DensityFB{} does not improve over our matched goal-conditioned IQL control under DDPG+BC ($0.829$ versus $0.837$), and both sit below the strongest published method on that benchmark ($0.96$ for HIQL).
+Consistent with this, \DensityFB{} does not improve over our matched GCIQL control under DDPG+BC ($0.829$ versus $0.837$), and both sit below the strongest published method on that benchmark ($0.96$ for HIQL).
 This supports the narrower hypothesis that \DensityFB{} helps when play data contains long stationary segments in the goal-relevant object variables.
 
 % ======================================================================
@@ -244,11 +233,11 @@ Goal reaching only tests whether the learned measure supports the benchmark goal
 Reward transfer asks whether the same measure can evaluate a reward that was never used for training.
 At test time we approximate the integral of $r$ against the learned successor distribution with a pool $U_P$ of $16{,}384$ object configurations drawn from the dataset: we evaluate $r$ on the pool once and take its expectation under the predicted occupancy $w$, which gives $w^\top r(U_P)/(1-\gamma)$.
 Because stationary transitions concentrate predicted occupancy near the current object configuration, finite-pool smoothing matters most there.
-We therefore correct the reward estimate at $x_0$ explicitly.
-Writing $\kappa(\cdot\mid x_0)$ for the kernel weights of $x_0$ over the pool, we replace the smoothed estimate of the reward at that configuration, $\kappa(\cdot\mid x_0)^\top r(U_P)$, with its exact value $r(x_0)$:
+We therefore correct the reward estimate at the current configuration $x=\phi(s)$ explicitly.
+Writing $\kappa(\cdot\mid x)$ for its kernel weights over the pool, we replace the smoothed estimate of the reward there, $\kappa(\cdot\mid x)^\top r(U_P)$, with the exact value $r(x)$:
 \begin{equation}
 \label{eq:density-readout}
-\widehat Q_r(s,a) = \frac{ r(x_0) + \left( w-\kappa(\cdot\mid x_0) \right)^\top r(U_P) }{ 1-\gamma }.
+\widehat Q_r(s,a) = \frac{ r(x) + \left( w-\kappa(\cdot\mid x) \right)^\top r(U_P) }{ 1-\gamma }.
 \end{equation}
 The correction is action independent. It changes calibration and leaves action ranking unchanged.
 The resulting readout is linear in $r$ and requires no retraining.
@@ -292,7 +281,7 @@ Environment & Reward family & Plain FB & \DensityFB{} (soft) & \DensityFB{} (har
  & held-out regions & \emph{pending} & $0.220 \pm 0.086$ & $\mathbf{0.347 \pm 0.038}$ \\
 \bottomrule
 \end{tabular}
-\caption{Zero-shot reward transfer (mean $\pm$ $95\%$ CI, three seeds unless marked). Goal-conditioned IQL has no reward readout of this kind and is therefore absent; the plain-FB column requires torch checkpoints that are still training. Cells marked $(2)$ have two seeds. All numbers use a $16{,}384$-configuration pool and $25$ episodes per task.}
+\caption{Zero-shot reward transfer (mean $\pm$ $95\%$ CI, three seeds unless marked). GCIQL has no reward readout of this kind and is therefore absent; the plain-FB column requires torch checkpoints that are still training. Cells marked $(2)$ have two seeds. All numbers use a $16{,}384$-configuration pool and $25$ episodes per task.}
 \label{tab:zeroshot}
 \end{table}
 
