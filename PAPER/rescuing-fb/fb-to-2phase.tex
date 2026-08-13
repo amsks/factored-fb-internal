@@ -1,0 +1,1183 @@
+\documentclass[10pt]{article}
+
+\usepackage[margin=1.05in]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\ind}[1]{\mathbf{1}!\left[#1\right]}
+\newcommand{\sg}{\operatorname{sg}}
+\newcommand{\Rho}{\rho}
+
+\title{A Reach-First Successor Measure in the Forward--Backward Architecture}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Overview}
+
+Forward--backward representation learning aims to learn the future occupancy of every
+state under a family of policies:
+\begin{equation}
+M^{\pi_z}(s,a,X)
+================
+
+\E_{\pi_z}
+\left[
+\sum_{t\geq0}
+\gamma^t
+\ind{s_{t+1}\in X}
+;\middle|;
+s_0=s,;a_0=a
+\right].
+\label{eq:successor-measure}
+\end{equation}
+
+In continuous state spaces, FB represents the density of this measure relative to a
+reference distribution $\rho$ as
+\begin{equation}
+m_z(s,a,x)
+==========
+
+\frac{dM^{\pi_z}(s,a,\cdot)}{d\rho}(x)
+\approx
+F(s,a,z)^\top B(x).
+\label{eq:fb-factorization}
+\end{equation}
+
+The policy index $z$ and queried future state $x$ play different roles:
+\begin{itemize}
+\item $z$ selects the continuation policy $\pi_z$;
+\item $x$ specifies the future state whose occupancy is queried;
+\item $F(s,a,z)$ summarizes future behavior under $\pi_z$;
+\item $B(x)$ provides coordinates for querying occupancy at $x$.
+\end{itemize}
+
+The proposed method preserves this architecture but changes the temporal-difference
+objective applied to the bilinear prediction.
+
+Stock FB learns a successor-measure density ratio using a least-squares density-estimation
+objective.
+The proposed curriculum instead makes the same inner product predict:
+\begin{enumerate}
+\item a bounded first-arrival value;
+\item then a non-absorbing visitation value.
+\end{enumerate}
+
+The central change is therefore
+\begin{equation}
+\boxed{
+\text{density-ratio estimation}
+\quad\longrightarrow\quad
+\text{ordinary Bellman regression on finite goal regions}.
+}
+\end{equation}
+
+\section{Normal FB}
+
+\subsection{Reward inference}
+
+Suppose a downstream state reward is $r(x)$.
+FB constructs a reward embedding
+\begin{equation}
+z_r
+===
+
+\E_{x\sim\rho}
+\left[
+r(x)B(x)
+\right].
+\label{eq:reward-embedding}
+\end{equation}
+
+Under the factorization in Equation~\eqref{eq:fb-factorization},
+\begin{align}
+F(s,a,z_r)^\top z_r
+&=
+F(s,a,z_r)^\top
+\E_{x\sim\rho}
+\left[
+r(x)B(x)
+\right]
+\
+&=
+\E_{x\sim\rho}
+\left[
+r(x)
+F(s,a,z_r)^\top B(x)
+\right]
+\
+&\approx
+Q_r^{\pi_{z_r}}(s,a).
+\end{align}
+
+The same latent vector $z_r$ is therefore used as:
+\begin{itemize}
+\item a representation of the reward;
+\item a conditioning variable for the successor representation;
+\item a conditioning variable for the actor.
+\end{itemize}
+
+The actor is trained to maximize
+\begin{equation}
+Q_z(s,a)
+========
+
+F(s,a,z)^\top z,
+\label{eq:fb-q}
+\end{equation}
+so that
+\begin{equation}
+\pi_z(\cdot\mid s)
+\approx
+\arg\max_a F(s,a,z)^\top z.
+\end{equation}
+
+\subsection{Correspondence with the implementation}
+
+The implementation contains the three FB components
+\begin{align}
+B(x)
+&\longleftrightarrow
+\texttt{_backward_map},
+\
+F(s,a,z)
+&\longleftrightarrow
+\texttt{_forward_map},
+\
+\pi(a\mid s,z)
+&\longleftrightarrow
+\texttt{_actor}.
+\end{align}
+
+For a batch
+\begin{equation}
+{(s_i,a_i,s_i')}_{i=1}^{n},
+\end{equation}
+the implementation samples one policy latent $z_i$ for each row and uses the batch of
+successor states as query states:
+\begin{equation}
+x_j=s_j'.
+\end{equation}
+
+It computes
+\begin{equation}
+F_{hi}
+======
+
+F_h(s_i,a_i,z_i)
+\in\mathbb{R}^d
+\end{equation}
+for each forward head $h$, and
+\begin{equation}
+B_j=B(x_j)\in\mathbb{R}^d.
+\end{equation}
+
+The matrix multiplication
+\begin{equation}
+M_{hij}
+=======
+
+F_h(s_i,a_i,z_i)^\top B(x_j)
+\label{eq:batch-matrix}
+\end{equation}
+corresponds to
+\begin{verbatim}
+Fs = forward_map(left_enc, z, action)
+B  = backward_map(goal)
+Ms = torch.matmul(Fs, B.T)
+\end{verbatim}
+
+Each row $i$ fixes:
+\begin{itemize}
+\item a state-action pair $(s_i,a_i)$;
+\item a continuation policy indexed by $z_i$.
+\end{itemize}
+
+Each column $j$ asks:
+\begin{quote}
+How much future occupancy does policy $\pi_{z_i}$ assign to query state $x_j$?
+\end{quote}
+
+Thus, the tensor already has the separated FB structure
+\begin{equation}
+(z_i,x_j)
+\longmapsto
+M^{\pi_{z_i}}(s_i,a_i,x_j).
+\end{equation}
+
+\section{The stock FB temporal-difference objective}
+
+\subsection{Successor-density Bellman equation}
+
+The successor-density ratio formally satisfies
+\begin{equation}
+m_z(s,a,x)
+==========
+
+\frac{\delta_{s'}(x)}{\rho(x)}
++
+\gamma
+\E_{a'\sim\pi_z(\cdot\mid s')}
+\left[
+m_z(s',a',x)
+\right].
+\label{eq:density-bellman}
+\end{equation}
+
+The immediate term
+\begin{equation}
+\frac{\delta_{s'}(x)}{\rho(x)}
+\end{equation}
+is a Dirac density ratio.
+In a continuous state space, it is not an ordinary finite scalar target that can be
+placed directly inside a squared Bellman residual.
+
+FB therefore uses a least-squares density-ratio objective rather than directly regressing
+Equation~\eqref{eq:density-bellman}.
+
+\subsection{Bootstrapped prediction}
+
+For each row, the actor supplies a continuation action
+\begin{equation}
+a_i'
+\sim
+\pi(\cdot\mid s_i',z_i).
+\end{equation}
+
+The target network predicts
+\begin{equation}
+\overline{M}_{ij}'
+==================
+
+\overline{F}(s_i',a_i',z_i)^\top
+\overline{B}(x_j).
+\end{equation}
+
+Define the temporal-difference quantity
+\begin{equation}
+\Delta_{hij}
+============
+
+## M_{hij}
+
+\gamma_i\overline{M}_{ij}'.
+\label{eq:fb-diff}
+\end{equation}
+
+This corresponds to
+\begin{verbatim}
+diff = Ms - discount * target_M
+\end{verbatim}
+
+\subsection{Off-diagonal term}
+
+For $i\neq j$, the query state $x_j$ is approximately independent of the transition in
+row $i$.
+These entries approximate samples from the reference distribution $\rho$.
+
+The quadratic term is
+\begin{equation}
+\mathcal{L}_{\mathrm{off}}
+==========================
+
+\frac{1}{2}
+\E_{i\neq j}
+\left[
+\Delta_{ij}^2
+\right].
+\label{eq:offdiag-loss}
+\end{equation}
+
+In the implementation,
+\begin{verbatim}
+fb_offdiag =
+0.5 * (diff * off_diag).pow(2).sum() / off_diag_sum
+\end{verbatim}
+
+\subsection{Diagonal term}
+
+On the diagonal,
+\begin{equation}
+x_i=s_i',
+\end{equation}
+so the query is the successor that was actually observed.
+
+The linear matched-successor term is
+\begin{equation}
+\mathcal{L}_{\mathrm{diag}}
+===========================
+
+*
+
+\E_i
+\left[
+\Delta_{ii}
+\right].
+\label{eq:diag-loss}
+\end{equation}
+
+In the implementation,
+\begin{verbatim}
+fb_diag =
+-torch.diagonal(diff, dim1=1, dim2=2).mean()
+\end{verbatim}
+
+This term encourages the model to assign high occupancy to observed successor states.
+
+The resulting FB loss is approximately
+\begin{equation}
+\mathcal{L}_{\mathrm{FB}}
+=========================
+
+\frac{1}{2}
+\E_{x\sim\rho}
+\left[
+\left(
+m_z(s,a,x)
+----------
+
+\gamma m_z(s',a',x)
+\right)^2
+\right]
+-------
+
+\E
+\left[
+m_z(s,a,s')
+-----------
+
+\gamma m_z(s',a',s')
+\right]
++
+\lambda_{\mathrm{ortho}}
+\mathcal{L}_{\mathrm{ortho}}.
+\label{eq:stock-fb-loss}
+\end{equation}
+
+The diagonal is therefore not trained against an explicit target such as $1$.
+It enters through a negative linear term.
+
+\section{The role of the backward-map regularizer}
+
+The FB objective identifies the product
+\begin{equation}
+F(s,a,z)^\top B(x),
+\end{equation}
+but does not uniquely identify the individual scales and geometry of $F$ and $B$.
+
+The implementation consequently adds an approximate whitening objective on the backward
+embedding.
+
+For a batch matrix
+\begin{equation}
+C_{ij}=B(x_i)^\top B(x_j),
+\end{equation}
+the regularizer is
+\begin{equation}
+\mathcal{L}_{\mathrm{ortho}}
+============================
+
+\frac{1}{2}
+\E_{i\neq j}
+\left[
+C_{ij}^2
+\right]
+-------
+
+\E_i[C_{ii}].
+\label{eq:ortho-loss}
+\end{equation}
+
+The off-diagonal term discourages correlated embeddings, while the diagonal term prevents
+the embeddings from collapsing to zero.
+
+In the stock algorithm:
+\begin{itemize}
+\item the linear successor term pushes predicted measure values upward;
+\item the quadratic term penalizes large density-ratio residuals;
+\item the orthonormality objective constrains the geometry of $B$.
+\end{itemize}
+
+The manipulation experiments indicate that this balance is poorly conditioned:
+orthonormality damages the useful reaching geometry, while removing it does not prevent
+the density-based critic from inflating.
+
+\section{The policy--measure feedback loop}
+
+The actor uses
+\begin{equation}
+Q_z(s,a)
+========
+
+F(s,a,z)^\top z
+\end{equation}
+and is updated to increase this value.
+
+At the same time, $F$ is trained to represent the successor measure generated by that
+actor:
+\begin{equation}
+F(s,a,z)^\top B(x)
+\approx
+M^{\pi_z}(s,a,x).
+\end{equation}
+
+The complete dependency is
+\begin{equation}
+F
+\longrightarrow
+Q_z=F^\top z
+\longrightarrow
+\pi_z
+\longrightarrow
+M^{\pi_z}
+\longrightarrow
+F.
+\end{equation}
+
+The target measure changes as the actor changes, while the actor changes according to the
+learned measure.
+This circularity is one reason that the practical FB update is not simply ordinary
+fixed-policy temporal-difference evaluation.
+
+\section{Replacing density estimation with finite-region regression}
+
+\subsection{Finite goal regions}
+
+Let $c(s)\in\mathbb{R}^3$ denote the cube position in state $s$.
+For a query state $x$, define the finite-region event
+\begin{equation}
+k_\epsilon(s,x)
+===============
+
+\ind{
+|c(s)-c(x)|_2
+\leq
+\epsilon
+}.
+\label{eq:kernel}
+\end{equation}
+
+For the cube experiments,
+\begin{equation}
+\epsilon=4\text{ cm}.
+\end{equation}
+
+Instead of asking for the density of observing exactly $x$, the model asks whether the
+next cube position lies inside a finite ball around $x$.
+
+This replaces the singular immediate term
+\begin{equation}
+\frac{\delta_{s'}(x)}{\rho(x)}
+\end{equation}
+with an ordinary scalar:
+\begin{equation}
+k_\epsilon(s',x)\in{0,1}.
+\end{equation}
+
+Every element of the state-query matrix can now be trained with an explicit squared
+Bellman residual.
+
+\section{Phase 1: first-hitting values in the FB architecture}
+
+\subsection{The represented object}
+
+For a fixed policy index $z$ and query state $x$, define the first hitting time
+\begin{equation}
+T_x
+===
+
+\min
+\left{
+t\geq1:
+k_\epsilon(s_t,x)=1
+\right}.
+\end{equation}
+
+The discounted reaching value is
+\begin{equation}
+H^{\pi_z}(s,a,x)
+================
+
+\E_{\pi_z}
+\left[
+\gamma^{T_x-1}
+\right].
+\label{eq:hitting-value}
+\end{equation}
+
+We use the FB factorization
+\begin{equation}
+H_\theta(s,a,z,x)
+=================
+
+\frac{
+F_\theta(s,a,z)^\top B_\omega(x)
+}{
+\sqrt{d}
+}.
+\label{eq:hitting-factorization}
+\end{equation}
+
+The $1/\sqrt{d}$ normalization matches the bilinear goal-conditioned critic used in the
+successful baseline.
+
+\subsection{Batch construction}
+
+For a batch of transitions and query states,
+\begin{equation}
+{(s_i,a_i,s_i',z_i)}*{i=1}^{n},
+\qquad
+{x_j}*{j=1}^{q},
+\end{equation}
+define the hit matrix
+\begin{equation}
+K_{ij}
+======
+
+# k_\epsilon(s_i',x_j)
+
+\ind{
+|c(s_i')-c(x_j)|_2\leq\epsilon
+}.
+\label{eq:hit-matrix}
+\end{equation}
+
+The continuation action depends on the policy index but not on the query:
+\begin{equation}
+a_i'
+\sim
+\pi(\cdot\mid s_i',z_i).
+\label{eq:policy-consistent-action}
+\end{equation}
+
+The same $a_i'$ is used to evaluate every query $x_j$ under policy $\pi_{z_i}$.
+
+\subsection{Absorbing target}
+
+The reaching target is
+\begin{equation}
+Y^{\mathrm{reach}}_{ij}
+=======================
+
+K_{ij}
++
+\gamma_i
+(1-K_{ij})
+\overline{H}(s_i',a_i',z_i,x_j).
+\label{eq:reaching-target}
+\end{equation}
+
+If the next state enters the query region, then $K_{ij}=1$ and the bootstrap terminates.
+
+The loss is
+\begin{equation}
+\mathcal{L}_{\mathrm{reach}}
+============================
+
+\frac{1}{Hnq}
+\sum_{h=1}^{H}
+\sum_{i=1}^{n}
+\sum_{j=1}^{q}
+\left(
+H_{h}(s_i,a_i,z_i,x_j)
+----------------------
+
+\sg\left[
+Y^{\mathrm{reach}}_{ij}
+\right]
+\right)^2.
+\label{eq:reaching-loss}
+\end{equation}
+
+There is:
+\begin{itemize}
+\item no separate diagonal loss;
+\item no off-diagonal mask;
+\item no linear matched-successor term.
+\end{itemize}
+
+Every matrix entry is an ordinary Bellman regression target.
+
+When the queries are the batch successors, $x_j=s_j'$, the diagonal entries satisfy
+\begin{equation}
+K_{ii}=1.
+\end{equation}
+
+The diagonal is therefore an immediate positive example rather than a special linear
+density-estimation term.
+
+\subsection{Why the scale is anchored}
+
+The fixed point satisfies
+\begin{equation}
+0
+\leq
+H^{\pi_z}(s,a,x)
+\leq
+1.
+\end{equation}
+
+An immediate hit has target value $1$.
+The scalar event therefore anchors the scale of the bilinear product directly, removing
+the main reason for using an auxiliary orthonormality constraint.
+
+\section{Phase 2: non-absorbing visitation values}
+
+\subsection{The represented object}
+
+After learning the reaching representation, define the finite-region visitation value
+\begin{equation}
+V_\epsilon^{\pi_z}(s,a,x)
+=========================
+
+\E_{\pi_z}
+\left[
+\sum_{t\geq0}
+\gamma^t
+k_\epsilon(s_{t+1},x)
+\right].
+\label{eq:visitation-value}
+\end{equation}
+
+Use the same architecture:
+\begin{equation}
+V_\theta(s,a,z,x)
+=================
+
+\frac{
+F_\theta(s,a,z)^\top B(x)
+}{
+\sqrt{d}
+}.
+\label{eq:visitation-factorization}
+\end{equation}
+
+At the beginning of phase 2:
+\begin{enumerate}
+\item initialize $F$, $B$, and the actor from phase 1;
+\item freeze $B$;
+\item warm-start $F$ from the reaching solution.
+\end{enumerate}
+
+\subsection{Non-absorbing target}
+
+The phase-2 target is
+\begin{equation}
+Y^{\mathrm{visit}}_{ij}
+=======================
+
+K_{ij}
++
+\gamma_i
+\overline{V}(s_i',a_i',z_i,x_j).
+\label{eq:visitation-target}
+\end{equation}
+
+The factor $(1-K_{ij})$ is removed.
+Reaching the region produces one unit of occupancy, but the backup continues so that
+dwelling and future revisits are also counted.
+
+The loss is
+\begin{equation}
+\mathcal{L}_{\mathrm{visit}}
+============================
+
+\frac{1}{Hnq}
+\sum_{h=1}^{H}
+\sum_{i=1}^{n}
+\sum_{j=1}^{q}
+\left(
+V_h(s_i,a_i,z_i,x_j)
+--------------------
+
+\sg\left[
+Y^{\mathrm{visit}}_{ij}
+\right]
+\right)^2.
+\label{eq:visitation-loss}
+\end{equation}
+
+The only mathematical change between the two phases is therefore
+\begin{align}
+Y^{\mathrm{reach}}
+&=
+K+\gamma(1-K)\overline{H}',
+\
+Y^{\mathrm{visit}}
+&=
+K+\gamma\overline{V}'.
+\end{align}
+
+Phase 1 terminates at first arrival.
+Phase 2 counts every visit.
+
+\section{Why the curriculum makes sense for play data}
+
+Manipulation play trajectories contain substantial dwelling and recurrence.
+After a cube reaches a region, the dataset may contain many nearly identical transitions
+in which the cube remains there, followed by additional returns to the same region.
+
+A direct successor-measure target is therefore numerically dominated by post-arrival
+occupancy.
+
+The policy-learning question, however, is largely determined before arrival:
+\begin{quote}
+Which action moves the cube toward the desired region quickly and reliably?
+\end{quote}
+
+The reaching value isolates this action-dependent signal:
+\begin{equation}
+H(s,a,z,x)
+==========
+
+\E[\gamma^{T_x-1}].
+\end{equation}
+
+The visitation value additionally contains dwelling and recurrence:
+\begin{equation}
+V(s,a,z,x)
+==========
+
+\E
+\left[
+\sum_{t\geq0}
+\gamma^t
+k_\epsilon(s_{t+1},x)
+\right].
+\end{equation}
+
+For a small region, one may heuristically write
+\begin{equation}
+V(s,a,z,x)
+\approx
+H(s,a,z,x)R_z(x),
+\label{eq:reach-recurrence}
+\end{equation}
+where $R_z(x)$ describes post-arrival recurrence.
+
+The recurrent factor can be much larger than the reaching value.
+Training directly on visitation therefore asks the model to discover a relatively small
+action-dependent reaching signal underneath a large recurrence-dominated target.
+
+The curriculum changes the order of learning:
+\begin{enumerate}
+\item first organize the representation according to reaching;
+\item then add the repeated occupancy that successor measures are intended to count.
+\end{enumerate}
+
+The successor measure still performs long-horizon occupancy accounting, but recurrence
+does not determine the representation before the control-relevant geometry has been
+learned.
+
+\section{Relation to the existing IQL critic mode}
+
+The implementation already contains a related mode in which
+\begin{equation}
+Q(s,a,z)
+========
+
+F(s,a,z)^\top z
+\end{equation}
+is trained as a goal-reaching value using IQL.
+
+With a task-independent forward map and bilinear value normalization, this becomes
+approximately
+\begin{equation}
+Q(s,a,g)
+========
+
+\frac{
+\phi(s,a)^\top\psi(g)
+}{
+\sqrt{d}
+}.
+\end{equation}
+
+This existing mode implements a diagonal goal-reaching critic:
+\begin{equation}
+z_g=B(g),
+\qquad
+Q(s,a,g)
+========
+
+F(s,a,z_g)^\top B(g).
+\end{equation}
+
+It differs from the proposed matrix reaching objective in three ways:
+\begin{enumerate}
+\item it usually trains one selected goal per row rather than all state-query pairs;
+\item it uses an expectile value function $V(s,z)$;
+\item it does not necessarily learn $H(s,a,z,x)$ for independent $z$ and $x$.
+\end{enumerate}
+
+Most importantly, switching from the IQL critic back to the current measure mode is not
+phase 2.
+The current measure mode restores the original density-ratio loss:
+\begin{equation}
+\mathcal{L}*{\mathrm{off}}
++
+\mathcal{L}*{\mathrm{diag}}
++
+\lambda\mathcal{L}_{\mathrm{ortho}}.
+\end{equation}
+
+The proposed phase 2 instead requires a new squared-residual visitation mode.
+
+A useful implementation distinction is therefore
+\begin{verbatim}
+critic_mode = "measure"       # stock FB density-ratio loss
+critic_mode = "reach_kernel"  # absorbing finite-region TD
+critic_mode = "visit_kernel"  # non-absorbing finite-region TD
+\end{verbatim}
+
+\section{Diagonal and fully separated versions}
+
+\subsection{Diagonal goal-conditioned curriculum}
+
+The simplest version ties the policy and query to the same goal:
+\begin{equation}
+z_g=B(g),
+\end{equation}
+and learns
+\begin{equation}
+H^{\pi_g}(s,a,g)
+\end{equation}
+followed by
+\begin{equation}
+V^{\pi_g}(s,a,g).
+\end{equation}
+
+Equivalently, it learns
+\begin{equation}
+g
+\longmapsto
+V^{\pi_g}
+\left(
+s,a,B_\epsilon(g)
+\right).
+\end{equation}
+
+This supports:
+\begin{itemize}
+\item goal-conditioned control;
+\item nearest-goal retrieval;
+\item generalized policy improvement over a small candidate set.
+\end{itemize}
+
+It does not provide the full successor measure needed to evaluate arbitrary rewards
+because the policy and occupancy query are tied to the same goal.
+
+\subsection{Fully separated FB curriculum}
+
+The full version preserves independent policy and query variables:
+\begin{equation}
+H(s,a,z,x)
+==========
+
+F(s,a,z)^\top B(x)
+\end{equation}
+in phase 1, followed by
+\begin{equation}
+V(s,a,z,x)
+==========
+
+F(s,a,z)^\top B(x)
+\end{equation}
+in phase 2.
+
+The batch tensor in Equation~\eqref{eq:batch-matrix} already has this structure.
+
+This version is required for reward inference:
+\begin{equation}
+z_r
+===
+
+\E_{x\sim\rho}
+\left[
+r(x)B(x)
+\right],
+\end{equation}
+followed by direct policy execution with
+\begin{equation}
+\pi(a\mid s,z_r).
+\end{equation}
+
+\section{Choosing policy latents during phase 1}
+
+For a goal-derived latent
+\begin{equation}
+z_g=B(g),
+\end{equation}
+the policy semantics are clear:
+$\pi_{z_g}$ should reach $g$.
+
+For an arbitrary random direction $z$, there is no unique first-arrival event naturally
+associated with that vector.
+A linear combination of first-hitting values is not generally the value of the
+corresponding linear combination of rewards.
+
+A conservative curriculum is therefore:
+\begin{enumerate}
+\item train phase 1 primarily with goal-derived latents;
+\item introduce reward-mixture or random latents once the non-absorbing visitation
+representation is available.
+\end{enumerate}
+
+One possible schedule is
+\begin{align}
+p_{\mathrm{goal}}
+&:
+1.0\longrightarrow0.5,
+\
+p_{\mathrm{random}}
+&:
+0.0\longrightarrow0.5.
+\end{align}
+
+Random-$z$ reaching training should otherwise be described as a surrogate objective rather
+than exact reward-conditioned policy evaluation.
+
+\section{Recommended phase-2 ablations}
+
+The cleanest phase-2 experiment freezes both:
+\begin{itemize}
+\item the backward representation $B$;
+\item the phase-1 actor $\pi_z$.
+\end{itemize}
+
+Then phase 2 becomes fixed-policy visitation evaluation:
+\begin{equation}
+V^{\pi_z}
+=========
+
+K_\epsilon
++
+\gamma P^{\pi_z}V^{\pi_z}.
+\end{equation}
+
+For a fixed policy, this is an ordinary discounted Bellman operator.
+
+Three useful configurations are:
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Backward map} & \textbf{Actor} & \textbf{Purpose} \
+\midrule
+Frozen & Frozen & Isolate visitation-value learning \
+Frozen & Updated & Test visitation-based policy improvement \
+Updated & Updated & Full end-to-end curriculum \
+\bottomrule
+\end{tabular}
+\end{center}
+
+The first configuration most directly tests whether a reaching representation can be
+converted into an accurate visitation representation.
+
+Updating the actor during phase 2 reintroduces a policy--measure feedback loop:
+the actor changes according to the visitation value while the visitation target changes
+according to the actor.
+
+\section{Implementation inside \texttt{update_fb}}
+
+The existing forward computation can be retained:
+\begin{verbatim}
+Fs = forward_map(left_enc, z, action)
+B  = backward_map(query_obs)
+values = torch.matmul(Fs, B.T) * value_scale
+\end{verbatim}
+
+The target forward computation can also be retained:
+\begin{verbatim}
+next_action = actor(next_obs, z)
+target_Fs   = target_forward(next_obs, z, next_action)
+target_B    = target_backward(query_obs)
+target_values = torch.matmul(target_Fs, target_B.T) * value_scale
+\end{verbatim}
+
+The new component is the hit matrix:
+\begin{verbatim}
+hit = (
+torch.cdist(next_cube.float(), query_cube.float())
+<= epsilon
+).float()
+\end{verbatim}
+
+For phase 1:
+\begin{verbatim}
+continuation = 1.0 - hit
+target = hit + discount * continuation * target_values
+\end{verbatim}
+
+For phase 2:
+\begin{verbatim}
+continuation = torch.ones_like(hit)
+target = hit + discount * continuation * target_values
+\end{verbatim}
+
+The representation loss becomes
+\begin{verbatim}
+loss = (
+values - target.detach().unsqueeze(0)
+).pow(2).mean()
+\end{verbatim}
+
+This replaces:
+\begin{verbatim}
+diff = Ms - discount * target_M
+fb_offdiag, fb_diag = fb_successor_terms(...)
+fb_loss = fb_offdiag + fb_diag + ortho_loss
+\end{verbatim}
+
+The proposed kernel modes therefore do not require:
+\begin{itemize}
+\item the off-diagonal mask;
+\item the diagonal linear term;
+\item density-ratio orthonormalization.
+\end{itemize}
+
+\section{Reward inference and the kernel interpretation}
+
+For the fully separated visitation representation, the existing reward-inference API can
+still compute
+\begin{equation}
+z_r
+===
+
+\operatorname{Proj}
+\left(
+\sum_j r_jB(x_j)
+\right).
+\end{equation}
+
+However, the learned quantity is now occupancy of finite balls:
+\begin{equation}
+V_\epsilon^{\pi_z}(s,a,x)
+=========================
+
+\E_{\pi_z}
+\left[
+\sum_{t\geq0}
+\gamma^t
+k_\epsilon(s_{t+1},x)
+\right],
+\end{equation}
+rather than the exact density ratio
+\begin{equation}
+\frac{dM^{\pi_z}}{d\rho}(x).
+\end{equation}
+
+Consequently, reward inference naturally corresponds to a kernel-smoothed reward.
+Overlapping balls and a non-uniform replay distribution may require:
+\begin{itemize}
+\item kernel normalization;
+\item density correction;
+\item or an explicit interpretation of downstream rewards in the same kernel basis.
+\end{itemize}
+
+This issue does not affect the reach-first curriculum itself, but it matters for the claim
+of exact arbitrary-reward integration.
+
+\section{Algorithm summary}
+
+\paragraph{Stock FB.}
+Represent
+\begin{equation}
+m_z(s,a,x)
+==========
+
+F(s,a,z)^\top B(x)
+\end{equation}
+and train it using
+\begin{equation}
+\frac{1}{2}
+\E_\rho
+\left[
+(m-\gamma m')^2
+\right]
+-------
+
+\E_{\mathrm{successor}}
+[m-\gamma m']
++
+\lambda\mathcal{L}_{\mathrm{ortho}}.
+\end{equation}
+
+\paragraph{Phase 1: reach-first FB.}
+Represent
+\begin{equation}
+H_z(s,a,x)
+==========
+
+\frac{F(s,a,z)^\top B(x)}{\sqrt d}
+\end{equation}
+and train it using
+\begin{equation}
+H
+\leftarrow
+k_\epsilon(s',x)
++
+\gamma
+\bigl(1-k_\epsilon(s',x)\bigr)
+H'.
+\end{equation}
+
+\paragraph{Phase 2: visitation FB.}
+Represent
+\begin{equation}
+V_z(s,a,x)
+==========
+
+\frac{F(s,a,z)^\top B(x)}{\sqrt d}
+\end{equation}
+and train it using
+\begin{equation}
+V
+\leftarrow
+k_\epsilon(s',x)
++
+\gamma V'.
+\end{equation}
+
+The network structure remains unchanged.
+The principal modification is the loss applied to the matrix
+\begin{equation}
+F(s_i,a_i,z_i)^\top B(x_j).
+\end{equation}
+
+Stock FB interprets this matrix through density-ratio estimation.
+The proposed curriculum first interprets it as first-hitting values and then as
+finite-region visitation values.
+
+\section{Central interpretation}
+
+The method divides responsibilities between temporal-difference learning and the
+successor representation.
+
+Temporal-difference learning first solves the control problem:
+\begin{quote}
+Which actions reach a queried region quickly and reliably?
+\end{quote}
+
+The successor representation then solves the occupancy problem:
+\begin{quote}
+Once the reaching geometry is established, how much discounted time does each policy
+spend in each queried region?
+\end{quote}
+
+This division is well matched to manipulation play data.
+Repeated observations, dwelling, and revisitation dominate raw occupancy magnitude, but
+they need not dominate the learning of action-relevant geometry.
+
+The reach-first phase isolates the bounded action signal.
+The visitation phase subsequently restores the long-horizon occupancy semantics required
+by successor measures.
+
+\end{document}

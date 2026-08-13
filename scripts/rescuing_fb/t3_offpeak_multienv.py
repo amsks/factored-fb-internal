@@ -18,6 +18,12 @@ Per domain (512 random dataset states x the domain's 5 eval-task goals; goal = f
   3. coverage (dataset-only, no model): median NN-distance of 256 uniform actions in [-1,1]^A
                 to the conditional action set (the 65 B_ref actions), and to a size-matched
                 marginal (65 random dataset actions). Reported raw and /sqrt(A).
+  4. peak_geometry (SOTA implementations.md item 4a): along the ray a_ref -> a_DDPG (a_ref =
+                the on-support DATASET action at s), record Q(s,a_t,g) and ||phi(s,a_t)|| at
+                T sampled points; correlate the ray increments corr(dQ, d||phi||) pooled over
+                states x goals x t>0. Pre-registered prediction: HIGH on cube (the off-support
+                peak's Q-gain is NORM-carried), ABSENT on antmaze. New JSON key only; every
+                existing key is unchanged. Gated by env T3_PEAK_GEOMETRY (default on; '0' skips).
 
 Sanity gate: the cube cell must roughly replicate 79%/+2.14 (different reference cloud, so
 qualitative agreement only); cube frac < 0.4 => B_ref too generous, flag loudly.
@@ -39,6 +45,8 @@ SEED = 0
 N_STATES = 512
 K_NN = 64
 N_UNIFORM = 256
+RAY_T = np.linspace(0.0, 1.0, 6)                 # item 4a: ray sample points a_ref -> a_DDPG
+DO_GEOM = os.environ.get('T3_PEAK_GEOMETRY', '1') != '0'
 COV_SHRINK_LAMBDA = 0.1   # = scripts/atlas/config.py values used by phase_0a
 COV_EPS = 1e-4
 
@@ -161,26 +169,59 @@ def run_domain(name, env_name, ckpt_dir, step):
             out.append(np.asarray(jnp.minimum(q1, q2)))
         return np.concatenate(out)
 
+    def phi_norm(obs, goal_rep, acts, bs=16384):
+        """||phi(s,a)|| from the bilinear critic (info=True; head-mean if ensembled).
+        phi depends on (s,a) only -- goal_rep is a shape-matched placeholder."""
+        out = []
+        for i in range(0, len(obs), bs):
+            _v, phi, _psi = agent.network.select('critic')(
+                jnp.asarray(obs[i:i + bs]), jnp.asarray(goal_rep[i:i + bs]),
+                jnp.asarray(acts[i:i + bs]), info=True)
+            phi = np.asarray(phi)
+            if phi.ndim == 3:                        # [heads, B, d] -> head-mean [B, d]
+                phi = phi.mean(0)
+            out.append(np.linalg.norm(phi, axis=-1))
+        return np.concatenate(out)
+
     obs_rep = np.repeat(obs_q[:, None], R, 1).reshape(-1, od)     # [512*65, od]
     bref_flat = bref.reshape(-1, A)
 
     peaks = np.zeros((5, S), np.float32)
     dep_w = np.zeros((5, S), np.float32)
     dep_raw = np.zeros((5, S), np.float32)
+    a_ref0 = bref[:, 0]                                   # dataset action at s (on-support ray start)
+    geom_dQ, geom_dPN, geom_pg_corr = [], [], []          # item 4a accumulators
+    geom_pn_ref, geom_pn_ddpg = [], []
     for gi in range(5):
         g = goals[gi]
+        grep = np.repeat(g[None], S, 0)
         a_ddpg = np.clip(np.asarray(agent.sample_actions(
-            observations=obs_q, goals=np.repeat(g[None], S, 0),
+            observations=obs_q, goals=grep,
             seed=jax.random.PRNGKey(SEED + gi), temperature=0.0)), -1, 1)  # [512, A]
-        q_ddpg = q_min(obs_q, np.repeat(g[None], S, 0), a_ddpg)            # [512]
+        q_ddpg = q_min(obs_q, grep, a_ddpg)                                # [512]
         q_ref = q_min(obs_rep, np.repeat(g[None], S * R, 0),
                       bref_flat).reshape(S, R)                              # [512, 65]
         peaks[gi] = q_ddpg - q_ref.max(1)
         for si in range(S):
             dep_w[gi, si] = whitened_nn_dist(a_ddpg[si], bref[si])
             dep_raw[gi, si] = np.min(np.linalg.norm(bref[si] - a_ddpg[si], axis=1)) / np.sqrt(A)
+        if DO_GEOM:
+            # ray a_ref0 -> a_ddpg: Q and ||phi|| at each RAY_T point, then increments vs t=0.
+            Qs = np.zeros((len(RAY_T), S), np.float32)
+            PNs = np.zeros((len(RAY_T), S), np.float32)
+            for ti_, t in enumerate(RAY_T):
+                a_t = np.clip((1.0 - t) * a_ref0 + t * a_ddpg, -1, 1).astype(np.float32)
+                Qs[ti_] = q_min(obs_q, grep, a_t)
+                PNs[ti_] = phi_norm(obs_q, grep, a_t)
+            dQ = (Qs - Qs[0])[1:].ravel()                 # t>0 increments, pooled over states
+            dPN = (PNs - PNs[0])[1:].ravel()
+            geom_dQ.append(dQ); geom_dPN.append(dPN)
+            geom_pn_ref.append(float(np.median(PNs[0]))); geom_pn_ddpg.append(float(np.median(PNs[-1])))
+            geom_pg_corr.append(float(np.corrcoef(dPN, dQ)[0, 1])
+                                if dPN.std() > 0 and dQ.std() > 0 else float('nan'))
         print(f'[{name}] goal {gi + 1}: peak_med={np.median(peaks[gi]):+.3f} '
-              f'frac>0={(peaks[gi] > 0).mean():.3f} dep_w_med={np.median(dep_w[gi]):.2f}',
+              f'frac>0={(peaks[gi] > 0).mean():.3f} dep_w_med={np.median(dep_w[gi]):.2f}'
+              + (f' geom_corr={geom_pg_corr[-1]:+.3f}' if DO_GEOM else ''),
               flush=True)
 
     # dataset-only action coverage: uniform actions vs conditional / marginal action sets
@@ -209,6 +250,22 @@ def run_domain(name, env_name, ckpt_dir, step):
         coverage_marg_nn_median=float(np.median(d_marg)),
         coverage_marg_nn_median_perdim=float(np.median(d_marg)) / float(np.sqrt(A)),
     )
+    if DO_GEOM and geom_dQ:
+        DQ = np.concatenate(geom_dQ); DPN = np.concatenate(geom_dPN)
+        corr = (float(np.corrcoef(DPN, DQ)[0, 1]) if DPN.std() > 0 and DQ.std() > 0 else float('nan'))
+        slope = float(np.polyfit(DPN, DQ, 1)[0]) if DPN.std() > 0 else float('nan')
+        res['peak_geometry'] = dict(
+            corr_dQ_dphinorm=corr, slope_dQ_per_dphinorm=slope,
+            n_ray_points=int(DQ.size), t_grid=[float(x) for x in RAY_T],
+            per_goal_corr=geom_pg_corr,
+            phinorm_ref_median=float(np.median(geom_pn_ref)),
+            phinorm_ddpg_median=float(np.median(geom_pn_ddpg)),
+            a_ref='dataset action at s (on-support ray start)',
+            note='corr(dQ, d||phi||) pooled over states x goals x t>0; predict HIGH on cube, '
+                 'ABSENT on antmaze (peak Q-gain norm-carried only on cube)')
+        print(f"[{name}] PEAK-GEOM corr(dQ,d||phi||)={corr:+.3f} slope={slope:+.3f} "
+              f"||phi||: ref={res['peak_geometry']['phinorm_ref_median']:.2f} "
+              f"ddpg={res['peak_geometry']['phinorm_ddpg_median']:.2f}", flush=True)
     print(f"[{name}] PEAK median={res['peak_median']:+.3f} frac>0={res['peak_frac_positive']:.3f}"
           f" | dep_w={res['departure_whitened_median']:.2f}"
           f" | cov_cond/dim={res['coverage_cond_nn_median_perdim']:.3f}"
@@ -240,6 +297,12 @@ def main():
     c, a = out['domains']['cube'], out['domains']['antmaze']
     out['coverage_ratio_cube_over_antmaze_perdim'] = (
         c['coverage_cond_nn_median_perdim'] / a['coverage_cond_nn_median_perdim'])
+    if DO_GEOM and 'peak_geometry' in c and 'peak_geometry' in a:
+        cc, ac = c['peak_geometry']['corr_dQ_dphinorm'], a['peak_geometry']['corr_dQ_dphinorm']
+        out['peak_geometry_summary'] = dict(
+            cube_corr=cc, antmaze_corr=ac,
+            prediction='cube HIGH, antmaze ABSENT (peak Q-gain norm-carried only on cube)')
+        print(f'[geom] corr(dQ,d||phi||): cube={cc:+.3f}  antmaze={ac:+.3f}', flush=True)
     p = REPO / 'analysis/rescuing-fb/t3_offpeak_multienv.json'
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(out, indent=2))

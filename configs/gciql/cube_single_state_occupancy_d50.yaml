@@ -1,0 +1,31 @@
+# Occupancy-IQL (occupancy.tex): shared backward map B across V/Q1/Q2, scalar {-1,0} goal reward
+# replaced by the CRL occupancy reward r_B(s',g)=(1-gamma)*sg[B_t(s').B_t(g)]/sqrt(d) (target-EMA
+# B, whitened via ortho), env-continuation mask, IQL expectile V + flow actor kept. UNLIKE the
+# measure-only cells (which floored), the occupancy structure rides on GCIQL's working policy-
+# improvement operator. 3 seeds, 500k, flow actor. Read vs the ~0.90 bilinear anchor / 0.10
+# measure floor: >=0.7 => occupancy reward is a viable successor-measure grounding that WORKS;
+# ~0.10 => even IQL-operator-supported occupancy fails (the reward semantics are the toxin).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Occupancy-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: occupancy
+  value_latent_dim: 50
+  occ_ortho_coef: 1.0
+  occ_env_mask: 1.0
+wandb_mode: online

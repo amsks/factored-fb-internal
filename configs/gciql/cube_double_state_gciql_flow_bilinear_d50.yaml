@@ -1,0 +1,28 @@
+# Spec 08 E7 -- the MISSING ANCHOR. results/summary_agents.csv has GC-IQL bilinear-d50 numbers
+# for cube (0.904), scene (0.292 flow / 0.260 ddpgbc) and antmaze, but NOTHING for cube-double,
+# so a phase-1 measure result there would have no bar to be read against.
+# Matched to cube_single_state_gciql_flow_bilinear_d50.yaml in every respect except env_name
+# and the 500k horizon (the measure cells' horizon), so it is apples-to-apples with the
+# GCIQL-CubeDouble-Flow-Measure-* cells. 2 seeds.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Bilinear-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+wandb_mode: online

@@ -1,0 +1,89 @@
+\appendix
+\section{Additional experimental detail}
+\label{app:detail}
+
+\subsection{Divergence: the full control set}
+\label{app:diverge}
+
+Section~\ref{sec:exp-diverge} reports the frozen-embedding experiment in
+condensed form. The full set of controls:
+
+\begin{itemize}
+\item \textbf{Frozen $\psi$, density estimator.} Critic scale
+$154 \to 5.4\times10^{4}$ within 65k steps; success decays
+$0.98\to0.60\to0.42$ by 100k (3 seeds). The embedding is taken from a checkpoint
+that supports $0.97$ control and is held fixed, so representation quality cannot
+account for the outcome.
+\item \textbf{Trainable $\psi$, density estimator.} Collapses faster:
+$0.97\to0.07$ and $0.98\to0.06$ by 50k (2 seeds). Representation corruption
+compounds the estimator defect but is not its cause.
+\item \textbf{Frozen $\psi$, bounded region estimator.} Scale plateaus on the
+Monte-Carlo estimate of the true discounted visitation mass; both seeds complete
+500k steps without instability.
+\item \textbf{Orthonormality retained.} Scale is bounded, but control is
+suppressed to $0.225$ --- far below the $0.93$ goal-conditioned bar. This is the
+other half of the trade described in Section~\ref{sec:singular}.
+\end{itemize}
+
+\subsection{A tabular instance of the same structure}
+\label{app:playpen}
+
+The structural claims of Section~\ref{sec:method} can be exhibited exactly in a
+$50$-state MDP built with the same anatomy as manipulation play data: a $7\times7$
+grid plus a pit, in which the \emph{column} is the semantic coordinate (the
+region variable) and the \emph{row} is an interaction mode invisible to the
+region. A $2\times2$ sticky bowl models a cube at rest; the top row is a conveyor
+that drifts two columns per step regardless of action, modeling a carried cube
+whose position cannot be held; riding off its end drops into a hard-to-leave pit.
+
+Fitting rank-$8$ bilinear $F^{\top}B$ on $20$k offline transitions with identical
+architecture and data, the region regression reaches relative error
+$0.05$--$0.09$ and per-state goal-ranking correlation $0.96$--$0.99$, while the
+density-TD form reaches only $0.38$/$0.65$; adding the orthonormality regularizer
+makes the latter \emph{worse} ($0.53$/$0.45$). Two honest notes. With no actor in
+the loop the density estimator fits poorly but does not diverge, which is
+consistent with the divergence of Section~\ref{sec:exp-diverge} being a property
+of the estimator-plus-actor system rather than of the loss alone. And
+absorbing-first and direct visitation regression perform alike here
+($0.09$ vs $0.05$), consistent with the curriculum's value lying in the control
+loop rather than in policy evaluation.
+
+This environment also exhibits the ranking disagreement that motivates the
+visitation backup: weighting a stable region and a transient one so that they are
+nearly equally \emph{reachable}, ranking by reaching value selects the transient
+region while ranking by occupancy selects the stable one, and exact policy
+evaluation confirms the latter ($96.8$ vs $47.9$ discounted return).
+
+\subsection{Goal-decoding extraction routes}
+\label{app:decode}
+
+Earlier versions of this work evaluated a different reward suite through
+goal-\emph{decoding} routes: inferring $z_r$, decoding it to a single dataset
+state by top-$k$ reward-weighted retrieval, and conditioning the actor on that
+state. Those routes reach $0.73$--$0.99$ on every family whose optimum reduces to
+one dataset state, and fail on families that do not. Because the outcome is
+determined by the decode rather than by the measure, we do not use them in the
+main text; the $48$-reward suite of Section~\ref{sec:exp-l2} consumes $z_r$
+directly.
+
+\subsection{Reward construction}
+\label{app:rewards}
+
+All transfer rewards are functions of the cube position $\cube(x)$, with centers
+drawn uniformly from dataset states. Per family, $8$ instances:
+\textsc{ball}~$\epsilon$ is $\ind{\|\cube(x)-c_0\|\le\epsilon}$ for
+$\epsilon\in\{0.4,0.8,1.6\}$ in observation units where the trained kernel is
+$0.4$; \textsc{smooth}~$\sigma$ is $\exp(-\|\cube(x)-c_0\|^2/2\sigma^2)$ for
+$\sigma\in\{0.4,0.8\}$; \textsc{twozone} is
+$\max_k\ind{\|\cube(x)-c_k\|\le 0.4}$ with $\|c_1-c_2\|>1.6$. Inference uses
+$m{=}10{,}000$ relabeled rows. Stage A scores prediction from $12$ teleported
+starts $\times$ $2$ rollouts; stage B scores control over $10$ episodes per drive
+at horizon $200$.
+
+The synthetic rewards used to populate the task-vector manifold in
+Section~\ref{sec:exp-rewardz} are drawn per batch element: \textsc{kernel} mixes
+balls, Gaussians and two-zone rewards with centers drawn from the batch and
+log-uniform radii in $[0.2,2.0]$; \textsc{rff} draws
+$r=\mathrm{relu}(\cos(w^{\top}\cube+\varphi))$ with $w\sim\mathcal{N}(0,I)/b$ and
+$\varphi\sim\mathrm{U}[0,2\pi)$. Both are normalized before the moment readout;
+the projection to the task-vector sphere makes their scale immaterial.

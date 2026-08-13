@@ -1,0 +1,44 @@
+# Spec 08 E8 -- PHASE 1 of the two-phase curriculum on puzzle-4x6-play-v0.
+# Port of the cube-single winner (cube_single_state_measure_firstpassage_noortho_d50,
+# 0.967) with ONE change: the goal region. Everything else -- bilinear d=50, twin-min,
+# no orthonormality, scale-normed measure, flow BC + distilled greedy actor, 500k -- is
+# held fixed so the environment is the only moving part.
+#
+# Region mirrors the env's own success criterion (all 24 button states match):
+#   19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5,55:57:0.5,59:61:0.5,63:65:0.5,67:69:0.5,71:73:0.5,75:77:0.5,79:81:0.5,83:85:0.5,87:89:0.5,91:93:0.5,95:97:0.5,99:101:0.5,103:105:0.5,107:109:0.5,111:113:0.5
+# Verified against privileged state by scripts/rescuing_fb/verify_hit_specs.py.
+#
+# Density pre-flight (measure_region_density.py, B=1024): 0.01 off-diagonal positives
+# per row, vs cube-single's 13.90. The diagonal always fires, so this is the sparsity of
+# the ONLY signal that teaches many-to-one region structure. Read a floor here against
+# the matching puzzle_4x6_state_gciql_flow_bilinear_d50 anchor, which sees the identical
+# region sparsity through its own reward.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: puzzle-4x6-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-Puzzle4x6-Flow-Measure-FirstPassage-NoOrtho-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5,55:57:0.5,59:61:0.5,63:65:0.5,67:69:0.5,71:73:0.5,75:77:0.5,79:81:0.5,83:85:0.5,87:89:0.5,91:93:0.5,95:97:0.5,99:101:0.5,103:105:0.5,107:109:0.5,111:113:0.5"
+wandb_mode: online

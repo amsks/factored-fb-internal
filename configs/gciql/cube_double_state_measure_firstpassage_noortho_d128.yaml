@@ -1,0 +1,49 @@
+# Ledger §9.16c -- d128 PHASE 1 on cube-double (stage 1 of the rank campaign).
+#
+# WHY THIS EXISTS: §9.16b arm 2 (density-matched eps) came back NULL -- cd 0.340/0.380 vs
+# control 0.368/0.348, q_abs 33.8 vs 34.6/35.3, neg-frac unchanged. Per the pre-registered
+# NULL clause that FALSIFIES the sparsity/eps explanation of the phase-2 regression and names
+# the next suspect: the conjunctive region may not be REPRESENTABLE by a rank-50 bilinear
+# critic. cube-double's region is a conjunction over two cubes; scene's over five coordinate
+# blocks. d50 may simply lack the rank to carry both factors plus the recurrence baseline.
+#
+# Stage 1 is needed because no d128 JAX phase-1 checkpoint exists -- every existing phase-1
+# cell is d50, and a d128 phase 2 cannot warm-start from a d50 param tree (shape mismatch).
+# So: this config (500k) -> cube_double_state_measure_ballvisit_d128 (500k, warm-started here).
+#
+# Identical to cube_double_state_measure_firstpassage_noortho_d50 except value_latent_dim.
+#
+# Pre-registered read (write into §9.16c):
+#   Phase 1 at d128 should MATCH the d50 phase-1 anchor (cd 0.549) within eval noise. Phase 1
+#   is protected by the absorbing bound (M<=1) and was never the failing stage, so a d128
+#   phase-1 GAIN would be an unexpected finding worth its own note; a d128 phase-1 LOSS means
+#   rank is not free and the stage-2 comparison must be read against THIS number, not 0.549.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Measure-FirstPassage-NoOrtho-d128
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 128
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+wandb_mode: online

@@ -1,0 +1,49 @@
+# Spec 08 E7 (second environment) -- PHASE 1 of the two-phase curriculum on scene.
+# Port of the cube-single winner (cube_single_state_measure_firstpassage_noortho_d50, 0.967)
+# with ONE change: the goal region. scene's obs is 40-dim and its success criterion is a
+# 5-way conjunction (ogbench scene_env.py:552) over cube / button 0 / button 1 / drawer /
+# window, so the hit indicator is the conjunction of those blocks:
+#   19:22  cube xyz          eps 0.4   = 4cm at xyz_scaler 10        (scene_env.py:491, 654)
+#   28:30  button-0 one-hot  eps 0.5   exact match: ||e_i-e_j|| in {0, sqrt2}  (:661,664, :495)
+#   32:34  button-1 one-hot  eps 0.5   same
+#   36:37  drawer slide pos  eps 0.72  = 0.04 m at drawer_scaler 18  (:498, 671)
+#   38:39  window slide pos  eps 0.6   = 0.04 m at window_scaler 15  (:499, 673)
+# Velocity dims (31, 35, 37, 39) and the button plunger positions (30, 34) are deliberately
+# OUT of the region: they are not part of the env's success criterion.
+#
+# PRE-FLIGHT (real dataset, B=1024 as in training): the conjunction fires on 0.40% of batch
+# pairs = 3.07 off-diagonal positives/row, vs cube-single's 14.0 -- 4.5x sparser but far from
+# empty. Read against scene_state_measure_fp_noortho_cubeonly_d50.yaml (62 positives/row).
+#
+# ANCHOR CALIBRATION: scene is a much harder env and the note's "0.90 bar" does NOT apply.
+# The matched-architecture anchor is GCIQL-Scene-Flow-Bilinear-d50 = 0.292 (results/
+# summary_agents.csv); stock-MLP GCIQL is 0.516 and FB is 0.047. 2 seeds, 500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: scene-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-Scene-Flow-Measure-FirstPassage-NoOrtho-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6"
+wandb_mode: online

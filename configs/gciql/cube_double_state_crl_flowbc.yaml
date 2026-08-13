@@ -1,0 +1,31 @@
+# CRL + FB FlowBC actor on state cube-double-play-v0. Identical to
+# cube_single_state_crl_flowbc.yaml except env_name and the 500k budget, so the
+# missing tab:main CRL cells are matched to the cube-single CRL row (0.311).
+# Created 2026-08-05 to fill the "---" cells of the paper's Table 1.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/crl_flowbc.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: factored-fb-crl-flowbc-cube-double
+# Resume support (all null = fresh run). Set on the CLI to continue a killed run
+# into the SAME output dir as a single 0..train_steps run would have produced:
+#   restore_path : dir holding params_<restore_epoch>.pkl (== the target save dir)
+#   restore_epoch: checkpoint step to load; also offsets saved ckpt epochs and
+#                  wandb/CSV steps so files are named params_<restore_epoch+i>.
+#   exp_name     : pin the run dir / wandb name to the original (else timestamped).
+# Then pass train_steps = REMAINING steps (e.g. 400000 to finish a 1M run @600k).
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+wandb_mode: online

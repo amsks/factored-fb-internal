@@ -1,0 +1,85 @@
+\section{Preliminaries}
+\label{sec:prelim}
+
+\paragraph{Successor measures.}
+For a policy $\pi$ in a discounted MDP, the successor measure is the discounted
+occupancy of state sets,
+\begin{equation}
+\label{eq:sm}
+M^{\pi}(s,a,X) \;=\; \E_{\pi}\Big[\textstyle\sum_{t\ge 0}\gamma^{t}\,
+\ind{s_{t+1}\in X}\ \Big|\ s_{0}=s,\,a_{0}=a\Big],
+\end{equation}
+a measure over $X$ for each $(s,a)$ \citep{dayan1993improving,blier2021learning}.
+Its appeal is that it turns reward specification into integration: for any reward
+$r$, the action-value of $\pi$ is $Q_r(s,a)=\int r\,dM^{\pi}(s,a,\cdot)$. A single
+trained object therefore serves every reward, which is the premise of zero-shot
+reinforcement learning \citep{touati2021learning,touati2023does}.
+
+\paragraph{The forward--backward factorization.}
+Forward--backward (FB) representations make this tractable by factorizing the
+measure with respect to a reference distribution $\rho$,
+\begin{equation}
+\label{eq:fb}
+M^{\pi_z}(s,a,X) \;\approx\; \int_X F(s,a,z)^{\top}B(x)\,d\rho(x),
+\end{equation}
+where $z$ indexes the \emph{continuation policy} $\pi_z$ and $x$ is the
+\emph{queried future state}. The two arguments are independent: one fixed policy,
+the occupancy of every query state under it. A reward specified by labeled samples
+is consumed through the moment readout $z_r \propto \E[r(x)B(x)]$, after which
+$\langle F(s,a,z_r), z_r\rangle$ is that reward's action-value and $\pi_{z_r}$ is a
+policy for it, with no further training.
+
+\paragraph{Setting.}
+We work on OGBench \texttt{cube-single-play-v0} \citep{park2024ogbench}: a
+six-DoF arm and one cube, $28$-dimensional state observations, and roughly $10^{6}$
+offline transitions of unlabeled ``play'' in which a scripted policy repeatedly
+picks the cube up, moves it, and sets it down. No reward labels are used at
+training time. This domain is where future-reachability methods visibly fail:
+FB variants plateau near $0.42$ overall success while goal-conditioned IQL
+\citep{kostrikov2021offline} with an identical bilinear critic and the same actor
+class reaches $0.93$ on the same data. Since everything is offline and shared, the
+gap is not exploration or coverage; something about the measure \emph{objective}
+fails here.
+
+\paragraph{Assumption: a given region structure.}
+Throughout we assume access to a state abstraction $\cube(x)\in\mathbb{R}^{3}$ ---
+the cube position --- and a radius $\epsilon$, and we take the queried sets to be
+balls in that abstraction,
+\begin{equation}
+\label{eq:region}
+X = B_\epsilon(g) \;=\; \{x : \|\cube(x)-\cube(g)\| \le \epsilon\},
+\qquad \epsilon = 4\,\text{cm}.
+\end{equation}
+We state this plainly because it is a real assumption and it is doing real work.
+Choosing $\cube$ and $\epsilon$ is choosing which states count as the same
+outcome, and in unsupervised RL that choice is normally what a representation is
+supposed to discover. Ours is supplied: $\cube$ selects three of twenty-eight
+observation dimensions, and $\epsilon$ coincides with the threshold the benchmark
+uses to declare success. What follows is therefore a method for learning a
+successor measure \emph{over a given region structure}, not for discovering the
+structure. Section~\ref{sec:limitations} states what is and is not known about
+how much this assumption buys.
+
+\paragraph{What we train: the diagonal slice.}
+Equation~\ref{eq:fb} carries two free arguments, but the object we train through
+most of this paper is the diagonal slice
+\begin{equation}
+\label{eq:diag}
+g \;\longmapsto\; M^{\pi_g}\!\big(s,a,B_\epsilon(g)\big),
+\end{equation}
+the occupancy of a goal region \emph{under that goal's own continuation policy},
+obtained by tying $z=\psi(g)$ to $x=g$. The distinction matters and is classical
+\citep{blier2021learning}: summing the slice over two rewarded goals combines
+quantities computed under two \emph{different} policies, so the sum is not the
+value of any single policy. The slice suffices for goal reaching and for ranking a
+small candidate set, and it is where the training-stability content of the method
+lives. Section~\ref{sec:exp-l2} evaluates the separated form, in which $z$ and $x$
+are trained as independent arguments and an arbitrary reward's $z_r$ is consumed
+directly.
+
+\paragraph{Notation.}
+We write $h(s',g)=\ind{\|\cube(s')-\cube(g)\|\le\epsilon}\in\{0,1\}$ for the hit
+indicator of a region, $\bar{\,\cdot\,}$ for a stop-gradient target-network value,
+and $\hat N(g)=\rho(B_\epsilon(g))$ for the data mass of a region. Batches supply
+an $n\times n$ matrix of residuals: every state in the batch is a query state for
+every other, so $h$ is an $n\times n$ binary matrix whose diagonal is $1$.

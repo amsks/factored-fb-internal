@@ -1,0 +1,136 @@
+\section{Bounded region regression}
+\label{sec:method}
+
+This section isolates a structural defect in how successor measures are trained,
+and shows that a single substitution removes it. The argument is self-contained:
+it needs no assumption about the geometry of the data and no factorization of the
+measure. It also incurs a debt, made explicit in Section~\ref{sec:owed}, which
+Section~\ref{sec:exp-scale} later collects.
+
+\subsection{The immediate term is singular}
+\label{sec:singular}
+
+Let $m_z(s,a,x)=dM^{\pi_z}(s,a,\cdot)/d\rho\,(x)$ be the density of the successor
+measure with respect to the reference $\rho$ --- the object FB factorizes as
+$F(s,a,z)^{\top}B(x)$. It satisfies the density Bellman equation
+\begin{equation}
+\label{eq:density-bellman}
+m_z(s,a,x)
+\;=\;
+\underbrace{\frac{\delta_{s'}(x)}{\rho(x)}}_{\text{immediate}}
+\;+\;
+\gamma\,\E_{a'\sim\pi_z(\cdot\mid s')}\big[m_z(s',a',x)\big].
+\end{equation}
+The immediate term is a Dirac density ratio. On the observed successor it is a
+point mass divided by a density, not a finite scalar, so it cannot be placed
+inside a squared Bellman residual: there is no target to regress toward. FB
+therefore does not regress Equation~\ref{eq:density-bellman} at all. It minimizes
+a least-squares density-matching surrogate,
+\begin{equation}
+\label{eq:fb-loss}
+\mathcal{L}_{\mathrm{FB}}
+=\tfrac12\,\E_{x\sim\rho}\big[(m_z-\gamma \bar m_z)^2\big]
+\;-\;\E\big[m_z(s,a,s')-\gamma \bar m_z(s,a,s')\big]
+\;+\;\lambda_{\mathrm{ortho}}\,\mathcal{L}_{\mathrm{ortho}},
+\end{equation}
+in which random queries $x\sim\rho$ carry a quadratic residual while the observed
+successor enters only through a \emph{negative linear} term.
+
+That asymmetry is the defect. The linear term has no fixed target. It pays
+unconditionally for making the matched-successor value larger, without bound, and
+the only thing holding its scale is the orthonormality regularizer on $B$. The two
+standard stabilizers of FB are thus load-bearing in opposite directions:
+$\mathcal{L}_{\mathrm{ortho}}$ anchors the scale, but it also imposes a geometry on
+$B$ that the reaching structure of the task does not want. Removing it lets the
+diagonal diverge; keeping it damages control. Section~\ref{sec:exp-diverge}
+measures both halves of this trade directly, on a frozen embedding known to
+support good control, so that neither outcome can be attributed to representation
+quality.
+
+\subsection{One substitution}
+\label{sec:substitution}
+
+Replace the point query by a finite region. With the hit indicator
+$h(s',g)=\ind{\|\cube(s')-\cube(g)\|\le\epsilon}$ of Equation~\ref{eq:region}, the
+singular immediate term becomes a bounded scalar:
+\begin{equation}
+\label{eq:substitution}
+\frac{\delta_{s'}(x)}{\rho(x)}
+\;\;\longrightarrow\;\;
+h(s',g) \in \{0,1\}.
+\end{equation}
+This is the entire change, and everything else follows from it. Every entry of the
+$n\times n$ training matrix --- diagonal included --- now has an explicit,
+representable target and is an ordinary squared residual. There is no separate
+linear diagonal term, no off-diagonal mask, and no unmatched scale: the $0/1$
+event pins the product $F^{\top}B$ directly, so no orthonormality regularizer, or
+any regularizer, on $B$ is required. In one line,
+\[
+\text{density-ratio estimation}
+\quad\longrightarrow\quad
+\text{Bellman regression on finite regions}.
+\]
+
+\subsection{Two backups}
+\label{sec:backups}
+
+With a representable target, the choice of backup becomes a modeling decision
+rather than a stability workaround. Two are natural, differing only in whether
+arrival absorbs:
+\begin{align}
+\label{eq:backups}
+y^{\mathrm{reach}}_{ij} &= h_{ij} + \gamma\,(1-h_{ij})\,\bar Q_{ij},
+&& Q \in [0,1], \\
+y^{\mathrm{visit}}_{ij} &= h_{ij} + \gamma\,\bar M_{ij},
+&& M \in [0,\,1/(1-\gamma)].
+\end{align}
+The first terminates the backup at first arrival and learns a \emph{reaching}
+value, $Q=\E[\gamma^{T_g}]$ for the hitting time $T_g$ of the region --- a
+probability-like quantity that saturates on arrival and carries no revisit mass.
+The second drops the $(1-h_{ij})$ factor so revisits keep accumulating, and learns
+the \emph{visitation} measure of Equation~\ref{eq:sm}. Both losses are
+$\E[(M_{ij}-y_{ij})^2]$ over the full matrix, optionally divided by
+$\sg[\E[M^2]]$ to make the residual scale-free.
+
+We train them as a two-phase curriculum: phase 1 with $y^{\mathrm{reach}}$, then
+phase 2 with $y^{\mathrm{visit}}$ warm-started from it, with the backward map
+$\psi$ frozen at the phase-1 geometry so that any phase-2 misbehavior is isolated
+to the backup. The curriculum is an empirical choice, not a requirement --- in a
+tabular setting where both can be solved exactly, absorbing-first and direct
+visitation regression perform alike, which locates the curriculum's value in the
+control loop rather than in policy evaluation.\footnote{A natural alternative motivation is the renewal factorization
+$M = Q\cdot R$, occupancy as reaching times recurrence. It is exact for singleton
+goals but only approximate for regions, and it fails pointwise on this data: the
+recurrence factor retains an intraclass correlation of $0.24$--$0.29$ across
+actions given a goal, against a pre-registered bar of $0.9$. We therefore do not
+rest the method on it, and nothing in
+Sections~\ref{sec:singular}--\ref{sec:backups} requires it.}
+
+\subsection{What the region form owes}
+\label{sec:owed}
+
+The substitution buys boundedness, and it charges for it. The learned object is
+the measure of a \emph{region}, $M(s,a,B_\epsilon(g))$, and a region's mass is not
+a density. Two consequences follow, and both are predictions rather than
+observations at this point in the argument.
+
+First, integrating the learned object over goal centers double-counts: overlapping
+balls share states, and the counting inherits whatever density the dataset places
+over $g$. Writing $Q_r=\int r\,dM$ for the learned object is therefore not
+justified as stated. The correction is a division by the region's own data mass,
+\begin{equation}
+\label{eq:nhat}
+\int r\,dM \;\approx\; \sum_i r(x_i)\,\frac{M(s,a,B_\epsilon(x_i))}{\hat N(x_i)},
+\qquad \hat N(g)=\rho(B_\epsilon(g)),
+\end{equation}
+so a readout that omits $1/\hat N$ should be wrong by a factor equal to the mean
+region mass $\bar N = \E_g[\hat N(g)]$. This is a sharp, falsifiable prediction:
+not merely that the scale is off, but by how much. Section~\ref{sec:exp-scale}
+tests it.
+
+Second, boundedness of the \emph{fixed point} does not imply non-negativity of the
+\emph{estimate}. The target in Equation~\ref{eq:backups} is non-negative, but the
+bilinear form $F^{\top}\psi$ is free to take negative values wherever the
+regression is not pinned by data, and nothing in the loss penalizes it for doing
+so. Section~\ref{sec:exp-calib} measures how often this happens, and finds the
+obvious repair is not free.

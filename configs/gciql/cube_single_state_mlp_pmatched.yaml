@@ -1,0 +1,26 @@
+# T5b parameter-matched MLP (ogbench-sota implementations item 2). value_arch=mlp with hidden
+# widths (512,512,512)->(737,737,737) = x1.44 (~2.06x value-head params, matching bilinear-d50s
+# two towers) -> closes the 2.06x parameter confound. Pre-registered: stays in the MLP band on
+# success (~0.71) AND rerank (~0.6); any material lift = the confound was real. 3 seeds, 500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-MLP-PMatched
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: mlp
+  value_hidden_dims: "(737, 737, 737)"
+wandb_mode: online

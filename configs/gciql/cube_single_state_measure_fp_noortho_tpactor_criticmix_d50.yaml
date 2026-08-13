@@ -1,0 +1,45 @@
+# Spec 07 item 4 (task_prior_critic_mix): the linearity-conflict probe -- 1 SEED, cheap,
+# run only AFTER item 1's read. Single-knob move on
+# cube_single_state_measure_fp_noortho_tpactor_d50.yaml: ADD a scalar first-passage TD
+# grounding at the actor's mixture z on top of the UNTOUCHED matrix loss (r = max_k hit
+# over the K=2 mixture goals, [0,1] convention NOT gc_negative, absorbing target
+# r + gamma*(1-r)*sg[min_h Q_tgt(s', a'~pi(s',z_mix), z_mix)], Q = phi.z/sqrt(d);
+# z_mix fully sg -> trains phi only).
+# Spec: PAPER/rescuing-fb/specs/07-fp-capability-and-renewal-measure.md.
+# Pre-registered PREDICTION (item 0 fact 1): this HURTS the Dirac anchor -- the true
+# mixture target E[gamma^{T_{A u B}}] is not any fixed linear combination of the Dirac
+# columns, so grounding at z_mix fights them through the z-linearity. If it does NOT
+# hurt (Dirac >=0.93 AND mixtures improve over item 1), the actor-only design argument
+# is wrong -> promote to 3 seeds and re-open the critic-grounding design. Either
+# outcome is a paper sentence. (probs stay at config defaults -- ml_collections
+# rejects list-valued agent_overrides.)
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Measure-FP-NoOrtho-TPActorCriticMix-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  task_prior_actor: mix
+  task_prior_critic_mix: true
+wandb_mode: online

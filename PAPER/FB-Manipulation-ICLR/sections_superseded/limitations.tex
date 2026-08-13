@@ -1,0 +1,75 @@
+\section{Limitations}
+\label{sec:limitations}
+
+\paragraph{The region structure is given, and we do not know how much it buys.}
+Section~\ref{sec:prelim} states the assumption; here is its cost. The abstraction
+$\cube$ selects three of twenty-eight observation dimensions, and the radius
+$\epsilon$ coincides with the threshold the benchmark uses to score success, so
+both the variable and the scale of the goal regions are supplied from the
+evaluation. We have one measurement bearing on this: a control that keeps FB's
+original loss and generalizes only the support from a Dirac to our ball reaches
+$0.367$, far short of the $0.93$ the bounded objective attains, which shows the
+region alone is not sufficient. The converse experiment --- the bounded objective
+on an \emph{unprivileged} support, whether a Dirac, a learned feature, or a slice
+unrelated to the evaluation variable --- has not been run, so we cannot say the
+objective is a general recipe rather than one that works when handed the right
+abstraction. This is the single most important open experiment in the paper.
+
+Relatedly, the $48$ transfer rewards of Section~\ref{sec:exp-l2} are novel reward
+\emph{functions} over that same given abstraction. They are not novel
+abstractions, and ``zero-shot'' should be read in that narrower sense.
+
+\paragraph{The object is not non-negative, and no repair we found conserves mass.}
+Forty-five percent of the state--goal product carries negative measure. The
+one-sided hinge removes the sign violation but inflates set mass by
+$2.5$--$3.6\times$; the task-vector fix of Section~\ref{sec:exp-rewardz} leaves
+negativity untouched at $0.43$--$0.47$. Sign and scale have traded off against
+each other in every intervention we have tried, and a parameterization that
+enforces non-negativity while preserving both the total mass and the linearity in
+$\psi$ that the $\langle F,z_r\rangle$ readout requires remains open.
+
+\paragraph{All measure-side evidence is one environment.}
+Calibration, transfer, and the task-vector experiment are \texttt{cube-single}
+only. Section~\ref{sec:exp-suite} shows the visitation backup --- the one that
+yields a measure at all --- \emph{loses} $0.19$ and $0.14$ on the two harder
+environments, so the capability is currently demonstrated only where it happens to
+be free. Whether the measure results survive where the backup costs something is
+untested, and it is the obvious place for the story to break.
+
+\paragraph{No competing method has been run through the transfer harness.}
+The numbers in Tables~\ref{tab:l2} and \ref{tab:rewardz} compare our method
+against its own oracle and its own floor. We have not run the goal-conditioned
+anchor, vanilla FB, or any other successor-measure method through the same $48$
+rewards, so we can report that the method beats an uninformative baseline but not
+that it beats an alternative. Two further baseline gaps: the floor is a single
+draw of $z$ shared across all $48$ rewards, and the ceiling is a proxy for the
+optimum that understates performance on precisely the broad families that score
+worst.
+
+\paragraph{Statistical power.}
+Cells carry 2--3 seeds. Two readings in particular should be treated as
+suggestive: the task-success \emph{improvement} in Section~\ref{sec:exp-rewardz}
+($0.887\to0.95$, about two seed standard deviations on two seeds), and any
+per-family ordering among arms in Table~\ref{tab:rewardz}. The primary
+broad-reward effect is larger and consistent across both seeds and all three arms,
+which is why we report it as a result rather than a trend.
+
+\paragraph{The calibrated numbers depend on a learned density head.}
+Table~\ref{tab:calib}'s headline ratio divides by a trained $\hat N$ whose own
+bias is $+28\%$, in the direction that flatters the ratio. With exact counts the
+same object is $1.9$--$3.2\times$ off. We report both columns for this reason, and
+the honest statement is that the \emph{deployed system} is calibrated while
+$M$ itself is roughly a factor of two high.
+
+\paragraph{Conclusions are about the objective, not the actor.}
+Every cell uses one actor class (flow BC with one-step distillation). An
+actor-isolation sweep on a different actor showed the advantage over the anchor
+reversing at one setting, on a single seed, and we have not resolved it. Claims
+here should be read as claims about the value objective.
+
+\paragraph{Scope of the theory.}
+The contraction argument behind Equation~\ref{eq:backups} applies to an idealized
+fixed-policy evaluation operator. The practical estimator --- a changing actor, a
+rank-$50$ bilinear approximation, twin-min backups, offline bootstrap actions, and
+a $\psi$ trained for a different target --- carries no such guarantee. Stability
+here is an empirical finding, not a theorem.

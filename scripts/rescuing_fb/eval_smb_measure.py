@@ -82,13 +82,17 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--tasks-json", required=True)
     ap.add_argument("--conditionings", default="native",
                     help="only 'native' (the 5 task goals) is implemented")
-    ap.add_argument("--predictor", choices=["surrogate", "density"],
+    ap.add_argument("--predictor",
+                    choices=["surrogate", "density", "density_trained"],
                     default="surrogate",
                     help="surrogate: the diagonal/kernel-average adapters (spec 11 "
                          "B2, current behavior). density: the eval-layer FULL "
                          "measure (spec 10 L1+L2, ZX checkpoints only) -- "
                          "M-tilde/N-hat densities, set masses additive by "
-                         "construction, ∫r dM via full_measure.FullMeasure")
+                         "construction, ∫r dM via full_measure.FullMeasure. "
+                         "density_trained (phase 2b): identical, but N-hat comes "
+                         "from the checkpoint's TRAINED nhat_head instead of the "
+                         "KDTree kernel count (needs measure_nhat_head=True ckpts)")
     ap.add_argument("--episodes", type=int, default=25)
     ap.add_argument("--horizon", type=int, default=200)
     ap.add_argument("--relabel-size", type=int, default=2000,
@@ -177,14 +181,6 @@ def main() -> int:
     n_tr = int(tasks_art["dataset"]["n_transitions"])
     obs_ds, nobs_ds, _acts, _term = load_dataset(args.dataset_path, n_tr)
     cube_ds = obs_ds[:, CUBE_OBS].astype(np.float64)
-    fm = None
-    if args.predictor == "density":
-        assert fbz, ("--predictor density needs a ZX checkpoint (fb_forward_z): "
-                     "the density layer divides the z-conditioned ball-mass "
-                     "readout by N-hat; a diagonal critic has no such readout")
-        fm = FullMeasure(cube_ds, eps=EPS_OBS)
-        print(f"[smbB] FullMeasure over {fm.n} rows, eps={fm.eps}, "
-              f"floor={fm.floor:.2e}, max_members={fm.max_members}", flush=True)
     env0 = ogbench.make_env_and_datasets(EVAL_TASKS[1], env_only=True)
     act_dim = int(env0.action_space.shape[0])
     env0.close()
@@ -192,6 +188,21 @@ def main() -> int:
     psi = make_psi(agent, src="critic" if (measure_only or fbz) else "value",
                    act_dim=act_dim, fbz=fbz)
     readout = make_measure_readout(agent, d, fbz, act_dim)
+
+    fm = None
+    density_mode = args.predictor in ("density", "density_trained")
+    if density_mode:
+        assert fbz, ("--predictor density needs a ZX checkpoint (fb_forward_z): "
+                     "the density layer divides the z-conditioned ball-mass "
+                     "readout by N-hat; a diagonal critic has no such readout")
+        nhat_fn = None
+        if args.predictor == "density_trained":
+            from smb_common import make_trained_nhat_fn
+            nhat_fn = make_trained_nhat_fn(agent, psi, cube_ds, nobs_ds)
+        fm = FullMeasure(cube_ds, eps=EPS_OBS, nhat_fn=nhat_fn)
+        print(f"[smbB] FullMeasure over {fm.n} rows, eps={fm.eps}, "
+              f"floor={fm.floor:.2e}, max_members={fm.max_members}, "
+              f"nhat={'trained_head' if nhat_fn is not None else 'kdtree'}", flush=True)
 
     goal_obs, goal_ou = {}, {}
     for i in range(1, 6):
@@ -283,7 +294,7 @@ def main() -> int:
                 for k in (0, 1)], axis=1) for u in unions], axis=1)  # [eps, nu, 2]
         # ---- predictions ----
         density_diags = None
-        if args.predictor == "density":
+        if density_mode:
             # spec 10 L1+L2: every set/integral query goes through the density
             # m-hat = M-tilde/N-hat; ball values are the ZX readout at dataset
             # NEXT-observations (the checkpoint's relabel-goal convention),
@@ -451,14 +462,14 @@ def main() -> int:
                 "set masses = dataset averages of the density over member rows "
                 "(additive by construction), ∫r dM = q_r over the relabel rows; "
                 "ball values = ZX readout F(s0,a0,z=psi(g_cond))^T B(nobs_row)/sqrt(d)"
-                if args.predictor == "density" else
+                if density_mode else
                 ("ZX: F(s0,a0,z=psi(g_cond))^T B(x)/sqrt(d)" if fbz else
                  "diagonal: critic(s0, x, a0) -- the WRONG-POLICY "
                  "surrogate for off-diagonal queries (spec 11 B2: "
                  "diagonal-form checkpoints cannot express M(s,a,z_c,x); "
                  "this mismatch is the measurement)")),
             "box_union_surrogate": (
-                None if args.predictor == "density" else
+                None if density_mode else
                 "kernel-average: mean readout over the frozen "
                 "rep_rows dataset states inside the region "
                 "(kernel mass != density)"),
@@ -468,14 +479,16 @@ def main() -> int:
         "B1": B1, "B2": B2, "B3": B3,
         "per_conditioning_b3": {f"t{i}": per_cond[i]["b3"] for i in range(1, 6)},
     }
-    if args.predictor == "density":
+    if density_mode:
         results["meta"]["full_measure"] = {
             "n_rows": fm.n, "eps": fm.eps, "floor": fm.floor,
-            "max_members": fm.max_members}
+            "max_members": fm.max_members,
+            "nhat": ("trained_head" if args.predictor == "density_trained"
+                     else "kdtree")}
         results["density_diags"] = {f"t{i}": per_cond[i]["density_diags"]
                                     for i in range(1, 6)}
 
-    tag = "_density" if args.predictor == "density" else ""
+    tag = "" if args.predictor == "surrogate" else f"_{args.predictor}"
     outp = Path(args.out) if args.out else \
         REPO / "analysis" / "rescuing-fb" / f"smb_wingB_{run_dir.name}{tag}.json"
     outp.parent.mkdir(parents=True, exist_ok=True)

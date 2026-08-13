@@ -1,0 +1,49 @@
+# Spec 08 E8 -- ACTOR-ISOLATION control: phase 1 of the two-phase curriculum driven by the
+# STOCK GCIQL gaussian DDPG+BC actor instead of the flow-BC + distillation actor.
+#
+# Every cell in the note so far shares one actor class, so its comparisons are claims about
+# the VALUE OBJECTIVE, not about actors. That also means the note cannot say whether the
+# reaching objective needs the flow actor. This cell answers that: same critic, same region,
+# same 500k budget, only actor_kind changes. Read against
+# cube_single_state_gciql_flow_bilinear_d50_ddpgbc.yaml (the anchor with the same actor) and
+# against the flow-actor pair (0.967 phase 1 / 0.928 anchor).
+#
+# NOTE -- bc_coeff IS INERT HERE. The flow actor's BC weight is `bc_coeff`; the ddpgbc
+# branch uses `alpha` (gciql_flow.py: bc_loss = -(config['alpha'] * log_prob).mean(), the
+# same knob as ogbench impls/agents/gciql.py). So bc_coeff=3.0 is deliberately NOT set, and
+# alpha is swept by the launcher. OGBench's default is 0.3 and its README warns that
+# "DDPG+BC is usually more sensitive to the alpha hyperparameter than AWR" -- a single-alpha
+# run risks a floor that is really a tuning artifact (cf. the puzzle-3x3 anchor).
+#
+# actor_q_center is NOT usable with this actor (it is the flow branch's q-loss normalizer
+# and is silently inert under ddpgbc), so the phase-2 recipe does not port to ddpgbc
+# unchanged. Phase 1 only for now.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-DDPGBC-Measure-FirstPassage-NoOrtho-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_kind: ddpgbc
+  actor_loss: ddpgbc
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+wandb_mode: online

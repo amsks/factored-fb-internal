@@ -1,0 +1,41 @@
+# @package _global_
+# NO-FLOW ARM of the region measure (2026-08-05). Identical to
+# fb_measure_flowbc.yaml in every critic-side respect; the ONE changed axis is
+# the actor: FBAgent's native TD3+BC head instead of the flow-matching BC actor.
+#
+# Why: every region-FB number the project has is a flow-actor number, because
+# the measure critic was welded to FBFlowBCAgent by inheritance until the
+# RegionMeasureMixin refactor. With CRL+flow reaching 0.384 on scene while
+# region-FB+flow floors there in the torch stack, "is the flow actor helping or
+# hurting the two-phase method?" is unanswerable without this control.
+#
+# bc_coeff 3.0 matches the flow arm (and the cube anchor) so the BC pull is not
+# a confound; fb.yaml's own default is 0.0 (plain FB).
+defaults:
+  - fb           # inherit everything from configs/agent/fb.yaml (NOT fb_flowbc)
+  - _self_
+
+agent: fb_measure
+
+# --- actor: FBAgent's native TD3+BC. No flow_steps / actor_vf / lr_actor_vf. --
+bc_coeff: 3.0
+
+# --- critic side: copied verbatim from fb_measure_flowbc.yaml ----------------
+critic_mode: measure   # stays on the measure branch of update(); update_fb overridden
+ortho_coef: 0.0        # NO ortho — the point (ortho was the toxin in the jax cells)
+q_loss_coef: 0.0       # no auxiliary q grounding
+reweight_alpha: 0.0    # refused by the override (assert w is None)
+goal_cond: false       # refused by the override
+
+measure_mode: first_passage   # first_passage (phase 1) | visitation (phase 2)
+hit_eps: 0.4                  # obs-frame cube ball radius (obs units, 1 = 10cm)
+hit_slice: [19, 22]           # cube xyz slice of the RAW observation
+hit_identity: false
+scale_norm: true              # divide by sg[mean(Ms^2)]
+freeze_b: false               # phase 2: freeze _backward_map + _bw_encoder
+nhat_head: false              # phase 2b: softplus MLP on B(g).detach()
+warm_start_ckpt: ""           # path to a phase-1 step_*.pt (model-only, fresh optimizers)
+mass_coef: 0.0                # total-mass conservation anchor (ledger §9.15)
+hit_kernel: ball              # ball | quartic
+hit_spec: ""                  # conjunctive multi-env region (spec08 E7 mirror)
+nonneg_coef: 0.0              # one-sided squared hinge on relu(-M)

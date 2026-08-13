@@ -1,0 +1,34 @@
+# Spec 08 E8 -- ANCHOR for cube-quadruple-play-v0: GC-IQL with a bilinear d=50 critic and the same
+# flow actor class as the measure cells. This is the bar the two-phase curriculum must
+# clear, and it is env-specific: the note's 0.90 bar is cube-single-only, and scene's
+# turned out to be 0.292 (stock-MLP 0.516, FB 0.047).
+#
+# It is also what makes a FLOOR interpretable. The anchor is trained on the same data with
+# the same actor and the same goal-reaching event, so if both anchor and measure cells
+# floor on this env, the env is hard for goal-conditioned TD generally rather than for the
+# measure objective specifically. Region density is 0.01 positives/row at B=1024.
+#
+# 500k steps to match the campaign (the cube-single bilinear-d50 anchor config is 1M; the
+# launcher overrides train_steps for that env so every anchor in the table is at 500k).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-quadruple-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeQuad-Flow-Bilinear-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+wandb_mode: online

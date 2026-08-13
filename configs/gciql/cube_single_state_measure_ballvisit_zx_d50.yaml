@@ -1,0 +1,48 @@
+# Spec 08 E1 (2026-07-24): PHASE-2 ball-visitation on the SEPARATED (z,x) form.
+# Warm-start from the FP-ZX phase-1 checkpoints (0.904/0.960); flip the three phase-2
+# switches off the ZX form recorded in
+#   exp_spec07/.../GCIQL-State-Flow-Measure-FP-ZX-d50/zx_s{0,1}/flags.json :
+#     measure_fp_absorbing  True -> false   (drop (1-hit) absorption: revisits counted)
+#     measure_stopgrad_psi  False -> true   (freeze B = psi; carry phase-1 goal geometry)
+#     actor_q_center        False -> true   (dilution defense: M carries the shared R baseline)
+# Everything else reproduces the ZX form exactly so the warm-start param tree matches.
+# Object learned: V(s,a,z,x) = F(s,a,z).B(x)/sqrt(d) = E_pi_z[ sum_t gamma^t 1[ball(s_{t+1},x)] ],
+# z and x independent -> direct-z extraction on non-goal-reducible rewards (the real test, spec 08 E1).
+# Spec: PAPER/rescuing-fb/specs/08-two-phase-next-experiments.md
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Measure-BallVisit-ZX-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  # --- ZX (separated-form) knobs, matching the phase-1 checkpoints ---
+  fb_forward_z: true
+  measure_z_random_frac: 0.5
+  actor_cond: z
+  actor_z_from_critic: true
+  # --- phase-2 switches (E1) ---
+  measure_fp_absorbing: false
+  measure_stopgrad_psi: true
+  actor_q_center: true
+wandb_mode: online

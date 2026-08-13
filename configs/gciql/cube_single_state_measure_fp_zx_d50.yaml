@@ -1,0 +1,40 @@
+# Spec 08 E6: ZX (separated-form) phase-1 goal-reaching residual, cold start. Reconstructs
+# the FP-ZX form recorded in exp_spec07/.../GCIQL-State-Flow-Measure-FP-ZX-d50/zx_s*/flags.json:
+# first-passage (absorbing) reaching TD, no ortho, scale-normed, on a z-conditioned forward
+# map with a z-actor. measure_z_random_frac is the SWEPT axis (row-z sampling):
+#   0.0 = goal-only, 0.5 = the existing zx_s0/s1 baseline (0.904/0.960), annealed = E6 knob.
+# The discriminating eval is direct-z region+linear extraction (goal-reducible families are
+# insensitive to z coverage). Spec: PAPER/rescuing-fb/specs/08-two-phase-next-experiments.md (E6)
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Measure-FP-ZX-zfrac05-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  # ZX (separated) form:
+  fb_forward_z: true
+  actor_cond: z
+  actor_z_from_critic: true
+  measure_z_random_frac: 0.5     # swept per-arm on the CLI (E6): 0.0 / 0.5 / anneal
+wandb_mode: online

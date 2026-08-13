@@ -1,0 +1,36 @@
+# RG-FB v0 @ d512 (spec 06 item 2): the ONLY delta vs cube_single_state_rgfb_d50.yaml
+# is value_latent_dim 50 -> 512 (the G4-anchor width). Everything else -- the
+# bilinear-d anchor recipe (IQL expectile TD, OGBench goal mix, flow actor),
+# actor_cond=z, actor_vf_cond=z, bc_coeff=3.0 -- is bit-identical to v0-d50, so
+# the read isolates the d-gap.
+#
+# Eval protocol is zero-shot ONLY (scripts/rescuing_fb/eval_rgfb_zeroshot.py);
+# the in-training eval success is the exact-z DIAGNOSTIC anchor.
+# Pre-registered reads (spec 06 item 2): zero-shot >= 0.88 => the d-gap explained
+# the v0 shortfall; 0.83-0.88 = partial; <= 0.825 => d is not the gap, promote
+# selection extraction (item 3). Anchors: G4 exact-z d512 0.921; v0 zero-shot 0.825.
+# Launch 3 seeds, 500k (1M if the curve is still climbing at 500k).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: RGFB-Cube-Single-State-d512-v0
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 512
+  actor_cond: z
+  actor_vf_cond: z
+wandb_mode: online

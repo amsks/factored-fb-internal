@@ -1,0 +1,40 @@
+# CELL W (w_off=0.3) -- the theorem-backed successor-measure win cell (spec 06 re-center).
+# First-passage measure with hindsight-PAIRED columns, in-sample expectile backup
+# (target-min source = the anchor's double-DQN split), and off-diagonal weight 0.3.
+#   Identity: delta_M = (1-gamma)*delta_Q  =>  at w_off=0 this loss IS bilinear GC-IQL
+#   (0.904) under M = 1+(1-gamma)Q -- same fixed point, same gradients up to scale.
+#   w_off=0.3 keeps genuine off-diagonal matrix supervision at a GC-IQL-like task mix.
+# The trained object is a successor measure: M(s,a,s+) ~= E[gamma^T_hit(ball(s+))],
+# factorized phi(s,a).psi(s+)/sqrt(d), z-readout intact.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Measure-CellW03-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 1.0
+  measure_first_passage: true
+  measure_expectile: true
+  measure_expectile_tau: 0.9
+  measure_expectile_source: target_min
+  measure_testpoint_dist: hindsight
+  measure_offdiag_weight: 0.3
+wandb_mode: online

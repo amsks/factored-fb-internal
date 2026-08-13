@@ -1,0 +1,42 @@
+# Spec 08 E2 (2026-07-24): frozen-B / FROZEN-ACTOR ball-visitation (the missing cell of
+# the 2x3). Warm-start the FULL net from the FP-NoOrtho 0.967 phase-1 ckpt, freeze psi
+# (measure_stopgrad_psi) AND freeze the actor (freeze_actor) -> phase 2 is fixed-policy
+# visitation evaluation V^{pi_g} = K_eps + gamma P^{pi_g} V^{pi_g}, an ordinary
+# gamma-contraction. Isolates whether phase-2 fragility comes from the policy-measure
+# feedback loop: compare against the frozen-B/UPDATED-actor cell (BallVisit-FrozenPsi,
+# 0.952/0.928) and the UPDATED/UPDATED cell (occtr, collapses).
+# Diagonal (goal-tied) form, matching the FP-NoOrtho checkpoint architecture (actor_cond=goal,
+# no fb_forward_z) so the warm-start param tree matches.
+# Spec: PAPER/rescuing-fb/specs/08-two-phase-next-experiments.md (E2)
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Measure-BallVisit-FrozenActor-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  # phase-2 switches:
+  measure_fp_absorbing: false    # ball-visitation (revisits counted)
+  measure_stopgrad_psi: true     # freeze backward map B = psi
+  freeze_actor: true             # freeze pi at the warm-started phase-1 policy (E2)
+wandb_mode: online

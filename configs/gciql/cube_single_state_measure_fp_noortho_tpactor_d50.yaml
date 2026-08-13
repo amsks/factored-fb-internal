@@ -1,0 +1,44 @@
+# Spec 07 item 1 (task_prior_actor): actor trained across a z-prior in the FP corner --
+# the capability arm on top of the FirstPassage-NoOrtho win (0.956/0.964/0.980 -> 0.967).
+# Single-knob move on cube_single_state_measure_firstpassage_noortho_d50.yaml:
+# task_prior_actor='mix' draws a per-sample ACTOR-ONLY z (Dirac sg[psi(actor_goal)] 0.6 /
+# K=2 Dirichlet(1) mixture of batch next-state psi's at match-data norm 0.2 / uniform
+# sphere * mean||psi(s')|| 0.2 -- probs are the config DEFAULTS, not overridden here:
+# ml_collections rejects list-valued agent_overrides). The FP matrix critic loss, its
+# bootstrap and its rng stream are untouched; the actor z is fully sg in every arm
+# (psi trains only through the FP matrix loss). Forces actor_cond=z+actor_z_from_critic.
+# Spec: PAPER/rescuing-fb/specs/07-fp-capability-and-renewal-measure.md. 3 seeds, 500k.
+# Pre-registered reads (binding; via the item-3 eval): Dirac non-regression >=0.90
+# (anchor 0.967; below -> retry probs 0.8/0.1/0.1 ONCE, else the arm is dead);
+# two-goal max-mixture no-GPI >=0.60 / 0.30-0.60 partial / <=0.30 dead (anchor v0-no-GPI
+# 0.260); with GPI expect >=0.75 (anchor GPI@d512 scalar corner 0.752); regions >=0.672
+# (non-regression vs T6). Comparison arm: cube_single_state_rgfb_v1_taskprior_d50.yaml.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Measure-FP-NoOrtho-TPActor-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  task_prior_actor: mix
+wandb_mode: online

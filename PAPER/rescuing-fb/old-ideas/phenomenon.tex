@@ -1,0 +1,529 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!60!black]{hyperref}
+\usepackage{microtype}
+\usepackage{enumitem}
+
+\emergencystretch=3em
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\sg}{\mathrm{sg}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\TV}[1]{\left\lVert #1\right\rVert_{\mathrm{TV}}}
+\newcommand{\numgood}[1]{\textbf{\textcolor{green!45!black}{#1}}}
+\newcommand{\numbad}[1]{\textbf{\textcolor{red!65!black}{#1}}}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{definition}
+\newtheorem{claim}{Claim}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\title{The Phenomenon:\\ Why Occupancy-Grounded FB Fails on Manipulation,\\ and How to Build an FB That Works\\
+\large rescuing-fb --- phenomenon note, 2026-07-20 (post T7/T8/T10 closure)}
+\author{Factored-FB project}
+\date{}
+
+\begin{document}
+\maketitle
+
+\noindent\emph{Status of the evidence. Every measure-side repair arm pre-registered in this
+program has now landed: T10-a (centered measure as auxiliary) $0.823$ --- costs 8 points;
+T10-b2 (anchored measure-only) $0.068/0.060/0.104$ --- the historical ceiling; T7 (conservatism
+dose-response, collected 2026-07-20) $0.240$ at exact-min and $0.227$ beyond-min --- \emph{below}
+the plain-FB anchor $0.42$; T8 ($z$-conditioned one-step FB, collected 2026-07-20)
+$0.067$ --- indistinguishable from its $z$-zeroed control $0.058$. Per the pre-registered claim
+boundary (spec 04 \S3), the strong negative claim is licensed. This note states the phenomenon
+that explains the entire record, then derives the constructive program from it.}
+
+\section{Setup and notation}\label{sec:setup}
+
+MDP $(\mathcal S,\mathcal A,P,\gamma)$, $\gamma=0.99$; offline dataset $\mathcal D$ of play
+episodes from a scripted pick-and-place policy $\mu$ (OGBench \texttt{cube-single-play}, 1M
+transitions); $\rho$ the dataset state marginal. The successor measure of a policy $\pi$,
+\begin{equation}
+M^\pi(s,a,X)\;=\;\sum_{t\ge 0}\gamma^t\,\Pr\!\big[s_{t+1}\in X\mid s_0{=}s,a_0{=}a,\pi\big],
+\qquad X\subseteq\mathcal S,
+\label{eq:sm}
+\end{equation}
+is the object FB factorizes, $M^{\pi_z}(s,a,\mathrm ds')\approx F(s,a,z)^\top B(s')\rho(\mathrm
+ds')$, with the reward readout $Q_r(s,a)=F(s,a,z_r)^\top z_r$, $z_r=\E_\rho[r(s')B(s')]$.
+GC-IQL trains the same normalized bilinear head $Q(s,a,g)=\phi(s,a)^\top\psi(g)/\sqrt d$ by
+hindsight-relabelled sparse-reward expectile TD ($r\in\{-1,0\}$, mask $0$ at the goal). Both
+sides drive the identical FQL-style flow actor. Success numbers are OGBench
+\texttt{cube-single} 5-task means; anchors: bilinear GC-IQL \numgood{0.904}, plain FB
+\numbad{0.42} @1M, published GC-IQL 0.68.
+
+\section{The phenomenon, stated}\label{sec:statement}
+
+\begin{claim}[The phenomenon]\label{claim:main}
+The successor-measure TD objective \emph{is} scalar TD --- performed simultaneously on the
+family of Dirac rewards --- but with three estimator choices that, on play-distributed
+manipulation data, jointly destroy the action-ordering information the task requires:
+\textbf{(A)} it weights test tasks by state occupancy $\rho$ rather than by the task
+distribution; \textbf{(B)} it bootstraps through a learned policy (non-contractive, and its
+only improvement mechanism) or, if made contractive (SARSA), loses improvement entirely;
+\textbf{(C)} it fits \emph{revisit-counting occupancancy} semantics rather than
+\emph{first-passage} semantics, and under a re-grasping play policy the occupancy of any test
+state is mixing-dominated: $82\%$ of its $\gamma$-mass lies at horizons where futures are
+action-independent. Consequently the objective's sensitivity to the action taken now --- the
+only thing the actor consumes --- is orders of magnitude below its sensitivity to
+arm-configuration occupancy structure, its fixed point carries a near-vacuous advantage
+ordering, and \emph{no conditioning, centering, scaling, conservatism, or bootstrap repair
+inside the occupancy corner can fix it}, because each such repair changes the optimization
+path toward the same fixed point. The bilinear structure, the $z$-space, and the moment
+inference API are all healthy; only the grounding is wrong. Replacing the grounding by
+task-weighted, in-sample, first-passage scalar TD --- keeping every other FB component ---
+restores control ($0.825$ zero-shot, inference gap $2.7$ points).
+\end{claim}
+
+The rest of this note makes each clause precise, checks it against all 12 constraint facts
+plus the newly landed T7/T8, and then derives the modifications that follow.
+
+\section{The bridge identity: measure TD is scalar TD on Dirac tasks}\label{sec:identity}
+
+\begin{proposition}[Exact rewriting of the FB loss]\label{prop:identity}
+Let $m_{s^+}(s,a):=F(s,a,z)^\top B(s^+)$ denote the factorized measure density at test point
+$s^+$, and consider the implicit Dirac reward $r_{s^+}(s')=\delta_{s^+}(s')/\rho(s^+)$. Then
+the FB measure-TD loss with batch test points $s^+\sim\rho$,
+\begin{equation}
+\mathcal L_{\mathrm{FB}}
+=\E_{(s,a,s')\sim\mathcal D,\;s^+\sim\rho}\Big[\big(m_{s^+}(s,a)-\gamma\,\sg\,\bar
+m_{s^+}(s',a')\big)^2\Big]
+-2\,\E_{(s,a,s')}\big[m_{s'}(s,a)\big],\qquad a'\sim\pi_z(s'),
+\label{eq:fbloss}
+\end{equation}
+equals, up to an additive constant independent of the parameters, the $\rho$-weighted
+family of scalar TD losses
+\begin{equation}
+\E_{s^+\sim\rho}\;\E_{(s,a,s')}\Big[\big(m_{s^+}(s,a)-r_{s^+}(s')-\gamma\,\sg\,\bar
+m_{s^+}(s',a')\big)^2\Big].
+\label{eq:scalarfamily}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Expand the square in \eqref{eq:scalarfamily}: the cross term
+$-2\,\E_{s^+\sim\rho}\E[(m_{s^+}(s,a)-\gamma\bar m_{s^+})\,r_{s^+}(s')]$ collapses under
+$\E_{s^+\sim\rho}[\,f(s^+)\delta_{s^+}(s')/\rho(s^+)\,]=f(s')$ to
+$-2\,\E[(m_{s'}(s,a)-\gamma\bar m_{s'})]$; the $\gamma\bar m$ part of it is a
+parameter-dependent term FB drops (target networks make it stop-gradient in practice), and
+$\E[r_{s^+}^2]$ is constant. What remains is exactly \eqref{eq:fbloss}.
+\end{proof}
+
+So FB and GC-IQL train \emph{the same bilinear object by the same kind of regression}, and
+differ only in four estimator coordinates:
+
+\begin{center}\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}l l l l@{}}
+\toprule
+Axis & FB (measure corner) & GC-IQL (working corner) & isolating evidence \\
+\midrule
+\textbf{A} task weighting & test tasks $\sim\rho$ (occupancy) & hindsight mix
+(0.2/0.5/0.3) & \S\ref{sec:misalignment}; N1/N2 partial \\
+\textbf{B} bootstrap & $a'\sim\pi_z$ (learned) & in-sample expectile & T8 + T7 (new,
+\S\ref{sec:axisB}) \\
+\textbf{C} value semantics & occupancy (counts revisits) & first-passage ($0/{-1}$ + mask)
+& \S\ref{sec:misalignment}; untested move \\
+\textbf{D} conditioning of $F$ & $\phi(s,a,z)$ & $\phi(s,a)$, $z$ at readout & fbz: $-6$
+pts only \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{corollary}\label{cor:corner}
+GC-IQL \emph{is} FB after moving all four axes. ``FB fails, GC-IQL works'' is therefore not a
+comparison of two methods but the statement that some subset of $\{A,B,C\}$ is fatal ($D$ is
+a $6$-point detail). Every failed measure cell in the program --- plain FB $0.42$, measure-only
+$0.08$--$0.34$, C4 rebuild $0.165$, T10-b2 $0.06$--$0.10$, T7 $0.23$--$0.24$, T8 $0.067$ ---
+shares \emph{all three} of A, B, C at the FB corner. No cell has yet moved exactly one of
+A, B, C; \S\ref{sec:direction2} defines those cells.
+\end{corollary}
+
+\section{The quantitative core: temporal misalignment}\label{sec:misalignment}
+
+The folk explanation --- ``play data is arm-dominated, so occupancies fit arm features'' ---
+is \textbf{false at the level of raw mass} and must not be printed: the cube is \emph{held on
+45.5\% of dataset steps}, cube dimensions carry 26\% of the observation's marginal variance,
+and per-step normalized motion share does not separate cube from antmaze in the needed
+direction (all measured model-free from the raw \texttt{npz}; misalignment note 2026-07-13).
+What is true is sharper and temporal.
+
+Let $G_t\in\{\text{held},\text{free}\}$ be the (observed, \texttt{obs[18]}) interaction gate
+and $c_t$ the cube position. Measured on the raw dataset:
+\begin{equation}
+R_K:=\frac{\E\big[\|c_{t+K}-c_t\|\;\big|\;G_t=\text{held}\big]}
+{\E\big[\|c_{t+K}-c_t\|\;\big|\;G_t=\text{free}\big]}
+=\begin{cases}
+130\text{--}150\times & K\le 2\\
+55\times & K=5\\
+7.8\times & K=10\\
+1.0\times & K\ge 50,
+\end{cases}
+\label{eq:gate}
+\end{equation}
+because the scripted play policy re-grasps: long-horizon occupancy \emph{forgets the gate}.
+Against this, the discount kernel $\propto\gamma^t$ of \eqref{eq:sm} places $82\%$ of its
+mass at $K>20$.
+
+\begin{proposition}[Misalignment bound]\label{prop:misalignment}
+Suppose the behavior-policy $K$-step kernels mix over actions:
+$\sup_{a_1,a_2}\TV{P^\mu_K(\cdot\mid s,a_1)-P^\mu_K(\cdot\mid s,a_2)}\le\varepsilon_K$ with
+$\varepsilon_K$ decaying as in \eqref{eq:gate}. Then for any test function $f$ with
+$\|f\|_\infty\le 1$ (any bounded reward or backward feature),
+\begin{equation}
+\big|\,\langle M^{\mu}(s,a_1,\cdot)-M^{\mu}(s,a_2,\cdot),f\rangle\,\big|
+\;\le\;\sum_{t\le K_0}\gamma^{t}\,\varepsilon_t\;+\;\frac{\gamma^{K_0}}{1-\gamma}\,
+\varepsilon_{K_0},
+\label{eq:bound}
+\end{equation}
+i.e.\ the action-dependence of the occupancy object is confined to the pre-mixing window.
+With the measured profile ($K_0\approx 20$--$50$), the second term --- $82\%$ of the total
+discounted mass --- contributes essentially nothing: \emph{the occupancy functional of the
+data policy genuinely does not require the interaction variable at the horizons where its
+mass lives}. Control, by contrast, is decided at $K\le 5$, where the future is
+$55$--$150\times$ mode-determined.
+\end{proposition}
+
+Three corollaries, each independently verified:
+
+\begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
+\item \emph{Fitting the measure well is insufficient.} The $z$-conditioned graft cut the
+measure's own TD residual $24\times$ (6347$\to$266) and moved success only to $0.255$ (C7).
+The bound says why: the residual is dominated by the mixing-window mass, which is
+advantage-free; you can fit $99\%$ of the objective while resolving none of the ordering.
+\item \emph{The domain flip.} On antmaze the short- and long-horizon conditional structure
+are the same smooth diffusion ($R_K\le 2$ at every $K$ for every observable split tried) ---
+there is no misalignment to pay, and measure-only scores $0.79$ vs the $0.837$ anchor there,
+against $0.10$ vs $0.90$ on cube (mdose).
+\item \emph{Warm starts cannot help.} The misalignment is a property of the \emph{fixed
+point}, not the path: initialize at the converged $0.93$ scalar-TD solution and fade
+$\mathcal L_{\mathrm{IQL}}$ out $\Rightarrow$ success collapses to $0.05$ in lockstep with
+the fade (iql-fade). Centering + scale anchors + split bootstrap (T10-b2) raised the early
+transient $3\times$ (0.18--0.26 @50k) and then decayed to the same $0.06$--$0.10$ ceiling:
+\emph{path repaired, fixed point unchanged} --- exactly what
+Claim~\ref{claim:main} predicts for any within-corner repair.
+\end{enumerate}
+
+\begin{remark}[First-passage vs.\ occupancy, sharpened]\label{rem:firstpassage}
+Under first-passage semantics with absorption at the goal, the value is an affine function of
+$\E[\gamma^{T_{\mathrm{hit}}}]$: dropping the cube delays $T_{\mathrm{hit}}$ by the
+re-acquisition time $\tau$ and multiplies the value by $\gamma^{\tau}$ --- a persistent,
+non-washing penalty ($\gamma^{30}\approx0.74$ per drop). Under occupancy semantics the same
+drop merely \emph{shifts revisit mass later}; because the re-grasping data policy recovers
+the cube, the discounted deficit is second-order and the post-drop state is scored nearly as
+well as the held state. The $0/{-1}$-with-mask convention GC-IQL trains \emph{is}
+first-passage; this semantics was never transplanted onto the measure --- it is the single
+cheapest untested axis move (\S\ref{sec:direction2}).
+\end{remark}
+
+\begin{proposition}[Unsupported boundary]\label{prop:support}
+Of $12{,}144$ grasp releases in the 1M-transition dataset, $12{,}127$ are deliberate places
+and $17$ are mid-air drops ($\rho$-mass $1.7\times10^{-5}$). For any objective that is an
+expectation under $\rho$ (every objective in this program), relabelling those 17 transitions
+arbitrarily changes the loss by $O(10^{-5})\cdot L$: the stable-vs-slipping value cliff ---
+precisely the evaluation failure mode --- is statistically invisible, and no bounded
+reweighting can amplify what is absent. Consequence: nothing may be asked to \emph{rank
+grasp-stability counterfactuals}; the value's job is to order \emph{in-support}
+grasp-maintaining actions, and the BC-anchored (flow / selection) extraction is load-bearing
+(bilinear+DDPG-BC $0.51$ $<$ bilinear+flow $0.90$). Any proposal that loosens the BC anchor
+on cube is predicted to fail regardless of the critic.
+\end{proposition}
+
+\section{Axis B, resolved by T7 and T8 (new, 2026-07-20)}\label{sec:axisB}
+
+The two arms that landed today close axis B's two open corners.
+
+\paragraph{T8: contraction without improvement is worthless.} One-step FB (SARSA
+dataset-action bootstrap, a $\gamma$-contraction) with $F$ kept $z$-conditioned scores
+$0.02/0.06/0.12\to\mathbf{0.067}$, statistically indistinguishable from its $z$-zeroed
+matched control ($0.058$, 10 seeds) --- and from the BC-flow floor ($\approx0.06$). This is
+the clean reading of the phenomenon: a contractive backup \emph{estimates} $M^\mu$
+faithfully, but $M^\mu$'s advantage ordering is exactly the object
+Proposition~\ref{prop:misalignment} bounds --- greedifying the behavior measure's readout
+adds \emph{nothing} over BC on this data. One-step FB fails under both readings of the
+$z$-conditioning dispute; the ablation was worth running precisely because it kills both.
+
+\paragraph{T7: the learned-policy bootstrap's optimism is not the bug --- it is the only
+thing FB has.} Exact min-aggregation (pessimism $0.5$; verified $\equiv\min$ for twin heads)
+drops plain FB $0.42\to\mathbf{0.240}$; beyond-min ($1.0$) $\to0.227$. Conservatism
+\emph{hurts}, dose-independently. Interpretation inside the phenomenon: plain FB's $0.42$
+$>$ one-step's $0.067$ because the $a'\sim\pi_z$ bootstrap is FB's sole improvement
+mechanism --- it is what lifts FB off the BC floor at all --- and pessimism shrinks the
+already-marginal advantage signal toward the ensemble's common (baseline) component. FB's
+pathology was never optimistic over-estimation of off-support actions (that is the DDPG+BC
+pathology of the \emph{bilinear scalar} critic); it is an \emph{uninformative ordering}, and
+you cannot fix a wrong ordering by shrinking it. This closes the VC-FB confound: the failure
+claim needs no conservative-FB restatement.
+
+\begin{corollary}[Axis B is a dilemma, not a knob]\label{cor:dilemma}
+Within the measure corner, the bootstrap choice is: learned-$\pi$ (improvement, no
+contraction, ceiling $0.42$), SARSA (contraction, no improvement, floor $0.067$), or the
+untested middle --- an \emph{in-sample expectile improvement on the measure}
+(\S\ref{sec:direction2}, the exact transformation that took scalar GC-Bellman from unstable
+to $0.904$). That cell is the only remaining way axis B could be exonerated or convicted.
+\end{corollary}
+
+\section{Scale identifiability (why the runaways were predictable)}\label{sec:scale}
+
+The scalar objective's units are pinned by the reward: $|Q|\le(1-\gamma)^{-1}$. The measure
+objective's units are density units $1/\rho$, and the factorization $F^\top B$ splits them
+non-identifiably ($F\to cF$, $B\to B/c$). Every observed runaway is this one defect: T10-b
+v1 (both legs scale-normalized $\Rightarrow$ objective scale-invariant $\Rightarrow$ diagonal
+attraction inflates $q$ to $10^{13}$), SG-ISFB's unbounded $\langle F,z\rangle$ drift, the
+$\psi(s,g)$ leg's norm runaway under scalar TD (T2: $\E\|\psi\|^2$ monotone in divergence).
+\textbf{Design rule (binding):} every future objective must answer ``what pins the absolute
+scale?'' before launch --- computable rewards with units, a masked/bounded fixed point, or a
+hard norm anchor on exactly one leg.
+
+\section{The record against the phenomenon}\label{sec:record}
+
+Claim~\ref{claim:main} is not one more hypothesis; it is the unique statement consistent with
+all of: C1--C12 (constraint set, Fable\_Suggestions \S0), the T10 closure (aux $0.823$ ---
+never helps, costs 8 points; anchored-only $0.06$--$0.10$ --- path not fixed point), T7
+($0.240/0.227$ --- conservatism hurts), T8 ($0.067$ --- contraction alone is the BC floor),
+the misalignment measurements (\S\ref{sec:misalignment}), the domain flip (antmaze $0.79$),
+the in-distribution phase evidence (FB fails at C1 $=0.43$ with grasp $=1.000$ and
+$P(\mathrm{success}\mid\mathrm{secured})=0.437$ vs $0.982$ --- post-grasp ordering, not
+generalization), and the healthy-API results (E1a moment inference $0.955$; RG-FB v0
+$0.825\pm0.014$ with a $2.7$-point inference gap).
+
+\begin{claim}[Licensed negative claim --- final wording]\label{claim:negative}
+On play-distributed manipulation data (OGBench cube-single), \emph{no tested form of
+successor-measure TD grounding supports manipulation}: the native objective, its conditioned,
+normalized, centered, scale-anchored, conservative, one-step, auxiliary, curriculum, and
+warm-started variants all converge to a $0.06$--$0.42$ band whose failures are post-grasp
+ordering failures, while the identical architecture, actor, data, and inference API under
+scalar first-passage TD reaches $0.90$ (supervised) / $0.825$ (zero-shot). The mechanism is
+the temporal occupancy--task misalignment of Proposition~\ref{prop:misalignment} (with the
+support boundary of Proposition~\ref{prop:support}); first-passage/hindsight-weighted
+measure objects (\S\ref{sec:direction2}) are excluded from the claim's scope because they
+are no longer the successor measure.
+\end{claim}
+
+\section{Direction I --- the constructive program (near-certain, run in this
+order)}\label{sec:direction1}
+
+The phenomenon dictates the repair: \emph{keep FB-the-interface (bilinear factorization,
+$z$-space, moment inference, $z$-conditioned flow actor), replace FB-the-estimator with
+task-weighted in-sample first-passage scalar TD, and re-introduce FB's task-distribution
+training through the reward, not the measure.} Each rung below is decomposed into steps that
+are either theorems or already-measured numbers; the only genuinely new risk in each is
+named, with a guard.
+
+\subsection{GPI over goal candidates at inference (zero training; theorem-backed)}
+\label{sec:gpi}
+
+T6's sole zero-shot failure is composite rewards: two-goal max-mixtures score $0.260$ while
+$\cos(z,\psi(g_k))=0.77$--$0.82$ --- inference is fine; the actor has never seen an
+off-Dirac $z$. Classical GPI repairs this with no gradients. For $r=\max_k r_{g_k}$ with
+candidate set $Z=\{z_r,\psi(g_1),\dots,\psi(g_K)\}$:
+\begin{equation}
+a_j=\pi(s,z_j)\ \ \forall j,\qquad \text{execute } a_{j^*},\quad
+j^*=\arg\max_j Q(s,a_j,z_r).
+\label{eq:gpi}
+\end{equation}
+
+\begin{proposition}[GPI applies verbatim]\label{prop:gpi}
+$Q(\cdot,\cdot,z_r)$ is linear in $z$, so it is evaluated exactly where the critic was
+trained (a convex combination of Dirac readouts), and each candidate action is an on-support
+Dirac-policy action --- the region where the critic's ordering is measured near-perfect
+(rerank $0.91$--$0.96$). By the GPI theorem (Barreto et al.), the induced policy's value
+under $r$ dominates every candidate's: $V^{\mathrm{GPI}}_r(s)\ge\max_j V^{\pi_{z_j}}_r(s)$
+up to the critic's evaluation error on on-support actions. Since reaching \emph{either} goal
+satisfies a max-mixture and per-goal success is $\approx0.9$, the prediction is
+$0.260\to\gtrsim0.8$.
+\end{proposition}
+
+If GPI does \emph{not} fix mixtures, the failure is not actor coverage --- re-open the E1a
+ladder before touching training. Cost: $K{+}1$ critic passes per step, CPU, hours.
+
+\subsection{RG-FB at $d{=}512$ + selection extraction (both anchors already measured)}
+\label{sec:ladder}
+
+The v0 gap to the supervised anchor is training-side ($0.825$ vs $0.904$; inference gap
+$2.7$ pts). Two rungs with measured ceilings: (i) \textbf{d512 + $z$-actor}: the G4 anchor at
+$d512$ is $0.921$ --- v0 is $d50$; this is the known cheapest points. (ii) \textbf{IDQL-style
+selection at deployment}: $N{\approx}32$ BC-flow proposals, argmax frozen $Q$ --- the rerank
+instrument measured the bilinear critic's ordering worth $0.947$--$0.96$ \emph{with no actor
+training}, and selection is immune to both known extraction failure modes (off-support peak;
+anchor fights). Neither rung contains an untested mechanism.
+
+\subsection{RG-FB v1: task-prior scalar grounding (the headline combine)}
+\label{sec:v1}
+
+FB's real asset was never the measure loss --- it is that actor and critic are trained
+\emph{across a distribution over tasks}. v0 trains both only at $z=\psi(g_{\mathrm{hindsight}})$;
+T6 shows the cost (mixtures $0.260$). v1 restores FB's task distribution through
+\emph{computable rewards}, grounding every sampled task with the same expectile machinery:
+per batch, sample
+\begin{align}
+\text{w.p. } p_1&:\ \text{Dirac goal (v0): } r(s')=\mathbf 1[\|s'-g\|\le\varepsilon],\ \ z=\psi(g);\nonumber\\
+\text{w.p. } p_2&:\ \text{$K$-goal mixture: } r(s')=\max_k \mathbf 1[\|s'-g_k\|\le\varepsilon],\ \
+z=\Sigma_k w_k\psi(g_k)\ \text{(match-data renorm)};\label{eq:taskprior}\\
+\text{w.p. } p_3&:\ \text{random linear reward: } r(s')=\sg[\psi(s')]^\top\tilde z/\sqrt d,\ \
+\tilde z\sim\text{sphere}\times\overline{\|\psi\|},\nonumber
+\end{align}
+then apply GC-IQL's expectile value regression and scalar Bellman regression \emph{at that
+$z$}, with the flow actor conditioned on $\sg[z]$. Nothing else changes.
+
+\begin{remark}[Why this is the principled combine]
+By Proposition~\ref{prop:identity}, measure TD is scalar TD marginalized over Dirac tasks at
+$\rho$-weighting with a learned-$\pi$ bootstrap. v1 is scalar TD marginalized over a
+\emph{chosen} task prior with the in-sample bootstrap: it keeps the actual source of
+zero-shot-ness (training across tasks) and replaces every diagnosed pathology --- axis A
+becomes task-shaped, axis B contractive-with-improvement, the scale is pinned because every
+sampled reward has units (\S\ref{sec:scale}), and the linear-in-$z$ critic structure is
+\emph{supervised} at off-Dirac $z$ instead of assumed by extrapolation. The one new risk is
+multi-task interference on the Dirac anchor; guard with the pre-registered non-regression
+band (Dirac $\ge0.80$; two-goal max-mixture $\ge0.60$ success $/\le0.30$ dead; regions
+$\ge0.672$).
+\end{remark}
+
+\subsection{The measure, kept --- as a stop-gradient readout head}
+\label{sec:sghead}
+
+Do \emph{not} re-add the measure loss at any $\lambda$ on shared parameters (T10-a: $-8$
+points; E2: at best free; the metamotivo aux-$Q$ summed with the measure: $0.468$, a null at
+10 seeds). But two things about the measure survive intact and should be said and used:
+
+\begin{remark}[RG-FB does not discard the successor object --- it swaps it]
+\label{rem:fpkernel}
+Under the $0/{-1}$-with-mask convention, the trained value is an affine transform of the
+\emph{first-passage kernel}:
+\begin{equation}
+\E\big[\gamma^{T_{\mathrm{hit}}(g)}\big]\;=\;1+(1-\gamma)\,Q(s,a,g),
+\label{eq:fpidentity}
+\end{equation}
+so $\phi^\top\psi/\sqrt d$ is a rank-$d$ factorization of a bona fide successor-type object
+with first-passage (control-matched) semantics --- Remark~\ref{rem:firstpassage} at the level
+of the trained head. The SF-style extractables carry over: temporal distances
+$\hat T(s,g)=\log_\gamma\!\big(1+(1-\gamma)Q\big)$, reachability sets, linear goal-set
+composition + GPI (\S\ref{sec:gpi}), and moment task inference. What is genuinely
+occupancy-specific --- density queries, $\gamma$-model rollouts, OPE of dense rewards ---
+is recovered below.
+\end{remark}
+
+\textbf{The sg readout head.} Fit a full measure factorization \emph{on top of} the frozen
+control towers,
+\begin{equation}
+\widehat M(s,a,s^+)\;=\;\phi_M\big(\sg[\phi(s,a)]\big)^{\top}\,
+\psi_M\big(\sg[\psi(s^+)]\big)/\sqrt{d_M},
+\label{eq:sghead}
+\end{equation}
+trained by the measure objective (or by direct Monte-Carlo occupancy regression) with
+\emph{no gradient path into $\phi,\psi$}. Every measured cost of ``measure $+$ scalar''
+arrived through shared parameters (E2 stop-grad localization; T10-a); cutting the sharing
+removes the conflict \emph{by construction}, at zero control risk. This yields the honest
+measure fidelity number for the paper --- evaluated against empirical discounted occupancy
+on held-out trajectories, broken down by horizon bucket ($K{\le}5$ / $5$--$20$ / ${>}20$, so
+the misalignment bound of Prop.~\ref{prop:misalignment} is visible in the calibration) ---
+plus working density/OPE extractables. The pre-registered comparison: if the head on
+scalar-trained features is at least as occupancy-faithful as plain FB's native $F^\top B$,
+the sentence is ``scalar grounding is measure-\emph{free} but not measure-\emph{blind}'';
+if it is worse, print the trade --- either way the control result is untouched.
+Implementation: spec 06, item 8.
+
+\section{Direction II --- single-axis measure cells (mechanism work, optional for the
+claim)}\label{sec:direction2}
+
+With T7/T8/T10 dead, these cells no longer gate the negative claim
+(Claim~\ref{claim:negative} survives them semantically: a first-passage or
+hindsight-weighted object is not \emph{the} successor measure). Their value is converting
+``all tested forms fail'' into ``axis X is the toxic one.'' Each is a small delta to the
+existing loss; prior on any single axis rescuing FB is low; run cheapest-diagnosis first.
+
+\subsection{Axis C: first-passage FB (one masking line)}
+Replace occupancy semantics with first-occupancy semantics
+($F(s,a,s^+)=\E[\gamma^{T_{\mathrm{hit}}(s^+)}]$): with batch test points, ``the test point
+is hit'' is a tolerance ball around the diagonal, $h_{ij}=\mathbf 1[\|s'_i-s^+_j\|\le
+\varepsilon]$ ($\varepsilon=$ the 4cm success radius on cube-xyz coordinates):
+\begin{equation}
+\delta_{ij}=M_{ij}-h_{ij}-\gamma\,(1-h_{ij})\,\sg[\bar M_{ij}].
+\label{eq:firstpassage}
+\end{equation}
+Same fixed-point semantics as GC-IQL's masked sparse-reward value, per column; bilinear
+factorization, $z$-space, inference untouched; also removes the worst non-contraction
+amplifier (unbounded revisit mass). \emph{Read:} $\gg0.10$ $\Rightarrow$ semantics was a/the
+toxic axis (Remark~\ref{rem:firstpassage} validated at the loss level); $\approx0.10$
+$\Rightarrow$ reframe the $82\%$ number as correlate, not cause.
+
+\subsection{Axis B: expectile measure backup (the untested middle of
+Corollary~\ref{cor:dilemma})}
+Each test-point column of $M$ is a scalar value function, so IQL applies pointwise:
+introduce $V_M(s,s^+)=\phi_V(s)^\top\tilde\psi(s^+)/\sqrt d$, train by expectile regression
+onto $\sg[M(s,a_{\mathrm{data}},s^+)]$, and back up
+\begin{equation}
+M(s,a,s^+)\ \leftarrow\ r_\delta+\gamma\,\sg[V_M(s',s^+)]
+\qquad\text{(no $a'$ of any kind)}.
+\label{eq:expectilemeasure}
+\end{equation}
+Contraction restored \emph{and} improvement retained --- the exact transformation that fixed
+the scalar side. Composes with \eqref{eq:firstpassage}; if singles are both partial, run
+C{+}B jointly as the ``GC-IQL-semantics measure.'' \emph{Read:} T8 $\approx0.058$ but this
+lifts $\Rightarrow$ ``one-step evaluation is not enough; in-sample improvement is the missing
+bootstrap.'' Floors at $\sim0.1$ $\Rightarrow$ axis B fully exonerated; A/C carry the blame.
+
+\subsection{Axis A: hindsight-weighted test points}
+Replace $s^+\sim\rho$ with the scalar side's goal mix (50\% geometric-future
+same-trajectory / 30\% random / 20\% current), moving the diagonal positive term to ``a
+future state of this trajectory.'' This is the loss-level test of the weighting half of
+Proposition~\ref{prop:misalignment}. (Caveat to print: at this corner the object is no
+longer the $\rho$-referenced measure without an importance correction $\rho_{\mathrm{future}}/\rho$
+--- accept and say so.)
+
+\subsection{Do not resurrect (all refuted)}
+Centering/dueling splits of $M$ (T10-b/b2); scale-normalizing both legs (runaway); measure as
+auxiliary at any $\lambda$ \emph{on shared parameters} (T10-a, E2; the sg head of
+\S\ref{sec:sghead} is the permitted form); the metamotivo aux-$Q$ (\texttt{q\_loss\_coef})
+summed with the measure ($0.468$ @1M, 10 seeds $\approx$ plain FB --- it moves no estimator
+axis: self-referential implicit reward, learned-$\pi$ bootstrap, no mask);
+curricula/annealing into a measure endpoint, \emph{from any initialization including RG-FB}
+(iql-fade $5.3$; shared-legs ramp $0.9$; sg-$\phi$ ramp $84.9$ = neutralized-not-helpful:
+the fixed point owns the endpoint, warm starts only change the path); $z$-zeroed one-step
+($0.058$); \textbf{conservatism/min-aggregation at any dose (T7, new)}; eval-time goal
+smoothing (T1); unbounded $\psi(s,g)$ heads (T2); task-norm reweighting (N1/N2); zHER /
+decouple-actor-$z$; whitened inference ($\kappa\approx10^{14}$).
+
+\section{Certainty budget (what ``almost 100\%'' means here)}\label{sec:certainty}
+
+\begin{center}\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}l p{3.4cm} p{3.6cm} p{3.9cm}@{}}
+\toprule
+Proposal & theorem part & measured part & new risk (guard) \\
+\midrule
+GPI (\S\ref{sec:gpi}) & GPI dominance; $Q$ linear in $z$ &
+ordering $0.91$--$0.96$; per-goal $0.9$ & eval-error off-Dirac (report per-pair) \\
+d512 rerun (\S\ref{sec:ladder}) & --- & G4 anchor $0.921$ & seed noise (3 seeds) \\
+selection (\S\ref{sec:ladder}) & one-step/IDQL optimality & rerank $0.947$--$0.96$ &
+$N$-sweep peak drift (cap $N{=}32$) \\
+v1 task prior (\S\ref{sec:v1}) & Prop.~\ref{prop:identity}; scale pinned &
+v0 $0.825$; E1a $0.955$; T6 regions $0.672$ & interference (non-regression band) \\
+first-passage (\S\ref{sec:direction2}) & Remark~\ref{rem:firstpassage} & --- & low prior;
+diagnostic value only \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The Direction-I stack has no untested mechanism anywhere in its chain; its
+composite risks are interference effects, each with a pre-registered guard band. That is the
+strongest form of ``works with near-certainty'' an empirical program can honestly claim ---
+every link is either a theorem, an already-measured number, or a guarded regression test.
+
+\medskip
+\noindent\emph{Implementations for every item in \S\ref{sec:direction1}--\ref{sec:direction2}
+are specified knob-by-knob in}\\
+\texttt{specs/06-phenomenon-implementations.md}\emph{. Companion document for research
+question 1 (why the bilinear form works):} \texttt{PAPER/ogbench-sota/}\\
+\texttt{phenomenon.tex}\emph{.}
+
+\end{document}

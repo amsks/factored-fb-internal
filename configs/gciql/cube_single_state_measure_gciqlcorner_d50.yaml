@@ -1,0 +1,41 @@
+# FULL-CORNER measure cell (spec 06, promoted 2026-07-20: THE headline rescuing-fb arm).
+# All three toxic estimator axes moved AT ONCE, mirroring what the scalar side needed
+# together (GC-IQL = expectile + first-passage + hindsight, never a single axis):
+#   axis C  measure_first_passage  : absorbing E[gamma^T_hit] semantics, diag regressed
+#   axis B  measure_expectile      : state-only V_M + in-sample backup, NO a' bootstrap
+#   axis A  measure_testpoint_dist : hindsight columns (the scalar side's task weighting)
+# Still a successor measure: a matrix object M(s,a,s+) over a test-point field with the
+# z-readout intact -- no scalar per-task reward regression anywhere.
+# Pre-registered reads (DECISIONS 2026-07-20 re-center entry): >=0.5 = measure-native
+# rescue REAL (T10 bar); 0.85+ = GCIQL band, the headline; ~0.10 = corner dead ->
+# escalate to short-gamma / mode-indexed rungs (spec 06).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Measure-GCIQLCorner-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 1.0
+  measure_first_passage: true
+  measure_expectile: true
+  measure_expectile_tau: 0.9
+  measure_testpoint_dist: hindsight
+wandb_mode: online

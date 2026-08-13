@@ -1,0 +1,355 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!60!black]{hyperref}
+\usepackage{microtype}
+\usepackage{enumitem}
+
+\emergencystretch=3em
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\sg}{\mathrm{sg}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\numgood}[1]{\textbf{\textcolor{green!45!black}{#1}}}
+\newcommand{\numbad}[1]{\textbf{\textcolor{red!65!black}{#1}}}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{definition}
+\newtheorem{claim}{Claim}
+\newtheorem{prediction}{Prediction}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\title{The Phenomenon:\\ Why the Bilinear Form Works\\
+\large ogbench-sota --- phenomenon note, 2026-07-20\\
+\normalsize (companion: \texttt{PAPER/rescuing-fb/phenomenon.tex},
+\texttt{PAPER/rescuing-fb/understanding-bilinear.tex})}
+\author{Factored-FB project}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{The question, and the facts any answer must reproduce}\label{sec:facts}
+
+Swapping a monolithic MLP head $Q_\theta([s,a,g])$ for the normalized inner product
+$Q(s,a,g)=\phi(s,a)^\top\psi(g)/\sqrt d$ inside GC-IQL turns 0.71 into
+\numgood{0.90} on cube-single, transfers to GCIVL ($0.50\to0.79$) and HIQL
+($0.15\to0.41$, once routed around the shared subgoal rep), and the same form recurs in
+essentially every method that has ever worked on task families: SF/USFA, FB, CRL, VIP, BVN,
+HILP/METRA, quasimetric nets. \emph{Why?} Any explanation must reproduce all ten facts:
+
+\begin{center}\small
+\renewcommand{\arraystretch}{1.22}
+\begin{tabular}{@{}l p{10.4cm} l@{}}
+\toprule
+ & Fact & Source \\
+\midrule
+F1 & Bilinear $0.904$ vs MLP $0.713$; the split is the \emph{goal} axis
+($\Delta_{\mathrm{GOAL}}$: bilinear $\in[-0.08,+0.08]$, MLP $-16$ to $-24$) & OOD grid \\
+F2 & The MLP is the \emph{better} critic fully in-distribution (C1: $0.98$ vs $0.87$) & OOD
+grid \\
+F3 & The bilinear critic is \emph{not} a better value function: counterfactual rank-AUC MLP
+$0.81$ vs bilinear $0.39$ (below chance); the MLP's signal is all in the action-independent
+baseline, the bilinear's baseline is anti-calibrated & cf-probe \\
+F4 & The bilinear critic's product is the \emph{on-support action ordering}: frozen-critic
+reranking $0.91$--$0.96$ ($=$ its trained actor) vs MLP $0.57$--$0.59$ ($<$ its actor); FB's
+ordering is anti-informative (declines with $N$: $0.52\to0.17$) & rerank \\
+F5 & Action-dependence is $<1\%$ of $Q$-variance for \emph{every} critic (bilinear
+$0.46\%$, FB $0.21\%$, MLP $0.10\%$) --- the loss barely sees the thing that decides success
+& variance probe \\
+F6 & Rank is a floor, not a dial: $d{=}5$ collapses ($0.13$), $d\in[28,512]$ flat
+($0.86$--$0.93$); at $d{=}512$ the ``bottleneck'' is as wide as the trunk and still beats the
+MLP by 16 & rank sweep \\
+F7 & Eval-time goal smoothing cannot create the MLP's missing signal (monotone
+\emph{decline}); if pooling is the mechanism it acts at training time & T1 \\
+F8 & $\psi(g)\to\psi(s,g)$ destabilizes outright: $2/3$ seeds diverge via a norm runaway on
+the state-conditioned goal leg; the stable seed lands at MLP level & bilinear\_sg, T2 \\
+F9 & Every \emph{explicit} vector/feature-TD estimator of the same structure collapses
+($0.00$--$0.38$); scalar TD through the same structure reaches $0.90$ & SF ladder \\
+F10 & The wins and failures are consumption-dependent and domain-dependent: cube
+flow $0.90$ / DDPG+BC $0.51$ (off-support peak, frac $0.639$); antmaze DDPG+BC $0.837$ (no
+peak, frac $0.003$); scene loses with both actors (no peak --- different failure) & T3,
+extraction \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+No single-clause story survives this table: ``better values'' dies on F3, ``compression /
+regularization'' dies on F6, ``eval-time denoising'' dies on F7, ``data coverage'' died on
+T3's dimension-corrected control. The explanation is a conjunction of four layers, each
+independently evidenced, and it is the conjunction --- not any layer alone --- that produces
+the cube result.
+
+\section{Layer 0 (representation): policy evaluation is genuinely bilinear}
+\label{sec:layer0}
+
+\begin{proposition}[Task-linearity of evaluation]\label{prop:linearity}
+For any fixed policy $\pi$, the map $r\mapsto Q^\pi_r$ is linear:
+$Q^\pi_r(s,a)=\int M^\pi(s,a,\mathrm ds')\,r(s')$ with $M^\pi$ the successor measure. Hence
+if a task family's rewards lie ($\varepsilon$-approximately) in a $d$-dimensional span,
+$r_g(s')\approx\beta(s')^\top w(g)$, then \emph{exactly}
+\begin{equation}
+Q^\pi_g(s,a)\;\approx\;\underbrace{\Big(\textstyle\int M^\pi(s,a,\mathrm
+ds')\beta(s')\Big)}_{=:\,\phi^\pi(s,a)\ \text{(the SF of }\beta\text{)}}{}^{\top}\,w(g),
+\label{eq:sf}
+\end{equation}
+i.e.\ the bilinear head is not an approximation \emph{ansatz} but the \emph{canonical form}
+of policy evaluation restricted to a low-rank reward family. The goal family of cube-single
+--- indicator balls $r_g=\mathbf 1[\|c(s)-g\|\le\varepsilon]$ with $g$ on a smooth
+3-manifold --- has a Gram operator with fast spectral decay (a smooth kernel on a 3-dim
+index set), so small $d$ suffices and the required $d$ is set by the task family's intrinsic
+complexity, not by state dimension.
+\end{proposition}
+
+This single proposition already fixes three facts. \textbf{F6}: $d$ must exceed the
+$\varepsilon$-rank of the reward family (the $d{=}5$ cliff = cannot span; the flat band =
+excess rank is unused because the target itself is low-rank --- consistent with the empirical
+near-low-rankness of control $Q$-matrices, Yang et al.\ 2020; Shah et al.\ 2020).
+\textbf{F1}: for every goal, $Q(\cdot,\cdot,g)\in\mathrm{span}\{\phi_1,\dots,\phi_d\}$ ---
+a \emph{fixed} $d$-dimensional function space fitted against \emph{all} training goals --- so
+a novel evaluation goal requires extrapolating only the small map $\psi:\R^3\to\R^d$, never
+the value function over $(s,a)$; the MLP, nonlinear in $g$, must extrapolate the value
+itself and pays $16$--$24$ points. \textbf{F9} (half): the structure being right says
+nothing about how to estimate it --- see Layer 2.
+
+\begin{remark}[Value equivalence: the bilinear head spends its capacity exactly on the value
+span]\label{rem:ve}
+The value-equivalence principle (Grimm et al.\ 2020, 2021) says a model/representation need
+only be correct on the span of value functions one will ever evaluate. Equation
+\eqref{eq:sf} is the value-equivalent compression of the environment for the task family:
+$\phi$ retains precisely the $d$ occupancy moments the family's values need, and nothing
+else. The expectation-model line (Wan et al.\ 2019, 2021) supplies the closure property that
+makes TD work here: when values are linear in features, the Bellman backup needs only the
+\emph{expected next feature} --- a linear-in-$\phi$ value family is closed under expectation
+backups, so scalar TD on the head is a well-posed operator on the span. A monolithic MLP has
+no such closed span; each goal's backup is free to bend the function elsewhere.
+\end{remark}
+
+\begin{remark}[The caveat that produces the residual]\label{rem:quasimetric}
+The \emph{optimal} value is not linear in $r$ (the $\max$ breaks linearity), and
+$-V^*$ of goal-reaching is a quasimetric that symmetric inner products cannot represent with
+low distortion (QRL, IQE, MRN). So Proposition~\ref{prop:linearity} can only hold
+approximately for the trained (expectile-improved) object, and the approximation error must
+land somewhere. Our account: the in-sample expectile keeps the trained object near the
+behavior-supported evaluation envelope where linearity is good, and the irreducible
+asymmetric residual is pushed \emph{off-support} --- observed as the off-support peak
+(\textbf{F10}: cube frac $0.639$), whose location is a property of the domain's value
+geometry (antmaze $0.003$), and as the scene failure, where the task family is
+combinatorial (multi-object) and a single rank-$d$ product of one state tower and one goal
+tower is the wrong span. This is the one honest boundary of the explanation, and it is
+\emph{predictive}, not hand-wavy: see Prediction~\ref{pred:peak}.
+\end{remark}
+
+\paragraph{Why the same form recurs across a decade of methods.} Every historically
+successful task-family method is a rank factorization of the same evaluation functional,
+differing only in estimator:
+
+\begin{center}\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l l l l@{}}
+\toprule
+Method & factorized object & estimator & weighting \\
+\midrule
+SF/USFA & $Q^\pi_w=\psi^\pi(s,a)^\top w$ & feature-TD $+$ regression & task \\
+FB & $M^{\pi_z}\approx F^\top B\rho$ & density (measure) TD & occupancy $\rho\otimes\rho$ \\
+CRL & $\log\frac{p^{\pi}(s^+|s,a)}{p(s^+)}\approx\phi^\top\psi$ & InfoNCE on positives
+$\sim M$ & trajectory-future \\
+VIP & first-passage dual value $-\|\varphi(s){-}\varphi(g)\|$ & Fenchel-dual
+time-contrastive & goal-anchored \\
+BVN & $Q(s,a,g)=f(s,a)^\top\phi(s,g)$ & scalar TD (online, HER) & hindsight \\
+GC-IQL bilinear (ours) & $Q=\phi(s,a)^\top\psi(g)/\sqrt d$ & scalar expectile TD &
+hindsight mix \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The form keeps working because the \emph{object is genuinely bilinear}
+(Proposition~\ref{prop:linearity}); when one of these methods fails --- FB on manipulation
+--- the bridge program showed by exhaustive one-knob morphing that the failure is the
+\emph{estimator column}, never the form (identical architecture: \numgood{87} under scalar
+TD, \numbad{16} under the measure; the companion note carries that phenomenon). ``Bilinear
+works'' and ``FB fails'' are the same finding viewed from two sides: \textbf{structure
+$\neq$ estimator.} Our configuration is, in taxonomy terms, \emph{successor features whose
+reward basis $\psi(g)$ is co-learned by scalar hindsight TD} --- SFs without feature-TD.
+
+\section{Layer 1 (statistics): the shared basis pools a $<\!1\%$ signal across goals}
+\label{sec:layer1}
+
+Layer 0 says the form is right; it does not yet explain F3/F4 (ordering vs calibration) ---
+why the bilinear critic \emph{finds} an action ordering the MLP misses on the \emph{same}
+data and loss.
+
+\begin{proposition}[Gradient coupling / cross-goal pooling]\label{prop:pooling}
+Decompose $Q(s,a,g)=U(s,g)+A(s,a,g)$ and the advantage into goal-common and
+goal-idiosyncratic parts, $A(s,a,g)=\bar A(s,a)+\epsilon(s,a,g)$ with
+$\E_g[\epsilon]=0$. Under the bilinear head the TD gradient at $\phi(s,a)$ is
+\begin{equation}
+\nabla_{\phi(s,a)}\mathcal L=\tfrac{1}{\sqrt d}\,\E_{g}\big[\delta(s,a,g)\,\psi(g)\big],
+\label{eq:pool}
+\end{equation}
+a \emph{linear} pooling of the TD errors of every relabelled goal along their
+$\psi$-directions: goal-common advantage errors accumulate coherently over the goal
+distribution while zero-mean idiosyncratic errors cancel at rate
+$O(N_g^{-1/2})$. The shared tower is a multi-task regression with a shared representation;
+its effective sample size for the goal-common component $\bar A$ is (state-visits
+$\times$ goals), not per-goal. A monolithic MLP receives only per-input gradients; with
+$\mathrm{Var}[A]<10^{-2}\,\mathrm{Var}[Q]$ (F5), the variance-dominant baseline owns its
+capacity and optimization signal (and TD's implicit rank collapse pushes the same way), so
+its action signal is \emph{absent}, not noisy --- which is exactly what F7 measured. On cube
+the goal-common component is large by construction: post-grasp, ``which action keeps the
+grasp while progressing'' is nearly the same ordering problem for every transport goal (the
+phase diagnostic: the entire method spread is post-grasp,
+$P(\mathrm{success}\mid\mathrm{secured})$ $0.98$ vs $0.80$).
+\end{proposition}
+
+This layer fixes \textbf{F3--F5, F7}, including the capacity-allocation \emph{trade}: the
+rank-$d$ head cannot simultaneously match an arbitrary baseline surface $U(s,g)$ (itself a
+rank-$d$-constrained matrix over states $\times$ goals) and the ordering; it spends its
+freedom on the pooled, goal-consistent structure and pays with calibration
+(anti-calibrated $U$, F3) --- which is downstream-irrelevant, because extraction consumes
+orderings (Layer 3). The MLP makes the opposite trade: calibrated baseline (cf-AUC $0.81$),
+no ordering.
+
+\begin{prediction}[T5, the discriminating control --- pre-registered]\label{pred:t5}
+The pooling mechanism lives in the \emph{linear} readout: only an inner product makes
+$\nabla_\phi\mathcal L$ a $\psi(g)$-weighted linear pool \eqref{eq:pool}. A
+\emph{late-fusion} control (identical two towers, MLP readout on $[\phi;\psi]$) re-mixes
+nonlinearly per input and breaks the coherent pooling. Prediction: late-fusion reranks near
+MLP level ($\le0.65$), far below bilinear ($0.91$--$0.96$), despite identical towers and
+parameters. A parameter-matched MLP (the $2\times$ trunk confound control) stays at MLP
+level. If late-fusion instead reranks at bilinear level, Layer 1 is falsified and the
+explanation reduces to Layers 0/2 --- this is the single most informative cheap experiment
+on the board.
+\end{prediction}
+
+\section{Layer 2 (optimization): why scalar TD trains this structure and nothing else
+does}\label{sec:layer2}
+
+\textbf{(a) Scale and grounding.} Scalar TD pins units ($|Q|\le(1-\gamma)^{-1}$, reward
+units); the $\sqrt d$ normalization keeps the product's scale $O(\|\phi\|\|\psi\|)$-stable
+--- the same principle as bounded/structured critic outputs (HL-Gauss, SimbaV2). Vector
+feature-TD and density-TD are self-referential: their fixed points are invariant to
+invertible linear reparameterizations, admit collapse ($F{=}0$-type) solutions unless
+anchored, and their anchors import density units with unbounded dynamic range --- the
+measured runaways ($q\to10^{13}$; SG-ISFB inflation) and the F9 ladder ($0.00$--$0.38$
+across every explicit vector-TD estimator of the very same structure) are one defect.
+\emph{Scalar TD through the structure} is the unique tested estimator that both grounds the
+scale and lets the structure emerge.
+
+\textbf{(b) The $\psi(g)$ bottleneck as global coupling (F8).} With $\psi$ a function of $g$
+alone, any local score inflation at $(s,g)$ must move \emph{globally shared} features and is
+corrected by the rest of the data; $\psi(s,g)$ opens a local $(s,g)$ pocket that expectile
+TD's upward pressure (no output bound, no $V$-target on that leg) inflates without
+opposition --- T2 located the divergence precisely there ($\E\|\psi\|^2$
+$1083\to2355\to3789$ monotone in severity, $\phi$ sane throughout). The same coupling is
+what lets goal-shift generalization be free (F1): the head cannot even \emph{represent} a
+goal-idiosyncratic exception. Note the regime inversion vs online BVN (which prefers
+$f(s,a)^\top\phi(s,g)$): the offline expectile backup with no output bound is the standing
+suspect, testable by bounding the $\psi(s,g)$ leg (implementation note \S\ref{sec:impl}).
+
+\section{Layer 3 (consumption): the product is an ordering, and the consumer must be
+anchored}\label{sec:layer3}
+
+The trained bilinear critic's asset is the on-support ordering (F4); its one structured flaw
+is the off-support maximum (Remark~\ref{rem:quasimetric}). Extraction decides which of the
+two you consume: BC-anchored flow / selection-by-argmax consumes exactly the ordering and
+never visits the flaw ($0.90$--$0.96$); gradient ascent (DDPG+BC) walks distance
+$17.9$ (whitened) off-manifold to the fabricated peak ($0.51$), while the MLP --- no peak,
+no ordering --- is indifferent ($\approx0.73$ either way). Domains flip the sign because the
+peak's existence is domain value-geometry (F10). The corollary design rules, both verified:
+(i) on manipulation data the BC anchor is \emph{mandatory} (the support argument in the
+companion note: the stable-vs-slipping boundary has $\rho$-mass $1.7\times10^{-5}$ --- no
+critic may be asked to rank stability counterfactuals); (ii) \emph{the bilinear head must
+not train a representation the policy shares} (HIQL: routing the bilinear TD loss around
+$\zeta$ flips $14.5\to41.3$).
+
+\section{The explanation, assembled}\label{sec:assembled}
+
+\begin{claim}[Why the bilinear form works]\label{claim:final}
+$Q(s,a,g)=\phi(s,a)^\top\psi(g)/\sqrt d$ trained by scalar hindsight expectile TD works
+because four independently-evidenced layers align:
+\textbf{(0)} the target object --- policy evaluation over a low-complexity task family ---
+is \emph{itself} bilinear (Prop.~\ref{prop:linearity}), so the head is the value-equivalent
+parameterization, rank cost is a floor set by the family (F6), and goal generalization is
+linear-span reuse, not extrapolation (F1);
+\textbf{(1)} the linear readout turns TD into a cross-goal gradient pool
+(Prop.~\ref{prop:pooling}) that accumulates the goal-common, $<1\%$-variance action
+ordering the task actually needs, at the price of per-goal calibration it does not need
+(F3--F5, F7);
+\textbf{(2)} scalar TD is the unique tested estimator that grounds this structure's scale
+and reward-relevant subspace --- vector/density TD on the identical structure collapses
+(F9) --- and the $g$-only $\psi$ leg globally couples the fit, closing the local-inflation
+pockets that destroy $\psi(s,g)$ (F8);
+\textbf{(3)} anchored/selection extraction consumes exactly the ordering the head produces
+and never visits the quasimetric residual it necessarily exiles off-support
+(F10). The historical record (SF, FB, CRL, VIP, BVN) is layer 0 recurring under different
+estimators; the FB-on-manipulation failure is a layer-2/weighting failure of one estimator,
+not of the form. Where any layer's precondition fails, the form fails exactly as predicted:
+rank below the family's span ($d{=}5$), a compositional family outside one product's span
+(scene), gradient consumption of the residual (cube DDPG+BC), or a shared representation
+trained by the head (HIQL form a).
+\end{claim}
+
+What makes this account hard to challenge is not rhetoric but coverage and falsifiability:
+every clause carries a completed experiment, the rival single-clause stories are each dead
+on a named fact, and the two genuinely open sub-questions have pre-registered discriminating
+experiments (Prediction~\ref{pred:t5}; Prediction~\ref{pred:peak}) whose either outcome
+\emph{refines} the layer structure rather than overturning F1--F10, which are measurements.
+
+\begin{prediction}[Peak geometry --- pre-registered]\label{pred:peak}
+If the off-support peak is the exiled quasimetric residual, its location should track
+embedding-norm growth off-manifold: $\|\phi(s,a)\|$ along rays
+$a_{\mathrm{ref}}\to a_{\mathrm{DDPG}}$ grows on cube and not on antmaze, and a norm-capped
+$\phi$ (spectral or hard cap) shrinks the cube peak fraction from $0.639$ toward the antmaze
+$0.003$ while leaving flow-actor success within noise. If the peak survives norm capping,
+the residual-relocation reading is wrong and the peak needs a new account --- but the
+extraction rule (Layer 3) stands on its own measurements either way.
+\end{prediction}
+
+\section{Final section: proposed experiments and implementations}\label{sec:impl}
+
+Ordered by information-per-GPU-hour; each is specified concretely in
+\texttt{implementations.md} (this folder).
+
+\begin{enumerate}[leftmargin=1.7em,itemsep=3pt]
+\item \textbf{T5 late-fusion + param-matched MLP} (Prediction~\ref{pred:t5}). Two towers
+identical to bilinear; readout MLP$([\phi;\psi])$; rerank protocol at $N{=}32$ plus full
+training run; second arm: MLP with $2.06\times$ width to close the parameter confound.
+Decides Layer 1.
+\item \textbf{Norm-capped $\phi$ / peak-geometry probe} (Prediction~\ref{pred:peak}).
+Recompute the T3 peak statistic along reference$\to$DDPG rays vs $\|\phi\|$; then retrain
+cube DDPG+BC with a capped $\phi$. Decides the residual-relocation reading and, if
+positive, yields a fix that makes gradient extraction safe.
+\item \textbf{srank/effective-rank trajectories} of MLP vs bilinear $\phi$ during training
+--- the implicit-under-parameterization half of Layer 1's ``absent, not noisy''; cheap, uses
+existing checkpoints.
+\item \textbf{T9: rank of the true advantage.} Estimate
+$\mathrm{rank}_\varepsilon(A^*(s,\cdot,g))$ over the goal grid from counterfactual rollouts
+(atlas banks + simulator). Tests Layer 0's premise that the task family's ordering demands
+are genuinely low-rank; calibrates the $d$ floor against ground truth.
+\item \textbf{Bounded $\psi(s,g)$} ($\tanh$ output bound or $V$-target on the goal leg).
+Tests whether F8's divergence is the only obstruction to the BVN pairing offline --- if it
+stabilizes at bilinear level, the online/offline inversion is an optimization artifact, and
+the paper's claim narrows cleanly to ``$g$-only $\psi$ is \emph{sufficient} and \emph{safe},
+state-conditioning is fixable but unnecessary.''
+\item \textbf{Scene split-head}: per-factor goal towers $\sum_k\phi_k(s)^\top\psi_k(g_k)$
+(Schaul-style factored family). Tests Remark~\ref{rem:quasimetric}'s account of scene as a
+span failure of one product; a positive result extends Layer 0 to compositional families and
+likely recovers the scene loss.
+\item \textbf{Cross-pollination (the bridge back to research question 2).} Layer 1 says the
+mechanism is \emph{training-time} pooling through a shared basis under scalar TD; the
+companion note's RG-FB v1 (task-prior scalar grounding) is exactly ``make the pooling
+distribution richer than Dirac goals.'' The two programs share one sentence: \emph{the
+bilinear form is the right structure because evaluation is bilinear; scalar task-weighted TD
+is the right estimator because it is the only one that grounds, pools, and stays on
+support.}
+\end{enumerate}
+
+\end{document}

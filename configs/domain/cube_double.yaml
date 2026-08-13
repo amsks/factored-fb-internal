@@ -4,7 +4,11 @@ defaults:
   - _self_
 
 domain: cube-double-play-v0
-agent: fb_flowbc
+# NO literal `agent:` key here — it would override the CLI agent group choice
+# (`agent=fb_measure_flowbc domain=cube_double` silently ran stock FB while the
+# recorded config carried the measure knobs; caught 2026-07-30). The defaults
+# entry above still makes fb_flowbc the default agent. Same pattern as
+# cube_single.yaml.
 bc_coeff: 3.0
 ortho_coef: 1.0
 lr_b: 1.0e-4

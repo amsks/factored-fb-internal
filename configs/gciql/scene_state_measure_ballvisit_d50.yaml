@@ -1,0 +1,41 @@
+# Spec 08 E7 -- PHASE 2 (ball-visitation) of the two-phase curriculum on scene.
+# Same phase-2 recipe as cube_double_state_measure_ballvisit_d50.yaml (warm-start from the
+# matching phase-1 checkpoint, non-absorbing backup, frozen psi, centered actor normalizer),
+# with scene's 5-way goal region carried over unchanged from phase 1.
+#
+# Pre-registered read: no critic-scale inflation, plateau near the region's Monte-Carlo
+# visitation mass, native success held at the phase-1 level. Scene's region is a conjunction
+# including two DISCRETE (button) factors, so its recurrence mass is dominated by long
+# dwell times in a locked/unlocked configuration -- expect a larger plateau than cube's ~24.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: scene-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-Scene-Flow-Measure-BallVisit-FrozenPsi-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6"
+  measure_fp_absorbing: false
+  measure_stopgrad_psi: true
+  actor_q_center: true
+wandb_mode: online

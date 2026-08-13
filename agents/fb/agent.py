@@ -17,6 +17,7 @@ line for line.
 
 from __future__ import annotations
 
+import math
 from typing import Dict, Tuple
 
 import numpy as np
@@ -150,6 +151,10 @@ class FBAgent(BaseAgent):
         clip_grad_norm: float = 0.0,
         ortho_coef: float = 1.0,
         train_goal_ratio: float = 0.5,
+        reward_z_ratio: float = 0.0,
+        reward_z_family: str = "kernel",
+        reward_z_bw: tuple = (0.2, 2.0),
+        reward_z_slice: tuple = (19, 22),
         fb_pessimism_penalty: float = 0.0,
         actor_pessimism_penalty: float = 0.0,
         actor_std: float = 0.2,
@@ -201,6 +206,32 @@ class FBAgent(BaseAgent):
         self.clip_grad_norm = clip_grad_norm
         self.ortho_coef = ortho_coef
         self.train_goal_ratio = train_goal_ratio
+
+        # --- synthetic-reward z's in the training z law (ledger 9.10) ----------
+        # Spec-12 L2: zero-shot control works for CONCENTRATED novel rewards and
+        # collapses as bandwidth grows; the 1/N-hat readout (L2w) fixed prediction
+        # scale but rescued control NOWHERE => the defect is the ACTOR's z-manifold,
+        # not the inference rule. The trained z law is 50% gaussian directions +
+        # 50% B(one goal); a broad reward's z = project(sum_i r_i B(s'_i)) averages
+        # many B's and lands off both. This draws that third kind of z at train
+        # time, exactly as the eval readout draws it. 0.0 => byte-identical.
+        self.reward_z_ratio = float(reward_z_ratio)
+        assert 0.0 <= self.reward_z_ratio <= 1.0
+        self.reward_z_family = str(reward_z_family)
+        assert self.reward_z_family in ("kernel", "rff"), self.reward_z_family
+        # kernel: balls/gaussians/two-zone — the eval families' FORM with random
+        #   centers and radii (upper bound: can the actor learn broad z at all?).
+        # rff: relu(cos(w.c + phi)) random fields — nonneg, bandwidth-controlled,
+        #   but a DIFFERENT functional form, so the L2 families stay held out and
+        #   the zero-shot claim is not family-circular.
+        self.reward_z_bw = tuple(float(x) for x in reward_z_bw)
+        assert len(self.reward_z_bw) == 2 and 0 < self.reward_z_bw[0] <= self.reward_z_bw[1]
+        self.reward_z_slice = tuple(int(x) for x in reward_z_slice)
+        assert len(self.reward_z_slice) == 2 and 0 <= self.reward_z_slice[0] < self.reward_z_slice[1]
+        # set by update(); the reward lives in RAW obs units like hit_eps does
+        self._raw_next_obs = getattr(self, "_raw_next_obs", None)
+        self._last_reward_z_mask = None      # [B] bool, for tests/metrics
+        self._last_reward_z_rewards = None   # [B,B] the drawn rewards, for tests
         self.fb_pessimism_penalty = fb_pessimism_penalty
         self.actor_pessimism_penalty = actor_pessimism_penalty
         self.actor_std = actor_std
@@ -388,6 +419,54 @@ class FBAgent(BaseAgent):
                 self.value_optimizer = torch.optim.Adam(self._value_mlp.parameters(), lr=self.lr_f)
 
     @torch.no_grad()
+    def _draw_reward_z(self, k: int, train_goal: torch.Tensor) -> tuple:
+        """k task vectors drawn the way the ZERO-SHOT READOUT draws them:
+        z = project_z(sum_i r_i B(s'_i)) for a random synthetic reward r over the
+        batch's next-states. Returns (z [k,zd], r [k,B], valid [k]).
+
+        r is a function of the RAW cube slice (obs units), the same variable and
+        frame the hit kernel uses, so a drawn radius is comparable to hit_eps.
+        NAIVE (unweighted) inference on purpose: L2w showed the 1/N-hat weighting
+        helps prediction but HURTS control, and this z is the one the actor is
+        driven with. Scale is irrelevant downstream — project_z normalizes — but
+        rewards are normalized anyway to keep the sum well-conditioned."""
+        assert self.train_goal_mode == "perm", (
+            "reward-z assumes train_goal's rows ARE the batch next_obs (they are "
+            f"the trajectory future under train_goal_mode={self.train_goal_mode!r})")
+        a, b = self.reward_z_slice
+        c = self._raw_next_obs[:, a:b].float()                       # [B,dc]
+        assert c.shape[0] == train_goal.shape[0]
+        n = c.shape[0]
+        dev = c.device
+        lo, hi = self.reward_z_bw
+        bw = torch.exp(torch.rand(k, device=dev) * (math.log(hi) - math.log(lo))
+                       + math.log(lo))                               # [k] loguniform
+        ctr = c[torch.randint(0, n, (k,), device=dev)]                # [k,dc]
+        d2 = ((c[None] - ctr[:, None]) ** 2).sum(-1)                  # [k,B]
+
+        if self.reward_z_family == "kernel":
+            kind = torch.rand(k, device=dev)
+            ball = (d2 <= (bw[:, None] ** 2)).float()
+            gauss = torch.exp(-d2 / (2 * bw[:, None] ** 2))
+            ctr2 = c[torch.randint(0, n, (k,), device=dev)]
+            d2b = ((c[None] - ctr2[:, None]) ** 2).sum(-1)
+            two = torch.maximum(ball, (d2b <= (bw[:, None] ** 2)).float())
+            r = torch.where((kind < 0.4)[:, None], ball,
+                            torch.where((kind < 0.8)[:, None], gauss, two))
+        else:  # rff: nonneg random field, bandwidth = wavelength, NOT a bump
+            w = torch.randn(k, c.shape[-1], device=dev) / bw[:, None]
+            phi = torch.rand(k, 1, device=dev) * (2 * math.pi)
+            r = torch.relu(torch.cos(c @ w.T + phi.T).T)              # [k,B]
+
+        s = r.sum(-1, keepdim=True)
+        valid = s.squeeze(-1) > 1e-6      # an all-zero reward has no z direction
+        rn = r / s.clamp_min(1e-6)
+        z = self.model.project_z(torch.matmul(rn, self.model._backward_map(train_goal)))
+        return z, r, valid                # r UNNORMALIZED: project_z makes the scale
+                                          # irrelevant, and the raw values are the
+                                          # interpretable ones (support, bandwidth)
+
+    @torch.no_grad()
     def sample_mixed_z(self, train_goal: torch.Tensor | None = None,
                        goal_weights: torch.Tensor | None = None,
                        permute: bool = True, *args, **kwargs):
@@ -416,6 +495,24 @@ class FBAgent(BaseAgent):
                 mask = torch.rand((self.batch_size, 1), device=self.device) < self.train_goal_ratio
                 z = torch.where(mask, goals, z)
                 g_used = torch.where(mask, tg, g_used)   # zero placeholder where z is random
+            # Third component, applied LAST so it overwrites a random subset of the
+            # goal/gaussian mixture: marginals are (ratio) reward-z,
+            # (1-ratio)*train_goal_ratio goal-z, remainder gaussian. Guarded on
+            # ratio>0 so the RNG stream — and therefore every existing cell — is
+            # untouched when the knob is off.
+            self._last_reward_z_mask = None
+            self._last_reward_z_rewards = None
+            if self.reward_z_ratio > 0.0 and train_goal is not None:
+                assert self._raw_next_obs is not None, (
+                    "reward_z_ratio>0 needs the raw next_obs stash from update()")
+                rmask = torch.rand((self.batch_size, 1), device=self.device) < self.reward_z_ratio
+                zr, r_drawn, valid = self._draw_reward_z(self.batch_size, train_goal)
+                rmask = rmask & valid[:, None]
+                z = torch.where(rmask, zr, z)
+                # a reward-z is not a single goal's z: clear the goal placeholder
+                g_used = torch.where(rmask, torch.zeros_like(g_used), g_used)
+                self._last_reward_z_mask = rmask.squeeze(-1)
+                self._last_reward_z_rewards = r_drawn
         return z, g_used
 
     @torch.no_grad()
@@ -549,6 +646,10 @@ class FBAgent(BaseAgent):
             batch["next"]["observation"].to(self.device).float(),
             batch["next"]["terminated"].to(self.device),
         )
+        # Raw (un-normalized) next_obs: the reward-z kernel lives in obs units, the
+        # same frame as hit_eps. Subclasses that already stash this write the same
+        # tensor, so the assignment is idempotent.
+        self._raw_next_obs = next_obs
         if terminated.dtype == torch.bool:
             discount = self.discount * ~terminated
         else:

@@ -1,0 +1,44 @@
+# @package _global_
+# DECONFOUNDING CONTROL (2026-07-28): stock FB's loss — quadratic offdiag +
+# LINEAR diag + ortho ON, unbounded fixed point — with the Dirac reward support
+# generalized from the identity diagonal to the PRIVILEGED cube-xyz ball used by
+# the bounded-measure arm. Isolates "the privileged ball" from "the bounded/
+# no-ortho objective" in the 0.42 -> 0.93 jump. See agents/fb/hitdirac/agent.py.
+#
+# Inherits `fb` DIRECTLY (one level; chaining through fb_flowbc mis-orders
+# _self_ — the isfb_flowbc lesson). bc_coeff 3.0 matches the cube anchor.
+defaults:
+  - fb
+  - _self_
+
+agent: fb_hitdirac_flowbc
+
+# --- FlowBC actor: IDENTICAL to fb_flowbc + configs/domain/cube_single.yaml ---
+bc_coeff: 3.0
+flow_steps: 10
+lr_actor_vf: 3.0e-4
+actor:
+  name: noise_conditioned_actor
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+actor_vf:
+  hidden_dim: 512
+  hidden_layers: 4
+
+# --- stock-FB knobs: ortho ON (the whole point of this control) --------------
+critic_mode: measure
+ortho_coef: 1.0        # STOCK FB default (configs/agent/fb.yaml) — NOT zeroed
+q_loss_coef: 0.0       # refused by the override (assert q_loss_coef is None)
+reweight_alpha: 0.0    # refused by the override
+goal_cond: false       # refused by the override
+
+# --- the ONE changed axis: reward support ------------------------------------
+hit_eps: 0.4           # same ball as fb_measure_flowbc (obs units, 1 = 10cm)
+hit_slice: [19, 22]    # cube xyz slice of the RAW observation
+hit_spec: ""           # conjunctive multi-object region, mirroring
+                       # fb_measure_flowbc's knob so the 2x2 compares MATCHED
+                       # support on the multi-object envs. Empty = the single
+                       # (hit_slice, hit_eps) ball above, byte-identical.
+                       #   cube-double '19:22:0.4,28:31:0.4'
+                       #   scene       '19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6'

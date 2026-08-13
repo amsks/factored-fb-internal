@@ -1,0 +1,29 @@
+# T5a late-fusion control (ogbench-sota implementations item 1). Twin towers phi(s,a),
+# psi(g) in R^50 (bilinear-identical) but the readout is a 2-layer 512 MLP on concat[phi;psi]
+# instead of the inner product -> isolates Layer 1 (gradient pooling through the LINEAR head).
+# Primary read = frozen-critic rerank @N=32 (scripts/atlas/rerank_eval.py-style). Pre-registered:
+# rerank <=0.65 (MLP band) NOT 0.91-0.96 (bilinear band); if it reranks in the bilinear band,
+# Layer 1 is FALSIFIED. 3 seeds, 500k, flow actor.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-LateFusion-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: latefusion
+  value_latent_dim: 50
+  value_fusion_hidden: 512
+wandb_mode: online

@@ -220,6 +220,10 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
         clip_grad_norm=cfg.clip_grad_norm,
         ortho_coef=cfg.ortho_coef,
         train_goal_ratio=cfg.train_goal_ratio,
+        reward_z_ratio=cfg.get("reward_z_ratio", 0.0),
+        reward_z_family=cfg.get("reward_z_family", "kernel"),
+        reward_z_bw=tuple(cfg.get("reward_z_bw", [0.2, 2.0])),
+        reward_z_slice=tuple(cfg.get("reward_z_slice", [19, 22])),
         fb_pessimism_penalty=cfg.fb_pessimism_penalty,
         actor_pessimism_penalty=cfg.actor_pessimism_penalty,
         actor_std=cfg.actor_std,
@@ -270,6 +274,85 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
             actor_vf_cfg=actor_vf_cfg,
             flow_steps=cfg.flow_steps,
             lr_actor_vf=cfg.lr_actor_vf,
+            **shared,
+        )
+
+    if cfg.agent == "fb_hitdirac_flowbc":
+        # Deconfounding control: stock FB's loss (linear diag + ortho ON) with
+        # the Dirac support I -> privileged cube-xyz ball. Isolates the reward
+        # support from the bounded/no-ortho objective.
+        from agents.fb.hitdirac.agent import FBHitDiracFlowBCAgent
+        actor_cfg = NoiseConditionedActorArchiConfig(
+            hidden_dim=cfg.actor.hidden_dim,
+            hidden_layers=cfg.actor.hidden_layers,
+            embedding_layers=cfg.actor.embedding_layers,
+        )
+        actor_vf_cfg = SimpleVectorFieldArchiConfig(
+            hidden_dim=cfg.actor_vf.hidden_dim,
+            hidden_layers=cfg.actor_vf.hidden_layers,
+        )
+        return FBHitDiracFlowBCAgent(
+            actor_cfg=actor_cfg,
+            actor_vf_cfg=actor_vf_cfg,
+            flow_steps=cfg.flow_steps,
+            lr_actor_vf=cfg.lr_actor_vf,
+            hit_eps=cfg.get("hit_eps", 0.4),
+            hit_slice=tuple(cfg.get("hit_slice", [19, 22])),
+            hit_spec=cfg.get("hit_spec", ""),
+            **shared,
+        )
+
+    if cfg.agent == "fb_measure_flowbc":
+        # Two-phase bounded successor measure in FB's own house (the jax
+        # gciql_flow recipe): hit-referenced squared residual, no ortho.
+        from agents.fb.measure.agent import FBMeasureFlowBCAgent
+        actor_cfg = NoiseConditionedActorArchiConfig(
+            hidden_dim=cfg.actor.hidden_dim,
+            hidden_layers=cfg.actor.hidden_layers,
+            embedding_layers=cfg.actor.embedding_layers,
+        )
+        actor_vf_cfg = SimpleVectorFieldArchiConfig(
+            hidden_dim=cfg.actor_vf.hidden_dim,
+            hidden_layers=cfg.actor_vf.hidden_layers,
+        )
+        return FBMeasureFlowBCAgent(
+            actor_cfg=actor_cfg,
+            actor_vf_cfg=actor_vf_cfg,
+            flow_steps=cfg.flow_steps,
+            lr_actor_vf=cfg.lr_actor_vf,
+            measure_mode=cfg.get("measure_mode", "first_passage"),
+            hit_eps=cfg.get("hit_eps", 0.4),
+            hit_slice=tuple(cfg.get("hit_slice", [19, 22])),
+            hit_identity=cfg.get("hit_identity", False),
+            scale_norm=cfg.get("scale_norm", True),
+            freeze_b=cfg.get("freeze_b", False),
+            nhat_head=cfg.get("nhat_head", False),
+            warm_start_ckpt=cfg.get("warm_start_ckpt", ""),
+            nonneg_coef=cfg.get("nonneg_coef", 0.0),
+            mass_coef=cfg.get("mass_coef", 0.0),
+            hit_kernel=cfg.get("hit_kernel", "ball"),
+            hit_spec=cfg.get("hit_spec", ""),
+            **shared,
+        )
+
+    if cfg.agent == "fb_measure":
+        # NO-FLOW arm: the same region-measure critic behind FBAgent's native
+        # TD3+BC actor. Same kwargs as fb_measure_flowbc minus the flow actor's
+        # (actor_cfg / actor_vf_cfg / flow_steps / lr_actor_vf).
+        from agents.fb.measure.agent import FBMeasureAgent
+        return FBMeasureAgent(
+            measure_mode=cfg.get("measure_mode", "first_passage"),
+            hit_eps=cfg.get("hit_eps", 0.4),
+            hit_slice=tuple(cfg.get("hit_slice", [19, 22])),
+            hit_identity=cfg.get("hit_identity", False),
+            scale_norm=cfg.get("scale_norm", True),
+            freeze_b=cfg.get("freeze_b", False),
+            nhat_head=cfg.get("nhat_head", False),
+            warm_start_ckpt=cfg.get("warm_start_ckpt", ""),
+            nonneg_coef=cfg.get("nonneg_coef", 0.0),
+            mass_coef=cfg.get("mass_coef", 0.0),
+            hit_kernel=cfg.get("hit_kernel", "ball"),
+            hit_spec=cfg.get("hit_spec", ""),
             **shared,
         )
 

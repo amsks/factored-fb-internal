@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 domain: scene-play-v0
-agent: fb_flowbc
+# NO literal `agent:` key — see cube_double.yaml (CLI agent-group override trap).
 bc_coeff: 3.0
 ortho_coef: 1.0
 lr_b: 1.0e-4

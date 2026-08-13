@@ -1,0 +1,47 @@
+# Ledger §9.16c -- d128 PHASE 2 on scene (stage 2 of the rank campaign).
+#
+# Companion to cube_double_state_measure_ballvisit_d128; see that file for the full mechanism
+# and the NULL clause. Warm-started from scene_state_measure_firstpassage_noortho_d128.
+# Only delta against the `p2_sc_*` control is value_latent_dim 50 -> 128.
+#
+# scene is the more informative of the two on the mechanism axis: its control already carries
+# 6.8-11.0% negative mass (vs cube-double's 1.4%), so scene's collapse is PARTIAL -- the
+# fixed point there is closer to the dwell constant (32.1 measured vs 31.0 implied) without
+# having fully degenerated. If rank is the constraint, scene should move first and further.
+#
+# Pre-registered read (write into §9.16c):
+#   PRIMARY   -- sc >=0.42 on both seeds (control 0.332/0.352, phase 1 0.484), decay < half.
+#   SECONDARY -- q_abs below 27 on the ledger's train.csv column (measured 32.1), neg-frac up.
+#   NULL      -- as cube-double: rank dead, redirect at the objective.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: scene-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-Scene-Flow-Measure-BallVisit-FrozenPsi-d128
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 128
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6"
+  measure_fp_absorbing: false
+  measure_stopgrad_psi: true
+  actor_q_center: true
+wandb_mode: online

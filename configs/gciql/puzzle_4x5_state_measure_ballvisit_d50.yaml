@@ -1,0 +1,48 @@
+# Spec 08 E8 -- PHASE 2 (ball-visitation) of the two-phase curriculum on puzzle-4x5-play-v0.
+# The exact phase-2 recipe that produced 0.952/0.928 on cube-single:
+#   warm-start every module from the matching phase-1 checkpoint (the launcher supplies
+#     +agent_overrides.warm_start_ckpt=<run_dir> +agent_overrides.warm_start_epoch=500000)
+#   measure_fp_absorbing=false   drop the (1-hit) absorption => M = E[sum gamma^t 1[region]]
+#                                (genuine occupancy, revisits counted)
+#   measure_stopgrad_psi=true    freeze the backward map psi carried over from phase 1
+#   actor_q_center=true          centered greedy normalizer (M carries a large shared
+#                                recurrence baseline that otherwise dilutes the signal)
+# with the SAME goal region as phase 1 (all 20 button states match).
+#
+# Pre-registered read: critic scale plateaus near the Monte-Carlo visitation mass of the
+# region with no inflation (cube-single: 24 vs MC truth 24.7), and native success holds at
+# the phase-1 level. Inflation here = the estimator hygiene does not survive this region.
+# Region density 0.01 positives/row at B=1024 -- a sparse region has little revisit mass,
+# so expect a SMALLER plateau than cube-single's, not a larger one.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: puzzle-4x5-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-Puzzle4x5-Flow-Measure-BallVisit-FrozenPsi-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5,55:57:0.5,59:61:0.5,63:65:0.5,67:69:0.5,71:73:0.5,75:77:0.5,79:81:0.5,83:85:0.5,87:89:0.5,91:93:0.5,95:97:0.5"
+  measure_fp_absorbing: false
+  measure_stopgrad_psi: true
+  actor_q_center: true
+wandb_mode: online

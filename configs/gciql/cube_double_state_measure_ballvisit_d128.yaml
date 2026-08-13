@@ -1,0 +1,61 @@
+# Ledger §9.16c -- d128 PHASE 2 on cube-double (stage 2 of the rank campaign).
+#
+# THE ACTUAL TEST. Warm-started from cube_double_state_measure_firstpassage_noortho_d128
+# (stage 1); canonical phase-2 recipe otherwise, so the ONLY delta against the `p2_cd_*`
+# control is value_latent_dim 50 -> 128.
+#
+# Mechanism under test (§9.16 Finding 2): at d50 the visitation fixed point collapses to the
+# hindsight dwell CONSTANT -- cd q_abs 43.5 against a dwell-implied 43.0, no goal- or
+# action-discriminative structure surviving at batch level, and negative mass at only ~1.4%
+# where cube-single carries 11-18%. The eps arm proved that is not a data-sparsity artifact.
+# The remaining structural explanation is representability: a rank-50 bilinear form may be
+# unable to carry a two-cube conjunction AND the large shared recurrence baseline at once,
+# and the least-squares way out is to spend the rank on the baseline -- which IS the constant.
+#
+# Pre-registered read (write into §9.16c either way):
+#   PRIMARY   -- final success recovers materially toward phase 1: cd >=0.45 on both seeds
+#                (control 0.368/0.348, phase 1 0.549), AND the 0->100k decay is less than half
+#                the control's.
+#   SECONDARY -- the mechanism signature, read even if PRIMARY fails: q_abs_mean settles well
+#                below the dwell constant (<35 on the train.csv column §9.16 quoted as 43.5)
+#                AND negative-mass fraction 1-q_mean/q_abs rises above 5%.
+#   NULL      -- q_abs stays pinned at the dwell constant with neg-frac <2% despite 2.6x the
+#                rank => BOTH named suspects (sparsity, rank) are dead, and the collapse is a
+#                property of the visitation objective itself on conjunctive regions rather
+#                than of any capacity knob. That is a stronger and more publishable claim than
+#                either fix, and it would redirect §9.16c at the objective (the hindsight arm
+#                already rescues SUCCESS without fixing the mass, §9.16b arm 3).
+#   Caveat pinned in advance: d128 changes the trained object's capacity, so its measure-axis
+#   numbers are not directly comparable to the d50 L1/L2 rows; success IS comparable.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-Measure-BallVisit-FrozenPsi-d128
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 128
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  measure_fp_absorbing: false
+  measure_stopgrad_psi: true
+  actor_q_center: true
+wandb_mode: online

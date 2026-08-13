@@ -1,0 +1,28 @@
+# phi_norm_cap intervention (ogbench-sota implementations item 4b). Plain bilinear d50 + DDPG+BC
+# actor, with ||phi|| hard-capped to sg[p99 over batch]. Targets residual-relocation: the cap
+# should shrink the off-support peak (frac 0.639 -> <=0.2) AND lift bilinear+DDPGBC from 0.51
+# toward the flow band. Pair with the flow variant (the cap must NOT cost the ordering: flow run
+# within noise of 0.904). 3 seeds, 500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Bilinear-d50-PhiNormCap
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  value_arch: bilinear
+  value_latent_dim: 50
+  phi_norm_cap: true
+  bc_coeff: 3.0
+wandb_mode: online

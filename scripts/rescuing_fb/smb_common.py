@@ -471,6 +471,35 @@ def batched_gpi_rollout_record(agent, q_at_z, envs, z_r, cand_conds, H=200, mode
     return traj, obs_traj, lengths, switch_rate, choice_counts
 
 
+def make_trained_nhat_fn(agent, psi, cube_ds, goal_obs_ds):
+    """Phase 2b: the checkpoint's TRAINED N-hat head as a FullMeasure `nhat_fn`.
+
+    Centers (cube xyz, obs units) are mapped to their NEAREST dataset row --
+    the harness only ever queries dataset-row positions, so the lookup is exact
+    -- and the head is evaluated at the head-mean critic psi of that row's goal
+    obs, matching the training input (psi of the hit-matrix column states =
+    next-observations). Requires a checkpoint trained with
+    measure_nhat_head=True (asserted on the param tree)."""
+    import jax.numpy as jnp
+    from scipy.spatial import cKDTree
+    assert 'modules_nhat_head' in agent.network.params, \
+        "checkpoint has no nhat_head module (train with measure_nhat_head=True)"
+    tree = cKDTree(np.asarray(cube_ds, np.float64))
+    goal_obs_ds = np.asarray(goal_obs_ds, np.float32)
+
+    def nhat_fn(centers, chunk=8192):
+        centers = np.atleast_2d(np.asarray(centers, np.float64))
+        _, rows = tree.query(centers)
+        feats = np.asarray(psi(goal_obs_ds[np.asarray(rows, np.int64)]), np.float32)
+        out = []
+        for i in range(0, len(feats), chunk):
+            out.append(np.asarray(agent.network.select('nhat_head')(
+                jnp.asarray(feats[i:i + chunk]))))
+        return np.concatenate(out, 0)
+
+    return nhat_fn
+
+
 def capture_reset_obs(envs) -> np.ndarray:
     """The exact s0 batch batched_rollout_record will see: it resets each env
     with reset(seed=i) internally, and OGBench resets are seed-deterministic,

@@ -1,0 +1,28 @@
+# Ablation (ogbench-sota): bilinear Q + PLAIN-MLP V. Isolates whether V's bilinearity is
+# load-bearing, or only Q's low-rank goal bottleneck drives the SOTA win. Pairs with latefusion
+# (which tests "is the inner product load-bearing?"). 3 seeds, 500k, flow actor + frozen-critic
+# rerank. Read: stays in the bilinear band (~0.90 / rerank 0.9+) => V-bilinearity irrelevant, win
+# is Q's goal bottleneck (pure Layer 0); drops to MLP band (~0.71 / rerank 0.6) => symmetric
+# bilinearization is a real mechanism (the "confound the readout" comment is load-bearing).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-BilinearMLPV-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear_mlpv
+  value_latent_dim: 50
+wandb_mode: online

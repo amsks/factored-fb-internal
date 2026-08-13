@@ -1,0 +1,66 @@
+# @package _global_
+# Two-phase BOUNDED successor measure on the torch FB stack (agents/fb/measure/
+# agent.py) — the jax gciql_flow recipe (FP-NoOrtho / phase-2 ball-visitation)
+# running in FB's own house. Mirrors fb_flowbc's flow actor and inherits `fb`
+# DIRECTLY (one level; chaining through fb_flowbc mis-orders _self_ — the
+# isfb_flowbc lesson).
+defaults:
+  - fb           # inherit everything from configs/agent/fb.yaml
+  - _self_
+
+agent: fb_measure_flowbc
+
+# --- FlowBC actor (copied from configs/agent/fb_flowbc.yaml), cube bc_coeff ---
+bc_coeff: 3.0
+flow_steps: 10
+lr_actor_vf: 3.0e-4
+actor:
+  name: noise_conditioned_actor
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+actor_vf:
+  hidden_dim: 512
+  hidden_layers: 4
+
+# --- standard-FB knobs pinned for the measure objective ---
+critic_mode: measure   # stays on the measure branch of update(); update_fb overridden
+ortho_coef: 0.0        # NO ortho — the point (ortho was the toxin in the jax cells)
+q_loss_coef: 0.0       # no auxiliary q grounding
+reweight_alpha: 0.0    # refused by the override (assert w is None)
+goal_cond: false       # refused by the override
+
+# --- measure knobs (agents/fb/measure/agent.py) ---
+measure_mode: first_passage   # first_passage (phase 1) | visitation (phase 2)
+hit_eps: 0.4                  # obs-frame cube ball radius (obs units, 1 = 10cm)
+hit_slice: [19, 22]           # cube xyz slice of the RAW observation
+hit_identity: false           # true = hit is exactly I (FB's Dirac support): the bounded
+                              # objective with NO privileged region. The missing cell of the
+                              # loss-form x reward-support 2x2. hit_eps->0 does NOT approximate
+                              # this (stationary cube => exact duplicates); see tests.
+scale_norm: true              # divide by sg[mean(Ms^2)] (jax measure_scale_norm mirror)
+freeze_b: false               # phase 2: freeze _backward_map + _bw_encoder, no B optimizer
+nhat_head: false              # phase 2b: softplus MLP 2x256 on B(g).detach() vs hit column mean
+warm_start_ckpt: ""           # path to a stock-FB / phase-1 step_*.pt (model-only, fresh optimizers)
+mass_coef: 0.0                # total-mass conservation anchor (ledger §9.15): penalize
+                              # ((1-gamma)*mean_j[M_ij/N-hat_j] - 1)^2, N-hat = in-batch hit
+                              # column mean clamped at 2/B. The visitation identity
+                              # E_{g~rho}[M(s,g)/rho(B_eps(g))] = 1/(1-gamma) holds exactly.
+                              # This is the anchor the nonneg hinge lacked (sign fixed but
+                              # mass inflated 2.5-3.6x, §9.9). visitation-only; 0.0 = off.
+hit_kernel: ball              # ball = historical 0/1 kernel | quartic = biweight
+                              # (1-(d/h)^2)^2 with support h=hit_eps (use hit_eps=0.6 for
+                              # ~ball-0.4-matched kernel mass). D1 (§9.15): negativity is
+                              # truncated-basis ringing of a rank-d fit to a boxcar; a C^1
+                              # kernel has less high-frequency content at the same rank.
+hit_spec: ""                  # multi-env hit indicator (jax measure_hit_spec mirror, spec08 E7):
+                              # "a:b:eps,..." obs blocks, CONJUNCTION of per-block balls.
+                              # cube-double "19:22:0.4,28:31:0.4"; scene
+                              # "19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6".
+                              # "" (default) = single (hit_slice, hit_eps) ball, byte-identical.
+nonneg_coef: 0.0              # one-sided squared hinge on relu(-M); 0.0 = bit-identical to
+                              # the pre-2026-07-28 objective. A measure is non-negative by
+                              # definition but nothing else enforces it: spec 10 L1 measured
+                              # ~45% of M negative, the leading suspect for the 65-215x
+                              # set-mass miscalibration. Penalty (not softplus/square) so M
+                              # stays BILINEAR — the zero-shot readout Q_r=<F,z_r> needs it.

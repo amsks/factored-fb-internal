@@ -1,0 +1,33 @@
+# Scene split-head (ogbench-sota implementations item 7). Factored Q=sum_k phi_k(s,a).psi_k(g_k)
+# /sqrt(d_k), one goal tower per scene factor (cube / 2 buttons / drawer / window), d_k=16.
+# Reads: recovers >= MLP 0.52 => scene was a span failure of one product (Layer 0 extended);
+# stays <=0.30 => not span, escalate to the shared-rep audit. 3 seeds, 500k, flow actor.
+#
+# CALIBRATE BEFORE LAUNCH: value_split_dims must match the scene GOAL layout (per-factor goal
+# dims summing to the scene goal dim). The default value_split_factors=5 splits the goal into 5
+# EQUAL chunks -- almost certainly wrong for scene's heterogeneous factors (cube xyz vs button
+# binary vs drawer scalar). Read the scene goal vector layout and set value_split_dims=[...].
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: scene-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_on_cpu: 0
+run_group: GCIQL-Scene-Flow-BilinearSplit
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear_split
+  value_latent_dim: 16
+  value_split_factors: 6
+  value_split_dims: "19,9,4,4,2,2"
+wandb_mode: online

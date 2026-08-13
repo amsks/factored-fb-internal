@@ -1,0 +1,232 @@
+<title>Architecture — coloured by training phase</title>
+
+<style>
+  :root{
+    --bg:#F6F7F9; --surface:#FFFFFF; --ink:#17212C; --muted:#5B6673; --hair:#C9D1DA;
+    --p1:#2E6E8E; --p1-tint:#E4EFF5;
+    --p2:#B0602A; --p2-tint:#FAEEE2;
+    --aux:#6A57A6; --aux-tint:#EEEAF8;
+    --neutral:#77848F; --neutral-tint:#EDEFF2;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0E1319; --surface:#161D26; --ink:#E4E9EF; --muted:#96A3B1; --hair:#2C3742;
+      --p1:#74B6D6; --p1-tint:#122C3A; --p2:#E39C60; --p2-tint:#31210F;
+      --aux:#A996E2; --aux-tint:#221C36; --neutral:#8B98A6; --neutral-tint:#19212A;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0E1319; --surface:#161D26; --ink:#E4E9EF; --muted:#96A3B1; --hair:#2C3742;
+    --p1:#74B6D6; --p1-tint:#122C3A; --p2:#E39C60; --p2-tint:#31210F;
+    --aux:#A996E2; --aux-tint:#221C36; --neutral:#8B98A6; --neutral-tint:#19212A;
+  }
+  :root[data-theme="light"]{
+    --bg:#F6F7F9; --surface:#FFFFFF; --ink:#17212C; --muted:#5B6673; --hair:#C9D1DA;
+    --p1:#2E6E8E; --p1-tint:#E4EFF5; --p2:#B0602A; --p2-tint:#FAEEE2;
+    --aux:#6A57A6; --aux-tint:#EEEAF8; --neutral:#77848F; --neutral-tint:#EDEFF2;
+  }
+
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; }
+  .wrap{ max-width:1080px; margin:0 auto; padding:40px 24px 72px; display:flex; flex-direction:column; gap:22px; }
+
+  header{ display:flex; flex-direction:column; gap:6px; }
+  .eyebrow{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  h1{ font-family:var(--serif); font-size:26px; line-height:1.2; margin:0; font-weight:600; }
+
+  figure{ margin:0; display:flex; flex-direction:column; gap:12px; }
+  .canvas{ background:var(--surface); border:1px solid var(--hair); border-radius:3px; padding:20px; overflow-x:auto; }
+  svg.diagram{ display:block; width:100%; min-width:760px; height:auto; }
+  figcaption{ font-size:13px; color:var(--muted); max-width:80ch; }
+
+  /* CSS overrides SVG presentation attributes, so one markup themes both ways */
+  .blk{ fill:var(--surface); stroke:var(--hair); }
+  .blk-net{ fill:var(--surface); stroke:var(--neutral); }
+  .blk-aux{ fill:var(--aux-tint); stroke:var(--aux); }
+  .box-1{ fill:var(--p1-tint); stroke:var(--p1); }
+  .box-2{ fill:var(--p2-tint); stroke:var(--p2); }
+  .band{ fill:var(--neutral-tint); stroke:var(--neutral); }
+  .tab-1{ fill:var(--p1); stroke:none; }
+  .tab-2{ fill:var(--p2); stroke:none; }
+  .tab-aux{ fill:var(--aux); stroke:none; }
+  .tab-off{ fill:none; stroke:var(--p2); }
+  .ln{ stroke:var(--neutral); fill:none; }
+  .ln-1{ stroke:var(--p1); fill:none; }
+  .ln-2{ stroke:var(--p2); fill:none; }
+  .dot{ fill:var(--neutral); stroke:none; }
+  .head-n{ fill:var(--neutral); } .head-1{ fill:var(--p1); } .head-2{ fill:var(--p2); }
+  .t-ink{ fill:var(--ink); } .t-mut{ fill:var(--muted); } .t-p1{ fill:var(--p1); } .t-p2{ fill:var(--p2); }
+  .f-glyph{ font-family:var(--mono); font-size:26px; font-weight:600; }
+  .f-node{ font-family:var(--mono); font-size:20px; font-weight:600; }
+  .f-eq{ font-family:var(--mono); font-size:17px; }
+  .f-eqs{ font-family:var(--mono); font-size:15px; }
+  .f-tag{ font-family:var(--sans); font-size:11px; font-weight:700; letter-spacing:.1em; }
+  .f-tiny{ font-family:var(--sans); font-size:12.5px; }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:9px 22px; align-items:center; font-size:12.5px; color:var(--muted); }
+  .key{ display:inline-flex; align-items:center; gap:8px; }
+  .sw{ width:28px; height:13px; border-radius:2px; flex:none; display:flex; overflow:hidden; }
+  .sw i{ flex:1 1 50%; }
+  .sw i.b1{ background:var(--p1); } .sw i.b2{ background:var(--p2); }
+  .sw i.off{ border:1px dashed var(--p2); box-sizing:border-box; }
+  .sw i.ax{ background:var(--aux); }
+  .swf{ width:28px; height:13px; border-radius:2px; flex:none; }
+  .swf.b1{ background:var(--p1-tint); border:1.5px solid var(--p1); }
+  .swf.b2{ background:var(--p2-tint); border:1.5px solid var(--p2); }
+
+  .actions{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  button{ font:inherit; font-size:13px; font-weight:600; color:var(--ink); background:var(--surface); border:1px solid var(--hair); border-radius:3px; padding:7px 13px; cursor:pointer; }
+  button:hover{ border-color:var(--p1); color:var(--p1); }
+  button:focus-visible{ outline:2px solid var(--p1); outline-offset:2px; }
+  .hint{ font-size:12.5px; color:var(--muted); }
+  .hint code{ font-family:var(--mono); font-size:12px; }
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">FB-Manipulation-ICLR &middot; method figure</div>
+  <h1>One critic, two backups</h1>
+</header>
+
+<figure>
+  <div class="canvas">
+  <svg class="diagram" id="svgArch" viewBox="0 0 1000 280" role="img"
+       aria-label="Architecture. Inputs s, a, z enter the forward map F; the goal g enters the goal embedding psi. Their inner product feeds one critic head, called Q in phase 1 and M in phase 2. The head and the indicator reward h meet on a shared bus that splits into two alternative TD targets: the phase-one absorbing target y equals h plus gamma times one minus h times Q-bar, and the phase-two non-absorbing target y equals h plus gamma M-bar with non-negativity and mass penalties. A test-time strip runs the region-mass head N-hat into the task vector z_r and then acts. F carries a two-part tab filled for both phases; psi is filled for phase one and hollow for phase two, meaning frozen.">
+
+    <defs>
+      <marker id="m0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path class="head-n" fill="#77848F" d="M0 0 L10 5 L0 10 z"/>
+      </marker>
+      <marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path class="head-1" fill="#2E6E8E" d="M0 0 L10 5 L0 10 z"/>
+      </marker>
+      <marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path class="head-2" fill="#B0602A" d="M0 0 L10 5 L0 10 z"/>
+      </marker>
+    </defs>
+
+    <!-- inputs -->
+    <text class="f-eqs t-mut" fill="#5B6673" x="43" y="45" text-anchor="middle">s, a, z</text>
+    <path class="ln" d="M20 55 H66" fill="none" stroke="#77848F" stroke-width="1.5" marker-end="url(#m0)"/>
+    <text class="f-eqs t-mut" fill="#5B6673" x="43" y="115" text-anchor="middle">g</text>
+    <path class="ln" d="M20 125 H66" fill="none" stroke="#77848F" stroke-width="1.5" marker-end="url(#m0)"/>
+
+    <!-- F : trained in both phases -->
+    <rect class="blk-net" x="70" y="30" width="100" height="50" rx="4" fill="#FFFFFF" stroke="#77848F" stroke-width="1.6"/>
+    <rect class="tab-1" x="71" y="31" width="49" height="7" fill="#2E6E8E" stroke="none"/>
+    <rect class="tab-2" x="120" y="31" width="49" height="7" fill="#B0602A" stroke="none"/>
+    <text class="f-glyph t-ink" fill="#17212C" x="120" y="66" text-anchor="middle">F</text>
+
+    <!-- psi : phase 1, frozen in phase 2 -->
+    <rect class="blk-net" x="70" y="100" width="100" height="50" rx="4" fill="#FFFFFF" stroke="#77848F" stroke-width="1.6"/>
+    <rect class="tab-1" x="71" y="101" width="49" height="7" fill="#2E6E8E" stroke="none"/>
+    <rect class="tab-off" x="120.5" y="101.5" width="48" height="6" fill="none" stroke="#B0602A" stroke-width="1.2" stroke-dasharray="3 2"/>
+    <text class="f-glyph t-ink" fill="#17212C" x="120" y="136" text-anchor="middle">&psi;</text>
+    <text class="f-tiny t-p2"   fill="#B0602A" x="120" y="168" text-anchor="middle">frozen</text>
+
+    <!-- into the bilinear node -->
+    <path class="ln" d="M170 55 H190 V78 H216" fill="none" stroke="#77848F" stroke-width="1.5" marker-end="url(#m0)"/>
+    <path class="ln" d="M170 125 H190 V102 H216" fill="none" stroke="#77848F" stroke-width="1.5" marker-end="url(#m0)"/>
+
+    <rect class="blk" x="220" y="65" width="80" height="50" rx="4" fill="#FFFFFF" stroke="#C9D1DA" stroke-width="1.6"/>
+    <text class="f-node t-ink" fill="#17212C" x="260" y="97" text-anchor="middle">&#10216;&middot;,&middot;&#10217;</text>
+
+    <path class="ln" d="M300 90 H346" fill="none" stroke="#77848F" stroke-width="1.5" marker-end="url(#m0)"/>
+
+    <!-- critic head -->
+    <rect class="blk" x="350" y="65" width="110" height="50" rx="4" fill="#FFFFFF" stroke="#C9D1DA" stroke-width="1.6"/>
+    <text class="f-node t-p1"  fill="#2E6E8E" x="386" y="97" text-anchor="middle">Q</text>
+    <text class="f-node t-mut" fill="#5B6673" x="405" y="97" text-anchor="middle">/</text>
+    <text class="f-node t-p2"  fill="#B0602A" x="426" y="97" text-anchor="middle">M</text>
+
+    <!-- shared bus: the critic and h meet, then split to the two targets -->
+    <path class="ln" d="M490 188 V47" fill="none" stroke="#77848F" stroke-width="1.5"/>
+    <path class="ln" d="M460 90 H490" fill="none" stroke="#77848F" stroke-width="1.5"/>
+    <circle class="dot" cx="490" cy="90" r="3.4" fill="#77848F"/>
+
+    <text class="f-eqs t-mut" fill="#5B6673" x="490" y="208" text-anchor="middle">h &isin; {0,1}</text>
+
+    <path class="ln-1" d="M490 47 H526" fill="none" stroke="#2E6E8E" stroke-width="1.8" marker-end="url(#m1)"/>
+    <path class="ln-2" d="M490 124 H526" fill="none" stroke="#B0602A" stroke-width="1.8" marker-end="url(#m2)"/>
+
+    <rect class="box-1" x="530" y="22" width="450" height="50" rx="4" fill="#E4EFF5" stroke="#2E6E8E" stroke-width="1.6"/>
+    <text class="f-tag t-p1" fill="#2E6E8E" x="546" y="42">PHASE 1</text>
+    <text class="f-eq t-ink" fill="#17212C" x="620" y="54">y = h + &gamma; (1 &minus; h) Q&#772;</text>
+
+    <rect class="box-2" x="530" y="92" width="450" height="64" rx="4" fill="#FAEEE2" stroke="#B0602A" stroke-width="1.6"/>
+    <text class="f-tag t-p2"  fill="#B0602A" x="546" y="112">PHASE 2</text>
+    <text class="f-eq t-ink"  fill="#17212C" x="620" y="124">y = h + &gamma; M&#772;</text>
+    <text class="f-eqs t-p2"  fill="#B0602A" x="620" y="146">+ non-neg. + mass</text>
+
+    <!-- test time -->
+    <text class="f-tiny t-mut" fill="#5B6673" x="20" y="208">test time</text>
+    <rect class="band" x="20" y="214" width="960" height="56" rx="4" fill="#EDEFF2" stroke="#77848F" stroke-width="1.4" stroke-dasharray="5 4"/>
+
+    <rect class="blk-aux" x="36" y="226" width="80" height="32" rx="4" fill="#EEEAF8" stroke="#6A57A6" stroke-width="1.6"/>
+    <rect class="tab-aux" x="37" y="227" width="78" height="6" fill="#6A57A6" stroke="none"/>
+    <text class="f-node t-ink" fill="#17212C" x="76" y="252" text-anchor="middle">N&#770;</text>
+
+    <path class="ln" d="M116 242 H146" fill="none" stroke="#77848F" stroke-width="1.5" marker-end="url(#m0)"/>
+
+    <rect class="blk" x="150" y="226" width="330" height="32" rx="4" fill="#FFFFFF" stroke="#C9D1DA" stroke-width="1.6"/>
+    <text class="f-eqs t-ink" fill="#17212C" x="315" y="247" text-anchor="middle">z<tspan dy="3" font-size="11">r</tspan><tspan dy="-3"> = E[ r &middot; &psi; / N&#770; ]</tspan></text>
+
+    <path class="ln" d="M480 242 H510" fill="none" stroke="#77848F" stroke-width="1.5" marker-end="url(#m0)"/>
+
+    <rect class="blk" x="514" y="226" width="446" height="32" rx="4" fill="#FFFFFF" stroke="#C9D1DA" stroke-width="1.6"/>
+    <text class="f-eqs t-ink" fill="#17212C" x="737" y="247" text-anchor="middle">act on z<tspan dy="3" font-size="11">r</tspan></text>
+
+    <path class="ln" d="M260 115 V222" fill="none" stroke="#77848F" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#m0)"/>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <span class="key"><span class="sw"><i class="b1"></i><i class="b2"></i></span> trained in both phases</span>
+    <span class="key"><span class="sw"><i class="b1"></i><i class="off"></i></span> phase 1 only, then frozen</span>
+    <span class="key"><span class="swf b1"></span> phase-1 target</span>
+    <span class="key"><span class="swf b2"></span> phase-2 target</span>
+    <span class="key"><span class="sw"><i class="ax"></i></span> auxiliary head</span>
+  </div>
+
+  <figcaption>One bilinear critic <em>F</em><sup>&#7488;</sup><em>&psi;</em>, trained twice: the absorbing
+  target makes the head a reachability value <em>Q</em>, the non-absorbing target makes it the region
+  occupancy <em>M</em>. Each learned block&rsquo;s tab shows which phases train it &mdash; left half
+  phase 1, right half phase 2.</figcaption>
+</figure>
+
+<div class="actions">
+  <button type="button" id="dl">Download SVG</button>
+  <span class="hint">Editable shapes: <code>method_blocks.drawio</code>.</span>
+</div>
+
+</div>
+
+<script>
+  var props = ['fill','stroke','stroke-width','stroke-dasharray','font-family','font-size','font-weight','letter-spacing'];
+  document.getElementById('dl').addEventListener('click', function () {
+    var src = document.getElementById('svgArch');
+    var clone = src.cloneNode(true);
+    var s = src.querySelectorAll('*'), d = clone.querySelectorAll('*');
+    for (var i = 0; i < s.length; i++) {
+      var cs = getComputedStyle(s[i]), decl = '';
+      for (var p = 0; p < props.length; p++) {
+        var v = cs.getPropertyValue(props[p]);
+        if (v) { decl += props[p] + ':' + v + ';'; }
+      }
+      d[i].setAttribute('style', decl);
+      d[i].removeAttribute('class');
+    }
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('width', '1000');
+    clone.setAttribute('height', '280');
+    var blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + clone.outerHTML], { type: 'image/svg+xml' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'method_architecture.svg';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+</script>

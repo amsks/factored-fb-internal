@@ -1,0 +1,43 @@
+# Spec 08 E7 -- the SPARSITY / FACTOR-COVERAGE CONTROL for scene phase 1.
+# Identical to scene_state_measure_firstpassage_noortho_d50.yaml except the goal region is
+# the cube ball alone ('19:22:0.4'), i.e. exactly cube-single's region on scene's data.
+# Measured density at B=1024: 61.9 off-diagonal positives/row (cube-single = 14.0), vs 3.07
+# for the 5-way conjunction.
+#
+# Single-axis read:
+#   both cells reach the scene anchor (0.292)   -> reach-first transfers to a 5-factor env
+#   cubeonly reaches, conjunction floors        -> the conjunction's sparsity is the binding
+#                                                  constraint, not the reach-first objective
+#   both floor                                  -> reach-first does not transfer to scene
+# NOTE this cell's region ignores the drawer/window/buttons, so it cannot satisfy scene's
+# 5-way success criterion on most tasks; like the cube-double 1cube arm it is a TRAINING-SIGNAL
+# diagnostic (critic scale, loss traces, per-task partial credit), not an anchor comparison.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: scene-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-Scene-Flow-Measure-FP-NoOrtho-CubeOnly-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  measure_hit_spec: "19:22:0.4"
+wandb_mode: online

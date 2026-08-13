@@ -1,0 +1,36 @@
+# RG-FB v1 (spec 06 item 4): task-prior scalar grounding at d50. The v0 recipe
+# (bilinear-d50, actor_cond=z, actor_vf_cond=z, bc_coeff=3.0) + task_prior='mix':
+# each sample draws a task type -- Dirac goal (0.6) / K-goal max-mixture (0.2) /
+# random-linear reward (0.2) -- and the scalar IQL value+critic TD AND the flow
+# actor are all evaluated at the SAMPLED z, with per-task-type loss normalization.
+#
+# Eval: zero-shot via scripts/rescuing_fb/eval_rgfb_zeroshot.py (match_data norm).
+# Pre-registered reads (spec 06 item 4, binding): Dirac anchor >=0.80 (non-regression
+# vs v0 0.825); two-goal max-mixture (T6 protocol, no GPI) >=0.60 / 0.30-0.60 partial
+# / <=0.30 dead; region-goals >=0.672 (non-regression).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: RGFB-Cube-Single-State-d50-v1-taskprior
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_cond: z
+  actor_vf_cond: z
+  task_prior: mix
+  task_prior_mix_k: 2
+wandb_mode: online

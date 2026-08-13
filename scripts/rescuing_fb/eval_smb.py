@@ -117,11 +117,15 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--episodes", type=int, default=25)
     ap.add_argument("--horizon", type=int, default=200)
     ap.add_argument("--z-inference",
-                    choices=["moment", "ridge", "retrieval", "cmoment"],
+                    choices=["moment", "ridge", "retrieval", "cmoment",
+                             "cmoment_trained"],
                     default="moment",
                     help="cmoment: the density-corrected moment (spec 10 §1) "
                          "z ∝ mean_j [r_j / N-hat(g_j)] psi(g_j) via "
-                         "full_measure.corrected_moment_z (ess reported)")
+                         "full_measure.corrected_moment_z (ess reported). "
+                         "cmoment_trained (phase 2b): same, with N-hat from the "
+                         "checkpoint's TRAINED nhat_head instead of the KDTree "
+                         "(needs measure_nhat_head=True checkpoints)")
     ap.add_argument("--retrieval-k", type=int, default=8)
     ap.add_argument("--ridge-lambda", type=float, default=1e-2)
     ap.add_argument("--density-cap-q", type=float, default=0.0,
@@ -201,15 +205,25 @@ def main() -> int:
         Psi_cand = psi(S_cand).astype(np.float64)
 
     # ---- eval-layer full measure (spec 10 L1+L2): cmoment + measure-ranked z ----
-    need_fm = (args.z_inference == "cmoment") or (args.z_select == "measure")
+    need_fm = args.z_inference in ("cmoment", "cmoment_trained") \
+        or (args.z_select == "measure")
     fm, nobs_all, readout_m = None, None, None
     if need_fm:
-        fm = FullMeasure(cube_obs_units(obs_all), eps=EPS_OBS)
+        cube_all = cube_obs_units(obs_all)
         nobs_all = np.asarray(ds1["next_observations"], np.float32)
+        nhat_fn = None
+        if args.z_inference == "cmoment_trained":
+            # phase 2b: the checkpoint's trained N-hat head replaces the KDTree
+            # denominator (floor still applied inside FullMeasure).
+            from smb_common import make_trained_nhat_fn
+            nhat_fn = make_trained_nhat_fn(agent, psi, cube_all, nobs_all)
+        fm = FullMeasure(cube_all, eps=EPS_OBS, nhat_fn=nhat_fn)
         readout_m = make_measure_readout(agent, d, fbz, act_dim)
         print(f"[smb] FullMeasure over {fm.n} rows, eps={fm.eps}, "
-              f"floor={fm.floor:.2e} (z_inference={args.z_inference}, "
-              f"z_select={args.z_select})", flush=True)
+              f"floor={fm.floor:.2e}, "
+              f"nhat={'trained_head' if nhat_fn is not None else 'kdtree'} "
+              f"(z_inference={args.z_inference}, z_select={args.z_select})",
+              flush=True)
 
     goal_obs, goal_xyz = {}, {}
     for i in range(1, 6):
@@ -236,12 +250,13 @@ def main() -> int:
                     e.close()
 
     def infer(rewards):
-        if args.z_inference == "cmoment":
+        if args.z_inference in ("cmoment", "cmoment_trained"):
             # spec 10 §1: density-corrected moment, weights 1/N-hat at the
-            # reward samples' cube positions; ess flags degenerate inferences.
+            # reward samples' cube positions (N-hat = KDTree kernel count, or
+            # the trained head under cmoment_trained); ess flags degeneracy.
             r = np.asarray(rewards, np.float64)
             out = fm.corrected_moment_z(Psi_rel, r, cube_rel, match_data)
-            diag = {"route": "cmoment", "n_pos": int((r > 0).sum()),
+            diag = {"route": args.z_inference, "n_pos": int((r > 0).sum()),
                     "n_neg": int((r < 0).sum()), "ess": out["ess"],
                     "z_raw_norm": out["raw_norm"], "match_data_norm": match_data}
             return out["z"], diag

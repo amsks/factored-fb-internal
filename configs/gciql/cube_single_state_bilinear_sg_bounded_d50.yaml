@@ -1,0 +1,34 @@
+# Bounded psi(s,g) (ogbench-sota implementations item 5, the BVN regime-inversion test).
+# State-conditioned backward leg with a tanh output bound psi=scale*tanh(psi/scale) -- targets
+# the T2 diagnosis (unbounded psi + no V-target + local pockets). 3 seeds, 500k, flow actor.
+# Reads: stabilizes at bilinear level => BVN inversion is an optimization artifact; at MLP level
+# => state-conditioning also destroys pooling (Layer 1 evidence); still diverges => needs the
+# V-target arm too.
+#
+# CALIBRATE BEFORE LAUNCH: psi_bound_scale = p99 of the TRAINED bilinear-d50 psi(g) norms.
+# Placeholder 15.0 is an estimate (d512 ||psi_g||~35 -> d50 ~ 35*sqrt(50/512) ~ 11). Compute the
+# real p99 from a GCIQL-State-Flow-Bilinear-d50 checkpoint's psi(g) over the relabel sample and
+# set it here (a make_psi over the dataset, np.quantile(norms, 0.99)).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-BilinearSGBounded-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear_sg_bounded
+  value_latent_dim: 50
+  psi_bound_scale: 27.0
+wandb_mode: online

@@ -1,0 +1,709 @@
+% =====================================================================
+%  A first-principles primer on the two-phase successor measure.
+%  Build:  tectonic PAPER/rescuing-fb/primer-two-phase.tex
+%  Self-contained: no \bibliography, no external figures.
+% =====================================================================
+\documentclass[11pt]{article}
+
+\usepackage[margin=1.1in]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tcolorbox}
+\definecolor{NavyBlue}{RGB}{20,60,130}
+\usepackage[colorlinks=true,linkcolor=NavyBlue,citecolor=NavyBlue,urlcolor=NavyBlue]{hyperref}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
+\newcommand{\sg}{\operatorname{sg}}
+\newcommand{\D}{\mathcal{D}}
+\newcommand{\ball}[1]{B_\epsilon(#1)}
+\newcommand{\cube}{\mathrm{c}}
+
+\newtcolorbox{keybox}[1][]{
+  colback=blue!4, colframe=blue!35, boxrule=0.5pt, arc=2pt,
+  left=6pt, right=6pt, top=5pt, bottom=5pt, #1}
+
+\title{\bfseries A Two-Phase Successor Measure\\[2pt]
+\large A step-by-step primer, from first principles}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-2.2em}
+
+\begin{abstract}
+\noindent
+This primer derives, in small steps and from first principles, why
+forward--backward (FB) representation learning fails on manipulation play data and
+what the two-phase curriculum replaces it with. The argument is short enough to
+state up front. The object we want --- the successor measure --- has an immediate
+term that is a \emph{Dirac density ratio}, which cannot be regressed. FB works
+around this with a density-matching surrogate whose observed-successor term is
+\emph{linear and unanchored}, held in check only by an orthonormality regularizer
+that, on this domain, destroys the very geometry control needs. Replacing the
+point query by a \emph{finite goal region} turns that singular term into a bounded
+$0/1$ event, at which point every entry of the training matrix becomes an ordinary
+squared Bellman residual and no regularizer is needed at all. Two backups over
+that same residual --- absorbing, then non-absorbing --- give first a reaching
+value and then a visitation measure. We close with what this construction has been
+shown to buy, and, equally important, what it has \emph{not}.
+\end{abstract}
+
+\tableofcontents
+\bigskip
+
+% =====================================================================
+\section{What we are trying to build, and why}
+% =====================================================================
+
+\paragraph{The goal.} Unsupervised reinforcement learning asks for a
+representation trained once on unlabeled interaction data, from which a policy for
+\emph{any} downstream reward can be produced \emph{without further training}. To
+make that possible, the representation must support answering, for a reward
+$r$ revealed only at test time,
+\[
+Q_r^\pi(s,a) \;=\; \E_\pi\!\left[\sum_{t\ge0}\gamma^t\, r(s_{t+1}) \;\middle|\; s_0=s,\,a_0=a\right].
+\]
+
+\paragraph{First principle: put the reward outside the expectation.} The
+expectation above mixes two things --- \emph{where the policy goes} and \emph{what
+those places are worth}. Only the second is unknown at training time. So separate
+them. Define the \textbf{discounted successor measure} of a policy $\pi$: for any
+measurable set $X$ of states,
+\begin{equation}
+\label{eq:sm}
+M^{\pi}(s,a,X) \;=\; \E_\pi\!\left[\sum_{t\ge0}\gamma^t \ind{s_{t+1}\in X}\;\middle|\;s_0=s,\,a_0=a\right].
+\end{equation}
+This is a (positive, $\sigma$-additive) measure on the state space with total mass
+$1/(1-\gamma)$. It records \emph{only} where the policy goes. Then, for any reward,
+\begin{equation}
+\label{eq:integrate}
+Q_r^\pi(s,a) \;=\; \int r(x)\, dM^{\pi}(s,a,\cdot)(x).
+\end{equation}
+
+\begin{keybox}
+\textbf{Why the successor measure is the right object.}
+Equation~\eqref{eq:integrate} is \emph{linear} in $r$. Learn $M$ once, and every
+future reward is a single integral away --- no re-planning, no fine-tuning. This
+linearity is the entire promise of the method, and it is the property we will
+later have to check the learned object actually possesses.
+\end{keybox}
+
+\paragraph{One measure is not enough.} $M^\pi$ is defined per policy, but the
+policy we want depends on the reward we have not yet seen. So we learn a
+\emph{family} $\{\pi_z\}$ indexed by a latent $z\in\mathbb{R}^d$, and the
+corresponding family of measures $M^{\pi_z}$. At test time we need a rule mapping
+a reward to a latent, which we return to in Section~\ref{sec:testtime}.
+
+% =====================================================================
+\section{Step 1: making the measure representable --- the FB factorization}
+% =====================================================================
+
+A measure over a continuous state space is not something a neural network emits
+directly. Standard move: represent its \emph{density} with respect to a fixed
+reference distribution $\rho$ (in practice, the data distribution),
+\begin{equation}
+\label{eq:density}
+m_z(s,a,x) \;=\; \frac{dM^{\pi_z}(s,a,\cdot)}{d\rho}(x),
+\qquad\text{so}\qquad
+M^{\pi_z}(s,a,X) \;=\; \int_X m_z(s,a,x)\,\rho(dx).
+\end{equation}
+Now $m_z$ is an ordinary scalar-valued function of three arguments and can be
+fit by a network.
+
+Forward--backward representations impose one more structure --- a rank-$d$
+bilinear factorization:
+\begin{equation}
+\label{eq:fb}
+\boxed{\;m_z(s,a,x)\;\approx\;F(s,a,z)^{\top} B(x)\;}
+\end{equation}
+with the roles strictly separated:
+\begin{itemize}[nosep,leftmargin=1.4em]
+  \item $z$ \; selects \emph{which continuation policy} $\pi_z$ we are asking about;
+  \item $x$ \; specifies \emph{which future state's} occupancy is queried;
+  \item $F(s,a,z)\in\mathbb{R}^d$ summarizes future behaviour under $\pi_z$ (the \emph{forward map});
+  \item $B(x)\in\mathbb{R}^d$ gives coordinates for querying occupancy at $x$ (the \emph{backward map}).
+\end{itemize}
+
+\paragraph{Why this factorization pays off immediately.} Substituting
+\eqref{eq:fb} into \eqref{eq:integrate} and defining the \textbf{reward embedding}
+\begin{equation}
+\label{eq:zr}
+z_r \;=\; \E_{x\sim\rho}\big[\, r(x)\, B(x)\,\big] \;\in\;\mathbb{R}^d,
+\end{equation}
+we get
+\begin{equation}
+Q_r^{\pi_{z_r}}(s,a)
+\;=\;\E_{x\sim\rho}\!\big[r(x)\,F(s,a,z_r)^{\top}B(x)\big]
+\;=\; F(s,a,z_r)^{\top} z_r .
+\end{equation}
+A test-time reward collapses to a single $d$-vector, and its $Q$-function is one
+inner product. The same $z_r$ then plays three roles: it \emph{is} the reward
+representation, it conditions the forward map, and it conditions the actor, which
+is trained greedily on $Q_z(s,a)=F(s,a,z)^\top z$.
+
+That is the architecture. Everything from here on concerns the \emph{objective}
+used to fit it --- which is where the trouble is.
+
+% =====================================================================
+\section{Step 2: how you would train it, and the singularity you hit}
+\label{sec:singularity}
+% =====================================================================
+
+The successor measure obeys a Bellman equation, inherited directly from
+\eqref{eq:sm} by peeling off the first term:
+\[
+M^{\pi_z}(s,a,X) \;=\; \ind{s'\in X} \;+\; \gamma\,\E_{a'\sim\pi_z(\cdot\mid s')}\big[M^{\pi_z}(s',a',X)\big].
+\]
+In density form (divide through by $\rho$), this reads
+\begin{equation}
+\label{eq:density-bellman}
+m_z(s,a,x)
+\;=\;
+\underbrace{\frac{\delta_{s'}(x)}{\rho(x)}}_{\textstyle(\star)}
+\;+\;
+\gamma\,\E_{a'\sim\pi_z(\cdot\mid s')}\big[m_z(s',a',x)\big].
+\end{equation}
+
+\begin{keybox}
+\textbf{The obstruction.} Term $(\star)$ is a \emph{Dirac density ratio}: a point
+mass at the observed successor $s'$, divided by $\rho$. In a continuous state
+space this is not a finite scalar. There is no number you can place inside
+$\big(m_z - \text{target}\big)^2$. \emph{Equation~\eqref{eq:density-bellman}
+cannot be regressed directly.} Every design decision that follows in FB is
+downstream of this one fact.
+\end{keybox}
+
+% =====================================================================
+\section{Step 3: FB's workaround, and its two structural consequences}
+% =====================================================================
+
+FB does not regress \eqref{eq:density-bellman}. It minimizes a least-squares
+\emph{density-matching} surrogate --- the standard trick for fitting a density
+ratio you can only sample from:
+\begin{equation}
+\label{eq:fb-loss}
+\mathcal{L}_{\mathrm{FB}}
+=
+\underbrace{\tfrac12\,\E_{x\sim\rho}\big[(m_z - \gamma \bar m_z')^2\big]}_{\text{(a) off-diagonal: random queries}}
+\;-\;
+\underbrace{\E\big[\,m_z(s,a,s') - \gamma \bar m_z'(s,a,s')\,\big]}_{\text{(b) on-diagonal: observed successor}}
+\;+\;
+\lambda_{\mathrm{ortho}}\,\mathcal{L}_{\mathrm{ortho}} .
+\end{equation}
+In a minibatch of $n$ transitions this is literally a matrix: rows index
+$(s_i,a_i,z_i)$, columns index query states $x_j$, and $M_{ij}=F(s_i,a_i,z_i)^\top
+B(x_j)$. Term (a) supplies squared residuals on the off-diagonal; term (b) touches
+the diagonal, where $x_j = s'_i$.
+
+Two consequences follow, and both matter.
+
+\paragraph{Consequence 1: the diagonal is linear and has no target.} Term (b) is
+$-\E[M]$. It is not a residual --- it is a term that pays, unconditionally and
+without bound, for making the matched-successor value \emph{larger}. There is
+nothing it is trying to equal.
+
+\paragraph{Consequence 2: the only thing bounding it is $\mathcal{L}_{\mathrm{ortho}}$.}
+The orthonormality regularizer on $B$ (enforcing $\E_{x\sim\rho}[B(x)B(x)^\top]\approx I$)
+is what stops the linear term from running away. It is doing load-bearing
+\emph{numerical} work, not merely acting as a mild prior.
+
+\medskip
+This sets up the failure mode precisely: the estimator has one term that pushes
+scale up without limit and one regularizer holding it down. If the regularizer is
+ever wrong for the domain, there is no fallback.
+
+% =====================================================================
+\section{Step 4: the diagnosis --- two experiments}
+\label{sec:diagnosis}
+% =====================================================================
+
+On OGBench cube manipulation, FB plateaus at $\approx 0.42$ success while
+goal-conditioned IQL with \emph{the same bilinear critic and the same actor class}
+reaches $0.904$. The natural hypothesis is representational: perhaps the bilinear
+FB representation cannot resolve what manipulation requires. Two experiments
+refute that and localize the fault in the estimator.
+
+\paragraph{(i) The frozen-embedding divergence test.} Take a checkpoint whose
+representation is \emph{known} to support $0.97$ control. Freeze the backward map
+$\psi$. Retrain only the forward map with the density-form TD of
+\eqref{eq:fb-loss}, regularizer off.
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+& critic scale & success \\
+\midrule
+start & $154$ & $0.98$ \\
+$65$k steps & $5.4\times10^{4}$ & --- \\
+$100$k steps & --- & $0.42$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+The representation is by construction adequate; the estimator still inflates
+without bound and control decays monotonically. \textbf{The defect is in the
+objective, not the features.} (A control with $\psi$ trainable collapses
+faster --- $0.97\to0.07$ --- so representation corruption \emph{compounds} the
+estimator defect but is not its cause.)
+
+\paragraph{(ii) Turning the regularizer back on.} Restoring
+$\mathcal{L}_{\mathrm{ortho}}$ does anchor the scale, but the resulting cell
+reaches only $0.225$: the orthonormality constraint destroys the reaching geometry
+that control depends on.
+
+\begin{keybox}
+\textbf{The trap.} The two available stabilizers are load-bearing in
+\emph{opposite} directions. Without ortho, nothing bounds the linear diagonal
+term. With ortho, the geometry needed for control is destroyed. No setting of
+$\lambda_{\mathrm{ortho}}$ escapes; the problem is the shape of the objective.
+\end{keybox}
+
+% =====================================================================
+\section{Step 5: where the capacity goes --- occupancy factors as reaching $\times$ recurrence}
+\label{sec:factor}
+% =====================================================================
+
+Before fixing the objective, it helps to see \emph{what} the estimator is spending
+itself on. Fix a goal $g$ and a small ball $\ball{g}$ around it (in our case
+defined on the cube position only, $\epsilon = 4$\,cm). Let
+\[
+T_g \;=\; \min\{t\ge1:\; s_t\in \ball{g}\}
+\]
+be the first time the region is reached. Split the sum in \eqref{eq:sm} at $T_g$:
+\begin{equation}
+\label{eq:QR}
+M(s,a,\ball{g})
+\;=\;
+\underbrace{\E\big[\gamma^{T_g}\big]}_{\textstyle Q(s,a,g)\ \text{(reaching)}}
+\;\cdot\;
+\underbrace{\E\big[\text{discounted occupancy accumulated from arrival onward}\big]}_{\textstyle R(g)\ \text{(recurrence)}}.
+\end{equation}
+
+Two empirical facts about \emph{play data} make this decomposition decisive:
+\begin{enumerate}[leftmargin=1.5em]
+\item \textbf{The recurrence factor is large and nearly goal-only.} Play
+trajectories dwell and revisit. Monte-Carlo estimation gives $R$ a mean of
+$\approx 24.7$ discounted visits ($\gamma=0.99$). A regressor using \emph{only}
+$g$ explains occupancy well (rank correlation $\approx 0.6$ with Monte-Carlo
+occupancy, uniformly across horizon buckets), whereas the reaching term alone
+explains almost none of the magnitude ($\approx 0.06$).
+\item \textbf{The estimator spends its capacity there.} Most of the \emph{numerical
+magnitude} of $M$ is post-arrival dwelling, which carries \emph{no information
+about which action to take}. The unanchored linear diagonal term is precisely the
+term that chases that magnitude.
+\end{enumerate}
+
+\paragraph{Caveat, stated now because it returns in Section~\ref{sec:certified}.}
+The split \eqref{eq:QR} is exact only if post-arrival occupancy is the same for
+every way of entering the region --- true for a singleton state of a Markov chain,
+only approximate for a region. Our region is defined on cube position alone, so a
+secure placement and an unstable pass-through share an arrival time but differ
+wildly afterwards. Action-independence of $R$ is therefore an \emph{empirical
+hypothesis about this data}, not a theorem --- and it is one we later measure and
+find \emph{false} pointwise.
+
+\begin{keybox}
+\textbf{The design that falls out.} Learn the control-relevant factor
+$Q$ first, under a bounded objective; then learn occupancy on top of it. Do not
+ask one estimator to discover a small control signal buried inside a large
+control-irrelevant magnitude.
+\end{keybox}
+
+% =====================================================================
+\section{Step 6: the substitution --- finite regions kill the singularity}
+\label{sec:substitution}
+% =====================================================================
+
+Return to the obstruction of Section~\ref{sec:singularity}. The immediate term is
+singular because the query is a \emph{point}. So do not query a point.
+
+Let $\cube(\cdot)$ extract the semantic coordinate (here, cube position), and
+define the \textbf{hit indicator}
+\begin{equation}
+\label{eq:hit}
+h(s',g) \;=\; \ind{\;\|\cube(s') - \cube(g)\| \le \epsilon\;}\;\in\;\{0,1\}.
+\end{equation}
+Replace the point query $x$ by the region $\ball{g}$. The immediate term of
+\eqref{eq:density-bellman} becomes
+\[
+\frac{\delta_{s'}(x)}{\rho(x)}\;\longrightarrow\; h(s',g),
+\]
+a bounded scalar in $\{0,1\}$.
+
+\begin{keybox}
+\textbf{This single substitution is the whole content of the method.}
+\[
+\text{density-ratio estimation} \;\longrightarrow\; \text{ordinary Bellman regression on finite goal regions}
+\]
+Consequences, all immediate:
+\begin{itemize}[nosep,leftmargin=1.2em]
+  \item \emph{Every} entry of the matrix --- diagonal included --- now has an explicit target;
+  \item so there is no separate linear diagonal term, and no off-diagonal mask;
+  \item the $0/1$ event pins the scale directly, so \textbf{no orthonormality (or any) regularizer on $B$ is needed};
+  \item and the trap of Section~\ref{sec:diagnosis} simply does not arise.
+\end{itemize}
+\end{keybox}
+
+We have traded exactness for tractability: we now learn occupancy of a
+\emph{family of finite regions} rather than a pointwise density. Section~\ref{sec:testtime}
+shows this is enough to integrate rewards, given one extra normalizer.
+
+% =====================================================================
+\section{Step 7: Phase 1 --- the absorbing (reaching) backup}
+\label{sec:phase1}
+% =====================================================================
+
+\paragraph{The object.} Terminate the backup at first arrival. The fixed point is
+the bounded \textbf{reaching value}
+\begin{equation}
+\label{eq:Qobj}
+Q(s,a,g) \;=\; \E_{\pi}\big[\gamma^{\,T_g-1}\big] \;\in\; [0,1],
+\end{equation}
+with the convention that an immediate hit ($T_g=1$) receives target $1$, so the
+discount counts from the current transition.
+
+\paragraph{The parameterization.} The same bilinear form as FB, with the diagonal
+slice $z=\psi(g)$, $x=g$ (policy and query name the same goal):
+\begin{equation}
+Q_\theta(s,a,g) \;=\; \frac{\phi(s,a)^{\top}\psi(g)}{\sqrt{d}},
+\qquad d = 50,
+\end{equation}
+two-layer MLPs, twin heads with $\min$-backup. The $1/\sqrt d$ matches the
+bilinear goal-conditioned critic of the strong baseline.
+
+\paragraph{The batch.} For a minibatch of $n$ transitions $(s_i,a_i,s'_i)$, the
+\emph{columns} are the $n$ hindsight-relabeled goals $g_j=\cube(s'_j)$. This gives
+an $n\times n$ residual matrix per batch: the diagonal pairs each transition with
+its own realized future, the off-diagonal supplies random goals for free.
+
+\begin{algorithm}[h]
+\caption{Phase 1 --- goal-reaching value (absorbing)}
+\begin{algorithmic}[1]
+\For{each gradient step}
+  \State sample $\{(s_i,a_i,s'_i)\}_{i=1}^{n}$; \; goals $g_j=\cube(s'_j)$; \; $h_{ij}=\ind{\|\cube(s'_i)-g_j\|\le\epsilon}$
+  \State $a'_i \sim \pi(\cdot\mid s'_i, g)$ \Comment{bootstrap action from the current policy}
+  \State $y_{ij} \;=\; h_{ij} \;+\; \gamma\,\underbrace{(1-h_{ij})}_{\text{absorbing}}\,\bar Q(s'_i,a'_i,g_j)$
+  \State $\displaystyle \mathcal{L}_Q=\frac{1}{n^2}\sum_{i,j}\big(Q(s_i,a_i,g_j)-\sg[y_{ij}]\big)^{2}\;\big/\;\sg\big[\overline{Q^{2}}\big]$
+  \State update $\phi,\psi$ on $\mathcal{L}_Q$; update the actor (flow BC $+$ distilled greedy step on $Q$)
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Reading the target.} The factor $(1-h_{ij})$ is the absorption: if the
+next state is already inside the goal ball, the bootstrap is switched off and the
+target is exactly $1$. Otherwise we discount and continue. Nothing else is
+special --- it is a plain squared residual on a sparse $0/1$ reward.
+
+\paragraph{Why the scale is anchored.} $0 \le Q \le 1$ by construction, and an
+immediate hit has target exactly $1$. The scalar event anchors the magnitude of
+the bilinear product directly. This is what removes the need for
+$\mathcal{L}_{\mathrm{ortho}}$ --- and therefore what escapes the trap.
+
+\paragraph{The actor.} A flow-matching behaviour-cloning policy with one-step
+distillation, plus a greedy term on the critic readout, normalized by the
+stop-gradient magnitude of $Q$ so that the greedy pressure is scale-invariant.
+
+\paragraph{The deciding experiment.} The two candidate explanations for the
+earlier $0.225$ cell --- target semantics vs.\ the regularizer --- separate
+cleanly in a $2\times2$ (3 seeds per cell, 500k steps):
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+ & no regularizer & with regularizer \\
+\midrule
+\textbf{reaching} semantics  & $\mathbf{0.967 \pm 0.012}$ & $0.225$ \\
+\textbf{occupancy} semantics & floored / unstable & $\approx 0.10$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Both ingredients are necessary; neither suffices. For scale: GC-IQL anchor
+$0.904$, stock FB $\approx 0.42$.
+
+% =====================================================================
+\section{Step 8: Phase 2 --- the non-absorbing (visitation) backup}
+\label{sec:phase2}
+% =====================================================================
+
+Phase 1 gives control, but $Q$ is \emph{not} a measure: it is a first-arrival
+value, and it does not integrate rewards over sets. Phase 2 restores the measure
+semantics on top of the geometry phase 1 found.
+
+\paragraph{The object.} Drop the absorption so that dwelling and revisits keep
+accumulating:
+\begin{equation}
+\label{eq:Mobj}
+M(s,a,g) \;=\; \E_\pi\!\left[\sum_{t\ge0}\gamma^{t}\,\ind{s_{t+1}\in \ball{g}}\right]\;\in\;\Big[0,\tfrac{1}{1-\gamma}\Big].
+\end{equation}
+
+\begin{algorithm}[h]
+\caption{Phase 2 --- visitation measure on the frozen goal embedding}
+\begin{algorithmic}[1]
+\State initialize \emph{all} networks from the phase-1 checkpoint; \textbf{freeze} $\psi$
+\For{each gradient step}
+  \State sample batch, goals, and $h_{ij}$ exactly as in phase 1
+  \State $y_{ij} \;=\; h_{ij} \;+\; \gamma\,\bar M(s'_i,a'_i,g_j)$ \Comment{$(1-h_{ij})$ deleted: revisits count}
+  \State $\displaystyle \mathcal{L}_M=\frac{1}{n^2}\sum_{i,j}\big(M(s_i,a_i,g_j)-\sg[y_{ij}]\big)^{2}\;\big/\;\sg\big[\overline{M^{2}}\big]$
+  \State update $\phi$ (and the actor; greedy term normalized by the \emph{centered} magnitude $\sg\,\E|M-\bar M|$)
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\begin{keybox}
+\textbf{The entire mathematical difference between the phases:}
+\[
+y^{\mathrm{reach}}_{ij}=h_{ij}+\gamma\,(1-h_{ij})\,\bar Q_{ij}
+\qquad\longrightarrow\qquad
+y^{\mathrm{visit}}_{ij}=h_{ij}+\gamma\,\bar M_{ij}.
+\]
+One factor is deleted. Same architecture, same batch construction, same loss
+shape, same absence of a regularizer.
+\end{keybox}
+
+\paragraph{Why freeze $\psi$.} Two reasons. It carries the phase-1 goal geometry
+--- the thing that took the $2\times2$ to find --- unchanged into phase 2. And it
+isolates blame: if phase 2 misbehaves, the goal embedding is not a suspect.
+
+\paragraph{Why the \emph{centered} actor normalization.} By \eqref{eq:QR}, $M$
+carries a large shared recurrence baseline $R(g)$ that is nearly constant across
+actions. Normalizing the greedy term by the raw magnitude of $M$ would let that
+baseline dilute the action-discriminating signal; centering removes it.
+
+\paragraph{What is observed.} Both seeds run 500k steps with no instability
+(finals $0.952 / 0.928$), and the critic scale plateaus at $\approx 24$ against a
+Monte-Carlo visitation mass of $24.7$ --- roughly $2\%$ error in the measure's own
+units, obtained \emph{with no scale supervision whatsoever}. Note carefully what
+this check is and is not: it compares one mean against one mean, and is by
+construction blind to how the mass is distributed over goals and to its sign.
+Section~\ref{sec:certified} tests those directly.
+
+\paragraph{A cheaper alternative, for completeness.} Keep $Q$ from phase 1 and fit
+the scalar recurrence factor $R(g)$ of \eqref{eq:QR} by Monte-Carlo regression on
+the frozen $\psi(g)$, using $M\approx Q\cdot R$. Cheaper, but only as good as the
+factorization; the TD version is exact in the limit and is the primary variant.
+
+% =====================================================================
+\section{Step 9: from the diagonal slice back to full FB}
+% =====================================================================
+
+Sections~\ref{sec:phase1}--\ref{sec:phase2} trained the \emph{diagonal slice}
+$z=\psi(g),\,x=g$: the policy index and the query name the same goal. Nothing in
+the derivation requires that.
+
+In full FB form the two objects are
+\[
+Q(s,a,z,x) \quad\text{and}\quad M(s,a,z,x)=\frac{F(s,a,z)^{\top}B(x)}{\sqrt d},
+\qquad z \perp x,
+\]
+with the hit matrix built from the query $x_k$ and the bootstrap action drawn from
+$\pi(\cdot\mid s',z_j)$ --- the continuation action depends on the \emph{policy
+index}, never on the query, and the same $a'$ evaluates every column.
+
+\begin{keybox}
+The reach-first substitution applies \emph{verbatim} to the separated form. Only
+the batch's row-index ($z_j$) and column-query ($x_k$) sampling changes --- not
+the loss. The separated form is what is needed for genuinely dense rewards, where
+the query cannot be summarized by a single goal.
+\end{keybox}
+
+Empirically the separated form trades control for calibration: it is the
+best-calibrated variant and the worst-performing on native goal-reaching
+($0.778$ vs.\ $0.955$ for the diagonal slice), which is itself informative --- see
+Section~\ref{sec:certified}.
+
+% =====================================================================
+\section{Step 10: test time --- turning a reward into behaviour}
+\label{sec:testtime}
+% =====================================================================
+
+At test time a reward arrives as labeled dataset samples $\{(s_j,r_j)\}$, with no
+further environment interaction. Two routes, both consuming the same learned
+objects.
+
+\paragraph{Route A --- retrieval and GPI.} Reduce the reward to one or a few
+candidate goals (top-$1$ retrieval, or a candidate set), execute with the
+goal-conditioned actor $\pi(a\mid s,\hat g)$, and use the measure readouts to
+score candidates and act with the best (generalized policy improvement).
+
+\paragraph{Route B --- integration.} Use \eqref{eq:integrate} directly:
+$Q_r=\int r\,dM$. This requires one correction. What phase 2 learns is
+\emph{ball mass} $\tilde M(g) \approx M(s,a,\ball{g})$, not a density. Converting
+back requires dividing by the data mass of the ball,
+\[
+\hat N(g) \;\approx\; \rho\big(\ball{g}\big),
+\]
+which is estimated by a small softplus head on $\sg[B(g)]$, regressed onto the
+hit-matrix column mean --- an unbiased in-batch Monte-Carlo estimate of exactly
+that quantity. The readout is then
+\[
+\hat M(X) \;=\; \frac{1}{n}\sum_{i:\,x_i\in X} \frac{\tilde M(\cube(x_i))}{\hat N(\cube(x_i))}.
+\]
+
+\begin{keybox}
+\textbf{Do not skip the normalizer.} A naive readout that omits $1/\hat N$ is off
+in scale by exactly that missing factor. This was verified the hard way.
+\end{keybox}
+
+% =====================================================================
+\section{Step 11: what this is certified to buy --- and what it is not}
+\label{sec:certified}
+% =====================================================================
+
+A primer that stopped at Section~\ref{sec:testtime} would be misleading. The
+construction must be judged on \emph{two independent axes}, and they do not agree.
+
+\paragraph{The logical point.} Every headline success number scores an
+\emph{actor}, and the actor only ever consumes $\arg\max_a \langle F(s,z,a),z\rangle$
+--- an ordering over actions at a single state. A critic can order actions
+perfectly while being an arbitrary function of $g$. \textbf{Task success and
+measure validity are therefore logically independent}, and a high success rate
+certifies $Q$, not $M$.
+
+\paragraph{Axis 1: control (what is established).}
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+ & success \\
+\midrule
+GC-IQL anchor (same critic, same actor class) & $0.904$ \\
+stock FB (density TD) & $\approx 0.42$ \\
+\textbf{phase 1} (reaching, no regularizer) & $\mathbf{0.967 \pm 0.012}$ \\
+\textbf{phase 2} (visitation, frozen $\psi$) & $\mathbf{0.952 / 0.928}$ \\
+separated $(z,x)$ form & $0.778$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Phase-1 checkpoints were re-evaluated in separate processes with fresh
+environment seeds ($0.972/0.988/0.984$) precisely because a single surprising cell
+is a plausible evaluation artifact.
+
+\paragraph{Axis 2: measure validity (partly established, partly refuted).}
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Calibration, pointwise.} Against Monte-Carlo occupancy of random
+boxes, the end-to-end object (with the trained $\hat N$) has model/MC ratio
+$1.10/1.16$ and $1.23/1.14$ at the two larger box scales, with Spearman $+0.68$ to
+$+0.85$. Multiplying by the horizon-truncation factor $1-\gamma^{H}=0.87$ brings
+these to $\approx 1.0$. The pre-registered gate for licensing $\int r\,dM$ was
+$\sim15\%$ relative error; at those scales it is met.
+\item \textbf{$Q$ and $M$ disagree.} Over a grid of reachable state--goal pairs,
+$\Pr[\arg\max_a Q = \arg\max_a M] = 0.295/0.299$. The actor is trained greedy on
+$Q$; on roughly seven of ten state--goal pairs it does \emph{not} choose the
+action its own occupancy measure prefers.
+\item \textbf{The factorization does not survive conditioning.} The
+action-independence of $R$ assumed in \eqref{eq:QR} is refuted pointwise:
+$\mathrm{ICC}(R\mid g)=0.242/0.292$ against a pre-registered bar of $>0.9$, with
+within-goal coefficient of variation $1.35/1.75$. Equation~\eqref{eq:QR} is a
+useful decomposition \emph{of magnitudes}, not an identity.
+\item \textbf{Open: negativity.} The learned object places $24$--$29\%$ of its mass
+at negative values --- ringing induced by the sharp indicator kernel. A measure
+cannot be negative. Mass-anchoring and smooth (quartic/biweight) kernels are the
+current candidate repairs.
+\end{itemize}
+
+\paragraph{A methodological warning worth carrying.} An earlier version of the
+calibration analysis reported model/MC ratios of $66$--$215\times$ and concluded
+the learned object was not a measure. That was an artifact of a harness bug:
+teleport-style Monte Carlo must call \texttt{env.reset()} before every rollout,
+not merely overwrite \texttt{qpos}/\texttt{qvel}, or the \texttt{TimeLimit} step
+counter carries across rollouts and every rollout after the first truncates at
+step $1$. The tell that was available at the time --- and the check to run --- is a
+sanity bound on the \emph{denominator}: the implied total Monte-Carlo mass was
+$\approx1$--$3$ against $\sum_k\gamma^k\approx87$, which is impossible, since the
+cube is always \emph{somewhere}.
+
+\begin{keybox}
+\textbf{Honest summary.} The curriculum is established to train stably to a good
+policy, and to produce an object that is aggregate- and box-calibrated at
+moderate-to-large scales. It is \emph{not} yet established to be a valid measure:
+it is signed, and its greedy structure disagrees with the policy it trained. Those
+are different claims and the primer should not let them merge.
+\end{keybox}
+
+% =====================================================================
+\section{Summary}
+% =====================================================================
+
+\begin{enumerate}[leftmargin=1.6em]
+\item The successor measure is the right object because reward integration
+      \eqref{eq:integrate} is linear in $r$.
+\item Representing it as a density $m_z = dM/d\rho$ and factorizing
+      $m_z \approx F^\top B$ makes test-time reward inference a single inner product.
+\item But the density Bellman equation has a \emph{Dirac} immediate term, which
+      cannot be regressed.
+\item FB's density-matching surrogate therefore handles the observed successor with
+      an \emph{unanchored linear} term, bounded only by orthonormality.
+\item On manipulation, ortho-off diverges ($154\to5.4\times10^4$) and ortho-on
+      destroys the reaching geometry ($0.225$). The fault is the estimator, not
+      the features.
+\item Meanwhile occupancy factors as reaching $\times$ recurrence, and the
+      recurrence factor --- most of the magnitude --- carries little control signal.
+\item \textbf{Substitute a finite region for the point query.} The singular term
+      becomes a bounded $0/1$ hit event; every matrix entry becomes a squared
+      residual; no regularizer is needed.
+\item \textbf{Phase 1} runs that residual with an \emph{absorbing} backup
+      $\Rightarrow$ bounded reaching value $\E[\gamma^{T_g-1}]\in[0,1]$, and $0.967$ control.
+\item \textbf{Phase 2} deletes the $(1-h)$ factor on the frozen goal geometry
+      $\Rightarrow$ visitation measure $\le 1/(1-\gamma)$, keeping control at $\approx0.95$.
+\item At test time, $\tilde M/\hat N$ integrates rewards; retrieval/GPI executes them.
+\item Control is established. Measure validity is partial: box-calibrated, but
+      signed, and $\arg\max_a Q \ne \arg\max_a M$ seven times in ten.
+\end{enumerate}
+
+% =====================================================================
+\appendix
+\section{Notation}
+% =====================================================================
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+symbol & meaning \\
+\midrule
+$M^{\pi_z}(s,a,X)$ & discounted successor measure of set $X$ under $\pi_z$ \\
+$\rho$ & reference (data) distribution \\
+$m_z = dM/d\rho$ & successor \emph{density} --- the object FB factorizes \\
+$F(s,a,z)$, $B(x)$ & forward / backward maps, $\mathbb{R}^d$, $d=50$ \\
+$\phi(s,a)$, $\psi(g)$ & the same pair on the diagonal slice $z=\psi(g),\,x=g$ \\
+$z_r=\E_{\rho}[r B]$ & reward embedding \\
+$\cube(\cdot)$ & semantic coordinate extractor (cube position) \\
+$\ball{g}$, $\epsilon$ & goal ball on $\cube$; $\epsilon = 4$\,cm \\
+$h(s',g)$ & hit indicator \eqref{eq:hit}; $h_{ij}$ its batch matrix \\
+$T_g$ & first hitting time of $\ball{g}$ \\
+$Q(s,a,g)=\E[\gamma^{T_g-1}]$ & phase-1 reaching value, in $[0,1]$ \\
+$M(s,a,g)$ & phase-2 visitation value, in $[0,1/(1-\gamma)]$ \\
+$R(g)$ & recurrence factor of \eqref{eq:QR}; MC mean $\approx24.7$ \\
+$\hat N(g)\approx\rho(\ball{g})$ & data mass of the goal ball; the readout normalizer \\
+$\sg[\cdot]$ & stop-gradient \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% =====================================================================
+\section{Where this lives in the codebase}
+% =====================================================================
+
+\begin{description}[leftmargin=0pt,style=nextline]
+\item[JAX implementation] \texttt{tools/wandb\_mode\_shim/gciql\_flow.py}, function
+  \texttt{\_measure\_terms}. Knobs: \texttt{measure\_first\_passage} (enables the
+  hit-referenced residual at all), \texttt{measure\_fp\_absorbing}
+  (\texttt{True} $=$ phase 1, \texttt{False} $=$ phase 2),
+  \texttt{measure\_hit\_spec} (the goal region as comma-separated
+  \texttt{start:stop:eps} observation blocks, ANDed --- \texttt{'19:22:0.4'} is
+  cube-single's cube xyz within 4\,cm), \texttt{measure\_nhat\_head}
+  (the $\hat N$ readout normalizer).
+\item[Torch implementation] \texttt{agents/fb/measure/agent.py} --- the port into
+  the FB codebase. \texttt{measure\_mode $\in$ \{first\_passage, visitation\}},
+  \texttt{hit\_eps}, \texttt{hit\_slice}, \texttt{hit\_spec},
+  \texttt{hit\_kernel $\in$ \{ball, quartic\}}, \texttt{nhat\_head},
+  \texttt{warm\_start\_ckpt}.
+\item[Full derivation] \texttt{PAPER/rescuing-fb/fb-to-2phase.tex}.
+\item[Experimental record] \texttt{PAPER/rescuing-fb/two-phase-successor-measure-note.tex}
+  and \texttt{PAPER/rescuing-fb/PHASE2-LEDGER.md} --- every variant, both eval
+  axes, and the refuted pre-registrations.
+\end{description}
+
+\end{document}

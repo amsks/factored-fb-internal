@@ -1,0 +1,219 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=blue!60!black]{hyperref}
+\usepackage{microtype}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+
+\emergencystretch=3em
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\sg}{\mathrm{sg}}
+\newcommand{\R}{\mathbb{R}}
+
+\title{Adding Scalar Bellman Supervision to FB Representations}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Adding FB on top of IQL}
+\label{sec:rgfb}
+
+We start from GCIQL, which already works on Cube, and add the FB components (the bilinear task encoder, reward-embedding inference, and latent-conditioned policy) one piece at a time.
+Each step changes exactly one thing.
+Although the result retains FB's reward-embedding and latent-policy interface, it does not optimize the FB successor-measure objective (\texttt{measure\_coef}$=0$) and the forward representation $\phi$ is not conditioned on $z$: it is an FB-style zero-shot interface trained by GC-IQL rather than an FB representation.
+
+\begin{enumerate}
+    \item \textbf{Start from Bilinear-GCIQL.}
+    A goal-conditioned critic $Q(s,a,g)$ and value $V(s,g)$, trained on hindsight-relabeled sparse reward $r\in\{-1,0\}$ (reward $0$ and mask $0$ at the goal) with the GC-IQL objective, expectile value regression and scalar Bellman regression:
+    \begin{align}
+        & \mathcal L_V = \E\big[\,\ell^\tau_2\big(\sg[Q(s,a,g)]-V(s,g)\big)\big], \\
+        & \ell^\tau_2(u)=\big|\tau-\mathbf 1[u<0]\big|\,u^2, \\
+        & \mathcal L_Q = \E\big[\big(r+\gamma\,(1{-}\mathrm{done})\,V(s',g)-Q(s,a,g)\big)^2\big]. \\
+        & Q(s,a,g)=\frac{\phi(s,a)^\top\psi(g)}{\sqrt d}.
+    \end{align}
+    The expectile $\tau$ emphasizes high-value dataset-supported actions, so $V$ is pulled toward high-value continuations under the dataset action distribution.
+    Train $\phi$ and $\psi$ jointly with $\mathcal L_V,\mathcal L_Q$.
+
+    \item \textbf{Use the reward embedding.}
+    Replace direct goal conditioning in the policy with the latent embedding $z=\psi(g)$: condition the flow policy on $\sg[z]$ rather than on $g$ (the critic is still trained on $g$).
+    The policy now reaches the critic through a single latent $z\in\R^d$ (the latent task-conditioning interface).
+
+    \item \textbf{Zero-shot reward inference.}
+    For a new reward $r$ we never retrain.
+    We estimate the reward moment $z_{\mathrm{raw}}$ by Monte Carlo sampling from the offline dataset, rescale it to the typical embedding norm to obtain $z_r$, and evaluate the same head:
+    \begin{align}
+        z_{\mathrm{raw}} &= \E_\rho[r(s')\,\psi(s')], &
+        z_r &= c_r\,z_{\mathrm{raw}},\quad c_r = \overline{\|\psi(s')\|}\big/\|z_{\mathrm{raw}}\|, \\
+        Q(s,a,z_{\mathrm{raw}}) &= \E_{s'\sim\rho}\!\Big[r(s')\,\tfrac{\phi(s,a)^\top\psi(s')}{\sqrt d}\Big], &
+        Q(s,a,z_r) &= c_r\,Q(s,a,z_{\mathrm{raw}}).
+    \end{align}
+    By bilinearity, $Q(s,a,z_{\mathrm{raw}})$ is the reward-weighted linear combination of single-goal values (each $\phi(s,a)^\top\psi(s')/\sqrt d\approx Q(s,a,g{=}s')$), analogous to the successor-feature reward-composition identity and exact when the value is linear in the reward representation; the policy uses the norm-matched $z_r$, which rescales this value by $c_r$.
+    The resulting policy is then evaluated as $\pi(\cdot\mid s,z_r)$.
+    We use ``zero-shot'' to mean that no policy parameters are updated and no new environment interaction is required; the reward is evaluated on a fixed sample of offline states to construct $z_r$.
+\end{enumerate}
+
+Algorithm~\ref{alg:rgfb} gives the training step and the zero-shot reward inference: GC-IQL supervision in Phase 2, the latent task-conditioning interface in Phase 3, and the zero-shot evaluation in Phase 4.
+
+\begin{algorithm}[t]
+\caption{Bellman-supervised FB-style interface}
+\label{alg:rgfb}
+\begin{algorithmic}[1]
+
+\Require value features $\phi$, task encoder $\psi$ (=B), value features $\phi_V$, flow field $v_\theta$, direct actor $\pi_\eta$, and target networks $\bar\phi,\bar\psi$
+
+\Statex \textbf{Phase 1: Transition \& Target Setup}
+\State Sample transition $(s,a,s')$, hindsight goal $g$, and actor goal $g_\pi$
+\State Construct sparse reward $r\in\{-1,0\}$ and continuation mask $m$
+\State $\bar q\gets\min_k\bar\phi_k(s,a)^\top\bar\psi(g)/\sqrt d$
+\State $y\gets r+\gamma mV(s',g)$ \Comment{$\gamma=0.99$}
+
+\Statex \textbf{Phase 2: Representation \& Value Learning}
+\State $\mathcal L_V\gets\ell_2^\tau\left(\bar q-\phi_V(s)^\top\psi(g)/\sqrt d\right)$ \Comment{$\tau=0.9$}
+\State $\mathcal L_Q\gets\sum_k\left(\phi_k(s,a)^\top\psi(g)/\sqrt d-y\right)^2$
+\State Update $\phi,\psi,\phi_V$ using $\mathcal L_V+\mathcal L_Q$
+
+\Statex \textbf{Phase 3: Actor \& Flow Matching (Latent Interface)}
+\State $z\gets\sg[\psi(g_\pi)]$
+\State Sample $x_0\sim\mathcal N(0,I)$ and $t\sim U[0,1)$
+\State $x_t\gets(1-t)x_0+ta$
+\State $\mathcal L_{\mathrm{bc}}\gets\left|v_\theta(s,z,x_t,t)-(a-x_0)\right|^2$
+\State Sample $\xi\sim\mathcal N(0,I)$
+\State $\hat a\gets\pi_\eta(s,z,\xi)$
+\State $\bar a\gets\sg[\textsc{FlowRollout}(v_\theta;s,z,\xi)]$
+\State $q_\pi\gets\min_k\phi_k(s,\hat a)^\top\psi(g_\pi)/\sqrt d$
+\State $\mathcal L_\pi\gets-\frac{\E[q_\pi]}{\sg[\E|Q|]+\epsilon}+\beta|\hat a-\bar a|^2+\mathcal L_{\mathrm{bc}}$ \Comment{$\beta=3$}
+\State Update $\theta,\eta$ using $\mathcal L_\pi$
+
+\Statex \textbf{Phase 4: Zero-shot inference (Test time)}
+\State Sample offline states $\{s'_i\}_{i=1}^m$, with $m=50{,}000$, and evaluate $r_i=r(s'_i)\in\{0,1\}$
+\State $z_{\mathrm{raw}}\gets\frac{1}{m}\sum_{i=1}^m r_i\psi(s'_i)$
+\State $\bar n_\psi\gets\frac{1}{m}\sum_{i=1}^m|\psi(s'_i)|$
+\State $z\gets z_{\mathrm{raw}}\frac{\bar n_\psi}{\max(|z_{\mathrm{raw}}|,\epsilon)}$
+\State Act using $\pi_\eta(a\mid s,z)$ \Comment{the policy receives no explicit goal}
+
+\end{algorithmic}
+\end{algorithm}
+
+\section{Centering the measure in FB}
+\label{sec:centered}
+
+Start from the $z$-independent bilinear successor-measure factorization used in our implementation and add just enough structure for the successor-measure TD loss to be well-behaved.
+
+\begin{enumerate}
+    \item \textbf{Start from the bilinear successor measure.}
+    The measure $M(s,a,s')=\phi(s,a)^\top\tilde\psi(s')$, with $\tilde\psi=\sqrt d\,\psi/\|\psi\|$ and $\phi$ not conditioned on $z$ (as in our implementation), trained by the successor-measure TD loss
+    \begin{equation}
+        \mathcal L_{\mathrm{meas}}
+        = \frac{1}{2(B^2{-}B)}\sum_{i\neq j}\delta_{ij}^2 \;-\; \frac1B\sum_i \delta_{ii}
+        \;+\; \lambda_\perp\,\mathcal L_\perp(\tilde\psi),
+        \qquad
+        \delta_{ij} = M_{ij} - \gamma\,\sg[\bar M_{ij}],
+        \label{eq:fbloss}
+    \end{equation}
+    where the batch's own next-states $\{s'_j\}$ serve as measure test points, $\bar M_{ij}=\bar\phi(s'_i,a')^\top\bar{\tilde\psi}(s'_j)/\sqrt d$ with $a'$ drawn from the bootstrap policy, and $\mathcal L_\perp$ enforces orthonormality of $\tilde\psi$.
+    On its own this objective fails for three reasons: its fixed point is low-performance (the measure loss alone reaches only $0.08$--$0.34$ on Cube), the learned-policy bootstrap $a'\sim\pi$ makes the backup non-contractive, and the factorization $\phi^\top\tilde\psi$ leaves the absolute scale non-identifiable.
+
+    \item \textbf{Center the forward features with respect to the behavior policy.}
+    Split the forward representation around its behavior-policy conditional feature mean $b(s)=\E_{a\sim\mu}[\phi(s,a)]$ (from $K$ flow samples):
+    \begin{equation}
+        \underbrace{\phi(s,a)^\top\tilde\psi(s')}_{M(s,a,s')} =\underbrace{b(s)^\top\tilde\psi(s')}_{\text{baseline }M_0(s,s')} \;+\;\underbrace{\big(\phi(s,a)-\sg\,b(s)\big)^\top\tilde\psi(s')}_{\text{residual }\Delta M(s,a,s')}.
+    \end{equation}
+    $M_0$ is an action-independent baseline component obtained by averaging the forward features under the behavior policy; $\Delta M$ is the action-dependent residual, a baseline/residual decomposition analogous to a dueling value decomposition.
+
+    \item \textbf{Ground the measure with a fixed-policy backup.}
+    In the pure-measure variant we train the full measure $M$ with a dataset-action, SARSA-style backup ($a'=a'_{\mathrm{data}}$), a $\gamma$-contraction, using an unnormalized objective that identifies the otherwise undetermined multiplicative scale of the factors.
+    The learned-policy bootstrap is kept out of this term and confined to the residual (next step).
+
+    \item \textbf{Downweight the policy-dependent residual.}
+    Confine the learned-policy bootstrap $a'\sim\pi$ to $\Delta M$, at weight $\lambda\le1$, scale-normalized, with gradients propagated only to the backward representation $\psi$:
+    \begin{equation}
+        \mathcal L= \underbrace{\mathcal L_{\mathrm{meas}}(M;\,a'_{\mathrm{data}})}_{\text{fixed-policy, unnormalized}} \;+\;\lambda\,\underbrace{\mathcal L_{\Delta M}\big(a'{\sim}\pi\big)}_{\text{scale-normalized, }\lambda\le1} \;+\;\mathcal L_b\;+\;\mathcal L_\perp(\tilde\psi) .
+    \end{equation}
+    Here $\mathcal L_b$ fits $b$ to the behavior-policy feature mean and $\mathcal L_\perp$ enforces orthonormality of $\tilde\psi$; the actor maximizes the full $Q=\phi^\top\tilde\psi/\sqrt d$, normalized by $\sg|Q_{\mathrm{full}}|$.
+    The contribution of the learned-policy bootstrap is explicitly controlled through scale normalization and the coefficient $\lambda$, and its gradients update only $\psi$.
+    In the auxiliary variant the base term $\mathcal L_{\mathrm{meas}}(M;\,a'_{\mathrm{data}})$ is replaced by the GC-IQL loss.
+
+    \item \textbf{Test-time inference is unchanged.}
+    Same $z$ interface and reward-embedding estimation as in \S\ref{sec:rgfb}, so the method stays zero-shot.
+\end{enumerate}
+
+Algorithm~\ref{alg:centered} is the training step. The baseline regression (Phase 1) learns $b(s)$; the residual measure (Phase 2) is the only place the learned-policy bootstrap $a'\sim\pi$ appears. In the pure-measure variant (\texttt{only}, Phase 3) we train the full successor-measure factorization with a dataset-action, SARSA-style backup; this provides a fixed-behavior-policy successor-measure target and an unnormalized objective that identifies the scale, and the learned-policy bootstrap is retained only in the centered residual auxiliary term.
+
+\begin{algorithm}[t]
+\caption{Centered successor-measure objective}
+\label{alg:centered}
+\begin{algorithmic}[1]
+
+\Require bilinear features $\phi,\tilde\psi$, baseline head $b$, frozen behavior policy $\mu$, actor $\pi$, and target networks $\bar\phi,\bar{\tilde\psi}$
+
+\Statex \textbf{Phase 1: Behavior-Policy Baseline Regression}
+\State Sample $\tilde a_{1:K}\sim\mu(\cdot\mid s)$ using flow rollouts \Comment{$K=8$}
+\State $\phi_\mu\gets\sg\left[\frac{1}{K}\sum_{k=1}^K\phi(s,\tilde a_k)\right]$
+\State $\mathcal L_b\gets\frac{|b(s)-\phi_\mu|^2}{\sg[\E(\phi^2)]+\epsilon}$
+
+\Statex \textbf{Phase 2: Residual Measure Backup (Learned Policy)}
+\State Sample $a'\sim\pi(\cdot\mid s')$
+\State $\Delta\phi\gets\phi(s,a)-\sg[b(s)]$
+\State $\Delta M\gets\frac{\sg[\Delta\phi]\tilde\psi(s')^\top}{\sqrt d}$
+\State $\Delta M'\gets\sg\left[\frac{\left(\bar\phi(s',a')-b(s')\right)\bar{\tilde\psi}(s')^\top}{\sqrt d}\right]$
+\State $\mathcal L_{\Delta M}\gets\textsc{MeasureTD}\left(\Delta M,\gamma\Delta M';\text{normalized}\right)$ \Comment{updates only $\tilde\psi$}
+
+\Statex \textbf{Phase 3: Base Objective \& Total Loss}
+\If{\texttt{centered\_measure=only}}
+    \State $a_{\mathrm{base}}\gets a'_{\mathrm{data}}$ \Comment{dataset-action SARSA backup}
+    \State $M\gets\frac{\phi(s,a)\tilde\psi(s')^\top}{\sqrt d}$
+    \State $M'\gets\sg\left[\frac{\bar\phi(s',a_{\mathrm{base}})\bar{\tilde\psi}(s')^\top}{\sqrt d}\right]$
+    \State $\mathcal L_0\gets\textsc{MeasureTD}\left(M,\gamma M';\text{unnormalized}\right)$
+    \State $\mathcal L\gets\mathcal L_0+\lambda\mathcal L_{\Delta M}+\mathcal L_b+\mathcal L_\perp$
+\ElsIf{\texttt{centered\_measure=aux}}
+    \State $\mathcal L\gets\mathcal L_{\mathrm{IQL}}+\lambda\mathcal L_{\Delta M}+\mathcal L_b$
+\EndIf
+
+\Statex \textbf{Phase 4: Actor Update}
+\State Update the actor using the full $Q_{\mathrm{full}}=\phi^\top\tilde\psi/\sqrt d$, normalized by $\sg[\E|Q_{\mathrm{full}}|]$
+
+\Statex \textbf{Subroutine: \textsc{MeasureTD}}
+\Statex For a batch measure matrix, define $\delta=M-\gamma M'$.
+\Statex $\mathcal L_{\mathrm{off}}=\frac{1}{2(B^2-B)}\sum_{i\neq j}\delta_{ij}^2$.
+\Statex $\mathcal L_{\mathrm{diag}}=-\frac{1}{B}\sum_i\delta_{ii}$.
+\Statex $\textsc{MeasureTD}=\mathcal L_{\mathrm{off}}+\mathcal L_{\mathrm{diag}}$.
+\Statex For the normalized variant, divide each term by $\sg[\sqrt{\E(M^2)}]+\epsilon$.
+
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Empirical outcome}
+\label{sec:centered-results}
+
+Both variants were run on \texttt{cube-single-play} (state), 3 seeds, 500k steps.
+
+The \textbf{auxiliary} variant (\texttt{aux}) is healthy: $0.708$--$0.780$ at 150k, tracking just
+under the bilinear GC-IQL anchor. A centered measure term therefore \emph{coexists} with scalar
+Bellman supervision without the collapse seen when the measure objective is added naively --- it
+neither helps nor destroys.
+
+The \textbf{pure-measure} variant (\texttt{only}) is \textbf{refuted}. A first attempt scale-normalized
+both measure legs, which made the objective scale-invariant; with no scalar TD to pin the absolute
+scale, the diagonal attraction term inflated without bound ($q$ mean $10^{8}\!\to\!10^{13}$) and the
+run floored at $0.06$--$0.08$. We then restored FB's own anchors --- sphere-projected
+$\tilde\psi$ ($\|\tilde\psi\|=\sqrt d$) throughout, \emph{raw} (unnormalized) regression on the
+contractive SARSA base leg, and $\lambda_\perp=1$ --- which removed the runaway. This anchored run
+peaked early at $0.18$--$0.26$ (50k), roughly $3\times$ the historical measure-only ceiling, but did
+not hold: by 500k all three seeds had decayed back to $0.068$, $0.060$, $0.104$, i.e.\ the same
+$0.076$--$0.088$ ceiling the uncentered measure objective reaches.
+
+Centering, scale anchoring, and confining the learned-policy bootstrap to the residual therefore
+\textbf{do not rescue the measure-native objective}. The transient early peak indicates the
+construction does buy a better-behaved optimization \emph{path}, but the fixed point it converges to
+is the same bad one. This is consistent with the annealing result that the measure's own fixed point
+is poor on Cube and that scalar Bellman supervision --- not a better-conditioned measure loss --- is
+the load-bearing ingredient. Under this evidence \S\ref{sec:rgfb}, which keeps the FB interface but
+drops the measure objective entirely, is the variant that works ($0.825\pm0.014$ zero-shot).
+
+\end{document}

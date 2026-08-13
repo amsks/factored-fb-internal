@@ -12,6 +12,18 @@ weight_decay: 0.0
 clip_grad_norm: 0.0
 ortho_coef: 1.0
 train_goal_ratio: 0.5
+# Synthetic-reward z's in the training z law (spec 12 / ledger 9.10). The trained z
+# law is 50% gaussian directions + 50% B(one goal); a BROAD reward's zero-shot
+# z = project(sum_i r_i B(s'_i)) averages many B's and lands off both, which is
+# where L2 found the actor cannot steer (smooth0.8 gap_frac 0.23/0.08). This draws
+# that third kind of z at train time. 0.0 = byte-identical to the old z law.
+reward_z_ratio: 0.0
+reward_z_family: kernel   # kernel = balls/gaussians/two-zone (eval families' FORM, random
+                          #   params: upper bound on what the actor can learn);
+                          # rff = relu(cos(w.c+phi)) random nonneg fields (different form,
+                          #   so the L2 eval families stay held out / non-circular)
+reward_z_bw: [0.2, 2.0]   # loguniform bandwidth, obs units (hit_eps=0.4 is the trained kernel)
+reward_z_slice: [19, 22]  # raw-obs slice the reward is a function of (cube xyz)
 fb_pessimism_penalty: 0.0
 actor_pessimism_penalty: 0.0
 actor_std: 0.2

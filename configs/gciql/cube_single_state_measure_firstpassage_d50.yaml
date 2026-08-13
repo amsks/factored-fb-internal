@@ -1,0 +1,32 @@
+# item 5: first-passage (absorbing) successor-measure residual delta=M-hit-gamma(1-hit)sg[Mbar].
+# Spec: PAPER/rescuing-fb/specs/06-phenomenon-implementations.md. Single-axis move on
+# the plain measure-only cell (bilinear d50, state-action SM on the critic legs,
+# scale-normed, FB ortho anchor). 3 seeds, 500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Measure-FirstPassage-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 1.0
+  measure_scale_norm: true
+  measure_first_passage: true
+wandb_mode: online

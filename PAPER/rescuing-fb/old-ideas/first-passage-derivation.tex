@@ -1,0 +1,591 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[numbers]{natbib}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,citecolor=blue!60!black,urlcolor=blue!60!black]{hyperref}
+\usepackage{microtype}
+\usepackage{enumitem}
+
+\emergencystretch=3em
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\one}{\mathbf{1}}
+\newcommand{\sg}{\operatorname{sg}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\inner}[2]{\left\langle #1,#2\right\rangle}
+
+\newtheorem{proposition}{Proposition}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\title{First-Passage Forward--Backward Learning:\\A Bilinear Reachability Critic for Offline Goal-Conditioned Manipulation}
+\author{Factored-FB project}
+\date{July 22, 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+
+Standard Forward--Backward representation learning factorizes the discounted successor occupancy of a family of policies.
+
+On OGBench \texttt{cube-single-play}, our occupancy-based FB variants reach only approximately $0.10$ mean success.
+
+We instead retain the bilinear FB parameterization but replace the successor-occupancy objective with an absorbing first-passage Bellman objective.
+
+The resulting critic estimates the expected discount to the first time that the cube enters the goal region.
+
+Unlike the continuous-state successor-measure objective, this formulation provides a directly computable binary TD target for every state--goal pair and produces values bounded in $[0,1]$.
+
+With the FB covariance regularizer disabled, the method reaches $0.967$ mean success over three seeds ($0.956$, $0.964$, and $0.980$), compared with approximately $0.94$ for the bilinear GCIQL baseline.
+
+The method is best interpreted as an FB-factorized goal-conditioned reachability critic rather than as an estimator of the canonical FB successor measure.
+
+\end{abstract}
+
+\section{Setting}
+
+We consider an offline goal-conditioned Markov decision process $(\mathcal S,\mathcal A,P,\gamma)$.
+
+The offline dataset contains transitions $(s,a,s')\sim\rho$ without task rewards.
+
+A goal $g$ is represented by a target observation.
+
+Let $c(s)\in\R^3$ denote the cube position contained in observation $s$.
+
+In the implementation, $c(s)$ corresponds to \texttt{obs[19:22]}.
+
+We use the bilinear critic
+
+\begin{equation}
+Q_\theta(s,a,g)=\frac{1}{\sqrt d}\inner{F_\theta(s,a)}{B_\theta(g)},
+\label{eq:bilinear}
+\end{equation}
+
+where $F_\theta(s,a)\in\R^d$ is the forward representation and $B_\theta(g)\in\R^d$ is the goal representation.
+
+The experiments use $d=50$ and two critic heads.
+
+The actor is trained to maximize this critic while remaining close to actions in the offline dataset.
+
+\section{Relation to standard Forward--Backward representations}
+
+Forward--Backward representation learning factorizes the discounted successor measure of a policy \citep{touati2021learning}.
+
+For a fixed policy $\pi$, the state-goal successor occupancy may be written informally as
+
+\begin{equation}
+M_{\mathrm{occ}}^\pi(s,a;g)=\E_\pi\left[\sum_{t\geq 0}\gamma^t\delta_g(s_{t+1})\mid s_0=s,a_0=a\right].
+\label{eq:occupancy}
+\end{equation}
+
+FB learns forward and backward representations whose inner product approximates the density of this measure relative to the data distribution.
+
+This factorization permits a task vector to be constructed after representation learning and used to extract a policy.
+
+The standard successor-occupancy objective is not identical to the episodic goal-reaching objective used by OGBench.
+
+Occupancy counts every discounted visit to the goal, whereas OGBench evaluates whether the object reaches the goal region.
+
+For a unit indicator, discounted occupancy is bounded by $1/(1-\gamma)$.
+
+Nevertheless, its density relative to the offline data distribution can be large in low-density regions, and the factorization remains non-identifiable under reciprocal rescaling of $F$ and $B$.
+
+In continuous state spaces, exact equality with a sampled goal also does not provide an ordinary binary regression target.
+
+Canonical FB therefore uses a successor-density objective with a special diagonal term rather than standard regression onto an observed sparse reward.
+
+\section{First-passage reachability}
+
+\subsection{Goal region}
+
+We define a goal region using the cube position.
+
+\begin{equation}
+\mathcal G(g)=\left\{s'\in\mathcal S:\norm{c(s')-c(g)}_2\leq\varepsilon\right\}.
+\label{eq:goal-set}
+\end{equation}
+
+The corresponding goal-reaching reward is
+
+\begin{equation}
+r_g(s')=\one\left[\norm{c(s')-c(g)}_2\leq\varepsilon\right].
+\label{eq:hit-reward}
+\end{equation}
+
+The implementation uses $\varepsilon=0.4$ in the scaled observation space.
+
+This corresponds to the $0.04$ metre success threshold used by the OGBench Cube environment \citep{park2025ogbench}.
+
+\subsection{Absorbing Bellman operator}
+
+We terminate the value recursion when the successor state enters the goal region.
+
+For a goal-conditioned policy $\pi(a\mid s,g)$, define
+
+\begin{equation}
+(\mathcal T^\pi Q)(s,a,g)=\E_{s'\sim P(\cdot\mid s,a),\,a'\sim\pi(\cdot\mid s',g)}\left[r_g(s')+\gamma\left(1-r_g(s')\right)Q(s',a',g)\right].
+\label{eq:operator}
+\end{equation}
+
+When $r_g(s')=1$, the target is exactly $1$ and no future value is added.
+
+When $r_g(s')=0$, the target is the discounted value of continuing from $s'$.
+
+\begin{proposition}
+The operator $\mathcal T^\pi$ is a $\gamma$-contraction under the supremum norm.
+\end{proposition}
+
+\begin{proof}
+
+For any $Q_1$ and $Q_2$,
+
+\begin{equation}
+\left|(\mathcal T^\pi Q_1)(s,a,g)-(\mathcal T^\pi Q_2)(s,a,g)\right|\leq\gamma\E\left[(1-r_g(s'))\left|Q_1(s',a',g)-Q_2(s',a',g)\right|\right].
+\end{equation}
+
+Since $1-r_g(s')\in\{0,1\}$,
+
+\begin{equation}
+\norm{\mathcal T^\pi Q_1-\mathcal T^\pi Q_2}_\infty\leq\gamma\norm{Q_1-Q_2}_\infty.
+\end{equation}
+
+\end{proof}
+
+\subsection{First-passage interpretation}
+
+Let
+
+\begin{equation}
+T_g=\inf\left\{t\geq 1:s_t\in\mathcal G(g)\right\}
+\label{eq:hitting-time}
+\end{equation}
+
+denote the first time that the trajectory enters the goal region.
+
+We set $T_g=\infty$ if the goal is never reached.
+
+\begin{proposition}
+The unique fixed point of \eqref{eq:operator} is
+
+\begin{equation}
+Q_{\mathrm{FP}}^\pi(s,a,g)=\E_\pi\left[\gamma^{T_g-1}\one[T_g<\infty]\mid s_0=s,a_0=a\right].
+\label{eq:first-passage}
+\end{equation}
+
+\end{proposition}
+
+\begin{proof}
+
+Unrolling the absorbing Bellman recursion gives
+
+\begin{equation}
+Q_{\mathrm{FP}}^\pi(s,a,g)=\E_\pi\left[\sum_{t\geq 1}\gamma^{t-1}\left(\prod_{u=1}^{t-1}(1-r_g(s_u))\right)r_g(s_t)\right].
+\end{equation}
+
+The product is one only while the goal has not previously been reached.
+
+Consequently, exactly one term is nonzero, at $t=T_g$.
+
+This yields \eqref{eq:first-passage}.
+
+\end{proof}
+
+The first-passage value belongs to $[0,1]$.
+
+It is one for immediate success, decreases with the time required to reach the goal, and is zero when the goal is never reached.
+
+It is therefore directly aligned with goal-reaching control.
+
+\section{Batched training objective}
+
+Consider a minibatch
+
+\begin{equation}
+\left\{(s_i,a_i,s_i')\right\}_{i=1}^N.
+\end{equation}
+
+We use the next observations in the batch as candidate goals,
+
+\begin{equation}
+g_j=s_j'.
+\end{equation}
+
+This produces an $N\times N$ matrix of state--action and goal pairs.
+
+\subsection{Critic matrix}
+
+The online critic matrix is
+
+\begin{equation}
+Q_{ij}=\frac{1}{\sqrt d}\inner{F_\theta(s_i,a_i)}{B_\theta(g_j)}.
+\label{eq:q-matrix}
+\end{equation}
+
+For the exact goal-conditioned Bellman operator, the target action for entry $(i,j)$ should be sampled from the policy conditioned on goal $g_j$,
+
+\begin{equation}
+a_{ij}^+\sim\pi_{\bar\theta}(\cdot\mid s_i',g_j).
+\label{eq:pair-action}
+\end{equation}
+
+The corresponding target critic is
+
+\begin{equation}
+\bar Q_{ij}=\sg\left[\frac{1}{\sqrt d}\inner{F_{\bar\theta}(s_i',a_{ij}^+)}{B_{\bar\theta}(g_j)}\right].
+\label{eq:target-q}
+\end{equation}
+
+\begin{remark}
+The current vectorized implementation appears to construct one target action $a_i^+$ per row and reuse it across all goal columns.
+If so, this is a shared-action approximation to \eqref{eq:pair-action}.
+It is exact on the diagonal when the row action is conditioned on $g_i$, but it is not the exact goal-conditioned target for arbitrary off-diagonal goals.
+\end{remark}
+
+\subsection{All-pairs goal labels}
+
+The goal-reaching matrix is
+
+\begin{equation}
+H_{ij}=\one\left[\norm{c(s_i')-c(g_j)}_2\leq\varepsilon\right].
+\label{eq:hit-matrix}
+\end{equation}
+
+Since $g_i=s_i'$, every diagonal entry satisfies $H_{ii}=1$.
+
+Off-diagonal entries may also be positive when two next observations contain nearby cube positions.
+
+The Bellman target is
+
+\begin{equation}
+Y_{ij}=H_{ij}+\gamma(1-H_{ij})\bar Q_{ij}.
+\label{eq:target}
+\end{equation}
+
+The TD residual is
+
+\begin{equation}
+\Delta_{ij}=Q_{ij}-Y_{ij}.
+\label{eq:residual}
+\end{equation}
+
+\subsection{Diagonal and off-diagonal losses}
+
+Let $I$ denote the identity matrix and let $\mathrm{Off}=\mathbf 1-I$.
+
+The off-diagonal loss is
+
+\begin{equation}
+\mathcal L_{\mathrm{off}}=\frac{0.5}{\sum_{ij}\mathrm{Off}_{ij}}\sum_{i\neq j}\Delta_{ij}^2.
+\label{eq:off-loss}
+\end{equation}
+
+The diagonal loss is
+
+\begin{equation}
+\mathcal L_{\mathrm{diag}}=\frac{1}{N}\sum_i\Delta_{ii}^2.
+\label{eq:diag-loss}
+\end{equation}
+
+Unlike the canonical FB diagonal attraction term, the first-passage diagonal is trained by squared TD regression.
+
+The diagonal target is exactly one because each transition reaches its own next-state goal in one step.
+
+\subsection{Loss normalization}
+
+The implementation normalizes both TD terms using the stop-gradient critic scale
+
+\begin{equation}
+S_Q=\sg\left[\frac{1}{N^2}\sum_{ij}Q_{ij}^2\right]+\epsilon.
+\label{eq:q-scale}
+\end{equation}
+
+The normalized losses are
+
+\begin{equation}
+\widetilde{\mathcal L}_{\mathrm{off}}=\frac{\mathcal L_{\mathrm{off}}}{S_Q},
+\qquad
+\widetilde{\mathcal L}_{\mathrm{diag}}=\frac{\mathcal L_{\mathrm{diag}}}{S_Q}.
+\label{eq:normalized-losses}
+\end{equation}
+
+This normalization is an optimization heuristic and does not change the first-passage fixed point.
+
+\section{Backward-representation regularization}
+
+The implementation optionally applies an FB-style covariance regularizer to the backward representations.
+
+Let $\Psi\in\R^{N\times d}$ contain the goal representations in a minibatch and define
+
+\begin{equation}
+C=\Psi\Psi^\top.
+\end{equation}
+
+The implemented regularizer is
+
+\begin{equation}
+\mathcal L_{\mathrm{cov}}=\frac{0.5}{\sum_{ij}\mathrm{Off}_{ij}}\sum_{i\neq j}C_{ij}^2-\frac{1}{N}\sum_i C_{ii}.
+\label{eq:cov-loss}
+\end{equation}
+
+The total critic loss is
+
+\begin{equation}
+\mathcal L_{\mathrm{critic}}=\widetilde{\mathcal L}_{\mathrm{off}}+\widetilde{\mathcal L}_{\mathrm{diag}}+\lambda_{\mathrm{cov}}\mathcal L_{\mathrm{cov}}.
+\label{eq:critic-loss}
+\end{equation}
+
+This term is referred to as orthonormalization in the implementation, although it is more precisely a covariance-shaping regularizer.
+
+It discourages correlations between different goal embeddings and encourages nonzero embedding norms.
+
+\section{Policy learning}
+
+For a goal observation $g$, the task representation is
+
+\begin{equation}
+z_g=\sg\left[\frac{1}{P}\sum_{p=1}^P B_{\theta,p}(g)\right],
+\label{eq:task-vector}
+\end{equation}
+
+where $P$ is the number of critic heads.
+
+The actor uses the bilinear value
+
+\begin{equation}
+Q_\theta(s,a\mid g)=\frac{1}{\sqrt d}\inner{F_\theta(s,a)}{z_g}.
+\label{eq:actor-q}
+\end{equation}
+
+A flow or DDPG+BC actor maximizes this value while remaining close to the offline action distribution.
+
+Because \eqref{eq:first-passage} decreases with the first-passage time, maximizing \eqref{eq:actor-q} favors actions that reach the goal region quickly.
+
+\section{Why the method works on \texttt{cube-single-play}}
+
+\subsection{Alignment with the evaluation objective}
+
+OGBench Cube tasks declare success when the cube position is within $0.04$ metres of the target position \citep{park2025ogbench}.
+
+The goal-conditioned environment terminates after success and reports a binary success signal.
+
+The first-passage reward uses the same position coordinates and the same tolerance.
+
+The training target therefore closely matches the evaluation criterion.
+
+Standard occupancy learning does not encode this terminal first-arrival semantics.
+
+\subsection{Low-dimensional goal structure}
+
+The complete observation contains the robot state, gripper state, object state, and other dynamical information.
+
+However, success in \texttt{cube-single} depends only on the three-dimensional cube position.
+
+Many full goal observations should therefore correspond to the same goal-reaching task.
+
+The useful goal space is a quotient of the full observation space under the equivalence relation
+
+\begin{equation}
+g_1\sim g_2\quad\Longleftrightarrow\quad c(g_1)\approx c(g_2).
+\label{eq:goal-equivalence}
+\end{equation}
+
+Without covariance regularization, $B$ can learn to ignore goal-observation variables that do not affect the cube-position reward.
+
+This is consistent with the FB observation that the backward map may operate only on reward-relevant state features when those features are known \citep{touati2021learning}.
+
+\subsection{A low-rank reachability function}
+
+The task goal is parameterized by a three-dimensional position, while the latent dimension is $d=50$.
+
+The first-passage value also varies smoothly over nearby cube positions except at the success boundary.
+
+Its state--action--goal value matrix can therefore have a much lower effective rank than the nominal latent dimension.
+
+A free bilinear factorization can allocate most of its variation to a small correlated subspace.
+
+This is sufficient to represent spatial reachability while allowing $F$ to retain the robot and contact information needed to select actions.
+
+\subsection{All-pairs hindsight supervision}
+
+Each minibatch produces $N^2$ state--goal pairs.
+
+The diagonal provides $N$ guaranteed one-step positive examples.
+
+Nearby off-diagonal pairs provide additional positive examples.
+
+The remaining pairs train discounted reachability through bootstrapping.
+
+This gives the critic substantially more structured supervision than an exact-state successor-density objective in continuous space.
+
+\subsection{Behavior support}
+
+The OGBench play datasets contain diverse manipulation behavior generated by scripted data-collection policies \citep{park2025ogbench}.
+
+The dataset includes reaching, grasping, transporting, and releasing the cube at many positions.
+
+The behavior-constrained actor can therefore construct successful policies largely from actions already represented in the dataset.
+
+The critic's main task is to rank these supported actions according to first-passage reachability.
+
+\section{Why covariance regularization hurts}
+
+The covariance regularizer is useful in canonical FB partly because the factorization is non-identifiable and task vectors may be sampled independently from an isotropic latent distribution.
+
+Neither motivation applies directly to the present objective.
+
+Tasks are represented by $z_g=B(g)$ rather than by independent isotropic vectors.
+
+The actor depends only on the product $F(s,a)^\top B(g)$.
+
+The first-passage TD target directly constrains this product.
+
+Nearby goals should also have similar value functions and therefore similar embeddings.
+
+Forcing these embeddings toward decorrelation conflicts with the smooth geometry of the cube-position goal space.
+
+The conflict is stronger because $B$ receives a full goal observation even though the reward depends only on three position coordinates.
+
+Without covariance regularization, $B$ may collapse nuisance differences in robot configuration, gripper state, velocity, and contact state.
+
+With covariance regularization, the representation is encouraged to distinguish goal observations that should be equivalent under the task reward.
+
+The experimental results are consistent with this explanation:
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Method & Mean success \\
+\midrule
+Occupancy FB variants & $\approx 0.10$ \\
+First-passage with covariance regularization & $0.225$ \\
+First-passage without covariance regularization & $0.967$ \\
+Bilinear GCIQL & $\approx 0.94$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Removing the covariance regularizer alone does not rescue the occupancy objective.
+
+The first-passage target supplies the correct goal-reaching semantics, while removing the regularizer allows the backward representation to use the corresponding low-rank and nuisance-invariant structure.
+
+\section{Interpretation and limitations}
+
+The method retains three main components of FB:
+
+\begin{enumerate}[leftmargin=1.5em]
+\item a forward representation of state--action pairs;
+\item a backward representation of goals;
+\item a bilinear value used for task-conditioned policy extraction.
+\end{enumerate}
+
+It does not retain the canonical FB successor-measure objective.
+
+Its fixed point is a goal-conditioned first-passage value function.
+
+The method should therefore be described as \emph{first-passage FB}, \emph{an FB-factorized reachability critic}, or \emph{bilinear first-passage Q-learning}.
+
+It should not be claimed to preserve the standard FB guarantee of recovering optimal policies for arbitrary rewards.
+
+The current construction also uses task-specific information: the cube-position coordinates and the OGBench success threshold.
+
+This specialization is a likely source of its strong performance.
+
+The following diagnostics would directly test the proposed explanation:
+
+\begin{enumerate}[leftmargin=1.5em]
+\item measure the singular-value spectrum of the learned state--goal value matrix;
+\item measure the covariance spectrum of $B(g)$ with and without regularization;
+\item train $B$ using only the three cube-position coordinates;
+\item vary the latent dimension over $d\in\{3,5,10,20,50\}$;
+\item restore covariance regularization after restricting $B$ to cube position;
+\item compare pair-specific and row-shared bootstrap actions;
+\item evaluate the same objective on multi-object and Scene tasks.
+\end{enumerate}
+
+A particularly informative prediction is that a position-only backward map should substantially reduce the gap between regularized and unregularized training.
+
+\section{Code correspondence}
+
+All line references below refer to \texttt{tools/wandb\_mode\_shim/gciql\_flow.py}.
+
+\begin{center}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Mathematical object & Implementation & Lines \\
+\midrule
+$Q_{ij}$ & \texttt{einsum('hid,hjd->hij', phi, psi) / sqd} & 1157 \\
+$\bar Q_{ij}$ & target forward--backward inner product & 1176 \\
+$H_{ij}$ & \texttt{dist <= 0.4} on \texttt{nobs[:,19:22]} & 1200--1203 \\
+$\Delta_{ij}$ & \texttt{M - hit - gamma * (1-hit) * tM} & 1090 \\
+$\mathcal L_{\mathrm{diag}}$ & \texttt{mean(diag(diff)**2)} & 1091 \\
+$\mathcal L_{\mathrm{off}}$ & \texttt{0.5 * sum((diff * off)**2) / sum(off)} & 1092 \\
+$S_Q$ & \texttt{sg(mean(M**2))} & 1093--1097 \\
+$\mathcal L_{\mathrm{cov}}$ & covariance off-diagonal and diagonal terms & 1315--1318 \\
+$\mathcal L_{\mathrm{critic}}$ & TD terms plus covariance regularization & 1320 \\
+Total loss & \texttt{measure\_coef * m\_loss + actor\_loss} & 1677 \\
+$z_g$ & \texttt{sg(psi.mean(axis=0))} & 425, 467 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Experimental configuration}
+
+The successful configuration uses
+
+\begin{itemize}[leftmargin=1.5em]
+\item \texttt{value\_arch=bilinear};
+\item \texttt{value\_latent\_dim=50};
+\item \texttt{measure\_only=true};
+\item \texttt{measure\_coef=1.0};
+\item \texttt{measure\_legs=critic};
+\item \texttt{measure\_first\_passage=true};
+\item \texttt{measure\_scale\_norm=true};
+\item \texttt{measure\_ortho\_coef=0.0};
+\item \texttt{bc\_coeff=3.0};
+\item a flow actor;
+\item $500\,000$ gradient steps.
+\end{itemize}
+
+The corresponding experiment group is
+
+\begin{center}
+\texttt{GCIQL-State-Flow-Measure-FirstPassage-NoOrtho-d50}.
+\end{center}
+
+\section{Conclusion}
+
+The successful modification does not merely stabilize the original FB loss.
+
+It changes the learned object from discounted successor occupancy to discounted first-arrival reachability.
+
+This produces a bounded Bellman target that matches the terminal goal-reaching objective used by OGBench Cube.
+
+The large improvement without covariance regularization is consistent with the low-dimensional and highly correlated structure of cube-position goals.
+
+The result suggests that, for manipulation, an FB-style bilinear architecture can be effective when its training objective and goal representation are aligned with the task-relevant notion of success.
+
+\bibliographystyle{plainnat}
+
+\begin{thebibliography}{9}
+
+\bibitem[Touati and Ollivier(2021)]{touati2021learning}
+Ahmed Touati and Yann Ollivier.
+\newblock Learning one representation to optimize all rewards.
+\newblock In \emph{Advances in Neural Information Processing Systems}, 2021.
+
+\bibitem[Park et~al.(2025)]{park2025ogbench}
+Seohong Park, Kevin Frans, Benjamin Eysenbach, and Sergey Levine.
+\newblock OGBench: Benchmarking offline goal-conditioned reinforcement learning.
+\newblock In \emph{International Conference on Learning Representations}, 2025.
+
+\end{thebibliography}
+
+\end{document}

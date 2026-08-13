@@ -37,6 +37,36 @@ MAP = {
     'fb_state_ddpgbc':      dict(csv='summary', env='cube', agent='FB', actor='ddpgbc', variant='plain'),
     'fb_antmaze_medium_500k': dict(csv='summary', env='antmaze', agent='FB', actor='flowbc', variant='plain'),
     'fb_scene_500k':        dict(csv='summary', env='scene', agent='FB', actor='flowbc', variant='plain'),
+    # --- 2026-08-05: the "---" cells of the ICLR draft's tab:main (launch_missing_baselines.sh).
+    # "Tuned FB"  = domain-default ortho_coef 1.0, matching FB-State-Flow / fb_scene_500k.
+    # "FB (ref.)" = ortho_coef 1000, matching exp_spec10/torchfb/fb_stock_s0 (cube 0.532).
+    'mb_tunedfb_cdbl_s42': dict(csv='summary', env='cube-double', agent='FB', actor='flowbc', variant='plain'),
+    'mb_tunedfb_cdbl_s43': dict(csv='summary', env='cube-double', agent='FB', actor='flowbc', variant='plain'),
+    'mb_fbref_cdbl_s42':   dict(csv='summary', env='cube-double', agent='FB', actor='flowbc', variant='ortho1000-ref'),
+    'mb_fbref_cdbl_s43':   dict(csv='summary', env='cube-double', agent='FB', actor='flowbc', variant='ortho1000-ref'),
+    'mb_fbref_scn_s42':    dict(csv='summary', env='scene', agent='FB', actor='flowbc', variant='ortho1000-ref'),
+    'mb_fbref_scn_s43':    dict(csv='summary', env='scene', agent='FB', actor='flowbc', variant='ortho1000-ref'),
+    # "FB loss on regions" on the multi-object envs: stock FB's loss at MATCHED
+    # conjunctive support (hitdirac hit_spec, added 2026-08-05). cube-single = 0.284.
+    'fr_fbregion_cdbl_s42': dict(csv='summary', env='cube-double', agent='FB', actor='flowbc', variant='fbloss-on-regions'),
+    'fr_fbregion_cdbl_s43': dict(csv='summary', env='cube-double', agent='FB', actor='flowbc', variant='fbloss-on-regions'),
+    'fr_fbregion_scn_s42':  dict(csv='summary', env='scene', agent='FB', actor='flowbc', variant='fbloss-on-regions'),
+    'fr_fbregion_scn_s43':  dict(csv='summary', env='scene', agent='FB', actor='flowbc', variant='fbloss-on-regions'),
+    # 2026-08-05 method-reproducibility waves (CLAIMS-AUDIT.md). nf_* = region measure
+    # + FBAgent native TD3+BC actor (no flow; actor-class control). tz_* = region measure
+    # + flow actor + train_goal_mode=traj (grounded actor z's; the jax<->torch bridge).
+    'nf_nf_cs_s42':   dict(csv='summary', env='cube', agent='RegionFB', actor='td3bc', variant='p1-noflow'),
+    'nf_nf_cs_s43':   dict(csv='summary', env='cube', agent='RegionFB', actor='td3bc', variant='p1-noflow'),
+    'nf_nf_cdbl_s42': dict(csv='summary', env='cube-double', agent='RegionFB', actor='td3bc', variant='p1-noflow'),
+    'nf_nf_cdbl_s43': dict(csv='summary', env='cube-double', agent='RegionFB', actor='td3bc', variant='p1-noflow'),
+    'nf_nf_scn_s42':  dict(csv='summary', env='scene', agent='RegionFB', actor='td3bc', variant='p1-noflow'),
+    'nf_nf_scn_s43':  dict(csv='summary', env='scene', agent='RegionFB', actor='td3bc', variant='p1-noflow'),
+    'tz_tz_cs_s42':   dict(csv='summary', env='cube', agent='RegionFB', actor='flowbc', variant='p1-trajz'),
+    'tz_tz_cs_s43':   dict(csv='summary', env='cube', agent='RegionFB', actor='flowbc', variant='p1-trajz'),
+    'tz_tz_cdbl_s42': dict(csv='summary', env='cube-double', agent='RegionFB', actor='flowbc', variant='p1-trajz'),
+    'tz_tz_cdbl_s43': dict(csv='summary', env='cube-double', agent='RegionFB', actor='flowbc', variant='p1-trajz'),
+    'tz_tz_scn_s42':  dict(csv='summary', env='scene', agent='RegionFB', actor='flowbc', variant='p1-trajz'),
+    'tz_tz_scn_s43':  dict(csv='summary', env='scene', agent='RegionFB', actor='flowbc', variant='p1-trajz'),
     'FB-Pixel-DrQ-Flow':    dict(csv='summary', env='cube-pixel', agent='FB', actor='flowbc', variant='drq'),
     # --- GCIQL (jax; metric evaluation/overall_success) ---
     'GCIQL-State-DDPGBC':          dict(csv='summary', env='cube', agent='GCIQL', actor='ddpgbc', variant='mlp'),
@@ -100,6 +130,10 @@ MAP = {
     # --- other baseline agents (failure-analysis project; filter by agent) ---
     'CRL-State-Flow':    dict(csv='summary', env='cube', agent='CRL', actor='flowbc', variant='plain'),
     'crl_state_ddpgbc':  dict(csv='summary', env='cube', agent='CRL', actor='ddpgbc', variant='plain'),
+    # 2026-08-05: CRL on the multi-object envs, same recipe as CRL-State-Flow (cube 0.311),
+    # only env_name and the 500k budget differ. Fills two "---" cells of tab:main.
+    'factored-fb-crl-flowbc-cube-double': dict(csv='summary', env='cube-double', agent='CRL', actor='flowbc', variant='plain'),
+    'factored-fb-crl-flowbc-scene':       dict(csv='summary', env='scene', agent='CRL', actor='flowbc', variant='plain'),
     'PSM-State-Flow':    dict(csv='summary', env='cube', agent='PSM', actor='flowbc', variant='plain'),
     'psm_z50_ortho1000': dict(csv='summary', env='cube', agent='PSM', actor='flowbc', variant='z50-ortho1000-tuned'),
     'psm_state_tuned__ortho_coef1__lr_phi1e-5':    dict(csv='summary', env='cube', agent='PSM', actor='flowbc', variant='tuned-ortho1'),
@@ -146,6 +180,10 @@ MAP = {
     'covbal_prio_wz_a0.5':    dict(csv='bridge', env='cube', agent='FB', actor='flowbc', variant='covbal-prio-wz', graft='coverage-balanced prioritized w/ z'),
     'cube-single-video-replay-ortho1000-lrb1e-4': dict(csv='bridge', env='cube', agent='FB', actor='flowbc', variant='video-replay', graft='FB data ablation (video replay)'),
     'cube-single-onestep-ortho1000-lrb1e-4': dict(csv='bridge', env='cube', agent='OneStepFB', actor='flowbc', variant='ortho1000', graft='one-step FB variant'),
+    # T7/T8 (2026-07-20): the last measure-side arms (matched ortho1000/lr_b1e-4, 1M)
+    'fb_state_t7_min':   dict(csv='bridge', env='cube', agent='FB', actor='flowbc', variant='t7-pess0.5-min', graft='T7 conservatism: pessimism 0.5 == exact min-aggregation'),
+    'fb_state_t7_extra': dict(csv='bridge', env='cube', agent='FB', actor='flowbc', variant='t7-pess1.0', graft='T7 conservatism: pessimism 1.0, beyond-min (VC-FB-style)'),
+    'fb_state_t8_zcond': dict(csv='bridge', env='cube', agent='OneStepFB', actor='flowbc', variant='t8-zcond', graft='T8 faithful one-step FB: SARSA bootstrap, F kept z-conditioned'),
     # FB incidental-HP ladder (kept: they anchor the knob-ladder story)
     'cube-single-ortho100-lrb1e-4':  dict(csv='bridge', env='cube', agent='FB', actor='flowbc', variant='hp-ortho100-lrb1e-4', graft='FB incidental-HP ladder'),
     'cube-single-ortho100-lrb1e-5':  dict(csv='bridge', env='cube', agent='FB', actor='flowbc', variant='hp-ortho100-lrb1e-5', graft='FB incidental-HP ladder'),
@@ -292,4 +330,247 @@ MAP = {
     'factored-fb-gcivl-pixel':         dict(csv=E, reason='project-default group'),
     'factored-fb-gcivl-pixel-drq':     dict(csv=E, reason='project-default group'),
     '_redirect_validate':              dict(csv=E, reason='infra stub'),
+
+    # ---- rescuing-fb program (2026-07-16..20): RG-FB + T10 centered measure ----
+    'RGFB-Cube-Single-State-d50-v0':         dict(csv='bridge', env='cube', agent='RG-FB', actor='fql_flow', variant='rgfb-v0',
+                                                  graft='RG-FB v0: FB interface (z-actor + moment inference), pure scalar IQL grounding; zero-shot 0.825'),
+    'RGFB-Cube-Single-State-d50-vfnone-ctl': dict(csv='bridge', env='cube', agent='RG-FB', actor='fql_flow', variant='rgfb-vfnone-ctl',
+                                                  graft='RG-FB v0 isolation control: actor_vf_cond=none'),
+    'GCIQL-State-Flow-CenteredMeasure-Aux-d50':           dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='t10a-centered-aux',
+                                                  graft='T10-a: IQL + centered-measure advantage aux (0.823, costs ~8pts vs anchor)'),
+    'GCIQL-State-Flow-CenteredMeasure-Only-Anchored-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='t10b2-centered-only-anchored',
+                                                  graft='T10-b2: measure-only, centered + FB scale anchors + SARSA base leg (dead band 0.06-0.10)'),
+    'GCIQL-State-Flow-CenteredMeasure-Only-d50': dict(csv=E, reason='T10-b v1: scale-runaway (q->1e13), killed @160k; superseded by Anchored arm'),
+    # ---- spec 06 phenomenon implementations (2026-07-20): pre-registered, not yet run ----
+    # Direction I (method chain). Eval-only scripts (GPI item1, rerank item3, readout item8)
+    # produce analysis JSONs, not wandb training groups, so they are not mapped here.
+    'RGFB-Cube-Single-State-d512-v0':          dict(csv='bridge', env='cube', agent='RG-FB', actor='fql_flow', variant='rgfb-v0-d512',
+                                                  graft='spec06 item2: RG-FB v0 at latent_dim=512 (isolates the d-gap vs d50 0.825)'),
+    'RGFB-Cube-Single-State-d50-v1-taskprior':  dict(csv='bridge', env='cube', agent='RG-FB', actor='fql_flow', variant='rgfb-v1-taskprior-d50',
+                                                  graft='spec06 item4: RG-FB v1 task-prior (Dirac+mixture+random-linear scalar grounding at the sampled z)'),
+    'RGFB-Cube-Single-State-d512-v1-taskprior': dict(csv='bridge', env='cube', agent='RG-FB', actor='fql_flow', variant='rgfb-v1-taskprior-d512',
+                                                  graft='spec06 item4: RG-FB v1 task-prior at d512 (if item2 won)'),
+    # Direction II (mechanism cells) -- single-axis moves on the plain measure-only cell.
+    'GCIQL-State-Flow-Measure-CellW0-NoOrtho-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-cellw-w0-noortho',
+                                                  graft='CELL W w=0, ortho=0 (scale-fix rerun): the TRUE GC-IQL-equivalence run after the ortho-scale confound'),
+    'GCIQL-State-Flow-Measure-FirstPassage-NoOrtho-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-first-passage-noortho',
+                                                  graft='first-passage axis-C cell, ortho=0 (was 0.225 with a ~100x oversized ortho term)'),
+    'GCIQL-State-Flow-Measure-CellW0-d50':         dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-cellw-w0',
+                                                  graft='CELL W w=0: first-passage SM, hindsight-paired diagonal only == bilinear GC-IQL under M=1+(1-g)Q (theorem-backed win)'),
+    'GCIQL-State-Flow-Measure-CellW03-d50':        dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-cellw-w03',
+                                                  graft='CELL W w=0.3: + off-diagonal matrix supervision at a GC-IQL-like task mix (the measure-native win candidate)'),
+    'GCIQL-State-Flow-Measure-GCIQLCorner-d50':    dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-gciql-corner',
+                                                  graft='FULL-CORNER measure: first-passage + expectile backup + hindsight test points (all 3 axes) -- the headline rescuing-fb arm'),
+    'GCIQL-State-Flow-Measure-FirstPassage-d50':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-first-passage',
+                                                  graft='spec06 item5: first-passage (absorbing) successor-measure residual, cube-xyz hit'),
+    # spec08 E7 -- the two-phase curriculum on a SECOND/THIRD env (measure_hit_spec knob).
+    # The *-1Cube / *-CubeOnly cells are SPARSITY CONTROLS: same objective, cube-single-sized
+    # region density (18.6 / 61.9 off-diag positives per row at B=1024) against the faithful
+    # conjunctions (0.51 / 3.07). They deconfound "reach-first fails here" from "the reward is
+    # 27x sparser here"; their regions ignore factors the native eval scores, so read their
+    # TRAINING traces, not their overall success.
+    'GCIQL-CubeDouble-Flow-Bilinear-d50':          dict(csv='summary', env='cube-double', agent='GCIQL', actor='fql_flow', variant='bilinear-d50'),
+    'GCIQL-CubeDouble-Flow-Measure-FirstPassage-NoOrtho-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-first-passage-noortho',
+                                                  graft='spec08 E7 phase 1 on cube-double; goal region = BOTH cubes within 4cm (env-faithful conjunction)'),
+    'GCIQL-CubeDouble-Flow-Measure-FP-NoOrtho-1Cube-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-fp-noortho-1cube',
+                                                  graft='spec08 E7 sparsity control: cube-double phase 1 with the region on cube 0 only'),
+    'GCIQL-CubeDouble-Flow-Measure-BallVisit-FrozenPsi-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frozenpsi',
+                                                  graft='spec08 E7 phase 2 on cube-double: non-absorbing visitation TD on the frozen phase-1 psi'),
+    'GCIQL-Scene-Flow-Measure-FirstPassage-NoOrtho-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='measure-first-passage-noortho',
+                                                  graft='spec08 E7 phase 1 on scene; goal region = cube+2 buttons+drawer+window (env-faithful 5-way conjunction)'),
+    'GCIQL-Scene-Flow-Measure-FP-NoOrtho-CubeOnly-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='measure-fp-noortho-cubeonly',
+                                                  graft='spec08 E7 sparsity control: scene phase 1 with the region on the cube ball only'),
+    'GCIQL-Scene-Flow-Measure-BallVisit-FrozenPsi-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frozenpsi',
+                                                  graft='spec08 E7 phase 2 on scene: non-absorbing visitation TD on the frozen phase-1 psi'),
+
+    # ledger §9.16 p2fix arms -- phase-2 regression mechanism fixes on cube-double + scene
+    # (launch_p2fix_arms.sh, 2026-07-30). Mechanism: visitation Q collapses to the hindsight
+    # dwell constant when off-diag grounding is sparse; three single-knob arms against it.
+    'GCIQL-CubeDouble-Flow-Measure-BallVisit-FrzActor-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frzactor',
+                                                  graft='§9.16 arm 1: phase 2 with the actor optimizer masked (E2 recipe) — regression erased by construction'),
+    'GCIQL-Scene-Flow-Measure-BallVisit-FrzActor-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frzactor',
+                                                  graft='§9.16 arm 1: phase 2 with the actor optimizer masked (E2 recipe) — regression erased by construction'),
+    'GCIQL-CubeDouble-Flow-Measure-BallVisit-EpsDM-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-epsdm',
+                                                  graft='§9.16 arm 2: phase-2 training region density-matched to cube-single (eps 0.96 -> 1.21% grounding); eval unchanged'),
+    'GCIQL-Scene-Flow-Measure-BallVisit-EpsDM-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-epsdm',
+                                                  graft='§9.16 arm 2: phase-2 training region density-matched to cube-single (eps x1.9 -> 1.29% grounding); eval unchanged'),
+    'GCIQL-CubeDouble-Flow-Measure-BallVisit-Hindsight-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-hindsight',
+                                                  graft='§9.16 arm 3: phase 2 with hindsight test-point columns (sparsity-independent grounding)'),
+    'GCIQL-Scene-Flow-Measure-BallVisit-Hindsight-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-hindsight',
+                                                  graft='§9.16 arm 3: phase 2 with hindsight test-point columns (sparsity-independent grounding)'),
+
+    # spec08 E8 -- the two-phase curriculum on the FULL OGBench state manipulation suite
+    # (spec PAPER/rescuing-fb/specs/09-e8-full-manipulation-suite.md). 3 seeds, 500k, d=50
+    # everywhere; the ONLY per-env variable is measure_hit_spec, each region mirroring that
+    # env's own success criterion (verified by scripts/rescuing_fb/verify_hit_specs.py).
+    # Every env also gets a matched GC-IQL bilinear-d50 anchor: the bar is env-specific
+    # (cube-single 0.90 vs scene 0.292), and a shared floor across cell+anchor is what
+    # separates "hard env" from "the measure objective fails here".
+    # Region density at B=1024 (off-diagonal positives/row) is noted per env -- the bottom
+    # envs are ~1500x sparser than cube-single, so a floor must be read against the anchor.
+    'GCIQL-CubeTriple-Flow-Bilinear-d50':          dict(csv='summary', env='cube-triple', agent='GCIQL', actor='fql_flow', variant='bilinear-d50'),
+    'GCIQL-CubeTriple-Flow-Measure-FirstPassage-NoOrtho-d50': dict(csv='bridge', env='cube-triple', agent='GCIQL', actor='fql_flow', variant='measure-first-passage-noortho',
+                                                  graft='spec08 E8 phase 1 on cube-triple; region = all 3 cubes within 4cm (density 0.03/row)'),
+    'GCIQL-CubeTriple-Flow-Measure-BallVisit-FrozenPsi-d50': dict(csv='bridge', env='cube-triple', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frozenpsi',
+                                                  graft='spec08 E8 phase 2 on cube-triple: non-absorbing visitation TD on the frozen phase-1 psi'),
+
+    'GCIQL-CubeQuad-Flow-Bilinear-d50':            dict(csv='summary', env='cube-quadruple', agent='GCIQL', actor='fql_flow', variant='bilinear-d50'),
+    'GCIQL-CubeQuad-Flow-Measure-FirstPassage-NoOrtho-d50': dict(csv='bridge', env='cube-quadruple', agent='GCIQL', actor='fql_flow', variant='measure-first-passage-noortho',
+                                                  graft='spec08 E8 phase 1 on cube-quadruple; region = all 4 cubes within 4cm (density 0.01/row)'),
+    'GCIQL-CubeQuad-Flow-Measure-BallVisit-FrozenPsi-d50': dict(csv='bridge', env='cube-quadruple', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frozenpsi',
+                                                  graft='spec08 E8 phase 2 on cube-quadruple: non-absorbing visitation TD on the frozen phase-1 psi'),
+
+    'GCIQL-Puzzle3x3-Flow-Bilinear-d50':           dict(csv='summary', env='puzzle-3x3', agent='GCIQL', actor='fql_flow', variant='bilinear-d50'),
+    'GCIQL-Puzzle3x3-Flow-Measure-FirstPassage-NoOrtho-d50': dict(csv='bridge', env='puzzle-3x3', agent='GCIQL', actor='fql_flow', variant='measure-first-passage-noortho',
+                                                  graft='spec08 E8 phase 1 on puzzle-3x3; region = all 9 button one-hots match (density 2.04/row)'),
+    'GCIQL-Puzzle3x3-Flow-Measure-BallVisit-FrozenPsi-d50': dict(csv='bridge', env='puzzle-3x3', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frozenpsi',
+                                                  graft='spec08 E8 phase 2 on puzzle-3x3: non-absorbing visitation TD on the frozen phase-1 psi'),
+
+    'GCIQL-Puzzle4x4-Flow-Bilinear-d50':           dict(csv='summary', env='puzzle-4x4', agent='GCIQL', actor='fql_flow', variant='bilinear-d50'),
+    'GCIQL-Puzzle4x4-Flow-Measure-FirstPassage-NoOrtho-d50': dict(csv='bridge', env='puzzle-4x4', agent='GCIQL', actor='fql_flow', variant='measure-first-passage-noortho',
+                                                  graft='spec08 E8 phase 1 on puzzle-4x4; region = all 16 button one-hots match (density 0.06/row)'),
+    'GCIQL-Puzzle4x4-Flow-Measure-BallVisit-FrozenPsi-d50': dict(csv='bridge', env='puzzle-4x4', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frozenpsi',
+                                                  graft='spec08 E8 phase 2 on puzzle-4x4: non-absorbing visitation TD on the frozen phase-1 psi'),
+
+    'GCIQL-Puzzle4x5-Flow-Bilinear-d50':           dict(csv='summary', env='puzzle-4x5', agent='GCIQL', actor='fql_flow', variant='bilinear-d50'),
+    'GCIQL-Puzzle4x5-Flow-Measure-FirstPassage-NoOrtho-d50': dict(csv='bridge', env='puzzle-4x5', agent='GCIQL', actor='fql_flow', variant='measure-first-passage-noortho',
+                                                  graft='spec08 E8 phase 1 on puzzle-4x5; region = all 20 button one-hots match (density 0.01/row)'),
+    'GCIQL-Puzzle4x5-Flow-Measure-BallVisit-FrozenPsi-d50': dict(csv='bridge', env='puzzle-4x5', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frozenpsi',
+                                                  graft='spec08 E8 phase 2 on puzzle-4x5: non-absorbing visitation TD on the frozen phase-1 psi'),
+
+    'GCIQL-Puzzle4x6-Flow-Bilinear-d50':           dict(csv='summary', env='puzzle-4x6', agent='GCIQL', actor='fql_flow', variant='bilinear-d50'),
+    'GCIQL-Puzzle4x6-Flow-Measure-FirstPassage-NoOrtho-d50': dict(csv='bridge', env='puzzle-4x6', agent='GCIQL', actor='fql_flow', variant='measure-first-passage-noortho',
+                                                  graft='spec08 E8 phase 1 on puzzle-4x6; region = all 24 button one-hots match (density 0.01/row)'),
+    'GCIQL-Puzzle4x6-Flow-Measure-BallVisit-FrozenPsi-d50': dict(csv='bridge', env='puzzle-4x6', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frozenpsi',
+                                                  graft='spec08 E8 phase 2 on puzzle-4x6: non-absorbing visitation TD on the frozen phase-1 psi'),
+
+    # cube-single phase 2 (the note's 0.952/0.928); seed 2 added by E8 wave B
+    'GCIQL-State-Flow-Measure-BallVisit-FrozenPsi-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-ballvisit-frozenpsi',
+                                                  graft='phase 2 on cube-single: non-absorbing visitation TD on the frozen phase-1 psi (the note headline)'),
+
+    'GCIQL-State-Flow-Measure-Expectile-FP-d50':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-expectile-fp',
+                                                  graft='spec06 item6: expectile-measure (state-only V_M + in-sample backup) composed with first-passage'),
+    'GCIQL-State-Flow-Measure-Expectile-d50':      dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-expectile-unmasked',
+                                                  graft='spec06 item6: expectile-measure, unmasked variant (FB sphere+ortho anchors)'),
+    'GCIQL-State-Flow-Measure-HindsightTP-d50':    dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-hindsight-testpoints',
+                                                  graft='spec06 item7: hindsight-weighted (value_goals) measure test points; no rho importance correction'),
+    # ---- ogbench-sota implementations (2026-07-20, PAPER/ogbench-sota/implementations.md) ----
+    # Why the bilinear form works (Layer 0/1/3 mechanism cells). Probe scripts (t5c srank item3,
+    # t3 peak-geometry item4a, t9 advantage-rank item6) produce analysis JSONs, not groups.
+    'GCIQL-State-Flow-LateFusion-d50':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='latefusion-d50',
+                                             graft='sota item1: MLP readout on concat[phi;psi] (Layer-1 control); rerank@32 is the read'),
+    'GCIQL-State-Flow-MLP-PMatched':     dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='mlp-pmatched-x1.44',
+                                             graft='sota item2: param-matched MLP (widths x1.44 ~2.06x, closes the param confound)'),
+    'GCIQL-State-DDPGBC-Bilinear-d50-PhiNormCap': dict(csv='bridge', env='cube', agent='GCIQL', actor='ddpgbc', variant='bilinear-d50-phinormcap',
+                                             graft='sota item4b: ||phi|| capped to p99 (residual-relocation surgery on the off-support peak)'),
+    'GCIQL-State-Flow-Bilinear-d50-PhiNormCap':   dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='bilinear-d50-phinormcap',
+                                             graft='sota item4b: phi_norm_cap flow control (the cap must not cost the ordering)'),
+    'GCIQL-State-Flow-BilinearSGBounded-d50':     dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='bilinear-sg-bounded-d50',
+                                             graft='sota item5: bounded psi(s,g) tanh output (BVN regime-inversion test)'),
+    'GCIQL-Scene-Flow-BilinearSplit':    dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='bilinear-split',
+                                             graft='sota item7: factored Q=sum_k phi_k.psi_k per scene factor (compositional span test)'),
+    'GCIQL-Scene-DDPGBC-BilinearSplit':  dict(csv='bridge', env='scene', agent='GCIQL', actor='ddpgbc', variant='bilinear-split',
+                                             graft='sota item7: split-head, ddpgbc actor'),
+    # ---- successor-measure offdiag_weight sweep (2026-07-21): the middle of the curve
+    # between w=0 (M=1+(1-g)Q, degenerate bilinear Q) and w=1 (full measure, floor 0.10) ----
+    'GCIQL-State-Flow-Measure-CellW010-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-offdiag-0.1',
+                                             graft='offdiag_weight sweep w=0.1: how much genuine occupancy structure holds control'),
+    'GCIQL-State-Flow-Measure-CellW025-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-offdiag-0.25',
+                                             graft='offdiag_weight sweep w=0.25'),
+    'GCIQL-State-Flow-Measure-CellW030-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-offdiag-0.3',
+                                             graft='offdiag_weight sweep w=0.3'),
+    'GCIQL-State-Flow-Measure-CellW050-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-offdiag-0.5',
+                                             graft='offdiag_weight sweep w=0.5'),
+    # ---- warm-start experiment (2026-07-21): does the Q basin survive the measure objective ----
+    'GCIQL-State-Flow-Measure-WarmFirstPassage-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='warm-firstpassage',
+                                             graft='warm-start first-passage measure from bilinear-d50 (~0.90): does warm lift the 0.23 cold pulse?'),
+    'GCIQL-State-Flow-Measure-WarmCellW0-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='warm-offdiag-0.0',
+                                             graft='warm-start M=1+(1-g)Q (offdiag 0) from bilinear-d50: does the Q basin survive the measure objective?'),
+    'GCIQL-State-Flow-Measure-WarmCellW025-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='warm-offdiag-0.25',
+                                             graft='warm-start offdiag 0.25 from bilinear-d50 (warm sweep point)'),
+    'GCIQL-State-Flow-BilinearMLPV-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='bilinear-mlpv',
+                                             graft='ogbench-sota ablation: bilinear Q + MLP V -- is Vs bilinearity load-bearing?'),
+    'GCIQL-State-Flow-Occupancy-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='occupancy-iql',
+                                             graft='Occupancy-IQL (occupancy.tex): shared-B + CRL occupancy reward on GCIQLs IQL operator -- does occupancy grounding WORK when it rides on policy improvement?'),
+    # ---- spec 07 (2026-07-22): capability on top of the FP-NoOrtho win ----
+    'GCIQL-State-Flow-Measure-FP-NoOrtho-TPActor-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='fp-noortho-tpactor',
+                                             graft='spec07 item1: actor z-prior (Dirac/mix/random 0.6/0.2/0.2) + forced z-actor on the FP-NoOrtho critic; Dirac band FAILED (0.29-0.56 vs anchor 0.967, never reaches it)'),
+    'GCIQL-State-Flow-Measure-FP-NoOrtho-TPActorCriticMix-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='fp-noortho-tpactor-criticmix',
+                                             graft='spec07 item4 linearity-conflict probe: +scalar FP TD at z_mix; tracked the ANCHOR 0.84-0.96 through 250k then collapsed to 0.33 (conflict confirmed late; early phase = off-Dirac grounding helps the z-readout)'),
+
+    # ---- spec 17 (2026-08-06): delta / delta-partition region successor measures on cube-single,
+    # d17_cs_* run names, 3 seeds, 500k, PAPER/Multistep-FB/specs/17{,a,b}-*.md. Bookkeeping item
+    # flagged owed by spec 18 §7 -- added here, not launched by this session.
+    'GCIQL-CubeSingle-Flow-Measure-Delta-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-delta',
+                                             graft="spec17a (variant A): signed event target hit(x')-hit(x) on the region successor measure "
+                                                   "(temporally-centered, non-absorbing; deletes the dwell-plateau level channel from supervision)"),
+    'GCIQL-CubeSingle-Flow-Measure-DeltaPartition-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-delta-partition',
+                                             graft='spec17b (variant B): one-stage K=256 simplex successor measure over fixed hit-spec prototypes '
+                                                   '(delta_head CE-TD to sg[(1-gamma)phi(x)+gamma*p_bar]; actor q = p.phi(goal), frozen head)',
+                                             notes='d17_cs_part_s1 crashed twice with a CUDA fault (dirs preserved as '
+                                                   'd17_cs_part_s1.crashed_70k_cuda_1043 / .crashed_230k_cuda_1138) and is re-running from scratch '
+                                                   'as of 2026-08-06; those two dead dirs are NOT completed runs -- see compile_audit.txt partial handling'),
+
+    # ---- spec 18 (2026-08-06): continuous normalized successor density + the 17b K-sweep
+    # control, cube-single, d18_cs_* run names, /home/adityamohan/exp_spec18/factored-fb/.
+    # PAPER/Multistep-FB/specs/18-density-measure.md sec.7. P0.3 bookkeeping item (spec 19
+    # sec.1) -- added here, not launched by this session.
+
+    # --- 2026-08-11/13: density cross-env, actor ablation, hard variant, z-index ---
+    'GCIQL-CubeDouble-Flow-Measure-Density-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-density',
+        graft='spec18 density, cube-double (the discriminating env)'),
+    'GCIQL-Scene-Flow-Measure-Density-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='measure-density',
+        graft='spec18 density, scene'),
+    'GCIQL-CubeDouble-Flow-Measure-DensityHard-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-density-hard',
+        graft='spec21 verdict: hard immediate target, cube-double'),
+    'GCIQL-Scene-Flow-Measure-DensityHard-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='measure-density-hard',
+        graft='spec21 verdict: hard immediate target, scene'),
+    'GCIQL-CubeDouble-Flow-Measure-Density-DDPGBC-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='ddpgbc', variant='measure-density',
+        graft='density soft + stock DDPG+BC actor (actor-independence)'),
+    'GCIQL-Scene-Flow-Measure-Density-DDPGBC-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='ddpgbc', variant='measure-density',
+        graft='density soft + stock DDPG+BC actor'),
+    'GCIQL-CubeDouble-Flow-Measure-DensityHard-DDPGBC-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='ddpgbc', variant='measure-density-hard',
+        graft='density hard + stock DDPG+BC actor'),
+    'GCIQL-Scene-Flow-Measure-DensityHard-DDPGBC-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='ddpgbc', variant='measure-density-hard',
+        graft='density hard + stock DDPG+BC actor'),
+    'GCIQL-CubeSingle-Flow-Measure-DensityHard-DDPGBC-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='ddpgbc', variant='measure-density-hard',
+        graft='density hard + stock DDPG+BC actor, cube-single'),
+    'GCIQL-CubeSingle-DDPGBC-Measure-Density-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='ddpgbc', variant='measure-density',
+        graft='spec22 mirror: density soft + DDPG+BC on cube-single'),
+    'GCIQL-CubeSingle-AWRFlow-Measure-Density-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='awr_flow', variant='measure-density',
+        graft='spec22 screen: density soft + AWR-flow, cube-single'),
+    'GCIQL-AntMaze-Medium-Flow-Measure-Density-d50': dict(csv='bridge', env='antmaze', agent='GCIQL', actor='fql_flow', variant='measure-density',
+        graft='spec22: density on locomotion (no dwell asymmetry)'),
+    'GCIQL-AntMaze-Medium-DDPGBC-Measure-Density-d50': dict(csv='bridge', env='antmaze', agent='GCIQL', actor='ddpgbc', variant='measure-density',
+        graft='spec22: density + DDPG+BC on locomotion'),
+    'GCIQL-AntMaze-Medium-AWRFlow-Measure-Density-d50': dict(csv='bridge', env='antmaze', agent='GCIQL', actor='awr_flow', variant='measure-density',
+        graft='spec22 screen: density + AWR-flow on locomotion'),
+    'GCIQL-AntMaze-Medium-Flow-Measure-DensityHard-d50': dict(csv='bridge', env='antmaze', agent='GCIQL', actor='fql_flow', variant='measure-density-hard',
+        graft='density hard on locomotion'),
+    'GCIQL-AntMaze-Medium-Flow-Measure-DensityHard-DDPGBC-d50': dict(csv='bridge', env='antmaze', agent='GCIQL', actor='ddpgbc', variant='measure-density-hard',
+        graft='density hard + DDPG+BC on locomotion'),
+    'GCIQL-PointMassMaze-RND-Flow-Measure-Density-d50': dict(csv='bridge', env='point-mass-maze', agent='GCIQL', actor='fql_flow', variant='measure-density',
+        graft='spec23 P0: density on ExoRL point-mass-maze (RND buffer)'),
+    'GCIQL-PointMassMaze-RND-Flow-Bilinear-d50': dict(csv='bridge', env='point-mass-maze', agent='GCIQL', actor='fql_flow', variant='plain',
+        graft='spec23 P0 control: stock GCIQL-flow'),
+    'GCIQL-PointMassMaze-RND-Flow-BCOnly-d50': dict(csv='bridge', env='point-mass-maze', agent='GCIQL', actor='fql_flow', variant='bc-only',
+        graft='spec23 P0 control: BC-only floor (actor q-term zeroed)'),
+    'GCIQL-PointMassMaze-RND-Flow-Measure-DensityZ-d50': dict(csv='bridge', env='point-mass-maze', agent='GCIQL', actor='fql_flow', variant='measure-density-z',
+        graft='spec24: z-indexed density (FB latent index instead of goals)'),
+    'GCIQL-CubeDouble-Flow-Measure-DensityZ-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-density-z',
+        graft='spec24: z-indexed density, cube-double'),
+    'GCIQL-CubeSingle-Flow-Measure-Density-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-density',
+                                             graft='spec18 (PRIMARY): continuous normalized successor density, two-tower score '
+                                                   "f(s,a,g,u)=F(s,a,g).B(u)/tau over queries resampled from rho_x every step "
+                                                   '(replaces 17b\'s fixed K-prototype simplex with a Monte-Carlo query pool)'),
+    'GCIQL-CubeSingle-Flow-Measure-DensityHard-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-density-hard',
+                                             graft='spec18 ablation: measure_density_hard=True, immediate term = one-hot at the row\'s '
+                                                   'own successor (k=I) instead of the eps-kernel softmax -- attributes smoothing vs simplex-TD'),
+    'GCIQL-CubeSingle-Flow-Measure-DeltaPartition-K64-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-delta-partition-k64',
+                                             graft='spec18 sec.7 K-sweep control: 17b partition head at K=64 prototypes -- '
+                                                   '"prototypes-are-not-load-bearing" check alongside K256/K512/K1024'),
+    'GCIQL-CubeSingle-Flow-Measure-DeltaPartition-K512-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-delta-partition-k512',
+                                             graft='spec18 sec.7 K-sweep control: 17b partition head at K=512 prototypes'),
+    'GCIQL-CubeSingle-Flow-Measure-DeltaPartition-K1024-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-delta-partition-k1024',
+                                             graft='spec18 sec.7 K-sweep control: 17b partition head at K=1024 prototypes'),
 }

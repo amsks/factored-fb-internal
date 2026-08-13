@@ -1,0 +1,38 @@
+# HARD immediate target -- cell needed to complete the env x actor x method table.
+# Derived from cube_single_state_measure_density_d50_ddpgbc.yaml by setting measure_density_hard: true and nothing else, so any
+# gap against that config is attributable to the immediate-target variant alone.
+# Context: spec 21 found hard more than doubles region-family zero-shot transfer on
+# cube-single at no goal-reaching cost -- but on cube-double hard is BELOW soft on
+# native goal success (.674 vs .736), so the trade-off is env-dependent and both
+# variants need every cell before it can be characterized.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityHard-DDPGBC-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  actor_kind: ddpgbc
+  alpha: 1.0
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_hard: true
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+wandb_mode: online

@@ -1,0 +1,62 @@
+# Ledger §9.16c scale-out -- the HINDSIGHT test-point arm on cube-single (ZX form).
+#
+# This is the CONTROL direction of the hindsight scale-out. cube-single is the one env where
+# the canonical phase-2 recipe never regressed (§9.16: 0.976 -> 0.984, no decay), so the
+# question here is not "does hindsight rescue" but "does hindsight COST anything where the
+# batch test-points already work". Its off-diagonal grounding rate is 1.30% -- the density
+# the eps arm was calibrated against -- so hindsight's sparsity-independence buys nothing
+# and any delta is pure side-effect of changing the object being estimated.
+#
+# Identical to cube_single_state_measure_ballvisit_zx_d50 (the `visz_s{0,1}` cells, 0.976/0.984)
+# except measure_testpoint_dist: batch -> hindsight. Warm-start parents are the same FP-ZX
+# phase-1 checkpoints those cells used: exp_spec07/.../GCIQL-State-Flow-Measure-FP-ZX-d50/zx_s{0,1}.
+# The ZX knobs below are NOT decoration -- they must match the parent tree or the warm-start
+# splice fails.
+#
+# Pre-registered read (write into §9.16c):
+#   PRIMARY -- final success within eval noise of the visz control (>=0.93 on both seeds).
+#              A drop here means hindsight trades cube-single performance for the cd/sc rescue,
+#              which changes it from "adopt as default" to "adopt for sparse-region envs only".
+#   SECONDARY -- q_abs_mean / neg-frac. cube-single's control carries REAL signed variation
+#              (11-18% negative mass, §9.16 Finding 2) rather than the collapsed constant.
+#              If hindsight drives neg-frac to ~0.004 HERE too, that pins the signature to the
+#              knob and refutes reading it as a measure-quality improvement on cd/sc.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-State-Flow-Measure-BallVisit-ZX-Hindsight-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_coef: 1.0
+  measure_legs: critic
+  measure_ortho_coef: 0.0
+  measure_scale_norm: true
+  measure_first_passage: true
+  # --- ZX (separated-form) knobs, matching the phase-1 checkpoints ---
+  fb_forward_z: true
+  measure_z_random_frac: 0.5
+  actor_cond: z
+  actor_z_from_critic: true
+  # --- phase-2 switches ---
+  measure_fp_absorbing: false
+  measure_stopgrad_psi: true
+  actor_q_center: true
+  # --- the arm ---
+  measure_testpoint_dist: hindsight
+wandb_mode: online
