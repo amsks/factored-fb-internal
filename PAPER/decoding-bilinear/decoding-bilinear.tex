@@ -105,10 +105,17 @@ $0.5$ --- and the goal-conditioned critics finally work. But the winner is the M
 Repaired \texttt{mw-pick-place}: MLP $0.99$ against bilinear $0.92$, over a BC floor of
 $0.44$. Repaired \texttt{mw-push}: MLP $0.73$ against bilinear $0.46$, over a BC floor of
 $0.54$ --- bilinear is \emph{below the floor}, and bimodally so (per-seed $0.30/0.32/0.76$,
-the same two-mode collapse signature as the two-cube task at $d{=}512$). The message is
-sharper than ``the edge is small on one-object tasks'': fixing the benchmark is what makes
-critics shine on Metaworld, and it makes the bilinear one specifically not-win
-(\texttt{tab:main}).
+the same two-mode collapse signature as the two-cube task at $d{=}512$). Two more $10^6$
+Metaworld regimes complete the sweep and both agree. On hot-noise data
+(\texttt{play-noise-hard-1m}, no goal re-draws) the two critics tie
+(push $0.53$ vs.\ $0.53$, pick-place $0.52$ vs.\ $0.45$ over BC floors of $0.33$--$0.34$).
+On the hard resample regime ($\sigma{=}0.1$, goal-diverse relocation chaining, headroom
+open on both sides --- the best remaining conditions for a separation) the MLP wins both
+tasks outright: pick-place $0.97$ vs.\ $0.86$, push $0.81$ vs.\ $0.63$, with bilinear's
+push seeds again widely spread ($0.48/0.66/0.74$). The message is sharper than ``the edge
+is small on one-object tasks'': fixing the benchmark is what makes critics shine on
+Metaworld, and across all six repaired cells it makes the bilinear one specifically
+not-win (\texttt{tab:main}).
 
 \paragraph{4. There must be enough data --- roughly $10^5$ transitions to see anything,
 $2.5\times10^5$ for the full effect.}
