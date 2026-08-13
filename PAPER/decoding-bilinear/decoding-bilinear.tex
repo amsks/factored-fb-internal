@@ -14,9 +14,9 @@
 \maketitle
 \vspace{-2em}
 
-\noindent\emph{This is the plain-language summary of the project. The full probe study,
-the pre-registered experiment log, and all supporting tables live in
-\texttt{experiments.tex}, \texttt{phenomenon.tex}, and \texttt{table.tex}.}
+\noindent\emph{This is the plain-language summary of the project. Every supporting number
+lives in \texttt{table.tex} (the single results table); the full probe study and the
+pre-registered experiment logs live in git history.}
 
 \section{Setting}
 
@@ -37,7 +37,7 @@ trained on ${\sim}10^6$ transitions, OGBench scale. Earlier arms at $2.5\times10
 $10^5$ transitions have been withdrawn: condition 4 below shows the effect under study
 does not exist at those budgets even on cube, so those arms could not have measured it.
 The one exception is the size ladder itself, which is \emph{about} dataset size. All
-supporting tables are in \texttt{table.tex}.
+supporting numbers are in \texttt{table.tex} (\texttt{tab:main}).
 
 \section{Why bilinear succeeds}
 
@@ -85,7 +85,7 @@ corrected grasp-offset synthetic goal frame reproduces $0.02$--$0.04$, while the
 goal-visible control re-evaluates at $0.98$. \texttt{ms-push-cube} is degenerate in the
 opposite direction: its goal is determined by the cube's pose, so a goal-blind BC already
 scores $0.99$ and guidance can only subtract from it. ManiSkill therefore supplies no
-architecture-discriminating cell at $10^6$ in either direction (\texttt{tab:e2}).
+architecture-discriminating cell at $10^6$ in either direction (\texttt{tab:main}).
 
 \paragraph{2. Every test goal must appear somewhere in the training data as a goal.}
 The bilinear critic recombines what it has seen; it cannot invent values for never-seen
@@ -108,7 +108,7 @@ $0.54$ --- bilinear is \emph{below the floor}, and bimodally so (per-seed $0.30/
 the same two-mode collapse signature as the two-cube task at $d{=}512$). The message is
 sharper than ``the edge is small on one-object tasks'': fixing the benchmark is what makes
 critics shine on Metaworld, and it makes the bilinear one specifically not-win
-(\texttt{tab:tier1}).
+(\texttt{tab:main}).
 
 \paragraph{4. There must be enough data --- roughly $10^5$ transitions to see anything,
 $2.5\times10^5$ for the full effect.}
@@ -119,7 +119,7 @@ Truncate the very dataset bilinear wins on --- whole trajectories dropped from
 half-formed ($0.70$ vs.\ $0.51$), and only by 250k is it at full size ($0.90$ vs.\ $0.70$),
 after which it barely moves (1M: $0.93$ vs.\ $0.73$). BC stays flat at $0.05$--$0.09$
 throughout, so this is a critic effect, not a general data effect
-(\texttt{tab:e1}; the truncation knob is a verified no-op at full size). This is why no
+(\texttt{tab:main}; the truncation knob is a verified no-op at full size). This is why no
 method comparison in this project is read off a dataset smaller than $10^6$: down in the
 48k--100k band, ``there is no architectural edge on this benchmark'' and ``there is not
 enough data here to form one'' produce the same table.
