@@ -149,3 +149,99 @@ No humanoid work (spec 23 verdict stands; revisit only after R3); no PSM
 extension (density-new.tex §7.2 reasons); no DICE composition round 1; no
 new index mechanisms here (spec 25 owns that); no real-robot work before
 the simulation flagship exists.
+
+## R0c verdict (2026-08-13)
+
+**Recommendation: GO-WITH-SELF-GENERATED-DATA** for the literal air-hockey
+flagship (R3). No public offline air-hockey play dataset exists, but both
+testbeds ship simulators, and — reversing the spec-15 finding — the
+TommyShen play datasets ARE now public and give an immediate downloadable
+dynamic-contact play corpus for a warm-up leg.
+
+### 1. Dataset audit
+
+**(a) Robot Air Hockey testbed (Chuck et al., arXiv 2405.03113;
+https://arxiv.org/abs/2405.03113).** Code: `github.com/CalCharles/air-hockey-rl`
+(linked from https://rlairhockey.github.io/). Repo = Box2D paddle+puck sim
+(juggle task) + real-UR5 stack, gym-style env package `airhockey/`, TD3
+training, pretrained sim policies in `latest_models/canonical/`; actively
+developed (pushed 2026-08-13). The paper reports 400 human teleop
+trajectories (350 mouse + 50 shadow, 8 participants) and 1M sim BC
+timesteps, but **neither is released** — no dataset link in repo or project
+page; "code requests contact calebc@cs.utexas.edu". ⚠ Repo has **NO
+license file** (GitHub API license=null) — usable only after emailing the
+author. Verdict: simulator yes, offline data no.
+
+**(b) air-hockey-challenge ecosystem (NeurIPS'23 challenge; retrospective
+arXiv 2411.05718; https://arxiv.org/abs/2411.05718).** Code:
+`github.com/AirHockeyChallenge/air_hockey_challenge` — **MIT**, MuJoCo,
+Kuka iiwa-14, maintained (qualifying-2025 branch; docs
+https://air-hockey-challenges-docs.readthedocs.io/). Data: participants
+could "download the dataset obtained from the modified simulator" once per
+day during the challenge, but **no permanent public dataset release** is
+documented in the retrospective, repo, or docs; real-robot data explicitly
+limited by hardware availability. Verdict: best-licensed simulator; no
+offline data.
+
+**(c) Interaction-resampling line (Shen et al., IWR, arXiv 2606.11525;
+https://arxiv.org/abs/2606.11525; page https://iwr-arxiv.github.io/).**
+The method itself is **online** CRL (SGCRL/CRTR/PPO/SAC baselines), first
+real-world goal-conditioned air-hockey agent (25%→60%); the paper/page
+release no air-hockey data. BUT the spec-15 finding is now stale: as of
+~2026-07 the HF profile https://huggingface.co/TommyShen hosts
+**`TommyShen/factored-fb-play`** (updated ~18d ago, **MIT**, ~1.35M
+transitions, 9 tasks): per-episode `.npz` with
+observation/action/next_observation/reward/terminal/timeout/success (state-
+based, with actions), two subsets — `play-noise` (expert+action-noise
+rollouts) and `play-resample` (**OGBench-style diverse-goal chaining** =
+genuinely play-like coverage). Tasks: Box2D dynamic ball-pushing
+(`b2d-center-ctrl`, `b2d-center-wall`, `b2d-goal-ctrl`, `-target`,
+`-target-vel`, `-target-hard`, `-maze` — the IWR Box2D variants: agent
+ball strikes a free ball into goal regions, contact-rich 2D dynamics, but
+**not** the paddle+puck air-hockey testbed) + ManiSkill pick/push-cube +
+Metaworld pick-place/push. Sibling `TommyShen/Factor-FB-Offline` (MIT,
+1.57 GB, 14 tasks) is TD-MPC2 **expert** demos — wrong coverage profile
+for us. Verdict: downloadable, state+actions, play-like, license-clean —
+the only ready-made candidate; usable as the dynamic-contact warm-up
+domain for R3, not as literal air hockey.
+
+### 2. Self-generation cost-out
+
+Both testbeds ship gym-style envs, so scripted noisy-play collection is
+cheap. Preferred: **air_hockey_challenge (MIT, MuJoCo)** — roll out the
+shipped baseline hit/defend/prepare agents with action noise + random
+mixing + goal resampling (OGBench-play-style chaining), log state+action
+at sim rate; MuJoCo iiwa runs ~1k steps/s/core ⇒ 1–5M transitions in
+CPU-hours. Fallback: Chuck Box2D sim (faster, ships pretrained TD3
+policies as scripted actors) pending a license email. Needed pieces:
+play wrapper (goal chaining + noise schedule), `.npz` episode writer
+matching our unified loader, `hit_spec` = puck xy(+vel block), contact-
+phase labels from puck-paddle distance (feeds the R1 passive-mask reuse).
+Per density-new.tex §10 a scripted/noisy-play corpus is acceptable for
+the flagship **if disclosed in the note** — disclose it.
+
+### 3. Flagship novelty check
+
+No prior work found combining (i) reward-free/unsupervised offline
+training, (ii) zero-shot user-specified terminal reward maps, and (iii)
+air hockey or comparable contact-rich dynamic manipulation. Nearest
+neighbors: **shen2026 IWR** (arXiv 2606.11525 — air hockey, but online,
+goal-conditioned only, no reward prompts); **PSM** (Agarwal et al., RLJ
+2025, arXiv 2411.19418 — zero-shot arbitrary rewards, no dynamic contact
+domain); **Soft FB** (Bagatella et al., arXiv 2602.06769 — general
+utilities zero-shot, standard benchmarks); **BFM-Zero** (arXiv 2511.04131
+— promptable unsupervised-RL BFM, humanoid not manipulation); **FRE**
+(arXiv 2402.17135 — functional reward encodings, zero-shot from offline
+data, no contact-rich domain); challenge-adjacent air-hockey work is
+planning/model-based/online (e.g. arXiv 2407.03705, 2406.00518). The
+combination claim in density-new.tex §10 — plus the dwell/multiplicity-
+robustness axis, which NONE of the above address — remains distinct.
+
+### Go/no-go for R3
+
+GO, contingent on self-generated data: adopt air_hockey_challenge MuJoCo
+as the R3 env (MIT), self-generate noisy-play; optionally warm up the R3
+port on `TommyShen/factored-fb-play` Box2D (download today, zero cost)
+before the air-hockey buffer exists; email calebc@cs.utexas.edu in
+parallel for the teleop data + Box2D license (400 human trajectories
+would upgrade the flagship's data story if granted).
