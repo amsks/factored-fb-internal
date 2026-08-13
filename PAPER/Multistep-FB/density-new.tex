@@ -1,0 +1,271 @@
+\documentclass{article}
+\usepackage{iclr2027_conference,times}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue]{hyperref}
+\usepackage{url}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
+\newcommand{\sg}{\mathrm{sg}}
+\newcommand{\DensityFB}{\textsc{Density-FB}}
+
+\title{From Dwell Imbalance to Self-Normalized Bellman Occupancy Learning\\
+\large Program note: thesis, evidence to date, and the experimental plan}
+\author{Anonymous}
+
+% \iclrfinalcopy
+
+\begin{document}
+\maketitle
+
+% ======================================================================
+\section{Central thesis}
+\label{sec:thesis}
+
+Offline trajectories can record the consequences of an action many more times than the action that produced them.
+In manipulation play, an object may be moved once and then remain stationary for dozens of transitions.
+An unconstrained successor-density estimator can express this repetition by increasing its output scale rather than by learning how different actions redistribute future occupancy.
+
+Our proposal is to represent future occupancy as a self-normalized distribution over candidate future configurations.
+The model assigns relative weights to configurations sampled from replay, normalizes those weights with a softmax, and learns the correct distribution through a Bellman recursion:
+\begin{equation}
+\DensityFB{} \;=\; \text{Bellman learning of self-normalized conditional occupancy weights}.
+\end{equation}
+
+The broader hypothesis is not specific to play data:
+\begin{quote}
+Normalized occupancy learning should help whenever a small number of decisions produce long-lived, repeatedly recorded, or passively evolving consequences.
+\end{quote}
+
+Status of the evidence: the manipulation results, floors, and estimator diagnosis are collected and audited (\texttt{density-fb-2.tex}); the \emph{causal} multiplicity intervention, the non-FB generality test, and the dynamic-domain result are the open program this note plans.
+
+% ======================================================================
+\section{Ground zero: the dwell problem}
+\label{sec:dwell}
+
+Manipulation play has the structure approach $\rightarrow$ contact $\rightarrow$ move object $\rightarrow$ release $\rightarrow$ long rest.
+The important action occurs during a few transitions; its consequence appears in the dataset many times.
+On \texttt{cube-single-play-v0} the cube is stationary on $48\%$ of transitions, with stationary runs of median length $44$.
+
+This repetition is not inherently wrong: a successor measure should record that the object remains where it was placed.
+The issue is representation.
+Standard FB \citep{touati2021learning,touati2023does} predicts an unconstrained scalar density $m(s,a,u) = F(s,a)^\top B(u)$, while the true discounted successor measure has fixed total mass $M(s,a,\mathcal X) = 1/(1-\gamma)$.
+Nothing constrains the prediction to respect that mass, so repeated observations can be expressed partly through critic scale (measured: scale $154 \to 5.4\times10^4$ on a frozen capable representation).
+The desired behavior is different:
+\begin{quote}
+A long rest should change \emph{where} future mass is allocated, not increase the total amount of future mass.
+\end{quote}
+
+% ======================================================================
+\section{From importance weighting to \DensityFB{}}
+\label{sec:method}
+
+\paragraph{Replay states as proposal samples.}
+Let $\rho$ be the replay distribution over future configurations and $\nu$ the normalized future-occupancy distribution to predict for a given state, action, and policy index.
+Sample candidates $u_1,\dots,u_K \sim \rho$.
+When support permits, the ideal relative weight of a candidate is conceptually $\omega^\star(u) = \frac{d\nu}{d\rho}(u)$: the proposal supplies configurations, the weights make them resemble samples from the desired occupancy.
+
+\paragraph{Self-normalize.}
+Self-normalized importance sampling (SNIS) replaces arbitrary positive weights by $p_j = \omega(u_j)/\sum_k \omega(u_k)$, giving $p_j \ge 0$ and $\sum_j p_j = 1$ at the cost of a finite-sample bias that decays with $K$ \citep{cardoso2022brsnis,kuzborskij2020confident}.
+Only relative importance matters: increasing one candidate's weight necessarily reduces the share of the others.
+
+\paragraph{Learned log-weights.}
+\DensityFB{} keeps the FB representation but changes its interpretation: $F(s,a,g)^\top B(u_j)/\tau$ is an unnormalized \emph{log-weight}, and
+\begin{equation}
+p_j(s,a,g) = \operatorname{softmax}_j\!\left( F(s,a,g)^\top B(u_j)/\tau \right)
+\end{equation}
+is a distribution over candidate futures.
+This is an SNIS-\emph{like} construction, not literal importance sampling: the weights are learned rather than known, the candidates are replay configurations, the weights describe conditional future occupancy rather than a policy ratio, and the target distribution changes with $(s,a)$ and the policy index.
+
+\paragraph{Bellman recursion supplies the values.}
+Normalization says how to represent the weights; the Bellman equation of $\nu = (1-\gamma)M$ says what they should be:
+\begin{equation}
+\nu = (1-\gamma)P + \gamma P^\pi \nu
+\qquad\Longrightarrow\qquad
+p_i^{\mathrm{tgt}} = \sg\!\left[ (1-\gamma)\,e_i + \gamma\,\bar p_i^{+} \right],
+\qquad
+\mathcal L = -\sum_{i,j} p^{\mathrm{tgt}}_{ij} \log p_{ij},
+\end{equation}
+with $e_i$ the index-level one-hot at the observed successor and $\bar p_i^+$ the target network's prediction from the next state; both terms have unit mass, so the target is a distribution and cross-entropy is a proper fit.
+(A kernel-smoothed immediate target is the soft ablation; on collected results the hard target transfers better and reaches parity on goal success, so hard is the default and soft the ablation.)
+
+\paragraph{Why this addresses dwell.}
+Forty stationary transitions can still concentrate probability at the resting configuration, as they should, but they cannot grow total predicted mass: the question changes from ``how large should the critic become'' to ``where should one fixed unit of future probability go.''
+
+\paragraph{The policy-family index.}
+The construction needs an index $\xi$ for which policy's occupancy is predicted.
+Collected results pin this choice as load-bearing, not cosmetic: with raw goal observations as the index (stationary encoding, imitation grounded at reachable hindsight indices) the estimator produces the results below; with FB's latent $z$ as the index under the same estimator, the measure trains to a healthy loss while ignoring its index (flat score spread), and neither extraction nor reward readout works.
+Porting FB's index-coupling mechanisms is an active thread (spec 25); this note's program treats the goal-indexed family as the working default and the index question as a parallel investigation.
+
+% ======================================================================
+\section{The broader hypothesis beyond play data}
+\label{sec:beyond}
+
+The deeper condition is: \emph{a brief decision produces a long-lived or repeatedly recorded consequence}.
+Candidate instances: manipulation with grasp/release/rest; robot air hockey, where a short paddle-puck contact determines a long passive puck trajectory \citep{chuck2024airhockey}; pushing and striking; sticky or slowly evolving dynamics; demonstrations containing pauses; duplicated frames; mixed control or logging frequencies; mixtures of fast and slow executions; bottleneck states selecting between persistent downstream regions.
+Interaction-weighted resampling work argues that brief contact-induced mode changes are underrepresented relative to pre- and post-interaction dynamics \citep{shen2026interaction}.
+
+\paragraph{What normalization can and cannot help with.}
+Normalization targets changes in the \emph{multiplicity} of recorded consequences: pauses, duplicated frames, variable speed, logging-frequency differences (likely helpful); long passive aftermath, sticky dynamics (potentially helpful).
+It does not solve random expert actions, missing contact or bottleneck transitions, or poor action coverage, and incompatible behaviors without conditioning may be learned as a mixture.
+The claim to defend:
+\begin{quote}
+\DensityFB{} is expected to help when corruption changes how often outcomes are recorded without proportionally changing the underlying set of decisions and transitions.
+\end{quote}
+It is not a general-purpose demonstration-denoising method.
+
+\paragraph{Bottlenecks.}
+A brief bottleneck action selects a downstream basin with a long dwell.
+Normalization distinguishes bottleneck actions by where their future mass goes, and the backup propagates that difference to the bottleneck state; it cannot recover a bottleneck transition absent from the data.
+Interaction-aware resampling and normalized occupancy learning are therefore complementary: resampling ensures rare decisive transitions are represented; normalization prevents their long aftermath from controlling critic scale \citep{shen2026interaction}.
+
+% ======================================================================
+\section{The controlled experiment that establishes causality}
+\label{sec:multiplicity}
+
+The collected manipulation results are observational: the data has dwell and the method wins.
+The causal claim needs an intervention that varies the proposed cause directly.
+
+\paragraph{Passive-transition multiplicity stress test.}
+From one offline dataset, oversample only passive transitions ($\|\phi(s^+)-\phi(s)\| < \delta$) by factors $1, 2, 5, 10, 20$.
+Add nothing, remove nothing; change only the multiplicity of persistent consequences during training.
+One design constraint the naive version misses: duplication must apply to the \emph{measure loss's transition sampling only}, holding the goal-relabeling distribution fixed; otherwise the intervention also shifts the index distribution toward resting configurations and confounds multiplicity with index shift.
+(Report the confounded variant once as a secondary arm, labeled as such.)
+For air hockey, stratify transitions into pre-contact, contact, and post-contact passive motion.
+
+\paragraph{Metrics.}
+Critic scale (does the estimator inflate), total predicted mass (calibration), prediction entropy (does normalization collapse or stay informative), action gap at bottleneck states (does the critic distinguish decisive actions), goal success, zero-shot reward return, and sensitivity of each to the multiplicity factor.
+
+\paragraph{Expected result.}
+As multiplicity increases, standard FB loses action separation and control; normalized occupancy learning degrades substantially less.
+Perfect invariance is not required; the result is that degradation tracks the scale pathology for the unnormalized estimator and is reduced by normalization.
+
+% ======================================================================
+\section{A minimal synthetic environment}
+\label{sec:synthetic}
+
+A fork-and-dwell MDP: one decision state; action left enters a sticky left region, action right a sticky right region, with dwell duration a parameter; a rare action reaches a neutral region.
+Ground truth is exact for the successor measure, its normalization, the action-conditioned occupancy, critic scale, and fixed-point error.
+Vary \emph{environmental dwell} (a property of the MDP) and \emph{dataset duplication} (an artifact of collection) independently: a strong method represents real dwell correctly while remaining insensitive to artificial duplication.
+This is the cheapest falsification point of the whole program (Section~\ref{sec:program}, gate P1).
+
+% ======================================================================
+\section{The idea is not FB-specific}
+\label{sec:generality}
+
+The construction requires only a score model: for any $c_\theta(s,a,\xi,u)$,
+\begin{equation}
+p_{\theta,j} = \operatorname{softmax}_j\, c_\theta(s,a,\xi,u_j),
+\qquad
+p^{\mathrm{tgt}} = (1-\gamma)e + \gamma \bar p^{+}.
+\end{equation}
+\DensityFB{} is the instance $c_\theta = F^\top B/\tau$.
+The clean non-FB baseline is a joint energy critic $c_\theta = \mathrm{MLP}([s,a,g,u])$: no factorization, no low-rank assumption, same query pool, same target, same actor readout.
+The four-way comparison (standard FB; \DensityFB{}; unnormalized joint critic; normalized joint critic) tests whether the dwell-stress advantage follows \emph{normalization} across parameterizations.
+
+\paragraph{Why PSM is a later extension.}
+Proto Successor Measure \citep{agarwal-rlj25a} represents visitation distributions through affine combinations of policy-independent bases; its bases are signed affine directions, and naive per-basis softmax would destroy the representation theorem.
+Possible extensions (simplex projection after reconstruction; simplex-constrained affine combinations; an exponential-family reparameterization) are interesting but introduce a second question; the joint critic is the cleaner first generality test.
+
+% ======================================================================
+\section{Relation to DICE and stationary occupancy correction}
+\label{sec:dice}
+
+DICE methods estimate stationary occupancy corrections between a target policy and the data distribution \citep{nachum2019dualdice}; recent work derives such corrections from pretrained FB models for test-time adaptation \citep{asadulaev2026zol}; Soft FB studies general utilities \citep{bagatella2026softfb}.
+\DensityFB{} learns the normalized \emph{conditional} occupancy itself, at representation-training time, rather than averaging a pretrained conditional density into a stationary correction.
+The two are composable, and the $2\times2$ (representation: standard vs normalized; inference: standard vs DICE-style correction) is a natural secondary study.
+
+% ======================================================================
+\section{Claim-to-evidence map}
+\label{sec:claims}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{p{0.42\textwidth}p{0.33\textwidth}l}
+\toprule
+Claim & Required evidence & Status \\
+\midrule
+Manipulation play under-trains unnormalized FB & dwell statistics; frozen-representation divergence & \textbf{collected, audited} \\
+Normalization yields a working measure on manipulation & cube/scene results vs floors and GCIQL & \textbf{collected, audited} \\
+Kernel smoothing of the immediate target is unnecessary and can hurt transfer & hard vs soft on both eval axes & \textbf{collected} \\
+The mechanism is absent in locomotion & AntMaze parity null & \textbf{collected} \\
+Repeated passive transitions \emph{cause} the failure & controlled duplication sweep & open (P2) \\
+Failure acts through scale or lost action separation & critic scale and action-gap diagnostics under the sweep & open (P1, P2) \\
+Cross-entropy is not the whole explanation & normalized CE vs normalized squared error & open (P1) \\
+Not FB-specific & joint MLP occupancy critic & open (P3) \\
+Extends beyond play data & air hockey; temporally corrupted expert data & open (P4) \\
+Does not solve missing support & bottleneck-removal control & open (P1) \\
+Supports new tasks & zero-shot reward families & \textbf{collected} (OGBench); open (air hockey) \\
+Visually compelling capability & reward-map air-hockey rollout & open (P4/P5) \\
+\bottomrule
+\end{tabular}
+\caption{Claims, evidence, and status. ``Collected, audited'' rows are in \texttt{density-fb-2.tex} with provenance audits; open rows are the program of Section~\ref{sec:program}.}
+\end{table}
+
+% ======================================================================
+\section{Flagship target}
+\label{sec:flagship}
+
+Train one reward-free model on dwell-heavy robot air-hockey data.
+At test time a user specifies a terminal reward map over puck positions; the model immediately executes a shot maximizing it, with no retraining, and continues to do so when passive post-contact transitions in the training data are oversampled by an order of magnitude.
+Initial reward family: terminal puck-position targets, center-stopping, smooth spatial heatmaps, multi-region choice; these are compatible with selecting among a goal-conditioned policy family.
+Path-level preferences (obstacle avoidance, bank shots) require the policy family to contain those behaviors and are out of scope for the first result.
+
+The novelty claim must be scoped: a real-world goal-conditioned air-hockey agent exists \citep{shen2026interaction}, and PSM and Soft FB support arbitrary-reward optimization in other frameworks \citep{agarwal-rlj25a,bagatella2026softfb}.
+The distinct claim is the combination: reward-free normalized occupancy training, immediate user-specified terminal rewards, and robustness to severe passive-frame overrepresentation, in a contact-rich dynamic domain.
+A literature audit for this exact combination is a P4 gate, and the feasibility of offline air-hockey data is a P4 \emph{precondition} to verify before any commitment (the testbed exists \citep{chuck2024airhockey}; a suitable offline play-style dataset may not).
+
+Storyboard: user reward map; predicted puck-position occupancy per candidate shot; chosen index; rollout.
+Then the stress comparison: standard FB on ordinary data; standard FB on $10\times$ duplicated passive frames; the normalized model on the same duplicated data, still executing the reward-selected shot.
+
+% ======================================================================
+\section{Experimental program and gates}
+\label{sec:program}
+
+\textbf{P1, synthetic causal test (cheapest falsification).}
+Fork-and-dwell MDP; sweep true dwell, duplication, $\gamma$, query-set size; arms: standard FB, \DensityFB{} (CE), normalized squared error, unnormalized and normalized joint critics; plots of success, scale, action gap, and fixed-point error vs dwell.
+\emph{Gate:} if normalization does not improve robustness to artificial multiplicity here, the thesis needs revision before any expensive run.
+
+\textbf{P2, controlled OGBench dwell stress.}
+Multiplicity sampler (measure-loss only; goal distribution held fixed) on \texttt{cube-single}, \texttt{cube-double}, \texttt{scene}, AntMaze as the predicted null; standard FB and normalized arms; full-state vs object-factor ablation rides along.
+\emph{Prediction:} FB degrades with duplication on manipulation, normalized critics degrade less, AntMaze separates least.
+
+\textbf{P3, non-FB generality.}
+Joint energy critic under the same pool, target, and actor readout; rerun the P1 and P2 sweeps.
+
+\textbf{P4, dynamic interaction domain.}
+Precondition: offline air-hockey data audit.
+Then contact-phase stratification, oversampling variants, one reward-free normalized model, terminal reward-map scoring, video rollouts.
+
+\textbf{P5, strongest version.}
+Higher-fidelity or real-robot air hockey; interactive reward maps; side-by-side dwell-stress video; combination with interaction-aware resampling.
+
+Minimum viable paper = P1 + P2 + the collected manipulation results, with matched FB baselines and the CE-vs-MSE ablation.
+Strong paper adds P3 and the corrupted-expert study.
+Flagship adds P4/P5.
+
+% ======================================================================
+\section{Framing}
+\label{sec:framing}
+
+\emph{Problem:} offline data can drastically overrepresent long-lived consequences relative to the decisions that produce them.
+\emph{Insight:} future occupancy has fixed total mass; repetition should change its allocation, not the estimator's scale.
+\emph{Method:} Bellman learning of self-normalized conditional occupancy weights.
+\emph{Generality:} the construction applies to arbitrary score models.
+\emph{Main result:} normalized occupancy learning stays stable as passive-transition multiplicity increases and enables zero-shot reward selection in contact-rich manipulation.
+
+Candidate abstract sentence:
+\begin{quote}
+We show that offline trajectories can overrepresent persistent consequences relative to the decisions that cause them, destabilizing unconstrained successor-density learning.
+We replace absolute density regression with Bellman learning of a self-normalized future-occupancy distribution, yielding stable control across manipulation datasets, temporal-multiplicity interventions, and critic parameterizations.
+\end{quote}
+
+\bibliography{bib/strings,bib/lib,bib/local,bib/proc}
+\bibliographystyle{iclr2027_conference}
+
+\end{document}
