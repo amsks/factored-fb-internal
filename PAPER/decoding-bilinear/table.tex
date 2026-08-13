@@ -58,7 +58,7 @@ Dataset & BC & GCIQL & biGCIQL $d50$ & biGCIQL $d512$ & density-hard \\
 \midrule
 \multicolumn{6}{l}{\emph{Metaworld} \texttt{play-resample-hard} v3 ($2000\times500$, $\sigma{=}0.1$ mixture, same repaired protocol)}\\
 \texttt{mw-pick-place} & $0.367\pm0.110$ & $\mathbf{0.967\pm0.031}$ & $0.860\pm0.125$          & ---                        & --- \\
-\texttt{mw-push}       & $0.613\pm0.031$ & $\mathbf{0.813\pm0.064}$ & $0.627\pm0.133^{\,b}$    & ---                        & --- \\
+\texttt{mw-push}       & $0.613\pm0.031$ & $\mathbf{0.813\pm0.064}$ & $0.627\pm0.133$          & ---                        & --- \\
 \midrule
 \multicolumn{6}{l}{\emph{ManiSkill} \texttt{ms-play-resample} (1M per task, masked goal channel, 300k steps)}\\
 \texttt{ms-pick-cube}  & $0.020\pm0.000^{\,c}$ & $0.040\pm0.020$    & $0.040\pm0.000$          & ---                        & --- \\
@@ -80,7 +80,9 @@ every goal-conditioned critic the same wrong goal.
 $^{b}$ \emph{Bimodal}: two of three seeds collapse (\texttt{cube-double} $d512$:
 $0.000/0.392/0.000$; \texttt{mw-push} $d50$: $0.30/0.32/0.76$), so mean $\pm$ sd is a poor
 summary of a two-mode distribution rather than a noisy middling score. Note that
-\texttt{mw-push} $d50$ sits \emph{below} its own BC floor.
+\texttt{mw-push} $d50$ sits \emph{below} its own BC floor. The hard-resample
+\texttt{mw-push} $d50$ cell is wide but not two-mode ($0.48/0.66/0.74$) --- the same
+critic's instability in milder form.
 
 $^{c}$ The unmasked (goal-visible) BC control reaches $0.967\pm0.031$ on
 \texttt{ms-pick-cube} and $0.980\pm0.020$ on \texttt{ms-push-cube}. The masked pick-cube
