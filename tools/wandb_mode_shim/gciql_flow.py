@@ -32,6 +32,21 @@ def _sphere(x, d):
     return x * jnp.sqrt(d * 1.0) / (jnp.linalg.norm(x, axis=-1, keepdims=True) + 1e-6)
 
 
+# --- Spec 25 (z-coupling port) constants -------------------------------------
+# Ridge regularizer of the C2 reward-decodability auxiliary's closed-form solve
+# (spec 25 §0 C2 pins lambda=1e-4 as the round-1 dose and gives it NO knob name --
+# the spec names exactly four knobs, and other agents write configs against those
+# exact names, so this stays a module constant rather than an invented fifth knob).
+_Z_RDECODE_RIDGE_LAMBDA = 1e-4
+# fold_in salts for the two spec-25 auxiliary rng streams inside density_loss.
+# jax.random.fold_in DERIVES a key without CONSUMING the incoming one, so neither
+# the z draw (z_rng) nor the bootstrap noise (`rng`) shifts by a single bit when
+# these streams appear -- that is what keeps the spec-24 defaults arm, and the
+# always-on density_w_ztv instrument, bit-identical on the loss (spec 25 §2).
+_Z_ZTV_FOLD = 25_001        # density_w_ztv's resampled index z'
+_Z_RDECODE_FOLD = 25_002    # the rdecode auxiliary's kernel-reward center c
+
+
 def _parse_hit_spec(spec):
     """Parse `measure_hit_spec` -> tuple of (start, stop, eps) observation blocks.
 
@@ -966,6 +981,20 @@ class GCIQLFlowAgent(GCIQLAgent):
                              / self.config['measure_density_temp'], -1)
         return (w18 * kg[None]).sum(-1)
 
+    def _density_z_enc_module(self):
+        """Spec 25 §0 C3 / §2: WHICH backward tower encodes the index.
+        measure_density_z_enc_tau == 0 -> 'target_density_b' (spec 24's convention,
+        bit-identical); > 0 -> 'density_b_zenc', a SEPARATE slow-EMA copy of density_b
+        registered at create() and mixed at tau_z inside the `update` override, so the
+        index encoding is quasi-stationary instead of drifting with the critic-rate
+        target tower. Both are ordinary params: they serialize into the checkpoint and
+        the eval path (sample_actions -> _density_z_encode) reads whichever one THIS
+        config names, from the restored params (spec 25 §2, rz-law train/eval lesson --
+        unlike 17b's protos there is no file coupling)."""
+        if float(self.config.get('measure_density_z_enc_tau', 0.0)) > 0.0:
+            return 'density_b_zenc'
+        return 'target_density_b'
+
     def _density_z_encode(self, goal_obs):
         """Spec 24 (Definitions §1): the deterministic half of the z mix,
         z(x) = sqrt(d) * B̄(x̃) / ||B̄(x̃)||, B̄ := target_density_b (frozen -- never
@@ -973,13 +1002,35 @@ class GCIQLFlowAgent(GCIQLAgent):
         block coords of goal_obs. This is also the EXACT transform E1's direct goal
         conditioning reads (z* = z(phi(g_eval))): no rng anywhere in this method, so it
         is bit-for-bit reproducible from a restored checkpoint's target_density_b
-        params alone (test 5)."""
+        params alone (test 5).
+
+        Spec 25 C3: when measure_density_z_enc_tau > 0, B̄ := density_b_zenc (the slow
+        EMA copy) instead -- see _density_z_enc_module. Still frozen, still rng-free,
+        still reproducible from the restored checkpoint alone."""
         d = float(self.config['measure_density_dim'])
         blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
         x_sc = self._density_queries(goal_obs, blocks)                  # [B, d_c] eps-scaled
-        b_emb = self.network.select('target_density_b')(x_sc)           # [B, d], frozen tower
+        b_emb = self.network.select(self._density_z_enc_module())(x_sc)  # [B, d], frozen tower
         z = _sphere(b_emb, d)
         return jax.lax.stop_gradient(z)
+
+    def _density_z_masked(self, goal_obs, rng):
+        """Spec 24's `_density_z` (see its docstring -- SAME ops, SAME split order, so
+        `_density_z` simply drops the second return value and stays bit-identical),
+        plus the per-row HINDSIGHT indicator spec 25 C3's BC mask needs:
+        1.0 where z_i came from the row's own relabeled goal coords, 0.0 where it was a
+        fresh sphere draw. The indicator is the same `use_rand` bernoulli the mix itself
+        consumes -- not a second draw -- so mask and z can never disagree."""
+        z_g = self._density_z_encode(goal_obs)
+        d = int(self.config['measure_density_dim'])
+        B = goal_obs.shape[0]
+        rng_sphere, rng_mix = jax.random.split(rng)
+        z_rand = _sphere(jax.random.normal(rng_sphere, (B, d)), d)
+        rand_frac = float(self.config.get('measure_density_z_rand_frac', 0.5))
+        use_rand = jax.random.bernoulli(rng_mix, rand_frac, (B, 1))
+        z = jnp.where(use_rand, z_rand, z_g)
+        hindsight = (1.0 - use_rand[:, 0].astype(z.dtype))                 # [B]
+        return jax.lax.stop_gradient(z), jax.lax.stop_gradient(hindsight)
 
     def _density_z(self, goal_obs, rng):
         """Spec 24 (Definitions §1): the full z mix -- z_i = z(x_{g,i})
@@ -990,16 +1041,39 @@ class GCIQLFlowAgent(GCIQLAgent):
         call is already never in grad_params, and z_rand never touches any network) so
         the index cannot chase the ONLINE B tower within a step and is never
         differentiated as an input anywhere it is consumed (F's conditioning leg, the
-        actor's goal leg, the actor-q reward embedding)."""
-        z_g = self._density_z_encode(goal_obs)
-        d = int(self.config['measure_density_dim'])
-        B = goal_obs.shape[0]
-        rng_sphere, rng_mix = jax.random.split(rng)
-        z_rand = _sphere(jax.random.normal(rng_sphere, (B, d)), d)
-        rand_frac = float(self.config.get('measure_density_z_rand_frac', 0.5))
-        use_rand = jax.random.bernoulli(rng_mix, rand_frac, (B, 1))
-        z = jnp.where(use_rand, z_rand, z_g)
-        return jax.lax.stop_gradient(z)
+        actor's goal leg, the actor-q reward embedding).
+
+        Spec 25: the body moved verbatim into `_density_z_masked` (which additionally
+        returns the hindsight indicator); this wrapper keeps the shipped signature and
+        is bit-identical -- same ops, same rng split order, same value."""
+        z, _ = self._density_z_masked(goal_obs, rng)
+        return z
+
+    def _density_z_tilt(self, z, b_emb):
+        """Spec 25 §0 C1 -- the STRUCTURAL logit tilt, beta * z^T B(u) / sqrt(d):
+
+            l_ij = F(s_i,a_i,z_i)^T B(u_j)/tau  +  beta * z_i^T B(u_j)/sqrt(d)
+
+        so w(s,a,z) is an exponential-family tilt of the base scores and is z-sensitive
+        BY CONSTRUCTION at every step, including step 0 -- the ignore-z fixed point the
+        spec-24 wave settled into stops being reachable. beta is FIXED, never learned.
+
+        Returns None when beta == 0 (a TRACE-TIME branch: the caller then adds nothing
+        at all, so the spec-24 arm is bit-identical, not merely +0.0-identical), else a
+        [B, M] additive term to be broadcast over the [2, B, M] head axis.
+
+        `b_emb` is whichever B tower owns the logits being tilted -- ONLINE density_b
+        for the online scores and the actor's q path, TARGET target_density_b for the
+        bootstrap scores. Both must be tilted or the target does not live in the same
+        exponential family as the online score and the bootstrap is inconsistent
+        (spec 25 §2, first bullet of the Tilt contract). z is already stop-gradded;
+        the tilt is otherwise differentiable through b_emb exactly like the base
+        F^T B term, which is what lets B reshape around it."""
+        beta = float(self.config.get('measure_density_z_tilt', 0.0))
+        if beta == 0.0:
+            return None
+        d = self.config['measure_density_dim']
+        return beta * jnp.einsum('bd,md->bm', z, b_emb) / jnp.sqrt(d)
 
     def _density_actor_q_z(self, batch, obs, actions, z):
         """Spec 24 (Definitions §1): the z-analog of `_density_actor_q`.
@@ -1019,8 +1093,14 @@ class GCIQLFlowAgent(GCIQLAgent):
         b_emb24 = self.network.select('density_b')(u_sc24)                        # frozen params
         f_emb24 = self.network.select('density_f')(
             jnp.concatenate([obs, actions, z], -1))                              # frozen params
-        w24 = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb24, b_emb24)
-                             / self.config['measure_density_temp'], -1)
+        logits24 = jnp.einsum('hbd,md->hbm', f_emb24, b_emb24) \
+            / self.config['measure_density_temp']
+        tilt24 = self._density_z_tilt(z, b_emb24)          # spec 25 C1, actor q path
+        if tilt24 is not None:
+            # The actor must read the SAME tilted family the CE trains, or it would
+            # maximize a readout of an occupancy the measure never predicts.
+            logits24 = logits24 + tilt24[None]
+        w24 = jax.nn.softmax(logits24, -1)
         tb24 = jax.lax.stop_gradient(self.network.select('target_density_b')(u_sc24))
         rz24 = jnp.einsum('md,bd->bm', tb24, z) / jnp.sqrt(d24)                    # [B, M]
         return (w24 * rz24[None]).sum(-1)
@@ -1146,6 +1226,7 @@ class GCIQLFlowAgent(GCIQLAgent):
         # IQL-trained. The critic Q-term keeps the raw goal obs -- it computes
         # its own psi internally.
         z_infer = None
+        z_hindsight = None   # spec 25 C3: per-row hindsight indicator, z branch only
         if task_z is not None:
             # v1: greedy readout on the SAMPLED task vector (reuses the z_infer Q branch below).
             z_infer = jax.lax.stop_gradient(task_z)
@@ -1162,7 +1243,9 @@ class GCIQLFlowAgent(GCIQLAgent):
             # spec 24: the actor's goal leg becomes z=_density_z(actor_goals) -- built
             # from the TARGET density_b tower, stop-gradded (actor_cond stays 'goal';
             # this is a SEPARATE mechanism from the actor_cond='z' branch above).
-            actor_cond_input = self._density_z(goals, z_rng)
+            # spec 25 C3: keep the per-row hindsight indicator too (same draw, no extra
+            # rng) so the imitation term can be masked to the reachable rows below.
+            actor_cond_input, z_hindsight = self._density_z_masked(goals, z_rng)
         else:
             actor_cond_input = goals
         # actor_z_greedy_frac (campaign v2 knob 2): per-sample, with probability frac,
@@ -1268,10 +1351,28 @@ class GCIQLFlowAgent(GCIQLAgent):
         # one-step distillation). Q-loss is normalized by |q| mean to be scale
         # invariant, exactly as in GCIQL's DDPG+BC actor loss.
         distill_error = 0.0
+        bc_hindsight_frac = None
         if self.config['bc_coeff'] > 0:
             # RG-FB: the distillation target rolls the SAME conditioned vf (vf_obs).
             target = self._flow_rollout(vf_obs, noise, jax.lax.stop_gradient(grad_params))
-            distill_error = jnp.mean((actor_actions - target) ** 2)
+            if z_hindsight is not None and self.config.get('measure_density_z_bc_hindsight', False):
+                # spec 25 §0 C3: mask the IMITATION term to hindsight-z rows. Under the
+                # measure_density_z lattice the ONLY z-carrying imitation term is this
+                # distillation regression: actor_actions = actor(s, z_i), while vf_obs
+                # (hence `target`, hence bc_flow_loss) is z-free -- actor_vf_cond='z'
+                # transitively requires actor_cond='z', which measure_density's own
+                # lattice refuses, so the vf sees at most the RAW goal, never z. Rows
+                # whose z_i was a fresh sphere draw are asking the one-shot actor to
+                # clone the behavior action under an index no data supports; drop them
+                # and RENORMALIZE by the surviving count so the term keeps the scale of
+                # the unmasked mean (mask all-ones reproduces it exactly). The q term
+                # stays unmasked -- random-sphere z's are the manifold coverage FB gets.
+                per_row = jnp.mean((actor_actions - target) ** 2, axis=-1)      # [B]
+                n_keep = jnp.sum(z_hindsight)
+                distill_error = jnp.sum(per_row * z_hindsight) / (n_keep + 1e-8)
+                bc_hindsight_frac = jnp.mean(z_hindsight)
+            else:
+                distill_error = jnp.mean((actor_actions - target) ** 2)
             bc_loss = self.config['bc_coeff'] * distill_error
             if q is None:
                 # spec 19a: no q-term to normalize against -- the actor loss IS the
@@ -1289,13 +1390,19 @@ class GCIQLFlowAgent(GCIQLAgent):
                 actor_loss = actor_loss / jax.lax.stop_gradient(q_scale + 1e-6) + bc_loss
         actor_loss = actor_loss + bc_flow_loss
 
-        return actor_loss, {
+        actor_info = {
             'actor_loss': actor_loss,
             'bc_flow_loss': bc_flow_loss,
             'distill_loss': distill_error,
             'q_mean': q.mean() if q is not None else jnp.asarray(0.0),
             'q_abs_mean': jnp.abs(q).mean() if q is not None else jnp.asarray(0.0),
         }
+        if bc_hindsight_frac is not None:
+            # spec 25 C3: the surviving fraction of the imitation term. Reads
+            # ~(1 - measure_density_z_rand_frac); a drift toward 0 would mean the
+            # masked term is quietly starving.
+            actor_info['bc_hindsight_frac'] = bc_hindsight_frac
+        return actor_loss, actor_info
 
     def _sample_tasks(self, batch, grad_params, rng):
         """RG-FB v1 (spec06 item4): draw a per-sample task -> (z, z_actor, reward, mask, type).
@@ -2131,7 +2238,25 @@ class GCIQLFlowAgent(GCIQLAgent):
         g/z at all, only nobs vs the resampled query support. Requires actor_kind='flow'
         (lattice-enforced), so this branch is mutually exclusive with the ddpgbc/
         awr_flow branches below. Off (measure_density_z=False): bit-identical, this
-        branch is never reached."""
+        branch is never reached.
+
+        Spec 25 (z-coupling port), z mode only -- three additions, all default-off
+        except the instrument, and none of them touches the rng streams the spec-24
+        arm consumes (their keys come from jax.random.fold_in, which DERIVES without
+        CONSUMING), so measure_density_z at spec-25 defaults returns a bit-identical
+        loss:
+          C1 measure_density_z_tilt (beta): the structural logit tilt
+             beta*z^T B(u)/sqrt(d), added to BOTH the online logits and the target
+             logits -- same exponential family on both sides or the bootstrap is
+             inconsistent (_density_z_tilt).
+          C2 measure_density_z_rdecode_coef: the reward-decodability auxiliary
+             (_density_rdecode_loss), ADDED to the returned CE. There is no second
+             coefficient anywhere on this path that could zero it (total_loss adds
+             density_loss at weight 1 -- see its CRITICAL 1 comment), and the lattice
+             refuses the knob outside z mode, so it cannot become an inert term.
+          NEW INSTRUMENT density_w_ztv: E[TV(w(s,a,z), w(s,a,z'))] over per-row
+             RESAMPLED index pairs -- the direct index-sensitivity meter the spec-24
+             wave lacked. Logged UNCONDITIONALLY in z mode (all arms, spec 25 §2)."""
         obs, nobs = batch['observations'], batch['next_observations']
         acts, g = batch['actions'], batch['value_goals']
         blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
@@ -2161,6 +2286,9 @@ class GCIQLFlowAgent(GCIQLAgent):
             f_emb = self.network.select('density_f')(
                 jnp.concatenate([obs, acts, g], -1), params=grad_params)      # [2, B, d]
         logits = jnp.einsum('hbd,md->hbm', f_emb, b_emb) / tau                # [2, B, M]
+        tilt = self._density_z_tilt(z, b_emb) if z_on else None                # spec 25 C1
+        if tilt is not None:
+            logits = logits + tilt[None]                                      # ONLINE leg
         w = jax.nn.softmax(logits, -1)
         logp = jax.nn.log_softmax(logits, -1)                                 # [2, B, M]
 
@@ -2204,7 +2332,16 @@ class GCIQLFlowAgent(GCIQLAgent):
             a_plus = jax.lax.stop_gradient(self.network.select('actor')(nobs, g, noise))
             tf = self.network.select('target_density_f')(
                 jnp.concatenate([nobs, a_plus, g], -1))                       # frozen target
-        w_bar = jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / tau, -1)   # [2, B, M]
+        tgt_logits = jnp.einsum('hbd,md->hbm', tf, tb) / tau                  # [2, B, M]
+        if z_on:
+            # spec 25 C1: the TARGET leg carries the SAME tilt with the SAME z, read
+            # off the TARGET B tower (`tb`, the one that produced these logits). Without
+            # this, w_bar would live in the untilted family while the CE fits the tilted
+            # one and the bootstrap would be chasing a different model every step.
+            tgt_tilt = self._density_z_tilt(z, tb)
+            if tgt_tilt is not None:
+                tgt_logits = tgt_logits + tgt_tilt[None]
+        w_bar = jax.nn.softmax(tgt_logits, -1)                                # [2, B, M]
 
         if self.config.get('measure_density_hard', False):
             k = jnp.eye(nobs.shape[0])                                        # [B, M], M == B
@@ -2256,7 +2393,72 @@ class GCIQLFlowAgent(GCIQLAgent):
             Bn = z.shape[0]
             off_mask = 1.0 - jnp.eye(Bn)
             info['z_cos_spread'] = jnp.sum(cos * off_mask) / jnp.sum(off_mask)
+
+            # spec 25 §2 NEW INSTRUMENT (gate, ALL arms -- logged unconditionally in z
+            # mode): density_w_ztv = E[TV(w(s,a,z), w(s,a,z'))] with z' a per-row
+            # RESAMPLE of the same index mix. z_cos_spread says the indices differ;
+            # this says whether the MEASURE notices -- the pre-registered NULL of the
+            # whole spec is "all four screens flat on density_w_ztv". Everything here
+            # is stop-gradded and the key is fold_in-derived, so the instrument adds
+            # neither a gradient nor an rng shift.
+            z_alt = self._density_z(g, jax.random.fold_in(z_rng, _Z_ZTV_FOLD))
+            f_alt = self.network.select('density_f')(
+                jnp.concatenate([obs, acts, z_alt], -1), params=grad_params)
+            logits_alt = jnp.einsum('hbd,md->hbm', f_alt, b_emb) / tau
+            tilt_alt = self._density_z_tilt(z_alt, b_emb)
+            if tilt_alt is not None:
+                logits_alt = logits_alt + tilt_alt[None]
+            w_alt = jax.nn.softmax(logits_alt, -1)
+            info['density_w_ztv'] = jax.lax.stop_gradient(
+                0.5 * jnp.mean(jnp.sum(jnp.abs(w - w_alt), axis=-1)))
+
+        rdecode_coef = float(self.config.get('measure_density_z_rdecode_coef', 0.0))
+        if z_on and rdecode_coef > 0.0:
+            # spec 25 §0 C2: ortho-free shaping of span(B) so its linear functionals
+            # form a reward family (what E2a's z_r = E[r.B] and C1's z^T B both need).
+            dec_loss, dec_info = self._density_rdecode_loss(
+                u_sc, b_emb, jax.random.fold_in(z_rng, _Z_RDECODE_FOLD))
+            info.update(dec_info)
+            ce = ce + rdecode_coef * dec_loss
         return ce, info
+
+    def _density_rdecode_loss(self, u_sc, b_emb, rng):
+        """Spec 25 §0 C2 -- the supervised reward-decodability auxiliary (the ortho-free
+        port of FB's orthonormalization; ortho itself stays refused on manipulation).
+
+        Per batch, draw ONE synthetic kernel reward at a random center c taken from the
+        batch's OWN query rows (fresh every step):
+
+            r_c(u) = exp(-0.5 * ||(u - c)/eps||^2)
+
+        `u_sc` is already the eps-SCALED query block coords (_density_queries divides by
+        each block's eps), so the plain squared distance in these coordinates IS the
+        eps-scaled one -- no second scaling (the _delta_phi/_raw_block_cols double-scale
+        trap). Then solve the closed-form ridge on the batch queries, differentiably
+        through B:
+
+            v* = (B_U^T B_U + lambda I)^{-1} B_U^T r_c(U)      (d x d solve, d=50: cheap)
+            L_dec = ||B_U v* - r_c(U)||^2 / n
+
+        Reported alongside: z_rdecode_r2, the ridge R^2 of that fit, CLIPPED to [0,1]
+        (a ridge fit can only fall below 0 in a degenerate near-constant-target batch;
+        the clip keeps the logged instrument a readable 0-1 quality score). This is the
+        training-time twin of spec 25 §1's P0 eval-only B-decodability probe, so the two
+        numbers are directly comparable per checkpoint."""
+        M = u_sc.shape[0]
+        d = b_emb.shape[-1]
+        c_idx = jax.random.randint(rng, (), 0, M)
+        c = jax.lax.stop_gradient(u_sc[c_idx])                                # [d_c]
+        r_c = jax.lax.stop_gradient(
+            jnp.exp(-0.5 * jnp.sum((u_sc - c[None]) ** 2, axis=-1)))          # [M]
+        gram = b_emb.T @ b_emb + _Z_RDECODE_RIDGE_LAMBDA * jnp.eye(d)         # [d, d]
+        v = jnp.linalg.solve(gram, b_emb.T @ r_c)                             # [d]
+        resid = b_emb @ v - r_c                                               # [M]
+        sse = jnp.sum(resid ** 2)
+        loss = sse / M
+        sst = jnp.sum((r_c - jnp.mean(r_c)) ** 2)
+        r2 = jnp.clip(1.0 - sse / (sst + 1e-8), 0.0, 1.0)
+        return loss, {'z_rdecode_loss': loss, 'z_rdecode_r2': r2}
 
     def _ors_reward(self, obs, acts, goals):
         """Spec 19b S2.3: the ORS shaping reward r_W(s,a,g), read off the FROZEN
@@ -2786,6 +2988,18 @@ class GCIQLFlowAgent(GCIQLAgent):
         if self.config.get('measure_density', False):
             self.target_update(new_network, 'density_f')
             self.target_update(new_network, 'density_b')
+        _z_enc_tau = float(self.config.get('measure_density_z_enc_tau', 0.0))
+        if self.config.get('measure_density_z', False) and _z_enc_tau > 0.0:
+            # spec 25 §0 C3: the slow-EMA index encoder. Same soft-update FORM as
+            # target_update (same source: self.network.params, i.e. the pre-step online
+            # tower), but at tau_z instead of config['tau'] -- round-1 dose 0.0005, 10x
+            # slower than the critic tau -- so the index encoding is quasi-stationary
+            # and the actor's conditioning stops drifting under it every step.
+            new_network.params['modules_density_b_zenc'] = jax.tree_util.tree_map(
+                lambda p, ep: p * _z_enc_tau + ep * (1.0 - _z_enc_tau),
+                self.network.params['modules_density_b'],
+                self.network.params['modules_density_b_zenc'],
+            )
 
         return self.replace(network=new_network, rng=new_rng), info
 
@@ -3439,6 +3653,48 @@ class GCIQLFlowAgent(GCIQLAgent):
                 "spec 24 round 1 is scoped to the flow actor only -- the architecture change " \
                 "(F's [obs,actions,z] input and the actor's z-conditioned goal leg) is only " \
                 "implemented on that path; ddpgbc/awr_flow are untouched and out of scope"
+            # --- Spec 25: the three coupling ports. Ranges from spec 25 §2.
+            _ztilt = float(config.get('measure_density_z_tilt', 0.0))
+            assert _ztilt >= 0.0, \
+                f"measure_density_z_tilt (beta) must be >= 0, got {_ztilt}"
+            _zdec = float(config.get('measure_density_z_rdecode_coef', 0.0))
+            assert _zdec >= 0.0, \
+                f"measure_density_z_rdecode_coef must be >= 0, got {_zdec}"
+            _zenc = float(config.get('measure_density_z_enc_tau', 0.0))
+            assert 0.0 <= _zenc <= 0.1, \
+                f"measure_density_z_enc_tau (tau_z) must be in [0, 0.1], got {_zenc}"
+            if config.get('measure_density_z_bc_hindsight', False):
+                # Two CONTRADICTORY combinations, refused loudly rather than silently
+                # producing a fake null (the 17b measure_coef species: a term that looks
+                # configured but is provably zero / provably a no-op):
+                #  rand_frac == 1 -> EVERY row is sphere-drawn, the mask kills the whole
+                #    imitation term and the actor trains with no cloning signal at all;
+                #  rand_frac == 0 -> EVERY row is hindsight, the mask is all-ones and the
+                #    knob is provably inert (it would log as "C3 ON" while changing
+                #    nothing).
+                _zrf_bc = float(config.get('measure_density_z_rand_frac', 0.5))
+                assert _zrf_bc < 1.0, \
+                    "measure_density_z_bc_hindsight with measure_density_z_rand_frac=1.0 " \
+                    "masks EVERY row -- the imitation term would be identically zero " \
+                    "(a silently-disabled loss term, refused)"
+                assert _zrf_bc > 0.0, \
+                    "measure_density_z_bc_hindsight with measure_density_z_rand_frac=0.0 " \
+                    "is provably inert (every row is already hindsight) -- refused " \
+                    "(17b lesson: no inert knobs)"
+                assert float(config.get('bc_coeff', 0.0)) > 0.0, \
+                    "measure_density_z_bc_hindsight masks the distillation (imitation) " \
+                    "term, which bc_coeff=0 already switches off -- the knob would be inert"
+        else:
+            # Every spec-25 knob is scoped to the measure_density_z lattice: set outside
+            # it, the code path that reads it is never reached and the knob would silently
+            # no-op (17b measure_coef fake-NULL species). Refuse at construction.
+            for _k25, _off25 in (('measure_density_z_tilt', 0.0),
+                                 ('measure_density_z_rdecode_coef', 0.0),
+                                 ('measure_density_z_enc_tau', 0.0),
+                                 ('measure_density_z_bc_hindsight', False)):
+                assert not config.get(_k25, _off25), \
+                    f"{_k25} requires measure_density_z=True (spec 25 §2) -- it is read " \
+                    "only on the z-indexed density path and would be inert otherwise"
 
         # Spec 19 P0.2: BC-only control lattice. actor_bc_only only affects the flow
         # actor's q1/q2 branch chain inside actor_loss -- actor_kind='ddpgbc'/'awr_flow'
@@ -3861,6 +4117,14 @@ class GCIQLFlowAgent(GCIQLAgent):
             network_info['density_b'] = (b_def, ex_b)
             network_info['target_density_f'] = (copy.deepcopy(f_def), ex_f)
             network_info['target_density_b'] = (copy.deepcopy(b_def), ex_b)
+            if config.get('measure_density_z', False) \
+                    and float(config.get('measure_density_z_enc_tau', 0.0)) > 0.0:
+                # spec 25 §0 C3: a SEPARATE slow-EMA copy of density_b that encodes the
+                # index (see _density_z_enc_module). Registered only when the knob is on,
+                # so every other arm's param tree stays byte-identical; it is an ordinary
+                # params entry, so it serializes into the checkpoint and the eval path
+                # reads it back with no file coupling (unlike 17b's protos).
+                network_info['density_b_zenc'] = (copy.deepcopy(b_def), ex_b)
         ors_pool_np = ors_pool_b_emb_np = None    # spec 19b: set below only when ors_reward_ckpt is on
         ors_tau_resolved = None
         if config.get('ors_reward_ckpt', ''):
@@ -4146,6 +4410,11 @@ class GCIQLFlowAgent(GCIQLAgent):
         if config.get('measure_density', False):
             params['modules_target_density_f'] = params['modules_density_f']
             params['modules_target_density_b'] = params['modules_density_b']
+            if 'modules_density_b_zenc' in params:
+                # spec 25 C3: the EMA index encoder starts EQUAL to density_b, exactly
+                # like the two target towers above (a fresh independent init would make
+                # the first tau_z=5e-4 steps encode indices off pure noise).
+                params['modules_density_b_zenc'] = params['modules_density_b']
 
         # nonpytree/static field (CRITICAL 2 fix): a hashable nested tuple of Python
         # floats, NOT a jnp/np array -- see the field's docstring for why.
@@ -4289,6 +4558,35 @@ def get_config():
         config.measure_density_z_rand_frac = 0.5   # spec 24: fraction of z rows drawn as a
           # fresh uniform sqrt(d)-sphere direction instead of the relabeled-goal embedding
           # (FB's standard task-prior mix). Only read when measure_density_z=True.
+        # --- Spec 25: FB's three index-coupling mechanisms, ported to the density
+        # estimator. All four knobs live UNDER the measure_density_z lattice (each is
+        # refused outside it), all default OFF = the spec-24 arm bit-for-bit, in both the
+        # param tree and the loss. One dose each, no sweeps (spec 25 §6 anti-scope). ---
+        config.measure_density_z_tilt = 0.0    # C1 (beta): structural logit tilt
+          # l_ij = F(s,a,z).B(u_j)/tau + beta * z.B(u_j)/sqrt(d), applied to the ONLINE
+          # logits, the TARGET logits (same exponential family or the bootstrap is
+          # inconsistent) and the actor's q-path logits. beta is FIXED, never learned, so
+          # w(s,a,z) is z-sensitive by construction at every step and the ignore-z fixed
+          # point stops being reachable. Round-1 dose 1.0. 0.0 = off, bit-identical.
+        config.measure_density_z_rdecode_coef = 0.0   # C2: supervised reward-decodability
+          # auxiliary (the ORTHO-FREE port -- ortho itself stays refused). Per step, one
+          # kernel reward r_c(u)=exp(-0.5||(u-c)/eps||^2) at a random batch query center c,
+          # closed-form ridge v*=(B^T B + 1e-4 I)^-1 B^T r_c through B, loss
+          # coef*||B v* - r_c||^2/n added to the density CE. Shapes span(B) to support the
+          # linear reward readouts E2a's z_r=E[r.B] and C1's z.B need. Round-1 dose 1.0.
+        config.measure_density_z_bc_hindsight = False  # C3: mask the actor's imitation
+          # (distillation) term to HINDSIGHT-z rows only -- sphere-drawn z rows ask the
+          # one-shot actor to clone the behavior action under an index no data supports.
+          # Masked rows are dropped and the term renormalized by the surviving count; the
+          # q term and the measure loss keep ALL rows (the manifold coverage FB gets).
+          # Refused at rand_frac in {0, 1} and at bc_coeff=0 (inert / total-mask).
+        config.measure_density_z_enc_tau = 0.0   # C3 (tau_z): when > 0, register
+          # density_b_zenc, a SEPARATE slow-EMA copy of density_b (init = density_b,
+          # soft-updated at tau_z in `update`), and encode z with it instead of
+          # target_density_b -- a quasi-stationary index encoding. It is an ordinary
+          # params entry, so it serializes into the checkpoint and sample_actions reads
+          # the SAME tower back at eval time. Round-1 dose 0.0005 (10x slower than the
+          # critic tau); range [0, 0.1]. 0.0 = off, bit-identical (module not registered).
         config.next_actions = False   # GCDataset: gate batch['next_actions'] = the dataset's
           # SARSA next action (same trajectory-boundary arithmetic as sample_goals/measure_nstep;
           # final-state rows substitute the current action, batch['next_actions_subst'] carries the
