@@ -56,6 +56,10 @@ Dataset & BC & GCIQL & biGCIQL $d50$ & biGCIQL $d512$ & density-hard \\
 \texttt{mw-pick-place} & $0.340\pm0.020$ & $\mathbf{0.520\pm0.053}$ & $0.447\pm0.092$          & ---                        & --- \\
 \texttt{mw-push}       & $0.327\pm0.070$ & $0.527\pm0.050$          & $0.533\pm0.061$          & ---                        & --- \\
 \midrule
+\multicolumn{6}{l}{\emph{Metaworld} \texttt{play-resample-hard} v3 ($2000\times500$, $\sigma{=}0.1$ mixture, same repaired protocol)}\\
+\texttt{mw-pick-place} & $0.367\pm0.110$ & $\mathbf{0.967\pm0.031}$ & $0.860\pm0.125$          & ---                        & --- \\
+\texttt{mw-push}       & $0.613\pm0.031$ & $\mathbf{0.813\pm0.064}$ & $0.627\pm0.133^{\,b}$    & ---                        & --- \\
+\midrule
 \multicolumn{6}{l}{\emph{ManiSkill} \texttt{ms-play-resample} (1M per task, masked goal channel, 300k steps)}\\
 \texttt{ms-pick-cube}  & $0.020\pm0.000^{\,c}$ & $0.040\pm0.020$    & $0.040\pm0.000$          & ---                        & --- \\
 \texttt{ms-push-cube} (degenerate control)
