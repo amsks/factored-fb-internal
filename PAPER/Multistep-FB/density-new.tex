@@ -144,6 +144,14 @@ Critic scale (does the estimator inflate), total predicted mass (calibration), p
 As multiplicity increases, standard FB loses action separation and control; normalized occupancy learning degrades substantially less.
 Perfect invariance is not required; the result is that degradation tracks the scale pathology for the unnormalized estimator and is reduced by normalization.
 
+\paragraph{Revision after the first synthetic study (R0a, collected).}
+The naive intervention, \emph{injecting} duplicated stationary rows into the dataset, tests the wrong thing: it changes the empirical transition kernel itself (the estimated stay probability inflates), and every consistent estimator, normalized or not, converges to the corrupted kernel's exact successor measure.
+The R0a study confirmed this: at tabular scale all five arms sit on the corrupted-kernel ground-truth curve within noise, with no scale or mass inflation anywhere, and CE vs squared error indistinguishable.
+Two consequences are now pinned.
+First, the thesis is narrowed: normalization targets an \emph{estimator} pathology (scale growth and capacity misallocation under function approximation and finite optimization), not a statistical bias of the fixed point; kernel-level dwell is real signal that every method should and does represent.
+Second, the intervention must hold the empirical kernel fixed: multiplicity is applied as \emph{sampling weight} on existing transitions (which leaves the tabular fixed point unchanged and acts only through the projection and the optimization path), and the synthetic must be run in the regime where the pathology lives, with rank-constrained function approximation and measured transients rather than converged tabular fits.
+The OGBench intervention of this section already has the weight form; the synthetic is being revised to match (rank-constrained arms, harder decision task, transient logging).
+
 % ======================================================================
 \section{A minimal synthetic environment}
 \label{sec:synthetic}
@@ -194,7 +202,7 @@ Manipulation play under-trains unnormalized FB & dwell statistics; frozen-repres
 Normalization yields a working measure on manipulation & cube/scene results vs floors and GCIQL & \textbf{collected, audited} \\
 Kernel smoothing of the immediate target is unnecessary and can hurt transfer & hard vs soft on both eval axes & \textbf{collected} \\
 The mechanism is absent in locomotion & AntMaze parity null & \textbf{collected} \\
-Repeated passive transitions \emph{cause} the failure & controlled duplication sweep & open (P2) \\
+Repeated passive transitions \emph{cause} the failure & controlled multiplicity-\emph{weight} sweep (kernel held fixed) & open (P2); naive row-injection version falsified as an instrument (R0a) \\
 Failure acts through scale or lost action separation & critic scale and action-gap diagnostics under the sweep & open (P1, P2) \\
 Cross-entropy is not the whole explanation & normalized CE vs normalized squared error & open (P1) \\
 Not FB-specific & joint MLP occupancy critic & open (P3) \\

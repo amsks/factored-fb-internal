@@ -245,3 +245,36 @@ port on `TommyShen/factored-fb-play` Box2D (download today, zero cost)
 before the air-hockey buffer exists; email calebc@cs.utexas.edu in
 parallel for the teleop data + Box2D license (400 human trajectories
 would upgrade the flagship's data story if granted).
+
+## R0a verdict (2026-08-13) and the R0a-v2 redesign
+
+GATE P1 as originally pinned: **FAIL, by instrument** — and the failure is
+informative, not fatal. Injecting duplicated s'=s rows changes the
+EMPIRICAL KERNEL (P̂(stay) inflates); the exact successor measure of the
+corrupted kernel drifts identically (gap ratio 1.0→2.9 at T=44), and all
+five converged tabular arms sit on that curve within noise, with zero
+scale/mass inflation and CE≈MSE. Conclusion (now in density-new.tex §5):
+the thesis is an ESTIMATOR claim (scale/capacity pathology under function
+approximation + finite optimization), not a fixed-point claim; the
+intervention must hold the kernel fixed by applying multiplicity as
+SAMPLING WEIGHT on existing rows (tabular fixed point invariant; acts
+through projection + optimization only). Note R1's `measure_dup_passive`
+was already specced as sampling-weight multiplication — it survives
+unchanged; only the synthetic needs the redesign.
+
+**R0a-v2 contract (delta on the committed code, 6d5c4cc):**
+- Intervention: per-row loss/sampling weights on stationary rows
+  (×{1,2,5,10,20}), dataset rows untouched (test: empirical kernel
+  byte-identical across factors).
+- Regime: rank-constrained arms (d ∈ {2,4} vs the ~10 needed; shared
+  trunk across the two regions so capacity competition exists) and a
+  FIXED optimization budget with transient logging (metrics at 1k/3k/10k
+  steps, not only at convergence); keep one converged tabular column as
+  the control that should show NO separation.
+- Task hardening: success was 1.0 everywhere — add a distractor arm of
+  the fork whose region overlaps the left region in feature space
+  (aliasing), and score success by the margin surviving aliasing.
+- Metrics, gate, arms otherwise unchanged. GATE P1-v2: separation
+  (normalized flatter in weight factor) appears in the rank-constrained /
+  finite-budget columns AND vanishes in the tabular-converged control
+  column — the second half is what makes the mechanism claim precise.
