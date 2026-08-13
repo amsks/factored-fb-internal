@@ -1,0 +1,50 @@
+# Spec 25 stage 1 -- z25_cs_dec: C2 ortho-free reward-decodability auxiliary ONLY, on top
+# of spec 24's z-indexed density measure (PAPER/Multistep-FB/specs/25-z-coupling-port.md
+# section 0/3).
+#
+# C2 draws one synthetic kernel reward r_c(u) per batch at a random dataset center c, solves
+# the closed-form ridge v* = (B_U^T B_U + lambda*I)^-1 B_U^T r_c(U) on the batch queries
+# (differentiable through B), and adds L_dec = coef * ||B_U v* - r_c(U)||^2 / n. This shapes
+# span(B) to support the linear readouts E2a's z_r = E[r.B] and the tilt's z^T B need,
+# without reintroducing ortho (convicted on manipulation for the scalar estimator, refused).
+# Round-1 dose: measure_density_z_rdecode_coef=1.0, ridge lambda=1e-4 (spec section 0 gives
+# lambda only as part of the closed-form solve, not as a separately named knob -- left at
+# the implementation's default; see task report for this ambiguity).
+#
+# Everything else is byte-identical to cube_double_state_measure_density_z_d50.yaml's
+# z-lattice, ported to the cube-single venue (env_name / measure_hit_spec match
+# cube_single_state_measure_density_d50.yaml, the g-indexed cube-single anchor .929 soft).
+#
+# Screen gate S1 (spec 25 section 3): density_w_ztv bounded away from 0 at 500k AND
+# E1 (goal-encoding z(g) conditioning) >= 0.5 (g-anchor ~= .93; spec-24 z scored ~0 on cd).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityZ-C2Dec-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_z: true
+  measure_density_z_rand_frac: 0.5
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_density_z_rdecode_coef: 1.0
+wandb_mode: online

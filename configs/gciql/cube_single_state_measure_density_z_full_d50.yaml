@@ -1,0 +1,55 @@
+# Spec 25 stage 1 -- z25_cs_full: C1+C2+C3, ALL THREE coupling ports stacked, on top of
+# spec 24's z-indexed density measure (PAPER/Multistep-FB/specs/25-z-coupling-port.md
+# section 0/3). Union of cube_single_state_measure_density_z_{tilt,dec,actor}_d50.yaml's
+# agent_overrides -- same round-1 doses, no sweep (anti-scope section 6):
+#   C1 measure_density_z_tilt=1.0                 (structural logit tilt, beta fixed)
+#   C2 measure_density_z_rdecode_coef=1.0          (ortho-free reward-decodability aux,
+#                                                    ridge lambda=1e-4 -- not a separately
+#                                                    named knob in the spec; implementation
+#                                                    default, see task report)
+#   C3 measure_density_z_bc_hindsight=true         (BC term conditions on hindsight z only)
+#   C3 measure_density_z_enc_tau=0.0005            (slow EMA z-encoder, 10x critic tau)
+#
+# Everything else is byte-identical to cube_double_state_measure_density_z_d50.yaml's
+# z-lattice, ported to the cube-single venue (env_name / measure_hit_spec match
+# cube_single_state_measure_density_d50.yaml, the g-indexed cube-single anchor .929 soft).
+#
+# Screen gate S1 (spec 25 section 3): density_w_ztv bounded away from 0 at 500k AND
+# E1 (goal-encoding z(g) conditioning) >= 0.5 (g-anchor ~= .93; spec-24 z scored ~0 on cd).
+# Pre-registered NULL (section 3): if all four stage-1 screens (tilt/dec/actor/full) are
+# flat on density_w_ztv, the z program stops here -- write the reward-embedding actor spec
+# instead of iterating on this lattice.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityZ-Full-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_z: true
+  measure_density_z_rand_frac: 0.5
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_density_z_tilt: 1.0
+  measure_density_z_rdecode_coef: 1.0
+  measure_density_z_bc_hindsight: true
+  measure_density_z_enc_tau: 0.0005
+wandb_mode: online

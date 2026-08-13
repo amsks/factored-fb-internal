@@ -1,0 +1,50 @@
+# Spec 25 stage 1 -- z25_cs_actor: C3 index-consistent actor supervision, BOTH knobs, on top
+# of spec 24's z-indexed density measure (PAPER/Multistep-FB/specs/25-z-coupling-port.md
+# section 0/3).
+#
+# measure_density_z_bc_hindsight=true: the flow-BC term conditions ONLY on hindsight z's
+# (of the row's own future coords), not on the 50% random-sphere z's spec 24's actor also
+# imitated toward -- a mapping no data supports. Random-sphere z's still appear in the
+# measure loss and the actor's q term (manifold coverage); only the imitation term is masked.
+# measure_density_z_enc_tau=0.0005: z's are encoded by a slow EMA copy of B (10x slower than
+# the critic tau) instead of the online target-B spec 24 used, making the index encoding
+# quasi-stationary. Round-1 doses fixed by spec section 0, no sweep (anti-scope section 6).
+#
+# Everything else is byte-identical to cube_double_state_measure_density_z_d50.yaml's
+# z-lattice, ported to the cube-single venue (env_name / measure_hit_spec match
+# cube_single_state_measure_density_d50.yaml, the g-indexed cube-single anchor .929 soft).
+#
+# Screen gate S1 (spec 25 section 3): density_w_ztv bounded away from 0 at 500k AND
+# E1 (goal-encoding z(g) conditioning) >= 0.5 (g-anchor ~= .93; spec-24 z scored ~0 on cd).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityZ-C3Actor-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_z: true
+  measure_density_z_rand_frac: 0.5
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_density_z_bc_hindsight: true
+  measure_density_z_enc_tau: 0.0005
+wandb_mode: online

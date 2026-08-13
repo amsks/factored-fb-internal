@@ -123,7 +123,7 @@ sys.path.insert(0, str(REPO / "scripts" / "rescuing_fb"))
 
 from scipy.stats import rankdata  # noqa: E402
 
-from env_geometry import episode_bounds, geometry_for, resolve_dataset  # noqa: E402
+from env_geometry import episode_bounds, geometry_for, hindsight_rows, resolve_dataset  # noqa: E402
 from eval_density_zeroshot import (  # noqa: E402
     build_pool,
     compute_density_primary,
@@ -204,6 +204,33 @@ def build_fixed_queries(geo, coords_all, bounds, n_boxes, rng):
     return queries
 
 
+def hindsight_queries_for_start(bounds, coords_all, start_row: int, n_boxes: int, rng):
+    """Per-START-ROW probe queries for the 'hindsight' probe policy (cube-double,
+    scene -- env_geometry.GEOMETRY), added 2026-08-13 (coordinator follow-up: G4
+    had never been run past cube-single, which is the only 'random'-policy env).
+    `build_fixed_queries` draws its centers ONCE, globally, from the whole dataset
+    (cube-single's own archived protocol); that degenerates on conjunctive envs
+    (spec 14 sec.2.1: off-diagonal conjunctive hit rate 0.046% on cube-double --
+    a random dataset row is essentially NEVER inside a box built from an unrelated
+    row, so MC truth would be all-zero and Spearman undefined). Mirrors the SAME
+    hindsight convention every region-family probe in this repo already uses
+    (`draw_region_centers` / `draw_region_centers_with_obs`): `n_boxes` centers
+    per MULT, drawn from rows STRICTLY AFTER `start_row` within its own episode
+    (`env_geometry.hindsight_rows`, imported not reimplemented) -- states the
+    behavior policy actually reached FROM this start, so MC truth is non-degenerate
+    by construction. Returns [] if `start_row` has no later rows in its episode
+    (drawn at an episode's tail) -- the caller skips that start rather than
+    fabricating a query set."""
+    rows = hindsight_rows(bounds, start_row, rng, n_boxes)
+    if len(rows) == 0:
+        return []
+    queries = []
+    for mult in MULTS:
+        for c in coords_all[rows]:
+            queries.append({"center": c, "mult": float(mult)})
+    return queries
+
+
 # ============================ live-agent MC + readout (jax-dependent) ===============
 
 def run_one_checkpoint(args) -> dict:
@@ -220,6 +247,19 @@ def run_one_checkpoint(args) -> dict:
 
     is_density = bool(cfg.get("measure_density", False))
     is_partition = bool(cfg.get("measure_delta_partition", False))
+    # spec 24 z-indexed density (2026-08-13, coordinator follow-up): measure_density_z
+    # checkpoints set measure_density=True too (the z knob is a variant, not a separate
+    # object -- gciql_flow.py's lattice asserts this), so the `is_density`/`is_partition`
+    # dispatch above already accepts them unmodified. What does NOT already work is the
+    # READOUT below: `density_f`'s registered input is z-wide (measure_density_dim), not
+    # obs-wide (goal), so concatenating a raw goal observation into it either shape-errors
+    # or (if the widths coincidentally matched) silently scores the wrong architecture --
+    # the g_j -> z_j conversion below (agent's own `_density_z_encode`, called live, not
+    # reimplemented) is the ONLY change this file needs; `agent.sample_actions(...,
+    # goals=g_j, ...)` ALREADY maps a raw goal through `_density_z_encode` internally
+    # when measure_density_z=True (gciql_flow.py's sample_actions), so the actor-rollout
+    # calls (a0 and the MC trajectory policy) are untouched and correct as written.
+    is_density_z = bool(cfg.get("measure_density_z", False))
     assert is_density or is_partition, (
         f"{run_dir} is neither measure_density nor measure_delta_partition "
         f"(measure_density={cfg.get('measure_density')!r}, "
@@ -286,22 +326,39 @@ def run_one_checkpoint(args) -> dict:
 
     print(f"[g4] restored {run_dir.name} object={obj} step={args.checkpoint_step} "
           f"env={env_name} gamma={gamma} double_q={double_q} "
-          f"hit_spec={cfg.get('measure_hit_spec')!r}", flush=True)
+          f"hit_spec={cfg.get('measure_hit_spec')!r} measure_density_z={is_density_z}",
+          flush=True)
 
     rng = np.random.default_rng(args.seed)
-    queries = build_fixed_queries(geo, coords_all, bounds, args.boxes, rng)
-    assert queries is not None, f"probe policy {geo.probe_centers!r} not yet supported here"
-    n_q = len(queries)
-    q_centers = np.stack([q["center"] for q in queries])          # [n_q, d_c]
-    q_mults = np.array([q["mult"] for q in queries])
+    # Probe-query construction is dispatched on geo.probe_centers (env_geometry.GEOMETRY):
+    # 'random' (cube-single, unchanged) draws ONE fixed query set up front; 'hindsight'
+    # (cube-double, scene -- added 2026-08-13) draws a FRESH per-start set inside the loop
+    # below (hindsight_queries_for_start), since hindsight rows are defined relative to
+    # each start row's own episode.
+    fixed_queries = build_fixed_queries(geo, coords_all, bounds, args.boxes, rng)
+    assert fixed_queries is not None or geo.probe_centers == "hindsight", \
+        f"probe policy {geo.probe_centers!r} not yet supported here"
 
     start_rows = rng.choice(n_rows, args.starts, replace=False)
     goal_rows = rng.choice(n_rows, args.starts, replace=False)
 
     recs = []
+    skipped_starts = 0
     t0 = time.time()
     u = env.unwrapped
     for si, (s_row, g_row) in enumerate(zip(start_rows, goal_rows)):
+        if fixed_queries is not None:
+            queries = fixed_queries
+        else:
+            queries = hindsight_queries_for_start(bounds, coords_all, int(s_row),
+                                                  args.boxes, rng)
+            if not queries:
+                skipped_starts += 1
+                continue
+        n_q = len(queries)
+        q_centers = np.stack([q["center"] for q in queries])          # [n_q, d_c]
+        q_mults = np.array([q["mult"] for q in queries])
+
         s0_obs = obs_all[s_row]
         g_obs = obs_all[g_row]
         s0_j = jnp.asarray(s0_obs, jnp.float32)[None]
@@ -310,6 +367,10 @@ def run_one_checkpoint(args) -> dict:
         key, sub = jax.random.split(key)
         a0 = np.clip(np.asarray(agent.sample_actions(
             observations=s0_j, goals=g_j, seed=sub, temperature=0.0)), -1, 1)      # [1, act]
+        # z-indexed readout conditioning arg (spec 24, see is_density_z comment above):
+        # F(s,a,.) takes z, not the raw goal, for a measure_density_z=True checkpoint.
+        # g-indexed (is_density_z=False) path is UNCHANGED (f_cond_arg is g_j itself).
+        f_cond_arg = agent._density_z_encode(g_j) if is_density_z else g_j
 
         # ---- model readout mass: fixed (s0, a0, g) scored once, dotted per box ----
         #
@@ -325,7 +386,7 @@ def run_one_checkpoint(args) -> dict:
         # kappa(x0).r_pool/(1-gamma) to 3e-14. Fix: read w^T r_pool / (1-gamma) directly
         # (equivalently: call the SAME formula with kappa_x0/phi_x0 zeroed, not r_x0).
         if obj == "density":
-            w, _kappa_x0_unused = density_query(agent, s0_j, jnp.asarray(a0), g_j,
+            w, _kappa_x0_unused = density_query(agent, s0_j, jnp.asarray(a0), f_cond_arg,
                                                 u_raw, b_pool, blocks, temp, double_q)  # [1,P] each
             model_mass = np.empty(n_q)
             for qi in range(n_q):
@@ -425,14 +486,16 @@ def run_one_checkpoint(args) -> dict:
 
     return {
         "run_dir": str(run_dir), "object": obj, "checkpoint_step": args.checkpoint_step,
-        "env": env_name, "gamma": gamma, "double_q": double_q,
+        "env": env_name, "gamma": gamma, "double_q": double_q, "measure_density_z": is_density_z,
         "hit_spec": cfg.get("measure_hit_spec"), "seed": args.seed,
         "protocol": {
             "reference": "scripts/rescuing_fb/torchfb_full_measure.py part B "
                         "(valid-measure campaign G2/G4 Spearman machinery); "
                         "PAPER/rescuing-fb/PHASE2-LEDGER.md sec.9.15",
-            "starts": args.starts, "mc": args.mc, "horizon": args.horizon,
+            "starts": args.starts, "starts_skipped_no_hindsight_rows": skipped_starts,
+            "mc": args.mc, "horizon": args.horizon,
             "boxes_per_mult": args.boxes, "mults": list(MULTS),
+            "probe_centers": geo.probe_centers,
             "pool_size": args.pool_size if obj == "density" else None,
             "readout": ("w^T box_indicator(U_P) / (1-gamma)  [compute_density_primary(r_x0=0, "
                        "w, kappa_x0=0, box_indicator, gamma) -- see g4-verification.md: r(x0) "
