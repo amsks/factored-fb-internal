@@ -27,8 +27,7 @@ gradient steps --- 300k for the ManiSkill rows --- with a flow actor throughout;
 eval, mean $\pm$ sd over 3 seeds, 50 eval episodes. BC is the matched \texttt{bcflow}
 floor (critic $q$-term off). \emph{density-hard} is the spec-21 successor-measure critic.
 Bold marks the leading critic in rows where one clearly leads; ``---'' marks a cell that
-was never run;
-\textsc{pending} marks runs in flight as of 2026-08-12. The one-line reading: the bilinear
+was never run. The one-line reading: the bilinear
 critic's win is confined to \texttt{cube-single} ($0.927$ vs.\ $0.732$, a $19.5$-point gap
 over a $0.09$ BC floor); it does not separate from the monolithic MLP anywhere else at
 matched scale, and on the repaired Metaworld benchmark --- the benchmark whose protocol
@@ -54,8 +53,8 @@ Dataset & BC & GCIQL & biGCIQL $d50$ & biGCIQL $d512$ & density-hard \\
 \texttt{mw-push}       & $0.540\pm0.000$ & $0.733\pm0.175$          & $0.460\pm0.260^{\,b}$    & ---                        & $\mathbf{0.820\pm0.040}$ \\
 \midrule
 \multicolumn{6}{l}{\emph{Metaworld} \texttt{play-noise-hard-1m} ($10000\times100$, same repaired protocol)}\\
-\texttt{mw-pick-place} & \textsc{pending}& \textsc{pending}         & \textsc{pending}         & ---                        & --- \\
-\texttt{mw-push}       & \textsc{pending}& \textsc{pending}         & \textsc{pending}         & ---                        & --- \\
+\texttt{mw-pick-place} & $0.340\pm0.020$ & $\mathbf{0.520\pm0.053}$ & $0.447\pm0.092$          & ---                        & --- \\
+\texttt{mw-push}       & $0.327\pm0.070$ & $0.527\pm0.050$          & $0.533\pm0.061$          & ---                        & --- \\
 \midrule
 \multicolumn{6}{l}{\emph{ManiSkill} \texttt{ms-play-resample} (1M per task, masked goal channel, 300k steps)}\\
 \texttt{ms-pick-cube}  & $0.020\pm0.000^{\,c}$ & $0.040\pm0.020$    & $0.040\pm0.000$          & ---                        & --- \\
