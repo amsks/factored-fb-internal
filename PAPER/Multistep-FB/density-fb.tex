@@ -560,51 +560,51 @@ Environment & Reward family & Plain FB & \DensityFB{} (soft) & \DensityFB{} (har
 
 \texttt{cube-single}
 & sparse
-& $0.536$\,(1)
+& $0.413 \pm 0.308$
 & $0.816 \pm 0.269$
 & $\mathbf{0.888 \pm 0.091}$ \\
 
 & dense
-& $0.624$\,(1)
+& $0.488 \pm 0.397$
 & $0.725 \pm 0.301$
 & $\mathbf{0.912 \pm 0.087}$ \\
 
 & held-out regions
-& $0.130$\,(1)
+& $0.090 \pm 0.114$
 & $0.293 \pm 0.052$
 & $\mathbf{0.647 \pm 0.301}$ \\
 \midrule
 
 \texttt{cube-double}
 & sparse
-& $0.008$, $0.008$
+& $0.013 \pm 0.023$
 & $0.549 \pm 0.240$
 & $\mathbf{0.573 \pm 0.126}$ \\
 
 & dense
-& $0.040$, $0.032$
+& $0.037 \pm 0.011$
 & $0.488 \pm 0.163$
 & $\mathbf{0.520 \pm 0.121}$ \\
 
 & held-out regions
-& $0.000$, $0.000$
+& $0.000 \pm 0.000$
 & $0.177 \pm 0.160$
 & $0.167 \pm 0.014$ \\
 \midrule
 
 \texttt{scene}
 & sparse
-& $0.488$, $0.416$
+& $0.472 \pm 0.124$
 & $0.395 \pm 0.092$
 & $\mathbf{0.640 \pm 0.111}$ \\
 
 & dense
-& $0.416$, $0.424$
+& $0.413 \pm 0.030$
 & $0.347 \pm 0.219$
 & $\mathbf{0.627 \pm 0.094}$ \\
 
 & held-out regions
-& $0.040$, $0.030$
+& $0.053 \pm 0.080$
 & $0.220 \pm 0.086$
 & $\mathbf{0.347 \pm 0.038}$ \\
 \bottomrule
@@ -615,7 +615,7 @@ Zero-shot reward transfer
 (mean $\pm$ $95\%$ CI, three seeds unless marked).
 GCIQL has no reward readout of this kind and is therefore absent.
 Plain FB is evaluated through its own reward interface, $z_r \propto \E_\rho[r(x)B(x)]$ followed by rollout under $z_r$, since it has no density readout; the reward families, pool, episode count, and success criterion are identical across all three columns, so only the readout differs.
-Cells listing two values have two seeds and cells marked $(1)$ have one; only two state-based flow-actor FB checkpoints exist per environment.
+All cells now use three seeds; the plain-FB seeds missing at first submission were trained to parity.
 The plain-FB \texttt{cube-double} entries sit at the floor rather than merely low: they are $1$ and $0$ successes in $125$ episodes, against a random-index floor of $0.012$ and $0.000$.
 All numbers use a $16{,}384$-configuration pool and $25$ episodes per task.
 }

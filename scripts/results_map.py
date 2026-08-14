@@ -46,6 +46,12 @@ MAP = {
     'mb_fbref_cdbl_s43':   dict(csv='summary', env='cube-double', agent='FB', actor='flowbc', variant='ortho1000-ref'),
     'mb_fbref_scn_s42':    dict(csv='summary', env='scene', agent='FB', actor='flowbc', variant='ortho1000-ref'),
     'mb_fbref_scn_s43':    dict(csv='summary', env='scene', agent='FB', actor='flowbc', variant='ortho1000-ref'),
+    # tab:main plain-FB DDPG+BC cells (filled 2026-08-13/14). Confirmed via .hydra/config.yaml:
+    # agent: fb (Gaussian+BC actor, NOT fb_flowbc) -- exp_fbddpg/fbd_{cd,sc}_s{0,1,2}.
+    'fbd_fbd_cd': dict(csv='summary', env='cube-double', agent='FB', actor='ddpgbc', variant='plain',
+                        notes='tab:main plain-FB DDPG+BC, cube-double (.013 +- .029)'),
+    'fbd_fbd_sc': dict(csv='summary', env='scene', agent='FB', actor='ddpgbc', variant='plain',
+                        notes='tab:main plain-FB DDPG+BC, scene (.047 +- .057)'),
     # "FB loss on regions" on the multi-object envs: stock FB's loss at MATCHED
     # conjunctive support (hitdirac hit_spec, added 2026-08-05). cube-single = 0.284.
     'fr_fbregion_cdbl_s42': dict(csv='summary', env='cube-double', agent='FB', actor='flowbc', variant='fbloss-on-regions'),
@@ -297,6 +303,8 @@ MAP = {
 
     # ======================= EXCLUDED (reason required) =======================
     'fb_antmaze_medium_smoke': dict(csv=E, reason='50k smoke'),
+    'fbd_fbd_am': dict(csv=E, reason='failed at launch (missing dataset path, per .hydra/config.yaml agent=fb_flowbc, '
+                                      'exp_fbddpg/fbd_am_s{0,1,2}): 0 checkpoints, no training history -- not a completed run'),
     'factored-fb-gciql':       dict(csv=E, reason='step-1 stubs (2 runs)'),
     'NONE':                    dict(csv=E, reason='ungrouped runs (early FB-pixel gotcha per wandb-group-naming memory) — audit lists them'),
     'ISFB-Torch-Exp1':         dict(csv=E, reason='superseded by ISFB-Torch-Exp1-fixed (crashed ~340k)'),
@@ -516,6 +524,33 @@ MAP = {
     # PAPER/Multistep-FB/specs/18-density-measure.md sec.7. P0.3 bookkeeping item (spec 19
     # sec.1) -- added here, not launched by this session.
 
+    # ---- spec 19 (2026-08-06/07): ORS program -- occupancy reward shaping from the
+    # BEHAVIOR-mode density head (no goal conditioning, SARSA bootstrap) feeding a
+    # g-conditioned GCIQL extractor. d19_* run names, /home/adityamohan/exp_spec19/factored-fb/.
+    # PAPER/Multistep-FB/specs/19{,a,b}-ors-*.md. Confirmed via flags.json (agent_name=
+    # gciql_flow, actor_kind=flow -> actor='fql_flow' throughout).
+    'GCIQL-CubeSingle-Flow-BCOnly-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='bc-only',
+        graft='spec19 P0 control: BC-only floor (actor_bc_only=True, q-term zeroed), cube-single'),
+    'GCIQL-CubeDouble-Flow-BCOnly-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='bc-only',
+        graft='spec19 P0 control: BC-only floor, cube-double'),
+    'GCIQL-Scene-Flow-BCOnly-d50': dict(csv='bridge', env='scene', agent='GCIQL', actor='fql_flow', variant='bc-only',
+        graft='spec19 P0 control: BC-only floor, scene'),
+    'GCIQL-CubeSingle-Flow-Measure-DensityBehavior-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-density-behavior',
+        graft='spec19a: behavior-mode density head (measure_density_behavior=True, no goal conditioning, SARSA bootstrap) -- '
+              'trains the reward model consumed by the ORS extractor, cube-single',
+        notes='single seed (reward-model training run, not a policy-eval cell)'),
+    'GCIQL-CubeDouble-Flow-Measure-DensityBehavior-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-density-behavior',
+        graft='spec19a: behavior-mode density head, cube-double', notes='single seed'),
+    'GCIQL-CubeSingle-Flow-ORS-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='ors-scale4.0',
+        graft='spec19b: ORS extractor -- GCIQL trained on the occupancy-reward-shaping readout from the frozen behavior '
+              'density head (ors_reward_scale=4.0, ors_pool_size=4096), cube-single'),
+    'GCIQL-CubeDouble-Flow-ORS-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='ors-scale4.0',
+        graft='spec19b: ORS extractor, cube-double (ors_reward_scale=4.0)'),
+    'GCIQL-CubeSingle-Flow-ORS-scale1.0-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='ors-scale1.0',
+        graft='spec19b ORS reward-scale ablation: ors_reward_scale=1.0 (vs the main cell 4.0)', notes='single seed'),
+    'GCIQL-CubeSingle-Flow-ORS-scale1.333333-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='ors-scale1.333',
+        graft='spec19b ORS reward-scale ablation: ors_reward_scale=1.333333', notes='single seed'),
+
     # --- 2026-08-11/13: density cross-env, actor ablation, hard variant, z-index ---
     'GCIQL-CubeDouble-Flow-Measure-Density-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-density',
         graft='spec18 density, cube-double (the discriminating env)'),
@@ -559,6 +594,22 @@ MAP = {
         graft='spec24: z-indexed density (FB latent index instead of goals)'),
     'GCIQL-CubeDouble-Flow-Measure-DensityZ-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='measure-density-z',
         graft='spec24: z-indexed density, cube-double'),
+
+    # ---- spec 25 stage 1 (2026-08-12/13): z-indexed density mechanism cells on top of the
+    # z24 revived-index-sensitivity checkpoint. z25_cs_* run names,
+    # /home/adityamohan/exp_spec25_stage1/factored-fb/. Knobs isolated via flags.json diff
+    # (measure_density_z_tilt / _rdecode_coef / _enc_tau / _bc_hindsight); C3Actor and Full
+    # are the checkpoints Q2 (spec27) targets for the E2 reward-readout eval.
+    'GCIQL-CubeSingle-Flow-Measure-DensityZ-C1Tilt-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='z25-c1-tilt',
+        graft='spec25 stage1 C1: z-indexed density + measure_density_z_tilt=1.0 only (isolates the tilt term)'),
+    'GCIQL-CubeSingle-Flow-Measure-DensityZ-C2Dec-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='z25-c2-decode',
+        graft='spec25 stage1 C2: z-indexed density + measure_density_z_rdecode_coef=1.0 only (reward-decode auxiliary)'),
+    'GCIQL-CubeSingle-Flow-Measure-DensityZ-C3Actor-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='z25-c3-actor',
+        graft='spec25 stage1 C3: z-indexed density + measure_density_z_enc_tau=5e-4 + _bc_hindsight=True (actor-extraction '
+              'arm -- the checkpoint spec27 Q2 targets for the E2a/E2b reward-readout eval)'),
+    'GCIQL-CubeSingle-Flow-Measure-DensityZ-Full-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='z25-full',
+        graft='spec25 stage1 Full: tilt + decode + enc_tau + bc_hindsight combined (C1+C2+C3 stacked)'),
+
     'GCIQL-CubeSingle-Flow-Measure-Density-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-density',
                                              graft='spec18 (PRIMARY): continuous normalized successor density, two-tower score '
                                                    "f(s,a,g,u)=F(s,a,g).B(u)/tau over queries resampled from rho_x every step "
