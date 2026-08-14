@@ -1,0 +1,47 @@
+# Spec 28 P1 CELL (iii) -- readout validity alone (PAPER/Multistep-FB/specs/
+# 28-z-interface-canonicalization.md section P1). GATED ON P0a with cell (ii): do NOT
+# launch until the action-ranking probe has returned.
+#
+# The mirror image of cell (ii). Everything stays G-INDEXED -- F conditions on the raw
+# goal, the actor conditions on the raw goal, the measure is spec 18's g-indexed density
+# (cell i, cs .93 / cd .736) -- and the ONLY change is the reward vector the actor's
+# occupancy is read against: kg  ->  B̃(u)^T z(g)/sqrt(d), FB's own linear reward model,
+# with z(g) = sqrt(d)*normalize(target_density_b(hit-spec block coords of the goal)).
+# z(g) is COMPUTED but never fed to F or to the actor; the param tree is identical to
+# cell (i)'s (a test pins this).
+#
+# Read (pre-registered): cell (iii) failing is an INDEPENDENT conviction of the B^T z
+# readout, corroborating P0a/P0b whatever cell (ii) does. Cell (iii) holding near .93
+# exonerates the readout and pushes the whole indictment onto z-conditioning.
+#
+# Single-variable delta on cube_single_state_measure_density_d50.yaml (the cell (i)
+# anchor): the ONLY difference is measure_density_actor_reward. 1 seed (0), 500k.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-Density-CellIII-LatentRew-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_density_actor_reward: latent
+wandb_mode: online

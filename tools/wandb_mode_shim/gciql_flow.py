@@ -973,7 +973,24 @@ class GCIQLFlowAgent(GCIQLAgent):
         blocks18 = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
         u_raw18 = self._raw_block_cols(batch['next_observations'], blocks18)
         u_sc18 = self._density_queries(batch['next_observations'], blocks18)
-        kg = jax.lax.stop_gradient(self._delta_phi(goals, u_raw18, blocks18))     # [B, M]
+        if str(self.config.get('measure_density_actor_reward', 'kernel')) == 'latent':
+            # Spec 28 P1 cell (iii): READOUT VALIDITY ALONE. Everything about this path
+            # stays g-indexed -- F conditions on the raw goal, the actor conditions on the
+            # raw goal, the measure is the g-indexed one -- and ONLY the reward vector the
+            # occupancy is read against becomes FB's linear model r_z(u) = B̃(u)^T z(g)/
+            # sqrt(d), with z(g) = _density_z_encode(goals) (the DETERMINISTIC half of the
+            # z mix: no rng, no sphere draws -- there is no task prior on this path, every
+            # row has a coherent goal). z(g) is computed but NEVER fed to F or the actor:
+            # that is exactly what makes this cell attribute the spec-24 collapse to the
+            # readout rather than to the conditioning. Same frozen-params/stop-gradient
+            # discipline as the kg it replaces (target tower, sg'd both through the tower
+            # and through z), and the SAME query support u_sc18.
+            d28 = self.config['measure_density_dim']
+            tb28 = jax.lax.stop_gradient(self.network.select('target_density_b')(u_sc18))
+            kg = jnp.einsum('md,bd->bm', tb28, self._density_z_encode(goals)) \
+                / jnp.sqrt(d28)                                                   # [B, M]
+        else:
+            kg = jax.lax.stop_gradient(self._delta_phi(goals, u_raw18, blocks18))  # [B, M]
         b_emb18 = self.network.select('density_b')(u_sc18)                        # frozen params
         f_emb18 = self.network.select('density_f')(
             jnp.concatenate([obs, actions, goals], -1))                          # frozen params
@@ -1075,7 +1092,7 @@ class GCIQLFlowAgent(GCIQLAgent):
         d = self.config['measure_density_dim']
         return beta * jnp.einsum('bd,md->bm', z, b_emb) / jnp.sqrt(d)
 
-    def _density_actor_q_z(self, batch, obs, actions, z):
+    def _density_actor_q_z(self, batch, obs, actions, z, goals=None):
         """Spec 24 (Definitions §1): the z-analog of `_density_actor_q`.
             q_i = sum_j w_j(s_i, a_i, z_i) * ( B̃(u_j)^T z_i / sqrt(d) )
         The reward implied by index z is FB's own linear model r_z(u) = B(u)^T z; the
@@ -1101,8 +1118,24 @@ class GCIQLFlowAgent(GCIQLAgent):
             # maximize a readout of an occupancy the measure never predicts.
             logits24 = logits24 + tilt24[None]
         w24 = jax.nn.softmax(logits24, -1)
-        tb24 = jax.lax.stop_gradient(self.network.select('target_density_b')(u_sc24))
-        rz24 = jnp.einsum('md,bd->bm', tb24, z) / jnp.sqrt(d24)                    # [B, M]
+        if str(self.config.get('measure_density_z_actor_reward', 'latent')) == 'kernel':
+            # Spec 28 P1 cell (ii): THE DECISIVE CELL. w_j keeps conditioning on z (F's
+            # input is [obs, actions, z] above, and the actor that produced `actions` was
+            # conditioned on the same z) -- ONLY the reward vector reverts to the g-path's
+            # EXACT object: kg = _delta_phi(goals, u_raw), the query-set softmax-normalized
+            # kernel row (rows sum to 1 over the M queries), NOT a raw kappa. Parity of
+            # this object with `_density_actor_q` is what makes cell (ii) comparable to
+            # cell (i); a raw kernel here would be a different reward scale and the
+            # comparison would be void. The goal enters NOWHERE else: not F, not the
+            # actor, not the measure loss -- it is a frozen reward vector only.
+            u_raw24 = self._raw_block_cols(batch['next_observations'], blocks24)
+            assert goals is not None, \
+                "measure_density_z_actor_reward='kernel' needs the row's goal to build kg " \
+                "-- _density_actor_q_z was called without goals=..."
+            rz24 = jax.lax.stop_gradient(self._delta_phi(goals, u_raw24, blocks24))  # [B, M]
+        else:
+            tb24 = jax.lax.stop_gradient(self.network.select('target_density_b')(u_sc24))
+            rz24 = jnp.einsum('md,bd->bm', tb24, z) / jnp.sqrt(d24)                # [B, M]
         return (w24 * rz24[None]).sum(-1)
 
     def actor_loss(self, batch, grad_params, rng=None, task_z=None):
@@ -1227,6 +1260,8 @@ class GCIQLFlowAgent(GCIQLAgent):
         # its own psi internally.
         z_infer = None
         z_hindsight = None   # spec 25 C3: per-row hindsight indicator, z branch only
+        q_row_mask = None    # spec 28 cell (ii): per-row mask on the ACTOR Q TERM. None
+          # (every arm but cell ii) = the unmasked plain mean, bit-identical.
         if task_z is not None:
             # v1: greedy readout on the SAMPLED task vector (reuses the z_infer Q branch below).
             z_infer = jax.lax.stop_gradient(task_z)
@@ -1299,7 +1334,21 @@ class GCIQLFlowAgent(GCIQLAgent):
                 # spec 24: q_h = sum_j w_h(s,a,z,u_j) * (B̃(u_j)^T z)/sqrt(d) -- the
                 # z-analog of the goal-mass q-term (_density_actor_q_z), reusing the
                 # SAME z that conditioned actor_actions above (actor_cond_input).
-                q1, q2 = self._density_actor_q_z(batch, obs, actor_actions, actor_cond_input)
+                # spec 28 cell (ii): with measure_density_z_actor_reward='kernel' the
+                # reward vector inside that call becomes the g-path's exact kg -- `goals`
+                # is handed over ONLY for that (it never reaches F or the actor).
+                q1, q2 = self._density_actor_q_z(batch, obs, actor_actions,
+                                                 actor_cond_input, goals=goals)
+                if str(self.config.get('measure_density_z_actor_reward', 'latent')) \
+                        == 'kernel':
+                    # A random-sphere z row has NO coherent goal: its kg is the kernel of
+                    # a goal the index never encoded, so its q term is noise. Mask it out
+                    # and RENORMALIZE by the surviving count -- exactly the treatment the
+                    # C3 BC term gets (see the z_hindsight branch further down), using the
+                    # SAME indicator from the SAME draw, so mask and z can never disagree.
+                    # (In the default 'latent' mode the random rows are meaningful -- FB's
+                    # task-prior coverage -- and stay unmasked, as spec 24 shipped them.)
+                    q_row_mask = z_hindsight
             else:
                 # spec 18: q_h = sum_j w_h(s,a,g,u_j) * kernel(goal,u_j), density_f/density_b
                 # at FROZEN params (no params=grad_params -- crl f7b623d grad-hygiene lesson).
@@ -1338,6 +1387,8 @@ class GCIQLFlowAgent(GCIQLAgent):
             # in the program is currently attributable to the measure/critic Q over the
             # cloning term without this control.
             q1 = q2 = None
+            q_row_mask = None      # no q term left to mask (the lattice refuses this
+              # composition anyway; belt-and-suspenders so a mask can never outlive its q)
         if q1 is None:
             # spec 19a: measure_density_behavior skipped the q-term branch above -- there is
             # no actor q at all in this mode.
@@ -1345,7 +1396,12 @@ class GCIQLFlowAgent(GCIQLAgent):
             actor_loss = 0.0
         else:
             q = jnp.minimum(q1, q2) if self.config['double_q'] else q1
-            actor_loss = -q.mean()
+            if q_row_mask is None:
+                actor_loss = -q.mean()
+            else:
+                # spec 28 cell (ii): mean over the SURVIVING rows only (mask all-ones
+                # reproduces q.mean() exactly), same renormalization as the C3 BC mask.
+                actor_loss = -(jnp.sum(q * q_row_mask) / (jnp.sum(q_row_mask) + 1e-8))
 
         # 3) BC-distillation: one-shot actor -> frozen multi-step flow rollout (FQL
         # one-step distillation). Q-loss is normalized by |q| mean to be scale
@@ -1383,7 +1439,17 @@ class GCIQLFlowAgent(GCIQLAgent):
                 # q/bc balance is invariant to an affine offset in Q. Cell W's M = 1+(1-gamma)Q puts
                 # |q|~1 while the controllable variation is (1-gamma)-scaled, diluting the greedy
                 # signal vs bc_loss; -q.mean()'s gradient is unchanged by the centering itself.
-                if self.config.get('actor_q_center', False):
+                if q_row_mask is not None:
+                    # spec 28 cell (ii): the q/bc balance must be normalized by the scale
+                    # of the term actually being optimized -- the masked one. Masked rows
+                    # would otherwise inflate q_scale with the noise the mask just removed
+                    # and silently shrink the (already renormalized) greedy gradient.
+                    _n_q = jnp.sum(q_row_mask) + 1e-8
+                    _q_ctr = jnp.sum(q * q_row_mask) / _n_q
+                    _q_dev = jnp.abs(q - _q_ctr) if self.config.get('actor_q_center', False) \
+                        else jnp.abs(q)
+                    q_scale = jnp.sum(_q_dev * q_row_mask) / _n_q
+                elif self.config.get('actor_q_center', False):
                     q_scale = jnp.abs(q - q.mean()).mean()
                 else:
                     q_scale = jnp.abs(q).mean()
@@ -1397,6 +1463,15 @@ class GCIQLFlowAgent(GCIQLAgent):
             'q_mean': q.mean() if q is not None else jnp.asarray(0.0),
             'q_abs_mean': jnp.abs(q).mean() if q is not None else jnp.asarray(0.0),
         }
+        if q_row_mask is not None:
+            # spec 28 cell (ii). q_mean/q_abs_mean above stay FULL-BATCH (so their meaning
+            # never depends on a knob); these two are the masked twins actually optimized,
+            # plus the surviving fraction -- a drift of q_mask_frac toward 0 would mean the
+            # greedy term is quietly starving (the C3 bc_hindsight_frac lesson).
+            _n_qm = jnp.sum(q_row_mask) + 1e-8
+            actor_info['q_mask_mean'] = jnp.sum(q * q_row_mask) / _n_qm
+            actor_info['q_mask_abs_mean'] = jnp.sum(jnp.abs(q) * q_row_mask) / _n_qm
+            actor_info['q_mask_frac'] = jnp.mean(q_row_mask)
         if bc_hindsight_frac is not None:
             # spec 25 C3: the surviving fraction of the imitation term. Reads
             # ~(1 - measure_density_z_rand_frac); a drift toward 0 would mean the
@@ -3684,6 +3759,24 @@ class GCIQLFlowAgent(GCIQLAgent):
                 assert float(config.get('bc_coeff', 0.0)) > 0.0, \
                     "measure_density_z_bc_hindsight masks the distillation (imitation) " \
                     "term, which bc_coeff=0 already switches off -- the knob would be inert"
+            # --- Spec 28 P1 cell (ii): the actor's REWARD OBJECT on the z path. ---
+            _zar = str(config.get('measure_density_z_actor_reward', 'latent'))
+            assert _zar in ('latent', 'kernel'), \
+                "measure_density_z_actor_reward must be 'latent' (spec 24 default, " \
+                f"r_z(u)=B̃(u)^T z/sqrt(d)) or 'kernel' (spec 28 cell ii, kg), got {_zar!r}"
+            if _zar == 'kernel':
+                assert not config.get('actor_bc_only', False), \
+                    "measure_density_z_actor_reward='kernel' changes the actor's Q-term " \
+                    "reward, and actor_bc_only deletes that Q-term outright -- the cell " \
+                    "would train as a plain BC control while logging as cell (ii) " \
+                    "(17b measure_coef fake-NULL species)"
+                _zrf_k = float(config.get('measure_density_z_rand_frac', 0.5))
+                assert _zrf_k < 1.0, \
+                    "measure_density_z_actor_reward='kernel' with " \
+                    "measure_density_z_rand_frac=1.0: EVERY row is a sphere draw with no " \
+                    "coherent goal, the hindsight mask kills the whole q term and the " \
+                    "actor trains with no greedy signal at all -- refused (rand_frac=0.0 " \
+                    "IS allowed: that is spec 28's tie-break cell ii')"
         else:
             # Every spec-25 knob is scoped to the measure_density_z lattice: set outside
             # it, the code path that reads it is never reached and the knob would silently
@@ -3695,6 +3788,41 @@ class GCIQLFlowAgent(GCIQLAgent):
                 assert not config.get(_k25, _off25), \
                     f"{_k25} requires measure_density_z=True (spec 25 §2) -- it is read " \
                     "only on the z-indexed density path and would be inert otherwise"
+            assert str(config.get('measure_density_z_actor_reward', 'latent')) == 'latent', \
+                "measure_density_z_actor_reward requires measure_density_z=True (spec 28 " \
+                "cell ii) -- it is read only inside _density_actor_q_z and would be inert " \
+                "otherwise. For the g-indexed path use measure_density_actor_reward " \
+                "(spec 28 cell iii), which is the SYMMETRIC knob, not this one"
+
+        # --- Spec 28 P1 cell (iii): the actor's REWARD OBJECT on the g-indexed path.
+        # 'kernel' (default) = spec 18's kg, bit-identical. 'latent' = FB's linear reward
+        # model B̃(u)^T z(g)/sqrt(d) with z(g) computed but NEVER fed to F or the actor --
+        # readout validity in isolation. Refused wherever it would be inert or would
+        # collide with the z-path knob (each of these has burned this program once). ---
+        _dar = str(config.get('measure_density_actor_reward', 'kernel'))
+        assert _dar in ('kernel', 'latent'), \
+            "measure_density_actor_reward must be 'kernel' (spec 18 default) or 'latent' " \
+            f"(spec 28 cell iii), got {_dar!r}"
+        if _dar == 'latent':
+            assert config.get('measure_density', False), \
+                "measure_density_actor_reward is read only inside _density_actor_q " \
+                "(the measure_density actor q-term) and would be inert otherwise"
+            assert not config.get('measure_density_z', False), \
+                "measure_density_actor_reward (spec 28 cell iii, g-indexed) and " \
+                "measure_density_z (z-indexed) are CONTRADICTORY: the z path never calls " \
+                "_density_actor_q, so this knob would be silently inert there. Cell (ii) " \
+                "is measure_density_z_actor_reward='kernel'; cell (iv) is spec 24's " \
+                "default. Pick exactly one knob"
+            assert not config.get('measure_density_behavior', False), \
+                "measure_density_behavior has NO actor q-term at all (spec 19a) -- " \
+                "measure_density_actor_reward would be provably inert"
+            assert not config.get('actor_bc_only', False), \
+                "actor_bc_only deletes the actor Q-term whose reward this knob changes " \
+                "-- the cell would train as a plain BC control while logging as cell (iii)"
+            assert config.get('actor_kind', 'flow') == 'flow', \
+                "spec 28 cell (iii) is scoped to the flow actor (the cell it must be " \
+                "comparable to, cell i, is the flow-actor density arm); ddpgbc/awr_flow " \
+                "also route through _density_actor_q and are out of scope"
 
         # Spec 19 P0.2: BC-only control lattice. actor_bc_only only affects the flow
         # actor's q1/q2 branch chain inside actor_loss -- actor_kind='ddpgbc'/'awr_flow'
@@ -4545,6 +4673,15 @@ def get_config():
           # next action (SARSA). Product = frozen (F_D, B_D) for the spec-19b ORS reward.
           # Requires measure_density=True; actor q-term disabled (pure BC flow).
           # False = off, bit-identical.
+        config.measure_density_actor_reward = 'kernel'   # spec 28 P1 cell (iii): which
+          # reward vector the G-INDEXED density actor reads its predicted occupancy
+          # against. 'kernel' (default, spec 18, bit-identical) = kg = _delta_phi(goal,
+          # queries), the query-set softmax-normalized kernel row. 'latent' = FB's linear
+          # reward model B̃(u)^T z(g)/sqrt(d), z(g) = _density_z_encode(goals) computed but
+          # NEVER fed to F or the actor -- isolates READOUT validity from conditioning.
+          # Requires measure_density + flow actor; refused with measure_density_z (the
+          # symmetric knob there is measure_density_z_actor_reward), with
+          # measure_density_behavior and with actor_bc_only (no q-term to reward).
         config.measure_density_z = False   # spec 24: index the density policy family by FB-style
           # latent z instead of goals. z = sqrt(d)*normalize(target_density_b(eps-scaled block
           # coords of a relabeled goal)) mixed per-row with fresh uniform sqrt(d)-sphere draws at
@@ -4558,6 +4695,18 @@ def get_config():
         config.measure_density_z_rand_frac = 0.5   # spec 24: fraction of z rows drawn as a
           # fresh uniform sqrt(d)-sphere direction instead of the relabeled-goal embedding
           # (FB's standard task-prior mix). Only read when measure_density_z=True.
+        config.measure_density_z_actor_reward = 'latent'   # spec 28 P1 cell (ii): which
+          # reward vector the Z-INDEXED density actor reads its predicted occupancy
+          # against. 'latent' (default, spec 24, bit-identical) = r_z(u)=B̃(u)^T z/sqrt(d).
+          # 'kernel' = the g-path's EXACT kg (_delta_phi(goals, u_raw), softmax-normalized
+          # over the M queries -- parity with cell i, not a raw kappa), while F and the
+          # actor keep conditioning on z ALONE: the goal touches nothing but this frozen
+          # reward vector. Random-sphere z rows have no coherent goal, so the q term is
+          # masked by the existing z_hindsight indicator and renormalized by the surviving
+          # count (same treatment as C3's BC mask). This is spec 28's decisive cell: it
+          # separates z-CONDITIONING from the Bᵀz READOUT, which spec 24 changed together.
+          # Requires measure_density_z=True; refused with actor_bc_only and with
+          # rand_frac=1.0 (total mask). Not a coefficient: no dose can silently zero it.
         # --- Spec 25: FB's three index-coupling mechanisms, ported to the density
         # estimator. All four knobs live UNDER the measure_density_z lattice (each is
         # refused outside it), all default OFF = the spec-24 arm bit-for-bit, in both the

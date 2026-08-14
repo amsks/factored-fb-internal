@@ -1,0 +1,57 @@
+# Spec 28 P1 CELL (ii) -- the decisive cell (PAPER/Multistep-FB/specs/
+# 28-z-interface-canonicalization.md section P1). GATED ON P0a: do NOT launch until the
+# action-ranking probe has returned. If P0a reads "conditioning indicted" (q_g span ~ 0
+# under z-conditioning), this cell is pre-registered to be SKIPPED, not run.
+#
+# Spec 24 changed the policy's CONDITIONING (g -> z) and the actor's REWARD READOUT
+# (exact kernel -> B̃^T z/sqrt(d)) at the same time, so the cube-double .736 -> .017
+# collapse is attributable to neither. This cell keeps z-conditioning and reverts ONLY
+# the reward object:
+#   F conditions on z, the actor conditions on z, the measure is the z-indexed one --
+#   but the actor's q term integrates the g-path's EXACT kg = _delta_phi(goals, u_raw)
+#   (query-set softmax-normalized, rows summing to 1 over the M queries, the SAME object
+#   cell (i) uses -- parity is what makes the two comparable). The goal reaches nothing
+#   else. Random-sphere z rows have no coherent goal, so their q term is masked out by
+#   the hindsight indicator and renormalized by the surviving count (actor/q_mask_frac
+#   logs the survivors; ~0.5 here).
+#
+# Reads (pre-registered, spec 28 P1): success >> BC (cs BC .111), ideally toward cell
+# (i)'s .93  =>  z is control-sufficient and the reward SEMANTICS of B^T z are the
+# defect (repair R-A). Success at the floor while cell (i) holds  =>  latent
+# conditioning itself is insufficient for control despite retrieval (repair R-B).
+#
+# Single-variable delta on the spec-24 cube-single z lattice (the z25 stage-1 base):
+# measure_density_z_rand_frac stays 0.5, no tilt, no rdecode, no bc_hindsight, no
+# enc_tau -- the ONLY difference from cell (iv) is measure_density_z_actor_reward.
+# 1 seed (0), 500k, cube-single, matching every other screen in this program.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityZ-CellII-KernelRew-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_z: true
+  measure_density_z_rand_frac: 0.5
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_density_z_actor_reward: kernel
+wandb_mode: online
