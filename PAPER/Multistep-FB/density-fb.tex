@@ -666,6 +666,8 @@ Table~\ref{tab:published} places our sparse-reward results alongside published s
 This is not a controlled comparison.
 The published results use $1$M gradient steps, $10$ seeds, and $10$ evaluation episodes per task, whereas ours use $500$k steps, three seeds, and $25$ episodes.
 The task-index inference also differs: their methods use linear regression on relabeled data, whereas \DensityFB{} searches over candidate goals.
+Our matched plain-FB column partially validates itself against that table: it reproduces the published FB result on \texttt{cube-single} ($0.536$ local vs $49.6$ published) and the \texttt{cube-double} floor (${\le}0.056$ vs $2.6$), but on \texttt{scene} our FB reaches ${\sim}0.45$ against a published $12.8$, so the published scene FB number should not be used as a comparison point for this stack; the matched local baseline is the honest one.
+A related observation from the same probes: on \texttt{scene}, plain FB's reward interface outperforms its own goal conditioning ($0.45$ via $z_r$ vs $0.14$ native), so FB's weakness there is its goal encoding rather than its reward inference.
 
 \begin{table}[h]
 \centering
