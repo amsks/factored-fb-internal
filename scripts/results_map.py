@@ -610,6 +610,33 @@ MAP = {
     'GCIQL-CubeSingle-Flow-Measure-DensityZ-Full-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='z25-full',
         graft='spec25 stage1 Full: tilt + decode + enc_tau + bc_hindsight combined (C1+C2+C3 stacked)'),
 
+    # ---- spec 29 R-A (2026-08-14): the UNCENTERED dual index. s29_cs_ra_* run names,
+    # /home/adityamohan/exp_spec29_ra/factored-fb/. The .812 cell is the KernelRew one --
+    # and spec 30 sec.4.8 established that its native goal eval went through the ANALYTIC
+    # POINT PROMPT, not the reward-sample encoder, so it validates the dual GOAL code only.
+    'GCIQL-CubeSingle-Flow-Measure-DensityZ-RA-Dual-KernelRew-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='ra-dual-kernel',
+        graft='spec29 R-A/kernel: uncentered dual index zhat=(Sigma_hat+lam I)^-1 m_hat + external kernel readout '
+              '(cube-single .812; eval used the point prompt -- see spec 30 sec.4.8)'),
+    'GCIQL-CubeSingle-Flow-Measure-DensityZ-RA-Dual-LatentRew-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='ra-dual-latent',
+        graft='spec29 R-A/latent: same uncentered dual index + the closed-form B~^T zhat readout'),
+
+    # ---- spec 30 P1 / spec 30a Item 1 (2026-08-16): the CENTERED index screen. ra2_cs_*
+    # run names, /home/adityamohan/exp_spec30_p1/factored-fb/. Spec 30 re-measured the
+    # geometry and found spec 28's "rank-1 collapse" was largely a softmax-gauge MEAN
+    # offset (||mu_B|| 33-103x the centered signal; centered covariance eff rank 6-21/50);
+    # centering alone lifts point-index reconstruction AUC .43-.86 -> .99+, and the
+    # centered encoder is exactly invariant to r -> r+beta where the uncentered one rotates
+    # to near-orthogonal. The two arms UNBUNDLE centering from dualization (spec 30 P2.3).
+    # ⚠ CentDual's native goal eval goes through the REWARD-SAMPLE API with an M=256 kernel
+    # pool (the point shortcut is a separate diagnostic column only) -- unlike spec 29's
+    # .812, so these numbers are not interchangeable with it.
+    'GCIQL-CubeSingle-Flow-Measure-DensityZ-RA2-CentPoint-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='ra2-centered-point',
+        graft='spec30 P1 arm A: analytic CENTERED POINT prompt z=sqrt(d)*norm(B(phi(g))-mu_hat) + external kernel '
+              'readout -- does mean subtraction alone repair goal prompting?'),
+    'GCIQL-CubeSingle-Flow-Measure-DensityZ-RA2-CentDual-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='ra2-centered-dual',
+        graft='spec30 P1 arm B: centered REWARD-SAMPLE index zhat=sqrt(d)*norm((C_hat+lam I)^-1 m_c), M>1, eval '
+              'through the M=256 reward-sample pool + external kernel readout -- the general reward interface'),
+
     'GCIQL-CubeSingle-Flow-Measure-Density-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-density',
                                              graft='spec18 (PRIMARY): continuous normalized successor density, two-tower score '
                                                    "f(s,a,g,u)=F(s,a,g).B(u)/tau over queries resampled from rho_x every step "

@@ -32,6 +32,23 @@ def _sphere(x, d):
     return x * jnp.sqrt(d * 1.0) / (jnp.linalg.norm(x, axis=-1, keepdims=True) + 1e-6)
 
 
+def _sphere_or_neutral(x, d, eps):
+    """Spec 30 P1: EXACT sqrt(d)-normalization (no epsilon in the denominator) with the
+    degenerate/constant-reward fallback z_neutral = 1_d (which itself has norm sqrt(d)).
+
+    `_sphere` above guards its division with a +1e-6 in the DENOMINATOR. That guard makes
+    the map only approximately scale-invariant: under x -> alpha x the returned norm is
+    sqrt(d)(1 - 1e-6/(alpha||x||)), so a small alpha visibly changes the result (measured:
+    a 100x downscale moved z by 5e-3). The centered encoder's whole claim is exact
+    invariance to r -> alpha r (alpha > 0) and to the additive gauge, so it normalizes
+    exactly and handles the ||x|| ~ 0 case explicitly instead -- which it must do anyway,
+    since a (near-)constant reward is a real input, not a numerical accident."""
+    nrm = jnp.linalg.norm(x, axis=-1, keepdims=True)
+    degenerate = nrm < eps
+    safe = jnp.where(degenerate, jnp.ones_like(nrm), nrm)
+    return jnp.where(degenerate, jnp.ones_like(x), x * jnp.sqrt(d * 1.0) / safe)
+
+
 # --- Spec 25 (z-coupling port) constants -------------------------------------
 # Ridge regularizer of the C2 reward-decodability auxiliary's closed-form solve
 # (spec 25 §0 C2 pins lambda=1e-4 as the round-1 dose and gives it NO knob name --
@@ -158,6 +175,66 @@ class ZSigmaState(nn.Module):
     def __call__(self):
         return self.param('sigma',
                           lambda _key: jnp.eye(self.dim, dtype=jnp.float32))
+
+
+class ZCenteredMomentsState(nn.Module):
+    """Spec 30 P1 (Rev 1): the EMA-tracked CENTERED moments of the index encoder's
+    backward embeddings -- mu_hat = E_rho[B(u)] and C_hat = Cov_rho(B(u)) -- held as
+    ORDINARY PARAM LEAVES, exactly like ZSigmaState (same reasons: they SERIALIZE, so
+    sample_actions and every offline harness read the IDENTICAL object the training-time
+    conditioning used, and a per-batch estimate of a d x d covariance would make the
+    index jitter step to step). Batch statistics are forbidden by the contract.
+
+    WHY CENTERED (spec 30 §0/§4.4, measured): the density softmax is exactly invariant to
+    B(x) -> B(x) + b, so the MEAN of B is pure gauge -- and it is huge: ||mu_B|| is 33-103x
+    the centered signal, which is what made the UNCENTERED second moment Sigma_B look
+    rank-1 (eff rank 1.0002/50) while the centered covariance has effective rank 6-21/50.
+    Centering alone lifts the point-index reconstruction AUC from .43-.86 to .99+.
+
+    Init: mu = 0, C = I. At init the point prompt is therefore exactly spec 24's sphere
+    index and the reward-sample solve is (I + lam I)^-1 m_c ~ m_c; the EMA walks both onto
+    the real moments within ~1/tau_sigma steps (no cold-start blow-up, which a zero-C init
+    would give). The gradient is identically zero on both leaves (they are only ever read
+    at frozen params inside a stop_gradient), so the EMA in `update` is their sole writer.
+    """
+    dim: int
+
+    @nn.compact
+    def __call__(self):
+        mu = self.param('mu', lambda _key: jnp.zeros((self.dim,), dtype=jnp.float32))
+        cov = self.param('cov', lambda _key: jnp.eye(self.dim, dtype=jnp.float32))
+        return mu, cov
+
+
+class ZEvalPoolState(nn.Module):
+    """Spec 30a Item 1 (the no-silent-shortcut eval rule): a FROZEN [M, d_c] pool of RAW
+    hit-spec block coords drawn from the pinned base measure rho_phi (the batch next-state
+    query marginal), stored as a param leaf.
+
+    It exists so that `sample_actions(observations, goal)` on a reward-sample-prompted arm
+    can go through the REWARD-SAMPLE API -- reward samples {(u_j, kg_j)}_{j=1..M} over this
+    pool -- instead of silently substituting the analytic point prompt. Spec 29's .812 came
+    from exactly that substitution (spec 30 §4.8: the reward-sample path was never rolled
+    out), and repeating it would make the arm uninterpretable again.
+
+    FROZEN ON FIRST UPDATE, not rewritten every step: `filled` flips 0 -> 1 on the first
+    `update()`, so the pool is a fixed draw from rho_phi and the eval index is a stable
+    function of the params (comparable across checkpoints) rather than a statistic of
+    whatever batch happened to be last. It serializes with the params, so train and eval
+    read the identical pool.
+
+    Init: zeros (a degenerate pool). An eval before the first update would then see a
+    constant kernel row, which the constant-reward fallback catches and reports rather
+    than silently encoding noise -- but in practice `filled` is 1 after step 1."""
+    pool_m: int
+    d_c: int
+
+    @nn.compact
+    def __call__(self):
+        pool = self.param('pool',
+                          lambda _key: jnp.zeros((self.pool_m, self.d_c), jnp.float32))
+        filled = self.param('filled', lambda _key: jnp.zeros((), jnp.float32))
+        return pool, filled
 
 
 class GCStatePsiValue(GCBilinearValue):
@@ -1077,6 +1154,149 @@ class GCIQLFlowAgent(GCIQLAgent):
                              m_hat.T).T                                    # [B, d]
         return jax.lax.stop_gradient(_sphere(c, d))
 
+    # ---------------------------------------------------------------- spec 30 P1 --
+    # The TRANSLATION-GAUGE-INVARIANT (additive-gauge) CENTERED DUAL ENCODER.
+    #
+    # Two GENUINELY SEPARATE APIs (spec 30 Rev 1). They are not two limits of one
+    # formula: the centered reward-sample moment m_c = (1/M) sum_j (B(u_j)-mu)(r_j-rbar)
+    # is IDENTICALLY ZERO at M=1 (r_1 - rbar = 0), so the centered encoder has NO
+    # one-sample / Dirac limit at all. Never describe the point prompt as an "M=1 Dirac
+    # limit" of the sample encoder (that phrasing is what spec 29 shipped, and it is what
+    # let the .812 cell read as general-encoder evidence when it was a goal shortcut).
+    #
+    #   point-prompt API   z_point = sqrt(d) * norm( B̄(phi(g)) - mu_hat )
+    #                      -- the ANALYTIC CENTERED POINT PROMPT (the population moment of
+    #                      a Dirac-style goal reward), for native goal reaching.
+    #   reward-sample API  {(u_j, r_j)}_{j=1..M}, M > 1 ->
+    #                      zhat = sqrt(d) * norm( (C_hat + lam I)^-1 m_c )
+    #                      -- the general reward interface.
+    #
+    # Invariances (population exact; the EMA implementation approximates them during joint
+    # training -- say both, in that order):
+    #   * B -> B + b       both APIs exact. Point: mu_hat absorbs b. Sample: m_c is
+    #                      literally independent of mu (sum_j (r_j - rbar) = 0), and C_hat
+    #                      is a covariance.
+    #   * r -> r + beta    sample API exact (r - rbar is unchanged).
+    #   * r -> alpha r     (alpha > 0) exact after the sqrt(d) normalization.
+    # The FULL linear gauge B -> A B, F -> A^-T F is NOT fixed: isotropic ridge and sphere
+    # normalization are not invariant under a general A. Scope the claim to the additive
+    # gauge (spec 30 P1, Terminology, binding).
+    #
+    # ONE pinned base measure rho_phi = the batch next-state query marginal, used for
+    # mu_hat, C_hat, rbar AND m_c consistently; reward samples are expected from rho_phi
+    # (no arbitrary-proposal importance correction in this wave).
+
+    def _density_z_moments(self):
+        """The stored (mu_hat [d], C_hat [d, d]) leaves -- see ZCenteredMomentsState.
+        Read at frozen params, never with params=grad_params, so the EMA inside `update`
+        is their only writer."""
+        return self.network.select('density_zmoments')()
+
+    def _density_z_centered_coef(self, m_c):
+        """c = (C_hat + lam I)^-1 m_c, the UNNORMALIZED centered ridge coefficient.
+
+        C_hat is symmetrized again here (it is symmetrized at write time too -- belt and
+        braces against float drift in the EMA) and its spectrum is FLOORED before the
+        solve: eigenvalues below measure_density_z_cov_eig_floor * tr(C_hat)/d are lifted
+        to that floor. The centered covariance of a d=50 tower estimated from finite
+        batches genuinely has near-zero directions (measured eff rank 6-21 of 50), and an
+        unfloored inverse would amplify whatever numerical noise sits in them.
+
+        lambda = measure_density_z_ridge_lambda_mult * tr(C_hat)/d -- the same
+        mean-eigenvalue convention spec28_encodings.ridge_lambdas / eval_spec30_geom.py's
+        `ridge_batch(centered=True)` use, computed from the UNFLOORED trace so the number
+        is the one the preflight probes scored."""
+        d = float(self.config['measure_density_dim'])
+        _mu, cov = self._density_z_moments()
+        cov = 0.5 * (cov + cov.T)
+        tr = jnp.trace(cov)
+        ev, vec = jnp.linalg.eigh(cov)                                       # ascending
+        floor = float(self.config.get('measure_density_z_cov_eig_floor', 1e-6)) * tr / d
+        ev = jnp.maximum(ev, floor)
+        lam = float(self.config.get('measure_density_z_ridge_lambda_mult', 0.01)) * tr / d
+        return ((m_c @ vec) / (ev + lam)[None, :]) @ vec.T                   # [B, d]
+
+    def _density_z_centered_index(self, m_c):
+        """zhat = sqrt(d) * normalize(c), with the CONSTANT-REWARD FALLBACK: a reward that
+        is (near-)constant on the pool has m_c ~ 0 and therefore ||c|| ~ 0, and the
+        normalization would then amplify pure numerical noise into a confident-looking
+        task index. When ||c|| < measure_density_z_const_eps the encoder returns
+        z_neutral = the all-ones vector instead -- a fixed, reward-free direction that
+        still carries the standing ||z|| = sqrt(d) invariant (||1_d|| = sqrt(d)), so it is
+        in the conditioning distribution rather than a zero vector that is not. The
+        fallback rate is logged (density_zc_fallback_frac); it should be ~0 on hindsight
+        kernels and ~1 on a literally constant reward."""
+        d = float(self.config['measure_density_dim'])
+        c = self._density_z_centered_coef(m_c)
+        eps_z = float(self.config.get('measure_density_z_const_eps', 1e-6))
+        return jax.lax.stop_gradient(_sphere_or_neutral(c, d, eps_z))
+
+    def _density_z_centered_moment(self, u_scaled, r):
+        """m_c = (1/M) sum_j (B̄(u_j) - mu_hat)(r_j - rbar), rbar = (1/M) sum_j r_j.
+
+        `u_scaled` [M, d_c] eps-scaled queries, `r` [B, M] (or [M]) rewards on them;
+        returns (m_c [B, d], r2 [B, M]). M = 1 RAISES: the centered moment is identically
+        zero there, so a one-sample call is a caller error, not a degraded estimate. The
+        raise happens at trace time (shapes are static in jax), so it surfaces at the call
+        site rather than as a silent zero index."""
+        r2 = jnp.atleast_2d(r)                                               # [B, M]
+        m_samples = int(r2.shape[-1])
+        if m_samples < 2:
+            raise ValueError(
+                "measure_density_z_encode='dual_centered': the reward-sample encoder "
+                f"requires M > 1 reward samples, got M={m_samples}. The centered moment "
+                "m_c = (1/M) sum_j (B(u_j)-mu)(r_j-rbar) is IDENTICALLY ZERO at M=1 "
+                "(r_1 - rbar = 0), so the centered encoder has no one-sample/Dirac limit "
+                "(spec 30 Rev 1, P1). For a single goal use the analytic centered POINT "
+                "prompt (measure_density_z_prompt='point' / _density_z_point_prompt), "
+                "which is a separate API -- realistic sample pools are M >= 256.")
+        mu, _cov = self._density_z_moments()
+        b_u = jax.lax.stop_gradient(
+            self.network.select(self._density_z_enc_module())(u_scaled))     # [M, d]
+        db = b_u - mu[None]                                                  # [M, d]
+        dr = r2 - jnp.mean(r2, axis=-1, keepdims=True)                       # [B, M]
+        return jnp.einsum('bm,md->bd', dr, db) / m_samples, r2
+
+    def _density_z_point_prompt(self, x_scaled):
+        """The ANALYTIC CENTERED POINT PROMPT z_point = sqrt(d) * norm(B̄(x~) - mu_hat).
+
+        Mean subtraction ALONE (no inverse covariance): spec 30 §4.4 measured that
+        centering by itself takes the point index from collapsed (pairwise cos .9995) to
+        separated (.001-.004) and its reward reconstruction from AUC .43-.86 to .99+. The
+        inverse covariance is what the REWARD-REGRESSION (sample) API needs; keeping the
+        two unbundled is the whole point of the P1 screen (spec 30 P2.3: centering and
+        dualization must not be bundled, or the result cannot be attributed).
+
+        The same EXACT normalization (and the same degenerate fallback: a goal whose
+        embedding sits at the mean carries no task information) as the sample API, so the
+        two APIs are comparable objects."""
+        d = float(self.config['measure_density_dim'])
+        mu, _cov = self._density_z_moments()
+        b_emb = jax.lax.stop_gradient(
+            self.network.select(self._density_z_enc_module())(x_scaled))     # [B, d]
+        eps_z = float(self.config.get('measure_density_z_const_eps', 1e-6))
+        return jax.lax.stop_gradient(_sphere_or_neutral(b_emb - mu[None], d, eps_z))
+
+    def _density_z_eval_samples(self, goal_obs, blocks):
+        """The native-goal EVAL reward samples for the reward-sample-prompted arm:
+        (u_scaled, kg) over the FROZEN M-row pool (ZEvalPoolState), kg = _delta_phi(goal,
+        pool_raw) -- the SAME query-set-normalized kernel object the training rows and the
+        g path integrate (the standing spec-28 parity rule), just over the pool instead of
+        the batch. This is what makes `sample_actions(goal)` go through the reward-sample
+        API with M = measure_density_z_eval_pool_m (256) instead of shortcutting to the
+        point prompt."""
+        pool_raw, _filled = self.network.select('density_zpool')()           # [M, d_c] RAW
+        u_sc = self._scale_block_cols(pool_raw, blocks)                      # [M, d_c]
+        kg = jax.lax.stop_gradient(self._delta_phi(goal_obs, pool_raw, blocks))  # [B, M]
+        return u_sc, kg
+
+    def density_z_point_prompt(self, goal_obs):
+        """Public point-prompt entrypoint (the DIAGNOSTIC column for a reward-sample arm:
+        spec 30a pins the native goal eval of `ra2_cs_centdual` to the reward-sample API
+        and allows the point shortcut only as a separately-recorded diagnostic)."""
+        blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+        return self._density_z_point_prompt(self._density_queries(goal_obs, blocks))
+
     def density_z_from_reward_samples(self, u_scaled, r):
         """Spec 29 R-A, the GENERAL REWARD INTERFACE (the binding user requirement, and
         what gate G29-3 reads): reward samples {(u_j, r_j)} -> index zhat, no goal
@@ -1087,7 +1307,16 @@ class GCIQLFlowAgent(GCIQLAgent):
         This is the harness-facing entrypoint: compute zhat off the SERIALIZED
         Sigma_hat + the pool moment, then roll the policy with `sample_actions_with_z`.
         It is the identical solve the training rows go through -- only the reward
-        samples differ (hindsight kernels there, arbitrary reward families here)."""
+        samples differ (hindsight kernels there, arbitrary reward families here).
+
+        Spec 30 (measure_density_z_encode='dual_centered'): dispatches to the CENTERED
+        reward-sample encoder, zhat = sqrt(d)*norm((C_hat+lam I)^-1 m_c) with
+        m_c = (1/M) sum_j (B̄(u_j)-mu_hat)(r_j-rbar) -- exactly invariant to r -> r+beta
+        and to B -> B+b, and REQUIRING M > 1 (it raises otherwise). Same stored moments,
+        same solve, train and eval."""
+        if str(self.config.get('measure_density_z_encode', 'sphere')) == 'dual_centered':
+            m_c, _r2 = self._density_z_centered_moment(u_scaled, r)
+            return self._density_z_centered_index(m_c)
         r2 = jnp.atleast_2d(r)                                              # [B, P]
         b_u = jax.lax.stop_gradient(
             self.network.select(self._density_z_enc_module())(u_scaled))    # [P, d]
@@ -1119,16 +1348,39 @@ class GCIQLFlowAgent(GCIQLAgent):
         With no samples supplied (the EVAL entrypoint: sample_actions gets a goal and has
         no pool) m_hat falls back to B̄(x̃_g), which is the same construction at the sharp-
         kernel/single-sample limit r = Dirac at the goal -- the M=1 member of the very
-        same family, NOT a different object (pinned by a unit test). The ridge solve, the
+        same family, NOT a different object (pinned by a unit test). ⚠ Spec 30 Rev 1
+        terminology rule: that "M=1 limit" phrasing is specific to THIS uncentered encoder
+        and must never be carried over to the centered one below (or into the paper) --
+        the centered sample moment is identically zero at M=1, so 'dual_centered' has two
+        genuinely separate APIs instead. The ridge solve, the
         stored Sigma_hat and the sqrt(d) renormalization are identical on both paths; a
         harness that wants the exact P=16384-pool moment at eval calls
         `density_z_from_reward_samples` + `sample_actions_with_z`.
 
         The sphere branch is byte-for-byte the shipped code (same ops, same order), so
-        every existing arm is bit-identical."""
+        every existing arm is bit-identical.
+
+        Spec 30 P1 (measure_density_z_encode='dual_centered'): the TWO-API centered
+        encoder. measure_density_z_prompt selects which API this arm conditions on:
+          'point'  -> the analytic centered point prompt sqrt(d)*norm(B̄(x~_g) - mu_hat)
+                      (u_scaled/r ignored -- it is a different API, not a limit of the
+                      other one);
+          'sample' -> the reward-sample encoder over the row's samples when the caller
+                      supplies them (training: the batch query set with r = kg), and over
+                      the FROZEN M=256 pool with r = kg(goal, pool) when it does not (the
+                      eval entrypoint). It NEVER falls back to the point prompt -- that
+                      silent substitution is what made spec 29's .812 uninterpretable
+                      (spec 30 §4.8)."""
         d = float(self.config['measure_density_dim'])
         blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
         x_sc = self._density_queries(goal_obs, blocks)                  # [B, d_c] eps-scaled
+        if str(self.config.get('measure_density_z_encode', 'sphere')) == 'dual_centered':
+            if str(self.config.get('measure_density_z_prompt', 'sample')) == 'point':
+                return self._density_z_point_prompt(x_sc)
+            if u_scaled is None:
+                u_scaled, r = self._density_z_eval_samples(goal_obs, blocks)
+            m_c, _r2 = self._density_z_centered_moment(u_scaled, r)
+            return self._density_z_centered_index(m_c)
         if str(self.config.get('measure_density_z_encode', 'sphere')) == 'dual':
             enc_mod = self._density_z_enc_module()
             if u_scaled is None:
@@ -1406,8 +1658,15 @@ class GCIQLFlowAgent(GCIQLAgent):
             # trains on and the same one the actor's q term integrates over) and the
             # reward is the g-path's exact kg. Trace-time branch: 'sphere' arms compute
             # nothing extra and consume no extra rng.
+            # spec 30 P1: 'dual_centered' + prompt='sample' takes the SAME reward samples
+            # (batch query set, r = kg); prompt='point' takes none at all -- the centered
+            # point prompt is a separate API that ignores them.
             _u29a = _r29a = None
-            if str(self.config.get('measure_density_z_encode', 'sphere')) == 'dual':
+            _enc29a = str(self.config.get('measure_density_z_encode', 'sphere'))
+            _needs_samples = _enc29a == 'dual' or (
+                _enc29a == 'dual_centered'
+                and str(self.config.get('measure_density_z_prompt', 'sample')) == 'sample')
+            if _needs_samples:
                 _bl29a = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
                 _u29a = self._density_queries(batch['next_observations'], _bl29a)
                 _r29a = jax.lax.stop_gradient(self._delta_phi(
@@ -1875,6 +2134,21 @@ class GCIQLFlowAgent(GCIQLAgent):
         parts = []
         for (a, b, e) in blocks:
             parts.append(obs_rows[:, a:b])
+        return jnp.concatenate(parts, axis=-1)
+
+    @staticmethod
+    def _scale_block_cols(raw_cols, blocks):
+        """Spec 30: the eps scaling of _density_queries applied to ALREADY-SLICED raw
+        block columns ([*, d_c] in _parse_hit_spec order, i.e. _raw_block_cols output),
+        rather than to full observation rows. Used for the frozen eval pool
+        (ZEvalPoolState stores RAW coords, because _delta_phi needs raw rows, while the B
+        tower needs the eps-scaled twin) -- the two coordinate conventions must not be
+        crossed (the _delta_phi/_raw_block_cols double-scale trap, spec 18 §4.2)."""
+        parts, off = [], 0
+        for (a, b, e) in blocks:
+            w = b - a
+            parts.append(raw_cols[..., off:off + w] / e)
+            off += w
         return jnp.concatenate(parts, axis=-1)
 
     @staticmethod
@@ -2484,7 +2758,9 @@ class GCIQLFlowAgent(GCIQLAgent):
             # off-branch (z_on=False) never executes this split, so its rng usage stays
             # bit-identical to the shipped spec-18/19a code below.
             rng, z_rng = jax.random.split(rng)
-            if str(self.config.get('measure_density_z_encode', 'sphere')) == 'dual':
+            _enc29 = str(self.config.get('measure_density_z_encode', 'sphere'))
+            _prompt29 = str(self.config.get('measure_density_z_prompt', 'sample'))
+            if _enc29 == 'dual' or (_enc29 == 'dual_centered' and _prompt29 == 'sample'):
                 # spec 29 R-A: the row's reward samples = (this batch's query set, kg).
                 # kg is _delta_phi(g, u_raw) -- the query-set-normalized kernel, the SAME
                 # object the g path integrates, per the standing spec-28 parity rule.
@@ -2630,6 +2906,66 @@ class GCIQLFlowAgent(GCIQLAgent):
             w_alt = jax.nn.softmax(logits_alt, -1)
             info['density_w_ztv'] = jax.lax.stop_gradient(
                 0.5 * jnp.mean(jnp.sum(jnp.abs(w - w_alt), axis=-1)))
+
+            if _enc29 == 'dual_centered':
+                # Spec 30a Item 1: ALWAYS log ||m_c||, ||c|| and Var[r] on the
+                # reward-sample path (a near-constant reward otherwise amplifies numerical
+                # noise through the normalization, and the fallback rate is the only way
+                # to see it), plus the point-prompt magnitude on the point-prompt arm.
+                # Every quantity here is recomputed at frozen params inside stop_gradient;
+                # the extra d x d eigh (d=50) is negligible next to the towers.
+                if _prompt29 == 'sample':
+                    _mc, _r2c = self._density_z_centered_moment(z_u29, z_r29)
+                    _cc = self._density_z_centered_coef(jax.lax.stop_gradient(_mc))
+                    _nc = jnp.linalg.norm(_cc, axis=-1)
+                    info['density_zc_mc_norm'] = jnp.mean(jnp.linalg.norm(_mc, axis=-1))
+                    info['density_zc_c_norm'] = jnp.mean(_nc)
+                    info['density_zc_r_var'] = jnp.mean(jnp.var(_r2c, axis=-1))
+                    info['density_zc_fallback_frac'] = jnp.mean(
+                        (_nc < float(self.config.get('measure_density_z_const_eps', 1e-6)))
+                        .astype(jnp.float32))
+                else:
+                    _bp = jax.lax.stop_gradient(
+                        self.network.select(self._density_z_enc_module())(
+                            self._density_queries(g, blocks)))
+                    _mu_c, _ = self._density_z_moments()
+                    info['density_zc_point_norm'] = jnp.mean(
+                        jnp.linalg.norm(_bp - _mu_c[None], axis=-1))
+                    info['density_zc_point_raw_norm'] = jnp.mean(
+                        jnp.linalg.norm(_bp, axis=-1))
+
+        if self.config.get('measure_density_dup_instrument', False):
+            # Spec 30a Item 4 / spec 30 P4 -- DUPLICATE QUERIES, INSTRUMENTATION ONLY (no
+            # fix). In hard mode the immediate target is one-hot at the row's own index
+            # (k = I), so two IDENTICAL queries in the same batch are labelled as each
+            # other's negatives: the model is asked to separate rows it cannot separate.
+            # The reviewer's own argument (spec 30 P4, correct) is that identical queries
+            # get identical logits and the gradients can still aggregate to the right
+            # state-level mass -- so this measures the RATE before anyone engineers a
+            # multi-positive target.
+            #   exact_frac  fraction of query rows with an exactly identical partner
+            #   eps_frac    ... with a partner within measure_density_dup_eps in the
+            #               EPS-SCALED query coordinates (u_sc is already divided by each
+            #               block's eps, so the threshold is in units of the kernel width)
+            #   irreducible_ce  E[log |class(i)|] -- the CE floor a one-hot label incurs
+            #               when |class(i)| queries are indistinguishable (best achievable
+            #               = uniform over the class). Reported raw AND scaled by (1-gamma),
+            #               which is the weight the immediate term actually carries in
+            #               t = (1-gamma) k + gamma w_bar. Computable in both modes; in
+            #               soft mode read it as the hard-mode counterfactual.
+            _dup_eps = float(self.config.get('measure_density_dup_eps', 0.1))
+            _d2 = jnp.sum((u_sc[:, None, :] - u_sc[None, :, :]) ** 2, -1)     # [M, M]
+            _exact = jnp.all(u_sc[:, None, :] == u_sc[None, :, :], -1)
+            _near = _d2 <= (_dup_eps ** 2)
+            _cls_x = jnp.sum(_exact.astype(jnp.float32), -1)                   # >= 1 (self)
+            _cls_e = jnp.sum(_near.astype(jnp.float32), -1)                    # >= 1 (self)
+            info['density_dup_exact_frac'] = jnp.mean((_cls_x > 1.5).astype(jnp.float32))
+            info['density_dup_eps_frac'] = jnp.mean((_cls_e > 1.5).astype(jnp.float32))
+            info['density_dup_eps_class_mean'] = jnp.mean(_cls_e)
+            info['density_dup_irreducible_ce'] = jnp.mean(jnp.log(_cls_e))
+            info['density_dup_irreducible_ce_weighted'] = \
+                (1.0 - gamma) * jnp.mean(jnp.log(_cls_e))
+            info['density_dup_irreducible_ce_exact'] = jnp.mean(jnp.log(_cls_x))
 
         rdecode_coef = float(self.config.get('measure_density_z_rdecode_coef', 0.0))
         if z_on and rdecode_coef > 0.0:
@@ -3252,6 +3588,71 @@ class GCIQLFlowAgent(GCIQLAgent):
                 _ev29[-1] / jnp.maximum(_ev29[0], 1e-12)
             info['measure/density_zsigma_trace_over_d'] = \
                 jnp.trace(_sig_new) / float(self.config['measure_density_dim'])
+        if self.config.get('measure_density_z', False) \
+                and str(self.config.get('measure_density_z_encode', 'sphere')) \
+                == 'dual_centered':
+            # Spec 30 P1: the EMA of the CENTERED moments (mu_hat, C_hat) of the index
+            # tower's embeddings, over this batch's query set at the PRE-STEP tower and on
+            # the SAME schedule (measure_density_z_sigma_tau) as the uncentered Sigma_hat
+            # above -- same source discipline, same param-leaf storage, same forbidden
+            # alternative (batch statistics reintroduce the train/eval mismatch that broke
+            # the first z build). Base measure = the batch next-state query marginal, the
+            # ONE pinned rho_phi used for mu, C, rbar and m_c alike.
+            _bl30 = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+            _u30 = self._density_queries(batch['next_observations'], _bl30)
+            _b30 = jax.lax.stop_gradient(
+                self.network.select(self._density_z_enc_module())(_u30))       # [M, d]
+            _mu_b30 = jnp.mean(_b30, axis=0)                                   # [d]
+            _db30 = _b30 - _mu_b30[None]
+            _cov_b30 = _db30.T @ _db30 / _b30.shape[0]      # centered, 1/M -- the exact
+              # convention of eval_spec30_geom.py's spectrum_stats/ridge_batch(centered),
+              # so the training-time moments are the objects the preflight probes scored.
+            _tau30 = float(self.config.get('measure_density_z_sigma_tau', 0.005))
+            _mu_old30, _cov_old30 = (
+                self.network.params['modules_density_zmoments']['mu'],
+                self.network.params['modules_density_zmoments']['cov'])
+            _mu_new30 = _mu_old30 * (1.0 - _tau30) + _mu_b30 * _tau30
+            _cov_new30 = _cov_old30 * (1.0 - _tau30) + _cov_b30 * _tau30
+            _cov_new30 = 0.5 * (_cov_new30 + _cov_new30.T)   # SYMMETRIZE every update
+            new_network.params['modules_density_zmoments'] = {
+                'mu': _mu_new30, 'cov': _cov_new30}
+            if 'modules_density_zpool' in self.network.params:
+                # The frozen eval pool (ZEvalPoolState): written ONCE, on the first update,
+                # from this batch's RAW query coords -- a fixed draw from rho_phi, so the
+                # eval index is a stable function of the params rather than a statistic of
+                # the last batch, and it serializes so eval reads exactly what training
+                # wrote.
+                _pool_m30 = int(self.config.get('measure_density_z_eval_pool_m', 256))
+                _raw30 = self._raw_block_cols(batch['next_observations'], _bl30)
+                assert _raw30.shape[0] >= _pool_m30, (
+                    f"measure_density_z_eval_pool_m={_pool_m30} needs a batch of at least "
+                    f"that many next states to draw the eval pool from, got "
+                    f"{_raw30.shape[0]}")
+                _pool_old30 = self.network.params['modules_density_zpool']['pool']
+                _filled30 = self.network.params['modules_density_zpool']['filled']
+                new_network.params['modules_density_zpool'] = {
+                    'pool': jnp.where(_filled30 > 0.5, _pool_old30,
+                                      _raw30[:_pool_m30]),
+                    'filled': jnp.ones_like(_filled30)}
+                info['measure/density_zpool_filled'] = _filled30
+            # Geometry of C_hat (the headline spec-30 numbers) + the EMA-vs-current-batch
+            # SYNC RESIDUALS: if the EMA is lagging the tower badly, the index is being
+            # solved against moments the tower no longer has.
+            _ev30 = jnp.clip(jnp.linalg.eigvalsh(_cov_new30), 0.0, None)
+            info['measure/density_zcov_eff_rank'] = \
+                jnp.sum(_ev30) ** 2 / (jnp.sum(_ev30 ** 2) + 1e-30)
+            info['measure/density_zcov_cond'] = \
+                _ev30[-1] / jnp.maximum(_ev30[0], 1e-12)
+            info['measure/density_zcov_min_eig'] = _ev30[0]
+            info['measure/density_zcov_trace_over_d'] = \
+                jnp.trace(_cov_new30) / float(self.config['measure_density_dim'])
+            info['measure/density_zmu_norm'] = jnp.linalg.norm(_mu_new30)
+            info['measure/density_zc_gauge_ratio'] = \
+                jnp.linalg.norm(_mu_new30) / (jnp.mean(jnp.linalg.norm(_db30, axis=-1))
+                                              + 1e-12)
+            info['measure/density_zc_sync_mu'] = jnp.linalg.norm(_mu_new30 - _mu_b30)
+            info['measure/density_zc_sync_cov'] = \
+                jnp.linalg.norm(_cov_new30 - _cov_b30)
 
         return self.replace(network=new_network, rng=new_rng), info
 
@@ -3304,6 +3705,26 @@ class GCIQLFlowAgent(GCIQLAgent):
             goals = z_out[0] if unbatched_goal else z_out
         actions = self.network.select('actor')(observations, goals, noise)
         return jnp.clip(actions, -1.0, 1.0)
+
+    @jax.jit
+    def sample_actions_point(self, observations, goals, seed=None):
+        """Spec 30a Item 1 -- the POINT-SHORTCUT DIAGNOSTIC entrypoint.
+
+        Identical to `sample_actions` except that the index is the analytic centered POINT
+        prompt sqrt(d)*norm(B̄(phi(g)) - mu_hat), whatever measure_density_z_prompt says.
+        On a reward-sample-prompted arm (`ra2_cs_centdual`) the native goal eval MUST go
+        through `sample_actions` (the reward-sample API over the M=256 pool); this
+        entrypoint exists so the point shortcut can be recorded as a SEPARATE diagnostic
+        column instead of silently becoming the headline number, which is exactly the
+        ambiguity that made spec 29's .812 uninterpretable (spec 30 §4.8)."""
+        event_rank = 1 if self.config['encoder'] is None else 3
+        batch_shape = observations.shape[:-event_rank]
+        noise = jax.random.normal(seed, (*batch_shape, self.config['action_dim']))
+        unbatched_goal = goals.ndim == 1
+        g_in = goals[None] if unbatched_goal else goals
+        z_out = self.density_z_point_prompt(g_in)
+        z = z_out[0] if unbatched_goal else z_out
+        return jnp.clip(self.network.select('actor')(observations, z, noise), -1.0, 1.0)
 
     @jax.jit
     def sample_actions_with_z(self, observations, z, seed=None, temperature=1.0):
@@ -3815,6 +4236,14 @@ class GCIQLFlowAgent(GCIQLAgent):
         # fit to sg[(1-gamma)*k + gamma*w_bar+] (k=_delta_phi(nobs, queries)).
         # Refuse anything that changes the target's meaning, the bootstrap policy,
         # or composes with the region-matrix / 17a / 17b paths.
+        if not config.get('measure_density', False):
+            # spec 30a Item 4: the duplicate instrument reads density_loss's query set --
+            # it is inert (and its keys never appear) without the density path.
+            assert not config.get('measure_density_dup_instrument', False), \
+                "measure_density_dup_instrument requires measure_density=True (spec 30a " \
+                "Item 4) -- it instruments density_loss's query support"
+            assert float(config.get('measure_density_dup_eps', 0.1)) == 0.1, \
+                "measure_density_dup_eps requires measure_density=True"
         if config.get('measure_density', False):
             assert config.get('measure_only', False)
             assert not config.get('measure_delta', False) and not config.get('measure_delta_partition', False)
@@ -3851,6 +4280,20 @@ class GCIQLFlowAgent(GCIQLAgent):
                 and config.get('task_prior', 'dirac') == 'dirac' \
                 and config.get('task_prior_actor', 'dirac') == 'dirac'
             assert not config.get('measure_delta_protos', ''), "density has no prototype file"
+            # --- Spec 30a Item 4: the duplicate-query instrument (INSTRUMENTATION ONLY).
+            # It only adds info keys, but it adds an O(M^2 d_c) pairwise block, so it is a
+            # knob rather than an always-on cost, and its epsilon is refused when the
+            # instrument is off (no inert knobs). ---
+            _dup_eps_c = float(config.get('measure_density_dup_eps', 0.1))
+            if config.get('measure_density_dup_instrument', False):
+                assert _dup_eps_c > 0.0, \
+                    "measure_density_dup_eps (the eps-duplicate radius, in EPS-SCALED " \
+                    f"query units) must be > 0; got {_dup_eps_c}. The exact-duplicate " \
+                    "fraction is logged separately and needs no radius"
+            else:
+                assert _dup_eps_c == 0.1, \
+                    "measure_density_dup_eps is read ONLY under " \
+                    "measure_density_dup_instrument=True (spec 30a Item 4)"
             assert config.get('value_arch', 'mlp') != 'dueling', \
                 "value_arch='dueling' takes actor_loss's dueling branch (A_bil off a never-" \
                 "trained critic) BEFORE the measure_density branch is reached -- the density " \
@@ -3940,11 +4383,67 @@ class GCIQLFlowAgent(GCIQLAgent):
             # feature vector sqrt(d)*normalize(B̄(x̃_g)); 'dual' = the ridge-corrected
             # coefficient sqrt(d)*normalize((Sigma_hat+lambda I)^-1 m_hat). ---
             _zenc_kind = str(config.get('measure_density_z_encode', 'sphere'))
-            assert _zenc_kind in ('sphere', 'dual'), \
+            assert _zenc_kind in ('sphere', 'dual', 'dual_centered'), \
                 "measure_density_z_encode must be 'sphere' (spec 24 default, primal " \
-                f"feature vector) or 'dual' (spec 29 R-A, ridge coefficient), got {_zenc_kind!r}"
+                "feature vector), 'dual' (spec 29 R-A, uncentered ridge coefficient) or " \
+                "'dual_centered' (spec 30 P1, the translation-gauge-invariant centered " \
+                f"encoder), got {_zenc_kind!r}"
             _lam_mult = float(config.get('measure_density_z_ridge_lambda_mult', 0.01))
             _sig_tau = float(config.get('measure_density_z_sigma_tau', 0.005))
+            # --- Spec 30 P1: the centered encoder's own knobs. ---
+            _zprompt = str(config.get('measure_density_z_prompt', 'sample'))
+            _zpool_m = int(config.get('measure_density_z_eval_pool_m', 256))
+            _zfloor = float(config.get('measure_density_z_cov_eig_floor', 1e-6))
+            _zceps = float(config.get('measure_density_z_const_eps', 1e-6))
+            if _zenc_kind == 'dual_centered':
+                assert _zenc > 0.0, \
+                    "measure_density_z_encode='dual_centered' REQUIRES " \
+                    "measure_density_z_enc_tau>0 for the same reason 'dual' does (spec 29 " \
+                    "contract, carried into spec 30 P1): the solve (C_hat+lam I)^-1 m_c " \
+                    "runs through B̄, and doing that through the fast-drifting target " \
+                    "tower is the known non-stationarity risk. Round-1 dose 0.0005"
+                assert _lam_mult > 0.0, \
+                    "measure_density_z_ridge_lambda_mult must be > 0 (lambda = mult * " \
+                    f"tr(C_hat)/d); got {_lam_mult}. mult=0 is an unregularized solve " \
+                    "against a covariance with measured effective rank 6-21 of 50 -- refused"
+                assert 0.0 < _sig_tau <= 1.0, \
+                    "measure_density_z_sigma_tau (the mu_hat/C_hat EMA rate) must be in " \
+                    f"(0, 1]; got {_sig_tau}. 0 would freeze C_hat at its identity init " \
+                    "and mu_hat at 0, making 'dual_centered' a rescaled sphere index " \
+                    "while logging as centered (the 17b measure_coef fake-NULL species)"
+                assert _zprompt in ('point', 'sample'), \
+                    "measure_density_z_prompt must be 'point' (the analytic centered " \
+                    "point prompt sqrt(d)*norm(B̄(phi(g))-mu_hat)) or 'sample' (the " \
+                    f"reward-sample encoder, M>1), got {_zprompt!r}. These are two " \
+                    "SEPARATE APIs: the centered reward-sample moment is identically zero " \
+                    "at M=1, so there is no one-sample limit connecting them (spec 30 Rev 1)"
+                assert _zfloor > 0.0, \
+                    "measure_density_z_cov_eig_floor must be > 0 (it is a multiple of " \
+                    f"tr(C_hat)/d applied before the solve); got {_zfloor}"
+                assert _zceps > 0.0, \
+                    "measure_density_z_const_eps (the constant-reward fallback threshold " \
+                    f"on ||c||) must be > 0; got {_zceps}"
+                if _zprompt == 'sample':
+                    assert _zpool_m > 1, \
+                        "measure_density_z_eval_pool_m must be > 1: sample_actions' native " \
+                        "goal eval goes through the REWARD-SAMPLE API over this pool, and " \
+                        f"that encoder raises at M=1; got {_zpool_m}. Spec 30a pins 256"
+                    assert int(config.get('batch_size', 1024)) >= _zpool_m, \
+                        f"measure_density_z_eval_pool_m={_zpool_m} exceeds batch_size=" \
+                        f"{int(config.get('batch_size', 1024))}: the pool is drawn from a " \
+                        "training batch's next-state query coords (the pinned base measure)"
+                else:
+                    assert _zpool_m == 256, \
+                        "measure_density_z_eval_pool_m is read ONLY under " \
+                        "measure_density_z_prompt='sample' (it is the eval reward-sample " \
+                        "pool); the point-prompt arm needs no pool -- no inert knobs"
+            else:
+                assert _zprompt == 'sample' and _zpool_m == 256 \
+                    and _zfloor == 1e-6 and _zceps == 1e-6, \
+                    "measure_density_z_prompt / _eval_pool_m / _cov_eig_floor / " \
+                    "_const_eps are read ONLY under measure_density_z_encode=" \
+                    "'dual_centered' (spec 30 P1) -- setting them elsewhere configures " \
+                    "nothing (no inert knobs)"
             if _zenc_kind == 'dual':
                 assert _zenc > 0.0, \
                     "measure_density_z_encode='dual' REQUIRES measure_density_z_enc_tau>0 " \
@@ -3962,12 +4461,15 @@ class GCIQLFlowAgent(GCIQLAgent):
                     f"(0, 1]; got {_sig_tau}. 0 would freeze Sigma_hat at its identity " \
                     "init, making the 'dual' index a rescaled sphere index while logging " \
                     "as dual (the 17b measure_coef fake-NULL species)"
-            else:
-                # Both dual-only knobs would be read nowhere under 'sphere'.
+            elif _zenc_kind == 'sphere':
+                # Both knobs would be read nowhere under 'sphere'. ('dual_centered' READS
+                # them -- lambda for its ridge and tau_sigma for the mu/C EMA -- and has
+                # asserted its own ranges above, so it must not fall into this branch.)
                 assert _lam_mult == 0.01 and _sig_tau == 0.005, \
                     "measure_density_z_ridge_lambda_mult / measure_density_z_sigma_tau " \
-                    "are read ONLY under measure_density_z_encode='dual' (spec 29) -- " \
-                    "setting them off it configures nothing (no inert knobs)"
+                    "are read ONLY under measure_density_z_encode='dual' (spec 29) or " \
+                    "'dual_centered' (spec 30) -- setting them off both configures " \
+                    "nothing (no inert knobs)"
             # --- Spec 28 P1 cell (ii): the actor's REWARD OBJECT on the z path. ---
             _zar = str(config.get('measure_density_z_actor_reward', 'latent'))
             assert _zar in ('latent', 'kernel'), \
@@ -3998,9 +4500,16 @@ class GCIQLFlowAgent(GCIQLAgent):
                     f"{_k25} requires measure_density_z=True (spec 25 §2) -- it is read " \
                     "only on the z-indexed density path and would be inert otherwise"
             assert str(config.get('measure_density_z_encode', 'sphere')) == 'sphere', \
-                "measure_density_z_encode='dual' requires measure_density_z=True " \
-                "(spec 29 R-A) -- the encode is read only inside _density_z_encode on " \
-                "the z-indexed path and would be inert otherwise"
+                "measure_density_z_encode='dual'/'dual_centered' requires " \
+                "measure_density_z=True (spec 29 R-A / spec 30 P1) -- the encode is read " \
+                "only inside _density_z_encode on the z-indexed path and would be inert " \
+                "otherwise"
+            assert str(config.get('measure_density_z_prompt', 'sample')) == 'sample' \
+                and int(config.get('measure_density_z_eval_pool_m', 256)) == 256 \
+                and float(config.get('measure_density_z_cov_eig_floor', 1e-6)) == 1e-6 \
+                and float(config.get('measure_density_z_const_eps', 1e-6)) == 1e-6, \
+                "measure_density_z_prompt / _eval_pool_m / _cov_eig_floor / _const_eps " \
+                "are spec-30 centered-encoder knobs and require measure_density_z=True"
             assert float(config.get('measure_density_z_ridge_lambda_mult', 0.01)) == 0.01 \
                 and float(config.get('measure_density_z_sigma_tau', 0.005)) == 0.005, \
                 "measure_density_z_ridge_lambda_mult / measure_density_z_sigma_tau are " \
@@ -4477,6 +4986,22 @@ class GCIQLFlowAgent(GCIQLAgent):
                 # every other arm's param tree stays byte-identical; an ordinary params
                 # entry, so it serializes and sample_actions reads the same matrix back.
                 network_info['density_zsigma'] = (ZSigmaState(dim=_d18), ())
+            if config.get('measure_density_z', False) \
+                    and str(config.get('measure_density_z_encode', 'sphere')) \
+                    == 'dual_centered':
+                # spec 30 P1: mu_hat + C_hat (ZCenteredMomentsState), and -- only for the
+                # reward-sample-prompted arm -- the frozen M-row eval pool (ZEvalPoolState)
+                # that lets sample_actions go through the reward-sample API instead of
+                # shortcutting to the point prompt. Registered ONLY under this encode, so
+                # every other arm's param tree stays byte-identical.
+                network_info['density_zmoments'] = (ZCenteredMomentsState(dim=_d18), ())
+                if str(config.get('measure_density_z_prompt', 'sample')) == 'sample':
+                    _dc30 = int(sum(b - a for (a, b, _e) in _blocks18_create))
+                    network_info['density_zpool'] = (
+                        ZEvalPoolState(
+                            pool_m=int(config.get('measure_density_z_eval_pool_m', 256)),
+                            d_c=_dc30),
+                        ())
         ors_pool_np = ors_pool_b_emb_np = None    # spec 19b: set below only when ors_reward_ckpt is on
         ors_tau_resolved = None
         if config.get('ors_reward_ckpt', ''):
@@ -4965,7 +5490,52 @@ def get_config():
           # batch stats reintroduce the train/eval mismatch that broke the first z build).
           # The spec does not name a rate; 10x the critic tau is the round-1 dose, fast
           # enough to track B's drift and slow enough that the index is quasi-stationary.
-          # Read only under measure_density_z_encode='dual'.
+          # Read under measure_density_z_encode='dual' (Sigma_hat) and 'dual_centered'
+          # (mu_hat + C_hat, spec 30 P1 -- the SAME schedule, deliberately).
+        # --- Spec 30 P1 (Rev 1): the TRANSLATION-GAUGE-INVARIANT CENTERED encoder,
+        # measure_density_z_encode='dual_centered'. Spec 30's re-measurement found that
+        # spec 28's "rank-1 collapse" was largely a SOFTMAX-GAUGE MEAN OFFSET: the density
+        # is exactly invariant to B -> B + b, ||mu_B|| is 33-103x the centered signal, the
+        # CENTERED covariance has effective rank 6-21 of 50, and centering ALONE lifts the
+        # point-index reconstruction AUC from .43-.86 to .99+. The uncentered spec-29
+        # encoder is additionally SHIFT-UNSTABLE: cos(enc(r), enc(r+1)) ~ 0 (a
+        # policy-preserving constant reward shift rotates the index to near-orthogonal),
+        # while the centered encoder reads 1.000000. Two SEPARATE APIs (there is no M=1
+        # limit of the centered sample encoder: m_c = 0 identically at M=1). ---
+        config.measure_density_z_prompt = 'sample'   # WHICH API this arm conditions on
+          # under 'dual_centered'. 'point' = the ANALYTIC CENTERED POINT PROMPT
+          # z = sqrt(d)*norm(B̄(phi(g)) - mu_hat) (mean subtraction alone, no inverse
+          # covariance) -- never call it a Dirac/M=1 limit. 'sample' = the REWARD-SAMPLE
+          # encoder zhat = sqrt(d)*norm((C_hat+lam I)^-1 m_c),
+          # m_c = (1/M) sum_j (B̄(u_j)-mu_hat)(r_j-rbar), M > 1 (M=1 RAISES): training rows
+          # use the batch query set with r = kg, and sample_actions' native goal eval uses
+          # the frozen M=measure_density_z_eval_pool_m pool with r = kg(goal, pool) -- it
+          # NEVER silently substitutes the point prompt (spec 30 §4.8: that substitution is
+          # what made spec 29's .812 uninterpretable). Read only under 'dual_centered'.
+        config.measure_density_z_eval_pool_m = 256   # M for the native-goal eval
+          # reward-sample pool (spec 30a pins 256). The pool is a FROZEN draw of RAW
+          # hit-spec block coords from the first training batch's next states -- the pinned
+          # base measure rho_phi -- stored as a param leaf, so it serializes and eval reads
+          # exactly the object training wrote. Read only under 'dual_centered' + 'sample'.
+        config.measure_density_z_cov_eig_floor = 1e-6   # eigenvalue floor applied to C_hat
+          # before the solve, as a multiple of tr(C_hat)/d. The centered covariance has
+          # genuine near-zero directions (eff rank 6-21 of 50); an unfloored inverse would
+          # amplify their numerical noise. Read only under 'dual_centered'.
+        config.measure_density_z_const_eps = 1e-6   # CONSTANT-REWARD FALLBACK threshold on
+          # ||c||: a (near-)constant reward has m_c ~ 0, and normalizing it would turn
+          # numerical noise into a confident-looking task index. Below this the encoder
+          # returns z_neutral = 1_d (||1_d|| = sqrt(d), so the standing norm invariant
+          # holds). ||m_c||, ||c||, Var[r] and the fallback rate are always logged.
+          # Read only under 'dual_centered'.
+        # --- Spec 30a Item 4 / spec 30 P4: duplicate-query instrumentation (NO FIX). ---
+        config.measure_density_dup_instrument = False   # log per-batch exact- and
+          # eps-duplicate query fractions and the irreducible-CE estimate E[log|class|]
+          # (raw and (1-gamma)-weighted). In hard mode identical queries are labelled as
+          # each other's negatives; this measures the RATE before anyone engineers a
+          # multi-positive target. Instrumentation only -- info keys, no loss change.
+        config.measure_density_dup_eps = 0.1   # eps-duplicate radius in EPS-SCALED query
+          # units (u_sc is already divided by each block's eps, so 0.1 = a tenth of the
+          # kernel width). Read only under measure_density_dup_instrument=True.
         # --- Spec 25: FB's three index-coupling mechanisms, ported to the density
         # estimator. All four knobs live UNDER the measure_density_z lattice (each is
         # refused outside it), all default OFF = the spec-24 arm bit-for-bit, in both the

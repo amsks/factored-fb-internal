@@ -1,0 +1,82 @@
+# Spec 30 P1 arm A -- ra2_cs_centpoint: the ANALYTIC CENTERED POINT PROMPT
+# (PAPER/Multistep-FB/specs/30-review-response.md P1 + specs/30a-impl-wave1.md Item 1).
+#
+# THE QUESTION this arm answers, and the reason it is run BESIDE ra2_cs_centdual rather
+# than instead of it: does MEAN SUBTRACTION ALONE repair goal prompting? Spec 30's
+# geometry re-measurement says it nearly does -- centering takes the point index from
+# collapsed (pairwise cos .9995) to separated (.001-.004) and its reward reconstruction
+# from AUC .43-.86 to .99+, with the inverse covariance adding only participation-ratio
+# headroom and a small AUC edge. Spec 30 P2.3 is explicit that centering and dualization
+# must NOT be bundled, or the outcome cannot be attributed to either.
+#
+#   z_point = sqrt(d) * normalize( B̄(phi(g)) - mu_hat )
+#
+# TERMINOLOGY (binding, spec 30 Rev 1): this is the ANALYTIC CENTERED POINT PROMPT -- the
+# population moment of a Dirac-style goal reward. It is NOT the "M=1 / Dirac limit" of the
+# reward-sample encoder, because that encoder HAS no M=1 limit: its centered moment
+# m_c = (1/M) sum_j (B(u_j)-mu)(r_j-rbar) is identically zero at M=1 (r_1 - rbar = 0).
+# The two are separate APIs, and this arm conditions on the first one at TRAIN and at EVAL
+# alike (so there is no train/eval prompt mismatch of the kind that made spec 29's .812
+# uninterpretable).
+#
+# Pre-registered reading (spec 30 P1): if this arm matches the reward-sample arm on goals,
+# the conclusion is "mean subtraction suffices for POINT-GOAL prompting" -- NOT "the
+# inverse covariance is unnecessary for general reward inference", which only the
+# reward-sample arm and the G29-3 reward families can speak to.
+#
+# Everything else is matched to ra2_cs_centdual and to the spec-29 R-A recipe: the actor
+# integrates the ACTUAL reward samples (measure_density_z_actor_reward=kernel), the task
+# mixture is unchanged (rand_frac 0.5, sphere rows masked out of the actor-q term by the
+# existing z_hindsight machinery), the index runs through the slow-EMA tower
+# (enc_tau=0.0005, REQUIRED by create()), and mu_hat/C_hat are EMA'd param leaves on the
+# spec-29 Sigma_hat schedule. C_hat is tracked and logged here even though the point
+# prompt does not solve against it -- it is the geometry instrument the spec-30 claim
+# rests on (eff rank of the CENTERED covariance), and tracking it keeps the two arms'
+# statistics comparable.
+#
+# Reads / kill gate / instruments: identical to ra2_cs_centdual (see that config).
+# Anchors: cube-single g .93 / BC .111 / R-A-uncentered .812; quote 500k AND mean >= 350k.
+#
+# ⚠ NEW ARM: spec-29/z24/z25 numbers are NOT comparable to it.
+#
+# Delta vs cube_single_state_measure_density_z_centdual_d50: measure_density_z_prompt
+# sample -> point (and, forced by that, no eval pool -- the point arm registers none).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityZ-RA2-CentPoint-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_z: true
+  measure_density_z_rand_frac: 0.5
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_density_z_encode: dual_centered
+  measure_density_z_prompt: point
+  measure_density_z_enc_tau: 0.0005
+  measure_density_z_ridge_lambda_mult: 0.01
+  measure_density_z_sigma_tau: 0.005
+  measure_density_z_cov_eig_floor: 1.0e-6
+  measure_density_z_const_eps: 1.0e-6
+  measure_density_z_actor_reward: kernel
+  measure_density_dup_instrument: true
+wandb_mode: online

@@ -1,0 +1,100 @@
+# Spec 30 P1 arm B -- ra2_cs_centdual: the CENTERED REWARD-SAMPLE index
+# (PAPER/Multistep-FB/specs/30-review-response.md P1 + specs/30a-impl-wave1.md Item 1).
+#
+# THE ARM. Spec 30 re-measured the geometry spec 28 diagnosed and found the "rank-1
+# collapse" was largely a SOFTMAX-GAUGE MEAN OFFSET: the density is exactly invariant to
+# B -> B + b, ||mu_B|| is 33-103x the centered signal, the CENTERED covariance has
+# effective rank 6-21 of 50, and centering ALONE lifts point-index reward reconstruction
+# from AUC .43-.86 to .99+. The spec-29 (uncentered) encoder is additionally SHIFT-
+# UNSTABLE: cos(enc(kg), enc(kg+1)) = .035/-.000/-.044 -- a constant reward shift, which
+# changes no policy at all, rotates the task index to near-orthogonal. The centered
+# encoder reads 1.000000. This arm conditions on the centered REWARD-SAMPLE index:
+#
+#   zhat = sqrt(d) * normalize( (C_hat + lam I)^-1 m_c ),
+#   m_c  = (1/M) sum_j (B̄(u_j) - mu_hat)(r_j - rbar),   M > 1  (M=1 RAISES),
+#   hindsight training rows: r_j = kg_j = _delta_phi(goals, u_raw) over the batch query
+#                            set (query-set normalized -- standing spec-28 parity rule).
+#
+# and the ACTOR integrates the ACTUAL reward samples (measure_density_z_actor_reward=
+# kernel, spec 28 cell ii): q = sum_j w_j(s,a,zhat) * r(u_j). The latent is a policy index
+# only; reward semantics stay external -- what made the g path work (cs .93 / cd .736).
+#
+# ⚠ THE EVAL RULE (spec 30a, hard requirement, not a preference). The native goal eval
+# goes through the REWARD-SAMPLE API with an M=256 kernel pool: sample_actions builds
+# kg(goal, pool) over the frozen 256-row pool (ZEvalPoolState, a fixed draw of raw
+# hit-spec block coords from the first training batch's next states -- the pinned base
+# measure rho_phi -- stored as a param leaf so eval reads exactly what training wrote) and
+# encodes THAT. It never silently substitutes the analytic point prompt. Spec 29's .812
+# came from exactly that substitution (spec 30 sec.4.8: the reward-sample path was built,
+# unit-tested and trained through, but NEVER rolled out), which is why that number cannot
+# be read as general-encoder evidence. The point shortcut is available as a separate
+# DIAGNOSTIC column only, through `sample_actions_point` / `density_z_point_prompt`.
+#
+# Contract knobs that are NOT free choices:
+#   measure_density_z_enc_tau > 0 is REQUIRED (create() refuses the centered encode
+#     without it): the solve runs through B̄, and doing that through the fast-drifting
+#     target tower is the known non-stationarity risk. 0.0005 = the C3 round-1 dose.
+#   mu_hat and C_hat are EMA'd on the SAME schedule as spec 29's Sigma_hat and stored as
+#     ORDINARY PARAM LEAVES; C_hat is symmetrized every update and its spectrum floored
+#     before the solve. Batch statistics are forbidden (they reintroduce the train/eval
+#     mismatch that broke the first z build). Base measure for mu_hat, C_hat, rbar and m_c
+#     alike = the batch next-state query marginal, used consistently.
+#   lambda = 0.01 * tr(C_hat)/d (the mean-eigenvalue convention of
+#     eval_spec30_geom.py::ridge_batch(centered=True), which produced the preflight
+#     evidence). measure_density_z_rand_frac stays 0.5 -- the task mixture is unchanged.
+#
+# Reads: mid-run, eval_z_action_ranking.py actor goal-sensitivity must lift off 0.000
+# (noise floor .19) and z_cos_spread must stay de-collapsed; an arm flat at sensitivity ~0
+# by 250k is KILLED rather than run to 500k -- but mid-run SUCCESS numbers are never
+# quoted (spec-18 rule). Screen: cube-single 500k s0 vs g .93 / BC .111 /
+# R-A-uncentered .812, quoting 500k AND mean over >= 350k. Instruments every log interval:
+# measure/density_zcov_{eff_rank,cond,min_eig}, density_zmu_norm, density_zc_gauge_ratio,
+# density_zc_{mc_norm,c_norm,r_var,fallback_frac}, density_zc_sync_{mu,cov}, and spec 30a
+# Item 4's duplicate-query instrument (instrumentation only, no fix).
+#
+# ⚠ NEW ARM: spec-29/z24/z25 numbers are NOT comparable to it and must never be mixed into
+# one table without saying so.
+#
+# Delta vs cube_single_state_measure_density_z_dual_kernelrew_d50 (spec 29 R-A/kernel):
+# measure_density_z_encode dual -> dual_centered (+ the centered encoder's own knobs at
+# their defaults, + the duplicate instrument, which changes no loss). One variable.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityZ-RA2-CentDual-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_z: true
+  measure_density_z_rand_frac: 0.5
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_density_z_encode: dual_centered
+  measure_density_z_prompt: sample
+  measure_density_z_eval_pool_m: 256
+  measure_density_z_enc_tau: 0.0005
+  measure_density_z_ridge_lambda_mult: 0.01
+  measure_density_z_sigma_tau: 0.005
+  measure_density_z_cov_eig_floor: 1.0e-6
+  measure_density_z_const_eps: 1.0e-6
+  measure_density_z_actor_reward: kernel
+  measure_density_dup_instrument: true
+wandb_mode: online
