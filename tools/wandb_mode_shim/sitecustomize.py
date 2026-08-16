@@ -178,6 +178,52 @@ if os.environ.get("OGBENCH_NEXT_ACTIONS") == "1":
     except Exception:
         pass
 
+# --- native-reward singletask GCDataset wrap (spec27 Q4 / spec29 section 2) ---
+# The offline supervised topline (tools/wandb_mode_shim/sac_singletask.py)
+# reuses GCDataset purely for its uniform-random batching -- SAC never reads
+# batch['goals']/['value_goals']/['actor_goals'] -- but GCDataset.sample()
+# unconditionally overwrites batch['rewards']/['masks'] with a synthetic
+# hindsight signal (1 iff the sampled index equals a resampled goal index).
+# For a `<env>-singletask-taskN-v0` dataset, `dataset['rewards']`/['masks']
+# already hold the REAL per-task reward (ogbench/relabel_utils.relabel_dataset
+# wrote them at load time from env.unwrapped._reward_task_id). This wrap
+# restores those real values whenever the agent config opts in via
+# `native_reward_singletask=True` (checked per-call, so every OTHER run --
+# every existing GCDataset config, which never sets this key -- gets the
+# ORIGINAL bit-identical batch back). Always installed (no env-var gate) since
+# the behavior is already off unless the config asks for it, same pattern as
+# GCDataset's own built-in opt-in keys (e.g. `next_actions` above).
+try:
+    import utils.datasets as _ogb_datasets_nr
+
+    _orig_gc_sample = _ogb_datasets_nr.GCDataset.sample
+
+    @functools.wraps(_orig_gc_sample)
+    def _gc_sample_native_reward(self, batch_size, idxs=None, evaluation=False):
+        if idxs is None:
+            idxs = self.dataset.get_random_idxs(batch_size)
+        batch = _orig_gc_sample(self, batch_size, idxs=idxs, evaluation=evaluation)
+        if self.config.get("native_reward_singletask", False):
+            batch["rewards"] = self.dataset["rewards"][idxs]
+            batch["masks"] = self.dataset["masks"][idxs]
+        return batch
+
+    _ogb_datasets_nr.GCDataset.sample = _gc_sample_native_reward
+except Exception:
+    pass
+
+# --- SAC-singletask agent injection (spec27 Q4 / spec29 section 2 topline) ---
+# Register SACSingleTaskAgent so configs may select agent_name='sac_singletask'
+# via --agent=tools/wandb_mode_shim/sac_singletask.py. Guarded like the blocks
+# below. Does not touch/replace agents['sac'].
+try:
+    import agents as _ogb_agents_st
+    from sac_singletask import SACSingleTaskAgent as _SACSingleTaskAgent
+
+    _ogb_agents_st.agents.setdefault("sac_singletask", _SACSingleTaskAgent)
+except Exception:
+    pass
+
 # --- CRL+FlowBC agent injection (independent of the blocks above) ---
 # Register CRLFlowBCAgent so configs may select agent_name='crl_flowbc' via
 # --agent=tools/wandb_mode_shim/crl_flowbc.py. Guarded: inert in non-jax

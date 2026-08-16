@@ -1,0 +1,51 @@
+# Spec 27 Q4 / spec 29 section 2 -- offline supervised topline, cube-single.
+#
+# WHY THIS EXISTS: the FB literature reports zero-shot success as a percentage
+# of an offline agent trained with the TRUE task reward on the SAME data. This
+# repo had no such number. This cell trains the vendored, non-goal-conditioned
+# OGBench SAC agent (third_party/ogbench/impls/agents/sac.py, unmodified --
+# `agents.agents['sac']`) directly on `batch['rewards']`, sourced from
+# OGBench's own `<env>-singletask-taskN-v0` reward relabeling (loads the exact
+# same cube-single-play-v0.npz the zero-shot cells use; `relabel_dataset`
+# only ADDS real reward/mask columns for the fixed `_reward_task_id` -- see
+# ogbench/relabel_utils.py). See tools/wandb_mode_shim/sac_singletask.py for
+# the config-only wiring (dataset_class/discrete/encoder/frame_stack/p_aug --
+# keys main.py/GCDataset require that sac.py's stock get_config() omits
+# because upstream launches it through its own unvendored singletask harness
+# -- plus native_reward_singletask=True, which opts into the sitecustomize.py
+# GCDataset.sample wrap that substitutes the real reward for the synthetic
+# hindsight one; default-off for every other GCDataset config).
+#
+# ONE offline SAC model per task (task1..task5): `env_name` here is task1;
+# the launcher overrides it per task/seed. `_reward_task_id` is FIXED by env
+# registration, so `env.reset(options=dict(task_id=T))` for ANY T just uses
+# the fixed task (third_party/ogbench/ogbench/manipspace/envs/manipspace_env.py:288-297)
+# -- eval_tasks=1 therefore evaluates the correct (only) task once instead of
+# wastefully repeating it 5x under 5 (possibly mislabeled) wandb keys; read
+# `evaluation/overall_success` from eval.csv/wandb for the number.
+#
+# Budget matches the zero-shot density-measure cells this is the topline for
+# (configs/gciql/cube_single_state_measure_density_d50.yaml): 500k steps, 50
+# eval episodes, same dataset. SAC's own stock hyperparameters (lr, batch
+# size, hidden dims) are left untouched -- this is a reporting upgrade, not a
+# method experiment; only reward-source and launch wiring are added.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-singletask-task1-v0
+agent_file: tools/wandb_mode_shim/sac_singletask.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_tasks: 1
+eval_on_cpu: 1
+run_group: Q4-CubeSingle-SAC-Singletask
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides: {}
+wandb_mode: online

@@ -129,6 +129,37 @@ class NhatHead(nn.Module):
         return jax.nn.softplus(h[..., 0])
 
 
+class ZSigmaState(nn.Module):
+    """Spec 29 R-A: the EMA-tracked UNCENTERED second moment Sigma_hat_B = E[B(u)B(u)^T]
+    of the index encoder's backward embeddings, held as an ORDINARY PARAM LEAF.
+
+    It is a running statistic, not a learned weight, but it is deliberately stored the
+    way `density_b_zenc` is stored (a module in the param tree, mixed by hand inside
+    `update`) rather than recomputed per batch. Two reasons, both scars:
+      * it SERIALIZES into the checkpoint, so `sample_actions` -- and every offline eval
+        harness -- reads the IDENTICAL object the training-time conditioning used. Batch
+        statistics are forbidden by the spec-29 contract precisely because they
+        reintroduce the train/eval mismatch that broke the first z build (8/8 unit tests
+        green while the eval path was wrong, because no test drove sample_actions);
+      * the ridge solve (Sigma_hat + lambda I)^-1 m_hat is only a stable, comparable
+        object if Sigma_hat is quasi-stationary; a per-batch Sigma over M ~ 1024 queries
+        of a d=50 tower is a noisy, rank-deficient estimate that would make the index
+        jitter step to step.
+
+    The gradient is identically zero here (the matrix is only ever read at frozen params,
+    inside a stop_gradient), so adam's update on this leaf is exactly 0 and the EMA in
+    `update` is its sole writer. Init = I: the first steps then encode
+    (I + lambda I)^-1 m ~ m, i.e. the sphere index's direction, and the EMA walks it onto
+    the real second moment within ~1/tau_sigma steps (no cold-start blow-up, which a
+    zero init would give)."""
+    dim: int
+
+    @nn.compact
+    def __call__(self):
+        return self.param('sigma',
+                          lambda _key: jnp.eye(self.dim, dtype=jnp.float32))
+
+
 class GCStatePsiValue(GCBilinearValue):
     """Bilinear critic with a STATE-CONDITIONED backward leg: Q=phi(s,a).psi(s,g)/sqrt(d).
 
@@ -1012,7 +1043,58 @@ class GCIQLFlowAgent(GCIQLAgent):
             return 'density_b_zenc'
         return 'target_density_b'
 
-    def _density_z_encode(self, goal_obs):
+    def _density_z_sigma(self):
+        """Spec 29 R-A: the stored [d, d] second moment Sigma_hat_B (see ZSigmaState).
+        Read at frozen params -- never with params=grad_params -- so no gradient ever
+        flows into it and the EMA inside `update` is its only writer."""
+        return self.network.select('density_zsigma')()
+
+    def _density_z_dual(self, m_hat):
+        """Spec 29 R-A §1: the DUAL index
+
+            zhat = sqrt(d) * normalize( (Sigma_hat_B + lambda I)^-1 m_hat ),
+            lambda = measure_density_z_ridge_lambda_mult * tr(Sigma_hat)/d.
+
+        `m_hat` is the PRIMAL moment (1/M) sum_j B(u_j) r_j of the row's reward samples;
+        this method is the only place the primal->dual correction happens, so train and
+        eval cannot drift apart in it. lambda is written as a multiple of the MEAN
+        EIGENVALUE tr(Sigma)/d exactly as `scripts/rescuing_fb/spec28_encodings.py::
+        ridge_lambdas` defines it -- dimensionless, comparable across checkpoints and
+        towers, and the same three P0c-winning scales {1e-3, 1e-2, 1e-1}.
+
+        ||zhat|| = sqrt(d) is RE-IMPOSED after the solve (a ridge coefficient is not
+        norm-preserving): everything downstream -- F's conditioning leg, the actor's goal
+        leg, the sphere rows it is mixed with -- assumes the standing invariant, and a z
+        of a different length is simply out of the conditioning distribution.
+
+        Stop-gradded like every other index in this file: the dual correction must not
+        become a path by which the actor's loss reshapes B."""
+        d = float(self.config['measure_density_dim'])
+        sigma = self._density_z_sigma()                                    # [d, d]
+        lam = float(self.config.get('measure_density_z_ridge_lambda_mult', 0.01)) \
+            * jnp.trace(sigma) / d
+        c = jnp.linalg.solve(sigma + lam * jnp.eye(sigma.shape[0], dtype=sigma.dtype),
+                             m_hat.T).T                                    # [B, d]
+        return jax.lax.stop_gradient(_sphere(c, d))
+
+    def density_z_from_reward_samples(self, u_scaled, r):
+        """Spec 29 R-A, the GENERAL REWARD INTERFACE (the binding user requirement, and
+        what gate G29-3 reads): reward samples {(u_j, r_j)} -> index zhat, no goal
+        anywhere. `u_scaled` is a [P, d_c] eps-scaled query pool (`_density_queries`
+        output -- e.g. the standing P=16384 pool the zero-shot harnesses build) and `r`
+        is [B, P] (or [P]) reward values on it; returns [B, d].
+
+        This is the harness-facing entrypoint: compute zhat off the SERIALIZED
+        Sigma_hat + the pool moment, then roll the policy with `sample_actions_with_z`.
+        It is the identical solve the training rows go through -- only the reward
+        samples differ (hindsight kernels there, arbitrary reward families here)."""
+        r2 = jnp.atleast_2d(r)                                              # [B, P]
+        b_u = jax.lax.stop_gradient(
+            self.network.select(self._density_z_enc_module())(u_scaled))    # [P, d]
+        m_hat = jnp.einsum('bp,pd->bd', r2, b_u) / r2.shape[-1]
+        return self._density_z_dual(m_hat)
+
+    def _density_z_encode(self, goal_obs, u_scaled=None, r=None):
         """Spec 24 (Definitions §1): the deterministic half of the z mix,
         z(x) = sqrt(d) * B̄(x̃) / ||B̄(x̃)||, B̄ := target_density_b (frozen -- never
         called with params=grad_params), x̃ := _density_queries' eps-scaled hit-spec
@@ -1023,22 +1105,58 @@ class GCIQLFlowAgent(GCIQLAgent):
 
         Spec 25 C3: when measure_density_z_enc_tau > 0, B̄ := density_b_zenc (the slow
         EMA copy) instead -- see _density_z_enc_module. Still frozen, still rng-free,
-        still reproducible from the restored checkpoint alone."""
+        still reproducible from the restored checkpoint alone.
+
+        Spec 29 R-A (measure_density_z_encode='dual'): the PRIMAL feature vector above is
+        replaced by the DUAL coefficient zhat = sqrt(d)*normalize((Sigma_hat+lambda I)^-1
+        m_hat) (see _density_z_dual). The moment m_hat = (1/M) sum_j B̄(u_j) r_j is built
+        from the ROW'S OWN REWARD SAMPLES when the caller supplies them:
+          `u_scaled` [M, d_c] -- the eps-scaled query set, and
+          `r`       [B, M]    -- the reward values on it; for hindsight rows that is
+                                 kg = _delta_phi(goals, u_raw), the QUERY-SET-NORMALIZED
+                                 kernel (rows sum to 1 over the M queries), matched
+                                 exactly to the g path -- the standing spec-28 rule.
+        With no samples supplied (the EVAL entrypoint: sample_actions gets a goal and has
+        no pool) m_hat falls back to B̄(x̃_g), which is the same construction at the sharp-
+        kernel/single-sample limit r = Dirac at the goal -- the M=1 member of the very
+        same family, NOT a different object (pinned by a unit test). The ridge solve, the
+        stored Sigma_hat and the sqrt(d) renormalization are identical on both paths; a
+        harness that wants the exact P=16384-pool moment at eval calls
+        `density_z_from_reward_samples` + `sample_actions_with_z`.
+
+        The sphere branch is byte-for-byte the shipped code (same ops, same order), so
+        every existing arm is bit-identical."""
         d = float(self.config['measure_density_dim'])
         blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
         x_sc = self._density_queries(goal_obs, blocks)                  # [B, d_c] eps-scaled
+        if str(self.config.get('measure_density_z_encode', 'sphere')) == 'dual':
+            enc_mod = self._density_z_enc_module()
+            if u_scaled is None:
+                m_hat = self.network.select(enc_mod)(x_sc)                    # Dirac limit
+            else:
+                b_u = self.network.select(enc_mod)(u_scaled)              # [M, d], frozen
+                m_hat = jnp.einsum('bm,md->bd', r, b_u) / r.shape[-1]
+            return self._density_z_dual(jax.lax.stop_gradient(m_hat))
         b_emb = self.network.select(self._density_z_enc_module())(x_sc)  # [B, d], frozen tower
         z = _sphere(b_emb, d)
         return jax.lax.stop_gradient(z)
 
-    def _density_z_masked(self, goal_obs, rng):
+    def _density_z_masked(self, goal_obs, rng, u_scaled=None, r=None):
         """Spec 24's `_density_z` (see its docstring -- SAME ops, SAME split order, so
         `_density_z` simply drops the second return value and stays bit-identical),
         plus the per-row HINDSIGHT indicator spec 25 C3's BC mask needs:
         1.0 where z_i came from the row's own relabeled goal coords, 0.0 where it was a
         fresh sphere draw. The indicator is the same `use_rand` bernoulli the mix itself
-        consumes -- not a second draw -- so mask and z can never disagree."""
-        z_g = self._density_z_encode(goal_obs)
+        consumes -- not a second draw -- so mask and z can never disagree.
+
+        Spec 29: `u_scaled`/`r` are the row's reward samples, forwarded verbatim to
+        _density_z_encode (read only under measure_density_z_encode='dual'). The MIXTURE
+        is untouched -- fresh sqrt(d)-sphere rows at measure_density_z_rand_frac exactly
+        as before, and the hindsight indicator still comes from the same single draw, so
+        the sphere rows (which have no reward samples at all) are masked out of the
+        kernel arm's actor-q term by machinery that already exists and is already
+        tested (spec 28 cell ii)."""
+        z_g = self._density_z_encode(goal_obs, u_scaled, r)
         d = int(self.config['measure_density_dim'])
         B = goal_obs.shape[0]
         rng_sphere, rng_mix = jax.random.split(rng)
@@ -1049,7 +1167,7 @@ class GCIQLFlowAgent(GCIQLAgent):
         hindsight = (1.0 - use_rand[:, 0].astype(z.dtype))                 # [B]
         return jax.lax.stop_gradient(z), jax.lax.stop_gradient(hindsight)
 
-    def _density_z(self, goal_obs, rng):
+    def _density_z(self, goal_obs, rng, u_scaled=None, r=None):
         """Spec 24 (Definitions §1): the full z mix -- z_i = z(x_{g,i})
         (_density_z_encode) with probability 1 - measure_density_z_rand_frac, else a
         FRESH uniform sqrt(d)-sphere draw (FB's standard task-prior mix), drawn per row
@@ -1062,8 +1180,10 @@ class GCIQLFlowAgent(GCIQLAgent):
 
         Spec 25: the body moved verbatim into `_density_z_masked` (which additionally
         returns the hindsight indicator); this wrapper keeps the shipped signature and
-        is bit-identical -- same ops, same rng split order, same value."""
-        z, _ = self._density_z_masked(goal_obs, rng)
+        is bit-identical -- same ops, same rng split order, same value.
+
+        Spec 29: `u_scaled`/`r` (the row's reward samples) pass straight through."""
+        z, _ = self._density_z_masked(goal_obs, rng, u_scaled, r)
         return z
 
     def _density_z_tilt(self, z, b_emb):
@@ -1280,7 +1400,21 @@ class GCIQLFlowAgent(GCIQLAgent):
             # this is a SEPARATE mechanism from the actor_cond='z' branch above).
             # spec 25 C3: keep the per-row hindsight indicator too (same draw, no extra
             # rng) so the imitation term can be masked to the reachable rows below.
-            actor_cond_input, z_hindsight = self._density_z_masked(goals, z_rng)
+            # spec 29 R-A: under measure_density_z_encode='dual' the index is built from
+            # the row's REWARD SAMPLES rather than the goal's own embedding -- the query
+            # set is the batch's next-state block coords (the same support the measure
+            # trains on and the same one the actor's q term integrates over) and the
+            # reward is the g-path's exact kg. Trace-time branch: 'sphere' arms compute
+            # nothing extra and consume no extra rng.
+            _u29a = _r29a = None
+            if str(self.config.get('measure_density_z_encode', 'sphere')) == 'dual':
+                _bl29a = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+                _u29a = self._density_queries(batch['next_observations'], _bl29a)
+                _r29a = jax.lax.stop_gradient(self._delta_phi(
+                    goals, self._raw_block_cols(batch['next_observations'], _bl29a),
+                    _bl29a))                                                   # [B, M]
+            actor_cond_input, z_hindsight = self._density_z_masked(
+                goals, z_rng, _u29a, _r29a)
         else:
             actor_cond_input = goals
         # actor_z_greedy_frac (campaign v2 knob 2): per-sample, with probability frac,
@@ -2344,12 +2478,21 @@ class GCIQLFlowAgent(GCIQLAgent):
         b_emb = self.network.select('density_b')(u_sc, params=grad_params)    # [M, d]
 
         z = None
+        z_u29 = z_r29 = None
         if z_on:
             # spec 24: z built ONCE per row, off a split of the incoming rng -- the
             # off-branch (z_on=False) never executes this split, so its rng usage stays
             # bit-identical to the shipped spec-18/19a code below.
             rng, z_rng = jax.random.split(rng)
-            z = self._density_z(g, z_rng)                                    # [B, d], stop-gradded
+            if str(self.config.get('measure_density_z_encode', 'sphere')) == 'dual':
+                # spec 29 R-A: the row's reward samples = (this batch's query set, kg).
+                # kg is _delta_phi(g, u_raw) -- the query-set-normalized kernel, the SAME
+                # object the g path integrates, per the standing spec-28 parity rule.
+                # Note `k` below is _delta_phi(nobs, u_raw): the CE's immediate term at
+                # the row's OWN successor, a different row-index -- not this.
+                z_u29 = u_sc
+                z_r29 = jax.lax.stop_gradient(self._delta_phi(g, u_raw, blocks))  # [B, M]
+            z = self._density_z(g, z_rng, z_u29, z_r29)                      # [B, d], stop-gradded
 
         if behavior:
             f_emb = self.network.select('density_f')(
@@ -2476,7 +2619,8 @@ class GCIQLFlowAgent(GCIQLAgent):
             # whole spec is "all four screens flat on density_w_ztv". Everything here
             # is stop-gradded and the key is fold_in-derived, so the instrument adds
             # neither a gradient nor an rng shift.
-            z_alt = self._density_z(g, jax.random.fold_in(z_rng, _Z_ZTV_FOLD))
+            z_alt = self._density_z(g, jax.random.fold_in(z_rng, _Z_ZTV_FOLD),
+                                    z_u29, z_r29)
             f_alt = self.network.select('density_f')(
                 jnp.concatenate([obs, acts, z_alt], -1), params=grad_params)
             logits_alt = jnp.einsum('hbd,md->hbm', f_alt, b_emb) / tau
@@ -3075,6 +3219,39 @@ class GCIQLFlowAgent(GCIQLAgent):
                 self.network.params['modules_density_b'],
                 self.network.params['modules_density_b_zenc'],
             )
+        if self.config.get('measure_density_z', False) \
+                and str(self.config.get('measure_density_z_encode', 'sphere')) == 'dual':
+            # Spec 29 R-A: the EMA of the UNCENTERED second moment Sigma_hat_B =
+            # E[B̄(u)B̄(u)^T], over this batch's query set at the PRE-STEP index tower
+            # (same source discipline as the target/zenc soft-updates just above). Written
+            # here, outside loss_fn, so it is a pure statistic with no gradient path, and
+            # stored as a param leaf so eval reads the identical object -- the contract's
+            # first requirement. Sigma_batch = B^T B / M matches
+            # spec28_encodings.ridge_index's own `sigma = b.T @ b / P` EXACTLY (uncentered,
+            # 1/M not 1/(M-1)), which is what makes the training-time index the same
+            # object the P0 probes scored.
+            _bl29 = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+            _u29 = self._density_queries(batch['next_observations'], _bl29)
+            _b29 = jax.lax.stop_gradient(
+                self.network.select(self._density_z_enc_module())(_u29))       # [M, d]
+            _sig_batch = _b29.T @ _b29 / _b29.shape[0]
+            _tau_sig = float(self.config.get('measure_density_z_sigma_tau', 0.005))
+            _sig_new = (self.network.params['modules_density_zsigma']['sigma']
+                        * (1.0 - _tau_sig) + _sig_batch * _tau_sig)
+            new_network.params['modules_density_zsigma'] = {'sigma': _sig_new}
+            # The two statistics that DIAGNOSED the original failure (spec 28 P0: eff rank
+            # 1.0002/50, cond 1e6-1e7 => the sphere index was collapsed). Logged every
+            # step so they are visible DURING training instead of being reconstructed from
+            # checkpoints afterwards -- same definitions as eval_spec28_p0b.py's geometry
+            # block (participation ratio (sum ev)^2/sum ev^2; cond = ev_max/ev_min), so the
+            # training curve and the probe are directly comparable numbers.
+            _ev29 = jnp.clip(jnp.linalg.eigvalsh(_sig_new), 0.0, None)
+            info['measure/density_zsigma_eff_rank'] = \
+                jnp.sum(_ev29) ** 2 / (jnp.sum(_ev29 ** 2) + 1e-30)
+            info['measure/density_zsigma_cond'] = \
+                _ev29[-1] / jnp.maximum(_ev29[0], 1e-12)
+            info['measure/density_zsigma_trace_over_d'] = \
+                jnp.trace(_sig_new) / float(self.config['measure_density_dim'])
 
         return self.replace(network=new_network, rng=new_rng), info
 
@@ -3759,6 +3936,38 @@ class GCIQLFlowAgent(GCIQLAgent):
                 assert float(config.get('bc_coeff', 0.0)) > 0.0, \
                     "measure_density_z_bc_hindsight masks the distillation (imitation) " \
                     "term, which bc_coeff=0 already switches off -- the knob would be inert"
+            # --- Spec 29 R-A: the INDEX ENCODE. 'sphere' (default) = spec 24's primal
+            # feature vector sqrt(d)*normalize(B̄(x̃_g)); 'dual' = the ridge-corrected
+            # coefficient sqrt(d)*normalize((Sigma_hat+lambda I)^-1 m_hat). ---
+            _zenc_kind = str(config.get('measure_density_z_encode', 'sphere'))
+            assert _zenc_kind in ('sphere', 'dual'), \
+                "measure_density_z_encode must be 'sphere' (spec 24 default, primal " \
+                f"feature vector) or 'dual' (spec 29 R-A, ridge coefficient), got {_zenc_kind!r}"
+            _lam_mult = float(config.get('measure_density_z_ridge_lambda_mult', 0.01))
+            _sig_tau = float(config.get('measure_density_z_sigma_tau', 0.005))
+            if _zenc_kind == 'dual':
+                assert _zenc > 0.0, \
+                    "measure_density_z_encode='dual' REQUIRES measure_density_z_enc_tau>0 " \
+                    "(spec 29 implementation contract, second bullet): the ridge solve " \
+                    "(Sigma_hat+lambda I)^-1 m_hat runs through B̄, and doing that through " \
+                    "the fast-drifting target tower is the known non-stationarity risk. " \
+                    "Round-1 dose 0.0005, the C3 machinery"
+                assert _lam_mult > 0.0, \
+                    "measure_density_z_ridge_lambda_mult must be > 0 (lambda = mult * " \
+                    f"tr(Sigma_hat)/d); got {_lam_mult}. mult=0 is an UNREGULARIZED solve " \
+                    "against a rank-1-dominated Sigma (cond 1e6-1e7 measured in spec 28 " \
+                    "P0) -- refused"
+                assert 0.0 < _sig_tau <= 1.0, \
+                    "measure_density_z_sigma_tau (the Sigma_hat EMA rate) must be in " \
+                    f"(0, 1]; got {_sig_tau}. 0 would freeze Sigma_hat at its identity " \
+                    "init, making the 'dual' index a rescaled sphere index while logging " \
+                    "as dual (the 17b measure_coef fake-NULL species)"
+            else:
+                # Both dual-only knobs would be read nowhere under 'sphere'.
+                assert _lam_mult == 0.01 and _sig_tau == 0.005, \
+                    "measure_density_z_ridge_lambda_mult / measure_density_z_sigma_tau " \
+                    "are read ONLY under measure_density_z_encode='dual' (spec 29) -- " \
+                    "setting them off it configures nothing (no inert knobs)"
             # --- Spec 28 P1 cell (ii): the actor's REWARD OBJECT on the z path. ---
             _zar = str(config.get('measure_density_z_actor_reward', 'latent'))
             assert _zar in ('latent', 'kernel'), \
@@ -3788,6 +3997,14 @@ class GCIQLFlowAgent(GCIQLAgent):
                 assert not config.get(_k25, _off25), \
                     f"{_k25} requires measure_density_z=True (spec 25 §2) -- it is read " \
                     "only on the z-indexed density path and would be inert otherwise"
+            assert str(config.get('measure_density_z_encode', 'sphere')) == 'sphere', \
+                "measure_density_z_encode='dual' requires measure_density_z=True " \
+                "(spec 29 R-A) -- the encode is read only inside _density_z_encode on " \
+                "the z-indexed path and would be inert otherwise"
+            assert float(config.get('measure_density_z_ridge_lambda_mult', 0.01)) == 0.01 \
+                and float(config.get('measure_density_z_sigma_tau', 0.005)) == 0.005, \
+                "measure_density_z_ridge_lambda_mult / measure_density_z_sigma_tau are " \
+                "spec-29 dual-encode knobs and require measure_density_z=True"
             assert str(config.get('measure_density_z_actor_reward', 'latent')) == 'latent', \
                 "measure_density_z_actor_reward requires measure_density_z=True (spec 28 " \
                 "cell ii) -- it is read only inside _density_actor_q_z and would be inert " \
@@ -4253,6 +4470,13 @@ class GCIQLFlowAgent(GCIQLAgent):
                 # params entry, so it serializes into the checkpoint and the eval path
                 # reads it back with no file coupling (unlike 17b's protos).
                 network_info['density_b_zenc'] = (copy.deepcopy(b_def), ex_b)
+            if config.get('measure_density_z', False) \
+                    and str(config.get('measure_density_z_encode', 'sphere')) == 'dual':
+                # spec 29 R-A: Sigma_hat_B, the EMA'd second moment of the index tower's
+                # embeddings (see ZSigmaState). Registered ONLY under the dual encode, so
+                # every other arm's param tree stays byte-identical; an ordinary params
+                # entry, so it serializes and sample_actions reads the same matrix back.
+                network_info['density_zsigma'] = (ZSigmaState(dim=_d18), ())
         ors_pool_np = ors_pool_b_emb_np = None    # spec 19b: set below only when ors_reward_ckpt is on
         ors_tau_resolved = None
         if config.get('ors_reward_ckpt', ''):
@@ -4707,6 +4931,41 @@ def get_config():
           # separates z-CONDITIONING from the Bᵀz READOUT, which spec 24 changed together.
           # Requires measure_density_z=True; refused with actor_bc_only and with
           # rand_frac=1.0 (total mask). Not a coefficient: no dose can silently zero it.
+        # --- Spec 29 R-A: the dual-corrected index. Density-FB's softmax normalization
+        # destroys FB's linear identity Q_r = F^T E[rB], and the CE pins only the PRODUCT
+        # F^T B, so B's Euclidean geometry is gauge-arbitrary: spec 28 P0 measured
+        # Sigma_B at eff rank 1.0002/50 and cond 1e6-1e7, which makes the PRIMAL index
+        # sqrt(d)*normalize(B̄(g)) collapsed (pairwise cos .998-1.000) and near-orthogonal
+        # to the DUAL coefficient it is being used as (cos .010-.025). This knob
+        # conditions on the dual coefficient instead. Default 'sphere' = spec 24
+        # bit-for-bit (no extra module, no extra op, no extra rng). ---
+        config.measure_density_z_encode = 'sphere'   # 'sphere' (default) = spec 24's
+          # primal z(x) = sqrt(d)*normalize(B̄(x̃)). 'dual' = spec 29 R-A's
+          # zhat = sqrt(d)*normalize((Sigma_hat_B + lambda I)^-1 m_hat), where
+          # m_hat = (1/M) sum_j B̄(u_j) r_j over the row's reward samples -- for hindsight
+          # rows r_j = kg_j = _delta_phi(goals, u_raw), the QUERY-SET-NORMALIZED kernel
+          # (the standing spec-28 parity rule), and for an arbitrary reward family the
+          # samples themselves (density_z_from_reward_samples, the general reward
+          # interface gate G29-3 reads). ||zhat|| = sqrt(d) is re-imposed after the solve
+          # so the conditioning distribution keeps the standing invariant. Requires
+          # measure_density_z=True AND measure_density_z_enc_tau>0 (the solve must run
+          # through the slow-EMA index tower). The task mixture is unchanged: sphere rows
+          # still arrive at measure_density_z_rand_frac and, having no reward samples,
+          # are masked out of the kernel arm's actor-q term by the z_hindsight machinery.
+        config.measure_density_z_ridge_lambda_mult = 0.01   # spec 29: lambda = mult *
+          # tr(Sigma_hat)/d -- a multiple of the MEAN EIGENVALUE, so it is dimensionless
+          # and comparable across checkpoints/towers (the exact convention of
+          # scripts/rescuing_fb/spec28_encodings.py::ridge_lambdas). Default 0.01; the
+          # spec-29 knob range is {0.001, 0.01, 0.1}, the three P0c-winning scales.
+          # Read only under measure_density_z_encode='dual'.
+        config.measure_density_z_sigma_tau = 0.005   # spec 29: EMA rate of Sigma_hat_B,
+          # mixed in `update` from the batch's own query-set second moment B^T B / M at
+          # the pre-step index tower. NOT a batch statistic: the stored matrix is what
+          # both training and sample_actions read (the contract's first requirement --
+          # batch stats reintroduce the train/eval mismatch that broke the first z build).
+          # The spec does not name a rate; 10x the critic tau is the round-1 dose, fast
+          # enough to track B's drift and slow enough that the index is quasi-stationary.
+          # Read only under measure_density_z_encode='dual'.
         # --- Spec 25: FB's three index-coupling mechanisms, ported to the density
         # estimator. All four knobs live UNDER the measure_density_z lattice (each is
         # refused outside it), all default OFF = the spec-24 arm bit-for-bit, in both the

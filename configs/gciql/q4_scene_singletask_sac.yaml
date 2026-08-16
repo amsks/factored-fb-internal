@@ -1,0 +1,24 @@
+# Spec 27 Q4 / spec 29 section 2 -- offline supervised topline, scene.
+# See configs/gciql/q4_cube_single_singletask_sac.yaml for the full rationale
+# (identical wiring; only env_name/eval_interval differ, matching
+# configs/gciql/scene_state_measure_density_d50.yaml's cadence).
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: scene-play-singletask-task1-v0
+agent_file: tools/wandb_mode_shim/sac_singletask.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 500000
+eval_episodes: 50
+eval_tasks: 1
+eval_on_cpu: 1
+run_group: Q4-Scene-SAC-Singletask
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides: {}
+wandb_mode: online

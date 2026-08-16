@@ -1,0 +1,60 @@
+# Spec 29 R-A/LATENT -- the dual-corrected index with the CLOSED-FORM readout
+# (PAPER/Multistep-FB/specs/29-ra-dual-index.md section 1). Secondary but cheap.
+#
+# GATED ON G29-0 exactly as the kernel arm is (see
+# cube_single_state_measure_density_z_dual_kernelrew_d50.yaml for the gate reading:
+# PASS 2026-08-14, dual cos -.0003..+.0075 / PR2 9-23 vs sphere 1.0).
+#
+# THE QUESTION. R-A/kernel keeps reward semantics EXTERNAL (the actor integrates the
+# actual reward samples). This arm keeps the shipped latent readout r_z(u) = B̃(u)^T
+# zhat/sqrt(d) -- but now zhat is the DUAL coefficient, and under the dual index that
+# readout IS the ridge-reconstructed reward (spec 28 P0b: AUC .99-1.00 vs the primal
+# index at chance). So this cell tests whether the CLOSED-FORM interface -- no reward
+# samples at actor time, just an index -- is recovered by the dual correction alone.
+#
+# Single-variable delta vs R-A/kernel: measure_density_z_actor_reward stays at its spec-24
+# default 'latent'. Everything else (encode=dual, enc_tau, lambda, sigma_tau, rand_frac
+# .5, hit spec, 500k, seed 0) is identical, so the pair isolates the actor's reward object
+# under a common index -- the same contrast spec 28's 2x2 drew under the primal one.
+#
+# Note the mask asymmetry, which is correct and deliberate: the kernel arm masks the
+# sphere rows out of the actor-q term (they have no reward samples), while this arm does
+# not -- a sphere z still implies a latent reward B^T z, which is FB's task-prior
+# coverage. Hence no actor/q_mask_* keys here.
+#
+# ⚠ NEW ARM: archived z24/z25 numbers are NOT comparable to it and must never be mixed
+# into one table without saying so.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityZ-RA-Dual-LatentRew-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_z: true
+  measure_density_z_rand_frac: 0.5
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_density_z_encode: dual
+  measure_density_z_enc_tau: 0.0005
+  measure_density_z_ridge_lambda_mult: 0.01
+  measure_density_z_sigma_tau: 0.005
+wandb_mode: online

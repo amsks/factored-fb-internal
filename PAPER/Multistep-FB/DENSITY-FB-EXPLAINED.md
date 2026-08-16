@@ -3,8 +3,8 @@
 **Status:** written 2026-08-14, updated the same day with spec 28 P0. Covers
 specs 18 (the method), 21/22 (variants and actor ablation), 19 (zero-shot
 readout), 24/25/27-Q2 (the z-indexed interface), 26 (the mechanism synthetic),
-and 28 (the z-interface diagnosis — see §6.6, which overturns two earlier
-conclusions recorded in §6.4).
+28 (the z-interface diagnosis — §6.6, which overturns two earlier conclusions
+recorded in §6.4), and 29 (the R-A repair and its screen — §6.7).
 
 **Who this is for:** someone who has never seen this codebase and wants to
 understand what Density-FB is, why it exists, what the code actually computes,
@@ -27,12 +27,14 @@ probability distribution over future object configurations — via a softmax ove
 a resampled query set, trained with cross-entropy against a TD target. On
 OGBench manipulation this takes cube-double from **0.005 to 0.736** and beats
 published GC-IQL at half the training budget. It also transfers zero-shot to
-rewards it never trained on. The part that does **not** work is FB's *latent*
-task interface: swapping goals for a latent `z` collapses the method to the
-behavior-cloning floor. Spec 28 found the cause — `B`'s covariance is rank-1
-dominated, which both collapses the index and makes FB's primal reward embedding
-the wrong object — and showed the reward→index half is repairable at readout
-(§6.6).
+rewards it never trained on. FB's *latent* task interface initially failed
+outright — swapping goals for a latent `z` collapsed the method to the
+behavior-cloning floor — and the cause turned out to be geometric: `B`'s
+covariance is rank-1 dominated, so the index collapsed to a single ray and FB's
+primal reward embedding pointed nearly orthogonal to the dual coefficient the
+readout actually needs (§6.6). Correcting that, and letting the actor integrate
+real reward samples, restores the latent interface to **0.812** on cube-single
+against a 0.111 floor (§6.7, one seed, reward-transfer eval still pending).
 
 ---
 
@@ -688,6 +690,33 @@ against the true reward center — gives **0.35 (actor) and 0.47 (full) against 
 0.50 null**, *despite exact matches existing in the candidate set*. **Reward →
 index assignment is at chance.**
 
+## 6.5 Where that left the diagnosis (as of spec 27)
+
+> ⚠ **This section records the diagnosis *before* spec 28 measured B's geometry.
+> Two of its rows and its proposed fork are superseded by §6.6 and §6.7. It is
+> kept because the reasoning was the path to the fix, and because the row that
+> turned out to be wrong was wrong in an instructive way.**
+
+| stage | status *as then believed* | later verdict |
+|---|---|---|
+| goal → index encoding `z(g)` | "works" (retrieval 90–97% of ceiling) | **WRONG — §6.6.** Retrieval is rank-based; the index was collapsed to a single ray. |
+| measure trained under `z` | works | holds |
+| measure *uses* the index | fixable (C3 raised ztv 65×) | holds — and it changed nothing on its own |
+| policy extraction from `z` | broken | holds — **cause identified in §6.6, fixed in §6.7** |
+| reward → index assignment | broken | holds — **cause identified in §6.6, fixed in §6.7** |
+
+The reading at the time was that the failure sat at the two **ends** rather than
+the middle. That was right. What it could not see was that both ends fail for
+the *same* reason, which is B's geometry.
+
+**Eliminated as sole causes** (this part stands, and is why the geometry
+explanation had to be found): lossy encoding, a broken measure, the model
+ignoring `z`, BC dilution from `z_rand_frac=0.5`, and the non-stationary index.
+C3 addressed the last two directly and success did not move.
+
+The fork proposed here was "repair reward → index assignment, or bypass `z` with
+a reward-embedding actor." The first branch is what §6.7 does.
+
 ## 6.6 Spec 28 — the diagnosis, solved
 
 Everything above localizes the failure to two ends: the actor cannot use the
@@ -823,45 +852,115 @@ policy index only, and reward semantics stay external, which is precisely what
 made the g path work. R-B (reward-embedding actor) is not indicated by this
 evidence.
 
-## 6.5 Where that leaves the diagnosis
+## 6.7 R-A — the repair, and what it scores
 
-| stage | status | evidence |
+Spec 28 (§6.6) showed the index and the readout live in **dual spaces that had
+drifted nearly orthogonal**. R-A changes exactly two things.
+
+**1. The index becomes a dual coefficient rather than a primal feature vector.**
+
+```
+before:   z(g) = √d · normalize( B̄(g) )
+after:    ẑ    = √d · normalize( (Σ̂_B + λI)⁻¹ m̂ ),    m̂ = (1/M) Σ_j B̄(u_j)·r_j
+```
+
+**2. The actor integrates actual reward samples rather than a latent
+reconstruction.**
+
+```
+before:   q = Σ_j w_j(s,a,z) · B̃(u_j)ᵀz/√d
+after:    q = Σ_j w_j(s,a,ẑ) · r(u_j)
+```
+
+`Σ̂_B` is EMA-tracked as an ordinary parameter leaf so it serializes and the eval
+path reads the identical object — batch statistics would reintroduce the
+train/eval mismatch that broke the first z build. The encode runs through the
+slow-EMA backward tower, because a ridge solve through a fast-drifting `B` is the
+obvious non-stationarity risk. `‖ẑ‖ = √d` is re-imposed after the solve so the
+conditioning distribution keeps its standing invariant.
+
+### Why change 1 is the unlock
+
+Because `Σ_B` is rank-1 dominated, every `B(x)` is approximately one shared
+direction plus a small `x`-specific part:
+
+```
+B(x)  ≈  (large) · v  +  (tiny) · δ_x
+```
+
+so `normalize(B̄(g))` returns ≈ `v` for **every** goal — the measured collapse.
+Multiplying by `(Σ+λI)⁻¹` divides each eigendirection by its eigenvalue,
+suppressing `v` (eigenvalue ~1e6) against the goal-specific directions
+(~0.1). The dual is therefore not a correction to the primal; at
+cos = .010–.025 it points somewhere else entirely.
+
+**Why the loss permitted this.** The cross-entropy pins only the *product*
+`FᵀB`: for any invertible `A`, sending `F → FA⁻ᵀ` and `B → BA` leaves the loss
+unchanged, so B's geometry is **gauge-arbitrary** and nothing pushes `Σ_B`
+toward isotropy. FB's orthonormality loss is exactly what fixes that gauge, and
+this project removed it — correctly, since it caps success at 0.225 here.
+Removing it was harmless on the goal-indexed path, which never reads reward off
+`Bᵀz`, and fatal on the latent path. **The gauge fixing was deleted while a
+formula that is only valid in the fixed gauge was kept.**
+
+### The gates, in order
+
+| gate | question | result |
 |---|---|---|
-| goal → index encoding `z(g)` | **works** | retrieval 90–97% of ceiling, 1500× chance |
-| measure trained under `z` | **works** | CE/ESS match g; calibrated at control level |
-| measure *uses* the index | **fixable** | C3 raised ztv 65× |
-| **policy extraction from `z`** | **broken** | 0.108 at the BC floor even given a good index |
-| **reward → index assignment** | **broken** | argmax at chance with exact hits present |
+| G29-0 | are dual indices de-collapsed? | **PASS** — PR2 1.0 → 9–38; the primal-moment control stays at 1.0, isolating the *solve* as the cause |
+| G29-1 | does the actor gain goal-sensitivity? | **PASS** — .132 vs .000 for every prior z arm, 63% of its .210 noise floor (the working g anchor is 47% of its own) |
+| G29-2 | does it reach goals? | **see below** |
+| G29-3 | does it transfer to unseen rewards? | **NOT YET RUN** |
 
-The failure is at the two **ends**, not in the middle.
+At G29-1 the pathology also **inverted**: sphere-`z′` sensitivity fell to .065,
+*below* goal-`z′` at .132. Previously these actors moved 1.9–2.0 for a random
+off-manifold index and .000 for a real goal — they responded only to nonsense.
+And ρ(q_g, q_z) rose to **.929**, against **−.026** on the g anchor: under the
+dual index the closed-form readout and the exact kernel rank actions almost
+identically, which is §6.6.3's prediction realized in a trained model.
 
-**Two mechanisms survive as explanations.**
+### G29-2 — the screen (cube-single, 500k, **seed 0 only**)
 
-1. **Retrieval-sufficient ≠ control-sufficient.** `z = √d · normalize(B̄(x))`
-   projects onto a sphere. That preserves *identity* — exactly what the
-   retrieval probe measures — while discarding magnitude and distance. But an
-   actor's job is to compute which action closes the gap to the goal, and that
-   needs the target in a frame comparable to the current state. A goal
-   observation supplies that directly; a sphere-normalized 50-d projection does
-   not. This also matches the earlier stack-divergence finding that
-   z-conditioning itself was the obstruction on multi-object tasks.
-2. **`z_r ∝ E[r·B]` is the right inverse for a different model.** In FB the
-   value is *structurally* `F(s,a,z)ᵀz`, linear in the index, so projecting a
-   reward onto `B` is the correct embedding. Density-FB replaced that with a
-   **normalized** distribution, `w = softmax(FᵀB/τ)`; the readout `E_w[r]` is not
-   linear in `z`, and softmax is invariant to shifting logits. The formula FB
-   inherits its interface from has no reason to remain correct after
-   normalization.
+| arm | @500k | mean(≥350k) |
+|---|---|---|
+| **R-A/kernel** (dual index + actual reward samples) | **0.812** | 0.743 |
+| R-A/latent (dual index + `B̃ᵀẑ` readout) | 0.368 | 0.291 |
+| prior z arms (spec 24 / 25) | .017 – .108 | |
+| behavior cloning floor | 0.111 | |
+| goal-indexed anchor | 0.93 | |
 
-**Already eliminated as sole causes:** lossy encoding, broken measure, the model
-ignoring `z`, BC dilution from `z_rand_frac=0.5` alone, and the non-stationary
-index alone (C3 addressed the last two directly and success did not move).
+**This is the first z-conditioned Density-FB that works** — roughly 7.5× every
+previous z arm and about 87% of the goal-indexed anchor. Even the latent arm,
+whose readout scored .108 before, now reaches .368.
 
-**The fork:** repair reward → index assignment, or bypass `z` entirely with a
-**reward-embedding actor** — condition the policy on the reward representation
-the density model actually uses (`w_r`) rather than forcing everything through
-FB's latent. The latter serves the general-reward-interface requirement without
-inheriting either broken step.
+The two arms share the dual index and differ only in the actor's reward, so the
+split isolates change 2 as what converts a repaired index into control. The
+100k probe predicted it before the results existed: kernel's actor sensitivity
+lifted to .132 while latent's stayed at .006.
+
+> ⚠ **Three limits, all load-bearing.**
+> **One seed per arm** — the spec promotes discriminating cells to cube-double
+> plus a second seed, and that has not run.
+> **Eval noise is real**: the kernel arm dipped to **.564 at 400k** before
+> reading .812 at 500k, so quote .812 by convention *and* .743 as the ≥350k
+> mean; a single eval at exactly 500k can be a favourable draw.
+> **G29-3 has not run.** The zero-shot reward-family eval through the dual
+> interface *is* the general-reward-interface claim. Goal reaching through a
+> repaired index does not license that sentence.
+
+> This is a **new arm**: archived spec-24 and spec-25 numbers are not comparable
+> to it in one table without saying so.
+
+### What did not fix it
+
+Worth recording, because five plausible repairs were tried first and every one
+failed: masking imitation to reachable indices; a slow-EMA encoder to stop the
+index drifting; making the measure index-sensitive (C3 raised sensitivity **65×**
+and success did not move at all); the structural logit tilt (which deleted its
+own tilt at β=1.0); and the reward-decodability auxiliary (inert).
+
+Every one of those addressed **training dynamics**. None touched the geometry.
+The failure was never dynamics.
 
 ---
 
@@ -921,9 +1020,14 @@ immediate target is the better configuration and should be the shipped default.
 with the mechanism only mattering when a goal-relevant object stays still while
 actions continue.
 
-**What does not work.** The FB-style latent interface. Goal-indexed reward
-readout works; `z`-indexed control and reward→index assignment do not, and the
-break is localized to those two ends.
+**What now works that did not.** The FB-style latent interface, after the R-A
+repair (§6.7). Both broken ends traced to one cause — B's covariance is rank-1
+dominated, so the index and the readout had drifted nearly orthogonal once the
+gauge-fixing orthonormality term was removed. Replacing the primal index with
+the dual coefficient and letting the actor integrate real reward samples takes
+cube-single from 0.108 to **0.812**, against a 0.111 floor and a 0.93
+goal-indexed anchor. ⚠ One seed, and the zero-shot reward-family eval that would
+license the *general reward interface* claim has not run.
 
 **What is unproven.** The causal story. Two synthetic rounds have failed to show
 the pathology in FB's own architecture, and the one real effect found lives in a

@@ -1,0 +1,85 @@
+# Spec 29 R-A/KERNEL -- the dual-corrected index + the actual reward samples
+# (PAPER/Multistep-FB/specs/29-ra-dual-index.md section 1).
+#
+# GATED ON G29-0 (pre-flight, eval-only): dual indices over the 4096-goal set must be
+# de-collapsed (mean pairwise cos << .99; sphere ref .002). If they are as collapsed as
+# the sphere ones the arm is dead and this config must NOT be launched. G29-0 read out
+# 2026-08-14: PASS -- dual cos -.0003..+.0075 / PR2 9-23 vs sphere z(g) .998-1.000 / PR2
+# 1.0, and the primal-moment control also at 1.0, i.e. the RIDGE SOLVE (not the reward
+# weighting) is what de-collapses the index.
+#
+# THE ARM. Spec 28 P0 measured Sigma_B at eff rank 1.0002/50 and cond 1e6-1e7: the CE
+# pins only the product F^T B, so B's Euclidean geometry is gauge-arbitrary and the
+# shipped index z(g) = sqrt(d)*normalize(B̄(g)) is a PRIMAL feature vector being used
+# where FB's algebra needs a DUAL coefficient. R-A conditions on the dual instead:
+#
+#   zhat = sqrt(d) * normalize( (Sigma_hat_B + lambda I)^-1 m_hat ),
+#   m_hat = (1/M) sum_j B̄(u_j) r_j  over the row's reward samples,
+#   hindsight rows: r_j = kg_j = _delta_phi(goals, u_raw)  (query-set normalized --
+#                   the same object the g path integrates, standing spec-28 rule).
+#
+# and the ACTOR integrates the ACTUAL reward samples (measure_density_z_actor_reward=
+# kernel, spec 28 cell ii): q = sum_j w_j(s,a,zhat) * r(u_j). B^T z never appears as a
+# reward again. The latent is a policy index only; reward semantics stay external --
+# which is exactly what made the g path work (cs .93 / cd .736).
+#
+# Contract knobs that are NOT free choices:
+#   measure_density_z_enc_tau > 0 is REQUIRED (create() refuses dual without it): the
+#     ridge solve must run through the slow-EMA index tower, since solving through a
+#     fast-drifting B is the known non-stationarity risk. 0.0005 = the C3 round-1 dose.
+#   Sigma_hat_B is EMA-tracked and stored as an ORDINARY PARAM LEAF, so it serializes and
+#     sample_actions reads the identical matrix -- batch statistics are forbidden (they
+#     reintroduce the train/eval mismatch that broke the first z build).
+#   lambda = 0.01 * tr(Sigma_hat)/d (G29-0: keep .01; {.001,.1} are ablation ends, not
+#     default candidates -- .001 inverts ill-conditioned directions and .1 drifts back
+#     toward a cone on z25_cs_tilt).
+#   measure_density_z_rand_frac stays 0.5 (task mixture UNCHANGED). Sphere rows have no
+#     reward samples, so their actor-q term is masked+renormalized through the existing
+#     z_hindsight machinery (actor/q_mask_frac logs the survivors, ~0.5).
+#
+# Reads: G29-1 (from the first eval) actor goal-sensitivity must lift off 0.000 (noise
+# floor .19) and train-time pairwise cos of zhat (`z_cos_spread`) must stay de-collapsed;
+# flat at 250k = killed. G29-2 (screen) cube-single 500k s0 vs g .93 / BC .111.
+# Instruments: measure/density_zsigma_eff_rank + _cond every log interval.
+#
+# ⚠ NEW ARM: archived z24/z25 numbers are NOT comparable to it and must never be mixed
+# into one table without saying so.
+#
+# Deltas vs the spec-28 cell-(ii) config (cube_single_state_measure_density_z_kernelrew_d50):
+# measure_density_z_encode=dual and measure_density_z_enc_tau=0.0005. enc_tau is not a
+# free second variable -- the dual encode is refused without it.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-single-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 50000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeSingle-Flow-Measure-DensityZ-RA-Dual-KernelRew-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_density_z: true
+  measure_density_z_rand_frac: 0.5
+  measure_hit_spec: "19:22:0.4"
+  actor_q_center: true
+  measure_density_z_encode: dual
+  measure_density_z_enc_tau: 0.0005
+  measure_density_z_ridge_lambda_mult: 0.01
+  measure_density_z_sigma_tau: 0.005
+  measure_density_z_actor_reward: kernel
+wandb_mode: online
