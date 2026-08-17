@@ -112,12 +112,12 @@ def main():
                 # Per-episode goal: this episode's own obs with hand+object (and their
                 # prev-frame copies) moved to the episode's true target. Context dims
                 # 36:39 stay the episode's own -> the (s, g) pair is context-consistent,
-                # unlike the fixed dataset frame.
-                g = np.asarray(obs, np.float32).copy()
-                tgt = g[36:39].copy()
-                for a, b in ((0, 3), (4, 7), (18, 21), (22, 25)):
-                    g[a:b] = tgt
-                goal = g
+                # unlike the fixed dataset frame. The construction now lives in
+                # env/unified.py (shared with evaluate()'s eval_goal_mode=synth) so the
+                # probe and the trained-policy eval cannot drift apart; it is bit-identical
+                # to the slot list this probe verified on Metaworld.
+                from env.unified import synth_goal_frame
+                goal = synth_goal_frame(pcfg["task"], obs)
             else:
                 goal = goal_fixed
             mask_dims = pcfg.get("goal_mask_dims")

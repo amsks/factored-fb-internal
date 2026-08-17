@@ -63,9 +63,15 @@ class ManiSkillWrapper:
             pass
 
 
-def make_maniskill_env(task, render_size=128):
+def make_maniskill_env(task, render_size=128, max_episode_steps=None):
     """-> (env, horizon). SAPIEN needs its Vulkan ICD pointed at explicitly on Vista (its
-    auto-probe misses /etc/vulkan/icd.d/nvidia_icd.aarch64.json)."""
+    auto-probe misses /etc/vulkan/icd.d/nvidia_icd.aarch64.json).
+
+    `max_episode_steps` raises the registered 50-step gymnasium TimeLimit, which the
+    play-resample collector needs (its trajectories are longer) and nothing else does: the
+    returned `horizon` -- what eval runs for -- is unaffected. Leave it None for eval and the
+    parity probe so they see exactly the env the offline data was recorded through.
+    """
     if task not in TASKS:
         raise ValueError(f"unknown ManiSkill task {task!r} (known: {sorted(TASKS)})")
     _icd = "/etc/vulkan/icd.d/nvidia_icd.aarch64.json"
@@ -78,10 +84,11 @@ def make_maniskill_env(task, render_size=128):
     from mani_skill.utils.wrappers import CPUGymWrapper
 
     env_id, control_mode, horizon = TASKS[task]
+    limit = {} if max_episode_steps is None else dict(max_episode_steps=int(max_episode_steps))
     env = gym.make(env_id, obs_mode="state", control_mode=control_mode, num_envs=1,
                    render_mode="rgb_array",
                    sensor_configs=dict(width=render_size, height=render_size),
                    human_render_camera_configs=dict(width=render_size, height=render_size),
-                   reconfiguration_freq=None, sim_backend="auto")
+                   reconfiguration_freq=None, sim_backend="auto", **limit)
     env = CPUGymWrapper(env, ignore_terminations=True)   # full fixed horizon, single-env numpy
     return ManiSkillWrapper(env, horizon), horizon

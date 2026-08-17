@@ -15,6 +15,7 @@ initial state across algorithms/checkpoints) and TWO metrics --
 The second one matters: a policy can score success 1.00 while holding the goal for 27% of
 the episode (gciql on b2d-goal-ctrl-maze) versus 84% for a flow actor.
 """
+import contextlib
 import glob
 import os
 import re
@@ -135,19 +136,140 @@ def make_task_env(task, render=False):
     raise ValueError(f"no env builder for task {task!r}")
 
 
+# Raw-observation layout per task, used by synth eval goals (`eval_goal_mode=synth`) and by
+# per-episode goal-distance logging. Every slot indexes the RAW obs, before any
+# obs_mask_dims/goal_mask_dims blanking.
+#
+#   target -- the episode's goal, written into the obs by the env at reset (the dims the
+#             MW/MS domain configs mask out of the observation)
+#   object -- the achieved goal the env's success rule compares against `target`
+#   copy   -- slots overwritten with `target` when synthesising a goal FRAME: the end
+#             effector and the object, plus their prev-frame copies where the layout carries
+#             them. Metaworld's list is bon_probe.py's verified construction, unchanged.
+#   grasp_offset -- (pick-cube only) which `copy` slot must NOT collapse onto `target`: real
+#             success frames never have tcp == obj (grasp offset mean/median 0.021/0.018 --
+#             the same scale as the ~0.02-0.025 success radius), so this slot instead keeps
+#             the base frame's own tcp-to-obj offset, added onto `target`. See synth_goal_frame.
+#   derived_offset -- (pick-cube only) tcp_to_obj_pos (obj - tcp): 0 under the old collapse,
+#             but once grasp_offset is preserved this channel is no longer algebraically zero
+#             and is NOT one of the run's masked dims, so it must be recomputed rather than
+#             zeroed, or it would contradict the rest of the synthesised frame.
+#   zero   -- difference channels that stay algebraically zero once every OTHER `copy` slot
+#             holds `target` (ManiSkill's obj_to_goal_pos).
+#   one    -- flags that every achieved-goal frame carries. PickCube's success rule requires
+#             a grasp and is_grasped == 1.0 on 100% of success frames in the collected data.
+#   ndim   -- components of (object - target) the success rule measures. PushCube scores the
+#             planar XY distance to its goal region; everything else is 3-D.
+#
+# ManiSkill slots are the ManiSkill 3 state layouts, confirmed against the packed upstream
+# npz: PushCube (35) = qpos9 | qvel9 | tcp_pose7 | goal_pos3 | obj_pose7; PickCube (42) =
+# qpos9 | qvel9 | is_grasped1 | tcp_pose7 | goal_pos3 | obj_pose7 | tcp_to_obj3 | obj_to_goal3.
+_GOAL_LAYOUT = {
+    "mw": dict(target=(36, 39), object=(4, 7),
+               copy=((0, 3), (4, 7), (18, 21), (22, 25)), zero=(), one=(), ndim=3),
+    "ms-push-cube": dict(target=(25, 28), object=(28, 31),
+                         copy=((18, 21), (28, 31)), zero=(), one=(), ndim=2),
+    "ms-pick-cube": dict(target=(26, 29), object=(29, 32),
+                         copy=((19, 22), (29, 32)), zero=((39, 42),),
+                         one=((18, 19),), ndim=3,
+                         grasp_offset=(19, 22), derived_offset=(36, 39)),
+}
+
+
+def goal_layout(task):
+    """-> the _GOAL_LAYOUT entry for a task slug, or None when the family has no goal-in-obs
+    layout (Box2D/rlmini, whose targets are not carried in the observation)."""
+    if task in _GOAL_LAYOUT:
+        return _GOAL_LAYOUT[task]
+    return _GOAL_LAYOUT.get(task.split("-", 1)[0])
+
+
+def synth_goal_frame(task, raw_obs):
+    """Per-episode goal FRAME built from this episode's own raw reset observation: a copy of
+    it with the end effector and object moved onto the episode's true target.
+
+    This is the repair for C4. The alternative -- one goal frame cached from the dataset and
+    reused for every episode (`eval_goal_mode=fixed`) -- conditions a goal-conditioned critic
+    on a (s, g) pair whose context dims disagree, while MW/MS redraw the target on every
+    reset. Synthesising per episode keeps the context dims the episode's own, so the pair is
+    consistent, and the eval goal is in-support by construction (the env drew the target from
+    the same goal space the collector sampled).
+    """
+    lay = goal_layout(task)
+    if lay is None:
+        raise ValueError(f"eval_goal_mode=synth: no goal-in-obs layout registered for {task!r}")
+    g = np.array(raw_obs, np.float32, copy=True)
+    tgt = g[slice(*lay["target"])].copy()
+    grasp = lay.get("grasp_offset")           # copy slot exempt from the target-collapse below
+    obj0 = g[slice(*lay["object"])].copy()    # pre-overwrite object pos, to measure that offset
+    grasp_vec = None
+    for a, b in lay["copy"]:
+        if grasp is not None and (a, b) == grasp:
+            # Preserve THIS frame's own grasp geometry instead of collapsing tcp onto the
+            # target -- tcp == obj never occurs in the data and sits at success-radius scale.
+            # Degenerate base offsets (not actually a grasp) fall back to the dataset-median
+            # grasp: straight above the object.
+            grasp_vec = g[a:b] - obj0
+            if np.linalg.norm(grasp_vec) > 0.1:
+                grasp_vec = np.array([0.0, 0.0, 0.018], np.float32)
+            g[a:b] = tgt + grasp_vec
+        else:
+            g[a:b] = tgt
+    for a, b in lay["zero"]:
+        g[a:b] = 0.0
+    for a, b in lay["one"]:
+        g[a:b] = 1.0
+    derived = lay.get("derived_offset")       # e.g. tcp_to_obj_pos = obj - tcp, no longer 0
+    if derived is not None and grasp_vec is not None:
+        a, b = derived
+        g[a:b] = -grasp_vec
+    return g
+
+
+def goal_distance(task, raw_obs):
+    """‖object - target‖ read straight off the RAW observation, under the env's own success
+    metric (E0.2). Returns None for families with no goal-in-obs layout."""
+    lay = goal_layout(task)
+    if lay is None:
+        return None
+    o = np.asarray(raw_obs, np.float32)
+    n = lay["ndim"]
+    obj = o[lay["object"][0]:lay["object"][0] + n]
+    tgt = o[lay["target"][0]:lay["target"][0] + n]
+    return float(np.linalg.norm(obj - tgt))
+
+
+@contextlib.contextmanager
+def _global_np_seed(seed):
+    """Seed the global np.random for the duration of the block, then put the previous state
+    back. Metaworld/ManiSkill draw their reset randomness from the global RNG and give us no
+    way to inject a Generator, so seeding it is the only way to fix an eval initial state.
+    Restoring afterwards is what keeps eval from perturbing training: GCDataset draws every
+    batch index, goal index and relabel coin from that same global RNG (impls/utils/datasets.py),
+    so without the restore the post-eval state is a pure function of the last episode index --
+    every seed then replays one identical batch stream, periodic in eval_interval, and the
+    reported seed-to-seed sd stops being a seed estimate."""
+    state = np.random.get_state()
+    np.random.seed(seed)
+    try:
+        yield
+    finally:
+        np.random.set_state(state)
+
+
 def seeded_reset(env, task, seed):
     """A given seed => a fixed initial state wherever the backend allows it. rlmini honors
     reset(seed=); Metaworld draws its rand_vec from the GLOBAL np.random; ManiSkill's wrapper
     does not accept a seed, so it is best-effort."""
     if task.startswith("mw-"):
-        np.random.seed(seed)
-        return env.reset()
-    if task.startswith("ms-"):
-        np.random.seed(seed)
-        try:
-            return env.reset(seed=seed)
-        except TypeError:
+        with _global_np_seed(seed):
             return env.reset()
+    if task.startswith("ms-"):
+        with _global_np_seed(seed):
+            try:
+                return env.reset(seed=seed)
+            except TypeError:
+                return env.reset()
     return env.reset(seed=seed)
 
 
@@ -189,40 +311,100 @@ class UnifiedAdapter:
         is_box2d = slug.startswith(("b2d-", "p2d-"))   # at-goal ticks are Box2D-only
         # z-critics condition on agent.cond_eval (goals=None); goal-conditioned critics need
         # an explicit goal, for which we use the highest-reward next_obs in the offline data.
+        # A z-critic exposing map_eval_cond (fb) also needs the goal frame: the hook embeds
+        # it into z at eval — without it the stored eval z is the zero vector (goal-blind).
         provides = set(getattr(agent.critic, "PROVIDES_COND", ()) or ())
+        needs_goal = ("goal" in provides and "z" not in provides) \
+            or hasattr(agent.critic, "map_eval_cond")
+
+        # Observation masking must match training (GCDataset obs_mask_dims) or the policy sees
+        # a distribution it was never trained on -- and, on goal-observable envs, would get the
+        # target handed back to it at eval after being denied it during training.
+        obs_mask = list(cfg.get("obs_mask_dims") or ())
+        goal_mask = list(cfg.get("goal_mask_dims") or ())
+
+        def _mask_obs(o):
+            if not obs_mask:
+                return np.asarray(o, np.float32)
+            o = np.array(o, np.float32, copy=True)
+            o[..., obs_mask] = 0.0
+            return o
+
+        def _prep_goal(g):
+            """Put a raw goal frame into the space the critic's TRAINING goals live in:
+            goal_mask_dims (GCDataset blanks the emitted goals) then obs_mask_dims (the goal
+            frame is an observation too, and must be blanked the same way)."""
+            g = np.array(g, np.float32, copy=True)
+            if goal_mask:
+                g[goal_mask] = 0.0
+            if obs_mask:
+                g[obs_mask] = 0.0
+            return g
+
+        # `fixed` (default) reproduces the historical behaviour: ONE goal frame, the
+        # highest-reward next_obs in the offline data, reused for every episode. `synth`
+        # rebuilds the goal from each episode's own reset obs -- see synth_goal_frame.
+        goal_mode = str(cfg.get("eval_goal_mode", "fixed"))
+        if goal_mode not in ("fixed", "synth"):
+            raise ValueError(f"eval_goal_mode must be 'fixed' or 'synth', got {goal_mode!r}")
+        # Only checked for goal-conditioned critics: a z-critic never reads a goal frame, so
+        # the knob is inert for it and must not turn into a hard error on a task with no
+        # goal-in-obs layout.
+        if needs_goal and goal_mode == "synth" and goal_layout(slug) is None:
+            raise ValueError(
+                f"eval_goal_mode=synth is not available for task {slug!r}: no goal-in-obs "
+                f"layout is registered for it in env/unified.py::_GOAL_LAYOUT")
+
         goal = None
-        if "goal" in provides and "z" not in provides:
+        if needs_goal and goal_mode == "fixed":
             goal = getattr(self, "_goal", None)
             if goal is None:                      # adapter used for eval only (campaign/eval)
                 d = load_domain_data(cfg)
                 goal = d["next_observations"][int(np.argmax(d["rewards"]))].astype(np.float32)
-            # Keep eval conditioning consistent with training-side goal-context masking
-            # (GCDataset goal_mask_dims): zero the same dims in the eval goal frame.
-            mask_dims = cfg.get("goal_mask_dims")
-            if mask_dims:
-                goal = np.array(goal, copy=True)
-                goal[list(mask_dims)] = 0.0
+            goal = _prep_goal(goal)
 
         successes, ticks, frames = [], [], []
+        # E0.2: per-episode goal distances, so E5's matched-radius re-scoring is an analysis
+        # pass over existing logs rather than a re-run. Costs one norm per step.
+        dist_min, dist_final = [], []
         # Metric episodes first, then num_video EXTRA rendered ones. Rendering costs ~7 ms a
         # frame and must not perturb the episodes we report, so the reported set is never
         # rendered — the same split OGBench's evaluate() uses.
+        # Episode seeds are the loop index, so every checkpoint of every run is scored on the
+        # SAME initial states — that is what makes two checkpoints comparable. It also means a
+        # re-eval cannot draw a fresh sample: repeating it reproduces the number exactly, so a
+        # 50-episode fluke is indistinguishable from real behaviour. `eval_seed_offset` shifts
+        # the whole block to a disjoint set of initial states, which is the only way to ask
+        # "was that 0.02 real, or was it the episode draw?" (edge-attribution spec W4).
+        # Leave it 0 for anything that will be compared against existing numbers.
+        seed_off = int(cfg.get("eval_seed_offset", 0) or 0)
         for i in range(num_episodes + num_video):
             record = i >= num_episodes
-            obs, info = seeded_reset(env, slug, i)
-            key = jax.random.PRNGKey(i)
+            obs, info = seeded_reset(env, slug, i + seed_off)
+            # The goal must be built from the RAW reset obs, before _mask_obs blanks the very
+            # target dims it is built from.
+            ep_goal = synth_goal_frame(slug, obs) if (needs_goal and goal_mode == "synth") \
+                else goal
+            if needs_goal and goal_mode == "synth":
+                ep_goal = _prep_goal(ep_goal)
+            key = jax.random.PRNGKey(i + seed_off)      # action noise follows the same shift
             ep_success = _flag(info.get("success", 0))
             at_goal = int(_flag(info.get("success", 0)))
+            d = goal_distance(slug, obs)
+            d_min, d_last = d, d
             ff = [env.render()] if record else None
             for _ in range(horizon):
                 key, sub = jax.random.split(key)
                 a = np.asarray(agent.sample_actions(
-                    observations=np.asarray(obs, np.float32), goals=goal,
+                    observations=_mask_obs(obs), goals=ep_goal,
                     seed=sub, temperature=0))
                 obs, _r, term, trunc, info = env.step(np.clip(a, -1.0, 1.0))
                 now = _flag(info.get("success", 0))
                 ep_success = ep_success or now
                 at_goal += int(now)
+                d = goal_distance(slug, obs)
+                if d is not None:
+                    d_min, d_last = min(d_min, d), d
                 if record:
                     ff.append(env.render())
                 if _flag(term) or _flag(trunc):
@@ -232,7 +414,19 @@ class UnifiedAdapter:
             else:
                 successes.append(float(ep_success))
                 ticks.append(at_goal)                   # integer steps spent at goal
+                if d_last is not None:
+                    dist_min.append(d_min)
+                    dist_final.append(d_last)
         out = {"success": float(np.mean(successes))}
         if is_box2d:                                    # at-goal ticks: Box2D only, integer scale
             out["at_goal_ticks"] = float(np.mean(ticks))
+        if dist_min:
+            out["goal_dist_min"] = float(np.mean(dist_min))
+            out["goal_dist_final"] = float(np.mean(dist_final))
+            # The per-episode arrays are what E5 re-scores at a sweep of radii; the means
+            # above are only the at-a-glance summary that fits in eval.csv. impls/main.py
+            # pops this key out of the row before logging and writes it to its own file.
+            out["_per_episode"] = {"goal_dist_min": [float(x) for x in dist_min],
+                                   "goal_dist_final": [float(x) for x in dist_final],
+                                   "success": [float(x) for x in successes]}
         return out, frames
