@@ -45,6 +45,30 @@ class FlowBCActor:
             a = a + self._vf(vf_p, obs, a, ti) / self.flow_steps
         return jnp.clip(a, -1.0, 1.0)
 
+    @staticmethod
+    def _policy_drift(params, obs, cond, critic, a_actor, a_data, q_actor):
+        """Diagnostics for the actor--critic bootstrap loop (R1 of the pick-place collapse
+        spec): how far the policy has walked off the behaviour support, and how much the
+        critic prefers where it walked to.
+
+            action_gap_l2       mean ||a_actor - a_data||
+            q_gap_data_minus_actor   mean Q(s, a_data) - Q(s, a_actor)
+
+        Under R1 the critic target bootstraps at actor actions, the actor ascends a spiky
+        kernel readout, and the ascent leaves the region the measure was trained on -- so both
+        numbers should grow past the 100-200k success peak on play-resample pick-place and
+        stay flat on pnh-1m, which never collapses. That turns R1 from inference into
+        measurement.
+
+        Reporting only: every value is stop-gradient'd and nothing here reaches `loss`. Costs
+        one extra critic forward per update, small against the actor's 10-step flow rollout.
+        """
+        q_data, _ = critic.q_fn(params, obs, cond, a_data, stop_encoder_grad=True)
+        return jax.lax.stop_gradient({
+            "action_gap_l2": jnp.linalg.norm(a_actor - a_data, axis=-1).mean(),
+            "q_gap_data_minus_actor": q_data.mean() - q_actor.mean(),
+        })
+
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
         c = critic.cond_vec(cond)
@@ -60,6 +84,7 @@ class FlowBCActor:
         Q, Qs = critic.q_fn(params, obs, cond, a, stop_encoder_grad=True)
         loss = -self.q_coeff * Q.mean()
         info = {"q": Q.mean(), "bc_flow_loss": bc_flow}
+        info.update(self._policy_drift(params, obs, cond, critic, a, action, Q))
         if self.bc_coeff > 0:
             tgt = jax.lax.stop_gradient(self._rollout(params["actor_vf"], obs, noise))
             distill = jnp.mean((a - tgt) ** 2)
@@ -82,11 +107,33 @@ class FlowBCActor:
         adim = batch["actions"].shape[-1]
         c = _cvec(cond)
         r_na, r_x0, r_t, r_noise = jax.random.split(rng, 4)
-        na = self._actor(net["actor"].params, next_obs, c, jax.random.normal(r_na, (B, adim)))
-        return {"next_action": na,
+        na_noise = jax.random.normal(r_na, (B, adim))
+        na = self._actor(net["actor"].params, next_obs, c, na_noise)
+        boot = {"next_action": na,
                 "flow_x0": jax.random.normal(r_x0, (B, adim)),
                 "flow_t": jax.random.uniform(r_t, (B, 1)),
                 "actor_noise": jax.random.normal(r_noise, (B, adim))}
+        if "value_goal" in cond:
+            # `next_action` is conditioned on `_cvec(cond)` — the ACTOR goal, i.e. the goal
+            # the policy-improvement term is taken at. A goal-conditioned VALUE/measure
+            # target is taken at the VALUE goal, so its bootstrap action must be
+            # a+ ~ pi(.|s', g_value), not pi(.|s', g_actor): otherwise the target evaluates
+            # a policy heading somewhere else and the learned object is a goal-averaged
+            # (behaviour-like) occupancy. Bridge gciql_flow.py density_loss ~2030:
+            #     noise = jax.random.normal(rng, acts.shape)
+            #     a_plus = sg(self.network.select('actor')(nobs, g, noise))   # g = value_goals
+            # Emitted as a SEPARATE key (and reusing na_noise, drawing no extra randomness)
+            # so every critic that reads `next_action` stays bit-identical.
+            # NOT universal: this is right for density_fb, whose forward tower takes the
+            # goal as an input (F(s,a,g)), so its row is g-indexed and the bootstrap must
+            # be at that same g. td_fb's forward map is phi(s,a) with NO goal leg — one
+            # vector per row serving every column — and its readout is
+            # <phi(s,a), psi(actor_goal)>, so it reads `next_action` instead. See the block
+            # comment in impls/critics/td_fb.py::stage_loss for the measured triple
+            # (0.920 actor-goal vs 0.076 value-goal on the cube-single phase-1 anchor).
+            boot["next_action_vgoal"] = self._actor(
+                net["actor"].params, next_obs, cond["value_goal"], na_noise)
+        return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
         c = _cvec(cond)

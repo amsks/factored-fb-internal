@@ -1,0 +1,16 @@
+# DDPGBCDensityActor — the bridge's actor_kind='ddpgbc' extraction wired to density_fb
+# (bridge spec 22; impls/actors/ddpgbc_density.py). Same gaussian DDPG+BC actor as
+# actor/ddpgbc.yaml; the differences from stock ddpgbc are in the CODE (centered q
+# normalizer via the critic's second q_fn return, and a bootstrap drawn at the VALUE goal,
+# which density_fb requires), not here.
+#
+# lr_actor 3.0e-4 is the bridge's single lr, which it uses for critic and actor alike. Our
+# flowbc default is 1.0e-4 and stays there so the gciql/biGCIQL table cells remain
+# comparable; the density column carries its lr explicitly. NOTE the key is `lr_actor` --
+# `actor.lr` is silently inert in this tree and env/config.py now raises on it.
+lr_actor: 3.0e-4
+actor:
+  hidden_dims: [512, 512, 512]
+  alpha: 0.3          # BC coefficient in DDPG+BC (bridge `alpha`)
+  const_std: true     # true -> the q-term is taken at dist.mode(); false draws a sample
+  layer_norm: false

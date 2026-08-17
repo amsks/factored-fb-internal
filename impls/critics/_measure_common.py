@@ -10,6 +10,15 @@ own critic file so the two stay isolated.
 import jax.numpy as jnp
 
 
+def _looks_sexagesimal(part):
+    """Is this token a bare number, i.e. what OmegaConf turns 'a:b:eps' into?"""
+    try:
+        float(part)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def parse_hit_spec(spec):
     """Parse `measure_hit_spec` -> tuple of (start, stop, eps) observation blocks.
 
@@ -27,6 +36,17 @@ def parse_hit_spec(spec):
         if not part:
             continue
         fields = part.split(':')
+        # A single unquoted block on the dotlist path is a REPEAT landmine: OmegaConf reads
+        # `measure_hit_spec=4:7:0.07` as a sexagesimal literal and hands us 14820.07
+        # (= 4*3600 + 7*60 + 0.07). Multi-block specs survive unquoted because the comma
+        # breaks the pattern, so this only ever bites the common single-block case. Name the
+        # cause rather than let the arithmetic show through as a bare parse error.
+        if len(fields) == 1 and _looks_sexagesimal(part):
+            raise AssertionError(
+                f"hit-spec {part!r} looks like OmegaConf's sexagesimal parse of an UNQUOTED "
+                f"'a:b:eps' override. Pass it with escaped quotes so the value stays a "
+                f"string: --override 'measure_hit_spec=\"4:7:0.07\"' (launchers: "
+                f'measure_hit_spec=\\"...\\" inside the OVERRIDE string, `tr` not `xargs`).')
         assert len(fields) == 3, f"hit-spec block must be 'start:stop:eps', got {part!r}"
         a, b, e = int(fields[0]), int(fields[1]), float(fields[2])
         assert 0 <= a < b, f"hit-spec block {part!r}: need 0 <= start < stop"

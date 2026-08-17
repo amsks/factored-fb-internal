@@ -16,6 +16,11 @@ from impls.utils.config_utils import (
 
 DOMAINS_ROOT = os.path.join(os.path.dirname(__file__), "domains")
 
+# Override spellings that are valid dotlist but name nothing this tree reads. Upstream's
+# bridge config is flat with a single `lr`, so specs transcribed from it reach for `actor.lr`
+# / `critic.lr`; both merge cleanly and change nothing. Mapped to the key that is read.
+_INERT_ALIASES = {"actor.lr": "lr_actor", "critic.lr": "lr"}
+
 
 def _load_domain(name):
     path = os.path.join(DOMAINS_ROOT, f"{name}.yaml")
@@ -44,6 +49,21 @@ def make_config(critic, actor, domain, overrides=None):
                 node = node[p]
             del node[leaf]
     out = OmegaConf.to_container(cfg, resolve=True)
+
+    # Overrides that name a key this tree does not read are SILENT: OmegaConf happily creates
+    # `actor.lr` next to the real `lr_actor` and the run trains at the default, producing a
+    # wrong table cell with no error anywhere. The bridge specs are written against upstream's
+    # flat single-`lr` config, so its spellings are exactly the ones that land here inert.
+    # Fail loudly on the known aliases rather than let a silently-mistuned run reach a table.
+    for alias, real in _INERT_ALIASES.items():
+        value, present = _get_dotted(out, alias)
+        if present:
+            raise ConfigError(
+                f"override {alias}={value!r} does nothing in this tree: the key that is "
+                f"actually read is {real!r} (see impls/agents/__init__.py::_LR_KEY). Pass "
+                f"{real}={value!r} instead — the run would otherwise train at the default "
+                f"and report a number nobody could tell apart from a tuned one."
+            )
 
     for key in REQUIRED_KEYS.get(critic, ()):
         value, present = _get_dotted(out, key)

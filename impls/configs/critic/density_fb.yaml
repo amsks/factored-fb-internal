@@ -14,10 +14,33 @@ tau: 0.005                        # polyak rate for BOTH density_f/density_b tar
 measure_hit_spec: "19:22:0.4"     # cube-single default; "a:b:eps" blocks, comma-joined for a conjunction
 measure_density_dim: 50
 measure_density_temp: 1.0
+measure_density_hard: true        # DEFAULT since 2026-08-16 (bridge-port spec A2). Immediate
+  # term = one-hot at the row's own successor (k = I, M == B) instead of the eps-kernel
+  # softmax; attributes smoothing vs simplex-TD. Bridge verdict "the hard variant is the one
+  # to ship" (DENSITY-FB-EXPLAINED.md @ b811ea8: cube-single 0.912 hard vs 0.725 soft, and
+  # hard wins zero-shot transfer decisively). Every existing table cell already ran with the
+  # override on (tags `densityhard*`), so flipping the default changes NO published number --
+  # it only stops a future launch from silently getting the losing variant. Set false to
+  # reproduce the soft ablation. Actor q-readout (q_fn's kg) is UNCHANGED by this knob --
+  # only stage_loss's immediate CE target moves.
 # Known gap (spec §2): the bridge centers the actor's Q-loss NORMALIZER; our FlowBCActor
 # has no such knob, so this is implemented inside q_fn as batch-mean subtraction of Q
 # instead — composes with the actor's own sg[|Q|.mean()] normalization.
 actor_q_center: true
+
+# --- edge-attribution knobs (docs/specs/2026-08-17-gciql-edge-attribution.md) -------------
+# Both default to the pre-existing behaviour, so every published cell is unaffected.
+#
+# W1/M1. `actor` bootstraps the TD target at the actor's action a+ ~ pi(.|s', g_value), which
+# puts the actor INSIDE the critic's fixed point — the confirmed cause of the mw-pick-place
+# collapse. `sarsa` bootstraps at the dataset's own next action (batch['next_actions'], served
+# by GCDataset), which is GCIQL's in-sample-backup property with the kernel readout intact.
+# That difference is what separates M1 from M2; it is not a mitigation knob.
+measure_density_bootstrap: actor    # actor | sarsa
+# W2/M2. Temperature for the ACTOR READOUT ONLY (q_fn's softmax). null -> measure_density_temp
+# (bit-identical). stage_loss's CE target always uses measure_density_temp, so raising this
+# smooths what the actor ascends without changing what the measure is trained to be.
+measure_density_actor_temp: null
 
 # dataset (GCDataset goal sampling) — same convention as critic/gciql.yaml
 dataset_class: GCDataset
