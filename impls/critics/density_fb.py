@@ -15,6 +15,13 @@ Contract details preserved (each is pinned by a test in tests/impls/test_density
     (`_raw_block_cols`), the B tower gets PRE-SCALED queries (`_density_queries`); feeding
     the wrong one to the wrong callsite silently trains a different object;
   * softmax is over the QUERY axis (last axis), not the batch axis;
+  * the bootstrap action a+ is drawn at the VALUE goal — `boot["next_action_vgoal"]`, i.e.
+    a+ ~ pi(.|s', cond["value_goal"]) — NOT the seam's default `boot["next_action"]`, which
+    `_cvec(cond)` conditions on the ACTOR goal. The bridge draws it as
+    `actor(nobs, batch['value_goals'], noise)` (gciql_flow.py ~2030), and every other
+    bootstrap in that file is at `vgoals` too. Reading the actor-goal action makes w_bar the
+    occupancy of a policy heading to a different goal, i.e. a goal-averaged (behaviour-like)
+    density: measured density_ess_median ~310 vs the bridge's healthy ~89 at M=B=1024;
   * queries are resampled every update from the CURRENT batch's own next-state object
     coords (stage_loss recomputes them from `batch['next_observations']` every call —
     there is no stored/cached support);
@@ -117,6 +124,17 @@ class DensityFBCritic:
     temp: float
     tau: float
     actor_q_center: bool
+    hard: bool
+    # W1 (edge-attribution spec): 'actor' (default, bit-identical) bootstraps the TD target at
+    # the actor's action, so the actor sits inside the critic's fixed point — mechanism M1,
+    # the confirmed collapse cause. 'sarsa' bootstraps at the DATASET's next action instead,
+    # giving GCIQL's in-sample-backup property while keeping the kernel readout, which is what
+    # separates M1 from M2.
+    bootstrap: str = "actor"
+    # W2: temperature for the ACTOR READOUT ONLY (q_fn's softmax). None -> `temp`, i.e.
+    # bit-identical. The CE training target in stage_loss always keeps `temp`; a knob that
+    # moved both would confound readout smoothness (M2) with the measure being trained.
+    actor_temp: Any = None
 
     GROUPS = ("density_f", "density_b")
     STAGES = ("density",)
@@ -159,14 +177,50 @@ class DensityFBCritic:
         w = jax.nn.softmax(logits, -1)
         logp = jax.nn.log_softmax(logits, -1)
 
-        # bootstrap action from the actor (already computed outside the grad tape by
+        # Bootstrap action from the actor (already computed outside the grad tape by
         # Agent.update -> actor.sample_bootstrap; stop_gradient is defense-in-depth).
-        a_plus = jax.lax.stop_gradient(boot["next_action"])
+        # It MUST be the action for the VALUE goal g (= cond["value_goal"], the same g the
+        # F towers are conditioned on here) — the bridge draws it as
+        # `a_plus = sg(actor(nobs, batch['value_goals'], noise))` (gciql_flow.py ~2030).
+        # `boot["next_action"]` is conditioned on the ACTOR goal (`_cvec(cond)`), which is a
+        # different goal distribution (p_trajgoal=1.0 vs the 0.2/0.5/0.3 value mix): using it
+        # makes w_bar the occupancy of a policy heading elsewhere, i.e. a goal-averaged,
+        # much more DIFFUSE density (measured: density_ess_median ~310 vs the bridge's ~89).
+        # Indexed, not .get()-defaulted: a silent fallback is exactly how this was missed.
+        if self.bootstrap == "sarsa":
+            # W1 / KT-B: bootstrap at the action the BEHAVIOUR policy took at s'. The actor is
+            # then outside the critic's fixed point entirely — it can no longer walk the
+            # target around, which is GCIQL's M1 property, while the softmax-kernel readout
+            # (M2) stays exactly as it is. That is what makes this arm a clean M1-vs-M2
+            # discriminator rather than another mitigation.
+            if "next_actions" not in batch:
+                raise KeyError(
+                    "measure_density_bootstrap='sarsa' needs batch['next_actions'], which "
+                    "GCDataset emits. A dataset_class that does not serve it cannot run this "
+                    "mode — do not fall back to the actor action, that silently restores M1.")
+            a_plus = jax.lax.stop_gradient(batch["next_actions"])
+        elif self.bootstrap == "actor":
+            if "next_action_vgoal" not in boot:
+                raise KeyError(
+                    "density_fb needs boot['next_action_vgoal'] — the bootstrap action drawn "
+                    "at cond['value_goal'] (FlowBCActor.sample_bootstrap emits it whenever "
+                    "the critic's cond carries 'value_goal'). boot['next_action'] is the "
+                    "ACTOR-goal action and is NOT a valid bootstrap for this target.")
+            a_plus = jax.lax.stop_gradient(boot["next_action_vgoal"])
+        else:
+            raise ValueError(f"measure_density_bootstrap must be 'actor' or 'sarsa', "
+                             f"got {self.bootstrap!r}")
         tb = self._B(target["density_b"], u_sc)                           # frozen target
         tf = self._F(target["density_f"], jnp.concatenate([nobs, a_plus, g], -1))
         w_bar = jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / tau, -1)  # [2, B, M]
 
-        k = _delta_phi(nobs, u_raw, blocks)                                # [B, M]
+        if self.hard:
+            # spec 21: one-hot immediate target at the row's OWN successor (M == B because
+            # the query support is this batch's next states). All (1-gamma) mass on the
+            # observed next state; the soft eps-kernel was diluting the readout.
+            k = jnp.eye(nobs.shape[0])
+        else:
+            k = _delta_phi(nobs, u_raw, blocks)                            # [B, M]
         t = jax.lax.stop_gradient((1.0 - gamma) * k[None] + gamma * w_bar)
         ce = -jnp.mean(jnp.sum(t * logp, axis=-1))
 
@@ -184,6 +238,15 @@ class DensityFBCritic:
             "density_ess_h1": ess_h1,
             "density_k_self": k_self,
         }
+        # How far apart the two bootstrap choices are. Under `sarsa` this is the size of the
+        # substitution being made; under `actor` it is the same R1 signal from the critic's
+        # side — how far the policy has walked off the behaviour support at s'. Logged in both
+        # modes so the two arms are directly comparable, and only when the actor's draw is
+        # available (a critic-only harness may not supply it).
+        if "next_action_vgoal" in boot and "next_actions" in batch:
+            info["density_sarsa_subst"] = jnp.linalg.norm(
+                jax.lax.stop_gradient(boot["next_action_vgoal"]) - batch["next_actions"],
+                axis=-1).mean()
         return ce, info
 
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
@@ -201,12 +264,23 @@ class DensityFBCritic:
         b_p = jax.lax.stop_gradient(params["density_b"])
         b_emb = self._B(b_p, u_sc)
         f_emb = self._F(f_p, jnp.concatenate([obs, actions, g], -1))
-        w = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb, b_emb) / self.temp, -1)
+        # W2 / KT-C: the ACTOR readout may use its own temperature. Raising it flattens the
+        # softmax the actor ascends (M2: a spiky readout is the residual suspect for the
+        # precision gap, ESS ~13 under qc03) WITHOUT touching what the measure is trained to
+        # be — stage_loss keeps self.temp. Default None => self.temp => bit-identical.
+        a_tau = self.temp if self.actor_temp is None else float(self.actor_temp)
+        w = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb, b_emb) / a_tau, -1)
         q1, q2 = (w * kg[None]).sum(-1)                                    # [2, B] -> [B],[B]
+        q = jnp.minimum(q1, q2)
         if self.actor_q_center:
-            q1 = q1 - q1.mean()
-            q2 = q2 - q2.mean()
-        return jnp.minimum(q1, q2), jnp.stack([q1, q2], 0)
+            # Bridge semantics (gciql_flow.py ~1168): actor_q_center touches ONLY the
+            # normalizer — q_scale = |q - q.mean()|.mean(), with -q.mean()'s gradient
+            # unchanged. FlowBC divides its q-term by sg[|Qs|.mean()], so the centering
+            # goes into the SECOND return. Centering the first (the numerator) makes
+            # -Q.mean() the batch-mean of a batch-centered quantity — identically ~0,
+            # no greedy signal, pure-BC actor (the failed first anchor generation).
+            return q, (q - q.mean())[None]
+        return q, jnp.stack([q1, q2], 0)
 
     def cond_vec(self, cond):
         return cond["goal"]
@@ -249,5 +323,8 @@ class DensityFBCritic:
         obj = cls(density_f=density_f, density_b=density_b, obs_dim=obs_dim, blocks=blocks,
                   discount=float(config["discount"]),
                   temp=float(config["measure_density_temp"]), tau=float(config["tau"]),
-                  actor_q_center=bool(config.get("actor_q_center", True)))
+                  actor_q_center=bool(config.get("actor_q_center", True)),
+                  hard=bool(config.get("measure_density_hard", False)),
+                  bootstrap=str(config.get("measure_density_bootstrap", "actor")),
+                  actor_temp=config.get("measure_density_actor_temp", None))
         return obj, params, targets

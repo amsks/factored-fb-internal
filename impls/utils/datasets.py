@@ -60,6 +60,12 @@ class FBDataset(Dataset):
     """Dataset yielding the FB training batch. goal=next_obs is handled inside the critic,
     so no goal machinery is needed here."""
 
+    # Set by make_dataset from obs_mask_dims|goal_mask_dims. FB's goal IS next_observations
+    # (B() reads it inside stage_loss), so blanking both frames is the whole repaired
+    # protocol for this dataset; without it the mask overrides are silently inert and FB
+    # trains with the target visible in obs while eval blanks it (2026-08-17 FB-zero bug).
+    mask_dims = None
+
     def sample(self, batch_size, idxs=None):
         if idxs is None:
             idxs = self.get_random_idxs(batch_size)
@@ -69,10 +75,15 @@ class FBDataset(Dataset):
             rewards = np.asarray(sub['rewards'], np.float32).reshape(B, -1)
         else:
             rewards = np.zeros((B, 1), np.float32)  # play data is unlabeled
+        obs = np.asarray(sub['observations'], np.float32)
+        nobs = np.asarray(sub['next_observations'], np.float32)
+        if self.mask_dims:
+            obs[:, self.mask_dims] = 0.0
+            nobs[:, self.mask_dims] = 0.0
         return {
-            'observations': np.asarray(sub['observations'], np.float32),
+            'observations': obs,
             'actions': np.asarray(sub['actions'], np.float32),
-            'next_observations': np.asarray(sub['next_observations'], np.float32),
+            'next_observations': nobs,
             'rewards': rewards,
             'terminals': np.zeros((B,), np.float32),  # always-gamma
         }
@@ -121,6 +132,20 @@ class GCDataset:
             value_goal_idxs = self._filter_goals(value_goal_idxs)
             actor_goal_idxs = self._filter_goals(actor_goal_idxs)
         obs = self.dataset['observations']
+        # SARSA bootstrap support (density_fb's `measure_density_bootstrap=sarsa`): the action
+        # the BEHAVIOUR policy actually took at s'. Emitted unconditionally — it is one gather,
+        # and every critic that ignores the key is bit-identical with it present.
+        #
+        # Trajectory-boundary-safe by clamping to the row's OWN final index rather than to
+        # size-1: at a trajectory's last row, idx+1 belongs to the NEXT trajectory, and
+        # bootstrapping a target on an action from an unrelated episode is exactly the kind of
+        # silent cross-trajectory leak `valids` exists to prevent. Clamping repeats that
+        # trajectory's last action instead, which is the standard convention and the only
+        # locally-available choice (these datasets are fixed-horizon, so `terminals` never
+        # fires as a true absorbing state and the target bootstraps regardless).
+        final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
+        batch['next_actions'] = np.asarray(
+            self.dataset['actions'][np.minimum(idxs + 1, final_idxs)], np.float32)
         batch['observations'] = np.asarray(batch['observations'], np.float32)
         batch['next_observations'] = np.asarray(batch['next_observations'], np.float32)
         batch['actions'] = np.asarray(batch['actions'], np.float32)
@@ -136,6 +161,19 @@ class GCDataset:
         if mask_dims:
             batch['value_goals'][:, list(mask_dims)] = 0.0
             batch['actor_goals'][:, list(mask_dims)] = 0.0
+        # Optional OBSERVATION masking. goal_mask_dims above only blanks the emitted goals,
+        # which stops the goal channel of g being a nuisance feature for the critic but does
+        # NOT close the behaviour-cloning shortcut: on goal-observable envs (Metaworld
+        # obs[36:39], ManiSkill ms-push-cube obs[25:28], Box2D b2d-goal-ctrl obs[5:7]) the
+        # target is inside the agent's own observation, so an unconditional BC actor reads
+        # "go here" off its input and no critic is ever on the causal path. Blanking the same
+        # dims in observations/next_observations forces every bit of goal information through
+        # the conditioning vector, which is the only way the critic comparison measures a
+        # critic. Eval must blank the same dims -- see env/unified.py::evaluate.
+        obs_mask_dims = c.get('obs_mask_dims')
+        if obs_mask_dims:
+            batch['observations'][:, list(obs_mask_dims)] = 0.0
+            batch['next_observations'][:, list(obs_mask_dims)] = 0.0
         return batch
 
     def _filter_goals(self, goal_idxs):
@@ -214,4 +252,8 @@ def make_dataset(base, config):
         return GCDataset(base, config)
     if config.get('dataset_class') == 'VIPDataset':
         return VIPDataset(base, config)
+    if isinstance(base, FBDataset):
+        dims = sorted(set(config.get('obs_mask_dims') or ()) |
+                      set(config.get('goal_mask_dims') or ()))
+        base.mask_dims = list(dims) or None
     return base

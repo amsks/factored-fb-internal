@@ -54,8 +54,14 @@ def _batch(seed=1, b=B):
 
 
 def _boot(b=B, seed=2):
+    """Two DISTINCT bootstrap actions, as FlowBCActor.sample_bootstrap now emits them:
+    `next_action` at the ACTOR goal (the policy-improvement draw) and `next_action_vgoal`
+    at the VALUE goal (the only valid bootstrap for a target taken at value_goals — the
+    bridge's `a_plus = actor(nobs, batch['value_goals'], noise)`). They differ so a test
+    that reads the wrong one fails."""
     rng = np.random.default_rng(seed)
-    return {"next_action": jnp.asarray(np.tanh(rng.standard_normal((b, ACT))))}
+    return {"next_action": jnp.asarray(np.tanh(rng.standard_normal((b, ACT)))),
+            "next_action_vgoal": jnp.asarray(np.tanh(rng.standard_normal((b, ACT))))}
 
 
 # --------------------------------------------------------------------------
@@ -128,7 +134,7 @@ def test_ce_and_ess_match_numpy_reference():
     f_emb = c.density_f.apply({"params": params["density_f"]}, jnp.concatenate([obs, acts, g], -1))
     logits = jnp.einsum('hbd,md->hbm', f_emb, b_emb) / c.temp
     logp = np.asarray(jax.nn.log_softmax(logits, -1))
-    a_plus = boot["next_action"]
+    a_plus = boot["next_action_vgoal"]   # the VALUE-goal bootstrap (bridge density_loss)
     tb = c.density_b.apply({"params": targets["density_b"]}, u_sc)
     tf = c.density_f.apply({"params": targets["density_f"]}, jnp.concatenate([nobs, a_plus, g], -1))
     w_bar = np.asarray(jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / c.temp, -1))
@@ -178,10 +184,13 @@ def test_target_towers_init_mirror_and_soft_update():
 
         b2 = _batch(seed=1, b=16)
         a2, info2 = a1.update(b2)
+        # Agent.apply_update EMAs with the POST-gradient-step params of the same update
+        # (impls/agents/__init__.py: soft_update(net[g].params, ...) after apply_gradients).
+        onl2 = jax.tree_util.tree_leaves(a2.net[tower].params)
         tgt1 = jax.tree_util.tree_leaves(a1.target[tower])
         tgt2 = jax.tree_util.tree_leaves(a2.target[tower])
-        for onl_pre, old_pre, new in zip(onl1, tgt1, tgt2):
-            expected = tau * np.asarray(onl_pre) + (1 - tau) * np.asarray(old_pre)
+        for onl_post, old_pre, new in zip(onl2, tgt1, tgt2):
+            expected = tau * np.asarray(onl_post) + (1 - tau) * np.asarray(old_pre)
             np.testing.assert_allclose(np.asarray(new), expected, atol=1e-6)
 
 
@@ -280,3 +289,426 @@ def test_gciql_registry_and_update_unaffected():
     o1, i1 = a1.update(b)
     for k in i0:
         np.testing.assert_allclose(np.asarray(i0[k]), np.asarray(i1[k]), atol=0)
+
+
+def test_actor_q_center_touches_only_the_normalizer():
+    """Bridge semantics (gciql_flow.py ~1168): actor_q_center changes the q-loss
+    NORMALIZER (|q - q.mean()|), never the -Q.mean() numerator. Centering the numerator
+    zeroes the greedy gradient (batch-mean of a batch-centered quantity) and reduces the
+    actor to pure BC — the failure mode of the first anchor generation (P5, 2026-08-11:
+    success 0.05 = BC floor instead of 0.929)."""
+    from impls.utils.config_utils import load_config
+    ex_obs, ex_act = _ex()
+    q_outs = {}
+    for center in (False, True):
+        cfg = load_config("density_fb", "flowbc", "cube_single")
+        cfg["measure_density_dim"] = D
+        cfg["value_hidden_dims"] = [32, 32]
+        cfg["actor_q_center"] = center
+        agent = Agent.create("density_fb", "flowbc", 0, ex_obs, ex_act, cfg)
+        b = _batch(seed=0, b=16)
+        cond = agent.critic.sample_cond(agent.net, b, jax.random.PRNGKey(0))
+        params = {g: agent.net[g].params for g in agent.net}
+        q, qs = agent.critic.q_fn(params, b["observations"], cond, b["actions"])
+        q_outs[center] = np.asarray(q)
+        if center:
+            # normalizer input is centered ...
+            assert abs(float(np.asarray(qs).mean())) < 1e-8
+    # ... but the numerator (first output) is IDENTICAL with and without centering.
+    np.testing.assert_allclose(q_outs[True], q_outs[False], atol=0)
+
+
+# --------------------------------------------------------------------------
+# 7. measure_density_hard (spec 21): one-hot immediate target
+# --------------------------------------------------------------------------
+def test_hard_immediate_target_is_one_hot():
+    """measure_density_hard=True swaps the immediate CE target k for the identity
+    (one-hot at the row's own successor, valid because M == B — the query support is
+    this batch's own next states). Mirrors test_ce_and_ess_match_numpy_reference but
+    with k = np.eye(B) in the numpy reference."""
+    ex_obs, ex_act = _ex()
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg(measure_density_hard=True))
+    assert c.hard is True
+    b = _batch(seed=11, b=6)
+    boot = _boot(b=6, seed=12)
+    cond = {"value_goal": b["value_goals"], "goal": b["actor_goals"]}
+
+    loss, info = c.stage_loss("density", params, targets, b, cond, boot)
+
+    blocks = c.blocks
+    nobs, obs, acts, g = b["next_observations"], b["observations"], b["actions"], b["value_goals"]
+    u_sc = _density_queries(nobs, blocks)
+    b_emb = c.density_b.apply({"params": params["density_b"]}, u_sc)
+    f_emb = c.density_f.apply({"params": params["density_f"]}, jnp.concatenate([obs, acts, g], -1))
+    logits = jnp.einsum('hbd,md->hbm', f_emb, b_emb) / c.temp
+    logp = np.asarray(jax.nn.log_softmax(logits, -1))
+    a_plus = boot["next_action_vgoal"]   # the VALUE-goal bootstrap (bridge density_loss)
+    tb = c.density_b.apply({"params": targets["density_b"]}, u_sc)
+    tf = c.density_f.apply({"params": targets["density_f"]}, jnp.concatenate([nobs, a_plus, g], -1))
+    w_bar = np.asarray(jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / c.temp, -1))
+    k = np.eye(nobs.shape[0])
+    t = (1.0 - c.discount) * k[None] + c.discount * w_bar
+    ce_ref = -np.mean(np.sum(t * logp, axis=-1))
+    assert np.allclose(ce_ref, float(loss), atol=1e-5)
+    assert np.allclose(t.sum(-1), 1.0, atol=1e-5)
+    assert np.allclose(float(info["density_k_self"]), 1.0, atol=1e-6), \
+        "hard k's diagonal is the identity's diagonal -- k_self must sit at its ceiling"
+
+
+def test_hard_off_is_bit_identical_to_default():
+    """measure_density_hard=False and the key absent must be bit-identical (off = the
+    shipped soft-kernel path, unchanged by this knob's addition)."""
+    ex_obs, ex_act = _ex()
+    c_explicit, params, targets = DensityFBCritic.build(
+        ex_obs, ex_act, _cfg(measure_density_hard=False))
+    c_default, params2, targets2 = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    assert c_explicit.hard is False and c_default.hard is False
+
+    b = _batch()
+    boot = _boot()
+    cond = {"value_goal": b["value_goals"], "goal": b["actor_goals"]}
+
+    loss1, info1 = c_explicit.stage_loss("density", params, targets, b, cond, boot)
+    loss2, info2 = c_default.stage_loss("density", params2, targets2, b, cond, boot)
+    np.testing.assert_allclose(float(loss1), float(loss2), atol=0)
+    for k in info1:
+        np.testing.assert_allclose(np.asarray(info1[k]), np.asarray(info2[k]), atol=0)
+
+
+# --------------------------------------------------------------------------
+# 8. the CE target's bootstrap action is drawn at the VALUE goal (port fix,
+#    2026-08-11). The bridge's density_loss draws
+#    `a_plus = sg(actor(nobs, batch['value_goals'], noise))`; our seam's
+#    `boot["next_action"]` is conditioned on the ACTOR goal (_cvec(cond)), a
+#    different goal distribution. Reading it made w_bar the occupancy of a policy
+#    heading elsewhere => a goal-averaged, far more diffuse density
+#    (density_ess_median ~310 vs the bridge's ~89 at M=B=1024).
+# --------------------------------------------------------------------------
+def test_stage_loss_bootstraps_at_the_value_goal_action():
+    ex_obs, ex_act = _ex()
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    b = _batch()
+    cond = {"value_goal": b["value_goals"], "goal": b["actor_goals"]}
+    boot = _boot()
+    l0, _ = c.stage_loss("density", params, targets, b, cond, boot)
+    # perturbing the ACTOR-goal bootstrap must NOT move the loss ...
+    boot_a = {**boot, "next_action": jnp.zeros_like(boot["next_action"])}
+    l1, _ = c.stage_loss("density", params, targets, b, cond, boot_a)
+    np.testing.assert_allclose(float(l1), float(l0), atol=0)
+    # ... perturbing the VALUE-goal bootstrap MUST.
+    boot_v = {**boot, "next_action_vgoal": jnp.zeros_like(boot["next_action_vgoal"])}
+    l2, _ = c.stage_loss("density", params, targets, b, cond, boot_v)
+    assert not np.allclose(float(l2), float(l0), atol=1e-9)
+
+
+def test_stage_loss_refuses_a_boot_without_the_value_goal_action():
+    """No silent fallback to boot['next_action'] — that fallback is the bug."""
+    ex_obs, ex_act = _ex()
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    b = _batch()
+    cond = {"value_goal": b["value_goals"], "goal": b["actor_goals"]}
+    with pytest.raises(KeyError, match="next_action_vgoal"):
+        c.stage_loss("density", params, targets, b, cond,
+                     {"next_action": _boot()["next_action"]})
+
+
+def test_flowbc_bootstrap_draws_the_value_goal_action():
+    """FlowBCActor emits BOTH bootstraps off the SAME noise draw: `next_action` at
+    _cvec(cond) (the actor goal, what the policy-improvement term uses) and
+    `next_action_vgoal` at cond['value_goal']. Same noise => every critic that reads
+    `next_action` is bit-identical to before the fix."""
+    from impls.utils.config_utils import load_config
+    ex_obs, ex_act = _ex()
+    cfg = load_config("density_fb", "flowbc", "cube_single")
+    cfg["measure_density_dim"] = D
+    cfg["value_hidden_dims"] = [32, 32]
+    agent = Agent.create("density_fb", "flowbc", 0, ex_obs, ex_act, cfg)
+    b = _batch(seed=5)
+    b["value_goals"] = jnp.asarray(np.random.default_rng(7).standard_normal((B, OBS)))
+    cond = agent.critic.sample_cond(agent.net, b, jax.random.PRNGKey(0))
+    rng = jax.random.PRNGKey(3)
+    boot = agent.actor.sample_bootstrap(agent.net, b, cond, rng)
+
+    noise = jax.random.normal(jax.random.split(rng, 4)[0], (B, ACT))
+    p = agent.net["actor"].params
+    a_actor = agent.actor._actor(p, b["next_observations"], b["actor_goals"], noise)
+    a_value = agent.actor._actor(p, b["next_observations"], b["value_goals"], noise)
+    np.testing.assert_allclose(np.asarray(boot["next_action"]), np.asarray(a_actor), atol=0)
+    np.testing.assert_allclose(np.asarray(boot["next_action_vgoal"]), np.asarray(a_value), atol=0)
+    assert not np.allclose(np.asarray(a_actor), np.asarray(a_value), atol=1e-6), \
+        "test setup: the two goals must give different actions for this to discriminate"
+
+
+# --------------------------------------------------------------------------
+# 7. bridge spec 22: the ddpgbc extraction (impls/actors/ddpgbc_density.py)
+# --------------------------------------------------------------------------
+def _dd_cfg(**over):
+    from impls.utils.config_utils import load_config
+    cfg = load_config("density_fb", "ddpgbc_density", "cube_single")
+    cfg["measure_density_dim"] = D
+    cfg["value_hidden_dims"] = [32, 32]
+    cfg["batch_size"] = B
+    cfg.update(over)
+    return cfg
+
+
+def test_ddpgbc_density_registered_and_distinct_from_stock():
+    from impls.agents import ACTORS
+    from impls.actors.ddpgbc import DDPGBCActor
+    from impls.actors.ddpgbc_density import DDPGBCDensityActor
+    assert ACTORS["ddpgbc_density"] is DDPGBCDensityActor
+    assert ACTORS["ddpgbc"] is DDPGBCActor, "stock ddpgbc must keep its own class"
+    # The stock branch is what the existing gciql x ddpgbc cells ran; it must not inherit
+    # the new normalizer or the value-goal bootstrap.
+    assert DDPGBCActor.loss is not DDPGBCDensityActor.loss
+    assert DDPGBCActor.sample_bootstrap is not DDPGBCDensityActor.sample_bootstrap
+
+
+def test_ddpgbc_density_builds_and_updates():
+    ex_obs, ex_act = _ex()
+    agent = Agent.create("density_fb", "ddpgbc_density", 0, ex_obs, ex_act, _dd_cfg())
+    agent, info = agent.update(_batch())
+    for k in ("actor_loss", "q_loss", "bc_loss", "q_scale", "action_gap_l2", "density_ce"):
+        assert k in info, f"missing {k}"
+    for k, v in info.items():
+        assert np.isfinite(np.asarray(v)).all(), f"{k} not finite"
+
+
+def test_ddpgbc_density_bootstraps_at_the_value_goal_with_mode():
+    """density_fb's forward tower is F(s,a,g), so the TD target must bootstrap at the VALUE
+    goal; and under const_std the draw is dist.mode(), which is rng-independent."""
+    ex_obs, ex_act = _ex()
+    agent = Agent.create("density_fb", "ddpgbc_density", 0, ex_obs, ex_act, _dd_cfg())
+    b = _batch(seed=5)
+    b["value_goals"] = jnp.asarray(np.random.default_rng(7).standard_normal((B, OBS)))
+    cond = agent.critic.sample_cond(agent.net, b, jax.random.PRNGKey(0))
+    boot = agent.actor.sample_bootstrap(agent.net, b, cond, jax.random.PRNGKey(3))
+
+    assert "next_action_vgoal" in boot, "density_fb refuses a boot without it"
+    assert boot["next_action_vgoal"].shape == (B, ACT)
+    p = agent.net["actor"].params
+    mode_v = jnp.clip(agent.actor._dist(p, b["next_observations"], b["value_goals"]).mode(), -1, 1)
+    mode_a = jnp.clip(agent.actor._dist(p, b["next_observations"], b["actor_goals"]).mode(), -1, 1)
+    np.testing.assert_allclose(np.asarray(boot["next_action_vgoal"]), np.asarray(mode_v), atol=0)
+    np.testing.assert_allclose(np.asarray(boot["next_action"]), np.asarray(mode_a), atol=0)
+    assert not np.allclose(np.asarray(mode_v), np.asarray(mode_a), atol=1e-6), \
+        "test setup: the two goals must give different actions for this to discriminate"
+
+    # mode(), not sample(): a different rng must not move either draw.
+    boot2 = agent.actor.sample_bootstrap(agent.net, b, cond, jax.random.PRNGKey(999))
+    np.testing.assert_allclose(np.asarray(boot2["next_action_vgoal"]),
+                               np.asarray(boot["next_action_vgoal"]), atol=0)
+
+
+def test_ddpgbc_density_normalizer_is_the_centered_one():
+    """Bridge branch hardcodes q_scale = |q - q.mean()|.mean(). We read it off the critic's
+    SECOND q_fn return, which is the centered leg when actor_q_center is on."""
+    ex_obs, ex_act = _ex()
+    for center, expect_centered in ((True, True), (False, False)):
+        cfg = _dd_cfg(actor_q_center=center)
+        agent = Agent.create("density_fb", "ddpgbc_density", 0, ex_obs, ex_act, cfg)
+        b = _batch()
+        cond = agent.critic.sample_cond(agent.net, b, jax.random.PRNGKey(0))
+        boot = agent.actor.sample_bootstrap(agent.net, b, cond, jax.random.PRNGKey(1))
+        params = {g: agent.net[g].params for g in agent.net}
+        _, info = agent.actor.loss(params, agent.target, b, agent.critic, cond, boot)
+
+        dist = agent.actor._dist(params["actor"], b["observations"], agent.critic.cond_vec(cond))
+        q, qs = agent.critic.q_fn(params, b["observations"], cond,
+                                  jnp.clip(dist.mode(), -1, 1))
+        centered = float(jnp.abs(q - q.mean()).mean())
+        got = float(info["q_scale"])
+        if expect_centered:
+            assert abs(got - centered) < 1e-8, f"q_scale {got} is not the centered |q-q.mean()|"
+        else:
+            assert abs(got - float(jnp.abs(qs).mean())) < 1e-8
+            assert abs(got - centered) > 1e-8, "uncentered config must not equal the centered one"
+
+
+def test_ddpgbc_density_q_term_reaches_the_actor():
+    """A pure-BC actor would be the failure mode of centering the NUMERATOR (the failed first
+    anchor generation). The q-term must produce a non-zero gradient contribution."""
+    ex_obs, ex_act = _ex()
+    agent = Agent.create("density_fb", "ddpgbc_density", 0, ex_obs, ex_act, _dd_cfg())
+    b = _batch()
+    cond = agent.critic.sample_cond(agent.net, b, jax.random.PRNGKey(0))
+    boot = agent.actor.sample_bootstrap(agent.net, b, cond, jax.random.PRNGKey(1))
+    online = {g: agent.net[g].params for g in agent.net}
+
+    import dataclasses
+
+    def q_only(ap, alpha):
+        a = dataclasses.replace(agent.actor, alpha=alpha)
+        loss, _ = a.loss({**online, "actor": ap}, agent.target, b, agent.critic, cond, boot)
+        return loss
+
+    g_full = jax.grad(q_only)(online["actor"], 0.3)
+    g_bconly = jax.grad(q_only)(online["actor"], 0.0)   # alpha=0 -> q-term only
+    flat = lambda t: jnp.concatenate([x.ravel() for x in jax.tree_util.tree_leaves(t)])
+    assert float(jnp.abs(flat(g_bconly)).max()) > 1e-10, "q-term contributes no gradient"
+    assert not np.allclose(np.asarray(flat(g_full)), np.asarray(flat(g_bconly)), atol=1e-12)
+
+
+def test_flowbc_drift_instrumentation_does_not_change_the_update():
+    """A4 logs Q(s,a_data)-Q(s,a_actor) and ||a_actor-a_data|| in flowbc.loss info. It is
+    reporting only: the resulting parameters must be bit-identical with it stubbed out."""
+    from impls.actors.flowbc import FlowBCActor
+    ex_obs, ex_act = _ex()
+    from impls.utils.config_utils import load_config
+    cfg = load_config("density_fb", "flowbc", "cube_single")
+    cfg["measure_density_dim"] = D
+    cfg["value_hidden_dims"] = [32, 32]
+    b = _batch()
+
+    a_real, _ = Agent.create("density_fb", "flowbc", 0, ex_obs, ex_act, cfg).update(b)
+    orig = FlowBCActor._policy_drift
+    try:
+        FlowBCActor._policy_drift = staticmethod(lambda *a, **k: {})
+        a_stub, _ = Agent.create("density_fb", "flowbc", 0, ex_obs, ex_act, cfg).update(b)
+    finally:
+        FlowBCActor._policy_drift = orig
+
+    for g in a_real.net:
+        for x, y in zip(jax.tree_util.tree_leaves(a_real.net[g].params),
+                        jax.tree_util.tree_leaves(a_stub.net[g].params)):
+            np.testing.assert_array_equal(np.asarray(x), np.asarray(y))
+
+
+# --------------------------------------------------------------------------
+# 8. edge-attribution spec (docs/specs/2026-08-17-gciql-edge-attribution.md)
+#    W1 measure_density_bootstrap=sarsa (M1) / W2 measure_density_actor_temp (M2)
+# --------------------------------------------------------------------------
+def _cond_for(c, b):
+    return {"value_goal": b["value_goals"], "goal": b["actor_goals"],
+            "_density_u_raw": _raw_block_cols(b["next_observations"], c.blocks),
+            "_density_u_sc": _density_queries(b["next_observations"], c.blocks)}
+
+
+def _batch_with_next_actions(seed=1, b=B):
+    batch = _batch(seed=seed, b=b)
+    rng = np.random.default_rng(seed + 500)
+    batch["next_actions"] = jnp.asarray(np.tanh(rng.standard_normal((b, ACT))))
+    return batch
+
+
+def test_w1_default_bootstrap_is_bit_identical():
+    """The knob defaults to 'actor'. A batch that merely CARRIES next_actions (GCDataset now
+    always emits it) must not move a single bit of the default path."""
+    ex_obs, ex_act = _ex()
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    assert c.bootstrap == "actor" and c.actor_temp is None
+    boot = _boot()
+    plain, withna = _batch(), _batch_with_next_actions()
+    l0, i0 = c.stage_loss("density", params, targets, plain, _cond_for(c, plain), boot)
+    l1, i1 = c.stage_loss("density", params, targets, withna, _cond_for(c, withna), boot)
+    np.testing.assert_array_equal(np.asarray(l0), np.asarray(l1))
+    for k in i0:
+        np.testing.assert_array_equal(np.asarray(i0[k]), np.asarray(i1[k]), err_msg=k)
+
+
+def test_w1_sarsa_uses_the_dataset_action_and_never_the_actor():
+    """Under sarsa the actor is outside the critic's fixed point entirely — so the target must
+    change when the DATASET's next action changes, must NOT change when the actor's does, and
+    must still compute when the actor supplied no bootstrap at all."""
+    ex_obs, ex_act = _ex()
+    cfg = _cfg(measure_density_bootstrap="sarsa")
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, cfg)
+    assert c.bootstrap == "sarsa"
+    b = _batch_with_next_actions()
+    cond = _cond_for(c, b)
+
+    base, _ = c.stage_loss("density", params, targets, b, cond, _boot())
+    # A different ACTOR draw must not move it.
+    other_actor, _ = c.stage_loss("density", params, targets, b, cond, _boot(seed=77))
+    np.testing.assert_array_equal(np.asarray(base), np.asarray(other_actor))
+    # A different DATASET next action must.
+    b2 = dict(b); b2["next_actions"] = jnp.asarray(
+        np.tanh(np.random.default_rng(9).standard_normal((B, ACT))))
+    moved, _ = c.stage_loss("density", params, targets, b2, cond, _boot())
+    assert not np.allclose(np.asarray(base), np.asarray(moved)), \
+        "sarsa target ignored batch['next_actions']"
+    # No actor bootstrap at all: still computes (the actor is not in the target).
+    ok, _ = c.stage_loss("density", params, targets, b, cond, boot={})
+    np.testing.assert_array_equal(np.asarray(base), np.asarray(ok))
+
+
+def test_w1_sarsa_without_next_actions_fails_loudly():
+    """A silent fallback to the actor action would restore M1 and invalidate the arm."""
+    ex_obs, ex_act = _ex()
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg(measure_density_bootstrap="sarsa"))
+    b = _batch()
+    with pytest.raises(KeyError, match="next_actions"):
+        c.stage_loss("density", params, targets, b, _cond_for(c, b), _boot())
+
+
+def test_w1_rejects_an_unknown_bootstrap_mode():
+    ex_obs, ex_act = _ex()
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg(measure_density_bootstrap="behaviour"))
+    b = _batch_with_next_actions()
+    with pytest.raises(ValueError, match="must be 'actor' or 'sarsa'"):
+        c.stage_loss("density", params, targets, b, _cond_for(c, b), _boot())
+
+
+def test_w1_gcdataset_next_actions_respect_trajectory_boundaries():
+    """idx+1 at a trajectory's LAST row belongs to the next trajectory. Clamping must repeat
+    that trajectory's own final action instead of leaking one from an unrelated episode."""
+    from impls.utils.datasets import Dataset, GCDataset
+    T, n_traj = 5, 3
+    n = T * n_traj
+    terminals = np.zeros(n, np.float32); terminals[T - 1::T] = 1.0
+    # actions[i] = i, so a leak across the boundary is immediately visible as a value jump.
+    ds = Dataset.create(observations=np.arange(n, dtype=np.float32).reshape(n, 1),
+                        actions=np.arange(n, dtype=np.float32).reshape(n, 1),
+                        terminals=terminals)
+    cfg = dict(value_p_curgoal=0.0, value_p_trajgoal=1.0, value_p_randomgoal=0.0,
+               value_geom_sample=False, actor_p_curgoal=0.0, actor_p_trajgoal=1.0,
+               actor_p_randomgoal=0.0, actor_geom_sample=False, gc_negative=True,
+               discount=0.99)
+    gc = GCDataset(ds, cfg)
+    idxs = np.arange(n)
+    batch = gc.sample(n, idxs=idxs)
+    got = np.asarray(batch["next_actions"]).ravel()
+    expect = np.minimum(idxs + 1, (idxs // T) * T + (T - 1)).astype(np.float32)
+    np.testing.assert_array_equal(got, expect)
+    for t in range(n_traj):                      # the boundary rows specifically
+        last = t * T + (T - 1)
+        assert got[last] == float(last), f"row {last} leaked action {got[last]}"
+
+
+def test_w2_actor_temp_moves_only_the_actor_readout():
+    """Raising the actor temperature must smooth q_fn's softmax and leave stage_loss — the
+    thing the measure is actually trained to be — bit-identical."""
+    ex_obs, ex_act = _ex()
+    b = _batch_with_next_actions()
+    c0, p0, t0 = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    c2, p2, t2 = DensityFBCritic.build(ex_obs, ex_act, _cfg(measure_density_actor_temp=5.0))
+    assert c2.actor_temp == 5.0
+    cond = _cond_for(c0, b)
+    acts = b["actions"]
+
+    q0, _ = c0.q_fn(p0, b["observations"], cond, acts)
+    q2, _ = c2.q_fn(p2, b["observations"], cond, acts)
+    assert not np.allclose(np.asarray(q0), np.asarray(q2), atol=1e-9), \
+        "actor_temp did not reach q_fn"
+
+    l0, i0 = c0.stage_loss("density", p0, t0, b, cond, _boot())
+    l2, i2 = c2.stage_loss("density", p2, t2, b, cond, _boot())
+    np.testing.assert_array_equal(np.asarray(l0), np.asarray(l2))
+    for k in i0:
+        np.testing.assert_array_equal(np.asarray(i0[k]), np.asarray(i2[k]), err_msg=k)
+
+    # None must be exactly the old behaviour, not merely close.
+    cN, pN, _ = DensityFBCritic.build(ex_obs, ex_act, _cfg(measure_density_actor_temp=None))
+    qN, _ = cN.q_fn(pN, b["observations"], cond, acts)
+    np.testing.assert_array_equal(np.asarray(q0), np.asarray(qN))
+
+
+def test_w1_logs_the_substitution_size():
+    ex_obs, ex_act = _ex()
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    b = _batch_with_next_actions()
+    boot = _boot()
+    _, info = c.stage_loss("density", params, targets, b, _cond_for(c, b), boot)
+    assert "density_sarsa_subst" in info
+    expect = float(jnp.linalg.norm(boot["next_action_vgoal"] - b["next_actions"], axis=-1).mean())
+    assert abs(float(info["density_sarsa_subst"]) - expect) < 1e-9
