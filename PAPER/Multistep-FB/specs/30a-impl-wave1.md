@@ -110,6 +110,58 @@ The matched-extractor variant (their critic + our kernel readout/flow actor) is
 the promotion wave — implement the knobs so it is one config away, but do not
 launch it in wave 1.
 
+### Item 2 — IMPLEMENTED 2026-08-17 (`measure_tdinfonce`)
+
+Shipped knobs (all default-OFF; bit-identity to the pinned pre-implementation commit
+`7c096f3` proven over 3 real `update()` steps + `sample_actions` on the g-density arm, the
+HARD ablation, the ddpgbc density arm, the spec-24 z arm and the spec-30 P1 centered arm):
+`measure_tdinfonce`, `measure_tdinfonce_actor ∈ {paper, matched}`,
+`measure_tdinfonce_bc_lambda` (0.5), `measure_tdinfonce_negatives ∈ {dataset_marginal,
+batch_next}` (the new QUERY-SOURCE knob), and the GCDataset gate `marginal_states`
+(forced on by create(), the `next_actions` precedent). Code: `tdinfonce_loss`,
+`_tdinfonce_actor_loss`, an l2 gate inside `_density_actor_q` (matched arm only), and
+`GCDataset.sample`'s two independent future-state-marginal draws.
+
+Their Eq. 10 is reproduced with all three audited deltas: immediate positive = the dynamics
+next state, bootstrap positive = a MARGINAL draw soft-labelled by the stop-grad target
+softmax, ONE shared negative pool s^(2:N) drawn iid from the dataset future-state marginal,
+and l2-normalized towers (temperature implicit; `measure_density_temp` is refused off 1.0).
+Actor = their Eq. 11 + App. D.3: goal-contrastive CE whose positive candidate is the
+COMMANDED GOAL as an outcome, convexly mixed with an MSE goal-BC term, on the deterministic
+gaussian policy (`actor_kind=ddpgbc`, `const_std`), with their geometric future-state
+relabeling (`actor_p_trajgoal=1.0`, `actor_geom_sample=True`) — all lattice-pinned.
+
+**Divergences forced by faithfulness (recorded, per the Item-2 rule):**
+- `actor_q_center` (our q-scale normalizer, required on every density arm) is REFUSED on
+  the paper arm — their Eq. 11 is a convex mix of two commensurate terms and carries no
+  such normalizer. The density lattice's blanket `actor_q_center` requirement was exempted
+  for this arm rather than the arm being bent to it.
+- BC is an MSE on actions at weight λ, not our flow distillation or GCIQL's log-prob BC.
+- λ's numeric value is NOT recoverable from the paper's accessible text (Table 2 truncates
+  in every offline rendering), so it is pinned at the convex midpoint **0.5** and exposed
+  as a knob rather than silently taking our `bc_coeff`/`alpha` conventions.
+- The goal-relabeling distribution differs from our arms' default (uniform future) — the
+  arm's config carries THEIRS, and the lattice refuses the arm without it.
+- `density_f` keeps our 2-head ensemble, each head bootstrapping from its own target head
+  (density_loss's own treatment of w̄); a single-critic reading of Eq. 10 would be one head.
+- The "future-state marginal" is realized as: fresh uniform dataset rows → geometric
+  (discounted) future state of each — i.e. E_{s∼D}[p^β(s_{t+}|s)]. Two independent draws,
+  because a candidate set may not contain the same state twice.
+
+Matched-extractor arm is ONE CONFIG away and deliberately unlaunched:
+`configs/gciql/cube_double_state_tdinfonce_matched_d50.yaml`
+(`measure_tdinfonce_actor=matched` → their critic, our kernel readout + flow actor +
+`actor_q_center`).
+
+Tests: `tests/test_gciql_spec30_tdinfonce.py`, **10 green** (bit-identity; Eq. 10 closed
+form; each of the three deltas against the control that would pass if it had been
+implemented our way; MUTATION-tested — four broken copies of the agent source compiled and
+re-scored, each must fail; Eq. 11 + App. D.3 closed form; the GCDataset draws; lattice;
+end-to-end + target-tower gradient hygiene). Note: the stop-gradient on the target softmax
+is belt-and-braces, not load-bearing (the target towers are called at frozen params), so it
+is not mutated — the property is asserted directly as zero gradient into
+`modules_target_density_*`.
+
 ## Item 3 — goal-conditioned outcome-space LSIF, cube-double, s0 (`lsif_cd_phi_s0`)
 
 Revive the jax LSIF-style bilinear measure arm (measure_loss, gciql_flow.py:2003):
@@ -118,6 +170,40 @@ via EXTERNAL kernel reward integration q = E_x[m(s,a,g,x)·kg(x)] (mirror
 `_density_actor_q` over m instead of w), same flow actor + BC machinery
 (~40–80 lines). Matched to Density-FB in everything except LSIF-vs-CE and
 unnormalized-vs-normalized. This is the privileged-coordinates confound control.
+
+### Item 3 — IMPLEMENTED 2026-08-17 (`measure_lsif`)
+
+Shipped knobs (default-OFF, bit-identical when off over the same 3-step + `sample_actions`
+protocol): `measure_lsif`, `measure_lsif_immediate ∈ {kernel, dirac}`. Code: `lsif_loss`,
+`_lsif_actor_q`, one branch in `actor_loss`'s density chain, one in `total_loss`.
+
+    L = 0.5·E_{i≠j}[(m_ij − γ m̄_ij)²] − E_i[Σ_j k_ij m_ij],   m = F(s,a,g)ᵀB(φ(x))/τ
+
+which is exactly LSIF for the unnormalized measure (expanding ½E_ρ[(m − (k/ρ + γm̄))²]
+drops the m-independent terms), and is FB's own split: the diagonal is excluded from the
+quadratic and carried by the linear attraction term, so `measure_lsif_immediate='dirac'`
+(k = I) reduces to plain FB's loss on φ coordinates. The default `'kernel'` keeps
+Density-FB's SOFT immediate object, matched to the flagship cells.
+
+MATCHING (the inference dies without it, so it is tested term by term, not asserted):
+same towers + targets, same raw-g conditioning, same query support (the batch's own
+next-state block coords), same one-shot flow-actor bootstrap off the same rng, same
+γ/τ/dim/hit-spec, same flow actor + `bc_coeff` + `actor_q_center`; the actor reads the SAME
+external kernel integral, over m instead of w. The test suite asserts the two arms' configs
+differ in exactly `{measure_lsif}` and their param trees are identical at the same seed.
+
+**Deliberate non-matching, recorded:** `measure_scale_norm` is REFUSED here. It would be a
+third unmatched difference, and Density-FB has no scale normalization at all. The LSIF
+objective's linear attraction is genuinely unbounded (the known FB divergence channel), so
+`lsif_m_msq` / `lsif_diag_mean` / `lsif_neg_frac` are logged and a runaway is a REPORTABLE
+property of the control rather than something engineered away.
+
+Tests: `tests/test_gciql_spec30_lsif.py`, **7 green** (bit-identity; LSIF closed form for
+both immediate objects; the term-by-term matching test; the two intended axes — m is not a
+probability vector and the readout is E_x[m·kg], differing from the softmax readout;
+lattice; MUTATION — softmax creeping back onto m, the diagonal entering the quadratic, and
+the missing stop-gradient on the target measure, each compiled and caught; end-to-end +
+target-tower gradient hygiene).
 
 ## Item 4 — P4 hygiene (CPU, alongside)
 

@@ -241,6 +241,24 @@ class GCDataset:
             batch['next_actions'] = np.where(is_final[:, None], batch['actions'], next_actions)
             batch['next_actions_subst'] = is_final.astype(np.float32)
 
+        if self.config.get('marginal_states', False):
+            # Spec 30a Item 2 (paper-exact TD InfoNCE): iid draws from the dataset
+            # FUTURE-STATE MARGINAL p(s_t+) = E_{s ~ D}[ p^beta(s_t+ | s) ] -- fresh
+            # UNIFORM dataset rows (independent of `idxs`), then the geometric/discounted
+            # future state of each, i.e. sample_goals' trajectory-future branch at
+            # p_trajgoal=1 with geom_sample=True. This is NOT the batch's own next states:
+            # those are the rows' one-step successors, correlated with the positives the
+            # negatives have to be contrasted against.
+            # TWO independent draws, because a softmax candidate set may not contain the
+            # same state twice: 'marginal_states' is the SHARED negative pool s^(2:N) and
+            # 'marginal_positives' is the bootstrap term's per-row positive slot s^(1).
+            batch['marginal_states'] = self.get_observations(
+                self.sample_goals(self.dataset.get_random_idxs(len(idxs)), 0.0, 1.0, 0.0, True)
+            )
+            batch['marginal_positives'] = self.get_observations(
+                self.sample_goals(self.dataset.get_random_idxs(len(idxs)), 0.0, 1.0, 0.0, True)
+            )
+
         value_goal_idxs = self.sample_goals(
             idxs,
             self.config['value_p_curgoal'],

@@ -1,0 +1,45 @@
+# Spec 30 P2.1 second arm -- MATCHED-EXTRACTOR TD InfoNCE: their critic, OUR extraction.
+#
+# ** NOT LAUNCHED IN WAVE 1. ** Spec 30a Item 2 asks only that this arm be ONE CONFIG
+# AWAY, and this is that config. It belongs to the promotion wave, and launching it before
+# the paper-exact arm has landed would answer the second question (estimator or
+# extraction?) before the first one (how does the published method do here?) is answered.
+#
+# Everything about the critic is the paper-exact arm's (Eq. 10, l2-normalized towers, one
+# shared negative pool from the dataset future-state marginal, the two positive slots).
+# Everything about the EXTRACTION is Density-FB's: the external kernel readout
+# q = sum_j w_j kg_j over the l2-normalized classifier (_density_actor_q), the flow actor
+# with bc_coeff distillation, and actor_q_center -- i.e. the recipe every density arm in
+# tab:main runs. The difference from cube_double_state_measure_density_d50.yaml is then
+# exactly the critic objective.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-TDInfoNCE-Matched-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  measure_tdinfonce: true
+  measure_tdinfonce_actor: matched
+  measure_tdinfonce_negatives: dataset_marginal
+  actor_q_center: true
+wandb_mode: online

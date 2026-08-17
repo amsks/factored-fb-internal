@@ -1,0 +1,80 @@
+# Spec 30a Item 2 -- PAPER-EXACT TD InfoNCE on cube-double-play-v0, the estimator control.
+#
+# WHY THIS EXISTS. Spec 30's audit found that Density-FB's HARD loss reduces to the
+# categorical Bellman update underlying TD InfoNCE (Zheng, Salakhutdinov & Eysenbach,
+# ICLR 2024, arXiv:2310.20141) under matched conventions -- while our flagship cells are
+# the SOFT variant. So "how much of our result is the published method?" is an open
+# question that only a run can answer, and it has to be THEIR method, not a hybrid: their
+# critic supports, their l2-normalized towers, their goal-contrastive actor, their MSE
+# goal-BC regularizer and their goal-relabeling distribution. The matched-extractor arm
+# (their critic + our kernel readout + flow actor) is a SEPARATE config
+# (cube_double_state_tdinfonce_matched_d50.yaml) and belongs to the promotion wave --
+# calling one hybrid arm "exact TD InfoNCE" would conflate the two questions.
+#
+# WHAT IS THEIRS HERE (each one a deliberate divergence from our conventions, recorded):
+#   * critic = their Eq. 10. Immediate term labels the dynamics next state; bootstrap term
+#     labels a MARGINAL draw soft-labelled by the stop-grad target softmax; ONE shared
+#     negative pool s^(2:N) drawn iid from the dataset FUTURE-STATE marginal
+#     (measure_tdinfonce_negatives=dataset_marginal -> GCDataset's marginal keys, forced
+#     on by create()). Our standing support is the batch's own next states.
+#   * both towers l2-normalized => the temperature is IMPLICIT (measure_density_temp is
+#     pinned at 1.0 and refused off it).
+#   * actor = their Eq. 11 + App. D.3: goal-contrastive CE whose positive candidate is the
+#     COMMANDED GOAL as an outcome, against the same marginal negatives, convexly mixed
+#     with an MSE goal-BC term at lambda -- on the DETERMINISTIC gaussian policy that
+#     regularizer implies (actor_kind=ddpgbc + const_std), with NO q-scale normalization
+#     (actor_q_center is refused here) and NO flow distillation.
+#   * goal relabeling = theirs: actor_p_trajgoal 1.0 + actor_geom_sample True (geometric
+#     discounted future states), not our uniform-future default.
+#   * outcome coordinates x = phi(s) are Density-FB's (the two-cube hit spec) -- that is
+#     what makes the arms comparable at all, and it is the one thing we hold fixed.
+#
+# DIVERGENCE WE COULD NOT RESOLVE FROM THE PAPER (recorded, not hidden): App. D.3's
+# numeric lambda is not in the accessible text of any rendering we can fetch offline
+# (Table 2 truncates), so measure_tdinfonce_bc_lambda is pinned at the convex midpoint 0.5
+# rather than silently adopting our own bc_coeff/alpha conventions. Also: density_f is
+# 2-headed here (our double-Q ensemble), each head bootstrapping from its own target head.
+#
+# READING RULE (spec 30a): this is a control, so a faithful arm that scores well is a REAL
+# FINDING, not a failure -- do not tune it toward or away from any number. The promotion
+# gate is that it does NOT trivially reproduce the soft result. No result claims before
+# 500k; then quote 500k AND the mean over >= 350k.
+# Anchors on this env (native GC success, 500k): density soft .736 | density hard .680 |
+# BC floor .019.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-TDInfoNCE-Exact-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  measure_tdinfonce: true
+  measure_tdinfonce_actor: paper
+  measure_tdinfonce_negatives: dataset_marginal
+  measure_tdinfonce_bc_lambda: 0.5
+  actor_kind: ddpgbc
+  const_std: true
+  actor_q_center: false
+  actor_p_curgoal: 0.0
+  actor_p_trajgoal: 1.0
+  actor_p_randomgoal: 0.0
+  actor_geom_sample: true
+wandb_mode: online

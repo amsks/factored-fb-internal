@@ -49,6 +49,15 @@ def _sphere_or_neutral(x, d, eps):
     return jnp.where(degenerate, jnp.ones_like(x), x * jnp.sqrt(d * 1.0) / safe)
 
 
+def _l2n(x):
+    """Spec 30a Item 2: l2-normalize along the last axis -- TD InfoNCE's tower convention
+    (their sec 3.1: "phi and psi are l2 normalized vectors"), which makes their logits
+    cosine similarities with an IMPLICIT temperature. Kept separate from `_sphere` (which
+    rescales to sqrt(d), FB's convention) so neither path can silently adopt the other's
+    normalization. The 1e-8 floor only guards an exactly-zero row."""
+    return x / jnp.maximum(jnp.linalg.norm(x, axis=-1, keepdims=True), 1e-8)
+
+
 # --- Spec 25 (z-coupling port) constants -------------------------------------
 # Ridge regularizer of the C2 reward-decodability auxiliary's closed-form solve
 # (spec 25 §0 C2 pins lambda=1e-4 as the round-1 dose and gives it NO knob name --
@@ -1102,6 +1111,13 @@ class GCIQLFlowAgent(GCIQLAgent):
         b_emb18 = self.network.select('density_b')(u_sc18)                        # frozen params
         f_emb18 = self.network.select('density_f')(
             jnp.concatenate([obs, actions, goals], -1))                          # frozen params
+        if self.config.get('measure_tdinfonce', False):
+            # Spec 30a Item 2, the MATCHED-EXTRACTOR arm: their critic is trained on
+            # l2-NORMALIZED towers (tdinfonce_loss), so the classifier this readout
+            # integrates must be built from the same normalized logits -- reading the raw
+            # inner products would integrate a distribution the critic never fitted.
+            # Trace-time branch on a static config field: bit-identical when off.
+            b_emb18, f_emb18 = _l2n(b_emb18), _l2n(f_emb18)
         w18 = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb18, b_emb18)
                              / self.config['measure_density_temp'], -1)
         return (w18 * kg[None]).sum(-1)
@@ -1555,6 +1571,14 @@ class GCIQLFlowAgent(GCIQLAgent):
         # actor_kind='ddpgbc' => fall back to GCIQL's stock gaussian DDPG+BC actor
         # (bilinear critic kept); only the flow-actor path is custom below.
         if self.config['actor_kind'] == 'ddpgbc':
+            if self.config.get('measure_tdinfonce', False) \
+                    and str(self.config.get('measure_tdinfonce_actor', 'paper')) == 'paper':
+                # spec 30a Item 2: THEIR extraction (Eq. 11 + App. D.3), not ours. Placed
+                # before the density q-branch so the paper arm can never pick up our
+                # kernel-readout/q-scale machinery; the lattice pins actor_kind='ddpgbc'
+                # here (the deterministic policy their MSE goal-BC regularizer implies).
+                return self._tdinfonce_actor_loss(
+                    batch, grad_params, rng if rng is not None else self.rng)
             if self.config.get('measure_density', False):
                 # spec 22: density q-term under the stock gaussian DDPG+BC extraction.
                 # NEVER delegate to GCIQLAgent.actor_loss here -- under measure_only the
@@ -1742,11 +1766,20 @@ class GCIQLFlowAgent(GCIQLAgent):
                     # (In the default 'latent' mode the random rows are meaningful -- FB's
                     # task-prior coverage -- and stay unmasked, as spec 24 shipped them.)
                     q_row_mask = z_hindsight
+            elif self.config.get('measure_lsif', False):
+                # spec 30a Item 3: the SAME external kernel reward integral, over the
+                # unnormalized LSIF measure m instead of the softmax weights w. Everything
+                # else on this path (flow actor, actor_q_center, bc_coeff distillation) is
+                # Density-FB's, which is what makes the arm a matched control.
+                q1, q2 = self._lsif_actor_q(batch, obs, actor_actions, goals)
             else:
                 # spec 18: q_h = sum_j w_h(s,a,g,u_j) * kernel(goal,u_j), density_f/density_b
                 # at FROZEN params (no params=grad_params -- crl f7b623d grad-hygiene lesson).
                 # spec 22: extracted verbatim into _density_actor_q, shared by all three
                 # actor kinds; the flow path is unchanged (same ops, same order).
+                # spec 30a Item 2: the MATCHED-EXTRACTOR TD InfoNCE arm also lands here --
+                # their critic, our readout -- with _density_actor_q l2-normalizing the
+                # towers so it reads THEIR classifier (see that method).
                 q1, q2 = self._density_actor_q(batch, obs, actor_actions, goals)
         else:
             # fb_forward_z: q = F(s,a,z).B(g)/sqrt(d) with z=sg(psi(g)) -> the FB greedy readout.
@@ -2977,6 +3010,264 @@ class GCIQLFlowAgent(GCIQLAgent):
             ce = ce + rdecode_coef * dec_loss
         return ce, info
 
+    def tdinfonce_loss(self, batch, grad_params, rng):
+        """Spec 30a Item 2 -- PAPER-EXACT TD InfoNCE (Zheng, Salakhutdinov & Eysenbach,
+        ICLR 2024, arXiv:2310.20141), their Eq. 10, on Density-FB's two towers and
+        Density-FB's outcome coordinates x = phi(s).
+
+        This is a CONTROL, not a variant of ours: it answers "how does the published
+        method do in our setting?". Where their conventions and ours disagree, THEIRS win
+        and the divergence is recorded (spec 30a Item 2, binding). The three deltas the
+        spec-30 audit isolated between their Eq. 10 and our density_loss, all reproduced:
+
+          (a) POSITIVE SLOTS DIFFER BETWEEN THE TWO TERMS. The immediate term labels the
+              DYNAMICS next state s' ~ p(.|s,a); the bootstrap term labels a MARGINAL draw
+              s^(1) ~ p(s_t+), soft-labelled by the stop-grad TARGET softmax
+              w(s', a', s^(1:N)) over the SAME candidate set. Our density_loss instead
+              carries one query support and one target row t = (1-g)k + g*wbar.
+          (b) ONE SHARED NEGATIVE POOL s^(2:N), drawn iid from the dataset FUTURE-STATE
+              marginal (measure_tdinfonce_negatives='dataset_marginal' ->
+              batch['marginal_states']). Our standing support is the batch's own next
+              states, which are the rows' one-step successors -- correlated with the
+              positives, a different distribution. 'batch_next' selects our support as an
+              explicit ablation of exactly this axis.
+          (c) BOTH TOWERS l2-NORMALIZED (their sec 3.1), so logits are cosine similarities
+              and the temperature is implicit. measure_density_temp is lattice-refused off
+              1.0 here rather than silently reused.
+
+            L = (1-gamma) * CE( e_1 ; softmax_j f(s,a,g,[s', pool]) )
+              + gamma     * CE( sg[w] ; softmax_j f(s,a,g,[s^(1), pool]) ),
+            w = softmax_j fbar(s', a', [s^(1), pool]),   a' ~ pi(.|s',g).
+
+        The bootstrap policy is whichever actor the arm extracts with: the deterministic
+        gaussian actor their MSE goal-BC regularizer implies (measure_tdinfonce_actor=
+        'paper', actor_kind='ddpgbc'), or our one-shot flow actor on the matched-extractor
+        arm ('matched', actor_kind='flow'). Both are lattice-pinned, so the branch here is
+        a trace-time constant.
+
+        Heads: density_f is 2-headed (our double-Q ensemble). Each head is its own
+        classifier bootstrapping from its OWN target head -- exactly the treatment
+        density_loss gives w_bar -- and the loss averages them. Recorded as a divergence
+        from a single-critic reading of their Eq. 10."""
+        obs, nobs = batch['observations'], batch['next_observations']
+        acts, g = batch['actions'], batch['value_goals']
+        blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+        gamma = self.config['discount']
+        if str(self.config.get('measure_tdinfonce_negatives', 'dataset_marginal')) \
+                == 'dataset_marginal':
+            # Two INDEPENDENT iid draws from the dataset future-state marginal: the shared
+            # negative pool s^(2:N) and the bootstrap term's per-row positive slot s^(1).
+            # They must be different draws -- reusing pool rows as positives would put the
+            # same state in the candidate set twice and the softmax would double-count it.
+            pool_obs, pos_obs = batch['marginal_states'], batch['marginal_positives']
+        else:
+            pool_obs = pos_obs = nobs
+        pool_sc = self._density_queries(pool_obs, blocks)                     # [P, d_c]
+        pos_sc = self._density_queries(pos_obs, blocks)                       # [B, d_c]
+        nxt_sc = self._density_queries(nobs, blocks)                          # [B, d_c]
+        b_pool = _l2n(self.network.select('density_b')(pool_sc, params=grad_params))
+        b_pos = _l2n(self.network.select('density_b')(pos_sc, params=grad_params))
+        b_nxt = _l2n(self.network.select('density_b')(nxt_sc, params=grad_params))
+        f_emb = _l2n(self.network.select('density_f')(
+            jnp.concatenate([obs, acts, g], -1), params=grad_params))          # [2, B, d]
+        neg = jnp.einsum('hbd,pd->hbp', f_emb, b_pool)                        # [2, B, P]
+        l_imm = jnp.concatenate(
+            [jnp.einsum('hbd,bd->hb', f_emb, b_nxt)[..., None], neg], -1)     # [2, B, 1+P]
+        l_boot = jnp.concatenate(
+            [jnp.einsum('hbd,bd->hb', f_emb, b_pos)[..., None], neg], -1)     # [2, B, 1+P]
+        logp_imm = jax.nn.log_softmax(l_imm, -1)
+        logp_boot = jax.nn.log_softmax(l_boot, -1)
+
+        if str(self.config.get('measure_tdinfonce_actor', 'paper')) == 'paper':
+            dist = self.network.select('actor')(nobs, g)
+            a_next = dist.mode() if self.config['const_std'] else dist.sample(seed=rng)
+            a_plus = jax.lax.stop_gradient(jnp.clip(a_next, -1, 1))
+        else:
+            noise = jax.random.normal(rng, acts.shape)
+            a_plus = jax.lax.stop_gradient(self.network.select('actor')(nobs, g, noise))
+        tf = _l2n(self.network.select('target_density_f')(
+            jnp.concatenate([nobs, a_plus, g], -1)))                          # [2, B, d]
+        tb_pool = _l2n(self.network.select('target_density_b')(pool_sc))
+        tb_pos = _l2n(self.network.select('target_density_b')(pos_sc))
+        t_logits = jnp.concatenate(
+            [jnp.einsum('hbd,bd->hb', tf, tb_pos)[..., None],
+             jnp.einsum('hbd,pd->hbp', tf, tb_pool)], -1)                     # [2, B, 1+P]
+        w = jax.lax.stop_gradient(jax.nn.softmax(t_logits, -1))
+        ce_imm = -jnp.mean(logp_imm[..., 0])
+        ce_boot = -jnp.mean(jnp.sum(w * logp_boot, -1))
+        loss = (1.0 - gamma) * ce_imm + gamma * ce_boot
+
+        p_imm = jnp.exp(logp_imm)
+        info = {
+            'tdi_loss': loss,
+            'tdi_ce_immediate': ce_imm,
+            'tdi_ce_bootstrap': ce_boot,
+            # the classifier's own diagnostics: how much mass the observed successor gets,
+            # how peaked the bootstrap label is (ESS over the 1+P candidates), and the
+            # top-1 accuracy of the immediate term (chance = 1/(1+P)).
+            'tdi_pos_prob': jnp.mean(p_imm[..., 0]),
+            'tdi_top1': jnp.mean((jnp.argmax(l_imm, -1) == 0).astype(jnp.float32)),
+            'tdi_w_ess': jnp.mean(1.0 / jnp.sum(w ** 2, axis=-1)),
+            'tdi_pos_logit': jnp.mean(l_imm[..., 0]),
+            'tdi_neg_logit': jnp.mean(neg),
+            'tdi_n_candidates': jnp.asarray(float(l_imm.shape[-1])),
+        }
+        return loss, info
+
+    def _tdinfonce_actor_loss(self, batch, grad_params, rng):
+        """Spec 30a Item 2 -- TD InfoNCE's OWN policy extraction: their Eq. 11 plus the
+        App. D.3 goal-BC regularizer, in their convex form
+
+            argmax_pi (1-lambda) * log [ e^{f(s,a,g,s_t+=g)} / sum_i e^{f(s,a,g,s^(i))} ]
+                      - lambda * ||a - a_data||^2 .
+
+        Read carefully: the positive candidate is the COMMANDED GOAL ITSELF as an outcome
+        (phi(g)), not a relabeled successor -- the goal enters both the conditioning leg
+        and the candidate set -- and the negatives are the SAME shared marginal pool the
+        critic uses. The policy is the deterministic gaussian actor (const_std) their MSE
+        regularizer implies; the critic towers are frozen (no params=grad_params), so the
+        only gradient path is through the action.
+
+        DIVERGENCES FROM OUR CONVENTIONS, deliberate and recorded:
+          * no q-scale normalization (actor_q_center / -q.mean()/sg|q|): their objective is
+            a convex mix of two terms that are already commensurate. actor_q_center is
+            lattice-refused on this arm rather than silently applied.
+          * the BC term is an MSE on actions, not our flow distillation or GCIQL's
+            log-prob BC.
+          * lambda is a pinned 0.5 (measure_tdinfonce_bc_lambda) -- see the config comment:
+            the paper's numeric value is not in its accessible text.
+        The goals are batch['actor_goals'], which the arm's config draws from THEIR
+        relabeling distribution (actor_p_trajgoal=1.0 + actor_geom_sample=True: geometric
+        discounted future states), not our uniform-future default."""
+        obs, goals, actions = batch['observations'], batch['actor_goals'], batch['actions']
+        blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+        lam = float(self.config['measure_tdinfonce_bc_lambda'])
+        if str(self.config.get('measure_tdinfonce_negatives', 'dataset_marginal')) \
+                == 'dataset_marginal':
+            pool_obs = batch['marginal_states']
+        else:
+            pool_obs = batch['next_observations']
+        dist = self.network.select('actor')(obs, goals, params=grad_params)
+        a_pi = jnp.clip(dist.mode() if self.config['const_std']
+                        else dist.sample(seed=rng), -1, 1)
+        b_pool = jax.lax.stop_gradient(
+            _l2n(self.network.select('density_b')(self._density_queries(pool_obs, blocks))))
+        b_goal = jax.lax.stop_gradient(
+            _l2n(self.network.select('density_b')(self._density_queries(goals, blocks))))
+        f_emb = _l2n(self.network.select('density_f')(
+            jnp.concatenate([obs, a_pi, goals], -1)))                          # frozen params
+        logits = jnp.concatenate(
+            [jnp.einsum('hbd,bd->hb', f_emb, b_goal)[..., None],
+             jnp.einsum('hbd,pd->hbp', f_emb, b_pool)], -1)                    # [2, B, 1+P]
+        ce = jax.nn.log_softmax(logits, -1)[..., 0]                            # [2, B]
+        # double_q: the min over the ensemble, this file's standing convention for a term
+        # the policy MAXIMIZES (and contrastive RL's own two-critic treatment).
+        ce = jnp.minimum(ce[0], ce[1]) if self.config['double_q'] else ce[0]
+        mse = jnp.mean((dist.mode() - actions) ** 2)
+        actor_loss = -(1.0 - lam) * jnp.mean(ce) + lam * mse
+        return actor_loss, {
+            'actor_loss': actor_loss, 'tdi_actor_ce': jnp.mean(ce), 'mse': mse,
+            'q_mean': jnp.mean(ce), 'bc_loss': lam * mse,
+        }
+
+    def _lsif_actor_q(self, batch, obs, actions, goals):
+        """Spec 30a Item 3 -- EXTERNAL KERNEL REWARD INTEGRATION over the LSIF measure:
+
+            q_h = sum_j m_h(s, a, g, u_j) * kg_j,   kg = _delta_phi(goals, u_raw),
+
+        i.e. `_density_actor_q` with the unnormalized ratio m in place of the softmax
+        weights w. Everything else is that method verbatim -- the same query support (the
+        batch's own next-state block coords), the same frozen towers (no
+        params=grad_params), the same stop-gradded query-set-normalized kernel row. That
+        parity is what makes this arm the privileged-coordinates control rather than a
+        different method: the ONLY differences from Density-FB are LSIF-vs-CE (the loss)
+        and unnormalized-vs-normalized (this softmax)."""
+        blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+        u_raw = self._raw_block_cols(batch['next_observations'], blocks)
+        u_sc = self._density_queries(batch['next_observations'], blocks)
+        kg = jax.lax.stop_gradient(self._delta_phi(goals, u_raw, blocks))      # [B, M]
+        b_emb = self.network.select('density_b')(u_sc)                        # frozen params
+        f_emb = self.network.select('density_f')(
+            jnp.concatenate([obs, actions, goals], -1))                        # frozen params
+        m = jnp.einsum('hbd,md->hbm', f_emb, b_emb) \
+            / self.config['measure_density_temp']                              # [2, B, M]
+        return (m * kg[None]).sum(-1)
+
+    def lsif_loss(self, batch, grad_params, rng):
+        """Spec 30a Item 3 -- GOAL-CONDITIONED OUTCOME-SPACE LSIF, the privileged-
+        coordinates confound control (spec 30 P2.2).
+
+            m(s,a,g,x) = F(s,a,g)^T B(phi(x)) / tau        (NO softmax anywhere)
+            L = 0.5 * E_{i != j}[ (m_ij - gamma * mbar_ij)^2 ] - E_i[ sum_j k_ij m_ij ]
+
+        This is least-squares importance fitting of the unnormalized successor measure --
+        FB's own objective, which is what "LSIF" names here: expanding
+        0.5*E_rho[(m - (k/rho + gamma*mbar))^2] drops the m-independent terms and leaves
+        exactly the quadratic above plus the linear attraction term. The diagonal is
+        excluded from the quadratic and carried by the attraction term (FB's split: row i's
+        own successor is both query and label there, so penalizing it quadratically would
+        double-count it), so with measure_lsif_immediate='dirac' (k = I) this IS plain FB's
+        loss, evaluated on phi coordinates.
+
+        MATCHING (the whole point -- any unmatched difference destroys the inference):
+        same towers density_f/density_b and their targets, same [s,a,g] raw-goal
+        conditioning, same query support (the batch's own next-state block coords, the
+        object Density-FB resamples every update), same one-shot flow-actor bootstrap
+        a+ ~ pi(s',g) off the same rng with no split, same discount, same tau, same soft
+        immediate kernel k = _delta_phi(nobs, u_raw) by default (the flagship cells are
+        SOFT), same actor and BC machinery, same actor_q_center normalization -- with the
+        actor's q term reading the SAME external kernel integral, only over m instead of w
+        (_lsif_actor_q). What is NOT matched, by construction and by design, is exactly
+        two axes: LSIF-vs-CE and unnormalized-vs-normalized.
+
+        There is deliberately NO scale normalization here (measure_scale_norm is
+        lattice-refused): Density-FB has none, and adding one would be a third unmatched
+        difference. The unbounded linear attraction is a real property of the LSIF/FB
+        objective -- lsif_m_msq / lsif_diag_mean are logged so a runaway is visible rather
+        than silently masked."""
+        obs, nobs = batch['observations'], batch['next_observations']
+        acts, g = batch['actions'], batch['value_goals']
+        blocks = _parse_hit_spec(self.config.get('measure_hit_spec', '19:22:0.4'))
+        gamma, tau = self.config['discount'], self.config['measure_density_temp']
+
+        u_raw = self._raw_block_cols(nobs, blocks)                            # [M, d_c] RAW
+        u_sc = self._density_queries(nobs, blocks)                            # [M, d_c] scaled
+        b_emb = self.network.select('density_b')(u_sc, params=grad_params)    # [M, d]
+        f_emb = self.network.select('density_f')(
+            jnp.concatenate([obs, acts, g], -1), params=grad_params)          # [2, B, d]
+        m = jnp.einsum('hbd,md->hbm', f_emb, b_emb) / tau                     # [2, B, M]
+
+        noise = jax.random.normal(rng, acts.shape)
+        a_plus = jax.lax.stop_gradient(self.network.select('actor')(nobs, g, noise))
+        tf = self.network.select('target_density_f')(
+            jnp.concatenate([nobs, a_plus, g], -1))
+        tb = self.network.select('target_density_b')(u_sc)
+        m_bar = jax.lax.stop_gradient(jnp.einsum('hbd,md->hbm', tf, tb) / tau)
+
+        if str(self.config.get('measure_lsif_immediate', 'kernel')) == 'dirac':
+            k = jnp.eye(nobs.shape[0])                                        # [B, M], M == B
+        else:
+            k = self._delta_phi(nobs, u_raw, blocks)                          # [B, M]
+        Bn = obs.shape[0]
+        off = 1.0 - jnp.eye(Bn)
+        diff = m - gamma * m_bar                                              # [2, B, M]
+        offdiag = 0.5 * jnp.sum((diff * off[None]) ** 2, axis=(1, 2)) / jnp.sum(off)   # [2]
+        attract = -jnp.mean(jnp.sum(k[None] * m, axis=-1), axis=-1)                    # [2]
+        loss = jnp.mean(offdiag + attract)
+        info = {
+            'lsif_loss': loss,
+            'lsif_offdiag': jnp.mean(offdiag),
+            'lsif_attract': jnp.mean(attract),
+            'lsif_m_mean': jnp.mean(m),
+            'lsif_m_msq': jnp.mean(m ** 2),
+            'lsif_m_max': jnp.max(m),
+            'lsif_diag_mean': jnp.mean(jnp.diagonal(m, axis1=1, axis2=2)),
+            # an unnormalized ratio should be >= 0; the negative fraction is the validity
+            # instrument the softmax makes structurally unnecessary in Density-FB.
+            'lsif_neg_frac': jnp.mean((m < 0).astype(jnp.float32)),
+        }
+        return loss, info
+
     def _density_rdecode_loss(self, u_sc, b_emb, rng):
         """Spec 25 §0 C2 -- the supervised reward-decodability auxiliary (the ortho-free
         port of FB's orthonormalization; ortho itself stays refused on manipulation).
@@ -3417,6 +3708,17 @@ class GCIQLFlowAgent(GCIQLAgent):
                 # spec 17b: one-stage simplex successor measure CE INSTEAD of the
                 # bilinear measure TD -- same measure_only wiring/prefix, different loss.
                 m_loss, m_info = self.delta_partition_loss(batch, grad_params, m_rng)
+            elif self.config.get('measure_tdinfonce', False):
+                # spec 30a Item 2: TD InfoNCE's Eq. 10 INSTEAD of the density CE, on the
+                # same towers/wiring (measure_density=True registers them). Placed before
+                # the density branch so the two can never both run; the lattice refuses the
+                # composition anyway.
+                m_loss, m_info = self.tdinfonce_loss(batch, grad_params, m_rng)
+            elif self.config.get('measure_lsif', False):
+                # spec 30a Item 3: the LSIF objective INSTEAD of the density CE, same
+                # towers, same query support, same bootstrap -- the two axes under test are
+                # LSIF-vs-CE and unnormalized-vs-normalized.
+                m_loss, m_info = self.lsif_loss(batch, grad_params, m_rng)
             elif self.config.get('measure_density', False):
                 # spec 18: continuous normalized successor density CE INSTEAD of the
                 # bilinear measure TD / 17b partition CE -- same measure_only wiring/prefix.
@@ -4263,6 +4565,13 @@ class GCIQLFlowAgent(GCIQLAgent):
                     # inert knob there (19a rule: refuse dead knobs, don't let them no-op).
                     assert not config.get('actor_q_center', False), \
                         "AWR has no q-scale normalizer; actor_q_center would be inert (19a rule)"
+                elif config.get('measure_tdinfonce', False) \
+                        and str(config.get('measure_tdinfonce_actor', 'paper')) == 'paper':
+                    # spec 30a Item 2: the paper-exact actor is THEIR Eq. 11 -- a convex mix
+                    # with no q-scale normalizer at all. The TD InfoNCE lattice below
+                    # REFUSES actor_q_center on that arm, so this requirement (which exists
+                    # for OUR density q-term) must not fire against it.
+                    pass
                 else:
                     assert config.get('actor_q_center', False)
             if config.get('measure_density_behavior', False):
@@ -4301,6 +4610,136 @@ class GCIQLFlowAgent(GCIQLAgent):
             assert not config.get('task_prior_critic_mix', False), \
                 "task_prior_critic_mix adds a scalar FP-TD leg on top of total_loss's measure_only " \
                 "branch; measure_density has no task-conditioned critic for it to mix with"
+
+        # --- Spec 30a Items 2 & 3: the two ISOLATION BASELINES (spec 30 P2.1/P2.2).
+        # Both REPLACE density_loss on the same towers, so every knob that is read only
+        # inside density_loss becomes inert under them and is refused; and both are
+        # meaningless without the towers (measure_density) or with the IQL losses still
+        # training the critic (measure_only). Same fake-NULL discipline as specs 25/28/29/30
+        # P1: nothing may look configured while being provably inert, and no dose may turn
+        # an arm into a different arm while it logs as itself. ---
+        _tdi = config.get('measure_tdinfonce', False)
+        _lsif = config.get('measure_lsif', False)
+        _tdi_actor = str(config.get('measure_tdinfonce_actor', 'paper'))
+        _tdi_lam = float(config.get('measure_tdinfonce_bc_lambda', 0.5))
+        _tdi_neg = str(config.get('measure_tdinfonce_negatives', 'dataset_marginal'))
+        _lsif_imm = str(config.get('measure_lsif_immediate', 'kernel'))
+        assert not (_tdi and _lsif), \
+            "measure_tdinfonce (spec 30a Item 2) and measure_lsif (Item 3) are two " \
+            "DIFFERENT objectives on the same towers -- total_loss can dispatch to only " \
+            "one, so composing them would silently run TD InfoNCE while logging LSIF"
+        if _tdi or _lsif:
+            assert config.get('measure_density', False), \
+                "measure_tdinfonce / measure_lsif reuse density_f/density_b (and their " \
+                "targets), which only create() under measure_density=True -- set it"
+            assert config.get('measure_only', False), \
+                "both baselines are the whole critic objective; without measure_only the " \
+                "IQL value/critic losses would train the bilinear critic alongside them"
+            assert not config.get('measure_density_z', False), \
+                "the isolation baselines are RAW-GOAL conditioned (spec 30 P2): " \
+                "measure_density_z would swap the index and the comparison would no " \
+                "longer be matched to the main table"
+            assert not config.get('measure_density_behavior', False), \
+                "measure_density_behavior drops the goal leg and the actor q-term (spec " \
+                "19a) -- neither baseline is defined without them"
+            assert not config.get('measure_density_hard', False), \
+                "measure_density_hard is read ONLY inside density_loss, which these " \
+                "baselines replace -- it would be an inert knob (17b fake-NULL species). " \
+                "TD InfoNCE's own immediate term is already the hard/one-hot one; LSIF's " \
+                "is measure_lsif_immediate"
+            assert not config.get('measure_density_dup_instrument', False), \
+                "measure_density_dup_instrument instruments density_loss's query set, " \
+                "which these baselines replace -- inert here"
+            assert not config.get('actor_bc_only', False), \
+                "actor_bc_only deletes the actor's q-term; both baselines are defined by " \
+                "their extraction (their contrastive actor / the kernel readout over m)"
+            assert str(config.get('measure_density_actor_reward', 'kernel')) == 'kernel', \
+                "measure_density_actor_reward='latent' (spec 28 cell iii) is a Density-FB " \
+                "readout ablation -- it would be a THIRD unmatched difference on these " \
+                "control arms"
+        if _tdi:
+            assert _tdi_actor in ('paper', 'matched'), \
+                "measure_tdinfonce_actor must be 'paper' (their Eq. 11 + App. D.3 MSE " \
+                "goal-BC, the paper-exact control) or 'matched' (their critic + our " \
+                f"kernel readout/flow actor, the promotion wave), got {_tdi_actor!r}"
+            assert _tdi_neg in ('dataset_marginal', 'batch_next'), \
+                "measure_tdinfonce_negatives must be 'dataset_marginal' (their support) " \
+                f"or 'batch_next' (our support, the ablation), got {_tdi_neg!r}"
+            assert float(config.get('measure_density_temp', 1.0)) == 1.0, \
+                "TD InfoNCE l2-normalizes both towers, which makes the temperature " \
+                "IMPLICIT (their sec 3.1) -- measure_density_temp is not read on this " \
+                "path and setting it off 1.0 would record a scale that configures nothing"
+            if _tdi_actor == 'paper':
+                assert config.get('actor_kind', 'flow') == 'ddpgbc', \
+                    "the paper-exact actor is a DETERMINISTIC policy (their App. D.3 MSE " \
+                    "goal-BC regularizer implies one); actor_kind='ddpgbc' + const_std is " \
+                    "this file's deterministic actor. The flow actor is OUR extraction -- " \
+                    "that arm is measure_tdinfonce_actor='matched'"
+                assert config.get('const_std', True), \
+                    "measure_tdinfonce_actor='paper' needs const_std=True: the MSE goal-BC " \
+                    "regularizer and the CE both read dist.mode() as the policy's action"
+                assert not config.get('actor_q_center', False), \
+                    "their Eq. 11 is a CONVEX MIX of two commensurate terms and carries no " \
+                    "q-scale normalizer; actor_q_center is our convention and is not read " \
+                    "on this path (inert, and it would misrecord the arm as normalized)"
+                assert 0.0 < _tdi_lam < 1.0, \
+                    "measure_tdinfonce_bc_lambda is App. D.3's convex weight: lambda=0 " \
+                    "deletes the goal-BC regularizer their offline results depend on, " \
+                    f"lambda=1 deletes the contrastive term entirely; got {_tdi_lam}"
+                assert config.get('actor_p_trajgoal', 1.0) == 1.0 \
+                    and config.get('actor_geom_sample', False), \
+                    "the paper-exact arm must use THEIR goal-relabeling distribution: " \
+                    "actor_p_trajgoal=1.0 + actor_geom_sample=True (geometric/discounted " \
+                    "future states). Our default is uniform-future (actor_geom_sample=" \
+                    "False), and silently keeping it would make this not the published method"
+            else:
+                assert config.get('actor_kind', 'flow') == 'flow', \
+                    "measure_tdinfonce_actor='matched' IS our extraction: the flow actor " \
+                    "over the external kernel readout (_density_actor_q)"
+                assert config.get('actor_q_center', False), \
+                    "the matched-extractor arm must carry OUR actor recipe exactly " \
+                    "(actor_q_center is on in every density arm it is compared to)"
+                assert _tdi_lam == 0.5, \
+                    "measure_tdinfonce_bc_lambda is read ONLY by the paper actor's convex " \
+                    "mix; the matched arm extracts with bc_coeff -- no inert knobs"
+            if _tdi_neg == 'dataset_marginal':
+                # Force the dataset's marginal keys on (the next_actions precedent): an arm
+                # that silently fell back to batch next states would be reported as
+                # paper-exact while running our support -- the exact substitution spec 30
+                # was written to stop. Written onto BOTH the local copy and orig_config
+                # (the object GCDataset holds a reference to).
+                config['marginal_states'] = True
+                orig_config['marginal_states'] = True
+        else:
+            assert _tdi_actor == 'paper' and _tdi_lam == 0.5 \
+                and _tdi_neg == 'dataset_marginal', \
+                "measure_tdinfonce_actor / _bc_lambda / _negatives are read only under " \
+                "measure_tdinfonce=True (spec 30a Item 2) -- inert otherwise"
+            assert not config.get('marginal_states', False), \
+                "marginal_states is the GCDataset gate for TD InfoNCE's shared negative " \
+                "pool (spec 30a Item 2); with no consumer it would only make every batch " \
+                "pay for two extra goal draws"
+        if _lsif:
+            assert config.get('actor_kind', 'flow') == 'flow', \
+                "the LSIF control must carry Density-FB's extraction exactly (spec 30 " \
+                "P2.2: matched in everything except LSIF-vs-CE and unnormalized-vs-" \
+                "normalized) -- that is the flow actor"
+            assert config.get('actor_q_center', False), \
+                "same matching requirement: every density arm this is compared to runs " \
+                "actor_q_center=True"
+            assert _lsif_imm in ('kernel', 'dirac'), \
+                "measure_lsif_immediate must be 'kernel' (Density-FB's soft immediate " \
+                "term, the matched choice) or 'dirac' (FB's classical one-hot attraction," \
+                f" matched to the HARD ablation), got {_lsif_imm!r}"
+            assert not config.get('measure_scale_norm', False), \
+                "measure_scale_norm would be a THIRD unmatched difference from Density-FB " \
+                "(which has no scale normalization at all) and would destroy the " \
+                "attribution this control exists for -- lsif_m_msq/lsif_diag_mean are " \
+                "logged instead so a runaway is visible"
+        else:
+            assert _lsif_imm == 'kernel', \
+                "measure_lsif_immediate is read only under measure_lsif=True (spec 30a " \
+                "Item 3) -- inert otherwise"
 
         # Spec 19a: behavior-policy variant of measure_density -- goal-free F tower
         # [s,a], SARSA bootstrap from the DATASET's next action (batch['next_actions']),
@@ -5536,6 +5975,88 @@ def get_config():
         config.measure_density_dup_eps = 0.1   # eps-duplicate radius in EPS-SCALED query
           # units (u_sc is already divided by each block's eps, so 0.1 = a tenth of the
           # kernel width). Read only under measure_density_dup_instrument=True.
+        # --- Spec 30a Item 2 / spec 30 P2.1: the PAPER-EXACT TD InfoNCE control
+        # (Zheng, Salakhutdinov & Eysenbach, ICLR 2024, arXiv:2310.20141). Density-FB's
+        # HARD loss reduces to their categorical Bellman update under matched conventions;
+        # this arm answers the different question "how does the PUBLISHED method do here?",
+        # so where their conventions and ours disagree THEIRS win and the divergence is
+        # recorded (spec 30a Item 2). Their Eq. 10 differs from density_loss in three
+        # implementation facts, all reproduced here:
+        #   (a) the IMMEDIATE term's positive slot is the dynamics next state s' while the
+        #       BOOTSTRAP term's positive slot is a MARGINAL draw s^(1) ~ p(s_t+),
+        #       soft-labelled by the stop-grad TARGET softmax w over the same candidates;
+        #   (b) ONE shared negative pool s^(2:N) drawn iid from the dataset FUTURE-STATE
+        #       marginal -- not the batch's own next states (our support), which are the
+        #       rows' one-step successors and are correlated with the positives;
+        #   (c) both towers are l2-NORMALIZED (their sec 3.1), so the logits are cosine
+        #       similarities and the temperature is implicit (measure_density_temp is
+        #       refused off 1.0 on this path -- it would be an inert knob).
+        # The actor is their Eq. 11 + App. D.3: a goal-contrastive CE at the COMMANDED
+        # goal (the positive outcome is phi(g) itself) against the same marginal
+        # negatives, mixed with an MSE goal-BC regularizer as
+        # (1-lambda)*CE - lambda*||a_pi - a_data||^2 (their convex form), over their
+        # future-state goal-relabeling distribution (set actor_geom_sample=True in the
+        # arm's config -- geometric/discounted future relabeling, not our uniform-future
+        # default). Outcome coordinates x = phi(s) are Density-FB's (the hit-spec blocks),
+        # which is what makes the two comparable at all. ---
+        config.measure_tdinfonce = False   # replace density_loss's CE by TD InfoNCE's
+          # Eq. 10 on the SAME two towers (density_f/density_b + their targets). Requires
+          # measure_density=True (that is what registers the towers) + measure_only.
+          # False = off, bit-identical (density_loss untouched, no extra batch key).
+        config.measure_tdinfonce_actor = 'paper'   # 'paper' (spec 30a Item 2, the
+          # paper-exact control) = their Eq. 11 goal-contrastive CE + App. D.3 MSE goal-BC,
+          # on the deterministic gaussian actor (actor_kind='ddpgbc', const_std) their
+          # MSE regularizer implies. 'matched' (spec 30 P2.1's SECOND arm, the promotion
+          # wave -- implemented so it is one config away, NOT launched in wave 1) = their
+          # critic with OUR extraction: the external kernel readout _density_actor_q over
+          # the l2-normalized towers and the flow actor. One knob, two arms; calling one
+          # hybrid arm "exact TD InfoNCE" would conflate them (spec 30 P2.1).
+        config.measure_tdinfonce_bc_lambda = 0.5   # App. D.3's lambda in the CONVEX mix
+          # (1-lambda)*contrastive - lambda*MSE(a_pi, a_data). DIVERGENCE, recorded: the
+          # paper's numeric value for lambda is not in its accessible text (Table 2 is
+          # truncated in every rendering we can fetch offline), so the convex midpoint is
+          # pinned rather than silently adopting OUR bc_coeff/alpha conventions. Read only
+          # under measure_tdinfonce_actor='paper'; must be in (0, 1).
+        config.measure_tdinfonce_negatives = 'dataset_marginal'   # THE QUERY-SOURCE KNOB.
+          # 'dataset_marginal' (their support, the default on this path) = batch
+          # ['marginal_states'] / ['marginal_positives'], two independent iid draws from
+          # the dataset future-state marginal (fresh random rows -> geometric future
+          # state), supplied by GCDataset under config.marginal_states. 'batch_next' = our
+          # standing support (the batch's own next states) -- available as an explicit
+          # ablation of exactly this axis, NOT launched in wave 1. Read only under
+          # measure_tdinfonce=True.
+        config.marginal_states = False   # GCDataset gate (the next_actions pattern):
+          # batch['marginal_states'] and batch['marginal_positives'], two independent iid
+          # draws from the dataset FUTURE-STATE marginal p(s_t+) = E_{s~D}[p^beta(s_t+|s)]
+          # -- fresh uniform dataset rows, then the geometric (discounted) future state of
+          # each. Two draws because a candidate set may not contain the same state twice:
+          # one is the shared negative pool s^(2:N), the other the bootstrap term's
+          # per-row positive slot s^(1). Forced on by measure_tdinfonce with
+          # negatives='dataset_marginal'; off otherwise (every produced batch dict
+          # byte-identical).
+        # --- Spec 30a Item 3 / spec 30 P2.2: GOAL-CONDITIONED OUTCOME-SPACE LSIF -- the
+        # PRIVILEGED-COORDINATES CONFOUND CONTROL. m(s,a,g,x) = F(s,a,g)^T B(phi(x)) with
+        # raw-g conditioning, fit by the LSIF (least-squares importance fitting) objective
+        # FB itself uses, and extracted by EXTERNAL kernel reward integration
+        # q = E_x[m(s,a,g,x) * kg(x)] -- the _density_actor_q readout with m in place of
+        # the softmax weights w. Matched to Density-FB in EVERYTHING except LSIF-vs-CE and
+        # unnormalized-vs-normalized: same towers, same query support, same bootstrap
+        # action, same targets, same flow actor and BC machinery, same phi coordinates.
+        # It answers whether our gains come from the normalized measure or merely from
+        # predicting in phi coordinates. ---
+        config.measure_lsif = False   # replace density_loss's CE by the LSIF objective
+          # L = 0.5*E_{i != j}[(m_ij - gamma*mbar_ij)^2] - E_i[sum_j k_ij m_ij] on the SAME
+          # towers (no softmax anywhere: m is an unnormalized density ratio). The diagonal
+          # is excluded from the quadratic and carried by the linear attraction term, FB's
+          # own split -- with k = I this IS plain FB's loss, on phi coordinates. Requires
+          # measure_density=True + measure_only + the flow actor. False = off,
+          # bit-identical.
+        config.measure_lsif_immediate = 'kernel'   # WHICH immediate (positive) object the
+          # linear attraction term integrates. 'kernel' (default) = Density-FB's own soft
+          # kernel k = _delta_phi(nobs, u_raw) -- the matched choice, since the flagship
+          # cells are SOFT. 'dirac' = the one-hot at the row's own successor (k = I), i.e.
+          # FB's classical Dirac attraction, matched to the HARD ablation instead. Read
+          # only under measure_lsif=True.
         # --- Spec 25: FB's three index-coupling mechanisms, ported to the density
         # estimator. All four knobs live UNDER the measure_density_z lattice (each is
         # refused outside it), all default OFF = the spec-24 arm bit-for-bit, in both the

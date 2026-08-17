@@ -637,6 +637,41 @@ MAP = {
         graft='spec30 P1 arm B: centered REWARD-SAMPLE index zhat=sqrt(d)*norm((C_hat+lam I)^-1 m_c), M>1, eval '
               'through the M=256 reward-sample pool + external kernel readout -- the general reward interface'),
 
+    # ---- spec 30a Items 2 & 3 (2026-08-17): the two ISOLATION BASELINES, cube-double
+    # 500k s0. Run names tdi_cd_exact_s0 / lsif_cd_phi_s0,
+    # /home/adityamohan/exp_spec30_i23/factored-fb/. Both exist to remove an alternative
+    # explanation for Density-FB's numbers, so BOTH are controls, not candidate methods:
+    #   * TD InfoNCE (the ESTIMATOR control) -- spec 30 found the HARD density loss reduces
+    #     to its categorical Bellman update under matched conventions, while our flagship
+    #     cells are SOFT. The paper-exact arm answers "how does the published method do
+    #     here?"; the matched-extractor arm (their critic, our kernel readout + flow actor)
+    #     separates estimator from extraction and is the PROMOTION wave, not wave 1.
+    #     ⚠ the exact arm runs THEIR conventions throughout (l2-normalized towers, marginal
+    #     negative pool from the dataset future-state marginal, goal-contrastive actor with
+    #     an MSE goal-BC regularizer at lambda=0.5, geometric goal relabeling), so its
+    #     actor/extraction is NOT comparable to the fql_flow density rows.
+    #   * LSIF (the PRIVILEGED-COORDINATES control) -- FB's own unnormalized objective on
+    #     Density-FB's phi coordinates, matched in everything but LSIF-vs-CE and
+    #     unnormalized-vs-normalized. Expected well below Density-FB; if it closes the gap,
+    #     the normalization story weakens (spec 30's decision tree).
+    # Anchors on this env: density soft .736 | density hard .680 | plain FB .00 | BC .019.
+    'GCIQL-CubeDouble-TDInfoNCE-Exact-d50': dict(csv='bridge', env='cube-double', agent='TD-InfoNCE', actor='ddpgbc', variant='paper-exact',
+        graft='spec30a Item 2: PAPER-EXACT TD InfoNCE (arXiv:2310.20141) Eq. 10 critic -- immediate term labels the '
+              'dynamics next state, bootstrap term a marginal draw soft-labelled by the stop-grad target softmax, ONE '
+              'shared negative pool drawn iid from the dataset future-state marginal, l2-normalized towers (implicit '
+              'temperature) -- plus their Eq. 11 / App. D.3 actor (goal-contrastive CE at the commanded goal + MSE '
+              'goal-BC at lambda=0.5, geometric future relabeling), on Density-FB phi coordinates',
+        notes='single seed; estimator control, NOT a variant of ours -- a faithful arm scoring well is a real finding'),
+    'GCIQL-CubeDouble-TDInfoNCE-Matched-d50': dict(csv='bridge', env='cube-double', agent='TD-InfoNCE', actor='fql_flow', variant='matched-extractor',
+        graft='spec30 P2.1 second arm: their Eq. 10 critic with OUR extraction (external kernel readout over the '
+              'l2-normalized classifier + flow actor + actor_q_center) -- separates estimator from extraction',
+        notes='PROMOTION WAVE, not launched in wave 1'),
+    'GCIQL-CubeDouble-Flow-LSIF-Phi-d50': dict(csv='bridge', env='cube-double', agent='GCIQL', actor='fql_flow', variant='lsif-outcome-space',
+        graft='spec30a Item 3: goal-conditioned outcome-space LSIF m(s,a,g,x)=F(s,a,g)^T B(phi(x)) fit by FB\'s own '
+              'least-squares importance objective (no softmax) and extracted by external kernel reward integration '
+              'q=E_x[m*kg] -- matched to spec18 density in everything except LSIF-vs-CE and unnormalized-vs-normalized',
+        notes='single seed; privileged-coordinates confound control'),
+
     'GCIQL-CubeSingle-Flow-Measure-Density-d50': dict(csv='bridge', env='cube', agent='GCIQL', actor='fql_flow', variant='measure-density',
                                              graft='spec18 (PRIMARY): continuous normalized successor density, two-tower score '
                                                    "f(s,a,g,u)=F(s,a,g).B(u)/tau over queries resampled from rho_x every step "

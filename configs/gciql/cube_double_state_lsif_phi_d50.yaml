@@ -1,0 +1,61 @@
+# Spec 30a Item 3 -- goal-conditioned outcome-space LSIF on cube-double-play-v0:
+# the PRIVILEGED-COORDINATES CONFOUND CONTROL.
+#
+# WHY THIS EXISTS. Density-FB predicts in phi coordinates (the two-cube hit-spec blocks)
+# while plain FB's backward map sees the full observation. So every Density-FB gain has an
+# unexcluded explanation: maybe it is the outcome projection, not the normalized measure.
+# This arm removes that explanation by keeping phi and changing ONLY the estimator:
+#
+#     m(s,a,g,x) = F(s,a,g)^T B(phi(x)) / tau                      (no softmax)
+#     L = 0.5*E_{i != j}[(m - gamma*mbar)^2] - E_i[sum_j k_ij m_ij]   (LSIF = FB's own loss)
+#     q = sum_j m(s,a,g,u_j) * kg_j                     (external kernel reward integration)
+#
+# MATCHED TO cube_double_state_measure_density_d50.yaml IN EVERYTHING ELSE: same towers and
+# targets, same raw-g conditioning, same query support (the batch's own next-state block
+# coords), same one-shot flow-actor bootstrap, same discount/tau/dim/hit-spec, same flow
+# actor + bc_coeff 3.0 + actor_q_center. The ONLY two axes that move are LSIF-vs-CE and
+# unnormalized-vs-normalized -- any third difference would destroy the inference, which is
+# why measure_scale_norm is refused here even though the LSIF objective's linear attraction
+# term is unbounded (lsif_m_msq / lsif_diag_mean / lsif_neg_frac are logged instead, so a
+# runaway is visible rather than masked).
+#
+# measure_lsif_immediate=kernel (the default) keeps Density-FB's SOFT immediate object,
+# matched to the flagship cells; 'dirac' would be FB's classical one-hot attraction, i.e.
+# matched to the HARD ablation instead.
+#
+# READING RULE (spec 30a promotion gate): this control is expected to stay substantially
+# BELOW Density-FB; if it closes most of the gap, the normalization story weakens and the
+# comparison was largely outcome projection + actor readout (spec 30's decision tree).
+# No result claims before 500k; then quote 500k AND the mean over >= 350k.
+# Anchors on this env (native GC success, 500k): density soft .736 | density hard .680 |
+# plain FB .00 | BC floor .019.
+defaults:
+  - storage: shm
+  - _self_
+variant: state
+env_name: cube-double-play-v0
+agent_file: tools/wandb_mode_shim/gciql_flow.py
+seed: 0
+train_steps: 500000
+log_interval: 5000
+eval_interval: 10000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: GCIQL-CubeDouble-Flow-LSIF-Phi-d50
+restore_path: null
+restore_epoch: null
+exp_name: null
+agent_overrides:
+  bc_coeff: 3.0
+  value_arch: bilinear
+  value_latent_dim: 50
+  measure_only: true
+  measure_density: true
+  measure_density_dim: 50
+  measure_density_temp: 1.0
+  measure_hit_spec: "19:22:0.4,28:31:0.4"
+  measure_lsif: true
+  measure_lsif_immediate: kernel
+  actor_q_center: true
+wandb_mode: online
