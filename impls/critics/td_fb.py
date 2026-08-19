@@ -198,6 +198,39 @@ class TDFBCritic:
         off = 1.0 - jnp.eye(B)
 
         col_states = vgoals if self.testpoint_dist == "hindsight" else nobs
+        # a+ = actor(s', ACTOR goals) — `boot["next_action"]`, the _cvec draw — NOT the
+        # value-goal draw the bridge writes (gciql_flow.py :1655-1668: `a_goals = vgoals;
+        # a_next = actor(nobs, a_goals, noise)`). This is a DELIBERATE divergence from the
+        # bridge's literal line, forced by measurement. The triple (cube-single, phase-1
+        # first-passage recipe, 500k, seed 0, flowbc):
+        #     boot["next_action"]        (a+ at actor_goals)  -> 0.920
+        #     boot["next_action_vgoal"]  (a+ at value_goals)  -> 0.076   [GEN2 collapse]
+        #     bridge, its own vgoal convention                -> 0.967
+        # Every axis of measure_loss was diffed against the bridge line by line (M/tM tower
+        # args, the hindsight psi/tpsi recompute at vgoals, sqrt(d), hit(nobs, col_states),
+        # the (1-hit) absorption, the off/diag split and weights, scale_norm placement,
+        # stop-gradients, one-shot unclipped actor draw): all MATCH. The vgoal draw is
+        # nonetheless catastrophic HERE, and the failure is diagnostic, not noise —
+        # train.csv for the GEN2 run: measure_orth (= psi psi^T reduction, logged even at
+        # ortho_coef=0) 25 -> 397 -> 2.7e6, and actor q 1.0 -> 5.0 -> 1.6e4, while
+        # measure_loss itself stays ~3e-3. i.e. M is pinned on the trained columns while the
+        # Q the actor actually maximizes inflates by four orders of magnitude.
+        #
+        # Mechanism (why td_fb differs from density_fb, which genuinely wanted the vgoal
+        # fix — density-hard 0.912/0.932/0.904 with it vs 0.828/0.740/0.576 without):
+        # density_fb's forward tower takes the goal as an INPUT, F(s,a,g), so its row IS
+        # g-indexed and the bootstrap must be taken at that same g. Here the forward map is
+        # phi(s,a) with NO goal leg — one vector per row serving every column — so phi can
+        # only ever be the successor measure of ONE policy, and the bootstrap action is what
+        # picks it. The readout the actor maximizes is <phi(s,a), psi(actor_goal)>, so phi
+        # must be the measure of pi(.|., actor_goal). Drawing a+ at value_goals fits phi to
+        # a policy indexed by value_goals — 20% current-state + 30% random-state goals, i.e.
+        # half the rows bootstrap a policy heading nowhere — and then nothing in the TD
+        # constrains phi along the psi(actor_goal) directions the actor reads, which is
+        # exactly the unbounded channel the orth/q traces above show it exploiting.
+        # Explicit KeyError on a missing key is kept on purpose (a silent .get fallback is
+        # how the density bug survived its first gate); `next_action_vgoal` is still emitted
+        # by flowbc.sample_bootstrap for density_fb and is deliberately unread here.
         a_next = jax.lax.stop_gradient(boot["next_action"])
 
         _, phi, psi = self._info(params["critic"], obs, col_states, acts)
@@ -229,10 +262,17 @@ class TDFBCritic:
         g = cond["goal"]
         p = jax.lax.stop_gradient(params["critic"])
         q1, q2 = self._call(p, obs, g, actions)
+        q = jnp.minimum(q1, q2)
         if self.actor_q_center:
-            q1 = q1 - q1.mean()
-            q2 = q2 - q2.mean()
-        return jnp.minimum(q1, q2), jnp.stack([q1, q2], 0)
+            # Bridge semantics (gciql_flow.py ~1168): actor_q_center touches ONLY the
+            # q-loss NORMALIZER — q_scale = |q - q.mean()|.mean() — while -q.mean()'s
+            # gradient stays raw. FlowBC divides by sg[|Qs|.mean()], so the centering goes
+            # into the SECOND return. Centering the numerator makes the greedy term the
+            # batch-mean of a batch-centered quantity (~0, no gradient) — the phase-2
+            # anchor collapsed to the BC floor (0.12) exactly this way (2026-08-11),
+            # mirroring density_fb's failed first generation.
+            return q, (q - q.mean())[None]
+        return q, jnp.stack([q1, q2], 0)
 
     def cond_vec(self, cond):
         return cond["goal"]

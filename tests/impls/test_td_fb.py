@@ -62,8 +62,11 @@ def _batch(seed=1, b=B):
 
 
 def _boot(b=B, seed=2):
+    # Distinct actions per key so a test can detect which one the loss actually consumes
+    # (the measure must read the VALUE-goal bootstrap — bridge convention).
     rng = np.random.default_rng(seed)
-    return {"next_action": jnp.asarray(np.tanh(rng.standard_normal((b, ACT))))}
+    return {"next_action": jnp.asarray(np.tanh(rng.standard_normal((b, ACT)))),
+            "next_action_vgoal": jnp.asarray(np.tanh(rng.standard_normal((b, ACT))))}
 
 
 # --------------------------------------------------------------------------
@@ -314,3 +317,58 @@ def test_warm_start_leaves_shape_mismatched_groups_at_fresh_init(tmp_path):
     for a, b_ in zip(jax.tree_util.tree_leaves(warmed.net["critic"].params),
                      jax.tree_util.tree_leaves(big_fresh.net["critic"].params)):
         np.testing.assert_array_equal(np.asarray(a), np.asarray(b_))
+
+
+def test_actor_q_center_touches_only_the_normalizer():
+    """Bridge semantics (gciql_flow.py ~1168): actor_q_center changes the q-loss
+    NORMALIZER (|q - q.mean()|), never the -Q.mean() numerator. Centering the numerator
+    zeroes the greedy gradient and reduces the actor to pure BC — the phase-2 anchor
+    collapsed to the BC floor (0.12 vs gate 0.85, 2026-08-11) exactly this way, mirroring
+    density_fb's failed first generation."""
+    ex_obs, ex_act = _ex()
+    b = _batch(b=16)
+    q_outs = {}
+    for center in (False, True):
+        c, params, targets = TDFBCritic.build(ex_obs, ex_act,
+                                              _cfg(actor_q_center=center, batch_size=16))
+        cond = c.sample_cond(None, b, jax.random.PRNGKey(0))
+        q, qs = c.q_fn({"critic": params["critic"]}, b["observations"], cond, b["actions"])
+        q_outs[center] = np.asarray(q)
+        if center:
+            assert abs(float(np.asarray(qs).mean())) < 1e-6
+    np.testing.assert_allclose(q_outs[True], q_outs[False], atol=0)
+
+
+def test_measure_bootstrap_reads_the_actor_goal_action():
+    """td_fb's convention: a+ = actor(s', ACTOR goals) = boot['next_action'].
+
+    A deliberate divergence from the bridge's literal line (it draws a+ at value_goals);
+    see the block comment in td_fb.stage_loss. The empirical triple that forces it, all
+    cube-single / phase-1 first-passage / 500k / seed 0 / flowbc:
+        boot['next_action']        -> 0.920
+        boot['next_action_vgoal']  -> 0.076   (measure_orth 25 -> 2.7e6, actor q -> 1.6e4)
+        bridge, vgoal convention   -> 0.967
+    phi(s,a) has no goal leg, so the bootstrap alone picks WHICH policy phi measures, and
+    the actor reads <phi, psi(actor_goal)> — the two must agree. density_fb is the opposite
+    (F(s,a,g) takes the goal as an input) and keeps the vgoal draw; that is why the key is
+    still emitted and why this test pins td_fb to the other one.
+
+    So: the loss must be sensitive to boot['next_action'] and INVARIANT to
+    boot['next_action_vgoal'], and must raise if 'next_action' is missing — the silent
+    fallback is how the density bug survived its first gate.
+    """
+    ex_obs, ex_act = _ex()
+    c, params, targets = TDFBCritic.build(ex_obs, ex_act, _cfg())
+    b = _batch()
+    cond = c.sample_cond(None, b, jax.random.PRNGKey(0))
+    boot = _boot()
+    l0, _ = c.stage_loss("measure", params, targets, b, cond, boot)
+    pert = dict(boot, next_action_vgoal=jnp.tanh(boot["next_action_vgoal"] + 1.0))
+    l1, _ = c.stage_loss("measure", params, targets, b, cond, pert)
+    np.testing.assert_allclose(np.asarray(l0), np.asarray(l1), atol=0)
+    pert2 = dict(boot, next_action=jnp.tanh(boot["next_action"] + 1.0))
+    l2, _ = c.stage_loss("measure", params, targets, b, cond, pert2)
+    assert not np.allclose(np.asarray(l0), np.asarray(l2), atol=1e-10)
+    with pytest.raises(KeyError):
+        c.stage_loss("measure", params, targets, b, cond,
+                     {"next_action_vgoal": boot["next_action_vgoal"]})
