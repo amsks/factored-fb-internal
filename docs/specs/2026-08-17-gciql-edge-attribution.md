@@ -1,6 +1,6 @@
 # GCIQL-edge attribution: can Density-FB reach 0.99 on precision cells? (for the implementation agent)
 
-**Date:** 2026-08-17 · **Status:** W1–W4 implemented; gate job 917524; arms not yet launched
+**Date:** 2026-08-17 · **Status:** ALL ARMS READ OUT (2026-08-18). M3 confirmed for push; M1 shown NECESSARY-BUT-NOT-SUFFICIENT; best density arm is ktC-atemp2 at 0.94/0.90.
 
 | item | state |
 |---|---|
@@ -8,7 +8,7 @@
 | W2 actor readout temp | done — `measure_density_actor_temp: null` used only in `q_fn`; `stage_loss` keeps `measure_density_temp` |
 | W3 expectile | verified, no code — `expectile=0.7` composes on `gciql` (default 0.9); no inert nested alias exists |
 | W4 forensics | **DONE — verdict: REAL per-checkpoint instability** (job 917542). See below. |
-| arms | `scripts/launch_edge_attribution.sh {ktB\|ktC\|ktD\|ktB-prh}`, dry-run clean at 7 jobs |
+| arms | **DONE** — 7 jobs (917535–41) via `scripts/launch_edge_attribution.sh`; results in §Results below |
 
 **W4 substitution (blocking correction).** The spec names
 `kt1-qc03/…seed_2/params_350000.pkl`; it does not exist. That run used
@@ -98,3 +98,63 @@ Budget: ≤8 jobs + 1 reeval job. Landmines (verbatim from prior specs): dotlist
 
 ## Curve facts to reuse (do not remeasure)
 GCIQL pr pick-place: 0.88–1.00 from 100k, sd-last3 ≤0.034. qc03: peaks 0.98/0.90/0.82, mean-last3 0.927/0.727/0.813, seed-2 350k eval = 0.02; action-gap flat 0.13–0.17 (R1 arrested), ESS ~13. soft: peak 0.90/final 0.80, ESS ~400. GCIQL pr push: oscillates 0.42–0.88, mean-last3 0.65–0.76 vs density 0.79–0.83 stable. Bridge doc: density wins iff a manipulated object with dwell-heavy diffuse occupancy exists; two-sided null on antmaze.
+
+## Results (2026-08-18, 1 seed each, DEV cell pr `mw-pick-place` unless stated)
+
+| arm | peak | final | drop | gate |
+|---|---|---|---|---|
+| ktB-sarsa | 0.180 @100k | 0.100 | 0.08 | fail |
+| ktC-atemp2 | 0.940 @350k | **0.900** | 0.04 | **GRADUATES** |
+| ktC-nocenter | 0.740 @400k | 0.520 | 0.22 | fail (final) |
+
+### M1 is necessary but NOT sufficient — and severing it is worse than weakening it
+
+`ktB-sarsa` was the spec's cleanest 0.99-reachability read. It fails, and *how* it fails is the
+finding. Taking the actor out of the critic's fixed point does exactly what it was supposed to
+mechanically — the collapse disappears (the curve is FLAT at 0.02–0.18, never decaying) and the
+measure is the healthiest of any arm (`density_ess_median` 50 → 106 → 69, against ~13 for qc03
+and 20 → 10 for atemp2). But the policy signal goes with it: `action_gap_l2` grows to 0.74 and
+stays, `density_sarsa_subst` sits at 0.61–0.64, and success never leaves the floor.
+
+Under SARSA the target is the *behaviour* policy's occupancy, which is diffuse and not an
+improvable objective — ascending it does not correspond to reaching the goal. So the actor
+being inside the target is not merely the collapse's cause, it is also where the learning
+signal comes from. The two are the same coupling. That is why `q_coeff=0.3` (weaken the
+ascent) graduates while `sarsa` (sever it) does not, and it means M1 cannot be "fixed" by
+removal — only damped.
+
+### M2 is real and worth ~0.1 over qc03 alone
+
+`ktC-atemp2` (`q_coeff=0.3` + actor-readout temperature 2.0) is the best density arm to date:
+0.94 peak, 0.90 final, drop 0.04, and the last five evals are 0.64/0.86/0.94/0.88/0.86/0.90.
+qc03 alone is 0.900/0.560/0.820 across three seeds — seed 1 decays; atemp2 removes that at
+seed 0. Smoothing ONLY what the actor ascends (the CE target keeps `measure_density_temp`)
+buys stability, so the residual gap was at least partly readout spikiness, not a structural
+ceiling. It falls just short of the spec's ≥0.95 bar, so "≈0.85 is not structural" is
+supported but the 0.99 question stays open. **Next: 3 seeds on ktC-atemp2.**
+
+`ktC-nocenter` (M4) reaches 0.74 but ends at 0.52 with a 0.22 drop — the uncentered normalizer
+does not help, consistent with the bridge asserting `center=true` on this path.
+
+### M3 confirmed — for push, not for the pick-place edge
+
+GCIQL expectile sweep on pr (baseline expectile 0.9 is the 3-seed table value):
+
+| expectile | mw-pick-place | mw-push |
+|---|---|---|
+| 0.70 | 0.860 | **0.840** |
+| 0.90 (baseline) | 0.993 | 0.733 |
+| 0.95 | 0.980 | 0.640 |
+
+Push is **monotone decreasing in expectile** (0.840 → 0.733 → 0.640, a 0.20 span against the
+±0.05 eval noise W4 measured), while pick-place stays high and roughly flat. Both halves of
+the pre-registered discriminator fire: expectile pessimism is what costs GCIQL on push, and it
+is *not* what its pick-place edge is made of.
+
+Consequence worth stating in the paper: at `expectile=0.7` GCIQL reaches 0.840 on push, which
+erases density's push win (0.820). Density's advantage on that cell is against a
+*mis-tuned* GCIQL, not against GCIQL's best. These are 1-seed screens — confirm at 3 seeds
+before the claim goes in the table.
+
+### Not run
+`ktB-sarsa-prh` was gated on ktB-sarsa ≥0.9 stable; it fails, so the job was never spent.

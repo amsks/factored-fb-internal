@@ -91,13 +91,27 @@ ktD() {
   done
 }
 
-[ "$#" -gt 0 ] || { echo "usage: $0 {ktB|ktC|ktD|ktB-prh} [...]" >&2; exit 2; }
+# ---- confirm: the two 1-seed findings that change a claim, at 3 seeds -------------------
+# Only these two. ktC-atemp2 is the graduating density arm (0.94/0.90, drop 0.04) and the
+# spec's gate says graduation -> 3 seeds. ktD-e07-push matters because GCIQL at expectile 0.7
+# reaches 0.840 on push, which erases density's 0.820 win — a claim that cannot go in the
+# table on one seed. ktC-nocenter and the e095 arms are NOT confirmed: they failed or moved
+# nothing, so seeding them buys nothing.
+#   for s in 1 2; do SEED=$s bash scripts/launch_edge_attribution.sh confirm; done
+confirm() {
+  submit ktC-atemp2 density_fb flowbc mw-pick-place "$ROOT_PR" \
+         "$DENS $HIT_PICK actor.q_coeff=0.3 measure_density_actor_temp=2.0"
+  submit ktD-e07-push gciql flowbc mw-push "$ROOT_PR" "expectile=0.7"
+}
+
+[ "$#" -gt 0 ] || { echo "usage: $0 {ktB|ktC|ktD|ktB-prh|confirm} [...]" >&2; exit 2; }
 for a in "$@"; do
   case "$a" in
     ktB)     echo "== KT-B: SARSA bootstrap (M1) =="; ktB ;;
     ktB-prh) echo "== KT-B on play-resample-hard (gated) =="; ktB_prh ;;
     ktC)     echo "== KT-C: actor readout temperature (M2) + normalizer (M4) =="; ktC ;;
     ktD)     echo "== KT-D: GCIQL expectile sweep (M3) =="; ktD ;;
+    confirm) echo "== confirm ktC-atemp2 + ktD-e07-push at SEED=$SEED =="; confirm ;;
     *) echo "unknown arm $a" >&2; exit 2 ;;
   esac
 done
