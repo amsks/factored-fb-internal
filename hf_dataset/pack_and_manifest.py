@@ -35,21 +35,33 @@ def _ep_index(p: Path) -> int:
 
 def pack_task(task_dir: Path, out_root: Path) -> dict | None:
     meta = json.loads((task_dir / "meta.json").read_text())
-    family = meta.get("env_family", "unknown")
+    # Collectors disagree on the key ("env_family" vs "family") and on case. The output path
+    # data/<family>/<task>.npz is what env/domains/*.yaml resolves against, and those expect
+    # the lowercase form (data/maniskill/..., data/metaworld/...), so normalise here.
+    family = (meta.get("env_family") or meta.get("family") or "unknown").lower()
     task = meta.get("task", task_dir.name)
     eps = sorted((task_dir / "buffer").glob("episode_*.npz"), key=_ep_index)
     if not eps:
         return None
 
-    lengths, cols = [], {k: [] for k in FIELDS}
+    # Not every collector writes all 8 fields, and some write extras. The upstream
+    # play-resample sets, for instance, carry `goal_switch` (the target-relocation boundary)
+    # but no `achieved_goal`. Pack whatever the episodes actually contain rather than
+    # KeyError-ing: load_packed only reads observation/action/next_observation/reward, and
+    # dropping a recorded field like goal_switch would throw away the one marker of segment
+    # structure that survives collection.
+    present = [k for k in FIELDS if k in np.load(eps[0]).files]
+    extra = [k for k in np.load(eps[0]).files if k not in FIELDS]
+    keys = present + extra
+    lengths, cols = [], {k: [] for k in keys}
     for ep in eps:
         z = np.load(ep)
         lengths.append(int(len(z["action"])))
-        for k in FIELDS:
+        for k in keys:
             cols[k].append(z[k])
     fixed = len(set(lengths)) == 1
     packed = {k: (np.stack(cols[k]) if fixed else np.array(cols[k], dtype=object))
-              for k in FIELDS}
+              for k in keys}
 
     out_dir = out_root / "data" / family
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -57,7 +69,7 @@ def pack_task(task_dir: Path, out_root: Path) -> dict | None:
     np.savez_compressed(out_fp, **packed)
     (out_dir / f"{task}.meta.json").write_text(json.dumps(meta, indent=2))
 
-    succ = packed["success"]                                   # [N,T] bool
+    succ = packed.get("success", np.zeros((len(eps), lengths[0]), bool))   # [N,T] bool
     ep_success = np.stack([s.any() for s in succ]) if fixed else \
         np.array([np.asarray(s).any() for s in succ])
     return {

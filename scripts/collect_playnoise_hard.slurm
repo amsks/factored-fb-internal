@@ -35,7 +35,7 @@ for task in mw-push mw-pick-place; do
   if [ -f "$npz" ]; then echo "== skip $task (exists)"; continue; fi
   echo "== collect $task (eps_max=$EPS_MAX noise_max=$NOISE_MAX expert_frac=$EXPERT_FRAC) =="
   $PY data_collection/collect_mw_standalone.py \
-      --task "$task" --regime play-noise --episodes 1000 --seed 0 \
+      --task "$task" --regime play-noise --episodes "${EPISODES:-1000}" --seed 0 \
       --eps_max "$EPS_MAX" --noise_max "$NOISE_MAX" --expert_frac "$EXPERT_FRAC" \
       --out "$OUT" || { echo "!! FAILED collect $task"; FAIL=1; }
 done
