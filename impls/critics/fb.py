@@ -45,6 +45,16 @@ class FBCritic:
     def eval_cond0(self, ex_obs, config):
         return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
 
+    def map_eval_cond(self, net, cond):
+        """Eval-time hook: embed the env's goal frame into the z the actor was TRAINED on,
+        z = project_z(B(goal)) — the exact conditioning sample_cond mixes in via
+        train_goal_ratio. Without this hook eval runs on eval_cond0's zero z, for which
+        Q(s,a;0) = <F,0> ≡ 0 and the policy is goal-blind (2026-08-17 FB-zero bug)."""
+        if "goal" not in cond:
+            return cond
+        z = project_z(self._B(net["backward"].params, cond["goal"]), self.norm_z)
+        return {**cond, "z": z}
+
     def stage_groups(self, stage):
         assert stage == "fb"
         return self.GROUPS

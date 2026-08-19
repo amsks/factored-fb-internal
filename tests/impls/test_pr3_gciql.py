@@ -8,7 +8,7 @@ from impls.critics.base import ComboError
 def _cfg(actor_kind):
     base = dict(
         value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
-        lr=3e-4, lr_actor=3e-4, gc_negative=True,
+        lr=3e-4, lr_actor=3e-4, gc_negative=True, q_bound=0.0,
     )
     if actor_kind in ("ddpgbc", "awr"):
         base["actor"] = dict(hidden_dims=[32, 32], alpha=3.0, const_std=True, layer_norm=False)

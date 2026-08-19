@@ -23,6 +23,7 @@ def _cfg(**over):
         lr=3e-4, lr_actor=3e-4, batch_size=B, discount=0.99, expectile=0.9, tau=0.005,
         value_hidden_dims=[32, 32], layer_norm=True, seed=0,
         value_latent_dim=D, psi_base="learned", project_z=False, double_q=True,
+        psi_layer_norm=True,
         iql_ortho_coef=0.0, actor_cond="goal", actor_z_from_critic=False,
         actor_z_infer=False,
     )

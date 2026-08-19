@@ -80,7 +80,7 @@ def test_fql_loss_decomposes_as_documented():
     decomposition instead: actor_loss == bc_flow_loss + alpha*distill_loss + q_loss."""
     from impls.agents import Agent
     cfg = dict(value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9,
-               tau=0.005, lr=3e-4, lr_actor=3e-4, gc_negative=True,
+               tau=0.005, lr=3e-4, lr_actor=3e-4, gc_negative=True, q_bound=0.0,
                actor=dict(hidden_dims=[32, 32], alpha=10.0, flow_steps=5,
                           normalize_q_loss=False, layer_norm=False))
     agent = Agent.create("gciql", "fql", 0, jnp.zeros((2, 8)), jnp.zeros((2, 5)), cfg)
@@ -115,7 +115,7 @@ def test_fql_bc_flow_loss_matches_first_principles():
     """
     from impls.agents import Agent
     cfg = dict(value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9,
-               tau=0.005, lr=3e-4, lr_actor=3e-4, gc_negative=True,
+               tau=0.005, lr=3e-4, lr_actor=3e-4, gc_negative=True, q_bound=0.0,
                actor=dict(hidden_dims=[32, 32], alpha=10.0, flow_steps=5,
                           normalize_q_loss=False, layer_norm=False))
     agent = Agent.create("gciql", "fql", 0, jnp.zeros((2, 8)), jnp.zeros((2, 5)), cfg)

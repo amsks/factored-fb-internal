@@ -433,6 +433,10 @@ class GCBilinearPsiValue(GCBilinearValue):
             # (LayerNorm-free MLPs simply lack the LayerNorm_* entries).
             self.psi = mlp_class((*self.hidden_dims, self.latent_dim),
                                  activate_final=False, layer_norm=psi_ln)
+        if self.output_scale:
+            # must live in setup(): __call__ is not @compact, so self.param there raises
+            # "Parameters must be initialized in `setup()`..." (jobs 891461-891757).
+            self.log_output_scale = self.param("log_output_scale", nn.initializers.zeros, ())
 
     def psi_of(self, goals):
         """The goal-leg embedding, i.e. the task vector z the actor may condition on.
@@ -459,7 +463,7 @@ class GCBilinearPsiValue(GCBilinearValue):
         if self.output_scale:
             # exp-parametrized so the scale stays positive and can grow multiplicatively;
             # init exp(0)=1 -> starts exactly at the unscaled head.
-            v = v * jnp.exp(self.param("log_output_scale", nn.initializers.zeros, ()))
+            v = v * jnp.exp(self.log_output_scale)
 
         if self.value_exp:
             v = jnp.exp(v)

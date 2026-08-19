@@ -67,6 +67,7 @@ def _min_cfg_for(critic_kind, actor_kind):
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
             lr=3e-4, lr_actor=3e-4, gc_negative=True,
             value_latent_dim=8, psi_base="learned", project_z=False, double_q=True,
+            psi_layer_norm=True,
             iql_ortho_coef=0.0, actor_cond="goal", actor_z_from_critic=False,
             actor_z_infer=False,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
@@ -130,10 +131,24 @@ def _min_cfg_for(critic_kind, actor_kind):
             measure_ortho_coef=0.0, actor_q_center=False, warm_start=False,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
         )
+    elif critic_kind in ("crl", "vip"):
+        base = dict(
+            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, tau=0.005,
+            lr=3e-4, lr_actor=3e-4, gc_negative=True, latent_dim=8,
+            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
+        )
+    elif critic_kind == "qrl":
+        base = dict(
+            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, tau=0.005,
+            lr=3e-4, lr_actor=3e-4, gc_negative=True,
+            qrl_components=4, qrl_dim_per_component=8, qrl_step_cost=1.0,
+            qrl_eps=0.25, qrl_transform_t=100.0,
+            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
+        )
     else:  # gciql
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
-            lr=3e-4, lr_actor=3e-4, gc_negative=True,
+            lr=3e-4, lr_actor=3e-4, gc_negative=True, q_bound=0.0,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
         )
     base["actor"] = _actor_block(actor_kind)
