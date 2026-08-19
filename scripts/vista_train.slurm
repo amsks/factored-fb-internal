@@ -81,6 +81,11 @@ OVERRIDE="${OVERRIDE:-}"
 ov_flags=()
 for kv in $OVERRIDE; do ov_flags+=(--override "$kv"); done
 
+# EXTRA_FLAGS: verbatim additional impls.main flags that are NOT config overrides
+# (e.g. "--warm_start_path <p1 run dir> --warm_start_epoch 500000" for td_fb phase 2).
+# Intentionally unquoted at the callsite so it word-splits into separate flags.
+EXTRA_FLAGS="${EXTRA_FLAGS:-}"
+
 # ── Train ───────────────────────────────────────────────────────────────────
 srun $PY -m impls.main \
     --critic "$CRITIC" --actor "$ACTOR" --domain "$DOMAIN" \
@@ -88,6 +93,7 @@ srun $PY -m impls.main \
     --eval_interval "$EVAL_INTERVAL" --save_interval "$SAVE_INTERVAL" \
     --eval_episodes "$EVAL_EPISODES" --num_video "$NUM_VIDEO" \
     "${ov_flags[@]}" \
+    $EXTRA_FLAGS \
     --save_dir "$SAVE_DIR"
 
 echo "== done. checkpoints/logs under $SAVE_DIR =="
