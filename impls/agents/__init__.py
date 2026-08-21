@@ -12,6 +12,7 @@ from impls.utils.flax_utils import TrainState, soft_update, nonpytree_field
 from impls.critics.base import check_combo
 from impls.critics.fb import FBCritic
 from impls.critics.gciql import GCIQLCritic
+from impls.critics.gcivl import GCIVLCritic
 from impls.critics.isfb import ISFBCritic
 from impls.critics.iql_bilinear import IqlBilinearCritic
 from impls.critics.simple_sf import SimpleSfCritic
@@ -29,7 +30,7 @@ from impls.actors.ddpgbc_density import DDPGBCDensityActor
 from impls.actors.awr import AWRActor
 from impls.actors.fql import FQLActor
 
-CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "isfb": ISFBCritic,
+CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "isfb": ISFBCritic,
            "iql_bilinear": IqlBilinearCritic, "simple_sf": SimpleSfCritic,
            "sf_feature": SfFeatureCritic, "centered_bilinear": CenteredBilinearCritic,
            "fb_forward_bilinear": FbForwardBilinearCritic, "crl": CRLCritic,

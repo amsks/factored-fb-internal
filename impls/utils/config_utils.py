@@ -28,6 +28,15 @@ REQUIRED_KEYS = {
     # gciql.py:build() reads lr/batch_size/discount/expectile/tau/value_hidden_dims/
     # layer_norm; datasets.py:GCDataset (built *before* Agent.create, datasets.py:96-116)
     # reads the goal-sampling and dataset_class keys.
+    # gcivl.py:build() reads lr/batch_size/discount/expectile/tau/value_hidden_dims/
+    # layer_norm (no q_bound -- GCIVL has no Q); GCDataset reads the goal-sampling keys.
+    "gcivl": (
+        "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
+        "value_hidden_dims", "layer_norm", "gc_negative",
+        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
+        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
+        "dataset_class",
+    ),
     "gciql": (
         "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
         "value_hidden_dims", "layer_norm", "gc_negative", "q_bound",

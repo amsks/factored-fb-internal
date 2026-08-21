@@ -28,6 +28,18 @@ class AWRActor:
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
         cvec = critic.cond_vec(cond)
+        adv_fn = getattr(critic, "adv_fn", None)
+        if adv_fn is not None:
+            # The critic defines its own advantage. Required for V-only critics: their
+            # q_fn is V(s,g) ignoring actions, so the q - v form below is identically ZERO
+            # and AWR silently degenerates to plain BC (measured: qrl x awr, vip x awr).
+            # Opt-in, so every critic without the hook keeps the exact previous path.
+            adv = jax.lax.stop_gradient(adv_fn(params, batch, cond))
+            exp_a = jnp.minimum(jnp.exp(adv * self.alpha), 100.0)
+            dist = self._dist(params["actor"], obs, cvec)
+            log_prob = dist.log_prob(action)
+            loss = -(exp_a * log_prob).mean()
+            return loss, {"actor_loss": loss, "adv": adv.mean(), "bc_log_prob": log_prob.mean()}
         q, _ = critic.q_fn(params, obs, cond, action, stop_encoder_grad=True)
         if getattr(critic, "PROVIDES_V", False):
             v = critic.v_fn(params, obs, cond)
