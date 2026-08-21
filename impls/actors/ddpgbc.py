@@ -38,8 +38,19 @@ class DDPGBCActor:
                       "q_mean": q.mean(), "bc_log_prob": log_prob.mean()}
 
     def sample_bootstrap(self, net, batch, cond, rng):
-        dist = self._dist(net["actor"].params, batch["next_observations"], _cvec(cond))
-        return {"next_action": jnp.clip(dist.mode(), -1, 1)}
+        next_obs = batch["next_observations"]
+        p = net["actor"].params
+        boot = {"next_action": jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1)}
+        if "value_goal" in cond:
+            # a+ ~ pi(.|s', g_value) at frozen params, for critics whose TD target is only
+            # valid at the VALUE goal (Critic.BOOT_COND == "value_goal"; density_fb's forward
+            # tower is F(s,a,g), so its row is g-indexed). Emitted as a SEPARATE key -- every
+            # critic reading `next_action` stays bit-identical. Mirrors
+            # FlowBCActor.sample_bootstrap; this actor is deterministic (dist.mode()), so the
+            # extra draw spends no randomness at all.
+            boot["next_action_vgoal"] = jnp.clip(
+                self._dist(p, next_obs, cond["value_goal"]).mode(), -1, 1)
+        return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
         dist = self._dist(net["actor"].params, obs, _cvec(cond), temperature)
