@@ -52,6 +52,39 @@ flags.DEFINE_integer("infer_cond_episodes", 0,
                      "If >0, infer eval conditioning from this many relabelled transitions "
                      "before each eval (FB zero-shot path). 0 = use eval_cond0.")
 
+# --- ONLINE (env-interactive) mode. OFF by default; see env/online.py. -------------------
+# Every knob below is inert unless --online is passed: with the flag off, the training loop
+# executes exactly the statements it did before online mode existed (one `if` on a local
+# that is None), env/online.py is never even imported, and no extra randomness is drawn.
+# That is deliberate -- this repo compares runs against recorded numbers.
+flags.DEFINE_bool("online", False,
+                  "Train ONLINE: step the env inside the training loop and sample gradient "
+                  "batches from a replay buffer instead of the offline dataset. Default "
+                  "False = the offline path, unchanged.")
+flags.DEFINE_float("online_env_steps_per_update", 1.0,
+                   "Env steps per gradient step (UTD = 1/this). Fractional values are "
+                   "accumulated, so 0.5 means one env step every other gradient step.")
+flags.DEFINE_float("online_action_noise", 0.1,
+                   "Std of the Gaussian action noise added to the agent's sampled action "
+                   "during online collection (0 = greedy w.r.t. the actor's own sampling).")
+flags.DEFINE_float("online_temperature", 1.0,
+                   "Temperature passed to agent.sample_actions during online collection "
+                   "(eval uses 0).")
+flags.DEFINE_integer("online_start_steps", 5000,
+                     "Env steps collected with UNIFORM RANDOM actions before the first "
+                     "gradient step. Collection continues past this until at least one "
+                     "episode has finished (the buffer stores whole trajectories).")
+flags.DEFINE_integer("online_buffer_size", 200_000, "Replay-buffer capacity in transitions.")
+flags.DEFINE_bool("online_seed_offline", False,
+                  "Warm-start the replay buffer from the offline dataset (a prefix of whole "
+                  "episodes).")
+flags.DEFINE_integer("online_seed_transitions", 0,
+                     "Cap on the rows copied by --online_seed_offline. 0 = as many whole "
+                     "episodes as the buffer holds.")
+flags.DEFINE_integer("online_reset_seed_offset", 1_000_000,
+                     "Offset applied to online episode reset seeds so online rollouts never "
+                     "reuse the initial states evaluate() scores (it uses seeds 0..N).")
+
 
 def infer_cond_noop_reason(pre_cond, post_cond, rewards):
     """Detect when infer_eval_cond() had no real effect, and return a string naming why
@@ -193,11 +226,28 @@ def main(_):
             agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch)
             start_step = FLAGS.restore_epoch + 1
 
+        # ONLINE mode is entirely inside this block: `online` stays None with the flag off,
+        # env/online.py is not imported, and the loop below runs the offline statements it
+        # always ran. Nothing above this line is conditional on --online.
+        online = None
+        if FLAGS.online:
+            from env.online import OnlineTrainer
+            online = OnlineTrainer.create(adapter, env, cfg, train_ds, ex, FLAGS)
+            n = online.prefill(agent)
+            print(f"[online] prefilled {n} env steps, buffer {online.buffer.size} rows / "
+                  f"{online.buffer.n_episodes} episodes", flush=True)
+
         for i in range(start_step, FLAGS.train_steps + 1):
-            batch = train_ds.sample(cfg["batch_size"])
+            if online is None:
+                batch = train_ds.sample(cfg["batch_size"])
+            else:
+                online.collect(agent)
+                batch = online.sample(cfg["batch_size"])
             agent, info = agent.update(batch)
             if i % FLAGS.log_interval == 0:
                 row = {k: float(jnp.asarray(v).mean()) for k, v in info.items()}
+                if online is not None:
+                    row.update(online.stats())
                 csv_train.log(row, step=i)
                 if run is not None:
                     run.log({f"train/{k}": v for k, v in row.items()}, step=i)
