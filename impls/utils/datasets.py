@@ -205,6 +205,89 @@ class GCDataset:
 
 
 @dataclasses.dataclass
+class HGCDataset(GCDataset):
+    """Hierarchical goal-conditioned dataset — faithful port of OGBench
+    utils/datasets.py:HGCDataset, state-only (frame-stack / image augmentation dropped),
+    matching GCDataset's conventions above. Reads one extra config key, `subgoal_steps`.
+
+    Adds the three keys HIQL needs and nothing else in the seam produces:
+      * low_actor_goals    — the state `subgoal_steps` ahead, clamped to the trajectory's
+        own final index so a subgoal never crosses into the next episode;
+      * high_actor_goals   — a future-or-random goal for the high-level policy;
+      * high_actor_targets — the subgoal the high policy is trained to predict for that
+        goal, clamped to the goal itself so the target never overshoots it.
+
+    `value_goals`/`rewards`/`masks` are produced exactly as GCDataset does. `actor_goals`
+    is NOT emitted: vendored HGCDataset replaces it with the two high-level keys, and a
+    flat critic paired with this dataset would silently read a goal that isn't there.
+    np.random call order follows the vendored source so a seed reproduces its batches.
+    """
+
+    def sample(self, batch_size, idxs=None):
+        c = self.config
+        if c.get('subgoal_steps') is None:
+            raise KeyError(
+                "HGCDataset requires config key 'subgoal_steps' (vendored default 25); "
+                "without it the low-level goal horizon is undefined")
+        if idxs is None:
+            idxs = self.dataset.get_random_idxs(batch_size)
+        batch = self.dataset.get_subset(idxs)
+        obs = self.dataset['observations']
+
+        value_goal_idxs = self.sample_goals(
+            idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'],
+            c['value_geom_sample'])
+        if self.goal_ok is not None:
+            value_goal_idxs = self._filter_goals(value_goal_idxs)
+
+        final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
+        batch['next_actions'] = np.asarray(
+            self.dataset['actions'][np.minimum(idxs + 1, final_idxs)], np.float32)
+        batch['observations'] = np.asarray(batch['observations'], np.float32)
+        batch['next_observations'] = np.asarray(batch['next_observations'], np.float32)
+        batch['actions'] = np.asarray(batch['actions'], np.float32)
+        batch['value_goals'] = np.asarray(obs[value_goal_idxs], np.float32)
+        successes = (idxs == value_goal_idxs).astype(np.float32)
+        batch['masks'] = 1.0 - successes
+        batch['rewards'] = successes - (1.0 if c['gc_negative'] else 0.0)
+
+        # low-level goals: subgoal_steps ahead, clamped to this trajectory's end
+        sg = int(c['subgoal_steps'])
+        low_goal_idxs = np.minimum(idxs + sg, final_idxs)
+        batch['low_actor_goals'] = np.asarray(obs[low_goal_idxs], np.float32)
+
+        # high-level goals + the subgoal targets the high policy predicts for them
+        if c['actor_geom_sample']:
+            offsets = np.random.geometric(p=1 - c['discount'], size=len(idxs))   # in [1, inf)
+            high_traj_goal_idxs = np.minimum(idxs + offsets, final_idxs)
+        else:
+            distances = np.random.rand(len(idxs))                                # in [0, 1)
+            high_traj_goal_idxs = np.round(
+                np.minimum(idxs + 1, final_idxs) * distances + final_idxs * (1 - distances)
+            ).astype(int)
+        high_traj_target_idxs = np.minimum(idxs + sg, high_traj_goal_idxs)
+
+        high_random_goal_idxs = self.dataset.get_random_idxs(len(idxs))
+        high_random_target_idxs = np.minimum(idxs + sg, final_idxs)
+
+        pick_random = np.random.rand(len(idxs)) < c['actor_p_randomgoal']
+        high_goal_idxs = np.where(pick_random, high_random_goal_idxs, high_traj_goal_idxs)
+        high_target_idxs = np.where(pick_random, high_random_target_idxs, high_traj_target_idxs)
+        batch['high_actor_goals'] = np.asarray(obs[high_goal_idxs], np.float32)
+        batch['high_actor_targets'] = np.asarray(obs[high_target_idxs], np.float32)
+
+        mask_dims = c.get('goal_mask_dims')
+        if mask_dims:
+            for k in ('value_goals', 'low_actor_goals', 'high_actor_goals', 'high_actor_targets'):
+                batch[k][:, list(mask_dims)] = 0.0
+        obs_mask_dims = c.get('obs_mask_dims')
+        if obs_mask_dims:
+            batch['observations'][:, list(obs_mask_dims)] = 0.0
+            batch['next_observations'][:, list(obs_mask_dims)] = 0.0
+        return batch
+
+
+@dataclasses.dataclass
 class VIPDataset:
     """VIP sub-trajectory batches (Ma et al., Algorithm 1), state-based.
 
@@ -250,6 +333,8 @@ def make_dataset(base, config):
     """
     if config.get('dataset_class') == 'GCDataset':
         return GCDataset(base, config)
+    if config.get('dataset_class') == 'HGCDataset':
+        return HGCDataset(base, config)
     if config.get('dataset_class') == 'VIPDataset':
         return VIPDataset(base, config)
     if isinstance(base, FBDataset):
