@@ -101,9 +101,10 @@ two answers genuinely differ per critic:
 keys — `next_action` at the actor goal, and `next_action_vgoal` whenever
 `"value_goal" in cond` — reusing `na_noise` for the second draw so no extra
 randomness is spent and every critic reading `next_action` stays bit-identical.
-`DDPGBCActor`, `AWRActor` and `FQLActor` emit only `next_action`. That, and
-nothing else, is why `impls/actors/ddpgbc_density.py` had to be forked, and why
-`density_fb` cannot currently compose with `awr` or `fql` at all.
+`DDPGBCActor`, `AWRActor` and `FQLActor` emit only `next_action`. That is why
+`density_fb` cannot compose with `awr` or `fql` at all today, and it is one of
+the three reasons `impls/actors/ddpgbc_density.py` was forked — see below for
+the other two, which are why that file survives this change.
 
 **Change, in two parts:**
 
@@ -123,9 +124,31 @@ Note `sample_bootstrap(self, net, batch, cond, rng)` receives no critic, and
 `impls/actors/base.py` is a `Protocol` with a stub — each actor implements its
 own. Part 1 is therefore four parallel edits, not one shared implementation.
 
-**Deleted:** `impls/actors/ddpgbc_density.py`. Its other half — the centered `q`
-normalizer — already lives in `density_fb.q_fn`'s second return value, which
-`FlowBCActor` normalizes through, so no behaviour is lost.
+**`impls/actors/ddpgbc_density.py` is KEPT.** An earlier draft of this design
+proposed deleting it. That was wrong, and the reason is worth recording:
+`DDPGBCDensityActor` differs from `DDPGBCActor` in three ways, not one.
+
+1. `sample_bootstrap` emits `next_action_vgoal` — the part that part 1
+   above generalizes to every actor.
+2. `loss` computes `q_scale = |qs|.mean()` off the critic's **second** `q_fn`
+   return — the centered normalizer under `density_fb`'s `actor_q_center`.
+   Stock `DDPGBCActor` uses `|q|.mean()` off the first return. These are not the
+   same quantity for any critic in the tree: `gciql.q_fn` returns
+   `(min(q1,q2), stack([q1,q2]))`, `sf_feature` returns `(min(q1,q2), v)`,
+   `td_fb` returns `(q, (q - q.mean())[None])`. Folding the centered normalizer
+   into stock `ddpgbc` would therefore move every existing `x ddpgbc` cell.
+3. It supports `const_std=false` via `boot["actor_sample_rng"]`, and logs
+   `q_scale`, `mse` and `action_gap_l2`. Stock `ddpgbc` always takes `dist.mode()`.
+
+It is the published centered-normalizer arm — `hard-ddpgbc 0.920/0.868/0.844`
+against `hard-flow 0.772/0.580/0.656`. Deleting it would delete that arm.
+
+The consequence is that **workstream 0 is purely additive**: actors gain a
+bootstrap key they never emitted, and no existing key, loss or info value
+changes. Bit-identity holds by construction, and the gate in section 8 confirms
+it rather than hoping for it. `density_fb` ends up with five usable actors
+(`flowbc`, `ddpgbc`, `awr`, `fql`, `ddpgbc_density`) instead of the one it has
+today.
 
 The unused second key is returned in `boot` and dropped by XLA dead-code
 elimination in any critic that does not read it, so the extra emission costs
@@ -139,15 +162,14 @@ impls/critics/density_fb.py        declares BOOT_COND = "value_goal"
 impls/actors/base.py               +BOOT_COND-awareness in the Protocol docstring
 impls/actors/{ddpgbc,awr,fql}.py   emit next_action_vgoal, flowbc-style
 impls/actors/flowbc.py             unchanged behaviour; comment points at BOOT_COND
-impls/actors/ddpgbc_density.py     DELETED
-impls/agents/__init__.py           drop "ddpgbc_density" from ACTORS
+impls/actors/ddpgbc_density.py     UNCHANGED (see above - it is not redundant)
 tests/impls/test_boot_contract.py  NEW - bit-identity gate
 ```
 
-After the deletion `ACTORS` holds five entries: the four actor families
-(`flowbc`, `ddpgbc`, `awr`, `fql`) plus `bcflow`, which is `FlowBCActor` with
-`q_coeff: 0` — a config alias, not a fifth family. "17 x 4" throughout this
-document means the four families.
+`ACTORS` keeps its six entries: the four actor families (`flowbc`, `ddpgbc`,
+`awr`, `fql`), plus `bcflow` (`FlowBCActor` with `q_coeff: 0`) and
+`ddpgbc_density`, both of which are variants rather than families. "17 x 4"
+throughout this document means the four families.
 
 ## 5. Workstreams
 
@@ -158,7 +180,7 @@ worktrees. Workstream 7 lands last.
 
 | # | workstream | ~files | depends on |
 |---|---|---|---|
-| 0 | seam boot contract | 6 | — |
+| 0 | seam boot contract | 7 | — |
 | 1 | `gcivl` critic | 3 | 0 |
 | 2 | `hiql` critic | 4 | 0 |
 | 3 | `psm` critic (torch→jax) | 5 | 0 |
