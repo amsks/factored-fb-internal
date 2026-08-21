@@ -65,7 +65,13 @@ class FQLActor:
         na = jnp.clip(self._one(net["actor_onestep"].params, obs_c, na_noise), -1, 1)
         boot = {"next_action": na, "flow_x0": jax.random.normal(r_x0, (B, A)),
                 "flow_t": jax.random.uniform(r_t, (B, 1)), "actor_noise": jax.random.normal(r_n, (B, A))}
-        if "value_goal" in cond:
+        # `_cvec` conditions the actor on cond["z"] when the critic supplies one, and on
+        # cond["goal"] otherwise. The value-goal draw substitutes cond["value_goal"] for that
+        # vector, which is only well-defined in the goal branch: when the actor is conditioned
+        # on a latent z there is no "z at the value goal" in cond at all (the critic derives z
+        # from actor_goals), and feeding the raw goal instead is a width mismatch -- 
+        # iql_bilinear with actor_cond="z" builds actor_net for obs+latent and gets obs+obs.
+        if "value_goal" in cond and "z" not in cond:
             # See impls/actors/ddpgbc.py::sample_bootstrap. Unlike ddpgbc/awr this actor is
             # stochastic, so the draw REUSES na_noise -- one draw, no extra split, the same
             # four-way split as before. Splitting again would move `next_action` and every

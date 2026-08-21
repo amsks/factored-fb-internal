@@ -172,3 +172,35 @@ def test_check_combo_rejects_value_goal_the_critic_never_produces():
 
     with pytest.raises(ComboError, match="value_goal"):
         check_combo(_Inconsistent, DDPGBCActor)
+
+
+@pytest.mark.parametrize("actor", ["ddpgbc", "awr", "fql"])
+def test_latent_conditioned_critic_gets_no_value_goal_draw(actor):
+    """A critic can supply BOTH cond["z"] and cond["value_goal"] -- iql_bilinear with
+    actor_cond="z" does. `_cvec` then conditions the actor on z, so substituting the raw
+    cond["value_goal"] for it is a width mismatch (actor_net built for obs+latent, handed
+    obs+obs) and, more fundamentally, undefined: there is no "z at the value goal" in cond,
+    because the critic derives z from actor_goals.
+
+    Regression test. Emitting the key unconditionally on "value_goal" in cond broke
+    test_iql_bilinear_seam.py::test_three_step_smoke_train[over1/over4/over5] with
+    ScopeParamShapeError (12,32) vs (10,32).
+    """
+    import sys
+    sys.path.insert(0, os.path.dirname(__file__))
+    import test_iql_bilinear_seam as T
+    from impls.agents import Agent
+
+    ex_obs, ex_act = T._ex()
+    cfg = T._full_cfg(actor, actor_cond="z")
+    agent = Agent.create("iql_bilinear", actor, 0, ex_obs, ex_act, cfg)
+    batch = T._batch()
+    cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0))
+    assert "z" in cond and "value_goal" in cond, "this test needs a critic supplying both"
+
+    boot = agent.actor.sample_bootstrap(agent.net, batch, cond, jax.random.PRNGKey(1))
+    assert "next_action_vgoal" not in boot, (
+        f"{actor} emitted a value-goal draw for a latent-conditioned critic"
+    )
+    agent, info = agent.update(batch)          # must still train
+    assert np.isfinite(np.asarray(info["actor_loss"])).all()

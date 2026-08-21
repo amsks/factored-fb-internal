@@ -113,7 +113,13 @@ class FlowBCActor:
                 "flow_x0": jax.random.normal(r_x0, (B, adim)),
                 "flow_t": jax.random.uniform(r_t, (B, 1)),
                 "actor_noise": jax.random.normal(r_noise, (B, adim))}
-        if "value_goal" in cond:
+        # `_cvec` conditions the actor on cond["z"] when the critic supplies one, and on
+        # cond["goal"] otherwise. The value-goal draw substitutes cond["value_goal"] for that
+        # vector, which is only well-defined in the goal branch: when the actor is conditioned
+        # on a latent z there is no "z at the value goal" in cond at all (the critic derives z
+        # from actor_goals), and feeding the raw goal instead is a width mismatch -- 
+        # iql_bilinear with actor_cond="z" builds actor_net for obs+latent and gets obs+obs.
+        if "value_goal" in cond and "z" not in cond:
             # `next_action` is conditioned on `_cvec(cond)` — the ACTOR goal, i.e. the goal
             # the policy-improvement term is taken at. A goal-conditioned VALUE/measure
             # target is taken at the VALUE goal, so its bootstrap action must be

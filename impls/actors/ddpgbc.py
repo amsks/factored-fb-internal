@@ -41,7 +41,13 @@ class DDPGBCActor:
         next_obs = batch["next_observations"]
         p = net["actor"].params
         boot = {"next_action": jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1)}
-        if "value_goal" in cond:
+        # `_cvec` conditions the actor on cond["z"] when the critic supplies one, and on
+        # cond["goal"] otherwise. The value-goal draw substitutes cond["value_goal"] for that
+        # vector, which is only well-defined in the goal branch: when the actor is conditioned
+        # on a latent z there is no "z at the value goal" in cond at all (the critic derives z
+        # from actor_goals), and feeding the raw goal instead is a width mismatch -- 
+        # iql_bilinear with actor_cond="z" builds actor_net for obs+latent and gets obs+obs.
+        if "value_goal" in cond and "z" not in cond:
             # a+ ~ pi(.|s', g_value) at frozen params, for critics whose TD target is only
             # valid at the VALUE goal (Critic.BOOT_COND == "value_goal"; density_fb's forward
             # tower is F(s,a,g), so its row is g-indexed). Emitted as a SEPARATE key -- every
