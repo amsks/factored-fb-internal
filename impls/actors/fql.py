@@ -56,12 +56,24 @@ class FQLActor:
                       "distill_loss": distill, "q_loss": q_loss, "q": q.mean()}
 
     def sample_bootstrap(self, net, batch, cond, rng):
-        obs_c = jnp.concatenate([batch["next_observations"], _cvec(cond)], -1)
+        next_obs = batch["next_observations"]
+        obs_c = jnp.concatenate([next_obs, _cvec(cond)], -1)
         B, A = batch["actions"].shape
         r_na, r_x0, r_t, r_n = jax.random.split(rng, 4)
-        na = jnp.clip(self._one(net["actor_onestep"].params, obs_c, jax.random.normal(r_na, (B, A))), -1, 1)
-        return {"next_action": na, "flow_x0": jax.random.normal(r_x0, (B, A)),
+        # hoisted out of the call below so the value-goal draw can REUSE it
+        na_noise = jax.random.normal(r_na, (B, A))
+        na = jnp.clip(self._one(net["actor_onestep"].params, obs_c, na_noise), -1, 1)
+        boot = {"next_action": na, "flow_x0": jax.random.normal(r_x0, (B, A)),
                 "flow_t": jax.random.uniform(r_t, (B, 1)), "actor_noise": jax.random.normal(r_n, (B, A))}
+        if "value_goal" in cond:
+            # See impls/actors/ddpgbc.py::sample_bootstrap. Unlike ddpgbc/awr this actor is
+            # stochastic, so the draw REUSES na_noise -- one draw, no extra split, the same
+            # four-way split as before. Splitting again would move `next_action` and every
+            # existing x fql cell with it.
+            obs_v = jnp.concatenate([next_obs, cond["value_goal"]], -1)
+            boot["next_action_vgoal"] = jnp.clip(
+                self._one(net["actor_onestep"].params, obs_v, na_noise), -1, 1)
+        return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
         obs_c = jnp.concatenate([obs, _cvec(cond)], -1)

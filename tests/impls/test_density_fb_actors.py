@@ -28,3 +28,21 @@ def test_density_fb_composes_with_ddpgbc():
 
 def test_density_fb_composes_with_awr():
     _check("awr")
+
+
+def test_density_fb_composes_with_fql():
+    _check("fql")
+
+
+def test_fql_reuses_its_bootstrap_noise():
+    """fql is the only one of the three that draws randomness. If the value-goal draw
+    split the key again instead of reusing na_noise, `next_action` -- and every existing
+    x fql cell with it -- would move. The bit-identity gate catches that too; this names
+    the cause directly."""
+    from tests.impls.gen_boot_contract_fixture import FIXTURE
+    baseline = dict(np.load(FIXTURE, allow_pickle=True))
+    boot, _ = pair_statics("gciql", "fql")
+    for key in ("next_action", "flow_x0", "flow_t", "actor_noise"):
+        assert np.array_equal(boot[key], baseline[f"boot|gciql|fql|{key}"]), (
+            f"fql's {key} moved -- the value-goal draw spent a split it should have reused"
+        )
