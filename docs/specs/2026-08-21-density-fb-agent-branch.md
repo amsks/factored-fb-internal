@@ -361,3 +361,62 @@ definition of done.
 - Any change to `tools/wandb_mode_shim/gciql_flow.py`; it is read as a reference
   for workstream 5, never edited.
 - Retiring the torch stack. Out of scope even once every baseline has a jax twin.
+
+
+---
+
+## 12. Progress log (2026-08-21)
+
+Branch `feat/seam-boot-contract`, off `origin/feat/metaworld-runs` @ `e35a542`.
+
+| workstream | status | notes |
+|---|---|---|
+| 0 seam boot contract | **done** | `BOOT_COND`, all 4 actors emit the value-goal draw, bit-identity gate (49 pairs / 612 arrays) |
+| 1 GCIVL | **done** | + the opt-in `adv_fn` critic hook |
+| 2 HIQL | **done** | + `HGCDataset`, + `map_eval_cond(observations=...)` |
+| 3 PSM | not started | ~1,340 torch lines; stochastic `proto_sampler` needs seeded parity |
+| 4 RLDP | not started | **blocked on windowed sampling** — see below |
+| 5 reward index | not started | the ExoRL blocker; `density_fb.infer_cond` is still a zero placeholder |
+| 6 ExoRL | not started | env family + `scripts/exorl/convert_exorl.py` port |
+| 7 online loop | not started | env stepping + replay buffer in `main.py` |
+
+Baselines available: **6 of 8** — GCIQL, bilinear GCIQL (`iql_bilinear`), FB, `density_fb`,
+GCIVL, HIQL. Missing: PSM, RLDP.
+
+### 12.1 Hazard: the value-goal bootstrap draw has mis-fired twice
+
+Workstream 0 made every actor emit `next_action_vgoal` guarded on `"value_goal" in cond`,
+conditioning that draw on the **raw goal**. That is only valid when the actor's
+conditioning vector *is* the raw goal, and it has now broken twice:
+
+1. `iql_bilinear` with `actor_cond="z"` — conditioning is a latent. Caught by the per-file
+   sweep, not by the gate. Fixed with a `"z" not in cond` guard.
+2. `hiql` — conditioning is a subgoal **rep** and carries no `z`, so guard 1 missed it.
+   Fixed by emitting HIQL's value goal as the private `_value_goal`.
+
+Both fixes are patches on a design flaw: **an actor cannot know what the critic's
+conditioning vector means**, yet the guard asks it to infer that. Any future critic whose
+actor conditioning is not the raw goal, while `value_goal` sits in its `cond`, will hit
+this a third time.
+
+The durable fix is for the critic to supply the value-goal conditioning vector itself
+(e.g. a `cvec_at_value_goal(cond)` method) instead of the actor reading `cond["value_goal"]`.
+It is deferred because it would churn the bit-identity fixture, which currently records
+`next_action_vgoal` for many critics under `flowbc`. **Workstreams 3-7 should do this
+first if any of their critics condition the actor on anything but the raw goal.**
+
+### 12.2 Known-red, deliberately not fixed
+
+* `test_resume.py::test_restore_recovers_params_bitwise` — red at base `e35a542`
+  (`KeyError: 'q_bound'`, `gciql.py:126`). Not caused by any workstream here.
+* `qrl x awr` and `vip x awr` are **BC-equivalent**: `adv = 0`, measured. Their `q_fn` is
+  `V(s,g)` ignoring actions, so the seam's default `q_fn - v_fn` advantage vanishes. Neither
+  is in the eight-baseline set. Giving them `adv_fn` would fix it but would move numbers
+  that are already published. If either enters a table, it needs the hook first.
+
+### 12.3 Blocker for workstream 4 (RLDP)
+
+RLDP's self-predictive loss consumes `future_obs` / `future_act` — an h-step **windowed**
+batch (torch `agents/rldp/agent.py::update_fb`, fed by `DictBuffer.sample(batch_size,
+horizon=h)`). The seam has **no windowed sampling**. A windowed dataset must land before
+the RLDP critic, the same way `HGCDataset` landed before HIQL.
