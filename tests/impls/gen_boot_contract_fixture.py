@@ -1,0 +1,84 @@
+"""Generate the bit-identity baseline for the seam boot contract (workstream 0).
+
+Run this ONCE, BEFORE any actor/critic edit, and commit the .npz it writes. Every
+later task in workstream 0 must keep tests/impls/test_boot_contract.py green
+against it.
+
+    JAX_PLATFORMS=cpu PYTHONPATH=$PWD python tests/impls/gen_boot_contract_fixture.py
+
+CPU is pinned so the baseline does not depend on which GPU happened to be free.
+"""
+import os
+os.environ.setdefault("JAX_PLATFORMS", "cpu")
+os.environ.setdefault("JAX_ENABLE_X64", "1")
+
+import numpy as np
+import jax
+jax.config.update("jax_enable_x64", True)
+import jax.numpy as jnp
+
+from impls.agents import Agent, CRITICS
+from impls.utils.config_utils import load_config
+
+FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "boot_contract_reference.npz")
+ACTOR_FAMILIES = ("flowbc", "ddpgbc", "awr", "fql")
+B, OBS, ACT = 8, 40, 5
+
+
+def make_batch(seed=1):
+    r = np.random.default_rng(seed)
+    # value_goals and actor_goals MUST differ: if they were the same array, an actor
+    # that drew its "value-goal" bootstrap at the actor goal would pass every test.
+    g_value = jnp.asarray(r.standard_normal((B, OBS)))
+    g_actor = jnp.asarray(r.standard_normal((B, OBS)))
+    return dict(
+        observations=jnp.asarray(r.standard_normal((B, OBS))),
+        actions=jnp.asarray(np.tanh(r.standard_normal((B, ACT)))),
+        next_observations=jnp.asarray(r.standard_normal((B, OBS))),
+        next_actions=jnp.asarray(np.tanh(r.standard_normal((B, ACT)))),
+        # vip's stage_loss reads initial_observations; every other critic ignores it.
+        initial_observations=jnp.asarray(r.standard_normal((B, OBS))),
+        value_goals=g_value, actor_goals=g_actor,
+        rewards=jnp.asarray(r.integers(0, 2, size=B) - 1.0),
+        masks=jnp.asarray(r.integers(0, 2, size=B).astype(float)),
+    )
+
+
+def pair_statics(critic, actor):
+    """(boot dict, info dict) for one critic x actor pair, at fixed seeds."""
+    cfg = load_config(critic, actor, "cube_single")
+    cfg["batch_size"] = B
+    agent = Agent.create(critic, actor, 0, jnp.zeros((B, OBS)), jnp.zeros((B, ACT)), cfg)
+    batch = make_batch()
+    cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0))
+    boot = agent.actor.sample_bootstrap(agent.net, batch, cond, jax.random.PRNGKey(1))
+    info = agent.compute_static(batch, cond, boot)
+    return boot, info
+
+
+def collect():
+    out, failed = {}, []
+    for critic in sorted(CRITICS):
+        for actor in ACTOR_FAMILIES:
+            try:
+                boot, info = pair_statics(critic, actor)
+            except Exception as e:                                   # noqa: BLE001
+                failed.append(f"{critic}|{actor}|{type(e).__name__}")
+                continue
+            for k, v in boot.items():
+                out[f"boot|{critic}|{actor}|{k}"] = np.asarray(v)
+            for k, v in info.items():
+                out[f"info|{critic}|{actor}|{k}"] = np.asarray(jnp.asarray(v).mean())
+    out["__failed__"] = np.asarray(sorted(failed))
+    return out
+
+
+if __name__ == "__main__":
+    data = collect()
+    os.makedirs(os.path.dirname(FIXTURE), exist_ok=True)
+    np.savez(FIXTURE, **data)
+    n_pairs = len({k.split("|")[1] + "|" + k.split("|")[2] for k in data if k != "__failed__"})
+    print(f"wrote {FIXTURE}: {n_pairs} pairs, {len(data) - 1} arrays, "
+          f"{len(data['__failed__'])} pairs failed")
+    for f in data["__failed__"]:
+        print("  failed:", f)
