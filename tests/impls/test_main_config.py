@@ -72,6 +72,17 @@ def _min_cfg_for(critic_kind, actor_kind):
             actor_z_infer=False,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
         )
+    elif critic_kind == "hiql":
+        # HIQL owns goal_rep + the IVL value head + the HIGH-level policy, so it needs the
+        # critic-side actor width too. Without this branch Agent.create died with a bare
+        # KeyError('rep_dim') from impls/critics/hiql.py, which is exactly the failure mode
+        # this test exists to forbid.
+        base = dict(
+            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.7,
+            tau=0.005, lr=3e-4, lr_actor=3e-4, gc_negative=True,
+            high_alpha=3.0, rep_dim=10, subgoal_steps=25,
+            high_actor_hidden_dims=[64, 64], high_const_std=True, low_actor_rep_grad=False,
+        )
     elif critic_kind == "simple_sf":
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
