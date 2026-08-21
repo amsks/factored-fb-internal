@@ -293,6 +293,32 @@ table is one invocation and anything outside them is a deliberate extra launch.
 
 ## 9. Testing
 
+**Two operational facts every later workstream needs, learned the hard way in
+workstream 0:**
+
+1. **Run the suite per-file, not in one interpreter.** All 43 files under
+   `tests/impls` pass individually, but a single `pytest tests/impls` process
+   core-dumps partway through `pytest_runtestloop` — an aggregate resource issue,
+   not a logic fault. Use:
+   ```bash
+   for f in tests/impls/test_*.py; do
+     PYTHONPATH=$PWD JAX_PLATFORMS=cpu /dev/shm/.venv-jax/bin/python \
+       -m pytest "$f" -q -p no:cacheprovider
+   done
+   ```
+2. **`tests/impls/test_resume.py::test_restore_recovers_params_bitwise` is
+   known-red at base** (`e35a542`), failing with `KeyError: 'q_bound'` from
+   `impls/critics/gciql.py:126`. It is not caused by any workstream here. Verify
+   against base before attributing a resume failure to your own change.
+
+**A limit of the bit-identity gate, worth stating plainly:** it compares the
+*values of baseline keys under default configs*. It therefore proves nothing
+moved — but it cannot prove nothing NEW is broken. Workstream 0's own regression
+was a newly-added bootstrap key that was ill-shaped under three *override*
+configs the fixture does not cover; the gate stayed green throughout and the
+per-file sweep is what caught it. Treat the full sweep, not the gate, as the
+definition of done.
+
 - `tests/impls/test_boot_contract.py` — the bit-identity gate.
 - One parity test per ported critic, with its fixture.
 - `check_combo` coverage asserting all 17 x 4 pairs build, including the four
