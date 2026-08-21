@@ -150,18 +150,21 @@ it rather than hoping for it. `density_fb` ends up with five usable actors
 (`flowbc`, `ddpgbc`, `awr`, `fql`, `ddpgbc_density`) instead of the one it has
 today.
 
-The unused second key is returned in `boot` and dropped by XLA dead-code
-elimination in any critic that does not read it, so the extra emission costs
-nothing at runtime. The contract test asserts this rather than assuming it.
+The unused second key is returned in `boot` and, under the jitted `Agent.update`,
+dropped by XLA dead-code elimination in any critic that does not read it. This is
+not separately asserted — a compiled-cost assertion is brittle across jax versions,
+and the quantity at stake is one extra actor forward pass per update on critics
+whose cond carries `value_goal`. What *is* asserted is the thing that matters: the
+bit-identity gate proves the emission changes no existing value.
 
 ### 4.1 Files
 
 ```
 impls/critics/base.py              +BOOT_COND on the Critic protocol; check_combo validates
 impls/critics/density_fb.py        declares BOOT_COND = "value_goal"
-impls/actors/base.py               +BOOT_COND-awareness in the Protocol docstring
 impls/actors/{ddpgbc,awr,fql}.py   emit next_action_vgoal, flowbc-style
-impls/actors/flowbc.py             unchanged behaviour; comment points at BOOT_COND
+impls/actors/base.py               UNCHANGED (actors stay unaware of BOOT_COND by design)
+impls/actors/flowbc.py             UNCHANGED (it already emits both keys)
 impls/actors/ddpgbc_density.py     UNCHANGED (see above - it is not redundant)
 tests/impls/test_boot_contract.py  NEW - bit-identity gate
 ```
@@ -296,8 +299,9 @@ table is one invocation and anything outside them is a deliberate extra launch.
   pairs that cannot exist today: `density_fb` x `{awr, fql}`.
 - A `td_fb` regression specifically: it must still read `next_action` at the
   actor goal. Silently flipping it to the value goal is the 0.920 -> 0.076 cliff.
-- An assertion that the unread bootstrap key is eliminated, so the extra emission
-  is free rather than assumed free.
+- A noise-reuse test for `fql`, the only actor whose extra draw could move an
+  existing value: its four random arrays are compared against the baseline so a
+  future refactor that adds an rng split fails with the cause named.
 - A cube train-smoke per new critic, following `tests/impls/test_cube_train_smoke.py`.
 - An ExoRL dataset-loader test.
 - An online-loop smoke, plus a test asserting the offline path is unchanged when
