@@ -25,6 +25,7 @@ from impls.critics.qrl import QRLCritic
 from impls.critics.vip import VIPCritic
 from impls.critics.density_fb import DensityFBCritic
 from impls.critics.td_fb import TDFBCritic
+from impls.critics.psm import PSMCritic
 from impls.actors.flowbc import FlowBCActor
 from impls.actors.ddpgbc import DDPGBCActor
 from impls.actors.ddpgbc_density import DDPGBCDensityActor
@@ -36,7 +37,8 @@ CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": H
            "sf_feature": SfFeatureCritic, "centered_bilinear": CenteredBilinearCritic,
            "fb_forward_bilinear": FbForwardBilinearCritic, "crl": CRLCritic,
            "qrl": QRLCritic, "vip": VIPCritic,
-           "density_fb": DensityFBCritic, "td_fb": TDFBCritic}
+           "density_fb": DensityFBCritic, "td_fb": TDFBCritic,
+           "psm": PSMCritic}
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,
           # bridge spec 22 (see impls/actors/ddpgbc_density.py): the ddpgbc extraction
           # wired to density_fb's value-goal bootstrap + centered q normalizer.
@@ -50,6 +52,7 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            "value_forward": "lr_f",                       # isfb F_V rides the forward group
            "value": "lr", "critic": "lr", "center_b": "lr",  # gciql / centered_bilinear groups
            "density_f": "lr", "density_b": "lr",           # density_fb's two towers
+           "phi": "lr_phi", "sf_psi": "lr_sf", "psm_psi": "lr_sf",  # psm's basis + two psi towers
            "goal_rep": "lr", "high_actor": "lr",                             # hiql's high-level policy, which
                                                            # the CRITIC owns (see critics/hiql.py)
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf

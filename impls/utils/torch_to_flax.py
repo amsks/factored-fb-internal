@@ -27,9 +27,15 @@ def eln_params(weight, bias):
     return {"scale": jnp.asarray(weight[:, 0, :], jnp.float64), "bias": jnp.asarray(bias[:, 0, :], jnp.float64)}
 
 
-def load_psi_params(fix, which):
-    """which in {'sf_psi','psm_psi'}. Maps to the _PsiTower tree under 'tower'."""
-    g = lambda k: fix[f"w__{which}.{k}"]
+def load_psi_params(fix, which, prefix="w__"):
+    """PSM PsiMap (which in {'sf_psi','psm_psi'}) -> networks._ForwardTower under 'tower'.
+
+    PsiMap and _ForwardTower are the same net: embed_z/embed_sa DenseParallel pairs feeding
+    an Fs trunk. At the reference's hidden_layers=1 the torch trunk is Linear@0, ReLU@1,
+    Linear@2, and _ForwardTower's `self.fs` list is [Dense(h), Dense(z_dim)], so torch
+    Fs.0/Fs.2 map to flax fs_0/fs_1. `prefix` selects an alternative fixture namespace
+    (e.g. "w1__" for post-step weights)."""
+    g = lambda k: fix[f"{prefix}{which}.{k}"]
     tower = {
         "embed_z_0": edense_params(g("embed_z.0.weight"), g("embed_z.0.bias")),
         "embed_z_ln": eln_params(g("embed_z.1.weight"), g("embed_z.1.bias")),
@@ -38,7 +44,7 @@ def load_psi_params(fix, which):
         "embed_sa_ln": eln_params(g("embed_sa.1.weight"), g("embed_sa.1.bias")),
         "embed_sa_3": edense_params(g("embed_sa.3.weight"), g("embed_sa.3.bias")),
         "fs_0": edense_params(g("Fs.0.weight"), g("Fs.0.bias")),
-        "fs_2": edense_params(g("Fs.2.weight"), g("Fs.2.bias")),
+        "fs_1": edense_params(g("Fs.2.weight"), g("Fs.2.bias")),
     }
     return {"tower": tower}
 
@@ -59,10 +65,11 @@ def load_actor_params(fix, prefix="actor"):
     }
 
 
-def load_phi_params(fix, prefix="phi"):
+def load_phi_params(fix, prefix="phi", ns="w__"):
     """PhiMap with hidden_layers=2: torch net = Linear0, LN1, Tanh2, Linear3, ReLU4, Linear5.
-    -> flax Dense_0, LayerNorm_0, Dense_1, Dense_2."""
-    g = lambda k: fix[f"w__{prefix}.net.{k}"]
+    -> flax Dense_0, LayerNorm_0, Dense_1, Dense_2. `ns` selects the fixture namespace
+    ("w__" for the initial weights, "w1__" for post-step ones)."""
+    g = lambda k: fix[f"{ns}{prefix}.net.{k}"]
     return {
         "Dense_0": dense_params(g("0.weight"), g("0.bias")),
         "LayerNorm_0": layernorm_params(g("1.weight"), g("1.bias")),
