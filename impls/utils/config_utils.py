@@ -30,6 +30,15 @@ REQUIRED_KEYS = {
     # reads the goal-sampling and dataset_class keys.
     # gcivl.py:build() reads lr/batch_size/discount/expectile/tau/value_hidden_dims/
     # layer_norm (no q_bound -- GCIVL has no Q); GCDataset reads the goal-sampling keys.
+    # hiql.py:build() reads value_hidden_dims/layer_norm/discount/expectile/tau/
+    # high_alpha/rep_dim plus actor.*; HGCDataset reads subgoal_steps and the goal keys.
+    "hiql": (
+        "lr", "lr_actor", "batch_size", "discount", "expectile", "tau", "high_alpha",
+        "rep_dim", "subgoal_steps", "high_actor_hidden_dims", "value_hidden_dims", "layer_norm", "gc_negative",
+        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
+        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
+        "dataset_class",
+    ),
     "gcivl": (
         "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
         "value_hidden_dims", "layer_norm", "gc_negative",

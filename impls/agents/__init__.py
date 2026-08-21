@@ -13,6 +13,7 @@ from impls.critics.base import check_combo
 from impls.critics.fb import FBCritic
 from impls.critics.gciql import GCIQLCritic
 from impls.critics.gcivl import GCIVLCritic
+from impls.critics.hiql import HIQLCritic
 from impls.critics.isfb import ISFBCritic
 from impls.critics.iql_bilinear import IqlBilinearCritic
 from impls.critics.simple_sf import SimpleSfCritic
@@ -30,7 +31,7 @@ from impls.actors.ddpgbc_density import DDPGBCDensityActor
 from impls.actors.awr import AWRActor
 from impls.actors.fql import FQLActor
 
-CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "isfb": ISFBCritic,
+CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": HIQLCritic, "isfb": ISFBCritic,
            "iql_bilinear": IqlBilinearCritic, "simple_sf": SimpleSfCritic,
            "sf_feature": SfFeatureCritic, "centered_bilinear": CenteredBilinearCritic,
            "fb_forward_bilinear": FbForwardBilinearCritic, "crl": CRLCritic,
@@ -49,6 +50,8 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            "value_forward": "lr_f",                       # isfb F_V rides the forward group
            "value": "lr", "critic": "lr", "center_b": "lr",  # gciql / centered_bilinear groups
            "density_f": "lr", "density_b": "lr",           # density_fb's two towers
+           "goal_rep": "lr", "high_actor": "lr",                             # hiql's high-level policy, which
+                                                           # the CRITIC owns (see critics/hiql.py)
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf
            "actor_bc_flow": "lr_actor", "actor_onestep": "lr_actor"}  # fql groups
 
@@ -127,7 +130,13 @@ class Agent(flax.struct.PyTreeNode):
         # which cannot be recovered from `cond` alone — it needs the critic's params.
         # Critics without the hook are unaffected.
         if hasattr(self.critic, "map_eval_cond"):
-            cond = self.critic.map_eval_cond(self.net, cond)
+            # `observations` is passed for critics whose conditioning is joint in state and
+            # goal (hiql: goal_rep([s; g]) via the high-level policy). Optional keyword, so
+            # critics with the older two-argument hook (iql_bilinear) are untouched.
+            try:
+                cond = self.critic.map_eval_cond(self.net, cond, observations=observations)
+            except TypeError:
+                cond = self.critic.map_eval_cond(self.net, cond)
         return self.actor.sample_actions(self.net, observations, cond, seed, temperature)
 
     def infer_eval_cond(self, observations, rewards):
