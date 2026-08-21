@@ -141,6 +141,11 @@ class DensityFBCritic:
     PROVIDES_V = False
     PROVIDES_COND = frozenset({"value_goal", "goal"})
 
+    # F(s, a, g): the row is g-indexed, so the TD target must bootstrap at that same g.
+    # Reading the actor-goal action instead makes w_bar a goal-averaged (behaviour-like)
+    # density -- measured density_ess_median ~310 against a healthy ~89.
+    BOOT_COND = "value_goal"
+
     @property
     def TARGETS(self):
         return {"density_f": self.tau, "density_b": self.tau}

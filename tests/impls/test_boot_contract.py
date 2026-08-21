@@ -115,3 +115,60 @@ def test_td_fb_reads_the_actor_goal_action_and_ignores_the_value_goal_one():
         "td_fb must IGNORE boot['next_action_vgoal'] -- reading it is the 0.920 -> 0.076 cliff"
     assert loss_with({**boot, "next_action": junk}) != base, \
         "td_fb must READ boot['next_action']"
+
+
+def test_every_critic_declares_a_known_boot_cond():
+    """BOOT_COND is a declaration of which bootstrap key a critic's TD target reads.
+    Absent means the default, "actor_goal"."""
+    from impls.agents import CRITICS
+    from impls.critics.base import BOOT_KEY
+    for name, critic in sorted(CRITICS.items()):
+        cond = getattr(critic, "BOOT_COND", "actor_goal")
+        assert cond in BOOT_KEY, f"{name} declares BOOT_COND={cond!r}"
+
+
+def test_density_fb_is_the_only_value_goal_critic():
+    """density_fb's forward tower is F(s,a,g), so its row is g-indexed and its target
+    must bootstrap at that same g. Every other critic in the tree reads the actor-goal
+    draw -- td_fb measurably so (0.920 vs 0.076)."""
+    from impls.agents import CRITICS
+    value_goal = {n for n, c in CRITICS.items()
+                  if getattr(c, "BOOT_COND", "actor_goal") == "value_goal"}
+    assert value_goal == {"density_fb"}
+
+
+def test_boot_key_maps_the_declaration_to_the_dict_key():
+    from impls.critics.base import boot_key
+    from impls.critics.density_fb import DensityFBCritic
+    from impls.critics.gciql import GCIQLCritic
+    assert boot_key(DensityFBCritic) == "next_action_vgoal"
+    assert boot_key(GCIQLCritic) == "next_action"
+
+
+def test_check_combo_rejects_an_unknown_boot_cond():
+    from impls.critics.base import check_combo, ComboError
+    from impls.actors.ddpgbc import DDPGBCActor
+
+    class _Bogus:
+        BOOT_COND = "somewhere_else"
+        PROVIDES_V = True
+        PROVIDES_COND = frozenset({"goal"})
+
+    with pytest.raises(ComboError, match="BOOT_COND"):
+        check_combo(_Bogus, DDPGBCActor)
+
+
+def test_check_combo_rejects_value_goal_the_critic_never_produces():
+    """An actor only emits next_action_vgoal when "value_goal" in cond. A critic that
+    declares BOOT_COND="value_goal" but whose sample_cond omits it would KeyError deep
+    inside stage_loss; catch it at build time with a message that names the cause."""
+    from impls.critics.base import check_combo, ComboError
+    from impls.actors.ddpgbc import DDPGBCActor
+
+    class _Inconsistent:
+        BOOT_COND = "value_goal"
+        PROVIDES_V = True
+        PROVIDES_COND = frozenset({"goal"})     # no "value_goal"
+
+    with pytest.raises(ComboError, match="value_goal"):
+        check_combo(_Inconsistent, DDPGBCActor)

@@ -13,6 +13,9 @@ class Critic(Protocol):
     TARGETS: dict           # group -> polyak tau  (FB: forward/left_encoder=f_tau, backward=b_tau)
     PROVIDES_V: bool        # whether v_fn is available (AWR requires it)
     PROVIDES_COND: frozenset  # cond keys sample_cond() produces (FB: {"z"}, GCIQL: {"value_goal","goal"})
+    BOOT_COND: str          # which cond the TD bootstrap action must be drawn at:
+                            # "actor_goal" (default) -> boot["next_action"]
+                            # "value_goal"           -> boot["next_action_vgoal"]
     cvec_dim: int           # width of cond_vec(cond) — the actor's conditioning input
 
     def eval_cond0(self, ex_obs, config): ...   # initial eval-time cond (FB: {"z":..}, GC: {"goal":..})
@@ -32,6 +35,24 @@ def _name(obj):
     return obj.__name__ if isinstance(obj, type) else type(obj).__name__
 
 
+# A critic's TD target is only valid at one bootstrap action, and which one is a
+# property of the critic, not of the actor drawing it. Actors emit BOTH keys (guarded
+# on "value_goal" in cond); this maps a critic's declaration to the key it reads.
+# Deliberately NOT consulted by any actor: keeping it out of the draw is what makes
+# this change unable to move an existing number.
+BOOT_KEY = {"actor_goal": "next_action", "value_goal": "next_action_vgoal"}
+
+
+def boot_key(critic):
+    """The boot dict key `critic`'s TD target reads. Default "actor_goal"."""
+    cond = getattr(critic, "BOOT_COND", "actor_goal")
+    if cond not in BOOT_KEY:
+        raise ComboError(
+            f"{_name(critic)}.BOOT_COND is {cond!r}; expected one of {sorted(BOOT_KEY)}"
+        )
+    return BOOT_KEY[cond]
+
+
 def check_combo(critic, actor):
     """Validate a critic×actor pair. Raises ComboError with a named reason if the actor
     needs a V function the critic does not provide, or if the actor requires a cond key
@@ -41,6 +62,17 @@ def check_combo(critic, actor):
     class attribute. Agent.create relies on that to validate BEFORE building the actor,
     so an invalid pair reports its real reason instead of whatever missing config key
     the actor's build() happens to index first (e.g. gciql×flowbc dying on z_dim)."""
+    boot_cond = getattr(critic, "BOOT_COND", "actor_goal")
+    if boot_cond not in BOOT_KEY:
+        raise ComboError(
+            f"{_name(critic)}.BOOT_COND is {boot_cond!r}; expected one of {sorted(BOOT_KEY)}"
+        )
+    if boot_cond == "value_goal" and "value_goal" not in set(getattr(critic, "PROVIDES_COND", ())):
+        raise ComboError(
+            f"{_name(critic)}.BOOT_COND is 'value_goal' but its sample_cond does not "
+            f"produce 'value_goal', so no actor will emit boot['next_action_vgoal'] "
+            f"(every actor guards that draw on \"value_goal\" in cond)"
+        )
     if getattr(actor, "NEEDS_V", False) and not getattr(critic, "PROVIDES_V", False):
         raise ComboError(
             f"{_name(actor)} requires a V function but {_name(critic)}.PROVIDES_V is False"
