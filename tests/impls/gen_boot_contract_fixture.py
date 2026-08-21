@@ -31,6 +31,7 @@ def make_batch(seed=1):
     # that drew its "value-goal" bootstrap at the actor goal would pass every test.
     g_value = jnp.asarray(r.standard_normal((B, OBS)))
     g_actor = jnp.asarray(r.standard_normal((B, OBS)))
+    rh = np.random.default_rng(seed + 9000)     # hierarchical keys only; see below
     return dict(
         observations=jnp.asarray(r.standard_normal((B, OBS))),
         actions=jnp.asarray(np.tanh(r.standard_normal((B, ACT)))),
@@ -39,6 +40,14 @@ def make_batch(seed=1):
         # vip's stage_loss reads initial_observations; every other critic ignores it.
         initial_observations=jnp.asarray(r.standard_normal((B, OBS))),
         value_goals=g_value, actor_goals=g_actor,
+        # hierarchical keys, so hiql is covered by this gate too (HGCDataset emits these; a
+        # GCDataset-shaped batch alone makes HIQLCritic.sample_cond raise). Drawn from a
+        # SEPARATE rng: taking them from `r` would shift its stream and change rewards/masks
+        # below, moving every recorded loss for reasons that have nothing to do with the
+        # change under test. (Learned the hard way -- it moved 76 scalars.)
+        low_actor_goals=jnp.asarray(rh.standard_normal((B, OBS))),
+        high_actor_goals=jnp.asarray(rh.standard_normal((B, OBS))),
+        high_actor_targets=jnp.asarray(rh.standard_normal((B, OBS))),
         rewards=jnp.asarray(r.integers(0, 2, size=B) - 1.0),
         masks=jnp.asarray(r.integers(0, 2, size=B).astype(float)),
     )

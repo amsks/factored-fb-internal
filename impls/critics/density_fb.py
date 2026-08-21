@@ -295,7 +295,13 @@ class DensityFBCritic:
         nobs = batch["next_observations"]
         u_raw = _raw_block_cols(nobs, self.blocks)
         u_sc = _density_queries(nobs, self.blocks)
+        # `_cvec_vgoal` is THIS critic's conditioning vector at the value goal, published for
+        # the actors' TD bootstrap draw (BOOT_COND == "value_goal"). cond_vec here is
+        # cond["goal"] -- the raw goal -- so the value-goal counterpart is value_goals.
+        # Publishing it is what makes the draw correct rather than inferred; see the block
+        # comment in impls/actors/ddpgbc.py::sample_bootstrap.
         return {"value_goal": batch["value_goals"], "goal": batch["actor_goals"],
+                "_cvec_vgoal": batch["value_goals"],
                 "_density_u_raw": u_raw, "_density_u_sc": u_sc}
 
     def eval_cond0(self, ex_obs, config):

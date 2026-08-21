@@ -113,13 +113,13 @@ class FlowBCActor:
                 "flow_x0": jax.random.normal(r_x0, (B, adim)),
                 "flow_t": jax.random.uniform(r_t, (B, 1)),
                 "actor_noise": jax.random.normal(r_noise, (B, adim))}
-        # `_cvec` conditions the actor on cond["z"] when the critic supplies one, and on
-        # cond["goal"] otherwise. The value-goal draw substitutes cond["value_goal"] for that
-        # vector, which is only well-defined in the goal branch: when the actor is conditioned
-        # on a latent z there is no "z at the value goal" in cond at all (the critic derives z
-        # from actor_goals), and feeding the raw goal instead is a width mismatch -- 
-        # iql_bilinear with actor_cond="z" builds actor_net for obs+latent and gets obs+obs.
-        if "value_goal" in cond and "z" not in cond:
+        # The CRITIC decides what the actor's conditioning vector at the value goal is, and
+        # publishes it as cond["_cvec_vgoal"]. Actors must not infer it from cond["value_goal"]:
+        # that raw goal is only the right vector when the actor rides the goal itself, and
+        # guessing it broke twice -- iql_bilinear(actor_cond="z") wanted a latent, hiql wanted
+        # a subgoal rep, and both got an obs-shaped vector against a differently-shaped net.
+        # Absent key => this critic does not bootstrap at the value goal, so no draw.
+        if "_cvec_vgoal" in cond:
             # `next_action` is conditioned on `_cvec(cond)` — the ACTOR goal, i.e. the goal
             # the policy-improvement term is taken at. A goal-conditioned VALUE/measure
             # target is taken at the VALUE goal, so its bootstrap action must be
@@ -138,7 +138,7 @@ class FlowBCActor:
             # comment in impls/critics/td_fb.py::stage_loss for the measured triple
             # (0.920 actor-goal vs 0.076 value-goal on the cube-single phase-1 anchor).
             boot["next_action_vgoal"] = self._actor(
-                net["actor"].params, next_obs, cond["value_goal"], na_noise)
+                net["actor"].params, next_obs, cond["_cvec_vgoal"], na_noise)
         return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):

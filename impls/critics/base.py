@@ -70,8 +70,9 @@ def check_combo(critic, actor):
     if boot_cond == "value_goal" and "value_goal" not in set(getattr(critic, "PROVIDES_COND", ())):
         raise ComboError(
             f"{_name(critic)}.BOOT_COND is 'value_goal' but its sample_cond does not "
-            f"produce 'value_goal', so no actor will emit boot['next_action_vgoal'] "
-            f"(every actor guards that draw on \"value_goal\" in cond)"
+            f"produce 'value_goal', so it cannot publish cond['_cvec_vgoal'] and no actor "
+            f"will emit boot['next_action_vgoal'] (every actor guards that draw on "
+            f"'_cvec_vgoal' in cond)"
         )
     if getattr(actor, "NEEDS_V", False) and not getattr(critic, "PROVIDES_V", False):
         raise ComboError(

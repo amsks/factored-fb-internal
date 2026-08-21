@@ -76,22 +76,32 @@ def test_every_baseline_array_is_byte_identical(baseline, current):
     assert not moved, f"{len(moved)} array(s) moved; first few: {moved[:8]}"
 
 
-def test_flowbc_value_goal_draw_is_actually_at_the_value_goal(current):
-    """Guards the discriminating property: value_goals != actor_goals in the synthetic
-    batch, so the two bootstrap actions must differ. If an actor drew its 'value-goal'
-    action at the actor goal, this is the assertion that catches it."""
-    a = current["boot|gciql|flowbc|next_action"]
-    v = current["boot|gciql|flowbc|next_action_vgoal"]
+def test_value_goal_draw_goes_only_to_the_critic_that_publishes_it(current):
+    """Since the section 12.1 fix the draw is published by the CRITIC as cond["_cvec_vgoal"],
+    not inferred by the actor from cond["value_goal"]. density_fb is the only critic that
+    publishes it (its BOOT_COND is "value_goal"), so it is the only one that receives the key.
+
+    Also guards the discriminating property: value_goals != actor_goals in the synthetic
+    batch, so the two bootstrap actions must differ. If the draw were conditioned on the
+    actor goal by mistake, they would be equal.
+    """
+    a = current["boot|density_fb|flowbc|next_action"]
+    v = current["boot|density_fb|flowbc|next_action_vgoal"]
     assert not np.allclose(a, v)
+    leaked = sorted(k for k in current
+                    if k.endswith("next_action_vgoal") and "|density_fb|" not in k)
+    assert not leaked, f"critics that do not publish _cvec_vgoal received the draw: {leaked}"
 
+def test_td_fb_reads_the_actor_goal_action_and_never_sees_the_other_one():
+    """td_fb's critic stage is `measure_loss`. It measures 0.920 at the actor goal vs 0.076
+    at the value goal (impls/critics/td_fb.py::stage_loss), so it must read
+    boot["next_action"].
 
-def test_td_fb_reads_the_actor_goal_action_and_ignores_the_value_goal_one():
-    """td_fb's critic stage is `measure_loss`. It measures 0.920 at the actor goal vs 0.076 at the value goal
-    (impls/critics/td_fb.py::stage_loss). Emitting the vgoal key everywhere must not
-    change which key td_fb consumes.
-
-    Asserted behaviourally, not by grepping the source: perturb one bootstrap key at a
-    time and check which one the loss responds to.
+    Since the section 12.1 fix this is guaranteed structurally as well as behaviourally:
+    td_fb does not publish cond["_cvec_vgoal"], so no actor emits the value-goal draw for
+    it at all. Both properties are asserted -- the structural one so a future critic change
+    cannot quietly re-introduce the key, the behavioural one so the loss provably responds
+    to the action it is supposed to.
     """
     from impls.agents import Agent
     from impls.utils.config_utils import load_config
@@ -104,17 +114,16 @@ def test_td_fb_reads_the_actor_goal_action_and_ignores_the_value_goal_one():
     batch = make_batch()
     cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0))
     boot = agent.actor.sample_bootstrap(agent.net, batch, cond, jax.random.PRNGKey(1))
-    assert "next_action_vgoal" in boot, "flowbc should emit the value-goal draw for td_fb's cond"
+
+    assert "_cvec_vgoal" not in cond, "td_fb must not publish a value-goal conditioning vector"
+    assert "next_action_vgoal" not in boot, "td_fb must never receive the value-goal draw"
 
     def loss_with(b):
         return float(jnp.asarray(agent.compute_static(batch, cond, b)["measure_loss"]).mean())
 
     base = loss_with(boot)
     junk = jnp.zeros_like(boot["next_action"])
-    assert loss_with({**boot, "next_action_vgoal": junk}) == base, \
-        "td_fb must IGNORE boot['next_action_vgoal'] -- reading it is the 0.920 -> 0.076 cliff"
-    assert loss_with({**boot, "next_action": junk}) != base, \
-        "td_fb must READ boot['next_action']"
+    assert loss_with({**boot, "next_action": junk}) != base, "td_fb must READ next_action"
 
 
 def test_every_critic_declares_a_known_boot_cond():
@@ -184,7 +193,9 @@ def test_latent_conditioned_critic_gets_no_value_goal_draw(actor):
 
     Regression test. Emitting the key unconditionally on "value_goal" in cond broke
     test_iql_bilinear_seam.py::test_three_step_smoke_train[over1/over4/over5] with
-    ScopeParamShapeError (12,32) vs (10,32).
+    ScopeParamShapeError (12,32) vs (10,32). Since the section 12.1 fix the guarantee is
+    structural rather than a guard: iql_bilinear never publishes cond["_cvec_vgoal"], so
+    there is nothing for an actor to mis-condition.
     """
     import sys
     sys.path.insert(0, os.path.dirname(__file__))

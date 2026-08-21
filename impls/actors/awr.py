@@ -59,18 +59,18 @@ class AWRActor:
         next_obs = batch["next_observations"]
         p = net["actor"].params
         boot = {"next_action": jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1)}
-        # `_cvec` conditions the actor on cond["z"] when the critic supplies one, and on
-        # cond["goal"] otherwise. The value-goal draw substitutes cond["value_goal"] for that
-        # vector, which is only well-defined in the goal branch: when the actor is conditioned
-        # on a latent z there is no "z at the value goal" in cond at all (the critic derives z
-        # from actor_goals), and feeding the raw goal instead is a width mismatch -- 
-        # iql_bilinear with actor_cond="z" builds actor_net for obs+latent and gets obs+obs.
-        if "value_goal" in cond and "z" not in cond:
+        # The CRITIC decides what the actor's conditioning vector at the value goal is, and
+        # publishes it as cond["_cvec_vgoal"]. Actors must not infer it from cond["value_goal"]:
+        # that raw goal is only the right vector when the actor rides the goal itself, and
+        # guessing it broke twice -- iql_bilinear(actor_cond="z") wanted a latent, hiql wanted
+        # a subgoal rep, and both got an obs-shaped vector against a differently-shaped net.
+        # Absent key => this critic does not bootstrap at the value goal, so no draw.
+        if "_cvec_vgoal" in cond:
             # See the block comment in impls/actors/ddpgbc.py::sample_bootstrap: a+ drawn at
             # the VALUE goal, for critics declaring BOOT_COND == "value_goal". Separate key,
             # deterministic draw, no randomness spent, next_action untouched.
             boot["next_action_vgoal"] = jnp.clip(
-                self._dist(p, next_obs, cond["value_goal"]).mode(), -1, 1)
+                self._dist(p, next_obs, cond["_cvec_vgoal"]).mode(), -1, 1)
         return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
