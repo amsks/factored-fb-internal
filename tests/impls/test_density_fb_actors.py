@@ -24,3 +24,7 @@ def _check(actor):
 
 def test_density_fb_composes_with_ddpgbc():
     _check("ddpgbc")
+
+
+def test_density_fb_composes_with_awr():
+    _check("awr")

@@ -44,8 +44,16 @@ class AWRActor:
         return loss, {"actor_loss": loss, "adv": adv.mean(), "bc_log_prob": log_prob.mean()}
 
     def sample_bootstrap(self, net, batch, cond, rng):
-        dist = self._dist(net["actor"].params, batch["next_observations"], _cvec(cond))
-        return {"next_action": jnp.clip(dist.mode(), -1, 1)}
+        next_obs = batch["next_observations"]
+        p = net["actor"].params
+        boot = {"next_action": jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1)}
+        if "value_goal" in cond:
+            # See the block comment in impls/actors/ddpgbc.py::sample_bootstrap: a+ drawn at
+            # the VALUE goal, for critics declaring BOOT_COND == "value_goal". Separate key,
+            # deterministic draw, no randomness spent, next_action untouched.
+            boot["next_action_vgoal"] = jnp.clip(
+                self._dist(p, next_obs, cond["value_goal"]).mode(), -1, 1)
+        return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
         dist = self._dist(net["actor"].params, obs, _cvec(cond), temperature)
