@@ -117,8 +117,11 @@ def test_softmax_is_over_the_query_axis():
 # 2. CE matches a numpy/direct-module reference (incl. G2 ESS gate instruments)
 # --------------------------------------------------------------------------
 def test_ce_and_ess_match_numpy_reference():
+    # NOTE: this reference reconstructs the SOFT (kernel) CE, so the soft path is pinned
+    # explicitly -- measure_density_hard now DEFAULTS TRUE.
     ex_obs, ex_act = _ex()
-    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    c, params, targets = DensityFBCritic.build(
+        ex_obs, ex_act, _cfg(measure_density_hard=False))
     b = _batch(seed=11, b=6)
     boot = _boot(b=6, seed=12)
     cond = {"value_goal": b["value_goals"], "goal": b["actor_goals"]}
@@ -355,35 +358,33 @@ def test_hard_immediate_target_is_one_hot():
         "hard k's diagonal is the identity's diagonal -- k_self must sit at its ceiling"
 
 
-def test_hard_off_is_bit_identical_to_default():
-    """measure_density_hard=False and the key absent must be bit-identical (off = the
-    shipped soft-kernel path, unchanged by this knob's addition)."""
+def test_hard_defaults_true_and_soft_must_be_asked_for():
+    """measure_density_hard DEFAULTS TRUE (the shipped variant). Previously this file
+    asserted the opposite -- that an absent key equalled hard=False -- which is why the
+    code fallback and the yaml disagreed for so long without anything failing.
+
+    The contract now: absent key == hard, and explicit False is a DIFFERENT objective.
+    """
     ex_obs, ex_act = _ex()
-    c_explicit, params, targets = DensityFBCritic.build(
+    c_soft, p_soft, t_soft = DensityFBCritic.build(
         ex_obs, ex_act, _cfg(measure_density_hard=False))
-    c_default, params2, targets2 = DensityFBCritic.build(ex_obs, ex_act, _cfg())
-    assert c_explicit.hard is False and c_default.hard is False
+    c_default, p_def, t_def = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    c_hard, p_hard, t_hard = DensityFBCritic.build(
+        ex_obs, ex_act, _cfg(measure_density_hard=True))
+    assert c_soft.hard is False
+    assert c_default.hard is True, "an absent measure_density_hard must mean HARD"
+    assert c_hard.hard is True
 
-    b = _batch()
-    boot = _boot()
+    b, boot = _batch(), _boot()
     cond = {"value_goal": b["value_goals"], "goal": b["actor_goals"]}
+    l_soft, _ = c_soft.stage_loss("density", p_soft, t_soft, b, cond, boot)
+    l_def, _ = c_default.stage_loss("density", p_def, t_def, b, cond, boot)
+    l_hard, _ = c_hard.stage_loss("density", p_hard, t_hard, b, cond, boot)
 
-    loss1, info1 = c_explicit.stage_loss("density", params, targets, b, cond, boot)
-    loss2, info2 = c_default.stage_loss("density", params2, targets2, b, cond, boot)
-    np.testing.assert_allclose(float(loss1), float(loss2), atol=0)
-    for k in info1:
-        np.testing.assert_allclose(np.asarray(info1[k]), np.asarray(info2[k]), atol=0)
+    np.testing.assert_allclose(float(l_def), float(l_hard), atol=0)   # default IS hard
+    assert float(l_soft) != float(l_def), "soft and hard must be different objectives"
 
 
-# --------------------------------------------------------------------------
-# 8. the CE target's bootstrap action is drawn at the VALUE goal (port fix,
-#    2026-08-11). The bridge's density_loss draws
-#    `a_plus = sg(actor(nobs, batch['value_goals'], noise))`; our seam's
-#    `boot["next_action"]` is conditioned on the ACTOR goal (_cvec(cond)), a
-#    different goal distribution. Reading it made w_bar the occupancy of a policy
-#    heading elsewhere => a goal-averaged, far more diffuse density
-#    (density_ess_median ~310 vs the bridge's ~89 at M=B=1024).
-# --------------------------------------------------------------------------
 def test_stage_loss_bootstraps_at_the_value_goal_action():
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
@@ -566,7 +567,12 @@ def test_flowbc_drift_instrumentation_does_not_change_the_update():
         FlowBCActor._policy_drift = staticmethod(lambda *a, **k: {})
         a_stub, _ = Agent.create("density_fb", "flowbc", 0, ex_obs, ex_act, cfg).update(b)
     finally:
-        FlowBCActor._policy_drift = orig
+        # staticmethod(...) is REQUIRED: `orig` is the underlying function, and assigning
+        # it back plainly rebinds it as an INSTANCE method, so every subsequent
+        # FlowBCActor.loss in the same process dies with "takes 7 positional arguments but
+        # 8 were given". Leaked into test_density_fb_actors.py, which is the first test to
+        # use flowbc after this file.
+        FlowBCActor._policy_drift = staticmethod(orig)
 
     for g in a_real.net:
         for x, y in zip(jax.tree_util.tree_leaves(a_real.net[g].params),

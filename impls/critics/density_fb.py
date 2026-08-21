@@ -329,7 +329,10 @@ class DensityFBCritic:
                   discount=float(config["discount"]),
                   temp=float(config["measure_density_temp"]), tau=float(config["tau"]),
                   actor_q_center=bool(config.get("actor_q_center", True)),
-                  hard=bool(config.get("measure_density_hard", False)),
+                  # DEFAULT TRUE. The yaml has said true since the bridge-port spec's item
+                  # A2, but this fallback said False -- so any path building the critic from
+                  # a partial config silently got the losing variant. Now they agree.
+                  hard=bool(config.get("measure_density_hard", True)),
                   bootstrap=str(config.get("measure_density_bootstrap", "actor")),
                   actor_temp=config.get("measure_density_actor_temp", None))
         return obj, params, targets
