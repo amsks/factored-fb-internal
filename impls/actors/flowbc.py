@@ -9,7 +9,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
-from impls.actors.ddpgbc import _cvec
+from impls.actors.ddpgbc import _cvec, _obs_feat, _nobs_feat
 
 
 @dataclasses.dataclass(frozen=True)
@@ -71,22 +71,26 @@ class FlowBCActor:
 
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
+        # BOTH policy nets (the one-step actor and the flow vector field) take FEATURES; the
+        # critic below still gets the raw observation and encodes it itself behind
+        # `stop_encoder_grad`. On state `pobs is obs`, so nothing moves.
+        pobs = _obs_feat(cond, obs)
         c = critic.cond_vec(cond)
         x0, t, noise = boot["flow_x0"], boot["flow_t"], boot["actor_noise"]
 
         x1 = action
         xt = (1 - t) * x0 + t * x1
         vel = x1 - x0
-        pred = self._vf(params["actor_vf"], obs, xt, t)
+        pred = self._vf(params["actor_vf"], pobs, xt, t)
         bc_flow = jnp.mean((pred - vel) ** 2)
 
-        a = self._actor(params["actor"], obs, c, noise)
+        a = self._actor(params["actor"], pobs, c, noise)
         Q, Qs = critic.q_fn(params, obs, cond, a, stop_encoder_grad=True)
         loss = -self.q_coeff * Q.mean()
         info = {"q": Q.mean(), "bc_flow_loss": bc_flow}
         info.update(self._policy_drift(params, obs, cond, critic, a, action, Q))
         if self.bc_coeff > 0:
-            tgt = jax.lax.stop_gradient(self._rollout(params["actor_vf"], obs, noise))
+            tgt = jax.lax.stop_gradient(self._rollout(params["actor_vf"], pobs, noise))
             distill = jnp.mean((a - tgt) ** 2)
             if self.q_coeff == 0.0:
                 # Pure BC. Q is still computed and logged (so the control observes the same
@@ -102,7 +106,7 @@ class FlowBCActor:
         return loss, info
 
     def sample_bootstrap(self, net, batch, cond, rng):
-        next_obs = batch["next_observations"]
+        next_obs = _nobs_feat(cond, batch["next_observations"])
         B = next_obs.shape[0]
         adim = batch["actions"].shape[-1]
         c = _cvec(cond)
@@ -143,8 +147,11 @@ class FlowBCActor:
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
         c = _cvec(cond)
-        noise = jax.random.normal(rng, (*obs.shape[:-1], self.actor.action_dim))
-        a = self._actor(net["actor"].params, obs, c, noise)
+        # The noise shape is taken from the FEATURE array, not the raw observation: on pixels
+        # `obs.shape[:-1]` is (64, 64), which would draw a (64, 64, adim) noise tensor.
+        pobs = _obs_feat(cond, obs)
+        noise = jax.random.normal(rng, (*pobs.shape[:-1], self.actor.action_dim))
+        a = self._actor(net["actor"].params, pobs, c, noise)
         return jnp.clip(a, -1.0, 1.0)
 
     @classmethod
@@ -163,9 +170,14 @@ class FlowBCActor:
                              hidden_layers=a_cfg["flow_vf_hidden_layers"])
         ract, rvf = jr.split(jr.PRNGKey(config["seed"] + 1000), 2)
         ex_z = jnp.zeros((ex_obs.shape[0], cdim))
+        # `actor_obs_dim` is published by Agent.create when the critic's actor sees something
+        # other than the raw observation (density_fb on pixels: encoder features). On state it
+        # is absent and `ex_pobs is ex_obs`.
+        odim = config.get("actor_obs_dim")
+        ex_pobs = ex_obs if odim is None else jnp.zeros((ex_obs.shape[0], int(odim)))
         params = {
-            "actor": actor.init(ract, ex_obs, ex_z, ex_actions)["params"],
-            "actor_vf": vf.init(rvf, ex_obs, ex_actions, ex_actions[..., :1])["params"],
+            "actor": actor.init(ract, ex_pobs, ex_z, ex_actions)["params"],
+            "actor_vf": vf.init(rvf, ex_pobs, ex_actions, ex_actions[..., :1])["params"],
         }
         obj = cls(actor=actor, actor_vf=vf, flow_steps=int(a_cfg["flow_steps"]),
                   bc_coeff=float(a_cfg["bc_coeff"]), actor_pessimism_penalty=0.0,

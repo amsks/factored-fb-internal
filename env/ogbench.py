@@ -67,7 +67,12 @@ class OGBenchAdapter:
     name = "ogbench"
 
     def make_env_and_datasets(self, cfg):
-        env, train_ds, val_ds = make_env_and_datasets(cfg["env_name"], cfg.get("frame_stack"))
+        # `measure_qpos_slices` is density_fb's PRIVILEGED MEASURE CHANNEL on pixels; it is
+        # the only thing in this tree that needs the npz's raw 'qpos' column, so it is also
+        # what gates loading it (state runs keep their exact batch keys).
+        env, train_ds, val_ds = make_env_and_datasets(
+            cfg["env_name"], cfg.get("frame_stack"),
+            add_info=cfg.get("measure_qpos_slices") is not None)
         # Size ladder (spec E1). Train split only: the validation split is the fixed yardstick
         # every rung is measured against, so shrinking it too would move the ruler as well as
         # the data.

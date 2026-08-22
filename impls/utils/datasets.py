@@ -13,6 +13,51 @@ import jax
 import numpy as np
 from flax.core.frozen_dict import FrozenDict
 
+from impls.utils.encoders import random_shifts_batch
+
+
+def parse_qpos_slices(spec):
+    """Parse `measure_qpos_slices` -- "a:b" or "a:b,c:d" -- into a tuple of (a, b) pairs.
+
+    This is the PRIVILEGED MEASURE CHANNEL for pixel runs: which columns of the dataset's
+    `qpos` field make up the object-coordinate row `impls/critics/density_fb.py`'s hit kernel
+    slices. On `visual-cube-single-play-v0` that is `"14:17"` -- MuJoCo's
+    `object_joint_0` free joint starts at qpos index 14, so qpos[14:17] IS
+    `info['privileged/block_0_pos']` (verified, and pinned by
+    tests/impls/test_density_fb_pixels.py).
+
+    None (the default, and every state config) -> no channel, and `GCDataset` emits nothing
+    extra. The state path never reads this key.
+    """
+    if spec is None:
+        return None
+    out = []
+    for part in str(spec).split(","):
+        part = part.strip()
+        if not part:
+            continue
+        a, b = part.split(":")
+        a, b = int(a), int(b)
+        assert b > a, f"measure_qpos_slices block {part!r} is empty or reversed"
+        out.append((a, b))
+    assert out, f"measure_qpos_slices={spec!r} parsed to no blocks"
+    return tuple(out)
+
+
+def _qpos_rows(qpos, idxs, slices):
+    """[N, sum(b-a)] object-coordinate rows gathered at `idxs` -- the measure channel."""
+    return np.concatenate([np.asarray(qpos[idxs][:, a:b], np.float32) for (a, b) in slices],
+                          axis=-1)
+
+
+def _batch_array(arr):
+    """float32 for state rows (what this seam has always emitted); the RAW dtype for image
+    tensors. `DrQEncoder` normalizes uint8 internally (`x/255 - 0.5`), so a float32 copy
+    would quadruple the host->device transfer for a bit-identical result -- and would also
+    make a 1024x64x64x3 batch 50MB instead of 12MB."""
+    a = np.asarray(arr)
+    return a if a.ndim > 2 else np.asarray(a, np.float32)
+
 
 def get_size(data):
     """Return the size of the dataset."""
@@ -91,9 +136,33 @@ class FBDataset(Dataset):
 
 @dataclasses.dataclass
 class GCDataset:
-    """Goal-conditioned dataset — faithful port of OGBench utils/datasets.py:GCDataset,
-    state-only (frame-stack / image augmentation dropped). Produces value_goals, actor_goals,
-    rewards, masks. np.random call order matches the vendored source for seeded determinism.
+    """Goal-conditioned dataset — faithful port of OGBench utils/datasets.py:GCDataset.
+    Produces value_goals, actor_goals, rewards, masks. np.random call order matches the
+    vendored source for seeded determinism.
+
+    Three PIXEL features, each gated on a config key that no state config sets, so the
+    state batch is byte-for-byte what it always was:
+
+    * ``frame_stack`` (int|None) — stack the last k frames on the channel axis, clamped to
+      the trajectory's own first row so a stack never crosses an episode boundary. Computed
+      ON THE FLY, unlike vendored OGBench's `preprocess_frame_stack=True` default: the
+      preprocessed form of `visual-cube-single-play-v0` at k=3 is 1,001,000x64x64x9 uint8
+      = 36 GB of RAM.
+    * ``p_aug`` (float|None) — probability of applying `random_shifts_batch` (replicate-pad
+      by `aug_pad`, default 2, then integer-crop) to the image keys. HOST-SIDE NUMPY on
+      purpose; see impls/utils/encoders.py::random_shifts_batch.
+    * ``measure_qpos_slices`` (str|None) — emit the PRIVILEGED object-coordinate channel
+      alongside every image key: `observations_qpos`, `next_observations_qpos`,
+      `value_goals_qpos`, `actor_goals_qpos`. density_fb's hit kernel and query support are
+      literal column slices, which an image has no analogue of; this is the channel they
+      slice. Sourced from the dataset's own `qpos` field, gathered at exactly the same row
+      indices as the image it accompanies -- that index-sharing is what makes the two
+      channels describe the same state.
+
+    FRAME STACK x QPOS CHANNEL (spec section 9): the image key carries k stacked frames, the
+    qpos channel carries ONE row -- the LATEST frame (index `idxs`, the same row the
+    unstacked observation would be). The measure therefore always refers to the current
+    state, never to a frame in the stack's history.
     """
     dataset: Dataset
     config: Any
@@ -119,6 +188,58 @@ class GCDataset:
             self.goal_pool = np.nonzero(self.goal_ok)[0]
             assert len(self.goal_pool) > 0, "goal_filter excludes every state"
 
+        # --- pixel plumbing. All three are None on every state config, and each `if` below
+        # is a plain python branch on a None, so the state batch is unchanged. ---
+        self.frame_stack = c.get('frame_stack')
+        if self.frame_stack is not None:
+            self.frame_stack = int(self.frame_stack)
+            assert self.frame_stack >= 1, f"frame_stack must be >= 1, got {self.frame_stack}"
+            assert 'next_observations' not in self.dataset, (
+                "frame_stack needs the COMPACT layout (observations only): a stack is built "
+                "by walking backwards from a row's index, which a stored next_observations "
+                "column cannot be reindexed against")
+        self.qpos_slices = parse_qpos_slices(c.get('measure_qpos_slices'))
+        if self.qpos_slices is not None and 'qpos' not in self.dataset:
+            raise KeyError(
+                "measure_qpos_slices is set but the dataset has no 'qpos' field. That field "
+                "is the ONLY source of the privileged measure channel on pixels; without it "
+                "density_fb's hit kernel would fall back to slicing the image tensor and "
+                "return plausible-looking numbers computed from pixel values.")
+        self.aug_pad = int(c.get('aug_pad', 2) or 2)
+
+    def get_observations(self, idxs):
+        """Observations at `idxs`, frame-stacked when `frame_stack` is set."""
+        if self.frame_stack is None:
+            return self.dataset['observations'][idxs]
+        return self.get_stacked_observations(idxs)
+
+    def get_stacked_observations(self, idxs):
+        """The last `frame_stack` frames at `idxs`, concatenated on the CHANNEL axis.
+
+        Each earlier frame is clamped to the row's own trajectory start (`initial_locs`), so
+        the opening frames of an episode repeat rather than reading the tail of the previous
+        one. Vendored OGBench does exactly this (`get_stacked_observations`); the only
+        deviation is that we never preprocess the whole dataset (see the class docstring)."""
+        obs = self.dataset['observations']
+        initial = self.initial_locs[np.searchsorted(self.initial_locs, idxs, side='right') - 1]
+        rets = [obs[np.maximum(idxs - i, initial)] for i in reversed(range(self.frame_stack))]
+        return np.concatenate(rets, axis=-1)
+
+    def augment(self, batch, keys):
+        """FB-faithful random shifts on the 4-D keys of `batch`, in place. pad defaults to 2
+        (FB's `Augmentator`), not vendored OGBench's 3."""
+        random_shifts_batch(batch, keys, pad=self.aug_pad)
+
+    def _add_qpos_channel(self, batch, idxs, next_idxs, value_goal_idxs, actor_goal_idxs):
+        """The privileged object-coordinate twin of each image key, gathered at the SAME row
+        indices. Emitted under `<key>_qpos` names so nothing that reads the image keys can
+        pick one up by accident."""
+        qp, sl = self.dataset['qpos'], self.qpos_slices
+        batch['observations_qpos'] = _qpos_rows(qp, idxs, sl)
+        batch['next_observations_qpos'] = _qpos_rows(qp, next_idxs, sl)
+        batch['value_goals_qpos'] = _qpos_rows(qp, value_goal_idxs, sl)
+        batch['actor_goals_qpos'] = _qpos_rows(qp, actor_goal_idxs, sl)
+
     def sample(self, batch_size, idxs=None):
         if idxs is None:
             idxs = self.dataset.get_random_idxs(batch_size)
@@ -131,7 +252,6 @@ class GCDataset:
         if self.goal_ok is not None:
             value_goal_idxs = self._filter_goals(value_goal_idxs)
             actor_goal_idxs = self._filter_goals(actor_goal_idxs)
-        obs = self.dataset['observations']
         # SARSA bootstrap support (density_fb's `measure_density_bootstrap=sarsa`): the action
         # the BEHAVIOUR policy actually took at s'. Emitted unconditionally — it is one gather,
         # and every critic that ignores the key is bit-identical with it present.
@@ -146,11 +266,20 @@ class GCDataset:
         final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
         batch['next_actions'] = np.asarray(
             self.dataset['actions'][np.minimum(idxs + 1, final_idxs)], np.float32)
-        batch['observations'] = np.asarray(batch['observations'], np.float32)
-        batch['next_observations'] = np.asarray(batch['next_observations'], np.float32)
+        # The row `next_observations` refers to, spelled once: Dataset.get_subset infers it
+        # as observations[min(idx+1, size-1)], and the frame-stack and qpos channels below
+        # MUST index the same row or the three channels describe different states.
+        next_idxs = np.minimum(idxs + 1, self.dataset.size - 1)
+        if self.frame_stack is not None:
+            batch['observations'] = self.get_stacked_observations(idxs)
+            batch['next_observations'] = self.get_stacked_observations(next_idxs)
+        batch['observations'] = _batch_array(batch['observations'])
+        batch['next_observations'] = _batch_array(batch['next_observations'])
         batch['actions'] = np.asarray(batch['actions'], np.float32)
-        batch['value_goals'] = np.asarray(obs[value_goal_idxs], np.float32)
-        batch['actor_goals'] = np.asarray(obs[actor_goal_idxs], np.float32)
+        batch['value_goals'] = _batch_array(self.get_observations(value_goal_idxs))
+        batch['actor_goals'] = _batch_array(self.get_observations(actor_goal_idxs))
+        if self.qpos_slices is not None:
+            self._add_qpos_channel(batch, idxs, next_idxs, value_goal_idxs, actor_goal_idxs)
         successes = (idxs == value_goal_idxs).astype(np.float32)
         batch['masks'] = 1.0 - successes
         batch['rewards'] = successes - (1.0 if c['gc_negative'] else 0.0)
@@ -174,6 +303,15 @@ class GCDataset:
         if obs_mask_dims:
             batch['observations'][:, list(obs_mask_dims)] = 0.0
             batch['next_observations'][:, list(obs_mask_dims)] = 0.0
+        # Image augmentation, LAST -- after the goals exist and after any masking, so every
+        # image key the agent will actually see is shifted, and none of the index-derived
+        # scalars (rewards/masks) can be affected by it. One coin per batch (vendored
+        # OGBench's convention), then INDEPENDENT shifts per key inside `augment`. The
+        # `_qpos` channels are 2-D and pass through untouched -- the measure must not be
+        # perturbed by a nuisance transformation the encoder is meant to be invariant to.
+        if c.get('p_aug') is not None and np.random.rand() < float(c['p_aug']):
+            self.augment(batch, ['observations', 'next_observations',
+                                 'value_goals', 'actor_goals'])
         return batch
 
     def _filter_goals(self, goal_idxs):
@@ -222,6 +360,19 @@ class HGCDataset(GCDataset):
     flat critic paired with this dataset would silently read a goal that isn't there.
     np.random call order follows the vendored source so a seed reproduces its batches.
     """
+
+    def __post_init__(self):
+        super().__post_init__()
+        # HGCDataset's `sample` is its own -- it does NOT go through GCDataset.sample -- so
+        # the pixel features added there (frame stacking, augmentation, the qpos measure
+        # channel) are simply absent here. Refuse rather than silently ignore them: a config
+        # that asks for a frame stack and gets unstacked frames is exactly the class of
+        # quiet mismatch this tree keeps paying for.
+        for key in ('frame_stack', 'p_aug', 'measure_qpos_slices'):
+            if self.config.get(key) is not None:
+                raise NotImplementedError(
+                    f"HGCDataset does not implement {key!r} (it overrides GCDataset.sample "
+                    f"entirely). Only GCDataset carries the pixel path.")
 
     def sample(self, batch_size, idxs=None):
         c = self.config

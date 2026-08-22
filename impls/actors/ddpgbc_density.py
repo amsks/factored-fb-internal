@@ -34,7 +34,7 @@ import dataclasses
 import jax
 import jax.numpy as jnp
 
-from impls.actors.ddpgbc import DDPGBCActor, _cvec
+from impls.actors.ddpgbc import DDPGBCActor, _cvec, _obs_feat, _nobs_feat
 
 
 @dataclasses.dataclass(frozen=True)
@@ -62,7 +62,9 @@ class DDPGBCDensityActor(DDPGBCActor):
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
         cvec = critic.cond_vec(cond)
-        dist = self._dist(params["actor"], obs, cvec)
+        # Policy on FEATURES, critic on the raw observation (it encodes behind
+        # `stop_encoder_grad`). Identity on state.
+        dist = self._dist(params["actor"], _obs_feat(cond, obs), cvec)
         q_actions = self._q_actions(dist, boot)
         q, qs = critic.q_fn(params, obs, cond, q_actions, stop_encoder_grad=True)
         # `qs` is the critic's normalizer leg: centered under density_fb's actor_q_center,
@@ -85,18 +87,25 @@ class DDPGBCDensityActor(DDPGBCActor):
         }
 
     def sample_bootstrap(self, net, batch, cond, rng):
-        next_obs = batch["next_observations"]
+        next_obs = _nobs_feat(cond, batch["next_observations"])
         p = net["actor"].params
         r_boot, r_sample = jax.random.split(rng)
         dist = self._dist(p, next_obs, _cvec(cond))
         boot = {"next_action": jnp.clip(dist.mode() if self.const_std
                                         else dist.sample(seed=r_boot), -1.0, 1.0),
                 "actor_sample_rng": r_sample}
-        if "value_goal" in cond:
+        if "_cvec_vgoal" in cond:
             # a+ ~ pi(.|s', g_value) at FROZEN params. density_fb's forward tower is
             # F(s, a, g), so the target must bootstrap at the goal its row is indexed by;
             # `next_action` above is at the ACTOR goal and density_fb refuses it outright.
-            dv = self._dist(p, next_obs, cond["value_goal"])
+            #
+            # Reads cond["_cvec_vgoal"] -- the CRITIC's conditioning vector at the value
+            # goal -- not the raw cond["value_goal"], matching DDPGBCActor and the block
+            # comment there. On the goal-conditioned state arm the two are the same array, so
+            # this is byte-identical; they differ exactly where the raw goal is NOT what the
+            # policy rides (`measure_density_z`: a latent; pixels: the goal image, which a
+            # policy net cannot concatenate onto its input at all).
+            dv = self._dist(p, next_obs, cond["_cvec_vgoal"])
             boot["next_action_vgoal"] = jnp.clip(
                 dv.mode() if self.const_std else dv.sample(seed=r_boot), -1.0, 1.0)
         return boot

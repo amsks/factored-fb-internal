@@ -1,0 +1,7 @@
+# visual-cube-single (OGBench single-cube pick, PIXEL observations) via the ogbench adapter.
+# Pair with `--critic density_fb_pixels`, which carries the encoder + privileged measure
+# channel. Feasibility scope only (docs/specs/2026-08-21-density-fb-pixels-drq.md section 9):
+# ONE domain, ONE seed, "can the method be defined and run here", not a table.
+adapter: ogbench
+env_name: visual-cube-single-play-v0
+eval_aggregate: true    # fold task_infos into one mean-success row, as cube-single does
