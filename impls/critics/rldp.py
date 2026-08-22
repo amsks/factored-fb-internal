@@ -1,0 +1,296 @@
+"""RLDPCritic — Forward-Backward plus a self-predictive (SP) head, on the factored seam.
+
+Transcribed from the PyTorch reference `agents/rldp/{agent,model}.py` (branch
+gciql-fb-bridge; `RLDPAgent.update_fb` and `RLDPModel.__init__`), which is itself an
+adaptation of td_jepa/metamotivo's rldp. Nothing is imported from `third_party/` or from
+that tree — the math below is a line-by-line transcription, restructured onto the seam's
+per-group TrainState params. The FB half is `impls/critics/fb.py` with the three
+divergences listed under "What RLDP changes" below.
+
+The 'DP' in RLDP
+----------------
+`_predictor` maps a backward embedding + an action to a *predicted next* backward
+embedding. Starting at B(s_t) it is rolled forward h steps, one step per action in the
+window, and each step is L2-matched against the TARGET backward map at the corresponding
+future state:
+
+    curr_0 = B(s_t)
+    curr_k = P(curr_{k-1}, a_k)      for k = 1..h
+    sp     = mean_k  || curr_k - sg[B_target(y_k)] ||^2      (sum over z, mean over P x B)
+
+with (a_k, y_k) enumerated exactly as the reference enumerates them (see
+`_sp_pairs` and the off-by-one note there).
+
+What RLDP changes relative to `impls/critics/fb.py`
+---------------------------------------------------
+1. **B is detached inside the successor term.** The reference writes
+   `B = self.model._backward_map(goal).detach()` where plain FB writes
+   `B = self.model._backward_map(goal)`. So the FB TD residual trains the FORWARD map
+   only; the backward map is learned entirely by the SP loss and the orthonormality term.
+   This is the structural point of RLDP and is transcribed as-is.
+2. **The orthonormality term sits at B(obs), not B(goal).** The reference builds
+   `Cov = B_pred @ B_pred.T` from `B_pred = self.model._backward_map(obs_bw)` — the same
+   tensor the SP rollout starts from — whereas FB whitens `B(goal)`.
+3. **A fourth module group, `predictor`.** It rides the backward learning rate (`lr_b`),
+   matching `RLDPAgent.setup_training`, which appends `_predictor.parameters()` to the
+   backward optimizer. It has no target network (the reference polyak-updates only
+   forward / backward / left_encoder), so it is absent from `TARGETS`.
+
+State-based only, as everywhere in this tree: `_fw_encoder` / `_bw_encoder` are Identity,
+so the reference's `goal = _bw_encoder(next_obs)` is `next_obs` and its
+`next_obs_fw = _fw_encoder(next_obs)` is `next_obs` as well.
+
+The reference's optional Q-MSE auxiliary (`q_loss_coef`) is NOT carried, exactly as
+`impls/critics/fb.py` does not carry it: no config in this tree sets it, and a
+never-exercised code path in a loss is a liability.
+"""
+import copy
+import dataclasses
+from typing import Any
+
+import jax
+import jax.numpy as jnp
+
+from impls.utils.networks import ForwardMap, PhiMap, PredictorMap
+from impls.utils.fb_math import project_z, targets_uncertainty
+
+
+@dataclasses.dataclass(frozen=True)
+class RLDPCritic:
+    forward: Any
+    backward: Any
+    left_encoder: Any
+    predictor: Any
+    z_dim: int
+    num_parallel: int
+    horizon: int
+    discount: float
+    ortho_coef: float
+    fb_pessimism_penalty: float
+    train_goal_ratio: float
+    norm_z: bool
+    f_tau: float
+    b_tau: float
+
+    GROUPS = ("forward", "backward", "left_encoder", "predictor")
+    STAGES = ("fb",)
+    PROVIDES_V = False
+    PROVIDES_COND = frozenset({"z"})  # sample_cond() produces {"z": ...}
+
+    @property
+    def TARGETS(self):
+        # No entry for `predictor`: the reference soft-updates only these three
+        # (RLDPAgent.update -> _soft_update_params on forward / backward / left_encoder).
+        return {"forward": self.f_tau, "left_encoder": self.f_tau, "backward": self.b_tau}
+
+    @property
+    def cvec_dim(self):
+        return self.z_dim
+
+    def eval_cond0(self, ex_obs, config):
+        return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+
+    def map_eval_cond(self, net, cond):
+        """Eval-time hook, identical to FBCritic's: embed the env's goal frame into the z
+        the actor was TRAINED on, z = project_z(B(goal)). Without it eval runs on
+        eval_cond0's zero z, for which Q(s,a;0) = <F,0> == 0 and the policy is goal-blind
+        (the 2026-08-17 FB-zero bug)."""
+        if "goal" not in cond:
+            return cond
+        z = project_z(self._B(net["backward"].params, cond["goal"]), self.norm_z)
+        return {**cond, "z": z}
+
+    def stage_groups(self, stage):
+        assert stage == "fb"
+        return self.GROUPS
+
+    # --- module apply helpers ---
+    def _F(self, p, obs_feat, z, action):
+        return self.forward.apply({"params": p}, obs_feat, z, action)
+
+    def _B(self, p, x):
+        return self.backward.apply({"params": p}, x)
+
+    def _le(self, p, x):
+        return self.left_encoder.apply({"params": p}, x)
+
+    def _P(self, p, x, action):
+        return self.predictor.apply({"params": p}, x, action)
+
+    # --- the self-predictive head ---
+    def _sp_pairs(self, batch):
+        """The (action, target-state) sequence the rollout is trained on, enumerated
+        exactly as `RLDPAgent.update_fb` enumerates it:
+
+            targets = [next_obs]  + [future_obs[:, i] for i in range(h-1)]
+            actions = [action]    + [future_act[:, i] for i in range(h-1)]
+
+        NOTE (transcription, not a design choice). `future_obs[:, 0]` IS `next_obs` —
+        the window's column 0 is s_{t+1}, the same row `next_observations` carries — so
+        the first two entries of `targets` are the SAME state while `actions` advances.
+        Step k >= 2 of the rollout is therefore matched against s_{t+k-1} rather than
+        s_{t+k}: the target sequence lags the action sequence by one from the second step
+        on. The reference does this (its `future_obs` is `batch["observation"][:, 1:]`,
+        not `batch["next"]["observation"][:, 1:]`) and this port reproduces it so the two
+        implementations compute the same number. It looks like an off-by-one in the
+        reference; it is flagged here rather than silently corrected, because correcting
+        it would make this critic and the PyTorch agent disagree.
+
+        With h == 1 the batch carries no window and this degenerates to the single
+        one-step pair, matching the reference's `if self.horizon > 1` guard.
+        """
+        actions = [batch["actions"]]
+        targets = [batch["next_observations"]]
+        if "future_observations" in batch:
+            fo, fa = batch["future_observations"], batch["future_actions"]
+            assert fo.shape[1] == fa.shape[1] == self.horizon - 1, (
+                f"windowed batch has {fo.shape[1]} future columns but the critic was built "
+                f"with horizon={self.horizon} (expects {self.horizon - 1}); the critic and "
+                f"impls/utils/datasets.py:WindowedDataset are reading different configs")
+            targets += [fo[:, i] for i in range(fo.shape[1])]
+            actions += [fa[:, i] for i in range(fa.shape[1])]
+        else:
+            assert self.horizon == 1, (
+                f"critic built with horizon={self.horizon} but the batch carries no "
+                f"'future_observations'; rldp needs dataset_class: WindowedDataset")
+        return actions, targets
+
+    def _sp_loss(self, params, target, batch):
+        """The RLDP self-predictive term. Split out of `stage_loss` so it can be pinned
+        against an independent reference (tests/impls/test_rldp_seam.py)."""
+        actions, targets = self._sp_pairs(batch)
+        P = self.num_parallel
+        # Targets come from the TARGET backward map under no_grad. The reference applies
+        # it once to the flattened window; that is elementwise over the batch axis, so
+        # per-step application is the same tensor.
+        ys = [jax.lax.stop_gradient(self._B(target["backward"], s)) for s in targets]
+
+        # `curr` starts at B(obs) -- the ONLINE backward map, which is what carries the
+        # gradient into B. Broadcast to the ensemble axis: the reference's
+        # `obs.expand(num_parallel, -1, -1)` inside VForwardMap.forward, which is a no-op
+        # on every later step because `curr` is already [P, B, z_dim].
+        B_pred = self._B(params["backward"], batch["observations"])
+        curr = jnp.broadcast_to(B_pred[None], (P,) + B_pred.shape)
+
+        sp = 0.0
+        for a_t, y_t in zip(actions, ys):
+            curr = self._P(params["predictor"], curr, a_t)
+            sp = sp + jnp.mean(jnp.sum((curr - y_t[None]) ** 2, axis=-1))
+        return sp / max(len(actions), 1), B_pred
+
+    def stage_loss(self, stage, params, target, batch, cond, boot):
+        assert stage == "fb"
+        obs, action, next_obs = batch["observations"], batch["actions"], batch["next_observations"]
+        goal = next_obs  # bw_encoder = Identity for state
+        disc, P = self.discount, self.num_parallel
+        z, next_action = cond["z"], boot["next_action"]
+        B = obs.shape[0]
+        off = 1.0 - jnp.eye(B)
+        off_sum = off.sum()
+
+        # target measure (stop-grad): target nets on next_obs.
+        nle = self._le(target["left_encoder"], next_obs)
+        tFs = self._F(target["forward"], nle, z, next_action)
+        tB = self._B(target["backward"], goal)
+        tM = jnp.einsum("pbz,cz->pbc", tFs, tB)
+        tmean, tunc = targets_uncertainty(tM, P)
+        target_M = jax.lax.stop_gradient(tmean - self.fb_pessimism_penalty * tunc)
+
+        # online measure. Divergence 1: B(goal) is DETACHED here (reference:
+        # `B = self.model._backward_map(goal).detach()`), so the successor residual
+        # trains the forward map only.
+        le = self._le(params["left_encoder"], obs)
+        Fs = self._F(params["forward"], le, z, action)
+        Bg = jax.lax.stop_gradient(self._B(params["backward"], goal))
+        M = jnp.einsum("pbz,cz->pbc", Fs, Bg)
+        diff = M - disc * target_M
+        fb_off = 0.5 * jnp.sum((diff * off) ** 2) / off_sum
+        fb_diag = -jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2)) * P
+        fb = fb_off + fb_diag
+
+        # self-predictive head (also returns the B(obs) the ortho term whitens).
+        sp, B_pred = self._sp_loss(params, target, batch)
+
+        # Divergence 2: orthonormality at B(obs), not B(goal).
+        cov = B_pred @ B_pred.T
+        orth_off = 0.5 * jnp.sum((cov * off) ** 2) / off_sum
+        orth_diag = -jnp.mean(jnp.diagonal(cov))
+        orth = orth_off + orth_diag
+
+        loss = fb + sp + self.ortho_coef * orth
+        return loss, {"fb_loss": loss, "fb_offdiag": fb_off, "fb_diag": fb_diag,
+                      "ortho_loss": orth, "sp_loss": sp}
+
+    def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
+        z = cond["z"]
+        le = self._le(params["left_encoder"], obs)
+        if stop_encoder_grad:
+            le = jax.lax.stop_gradient(le)
+        Fs = self._F(params["forward"], le, z, actions)
+        Qs = (Fs * z).sum(-1)
+        qmean, _ = targets_uncertainty(Qs, self.num_parallel)
+        # actor_pessimism_penalty is 0 in scope; keep the mean-of-heads reduction.
+        return qmean, Qs
+
+    def cond_vec(self, cond):
+        """The vector actors concatenate onto obs to condition. RLDP, like FB: the latent z."""
+        return cond["z"]
+
+    def sample_cond(self, net, batch, rng):
+        next_obs = batch["next_observations"]
+        B = next_obs.shape[0]
+        r_z, r_mask, r_perm = jax.random.split(rng, 3)
+        z_gauss = project_z(jax.random.normal(r_z, (B, self.z_dim)), self.norm_z)
+        goals = project_z(
+            self._B(net["backward"].params, next_obs)[jax.random.permutation(r_perm, B)],
+            self.norm_z,
+        )
+        mix_mask = (jax.random.uniform(r_mask, (B,)) < self.train_goal_ratio)[:, None]
+        z = jnp.where(mix_mask, goals, z_gauss)
+        return {"z": z}
+
+    def infer_cond(self, net, obs, rewards):
+        Bm = self._B(net["backward"].params, obs)
+        z = (rewards.reshape(1, -1) @ Bm).reshape(-1) / Bm.shape[0]
+        return {"z": project_z(z, self.norm_z)}
+
+    @classmethod
+    def build(cls, ex_obs, ex_actions, config):
+        import jax.random as jr
+        z_dim, L_dim, P = config["z_dim"], config["L_dim"], config["num_parallel"]
+        horizon = int(config["horizon"])
+        assert horizon >= 1, f"horizon must be >= 1, got {horizon}"
+        forward = ForwardMap(z_dim=z_dim, hidden_dim=config["forward"]["hidden_dim"],
+                             num_parallel=P, hidden_layers=config["forward"]["hidden_layers"],
+                             embedding_layers=config["forward"]["embedding_layers"])
+        backward = PhiMap(z_dim=z_dim, hidden_dim=config["backward"]["hidden_dim"],
+                          hidden_layers=config["backward"]["hidden_layers"], norm=config["backward"]["norm"])
+        left_encoder = PhiMap(z_dim=L_dim, hidden_dim=config["left_encoder"]["hidden_dim"],
+                              hidden_layers=config["left_encoder"]["hidden_layers"],
+                              norm=config["left_encoder"]["norm"])
+        # RLDPModel builds the predictor as VForwardMap(obs=z_space[z_dim], z=action_dim)
+        # -> z_dim, i.e. it lives entirely in backward-embedding space.
+        predictor = PredictorMap(out_dim=z_dim, hidden_dim=config["predictor"]["hidden_dim"],
+                                 num_parallel=P,
+                                 hidden_layers=config["predictor"]["hidden_layers"],
+                                 embedding_layers=config["predictor"]["embedding_layers"])
+        rf, rb, rle, rp = jr.split(jr.PRNGKey(config["seed"]), 4)
+        ex_feat = jnp.zeros((ex_obs.shape[0], L_dim))
+        ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
+        ex_pred_in = jnp.zeros((P, ex_obs.shape[0], z_dim))
+        params = {
+            "left_encoder": left_encoder.init(rle, ex_obs)["params"],
+            "backward": backward.init(rb, ex_obs)["params"],
+            "forward": forward.init(rf, ex_feat, ex_z, ex_actions)["params"],
+            "predictor": predictor.init(rp, ex_pred_in, ex_actions)["params"],
+        }
+        critic = cls(
+            forward=forward, backward=backward, left_encoder=left_encoder,
+            predictor=predictor,
+            z_dim=z_dim, num_parallel=P, horizon=horizon, discount=config["discount"],
+            ortho_coef=config["ortho_coef"], fb_pessimism_penalty=config["fb_pessimism_penalty"],
+            train_goal_ratio=config["train_goal_ratio"], norm_z=config["norm_z"],
+            f_tau=config["f_target_tau"], b_tau=config["b_target_tau"],
+        )
+        targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
+        return critic, params, targets

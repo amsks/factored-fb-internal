@@ -375,13 +375,13 @@ Branch `feat/seam-boot-contract`, off `origin/feat/metaworld-runs` @ `e35a542`.
 | 1 GCIVL | **done** | + the opt-in `adv_fn` critic hook |
 | 2 HIQL | **done** | + `HGCDataset`, + `map_eval_cond(observations=...)` |
 | 3 PSM | not started | ~1,340 torch lines; stochastic `proto_sampler` needs seeded parity |
-| 4 RLDP | not started | **blocked on windowed sampling** — see below |
+| 4 RLDP | **done** | + `WindowedDataset` (the blocker in 12.3, now cleared); parity by numpy reconstruction, not a torch fixture — see 12.4 |
 | 5 reward index | not started | the ExoRL blocker; `density_fb.infer_cond` is still a zero placeholder |
 | 6 ExoRL | not started | env family + `scripts/exorl/convert_exorl.py` port |
 | 7 online loop | not started | env stepping + replay buffer in `main.py` |
 
-Baselines available: **6 of 8** — GCIQL, bilinear GCIQL (`iql_bilinear`), FB, `density_fb`,
-GCIVL, HIQL. Missing: PSM, RLDP.
+Baselines available: **7 of 8** — GCIQL, bilinear GCIQL (`iql_bilinear`), FB, `density_fb`,
+GCIVL, HIQL, RLDP. Missing: PSM.
 
 ### 12.1 Hazard: the value-goal bootstrap draw has mis-fired twice
 
@@ -414,9 +414,57 @@ first if any of their critics condition the actor on anything but the raw goal.*
   is in the eight-baseline set. Giving them `adv_fn` would fix it but would move numbers
   that are already published. If either enters a table, it needs the hook first.
 
-### 12.3 Blocker for workstream 4 (RLDP)
+### 12.3 Blocker for workstream 4 (RLDP) — CLEARED
 
 RLDP's self-predictive loss consumes `future_obs` / `future_act` — an h-step **windowed**
 batch (torch `agents/rldp/agent.py::update_fb`, fed by `DictBuffer.sample(batch_size,
-horizon=h)`). The seam has **no windowed sampling**. A windowed dataset must land before
+horizon=h)`). The seam had **no windowed sampling**. A windowed dataset had to land before
 the RLDP critic, the same way `HGCDataset` landed before HIQL.
+
+It has: `impls/utils/datasets.py::WindowedDataset` (`dataset_class: WindowedDataset`,
+config key `horizon`), emitting `future_observations` / `future_actions` of shape
+`[B, h-1, ...]` on top of the FB training batch. Column `k` is dataset row
+`min(idx + 1 + k, traj_final_idx)` — the same clamp `HGCDataset` uses for
+`low_actor_goals`, so a window never crosses into the next episode.
+`tests/impls/test_windowed_dataset.py` pins that exhaustively over every start row.
+
+### 12.4 RLDP parity is a numpy reconstruction, not a torch fixture
+
+Section 6 prescribes a `<name>_reference.npz` mapped through
+`impls/utils/torch_to_flax.py`. That is **not** what `tests/impls/test_rldp_seam.py`
+does, and the reason is structural: the existing `fb_reference.npz` was exported from a
+PyTorch FB model that has no `_predictor` at all, so there are no reference weights for
+the one module RLDP adds. The SP loss is instead pinned against an independent numpy
+re-implementation of `PhiMap`, of the predictor tower, and of the rollout/L2 accumulation
+in `update_fb` (precedent: `tests/impls/test_density_fb.py`). That catches a wrong module
+and a wrong loss, but it does **not** measure agreement with actual torch tensors — that
+rests on transcription. A true torch fixture needs a fresh export from an `RLDPModel`.
+
+### 12.4b test_phase0_gate accumulates compiled executables, and it has a ceiling
+
+Adding rldp took the gate from 91 to 97 pairs and it started dying with
+`Fatal Python error: Aborted` — no traceback, inside XLA compilation
+(`jax/_src/interpreters/pxla.py::compile`) at `rldp x awr`, the 95th pair. That is NOT an
+rldp defect: in a fresh process `rldp x awr` compiles in 2.9 s / 1.14 GB against
+`fb x awr`'s 1.9 s / 1.03 GB, and the six rldp pairs pass as their own selection. Every
+pair jits its own `Agent.update` and jax retains each executable in a process-global
+cache; at ~95 of them the compiler cannot allocate and calls `abort()`.
+
+Fixed by an autouse fixture calling `jax.clear_caches()` after each pair
+(tests/impls/test_phase0_gate.py). It cannot change what the gate measures — the only
+assertion is that `actor_loss` is finite, and a cleared cache recompiles identically.
+Full file back to **97 passed**. The next critic added to `CRITICS` inherits the headroom;
+without the fixture it would have hit the same wall.
+
+### 12.5 Suspected off-by-one in the torch RLDP reference, transcribed as-is
+
+`RLDPAgent.update_fb` builds its SP target list as
+`[B_t(next_obs)] + [B_t(future_obs[:, i]) for i]` while the action list is
+`[action] + [future_act[:, i] for i]`. Because `future_obs[:, 0]` **is** `next_obs`
+(the window's column 0 is s_{t+1}), the first two targets are the same state while the
+actions advance: rollout step k ≥ 2 is matched against s_{t+k-1}, not s_{t+k}. The
+target sequence lags the actions by one from the second step on. This looks like a bug
+(the reference's `future_obs` is `batch["observation"][:, 1:]`; the intended tensor is
+presumably `batch["next"]["observation"][:, 1:]`), but `impls/critics/rldp.py`
+reproduces it verbatim so the two implementations compute the same number. Anyone
+correcting it must correct both sides, and must expect published RLDP numbers to move.

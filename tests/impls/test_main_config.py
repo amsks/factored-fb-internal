@@ -50,6 +50,18 @@ def _min_cfg_for(critic_kind, actor_kind):
             backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
             left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
         )
+    elif critic_kind == "rldp":
+        # fb's block plus the two rldp-only pieces: `horizon` and the `predictor` group.
+        base = dict(
+            z_dim=8, L_dim=8, num_parallel=2, discount=0.99,
+            f_target_tau=0.005, b_target_tau=0.005, ortho_coef=0.01, train_goal_ratio=0.5,
+            fb_pessimism_penalty=0.0, norm_z=True, lr_f=1e-4, lr_b=1e-4, lr_actor=1e-4,
+            horizon=4,
+            forward=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
+            backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
+            left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
+            predictor=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
+        )
     elif critic_kind == "isfb":
         base = dict(
             z_dim=8, L_dim=8, num_parallel=2, discount=0.99,

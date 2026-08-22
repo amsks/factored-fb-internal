@@ -38,6 +38,23 @@ REQUIRED_KEYS = {
         "phi.hidden_dim", "phi.hidden_layers", "phi.norm",
         "sf.hidden_dim", "sf.hidden_layers", "sf.embedding_layers",
     ),
+    # rldp.py:build() reads every fb key (it builds the same forward/backward/left_encoder
+    # modules) PLUS `horizon` and the `predictor` sub-dict for its fourth module group.
+    # dataset_class is required because make_dataset() -- which is what turns `horizon`
+    # into the future_observations/future_actions columns rldp.py::_sp_pairs consumes --
+    # runs *before* Agent.create; without it rldp silently gets an unwindowed FB batch and
+    # the h-step self-predictive loss collapses to its one-step term.
+    "rldp": (
+        "lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount",
+        "L_dim", "num_parallel", "ortho_coef", "fb_pessimism_penalty",
+        "train_goal_ratio", "norm_z", "f_target_tau", "b_target_tau",
+        "forward.hidden_dim", "forward.hidden_layers", "forward.embedding_layers",
+        "backward.hidden_dim", "backward.hidden_layers", "backward.norm",
+        "left_encoder.hidden_dim", "left_encoder.hidden_layers", "left_encoder.norm",
+        "horizon",
+        "predictor.hidden_dim", "predictor.hidden_layers", "predictor.embedding_layers",
+        "dataset_class",
+    ),
     # gciql.py:build() reads lr/batch_size/discount/expectile/tau/value_hidden_dims/
     # layer_norm; datasets.py:GCDataset (built *before* Agent.create, datasets.py:96-116)
     # reads the goal-sampling and dataset_class keys.
