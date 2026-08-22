@@ -142,6 +142,15 @@ def _min_cfg_for(critic_kind, actor_kind):
             measure_ortho_coef=0.0, actor_q_center=False, warm_start=False,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
         )
+    elif critic_kind == "psm":
+        base = dict(
+            z_dim=8, max_log_seed=4, num_parallel=2, discount=0.99, ortho_coef=1.0,
+            pessimism_penalty=0.0, actor_pessimism_penalty=0.5, mix_ratio=0.5,
+            norm_z=True, target_tau=0.01, proto_seed=0,
+            lr_phi=1e-4, lr_sf=1e-4, lr_actor=1e-4,
+            phi=dict(hidden_dim=16, hidden_layers=2, norm=True),
+            sf=dict(hidden_dim=32, hidden_layers=1, embedding_layers=2),
+        )
     elif critic_kind in ("crl", "vip"):
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, tau=0.005,

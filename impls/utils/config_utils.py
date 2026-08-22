@@ -25,6 +25,19 @@ REQUIRED_KEYS = {
         "backward.hidden_dim", "backward.hidden_layers", "backward.norm",
         "left_encoder.hidden_dim", "left_encoder.hidden_layers", "left_encoder.norm",
     ),
+    # psm.py:build() bare-indexes z_dim/max_log_seed/num_parallel plus the phi/sf sub-dicts;
+    # the PSMCritic dataclass reads the remaining scalars, and Agent.create reads lr_phi/lr_sf
+    # (_LR_KEY: phi -> lr_phi, sf_psi/psm_psi -> lr_sf) and lr_actor. proto_seed is required
+    # rather than defaulted on purpose: it selects the proto behaviour-policy family, so a
+    # sweep must not be able to leave it unset. PSM needs no dataset_class -- its goal IS
+    # next_observations, like fb.
+    "psm": (
+        "lr_phi", "lr_sf", "lr_actor", "z_dim", "max_log_seed", "batch_size", "discount",
+        "num_parallel", "ortho_coef", "pessimism_penalty", "actor_pessimism_penalty",
+        "mix_ratio", "norm_z", "target_tau", "proto_seed",
+        "phi.hidden_dim", "phi.hidden_layers", "phi.norm",
+        "sf.hidden_dim", "sf.hidden_layers", "sf.embedding_layers",
+    ),
     # gciql.py:build() reads lr/batch_size/discount/expectile/tau/value_hidden_dims/
     # layer_norm; datasets.py:GCDataset (built *before* Agent.create, datasets.py:96-116)
     # reads the goal-sampling and dataset_class keys.
