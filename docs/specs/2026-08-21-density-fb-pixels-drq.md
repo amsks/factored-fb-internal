@@ -47,12 +47,34 @@ The visual env at eval (`ogbench.make_env_and_datasets("visual-cube-single-play-
 obs                            (64, 64, 3) uint8
 env.unwrapped.data.qpos        (21,)
 info['privileged/block_0_pos'] the cube xyz, exposed directly
-info['goal']                   the goal in STATE form
-info['goal_rendered']          the goal as an IMAGE
+info['goal']                   an IMAGE (64,64,3) uint8 -- NOT state form (see 2.1)
+info['goal_rendered']          an IMAGE (64,64,3) uint8
+env.unwrapped.cur_task_info['goal_xyzs']   the goal's object coordinates
 ```
 
 So both channels the design needs exist natively, offline and online. No extra data
 collection, and `privileged/block_0_pos` is cleaner than index arithmetic on `qpos`.
+
+### 2.1 Correction: `info['goal']` is an image, not a state
+
+An earlier draft of this spec asserted that `info['goal']` is "the goal in STATE form" and
+built the eval path on it. **That is wrong.** On `visual-*` envs BOTH `goal` and
+`goal_rendered` are `(64, 64, 3) uint8`; the name was inferred from the state envs and never
+checked. Verified by printing the shapes.
+
+The goal's object coordinates come from `env.unwrapped.cur_task_info['goal_xyzs']` instead.
+
+**Caveat on that source:** `goal_xyzs` is the NOMINAL goal. OGBench settles the scene with two
+random steps before rendering the goal image, so the block in the rendered goal can sit
+millimetres away from `goal_xyzs`, and nothing in the env records the settled goal qpos. The
+kernel therefore keys off the nominal position while the encoder sees the settled render.
+
+### 2.2 Correction: `q_fn` does not run at eval in this seam
+
+Section 7 below was written assuming the measure readout runs during rollout. It does not:
+`Agent.sample_actions` runs the policy net only. So no per-step query-qpos channel is needed
+at eval, and `info['privileged/block_0_pos']` is NOT consumed. Section 7's eval description is
+correct about the GOAL channels and wrong about the query channel.
 
 ## 3. Decisions
 
