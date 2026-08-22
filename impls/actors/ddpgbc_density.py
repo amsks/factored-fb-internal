@@ -92,11 +92,18 @@ class DDPGBCDensityActor(DDPGBCActor):
         boot = {"next_action": jnp.clip(dist.mode() if self.const_std
                                         else dist.sample(seed=r_boot), -1.0, 1.0),
                 "actor_sample_rng": r_sample}
-        if "value_goal" in cond:
+        if "_cvec_vgoal" in cond:
             # a+ ~ pi(.|s', g_value) at FROZEN params. density_fb's forward tower is
             # F(s, a, g), so the target must bootstrap at the goal its row is indexed by;
             # `next_action` above is at the ACTOR goal and density_fb refuses it outright.
-            dv = self._dist(p, next_obs, cond["value_goal"])
+            #
+            # The vector comes from the CRITIC as cond["_cvec_vgoal"] (seam section 12.1), NOT
+            # from cond["value_goal"]. This actor was exempted from that rewiring because the
+            # file was being kept unchanged, and the two keys held the same value, so nothing
+            # failed -- until measure_density_z=true makes _cvec_vgoal a z of width d while
+            # value_goal stays the raw goal, and this hands a goal-shaped vector to a z-shaped
+            # network (ScopeParamShapeError). Third occurrence of that bug class.
+            dv = self._dist(p, next_obs, cond["_cvec_vgoal"])
             boot["next_action_vgoal"] = jnp.clip(
                 dv.mode() if self.const_std else dv.sample(seed=r_boot), -1.0, 1.0)
         return boot
