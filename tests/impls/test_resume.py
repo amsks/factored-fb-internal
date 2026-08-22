@@ -5,8 +5,12 @@ from impls.utils.flax_utils import save_agent, restore_agent
 
 
 def _cfg():
+    # q_bound is REQUIRED_KEYS["gciql"] and GCIQLCritic.build bare-indexes it on purpose, so
+    # a partial config fails loudly rather than silently picking a hypothesis class. This
+    # helper omitted it, which is why the file has been red since q_bound was introduced.
+    # 0.0 is the vendored default (no squashing) -- see impls/configs/critic/gciql.yaml.
     return dict(value_hidden_dims=[32, 32], layer_norm=True, discount=0.99, expectile=0.9,
-                tau=0.005, lr=3e-4, lr_actor=3e-4, gc_negative=True,
+                tau=0.005, lr=3e-4, lr_actor=3e-4, gc_negative=True, q_bound=0.0,
                 actor=dict(hidden_dims=[32, 32], alpha=0.3, const_std=True, layer_norm=False))
 
 
