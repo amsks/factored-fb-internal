@@ -1,0 +1,26 @@
+# ExoRL walker (RND exploration buffer) via the unified adapter.
+#
+# REWARD-SPECIFIED domain -- see env/domains/dmc-point-mass-maze.yaml for why
+# `keep_dataset_rewards` matters and which critics can run this at all. `walker` has NO
+# binary success rule; the benchmark metric is episode return, which env/unified.py's
+# evaluate() reports as `episode_return` for dmc- tasks.
+#
+# density_fb / td_fb additionally need `measure_hit_spec` for THIS observation layout. It
+# cannot live in this file: env/config.py merges domain BEFORE critic, so the critic yaml's
+# cube-single default ("19:22:0.4") would win. Pass it as an override, as the launcher
+# scripts do (note the escaped quotes -- OmegaConf yaml-parses a bare `a:b:c` dotlist value
+# as a sexagesimal number):
+#     --override 'measure_hit_spec="<unverified>"'
+# NOT VERIFIED for walker: its 24-dim obs is 14 position (torso height + orientation
+# matrices + joint angles) then 9 velocity, and which block the successor measure
+# should resolve is a modelling choice nobody here has made yet. Pick and justify it
+# before quoting a density_fb/td_fb number on this domain.
+adapter: unified
+env_name: dmc-walker          # run naming only
+task: dmc-walker
+exorl_task: walk              # one of stand / walk / run / flip
+exorl_algo: rnd
+data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/walker/rnd
+exorl_max_episodes: 2000
+keep_dataset_rewards: true
+render: false

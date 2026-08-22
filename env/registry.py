@@ -15,6 +15,13 @@ _PREFIX = {
     "p2d": ("box2d", 200, "Box2D"),
     "mw":  ("metaworld", 100, "Metaworld"),
     "ms":  ("maniskill", 25, "ManiSkill"),
+    # ExoRL / dm_control. REWARD-specified, not goal-specified: these are the domains the
+    # successor-measure family's `infer_cond(net, obs, rewards)` interface is actually for,
+    # and the only family here that no goal-conditioned critic can run at all. Horizon 1000
+    # is the ExoRL episode length for every T3 domain (action_repeat 1). Data does NOT live
+    # under COLLECTED -- ExoRL ships its own `<domain>/<algo>/buffer` trees, so the domain
+    # yamls set `data_dir` explicitly (env/exorl_env.py::DATA_ROOT is the default root).
+    "dmc": ("exorl", 1000, "ExoRL"),
 }
 
 # per-task overrides (data_dir / horizon / family), for anything the prefix rule doesn't cover
