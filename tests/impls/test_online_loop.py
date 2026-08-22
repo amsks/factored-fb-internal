@@ -156,16 +156,26 @@ def _flat_params(agent):
 # --------------------------------------------------------------------------------------
 # main() driver
 # --------------------------------------------------------------------------------------
-def _run_main(tmp_path, monkeypatch, cfg, adapter, critic, actor, steps, **flag_overrides):
+def _run_main(tmp_path, monkeypatch, cfg, adapter, critic, actor, steps, real_save=False,
+              **flag_overrides):
     """Run impls/main.py::main end to end against the stub adapter, returning the agent it
-    would have checkpointed."""
+    would have checkpointed.
+
+    `real_save=True` additionally lets the real `save_agent` write params_<step>.pkl, which
+    the --restore_path tests need (the default stubs it out so the identity tests do no I/O).
+    """
     import impls.main as m
 
     monkeypatch.setenv("WANDB_MODE", "disabled")
     monkeypatch.setattr(m, "make_config", lambda *a, **k: dict(cfg))
     monkeypatch.setattr(m, "get_adapter", lambda c: adapter)
     captured = []
-    monkeypatch.setattr(m, "save_agent", lambda agent, d, i: captured.append(agent))
+    if real_save:
+        _real = m.save_agent
+        monkeypatch.setattr(m, "save_agent",
+                            lambda agent, d, i: (captured.append(agent), _real(agent, d, i))[0])
+    else:
+        monkeypatch.setattr(m, "save_agent", lambda agent, d, i: captured.append(agent))
 
     m.FLAGS(["test"], known_only=True)          # absl: mark the flags parsed
     defaults = dict(critic=critic, actor=actor, domain="tiny", override=[], seed=SEED,
@@ -612,3 +622,232 @@ def test_buffer_stores_raw_observations_and_masking_happens_in_the_batch():
     batch = tr.sample(8)
     assert np.abs(batch["observations"][:, :2]).sum() == 0            # masked on the way out
     assert np.abs(batch["next_observations"][:, :2]).sum() == 0
+
+
+# ======================================================================================
+# 4. --restore_path with --online: the buffer resumes, or the run refuses.
+# ======================================================================================
+# Before this, `--restore_path --online` restored the AGENT and started with an EMPTY replay
+# buffer, then re-ran prefill: a fully-trained policy collecting a fresh warmup set. Nothing
+# in the logs distinguished that from a working resume, which is the worst of the three
+# possible behaviours.
+def _stepped_trainer(cfg, capacity=2000, steps=45, **kw):
+    agent = _agent(cfg, "gciql", "ddpgbc")
+    tr = _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=0, action_noise=0.3,
+                  env_steps_per_update=1.0, capacity=capacity, **kw)
+    for _ in range(steps):
+        tr.step_env(agent)
+    return tr, agent
+
+
+def test_online_state_round_trips_the_buffer_and_the_collector(tmp_path):
+    cfg = _gciql_cfg()
+    tr, agent = _stepped_trainer(cfg, steps=45)          # 2 whole episodes + 5 pending rows
+    assert tr.buffer.size == 2 * HORIZON and tr.buffer.n_written == 45
+    tr.save_state(str(tmp_path), 7)
+
+    fresh = _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=0, action_noise=0.3,
+                     env_steps_per_update=1.0, capacity=2000)
+    n = fresh.restore_state(str(tmp_path), 7)
+
+    # Only COMPLETE episodes are persisted -- the in-progress 5 rows are dropped by design.
+    assert n == 2 * HORIZON == fresh.buffer.size
+    assert fresh.buffer.n_episodes == 2
+    for name in ("observations", "actions", "next_observations", "rewards", "terminals"):
+        np.testing.assert_array_equal(getattr(fresh.buffer, name)[:n],
+                                      getattr(tr.buffer, name)[:n])
+    assert fresh.env_steps == tr.env_steps
+    assert fresh._episode_index == tr._episode_index
+    assert fresh._debt == tr._debt
+    fresh.sample(8)                                       # the restored buffer really samples
+
+
+def test_restoring_the_online_state_also_resumes_the_exploration_rngs(tmp_path):
+    """A resume that re-draws the same exploration noise as a fresh run is not a resume."""
+    cfg = _gciql_cfg()
+    tr, agent = _stepped_trainer(cfg, steps=40)
+    tr.save_state(str(tmp_path), 3)
+    tr._obs = np.zeros(OBS_DIM, np.float32)
+    want = [tr._action(agent).copy() for _ in range(3)]
+
+    fresh = _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=0, action_noise=0.3,
+                     env_steps_per_update=1.0, capacity=2000)
+    fresh.restore_state(str(tmp_path), 3)
+    fresh._obs = np.zeros(OBS_DIM, np.float32)
+    got = [fresh._action(agent).copy() for _ in range(3)]
+    np.testing.assert_array_equal(np.array(got), np.array(want))
+
+
+def test_a_missing_online_state_is_refused_by_name(tmp_path):
+    cfg = _gciql_cfg()
+    tr = _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=0, env_steps_per_update=1.0)
+    with pytest.raises(FileNotFoundError, match="online_restore_buffer"):
+        tr.restore_state(str(tmp_path), 99)
+
+
+def test_a_buffer_too_small_for_the_saved_state_is_refused(tmp_path):
+    cfg = _gciql_cfg()
+    tr, _ = _stepped_trainer(cfg, steps=60)
+    tr.save_state(str(tmp_path), 1)
+    small = _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=0,
+                     env_steps_per_update=1.0, capacity=10)
+    with pytest.raises(ValueError, match="online_buffer_size"):
+        small.restore_state(str(tmp_path), 1)
+
+
+def test_a_state_from_a_different_env_shape_is_refused(tmp_path):
+    from env.online import ReplayBuffer
+    cfg = _gciql_cfg()
+    tr, _ = _stepped_trainer(cfg, steps=40)
+    tr.save_state(str(tmp_path), 2)
+    other = _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=0, env_steps_per_update=1.0)
+    other.buffer = ReplayBuffer(2000, OBS_DIM + 3, ACT_DIM, cfg)
+    with pytest.raises(ValueError, match="different env/domain"):
+        other.restore_state(str(tmp_path), 2)
+
+
+def _capture_trainer(monkeypatch):
+    """Record the OnlineTrainer impls/main.py builds, so a test can inspect it afterwards."""
+    import env.online as O
+    seen = []
+    real = O.OnlineTrainer.create.__func__
+
+    def spy(cls, *a, **k):
+        tr = real(cls, *a, **k)
+        seen.append(tr)
+        return tr
+
+    monkeypatch.setattr(O.OnlineTrainer, "create", classmethod(spy))
+    return seen
+
+
+def test_restore_with_online_through_main_resumes_the_buffer(tmp_path, monkeypatch):
+    """The end-to-end fix: run 1 checkpoints, run 2 restores from it and comes back with the
+    buffer AND the collector position, instead of an empty buffer and a re-run prefill."""
+    cfg, steps = _gciql_cfg(), 40
+    _run_main(tmp_path, monkeypatch, cfg, StubAdapter(), "gciql", "ddpgbc", steps,
+              real_save=True, online=True, online_start_steps=20, online_buffer_size=5000,
+              online_env_steps_per_update=1.0, online_action_noise=0.1,
+              online_temperature=1.0, online_seed_offline=False,
+              online_seed_transitions=0, online_reset_seed_offset=1_000_000,
+              save_interval=steps)
+    run_dir = os.path.join(tmp_path, "tiny_gciql_ddpgbc_seed_0")
+    assert os.path.exists(os.path.join(run_dir, "params_40.pkl"))
+    assert os.path.exists(os.path.join(run_dir, "online_state_40.npz"))
+
+    seen = _capture_trainer(monkeypatch)
+    adapter2 = StubAdapter()
+    _run_main(tmp_path, monkeypatch, cfg, adapter2, "gciql", "ddpgbc", 45,
+              online=True, online_start_steps=20, online_buffer_size=5000,
+              online_env_steps_per_update=1.0, online_action_noise=0.1,
+              online_temperature=1.0, online_seed_offline=False,
+              online_seed_transitions=0, online_reset_seed_offset=1_000_000,
+              restore_path=run_dir, restore_epoch=40)
+
+    tr = seen[-1]
+    assert tr.buffer.size >= 40, "the resumed run started with an empty replay buffer"
+    # start_step is restore_epoch+1 == 41, so exactly 5 gradient steps => 5 env steps, and
+    # prefill must not have re-collected its 20 warmup steps.
+    assert adapter2.env.n_steps == 5, (
+        f"prefill re-ran on resume ({adapter2.env.n_steps} env steps, expected 5)")
+
+
+def test_restore_with_online_refuses_a_checkpoint_that_has_no_buffer(tmp_path, monkeypatch):
+    """A checkpoint written without the online state must NOT silently resume empty."""
+    cfg = _gciql_cfg()
+    _run_main(tmp_path, monkeypatch, cfg, StubAdapter(), "gciql", "ddpgbc", 6,
+              real_save=True, save_interval=6)               # OFFLINE run: no online state
+    run_dir = os.path.join(tmp_path, "tiny_gciql_ddpgbc_seed_0")
+    assert not os.path.exists(os.path.join(run_dir, "online_state_6.npz"))
+
+    with pytest.raises(FileNotFoundError, match="online_restore_buffer"):
+        _run_main(tmp_path, monkeypatch, cfg, StubAdapter(), "gciql", "ddpgbc", 10,
+                  online=True, online_start_steps=20, online_buffer_size=5000,
+                  online_env_steps_per_update=1.0, online_action_noise=0.1,
+                  online_temperature=1.0, online_seed_offline=False,
+                  online_seed_transitions=0, online_reset_seed_offset=1_000_000,
+                  restore_path=run_dir, restore_epoch=6)
+
+
+def test_the_empty_buffer_resume_is_still_available_but_only_explicitly(tmp_path, monkeypatch):
+    cfg = _gciql_cfg()
+    _run_main(tmp_path, monkeypatch, cfg, StubAdapter(), "gciql", "ddpgbc", 6,
+              real_save=True, save_interval=6)
+    run_dir = os.path.join(tmp_path, "tiny_gciql_ddpgbc_seed_0")
+    adapter = StubAdapter()
+    with pytest.warns(UserWarning, match="starts EMPTY"):
+        _run_main(tmp_path, monkeypatch, cfg, adapter, "gciql", "ddpgbc", 10,
+                  online=True, online_start_steps=20, online_buffer_size=5000,
+                  online_env_steps_per_update=1.0, online_action_noise=0.1,
+                  online_temperature=1.0, online_seed_offline=False,
+                  online_seed_transitions=0, online_reset_seed_offset=1_000_000,
+                  online_restore_buffer=False, restore_path=run_dir, restore_epoch=6)
+    assert adapter.env.n_steps >= 20, "the opt-out must still re-run prefill"
+
+
+# ======================================================================================
+# 5. Goal-narrow online exploration, and the default-OFF widening knob.
+# ======================================================================================
+def test_collection_is_conditioned_on_the_eval_goal_by_default():
+    """The documented limitation, asserted rather than only described: every episode is
+    collected against the eval goal, so the buffer only ever sees pi(.|s, g_eval)."""
+    cfg = _gciql_cfg()
+    adapter = StubAdapter()
+    adapter._goal = np.arange(OBS_DIM, dtype=np.float32)
+    agent = _agent(cfg, "gciql", "ddpgbc")
+    tr = _trainer(cfg, adapter, TinyEnv(), warmup_steps=0, action_noise=0.0,
+                  env_steps_per_update=1.0)
+    goals = []
+    for _ in range(3 * HORIZON):
+        tr.step_env(agent)
+        if tr._ep_goal is not None:
+            goals.append(tr._ep_goal.copy())
+    assert tr._episode_index == 3 and goals
+    for g in goals:
+        np.testing.assert_array_equal(g, adapter._goal)
+    assert tr.explore_goal_prob == 0.0
+
+
+def test_the_goal_widening_knob_is_off_by_default_and_bit_identical():
+    """p=0 must draw NOTHING from the private generator, or setting the knob to its own
+    default would shift exploration noise."""
+    cfg = _gciql_cfg()
+    agent = _agent(cfg, "gciql", "ddpgbc")
+    acts = []
+    for kw in ({}, {"explore_goal_prob": 0.0}):
+        adapter = StubAdapter()
+        adapter._goal = np.arange(OBS_DIM, dtype=np.float32)
+        tr = _trainer(cfg, adapter, TinyEnv(), warmup_steps=0, action_noise=0.3,
+                      env_steps_per_update=1.0, **kw)
+        for _ in range(2 * HORIZON):
+            tr.step_env(agent)
+        acts.append(tr.buffer.actions[:2 * HORIZON].copy())
+    np.testing.assert_array_equal(acts[0], acts[1])
+
+
+def test_the_goal_widening_knob_collects_against_buffer_states():
+    cfg = _gciql_cfg()
+    adapter = StubAdapter()
+    adapter._goal = np.arange(OBS_DIM, dtype=np.float32)
+    agent = _agent(cfg, "gciql", "ddpgbc")
+    tr = _trainer(cfg, adapter, TinyEnv(), warmup_steps=0, action_noise=0.0,
+                  env_steps_per_update=1.0, explore_goal_prob=1.0)
+
+    for _ in range(HORIZON):                      # episode 1: buffer empty -> the eval goal
+        tr.step_env(agent)
+    np.testing.assert_array_equal(tr.buffer.terminals[HORIZON - 1], 1.0)
+
+    tr.step_env(agent)                            # episode 2 begins with a filled buffer
+    assert tr._ep_goal is not None
+    assert not np.allclose(tr._ep_goal, adapter._goal), \
+        "explore_goal_prob=1.0 still collected against the eval goal"
+    stored = tr.buffer.next_observations[:tr.buffer.size]
+    assert (np.abs(stored - tr._ep_goal).sum(axis=1) < 1e-6).any(), \
+        "the collection goal is not a state the buffer actually holds"
+
+
+def test_an_out_of_range_goal_prob_is_refused():
+    cfg = _gciql_cfg()
+    with pytest.raises(AssertionError, match="online_explore_goal_prob"):
+        _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=0, env_steps_per_update=1.0,
+                 explore_goal_prob=1.5)

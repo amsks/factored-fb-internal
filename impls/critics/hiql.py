@@ -57,6 +57,9 @@ class HIQLCritic:
     STAGES = ("ivl", "high_actor")
     PROVIDES_V = True
     PROVIDES_COND = frozenset({"goal", "low_goal"})
+    # infer_cond here is a fixed zero placeholder that the eval goal path overrides, so it
+    # never reads `obs`. Declared rather than defaulted -- see base.py::INFER_COND_MARGINALS.
+    INFER_COND_MARGINAL = "unused"
 
     @property
     def TARGETS(self):

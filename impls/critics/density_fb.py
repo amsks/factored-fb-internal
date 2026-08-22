@@ -306,6 +306,15 @@ class DensityFBCritic:
     # (tests/impls/test_boot_contract.py) sees.
     PROVIDES_COND: frozenset = frozenset({"value_goal", "goal"})
 
+    # infer_cond's base measure. Unannotated, so it stays a CLASS attribute rather than a
+    # dataclass field: the answer does not depend on the instance. Under the reward-sample
+    # index this is the pinned rho_phi, "the NEXT-state query marginal" the whole centered
+    # solve (mu_hat / C_hat / rbar / m_c) is estimated against -- see `infer_cond`'s
+    # docstring, which calls out impls/main.py passing rb["observations"] as the caller-side
+    # bug this declaration fixes. With the index OFF, infer_cond is the goal placeholder and
+    # ignores `obs` entirely, so the declaration costs that arm nothing.
+    INFER_COND_MARGINAL = "next_observations"
+
     # F(s, a, g): the row is g-indexed, so the TD target must bootstrap at that same g.
     # Reading the actor-goal action instead makes w_bar a goal-averaged (behaviour-like)
     # density -- measured density_ess_median ~310 against a healthy ~89.
@@ -788,10 +797,11 @@ class DensityFBCritic:
         TWO THINGS THE CALLER OWNS, neither of which this method can check for you:
           * WHICH ROWS. The pinned base measure rho_phi is the NEXT-state query marginal --
             that is what the measure is trained against and what mu_hat/C_hat are estimated
-            from here. impls/main.py's --infer_cond_episodes path passes rb["observations"],
-            i.e. the CURRENT states. On a play dataset the two marginals are close, but they
-            are not the same object, and nothing downstream will complain. Pass
-            next_observations if you want the index solved against the measure's own support.
+            from here. This is now DECLARED (`INFER_COND_MARGINAL = "next_observations"`) and
+            impls/main.py slices the batch by that declaration, so the caller no longer picks.
+            It used to pass rb["observations"], i.e. the CURRENT states: on a play dataset the
+            two marginals are close, but they are not the same object, and nothing downstream
+            complains -- which is exactly why the choice is a critic-side declaration now.
           * WHICH REWARDS. `rewards` must be the task reward on those rows. GCDataset's
             reward column is the GOAL-REACHING reward, which is near-constant on most
             samples; a near-constant reward legitimately carries no task information and the

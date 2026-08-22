@@ -16,6 +16,9 @@ class Critic(Protocol):
     BOOT_COND: str          # which cond the TD bootstrap action must be drawn at:
                             # "actor_goal" (default) -> boot["next_action"]
                             # "value_goal"           -> boot["next_action_vgoal"]
+    INFER_COND_MARGINAL: str  # which batch column infer_cond()'s `obs` rows come from;
+                            # see INFER_COND_MARGINALS below. No default -- a critic that
+                            # does not declare it is rejected by infer_cond_rows().
     cvec_dim: int           # width of cond_vec(cond) — the actor's conditioning input
 
     def eval_cond0(self, ex_obs, config): ...   # initial eval-time cond (FB: {"z":..}, GC: {"goal":..})
@@ -28,6 +31,48 @@ class Critic(Protocol):
     def cond_vec(self, cond): ...            # conditioning vector actors concat onto obs
     def sample_cond(self, net, batch, rng): ...
     def infer_cond(self, net, obs, rewards): ...
+
+
+# ── which marginal `infer_cond` is solved against ──────────────────────────────────────
+# A critic's zero-shot reward->conditioning readout integrates the reward against a BASE
+# MEASURE, and which measure that is belongs to the critic's own math, not to the caller.
+# The FB family (fb / isfb / rldp / psm / density_fb) all build their backward/index tower on
+# SUCCESSOR states -- `goal = next_obs` in stage_loss, `B(next_observations)` in sample_cond,
+# density_fb's pinned rho_phi is "the next-state query marginal" -- so their readout has to be
+# solved on next_observations, paired with the reward of that same transition. impls/main.py
+# passed rb["observations"] for every critic, which is a DIFFERENT marginal that nothing
+# downstream complains about.
+#
+# Rather than pick one column for all of them, each critic declares its own:
+#   "next_observations" -- the successor / query marginal (the whole FB family)
+#   "observations"      -- the current-state marginal
+#   "unused"            -- infer_cond ignores `obs` entirely. Every goal-conditioned critic
+#                          here is in this class: its infer_cond returns a fixed zero
+#                          placeholder that the eval goal path overrides. The caller still
+#                          has to pass something; `infer_cond_rows` hands it _UNUSED_ROWS,
+#                          and the declaration is what says out loud that nothing reads it.
+INFER_COND_MARGINALS = ("observations", "next_observations", "unused")
+_UNUSED_ROWS = "next_observations"
+
+
+def infer_cond_marginal(critic):
+    """`critic`'s declared INFER_COND_MARGINAL, validated. Raises rather than defaulting:
+    silently guessing a marginal is exactly the bug this declaration exists to prevent."""
+    m = getattr(critic, "INFER_COND_MARGINAL", None)
+    if m not in INFER_COND_MARGINALS:
+        raise ComboError(
+            f"{_name(critic)}.INFER_COND_MARGINAL is {m!r}; every critic must declare one of "
+            f"{list(INFER_COND_MARGINALS)} so the --infer_cond_episodes caller knows which "
+            f"batch column its infer_cond() expects (the FB family is solved against the "
+            f"NEXT-state marginal its backward tower is trained on)."
+        )
+    return m
+
+
+def infer_cond_rows(critic):
+    """-> the BATCH KEY whose rows feed `critic.infer_cond(net, obs, rewards)`."""
+    m = infer_cond_marginal(critic)
+    return _UNUSED_ROWS if m == "unused" else m
 
 
 def _name(obj):

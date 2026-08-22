@@ -42,9 +42,18 @@ Two real limitations follow, and neither is papered over:
      finished for exactly this reason.
   2. The COLLECTION policy is conditioned on the EVAL goal (`eval_goal_mode`: one fixed goal
      frame, or a per-episode synthesised one), not on a diverse goal distribution. Online
-     exploration is therefore task-directed: the buffer's state coverage is whatever the
-     eval task induces, so hindsight goals are drawn from that narrower support. A proper
-     goal-diverse exploration schedule is NOT implemented.
+     exploration is therefore task-directed, and the consequence compounds: the buffer's
+     state coverage is whatever pi(.|s, g_eval) induces, and the hindsight goals GCDataset
+     then relabels are drawn from THAT support, so both halves of the online batch --
+     the states and the goals -- inherit the eval task's narrowness. Nothing in the loss
+     notices; it simply trains a successor measure on a sliver of the state space.
+
+     `--online_explore_goal_prob` (default 0.0 = the behaviour described above, exactly)
+     is the one small dial provided against this: with probability p, an episode is
+     collected against a goal drawn uniformly from the states already in the replay buffer
+     instead of the eval goal. It widens the support the rollouts visit; it is NOT a
+     principled exploration schedule (no novelty, no coverage objective, no curriculum) and
+     is not claimed to be one. See `OnlineTrainer._episode_goal`.
 
 Reproducibility
 ---------------
@@ -56,9 +65,22 @@ policy's own randomness from a private JAX key. Env resets go through
 Reset seeds are shifted by `--online_reset_seed_offset` (default 1e6) so that ONLINE
 episodes never land on the initial states `evaluate()` scores (it uses seeds 0..N).
 """
+import json
+import os
+
 import numpy as np
 
 from impls.utils.datasets import FBDataset, make_dataset
+
+# Bumped whenever the on-disk layout of online_state_<step>.npz changes incompatibly.
+STATE_VERSION = 1
+
+
+def state_path(run_dir, step):
+    """Where a run's online state (replay buffer + collector position + RNG) is written.
+    Sits beside params_<step>.pkl so a checkpoint and its buffer travel together."""
+    return os.path.join(run_dir, f"online_state_{int(step)}.npz")
+
 
 # The keys the offline datasets emit, for reference and for tests. The actual requirement is
 # per-critic and is taken from the offline dataset at runtime (see OnlineTrainer.create):
@@ -186,6 +208,46 @@ class ReplayBuffer:
         self._dirty = True
         return cut
 
+    # ---------------- persistence (--restore_path with --online) ----------------
+    def state_dict(self):
+        """The FINISHED-episode prefix, as plain arrays.
+
+        The in-progress episode is deliberately dropped: it is not sampleable (no boundary
+        terminal), the collector restarts on a fresh `env.reset()` anyway, and keeping it
+        would mean also persisting the env's own internal state, which no backend here
+        exposes. The cost is at most one partial episode of collected data per resume.
+        """
+        n = self._n_complete
+        out = {name: getattr(self, name)[:n].copy() for name in _STORED}
+        out["_n_complete"] = np.int64(n)
+        out["_episodes"] = np.int64(self._episodes)
+        out["_capacity"] = np.int64(self.capacity)
+        return out
+
+    def load_state_dict(self, d):
+        """Inverse of `state_dict`, with the shape checks that turn a mismatched resume into
+        a named error instead of a silently half-filled buffer."""
+        obs = np.asarray(d["observations"])
+        act = np.asarray(d["actions"])
+        n = int(np.asarray(d["_n_complete"]))
+        if obs.shape[1:] != self.observations.shape[1:] or act.shape[1:] != self.actions.shape[1:]:
+            raise ValueError(
+                f"online state has observations{obs.shape[1:]} / actions{act.shape[1:]} but "
+                f"this run's buffer is observations{self.observations.shape[1:]} / "
+                f"actions{self.actions.shape[1:]} -- the checkpoint is from a different "
+                f"env/domain, and restoring it would train on the wrong shapes.")
+        if n > self.capacity:
+            raise ValueError(
+                f"online state holds {n} rows but --online_buffer_size is {self.capacity}. "
+                f"Raise it to at least {n} (silently truncating a replay buffer changes the "
+                f"data distribution the resume trains on).")
+        for name in _STORED:
+            getattr(self, name)[:n] = np.asarray(d[name])
+        self._n = self._n_complete = n
+        self._episodes = int(np.asarray(d["_episodes"]))
+        self._dirty = True
+        return n
+
     def _compact(self):
         """Drop the oldest whole episodes until at least half the capacity is free."""
         ends = np.nonzero(self.terminals[:self._n_complete] > 0)[0]
@@ -249,7 +311,8 @@ class OnlineTrainer:
 
     def __init__(self, adapter, env, cfg, buffer, *, env_steps_per_update=1.0,
                  action_noise=0.1, temperature=1.0, warmup_steps=0,
-                 reset_seed_offset=1_000_000, seed=0, horizon=None, tasks=None):
+                 reset_seed_offset=1_000_000, seed=0, horizon=None, tasks=None,
+                 explore_goal_prob=0.0):
         self.adapter = adapter
         self.env = env
         self.cfg = cfg
@@ -260,6 +323,9 @@ class OnlineTrainer:
         self.temperature = float(temperature)
         self.warmup_steps = int(warmup_steps)
         self.reset_seed_offset = int(reset_seed_offset)
+        self.explore_goal_prob = float(explore_goal_prob)
+        assert 0.0 <= self.explore_goal_prob <= 1.0, \
+            f"online_explore_goal_prob must be in [0,1], got {explore_goal_prob}"
         self.obs_mask = list(cfg.get("obs_mask_dims") or ())
         self.goal_mask = list(cfg.get("goal_mask_dims") or ())
         self.horizon = int(horizon if horizon is not None
@@ -304,11 +370,11 @@ class OnlineTrainer:
         return g
 
     def _needs_goal(self, agent):
-        """Verbatim the rule env/unified.py::evaluate uses to decide whether the actor has to
-        be handed an explicit goal frame."""
-        provides = set(getattr(agent.critic, "PROVIDES_COND", ()) or ())
-        return ("goal" in provides and "z" not in provides) \
-            or hasattr(agent.critic, "map_eval_cond")
+        """LITERALLY the rule env/unified.py::evaluate uses to decide whether the actor has
+        to be handed an explicit goal frame -- the same function, not a second copy of it
+        (the copy is how the two drifted apart before)."""
+        from env.base import needs_goal_frame
+        return needs_goal_frame(agent)
 
     def _reset(self):
         task = self.tasks[self._episode_index % len(self.tasks)]
@@ -320,6 +386,34 @@ class OnlineTrainer:
         return self.env.reset(options=dict(task_id=task, render_goal=False))
 
     def _episode_goal(self, agent, raw_obs, info):
+        """The goal this EPISODE is collected against -- i.e. what the exploration policy is
+        conditioned on for the whole rollout.
+
+        ⚠ READ THIS BEFORE TRUSTING ONLINE COVERAGE. By default this is the EVAL goal: one
+        fixed frame from the offline data, or the per-episode synthesised one. Every online
+        episode is therefore a rollout of pi(.|s, g_eval), the buffer holds only the states
+        that policy reaches, and GCDataset's hindsight relabelling can only draw goals from
+        those same states. Online mode does not widen a critic's goal support by itself; it
+        deepens it along one task. That is a real limitation of this file, not an accident of
+        configuration (module docstring, limitation 2).
+
+        `--online_explore_goal_prob` (default 0.0) is the deliberately small dial against it:
+        per episode, with that probability, collect against a state sampled uniformly from
+        the buffer instead. The draw uses the PRIVATE generator, and at p == 0 no draw
+        happens at all, so the default path is bit-identical to before the knob existed.
+        """
+        goal = self._eval_goal(agent, raw_obs, info)
+        if goal is None or self.explore_goal_prob <= 0.0:
+            return goal
+        # Buffer-empty (first episodes) has nothing to sample: fall back to the eval goal
+        # rather than inventing a frame.
+        if self.buffer.size > 0 and self._np_rng.random() < self.explore_goal_prob:
+            i = int(self._np_rng.integers(self.buffer.size))
+            return self._prep_goal(self.buffer.next_observations[i])
+        return goal
+
+    def _eval_goal(self, agent, raw_obs, info):
+        """The eval-protocol goal frame -- the pre-existing `_episode_goal` body, unchanged."""
         if not self._needs_goal(agent):
             return None
         if not self._is_unified():
@@ -354,7 +448,11 @@ class OnlineTrainer:
     def _action(self, agent):
         """Exploration policy: the agent's own sample_actions plus Gaussian noise, uniform
         random during warmup. Both the noise and the warmup draws come from the private
-        generator, so exploration never shifts the batch stream."""
+        generator, so exploration never shifts the batch stream.
+
+        The only exploration pressure here is isotropic action noise around a policy that is
+        conditioned on `self._ep_goal` -- see `_episode_goal` for why that goal is normally
+        the eval goal, and what that costs the buffer's coverage."""
         act_dim = self.buffer.actions.shape[1]
         if self.env_steps < self.warmup_steps:
             return self._np_rng.uniform(-1.0, 1.0, size=act_dim).astype(np.float32)
@@ -415,6 +513,74 @@ class OnlineTrainer:
     def sample(self, batch_size):
         return self.buffer.sample(batch_size)
 
+    # ---------------- persistence (--restore_path with --online) ----------------
+    #
+    # WHY THIS EXISTS. `--restore_path` restores the AGENT (impls/utils/flax_utils.py::
+    # restore_agent: params, target params, optimizer state, rng). Under --online that was
+    # only half the run's state: the replay buffer came back EMPTY, `prefill` re-ran, and the
+    # resumed run trained a fully-trained agent against a few thousand fresh warmup
+    # transitions -- a silent distribution change that looks exactly like a working resume in
+    # the logs. Everything the collector carries is therefore checkpointed here, and
+    # impls/main.py REFUSES the combination outright when this file is missing rather than
+    # falling back to that behaviour (see --online_restore_buffer).
+    def save_state(self, run_dir, step):
+        """Write the replay buffer + collector position + both private RNG streams next to
+        params_<step>.pkl. Returns the path written."""
+        import jax
+        d = self.buffer.state_dict()
+        d["_version"] = np.int64(STATE_VERSION)
+        d["_env_steps"] = np.int64(self.env_steps)
+        d["_episode_index"] = np.int64(self._episode_index)
+        d["_debt"] = np.float64(self._debt)
+        # `key_data` gives the raw uint32 words for either key flavour (legacy array key or
+        # typed key<fry>); `restore_state` puts them back in whichever flavour this trainer
+        # is already using, so a resume never silently changes the key's TYPE.
+        d["_jax_key"] = np.asarray(jax.random.key_data(self._key))
+        # The bit-generator state is a nested dict of python ints; json is the only lossless
+        # container an npz will take.
+        d["_np_rng_state"] = np.asarray(json.dumps(self._np_rng.bit_generator.state,
+                                                   default=int))
+        path = state_path(run_dir, step)
+        np.savez(path, **d)
+        return path
+
+    def restore_state(self, run_dir, step):
+        """Inverse of `save_state`. Raises FileNotFoundError (named, with the path) when the
+        checkpoint has no online state -- the caller decides what that means, and
+        impls/main.py treats it as a hard error."""
+        import jax
+        path = state_path(run_dir, step)
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"no online state at {path}. A --restore_path checkpoint carries the replay "
+                f"buffer only if it was itself saved by an --online run of this code; "
+                f"resuming without it would restart collection from an EMPTY buffer and "
+                f"re-run prefill. Pass --online_restore_buffer=false if that is genuinely "
+                f"what you want.")
+        with np.load(path, allow_pickle=False) as z:
+            d = dict(z)
+        version = int(np.asarray(d["_version"]))
+        if version != STATE_VERSION:
+            raise ValueError(
+                f"{path} was written by online-state version {version}, this code reads "
+                f"{STATE_VERSION}")
+        n = self.buffer.load_state_dict(d)
+        self.env_steps = int(np.asarray(d["_env_steps"]))
+        self._episode_index = int(np.asarray(d["_episode_index"]))
+        self._debt = float(np.asarray(d["_debt"]))
+        # Match the flavour the trainer was constructed with (see save_state): a raw uint32
+        # array key stays raw, a typed key gets re-wrapped. wrap_key_data always returns a
+        # TYPED key, so applying it unconditionally would change the object type across a
+        # resume even though the bits are the same.
+        key = jax.numpy.asarray(np.asarray(d["_jax_key"]))
+        self._key = (key if jax.numpy.issubdtype(self._key.dtype, jax.numpy.integer)
+                     else jax.random.wrap_key_data(key))
+        self._np_rng.bit_generator.state = json.loads(str(np.asarray(d["_np_rng_state"])))
+        # The in-progress episode was not persisted (see ReplayBuffer.state_dict), so the
+        # next collect() starts a fresh one.
+        self._obs = None
+        return n
+
     def stats(self):
         out = {"online/env_steps": float(self.env_steps),
                "online/buffer_size": float(self.buffer.size),
@@ -428,18 +594,25 @@ class OnlineTrainer:
 
     # ---------------- construction ----------------
     @classmethod
-    def create(cls, adapter, env, cfg, offline_ds, example_batch, flags_ns):
+    def create(cls, adapter, env, cfg, offline_ds, example_batch, flags_ns,
+               seed_offline=None):
         """Build the buffer + trainer from the resolved config and the --online_* flags.
 
         `example_batch` is the one-row offline batch impls/main.py already draws; its KEY SET
         is what online batches are validated against, so the requirement is whatever the
         offline dataset for THIS critic actually emits.
+
+        `seed_offline` overrides --online_seed_offline; impls/main.py passes False when it is
+        about to `restore_state`, since a restored buffer replaces its contents wholesale and
+        seeding first would be work whose result is thrown away.
         """
         obs_dim = int(np.asarray(example_batch["observations"]).shape[-1])
         act_dim = int(np.asarray(example_batch["actions"]).shape[-1])
         buffer = ReplayBuffer(flags_ns.online_buffer_size, obs_dim, act_dim, cfg,
                               required_keys=tuple(example_batch.keys()))
-        if flags_ns.online_seed_offline:
+        if seed_offline is None:
+            seed_offline = flags_ns.online_seed_offline
+        if seed_offline:
             base = getattr(offline_ds, "dataset", offline_ds)   # unwrap GCDataset/HGCDataset
             n = buffer.seed_from(base, flags_ns.online_seed_transitions or None)
             print(f"[online] seeded replay buffer with {n} offline rows "
@@ -450,4 +623,5 @@ class OnlineTrainer:
                    temperature=flags_ns.online_temperature,
                    warmup_steps=flags_ns.online_start_steps,
                    reset_seed_offset=flags_ns.online_reset_seed_offset,
-                   seed=flags_ns.seed, tasks=adapter.eval_tasks(env, cfg))
+                   seed=flags_ns.seed, tasks=adapter.eval_tasks(env, cfg),
+                   explore_goal_prob=getattr(flags_ns, "online_explore_goal_prob", 0.0))

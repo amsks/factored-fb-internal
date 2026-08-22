@@ -29,6 +29,9 @@ class GCIQLCritic:
     STAGES = ("iql",)
     PROVIDES_V = True
     PROVIDES_COND = frozenset({"value_goal", "goal"})  # sample_cond() produces these
+    # infer_cond here is a fixed zero placeholder that the eval goal path overrides, so it
+    # never reads `obs`. Declared rather than defaulted -- see base.py::INFER_COND_MARGINALS.
+    INFER_COND_MARGINAL = "unused"
 
     @property
     def TARGETS(self):

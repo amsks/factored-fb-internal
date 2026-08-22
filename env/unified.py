@@ -27,6 +27,7 @@ import numpy as np
 
 from impls.utils.datasets import FBDataset
 from env import registry
+from env.base import needs_goal_frame
 
 # newt's env backends (rlmini / metaworld / maniskill). Its envs/__init__ imports dm_control
 # for dmcontrol tasks we don't use, so bind the namespace directly instead of importing it.
@@ -313,9 +314,10 @@ class UnifiedAdapter:
         # an explicit goal, for which we use the highest-reward next_obs in the offline data.
         # A z-critic exposing map_eval_cond (fb) also needs the goal frame: the hook embeds
         # it into z at eval — without it the stored eval z is the zero vector (goal-blind).
-        provides = set(getattr(agent.critic, "PROVIDES_COND", ()) or ())
-        needs_goal = ("goal" in provides and "z" not in provides) \
-            or hasattr(agent.critic, "map_eval_cond")
+        # An agent rolling an INFERRED conditioning (--eval_on_inferred_cond) needs none, and
+        # must not be handed one. env/base.py::needs_goal_frame is the whole rule, and is the
+        # same function env/online.py's collector calls.
+        needs_goal = needs_goal_frame(agent)
 
         # Observation masking must match training (GCDataset obs_mask_dims) or the policy sees
         # a distribution it was never trained on -- and, on goal-observable envs, would get the
