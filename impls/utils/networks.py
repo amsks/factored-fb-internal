@@ -183,6 +183,70 @@ class ForwardMap(nn.Module):
         return tower(obs_feat, z, action)
 
 
+class _PredictorTower(nn.Module):
+    """One (non-ensembled) self-predictive tower. Transcribed from nn_models.VForwardMap
+    (the module `agents/rldp/model.py` builds as `_predictor`), which differs from
+    `_ForwardTower`/nn_models.ForwardMap in exactly one place: its SECOND embedding sees
+    the state alone (`embed_s(obs)`) rather than the state-action pair
+    (`embed_sa([obs, action])`). Concat order is `[s_embedding, z_embedding]`, matching
+    `VForwardMap.forward`.
+
+    Here `x` plays VForwardMap's `obs` (a z_dim-wide backward embedding) and `action`
+    plays its `z`."""
+
+    out_dim: int
+    hidden_dim: int
+    hidden_layers: int = 1
+    embedding_layers: int = 2
+
+    def setup(self):
+        assert self.embedding_layers == 2, "only embedding_layers=2 supported (reference default)"
+        h = self.hidden_dim
+        self.embed_z_0 = nn.Dense(h, kernel_init=_ORTH_RELU)
+        self.embed_z_ln = nn.LayerNorm(epsilon=1e-5)
+        self.embed_z_3 = nn.Dense(h // 2, kernel_init=_ORTH_RELU)
+        self.embed_s_0 = nn.Dense(h, kernel_init=_ORTH_RELU)
+        self.embed_s_ln = nn.LayerNorm(epsilon=1e-5)
+        self.embed_s_3 = nn.Dense(h // 2, kernel_init=_ORTH_RELU)
+        self.fs = [nn.Dense(h, kernel_init=_ORTH_RELU) for _ in range(self.hidden_layers)] \
+            + [nn.Dense(self.out_dim, kernel_init=_ORTH_RELU)]
+
+    def __call__(self, x, action):
+        ze = nn.relu(self.embed_z_3(jnp.tanh(self.embed_z_ln(
+            self.embed_z_0(jnp.concatenate([x, action], -1))))))
+        se = nn.relu(self.embed_s_3(jnp.tanh(self.embed_s_ln(self.embed_s_0(x)))))
+        y = jnp.concatenate([se, ze], -1)
+        for layer in self.fs[:-1]:
+            y = nn.relu(layer(y))
+        return self.fs[-1](y)
+
+
+class PredictorMap(nn.Module):
+    """Ensembled self-predictive head P(x, a) -> [num_parallel, B, out_dim].
+
+    Head p reads ITS OWN slice `x[p]`, which is what makes the rollout
+    `curr = P(curr, a_t)` well defined: the torch reference gets this from
+    `obs.expand(num_parallel, -1, -1)` + DenseParallel's per-head bmm (a no-op expand once
+    `curr` is already [P, B, z]). So `x` is [num_parallel, B, in_dim] on EVERY call --
+    the caller broadcasts the [B, z_dim] starting point itself -- while `action` is
+    [B, action_dim] and is shared across heads."""
+
+    out_dim: int
+    hidden_dim: int
+    num_parallel: int = 2
+    hidden_layers: int = 1
+    embedding_layers: int = 2
+
+    @nn.compact
+    def __call__(self, x, action):
+        tower = ensemblize(_PredictorTower, self.num_parallel, in_axes=(0, None))(
+            out_dim=self.out_dim, hidden_dim=self.hidden_dim,
+            hidden_layers=self.hidden_layers, embedding_layers=self.embedding_layers,
+            name="tower",
+        )
+        return tower(x, action)
+
+
 class FBTd3Actor(nn.Module):
     """TD3 actor (reference nn_models.Actor): mu = tanh(policy(concat[embed_s(obs),
     embed_z([obs,z])])). Carried for the td3 path; unused on the flowbc cube path."""

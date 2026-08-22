@@ -288,6 +288,101 @@ class HGCDataset(GCDataset):
 
 
 @dataclasses.dataclass
+class WindowedDataset:
+    """h-step WINDOWED batches: the FB training batch plus, for every sampled index, the
+    next h-1 (observation, action) pairs.
+
+    Added for RLDP (impls/critics/rldp.py), whose self-predictive head rolls a learned
+    predictor forward h steps from B(obs) and matches each step against the target
+    backward map at the corresponding future state. The torch reference gets these from
+    `DictBuffer.sample(batch_size, horizon=h)` and slices `batch["observation"][:, 1:]` /
+    `batch["action"][:, 1:]` (agents/rldp/agent.py::update); this is the seam's equivalent.
+
+    Emits, on top of everything `FBDataset.sample` emits:
+      * future_observations -- [B, h-1, obs_dim]
+      * future_actions      -- [B, h-1, action_dim]
+    with column k (0-based) being dataset row `min(idx + 1 + k, traj_final_idx)`.
+    Column 0 is therefore s_{t+1}, the same row `next_observations` carries.
+
+    TRAJECTORY BOUNDARIES. The window is clamped to the anchor row's OWN final index,
+    exactly as `HGCDataset.sample` clamps `low_actor_goals`
+    (`np.minimum(idxs + subgoal_steps, final_state_idxs)`) and as `GCDataset.sample`
+    clamps `next_actions`. Clamping to `size - 1` instead -- the shape-correct, silently
+    wrong version -- would let a window that starts near the end of an episode read the
+    opening rows of the NEXT episode, and the predictor would be trained to roll a
+    dynamics model into an unrelated trajectory with nothing failing loudly. Clamping
+    repeats the trajectory's own last row instead, which is the standard convention and
+    the only locally-available choice.
+
+    h == 1 is the degenerate no-window case (the reference's `if self.horizon > 1` guard):
+    no future keys are emitted at all, and the batch is exactly an FB batch.
+    """
+    dataset: Dataset
+    config: Any
+
+    def __post_init__(self):
+        self.size = self.dataset.size
+        (self.terminal_locs,) = np.nonzero(np.asarray(self.dataset['terminals']) > 0)
+        self.initial_locs = np.concatenate([[0], self.terminal_locs[:-1] + 1])
+        assert self.terminal_locs[-1] == self.size - 1
+        # obs_mask_dims|goal_mask_dims are unioned exactly as make_dataset does for
+        # FBDataset: FB's goal IS next_observations, so both knobs blank the same frames.
+        dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
+                      set(self.config.get('goal_mask_dims') or ()))
+        self.mask_dims = list(dims) or None
+
+    @property
+    def horizon(self):
+        h = self.config.get('horizon')
+        if h is None:
+            raise KeyError(
+                "WindowedDataset requires config key 'horizon' (the number of steps in a "
+                "window; RLDP's default is 5); without it the self-predictive rollout "
+                "length is undefined and would silently degrade to a one-step loss")
+        h = int(h)
+        assert h >= 1, f"horizon must be >= 1, got {h}"
+        return h
+
+    def sample(self, batch_size, idxs=None):
+        h = self.horizon
+        if idxs is None:
+            idxs = self.dataset.get_random_idxs(batch_size)
+        idxs = np.asarray(idxs)
+        sub = self.dataset.get_subset(idxs)
+        B = idxs.shape[0]
+
+        obs = np.asarray(sub['observations'], np.float32)
+        nobs = np.asarray(sub['next_observations'], np.float32)
+        if 'rewards' in sub:
+            rewards = np.asarray(sub['rewards'], np.float32).reshape(B, -1)
+        else:
+            rewards = np.zeros((B, 1), np.float32)  # play data is unlabeled
+        batch = {
+            'observations': obs,
+            'actions': np.asarray(sub['actions'], np.float32),
+            'next_observations': nobs,
+            'rewards': rewards,
+            'terminals': np.zeros((B,), np.float32),  # always-gamma, as FBDataset
+        }
+
+        if h > 1:
+            all_obs, all_acts = self.dataset['observations'], self.dataset['actions']
+            final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
+            offsets = np.arange(1, h)                                   # [h-1]
+            win = np.minimum(idxs[:, None] + offsets[None, :],          # [B, h-1]
+                             final_idxs[:, None])
+            batch['future_observations'] = np.asarray(all_obs[win], np.float32)
+            batch['future_actions'] = np.asarray(all_acts[win], np.float32)
+
+        if self.mask_dims:
+            batch['observations'][:, self.mask_dims] = 0.0
+            batch['next_observations'][:, self.mask_dims] = 0.0
+            if h > 1:
+                batch['future_observations'][:, :, self.mask_dims] = 0.0
+        return batch
+
+
+@dataclasses.dataclass
 class VIPDataset:
     """VIP sub-trajectory batches (Ma et al., Algorithm 1), state-based.
 
@@ -337,6 +432,8 @@ def make_dataset(base, config):
         return HGCDataset(base, config)
     if config.get('dataset_class') == 'VIPDataset':
         return VIPDataset(base, config)
+    if config.get('dataset_class') == 'WindowedDataset':
+        return WindowedDataset(base, config)
     if isinstance(base, FBDataset):
         dims = sorted(set(config.get('obs_mask_dims') or ()) |
                       set(config.get('goal_mask_dims') or ()))

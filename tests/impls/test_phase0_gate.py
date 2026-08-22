@@ -23,6 +23,7 @@ A ConfigError from load_config() for ANY pair is a hard failure here, not a skip
 a config YAML is broken (e.g. a required key like critic/fb.yaml's `ortho_coef` went
 missing), and this gate exists to catch exactly that.
 """
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -38,6 +39,22 @@ PAIRS = [(c, a) for c in CRITICS for a in ACTORS]
 # (z for FB/ISFB, goal otherwise) and AWRActor falls back to a policy-baseline advantage when
 # the critic has no V. Every one of the 32 pairs must construct and train.
 EXPECTED_COMBO_ERRORS = set()
+
+
+@pytest.fixture(autouse=True)
+def _drop_compilation_caches():
+    """Every pair jits its own `Agent.update`, and jax retains each compiled executable in
+    a process-global cache. Across the full cross-product that accumulation is what the
+    process dies of: with 97 pairs it aborts inside XLA compilation (`Fatal Python error:
+    Aborted`, no traceback, in jax/_src/interpreters/pxla.py::compile) somewhere in the
+    last few tests -- while the SAME pair compiles in ~3s / ~1.1 GB in a fresh process.
+
+    Dropping the caches between pairs removes the accumulation. It cannot change what this
+    gate measures: the only assertion here is that actor_loss is finite, and a cleared
+    compilation cache recompiles to the identical executable.
+    """
+    yield
+    jax.clear_caches()
 
 
 @pytest.mark.parametrize("critic,actor", PAIRS)
