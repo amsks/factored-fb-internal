@@ -50,6 +50,13 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            "value_forward": "lr_f",                       # isfb F_V rides the forward group
            "value": "lr", "critic": "lr", "center_b": "lr",  # gciql / centered_bilinear groups
            "density_f": "lr", "density_b": "lr",           # density_fb's two towers
+           # density_fb's index state under measure_density_z (default off, so these groups
+           # only EXIST on that arm). Neither ever receives a gradient -- they are not in
+           # any stage_groups and not in the actor's GROUPS -- so the optimizer built here
+           # is never stepped; they live in `net` because that is the only container every
+           # consumer (sample_cond, q_fn via `params`, infer_cond, map_eval_cond) can see,
+           # and because `net` is what save_agent serializes.
+           "density_b_zenc": "lr", "density_zstats": "lr",
            "goal_rep": "lr", "high_actor": "lr",                             # hiql's high-level policy, which
                                                            # the CRITIC owns (see critics/hiql.py)
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf
@@ -98,6 +105,18 @@ class Agent(flax.struct.PyTreeNode):
         for g, tau in self.critic.TARGETS.items():
             target[g] = soft_update(net[g].params, target[g], tau)
 
+        # Optional critic hook for state that is neither a gradient target nor a polyak
+        # target: running statistics and one-shot frozen draws a critic maintains itself
+        # (density_fb's index moments mu_hat/C_hat, its slow-EMA index tower, and its frozen
+        # eval pool). `self.net` is passed as the PRE-STEP online params because that is the
+        # source discipline the bridge uses for all three (gciql_flow.py `update`, ~3849-3939
+        # reads self.network.params, not the post-step new_network).
+        #
+        # Additive: a critic that does not define the method is untouched and nothing extra
+        # is traced for it, so the 60-pair byte-identity gate is unaffected.
+        if hasattr(self.critic, "update_stats"):
+            net = self.critic.update_stats(net, self.net, batch)
+
         return self.replace(net=net, target=target), info
 
     def compute_static(self, batch, cond, boot):
@@ -115,7 +134,15 @@ class Agent(flax.struct.PyTreeNode):
     def update(self, batch):
         new_rng, rng = jax.random.split(self.rng)
         r_cond, r_boot = jax.random.split(rng)
-        cond = self.critic.sample_cond(self.net, batch, r_cond)
+        # A critic whose conditioning needs the TARGET towers declares it statically. Only
+        # density_fb under measure_density_z does: its actor-q reward vector is read off the
+        # target backward tower (bridge `_density_actor_q_z`), and q_fn -- which the actor
+        # calls with online params only -- has no other way to reach it. A static attribute
+        # rather than a try/except TypeError so no partially-traced call can be swallowed.
+        if getattr(self.critic, "SAMPLE_COND_WANTS_TARGET", False):
+            cond = self.critic.sample_cond(self.net, batch, r_cond, target=self.target)
+        else:
+            cond = self.critic.sample_cond(self.net, batch, r_cond)
         boot = self.actor.sample_bootstrap(self.net, batch, cond, r_boot)
         new_agent, info = self.apply_update(batch, cond, boot)
         return new_agent.replace(rng=new_rng), info

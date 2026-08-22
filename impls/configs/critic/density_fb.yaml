@@ -69,6 +69,18 @@ measure_density_z_cov_eig_floor: 1.0e-6     # eigenvalues of C_hat below this mu
   # tr(C_hat)/d are lifted to it before the solve. The centered covariance of a d=50 tower
   # has genuinely near-zero directions (measured effective rank 6-21 of 50); an unfloored
   # inverse amplifies whatever numerical noise sits in them.
+measure_density_z_enc_tau: 0.0005           # tau_z: EMA rate of density_b_zenc, the SLOW
+  # copy of the backward tower that encodes the index. The centered encoder REQUIRES this
+  # > 0 -- at 0 the index would be encoded with the fast-drifting target tower, which is the
+  # known non-stationarity risk. Round-1 dose 0.0005 (10x slower than the critic tau).
+measure_density_z_sigma_tau: 0.005          # EMA rate of the stored mu_hat / C_hat. These
+  # are PERSISTENT leaves, not batch statistics: a per-batch d x d covariance would make the
+  # index jitter step to step, and a batch statistic at eval would not be the object training
+  # conditioned on.
+measure_density_z_eval_pool_m: 256          # M for the FROZEN eval pool -- the reward-sample
+  # API a native-goal eval goes through (goal -> r = kg(goal, pool) -> the same centered
+  # solve), instead of shortcutting to an analytic point prompt. Drawn once from the first
+  # update's next states, so it must be <= batch_size.
 measure_density_z_const_eps: 1.0e-6         # CONSTANT-REWARD FALLBACK threshold on ||c||.
   # A reward that is (near-)constant on the pool carries no task information; below this the
   # index returns the all-ones vector (norm sqrt(d), so still in the conditioning

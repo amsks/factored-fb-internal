@@ -46,16 +46,40 @@ tools/wandb_mode_shim/gciql_flow.py ~1176-1341 (`_density_z_moments`,
 `_density_z_centered_coef`, `_density_z_centered_index`, `_density_z_centered_moment`,
 `density_z_from_reward_samples`) plus `_sphere_or_neutral` ~34-50.
 
-TWO DELIBERATE DEVIATIONS FROM THE SHIM, both forced by this seam and both documented at
-their call sites: (a) the shim holds mu_hat/C_hat as EMA-tracked PARAM LEAVES written
-inside its `update` override; this seam has no critic-owned mutable state and no
-post-update hook, so the moments are the PLUG-IN estimate over the query pool the caller
-supplies (the batch's own next-state query marginal at training, the reward-sample pool at
-eval) -- the same population objects the pinned base measure rho_phi defines, but
-unsmoothed. (b) the shim encodes with a slow-EMA copy of the backward tower
-(`density_b_zenc`); here there is only the online `density_b`, read under stop_gradient.
-Both paths (train and eval) use the same construction, which is the property the shim's
-train/eval contract actually protects.
+STATE, and why it lives where it does. The index is NOT a function of the current batch:
+the shim states outright that batch statistics are forbidden (they reintroduce the
+train/eval mismatch that broke the first z build), so three objects persist across updates
+and serialize with the checkpoint, exactly as they do there:
+
+  * `density_b_zenc` -- the INDEX TOWER. A separate slow-EMA copy of density_b, init = a
+    copy of density_b (bridge ~5729-5733), mixed at measure_density_z_enc_tau inside the
+    update (~3849-3859). It is NOT the online tower and NOT `target_density_b`: the shipped
+    centered arm asserts measure_density_z_enc_tau > 0 (~4837-4841), which selects
+    `density_b_zenc` over `target_density_b` in `_density_z_enc_module` (~1125-1137),
+    because running the solve through the fast-drifting target tower is the known
+    non-stationarity risk.
+  * `density_zstats.mu` / `.cov` -- mu_hat and C_hat (bridge `ZCenteredMomentsState` ~189),
+    EMA'd at measure_density_z_sigma_tau over each batch's query set at the PRE-STEP index
+    tower (~3903-3921). Init mu = 0, C = I, so the first steps solve (I + lam I)^-1 m_c ~
+    m_c and the EMA walks onto the real moments with no cold-start blow-up.
+  * `density_zstats.pool` / `.filled` -- the FROZEN M-row eval pool (bridge `ZEvalPoolState`
+    ~218), a fixed draw of RAW hit-spec block coords from rho_phi written ONCE on the first
+    update (~3921-3939). It is what lets a native-goal eval go through the REWARD-SAMPLE API
+    (M = measure_density_z_eval_pool_m = 256 reward samples over the pool) instead of
+    silently substituting a point prompt -- the substitution that made spec 29's .812
+    uninterpretable.
+
+All three live in `net` (as ordinary groups that never receive a gradient) rather than in
+`target`, because `net` is the only container every consumer can reach -- `sample_cond` and
+`infer_cond`/`map_eval_cond` are handed `net`, and `q_fn` sees them through its `params`
+argument -- and because `net` is what `save_agent` serializes. They are written by the
+additive `update_stats` hook in impls/agents/__init__.py, which is a no-op for every critic
+that does not define it.
+
+ONE REMAINING STRUCTURAL DIFFERENCE, semantically neutral: the shim keeps mu/C
+(`ZCenteredMomentsState`) and the pool (`ZEvalPoolState`) as two separate registered
+modules; here they are four leaves of one `density_zstats` group. Nothing reads the param
+tree layout, and the checkpoints were never interchangeable (different repos).
 
 `actor_q_center` (bridge's "known gap", per the spec): the bridge's actor centers the
 Q-LOSS NORMALIZER (sg[mean|q - mean(q)|] instead of sg[mean|q|]); our FlowBCActor has no
@@ -132,6 +156,45 @@ def _sphere_or_neutral(x, d, eps):
     return jnp.where(degenerate, jnp.ones_like(x), x * jnp.sqrt(d * 1.0) / safe)
 
 
+class _ZStatsState(nn.Module):
+    """The persistent index state, held as ORDINARY PARAM LEAVES: mu_hat [d], C_hat [d, d],
+    the frozen eval pool [M, d_c] of RAW block coords, and its `filled` flag.
+
+    Combines the bridge's `ZCenteredMomentsState` (~189) and `ZEvalPoolState` (~218). They
+    are stored the way the towers are stored -- as params, mixed by hand in the update --
+    rather than recomputed per batch, for the two reasons the bridge gives:
+      * they SERIALIZE, so every eval harness reads the IDENTICAL object the training-time
+        conditioning used. Batch statistics are forbidden by the contract precisely because
+        they reintroduce the train/eval mismatch that broke the first z build (8/8 unit
+        tests green while the eval path was wrong, because no test drove the eval entry);
+      * the ridge solve (C_hat + lam I)^-1 m_c is only a stable, comparable object if C_hat
+        is quasi-stationary. A per-batch d x d covariance is a noisy, rank-deficient
+        estimate that would make the index jitter step to step.
+
+    Init mu = 0, C = I: at init the solve is (I + lam I)^-1 m_c ~ m_c and the EMA walks onto
+    the real moments within ~1/tau steps (a zero-C init would blow up). The pool inits to
+    zeros -- an eval before the first update then sees a constant kernel row, which the
+    constant-reward fallback catches and reports rather than silently encoding noise; in
+    practice `filled` is 1 after step 1.
+
+    The gradient is identically zero on every leaf (they are only ever read at frozen params
+    inside a stop_gradient), and the group is in no stage_groups, so `update_stats` is their
+    sole writer."""
+    dim: int
+    pool_m: int
+    d_c: int
+    dtype: Any = jnp.float32
+
+    @nn.compact
+    def __call__(self):
+        mu = self.param('mu', lambda _k: jnp.zeros((self.dim,), self.dtype))
+        cov = self.param('cov', lambda _k: jnp.eye(self.dim, dtype=self.dtype))
+        pool = self.param('pool',
+                          lambda _k: jnp.zeros((self.pool_m, self.d_c), self.dtype))
+        filled = self.param('filled', lambda _k: jnp.zeros((), self.dtype))
+        return mu, cov, pool, filled
+
+
 # ── the density kernel — _delta_phi / _density_queries / _raw_block_cols (bridge
 # gciql_flow.py ~1403-1449), NOT shared with td_fb (td_fb uses _hit_matrix, not this). ──
 def _density_queries(nobs, blocks):
@@ -146,6 +209,22 @@ def _raw_block_cols(obs_rows, blocks):
     `_density_queries` used as the `protos` argument to `_delta_phi`, which applies its
     own per-block eps scaling internally. Do NOT pre-scale this input."""
     parts = [obs_rows[:, a:b] for (a, b, e) in blocks]
+    return jnp.concatenate(parts, axis=-1)
+
+
+def _scale_block_cols(raw_cols, blocks):
+    """The eps scaling of `_density_queries` applied to ALREADY-SLICED raw block columns
+    ([*, d_c] in hit-spec order, i.e. `_raw_block_cols` output) rather than to full
+    observation rows (bridge gciql_flow.py ~2173-2185).
+
+    Needed by the frozen eval pool, which stores RAW coords because `_delta_phi` needs raw
+    rows while the B tower needs the eps-scaled twin. The two conventions must not be
+    crossed -- that is the double-scale trap this file's header warns about."""
+    parts, off = [], 0
+    for (a, b, e) in blocks:
+        w = b - a
+        parts.append(raw_cols[..., off:off + w] / e)
+        off += w
     return jnp.concatenate(parts, axis=-1)
 
 
@@ -204,8 +283,21 @@ class DensityFBCritic:
                                     # also a multiple of the mean eigenvalue tr(C)/d
     z_const_eps: float = 1e-6       # measure_density_z_const_eps: ||c|| below which the reward
                                     # counts as constant and the index falls back to 1_d
+    z_enc_tau: float = 0.0005       # measure_density_z_enc_tau (tau_z): EMA rate of the index
+                                    # tower density_b_zenc. The centered encoder REQUIRES > 0
+                                    # (bridge assertion ~4837) -- that is what makes the index
+                                    # tower the slow copy rather than the target tower.
+    z_sigma_tau: float = 0.005      # measure_density_z_sigma_tau: EMA rate of mu_hat / C_hat
+    z_eval_pool_m: int = 256        # measure_density_z_eval_pool_m: M for the frozen eval pool
+    # The two index-state groups' modules. None when the index is off, in which case neither
+    # group is registered and the param tree is byte-identical to the goal-conditioned arm.
+    density_b_zenc: Any = None
+    density_zstats: Any = None
 
-    GROUPS = ("density_f", "density_b")
+    # An INSTANCE field: `build` widens it to carry the index-state groups when the index is
+    # on. Agent.create reads it off the instance to size `net`; stage_groups deliberately
+    # does NOT return it, so the state groups never enter a gradient tape.
+    GROUPS: tuple = ("density_f", "density_b")
     STAGES = ("density",)
     PROVIDES_V = False
     # An INSTANCE field (annotated), not a class attribute: `build` widens it to include "z"
@@ -230,9 +322,17 @@ class DensityFBCritic:
         actor rides z exactly as it otherwise rides the goal."""
         return self.z_dim if self.z_on else self.obs_dim
 
+    # The critic's conditioning needs the target towers (see the Agent's `update` for why
+    # a static declaration rather than signature sniffing).
+    SAMPLE_COND_WANTS_TARGET = True
+
     def stage_groups(self, stage):
         assert stage == "density"
-        return self.GROUPS
+        # NOT self.GROUPS: under the index that also carries density_b_zenc/density_zstats,
+        # which are running statistics written by update_stats and must never appear in a
+        # gradient tape (their gradient is identically zero, but an optimizer step on them
+        # would still be a second writer).
+        return ("density_f", "density_b")
 
     # --- module apply helpers ---
     def _F(self, p, x):
@@ -276,27 +376,20 @@ class DensityFBCritic:
     # ported here, and it is what let spec 29's .812 read as general-encoder evidence when
     # it was a goal shortcut (spec 30 sections 4.8 and Rev 1).
     # ------------------------------------------------------------------------------------
-    def _z_moments(self, b_params, u_sc):
-        """(mu_hat [d], C_hat [d, d]) of the index tower's embeddings over the query pool.
+    def _zstats(self, net):
+        """The persistent (mu_hat, C_hat, pool, filled) leaves. `net` is the agent's group
+        dict; the same leaves reach `q_fn` through its `params` argument, so both spellings
+        exist and neither recomputes anything from a batch."""
+        return net["density_zstats"].params
 
-        DEVIATION (see the module docstring): the shim holds these as EMA-tracked param
-        leaves written inside its `update` override, so training and eval read the identical
-        serialized object. This seam has no critic-owned mutable state and no post-update
-        hook, so they are the PLUG-IN estimate over whatever pool the caller passes -- the
-        batch's own next-state query set during training, the reward-sample pool at eval.
-        Same population objects, same 1/M centered convention as the shim's EMA source
-        (gciql_flow.py ~3903-3912), but unsmoothed: a finite-M covariance of a d-wide tower
-        is a noisier, more step-to-step-variable object than the EMA it replaces.
+    def _zenc(self, net):
+        """The INDEX TOWER's params -- density_b_zenc, the slow-EMA copy of density_b. Never
+        the online tower (whose values move every step) and never target_density_b: the
+        shipped centered arm asserts measure_density_z_enc_tau > 0, which is exactly the
+        condition that selects this tower (bridge `_density_z_enc_module` ~1125-1137)."""
+        return net["density_b_zenc"].params
 
-        Read at stop_gradient throughout: the index must never become a path by which the
-        actor's loss reshapes B."""
-        b = jax.lax.stop_gradient(self._B(b_params, u_sc))              # [M, d]
-        mu = jnp.mean(b, axis=0)                                        # [d]
-        db = b - mu[None]
-        cov = db.T @ db / b.shape[0]                                    # centered, 1/M
-        return mu, 0.5 * (cov + cov.T)                                  # SYMMETRIZE
-
-    def _z_centered_moment(self, b_params, u_sc, mu, r):
+    def _z_centered_moment(self, zenc_params, u_sc, mu, r):
         """m_c = (1/M) sum_j (B(u_j) - mu_hat)(r_j - rbar), rbar = (1/M) sum_j r_j.
 
         `u_sc` [M, d_c] eps-scaled queries, `r` [B, M] (or [M]) rewards on them -> [B, d].
@@ -312,7 +405,7 @@ class DensityFBCritic:
                 "is IDENTICALLY ZERO at M=1 (r_1 - rbar = 0), so this encoder has no "
                 "one-sample/Dirac limit (spec 30 Rev 1, P1). Realistic sample pools are "
                 "M >= 256; the analytic point prompt is a SEPARATE api and is not ported.")
-        b_u = jax.lax.stop_gradient(self._B(b_params, u_sc))            # [M, d]
+        b_u = jax.lax.stop_gradient(self._B(zenc_params, u_sc))         # [M, d]
         db = b_u - mu[None]                                             # [M, d]
         dr = r2 - jnp.mean(r2, axis=-1, keepdims=True)                  # [B, M]
         return jnp.einsum('bm,md->bd', dr, db) / m_samples              # [B, d]
@@ -350,17 +443,20 @@ class DensityFBCritic:
         return jax.lax.stop_gradient(
             _sphere_or_neutral(c, float(self.z_dim), self.z_const_eps))
 
-    def z_from_reward_samples(self, b_params, u_sc, r):
+    def _z_index(self, zenc_params, zstats, u_sc, r):
+        """The one solve every caller goes through: reward samples -> index, at the STORED
+        moments and the STORED index tower. Training rows, the native-goal eval and the
+        harness-facing reward interface all funnel through here, so they cannot drift apart
+        -- which is the entire point of persisting the moments rather than estimating them
+        per call."""
+        m_c = self._z_centered_moment(zenc_params, u_sc, zstats["mu"], r)
+        return self._z_centered_index(m_c, zstats["cov"])
+
+    def z_from_reward_samples(self, net, u_sc, r):
         """THE GENERAL REWARD INTERFACE: reward samples {(u_j, r_j)}_{j=1..M} -> index
         [B, d]. No goal anywhere. `u_sc` is an [M, d_c] eps-scaled query pool
-        (`_density_queries` output) and `r` is [B, M] (or [M]) reward values on it.
-
-        This is the single solve BOTH the training rows (`sample_cond`, reward samples =
-        the batch query set with r = the hindsight kernel kg) and the harness-facing eval
-        (`infer_cond`, arbitrary reward families) go through, so the two cannot drift apart
-        in it -- the property the shim's serialized-moments contract exists to protect."""
-        mu, cov = self._z_moments(b_params, u_sc)
-        return self._z_centered_index(self._z_centered_moment(b_params, u_sc, mu, r), cov)
+        (`_density_queries` output) and `r` is [B, M] (or [M]) reward values on it."""
+        return self._z_index(self._zenc(net), self._zstats(net), u_sc, r)
 
     def _z_mix(self, z_g, rng):
         """FB's standard task-prior mix: keep the encoded index with probability
@@ -373,6 +469,99 @@ class DensityFBCritic:
         z_rand = _sphere(jax.random.normal(rng_sphere, (n, d)), d)
         use_rand = jax.random.bernoulli(rng_mix, self.z_rand_frac, (n, 1))
         return jax.lax.stop_gradient(jnp.where(use_rand, z_rand, z_g))
+
+    def update_stats(self, net, pre_net, batch):
+        """Write the three persistent index objects. Called once per update by
+        Agent.apply_update AFTER the gradient step and the polyak targets; `pre_net` is the
+        PRE-STEP online net, which is the source the bridge uses for all three
+        (gciql_flow.py `update` reads self.network.params, not the post-step new_network).
+
+        No-op with the index off -- a Python-level return, so nothing extra is traced and
+        the goal-conditioned arm's update is byte-identical.
+
+        Order matches the bridge: the index tower is mixed from the PRE-STEP online tower
+        first (~3849-3859), then the moments are EMA'd over this batch's query set at the
+        PRE-STEP index tower (~3903-3921, i.e. the OLD zenc, not the one just written), then
+        the pool is frozen on the first update (~3921-3939)."""
+        if not self.z_on:
+            return net
+        blocks = self.blocks
+        nobs = batch["next_observations"]
+        u_sc = _density_queries(nobs, blocks)                            # [M, d_c] eps-scaled
+
+        # (1) the index tower: a slow-EMA copy of the PRE-STEP online density_b at tau_z.
+        zenc_old = net["density_b_zenc"].params
+        zenc_new = jax.tree_util.tree_map(
+            lambda p, ep: p * self.z_enc_tau + ep * (1.0 - self.z_enc_tau),
+            pre_net["density_b"].params, zenc_old)
+
+        # (2) mu_hat / C_hat over the batch query set at the PRE-STEP index tower. The base
+        #     measure is the batch next-state query marginal -- the ONE pinned rho_phi used
+        #     for mu, C, rbar and m_c alike.
+        b = jax.lax.stop_gradient(self._B(zenc_old, u_sc))                # [M, d]
+        mu_b = jnp.mean(b, axis=0)
+        db = b - mu_b[None]
+        cov_b = db.T @ db / b.shape[0]                                    # centered, 1/M
+        st = net["density_zstats"].params
+        tau = self.z_sigma_tau
+        mu_new = st["mu"] * (1.0 - tau) + mu_b * tau
+        cov_new = st["cov"] * (1.0 - tau) + cov_b * tau
+        cov_new = 0.5 * (cov_new + cov_new.T)                             # SYMMETRIZE
+
+        # (3) the frozen eval pool: written ONCE, on the first update, from this batch's RAW
+        #     query coords -- a fixed draw from rho_phi, so the native-goal eval index is a
+        #     stable function of the params rather than a statistic of whichever batch
+        #     happened to be last.
+        raw = _raw_block_cols(nobs, blocks)
+        if raw.shape[0] < self.z_eval_pool_m:
+            raise ValueError(
+                f"measure_density_z_eval_pool_m={self.z_eval_pool_m} needs a batch of at "
+                f"least that many next states to draw the frozen eval pool from, got "
+                f"{raw.shape[0]}. Lower the pool or raise batch_size -- do not let the pool "
+                f"silently shrink, it is the M of the reward-sample eval API.")
+        pool_new = jnp.where(st["filled"] > 0.5, st["pool"], raw[:self.z_eval_pool_m])
+
+        # Cast back to the stored dtypes so the Agent pytree never changes dtype between
+        # steps (which would retrace `update` every call).
+        cast = lambda new, old: jnp.asarray(new, old.dtype)
+        net = dict(net)
+        net["density_b_zenc"] = net["density_b_zenc"].replace(params=zenc_new)
+        net["density_zstats"] = net["density_zstats"].replace(params={
+            "mu": cast(mu_new, st["mu"]), "cov": cast(cov_new, st["cov"]),
+            "pool": cast(pool_new, st["pool"]),
+            "filled": jnp.ones_like(st["filled"])})
+        return net
+
+    def map_eval_cond(self, net, cond):
+        """Eval-time hook: turn the env's raw goal into an index THROUGH THE REWARD-SAMPLE
+        API, exactly as the bridge's `sample_actions` does under
+        measure_density_z_prompt='sample' (`_density_z_eval_samples` ~1296-1307).
+
+        The goal becomes M = measure_density_z_eval_pool_m reward samples over the FROZEN
+        pool: r = kg(goal, pool) = _delta_phi(goal, pool_raw), the same query-set-normalized
+        kernel the training rows integrate (the standing parity rule), and that reward vector
+        goes through the identical centered solve. It NEVER shortcuts to an analytic point
+        prompt -- that silent substitution is what made spec 29's number uninterpretable, and
+        the point prompt is deliberately not implemented in this port at all.
+
+        PRECEDENCE, which the caller owns: Agent.sample_actions merges `goals` into cond
+        whenever it is given, so a goal ALWAYS wins over an index previously inferred by
+        `infer_cond`. That is the bridge's split too (`sample_actions(obs, goal)` maps the
+        goal; `sample_actions_with_z` rolls a precomputed z), and it is FBCritic's behaviour
+        here as well. Consequence worth knowing: impls/main.py's eval loop always passes a
+        goal, so --infer_cond_episodes sets a cond_eval that the very next sample_actions
+        overwrites. Roll a reward-inferred index by calling sample_actions with goals=None."""
+        if not self.z_on or "goal" not in cond:
+            return cond
+        g = cond["goal"]
+        unbatched = g.ndim == 1
+        g2 = g[None] if unbatched else g
+        st = self._zstats(net)
+        pool_raw = st["pool"]                                       # [M, d_c] RAW
+        u_sc = _scale_block_cols(pool_raw, self.blocks)             # [M, d_c] eps-scaled
+        kg = jax.lax.stop_gradient(_delta_phi(g2, pool_raw, self.blocks))   # [B, M]
+        z = self._z_index(self._zenc(net), st, u_sc, kg)
+        return {**cond, "z": z[0] if unbatched else z}
 
     def stage_loss(self, stage, params, target, batch, cond, boot):
         assert stage == "density"
@@ -485,14 +674,18 @@ class DensityFBCritic:
             # Index mode (bridge `_density_actor_q_z`, gciql_flow.py ~1483-1529, at its
             # SHIPPED default measure_density_z_actor_reward='latent'; the 'kernel' cell is
             # deliberately not ported). F conditions on z, and the reward the actor ascends
-            # is FB's own linear model implied by the index, r_z(u) = B(u)^T z / sqrt(d),
-            # read on the SAME query support the measure is trained against. The shim reads
-            # r_z off the TARGET backward tower; this seam's q_fn has no target params, so
-            # it reads the ONLINE tower under the stop_gradient it already applies -- the
-            # frozen-params discipline is preserved, the tower identity is not.
+            # is FB's own linear model implied by the index, r_z(u) = B~(u)^T z / sqrt(d),
+            # read on the SAME query support the measure is trained against.
+            #
+            # B~ is the TARGET backward tower, matching the frozen-params discipline of the
+            # goal-indexed branch's kg. q_fn is handed online params only, so sample_cond
+            # publishes that embedding as cond["_density_tb_u"] -- indexed, not .get()-
+            # defaulted, because falling back to the online tower here would be a silent
+            # tower substitution rather than a loud failure.
             g = cond["z"]
             kg = jax.lax.stop_gradient(
-                jnp.einsum('md,bd->bm', b_emb, g) / jnp.sqrt(float(self.z_dim)))
+                jnp.einsum('md,bd->bm', cond["_density_tb_u"], g)
+                / jnp.sqrt(float(self.z_dim)))
         else:
             g = cond["goal"]
             kg = jax.lax.stop_gradient(_delta_phi(g, u_raw, self.blocks))  # [B, M]
@@ -520,7 +713,7 @@ class DensityFBCritic:
         reward-sample index on -- the index built at that goal."""
         return cond["z"] if self.z_on else cond["goal"]
 
-    def sample_cond(self, net, batch, rng):
+    def sample_cond(self, net, batch, rng, target=None):
         # queries resampled every update from THIS batch's own next-state object coords.
         nobs = batch["next_observations"]
         u_raw = _raw_block_cols(nobs, self.blocks)
@@ -544,18 +737,29 @@ class DensityFBCritic:
             # TD bootstrap action must be drawn at). Publishing z(value_goals) as
             # `_cvec_vgoal` is the whole point: it is the actor-conditioning vector at the
             # value goal, so the bootstrap draw is z-shaped against a z-shaped actor net.
-            b_p = jax.lax.stop_gradient(net["density_b"].params)
-            mu, cov = self._z_moments(b_p, u_sc)
+            #
+            # The index is built at the STORED tower and the STORED moments -- never a
+            # statistic of this batch. update_stats is their only writer.
+            if target is None:
+                raise ValueError(
+                    "density_fb under measure_density_z needs the TARGET params in "
+                    "sample_cond (its actor-q reward vector is read off target_density_b). "
+                    "Agent.update passes them because the critic declares "
+                    "SAMPLE_COND_WANTS_TARGET; a direct caller must pass target=... too.")
+            zenc_p, st = self._zenc(net), self._zstats(net)
             r_a, r_v = jax.random.split(rng)
 
             def _z_at(goals, r_mix):
                 r = jax.lax.stop_gradient(_delta_phi(goals, u_raw, self.blocks))  # [B, M]
-                m_c = self._z_centered_moment(b_p, u_sc, mu, r)
-                return self._z_mix(self._z_centered_index(m_c, cov), r_mix)
+                return self._z_mix(self._z_index(zenc_p, st, u_sc, r), r_mix)
 
             return {"value_goal": batch["value_goals"], "goal": batch["actor_goals"],
                     "z": _z_at(batch["actor_goals"], r_a),
                     "_cvec_vgoal": _z_at(batch["value_goals"], r_v),
+                    # The TARGET backward embedding of the query support, for q_fn's reward
+                    # vector r_z = B~(u)^T z / sqrt(d) (q_fn gets online params only).
+                    "_density_tb_u": jax.lax.stop_gradient(
+                        self._B(target["density_b"], u_sc)),
                     "_density_u_raw": u_raw, "_density_u_sc": u_sc}
         return {"value_goal": batch["value_goals"], "goal": batch["actor_goals"],
                 "_cvec_vgoal": batch["value_goals"],
@@ -596,8 +800,7 @@ class DensityFBCritic:
             impls/main.py::infer_cond_noop_reason will NOT flag it (cond did change)."""
         if not self.z_on:
             return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
-        z = self.z_from_reward_samples(net["density_b"].params,
-                                       _density_queries(obs, self.blocks), rewards)
+        z = self.z_from_reward_samples(net, _density_queries(obs, self.blocks), rewards)
         # A flat [M] reward vector describes ONE task -> return a 1-D z, matching
         # eval_cond0's shape and FBCritic.infer_cond's convention.
         return {"z": z[0] if jnp.ndim(rewards) == 1 else z}
@@ -615,6 +818,9 @@ class DensityFBCritic:
         z_lam = float(config.get("measure_density_z_ridge_lambda_mult", 0.01))
         z_floor = float(config.get("measure_density_z_cov_eig_floor", 1e-6))
         z_eps = float(config.get("measure_density_z_const_eps", 1e-6))
+        z_enc_tau = float(config.get("measure_density_z_enc_tau", 0.0005))
+        z_sigma_tau = float(config.get("measure_density_z_sigma_tau", 0.005))
+        z_pool_m = int(config.get("measure_density_z_eval_pool_m", 256))
         if z_on:
             assert 0.0 <= z_rand_frac <= 1.0, \
                 f"measure_density_z_rand_frac must be in [0,1], got {z_rand_frac}"
@@ -628,11 +834,28 @@ class DensityFBCritic:
             assert z_eps > 0.0, \
                 "measure_density_z_const_eps must be > 0 -- it is the constant-reward " \
                 "fallback threshold, and at 0 a constant reward encodes pure noise"
+            # The centered encoder REQUIRES a slow index tower (bridge assertion ~4837):
+            # tau_z = 0 would select target_density_b, and running the solve through the
+            # fast-drifting target tower is the known non-stationarity risk.
+            assert 0.0 < z_enc_tau <= 0.1, \
+                "measure_density_z_enc_tau (tau_z) must be in (0, 0.1]: the centered " \
+                "encoder REQUIRES a slow-EMA index tower, and tau_z=0 would encode with " \
+                f"the fast target tower instead. Round-1 dose 0.0005; got {z_enc_tau}"
+            assert 0.0 < z_sigma_tau <= 1.0, \
+                "measure_density_z_sigma_tau (the mu_hat/C_hat EMA rate) must be in (0, 1]" \
+                f"; got {z_sigma_tau}. 0 would freeze C_hat at its identity init"
+            assert z_pool_m > 1, \
+                "measure_density_z_eval_pool_m must be > 1: it is the M of the reward-" \
+                "sample eval API, and the centered moment is identically zero at M=1"
+            _bs = int(config.get("batch_size", z_pool_m))
+            assert z_pool_m <= _bs, \
+                f"measure_density_z_eval_pool_m={z_pool_m} exceeds batch_size={_bs}; the " \
+                f"frozen pool is drawn from one batch's next states"
 
         density_f = _ensemblize(_MLP, 2)((*hd, d), activate_final=False, layer_norm=ln)
         density_b = _MLP((*hd, d), activate_final=False, layer_norm=ln)
 
-        rf, rb = jr.split(jr.PRNGKey(config["seed"] + 6000), 2)
+        rf, rb, rz = jr.split(jr.PRNGKey(config["seed"] + 6000), 3)
         # F's conditioning leg is the index (width d) under measure_density_z, the raw goal
         # (width obs_dim) otherwise -- the tower has to be INITIALIZED at that width or the
         # first stage_loss dies with a ScopeParamShapeError.
@@ -646,6 +869,18 @@ class DensityFBCritic:
         }
         targets = {"density_f": copy.deepcopy(params["density_f"]),
                    "density_b": copy.deepcopy(params["density_b"])}
+        groups = ("density_f", "density_b")
+        zstats_mod = None
+        if z_on:
+            # The index tower starts as a COPY of density_b (bridge ~5729-5733), not at an
+            # independent init: at step 0 the index is the one density_b itself implies, and
+            # the EMA then holds it quasi-stationary while density_b trains away.
+            params["density_b_zenc"] = copy.deepcopy(params["density_b"])
+            d_c = int(sum(b - a for (a, b, _e) in blocks))
+            zstats_mod = _ZStatsState(dim=d, pool_m=z_pool_m, d_c=d_c,
+                                      dtype=jnp.zeros((), ex_obs.dtype).dtype)
+            params["density_zstats"] = zstats_mod.init(rz)["params"]
+            groups = groups + ("density_b_zenc", "density_zstats")
         obj = cls(density_f=density_f, density_b=density_b, obs_dim=obs_dim, blocks=blocks,
                   discount=float(config["discount"]),
                   temp=float(config["measure_density_temp"]), tau=float(config["tau"]),
@@ -658,6 +893,13 @@ class DensityFBCritic:
                   actor_temp=config.get("measure_density_actor_temp", None),
                   z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac,
                   z_ridge_lambda_mult=z_lam, z_cov_eig_floor=z_floor, z_const_eps=z_eps,
+                  z_enc_tau=z_enc_tau, z_sigma_tau=z_sigma_tau, z_eval_pool_m=z_pool_m,
+                  GROUPS=groups,
+                  # `density_b_zenc` shares density_b's module DEF (same architecture); only
+                  # the params differ. Agent.create reads these off the critic to build the
+                  # TrainStates for the two state groups.
+                  density_b_zenc=(density_b if z_on else None),
+                  density_zstats=zstats_mod,
                   # Declaring "z" is what tells check_combo (and any actor that inspects the
                   # critic) that this critic's conditioning is a latent, not a goal.
                   PROVIDES_COND=(frozenset({"value_goal", "goal", "z"}) if z_on
