@@ -374,14 +374,36 @@ Branch `feat/seam-boot-contract`, off `origin/feat/metaworld-runs` @ `e35a542`.
 | 0 seam boot contract | **done** | `BOOT_COND`, all 4 actors emit the value-goal draw, bit-identity gate (49 pairs / 612 arrays) |
 | 1 GCIVL | **done** | + the opt-in `adv_fn` critic hook |
 | 2 HIQL | **done** | + `HGCDataset`, + `map_eval_cond(observations=...)` |
-| 3 PSM | not started | ~1,340 torch lines; stochastic `proto_sampler` needs seeded parity |
+| 3 PSM | **done** | loss math pinned at atol 1e-10 via the reference's own `next_action=` injection hooks; proto sampler NOT bit-reproducible in jax |
 | 4 RLDP | **done** | + `WindowedDataset` (the blocker in 12.3, now cleared); parity by numpy reconstruction, not a torch fixture — see 12.4 |
-| 5 reward index | not started | the ExoRL blocker; `density_fb.infer_cond` is still a zero placeholder |
+| 5 reward index | **done** | EMA moment leaves + the slow `density_b_zenc` index tower + the M=256 pool; `measure_density_z` default OFF |
 | 6 ExoRL | not started | env family + `scripts/exorl/convert_exorl.py` port |
-| 7 online loop | not started | env stepping + replay buffer in `main.py` |
+| 7 online loop | **done** | `--online` default OFF; offline path bit-identical, mutation-checked. NEVER run against a real env |
 
-Baselines available: **7 of 8** — GCIQL, bilinear GCIQL (`iql_bilinear`), FB, `density_fb`,
-GCIVL, HIQL, RLDP. Missing: PSM.
+Baselines available: **8 of 8** — GCIQL, bilinear GCIQL (`iql_bilinear`), GCIVL, HIQL, FB,
+`density_fb`, PSM, RLDP. 17 critics x 6 actors registered; 21 `_LR_KEY` groups.
+
+**What is NOT established.** Every workstream has loss-level parity and smoke tests; NONE
+has a learning curve. No success rate for PSM, RLDP, GCIVL or HIQL; no evidence the reward
+index reproduces the shim's .816; the online loop has never run against a real environment
+(this box lacks the collected data roots, so its 30 tests use a stub adapter and a synthetic
+env). The only trained result on this branch is the cube anchor below.
+
+### 12.0 Cube anchor — PASSED
+
+`density_fb x flowbc x cube-single`, seed 0, 500k, HARD variant, against the bridge's
+`gciql_flow` at matched config (verified equal before launch: optimizer, lr, no schedule, no
+grad clip, dim/temp/hit_spec/bc_coeff/seed, `measure_density_hard=True` both sides).
+
+`density_ce` (the objective) relative gap at each 100k mark: **2.21 / 0.36 / 1.01 / 1.25 /
+2.14 %**. Eval success, mean over the 5 tasks at 500k: **seam 0.9200 vs bridge 0.8720**; the
+published hard anchor is 0.912, which the bridge reproduced.
+
+One seed, and per-task spread is wide (bridge task5 fell 0.90 -> 0.70 between 400k and
+500k), so the 0.048 gap sits inside single-seed noise -- the seam must NOT be read as
+better. `actor_loss` and `bc_flow_loss` stay noisy and non-monotone (7.8% / 14.1% at 500k);
+both are normalised by batch statistics under `actor_q_center`. That is unexplained, not
+resolved.
 
 ### 12.1 Hazard: the value-goal bootstrap draw has mis-fired twice
 
