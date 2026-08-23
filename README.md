@@ -86,6 +86,25 @@ Collection is conditioned on the eval goal, so the buffer only covers what a
 goal-directed policy reaches; `--online_explore_goal_prob` (default 0) draws some episode
 goals from the buffer instead.
 
+### Tests
+
+Run the suite **one file at a time**. `pytest tests/impls` in a single process aborts
+partway through -- XLA retains a compiled executable per jitted `Agent.update`, and the
+suite builds enough critic x actor pairs to exhaust the process.
+
+```bash
+for f in tests/impls/test_*.py; do
+    MUJOCO_GL=egl JAX_PLATFORMS=cpu PYTHONPATH=$PWD python -m pytest "$f" -q
+done
+```
+
+`JAX_PLATFORMS=cpu` is required by `tests/impls/test_boot_contract.py`: it compares 40
+critic x actor pairs against a byte-identical baseline, and GPU results differ in the last
+bits. That gate is also sensitive to intra-op thread count, so it can report differences on
+unmodified code under non-default `OMP_NUM_THREADS` or single-threaded XLA settings.
+`MUJOCO_GL=egl` is needed by the pixel and env tests; without it they fail with
+`gladLoadGL error`.
+
 ---
 
 ## Data
