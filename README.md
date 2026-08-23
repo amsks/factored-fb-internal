@@ -1,36 +1,12 @@
-# Factored-FB (JAX)
+# Density-FB
 
-A JAX implementation of a critic × actor seam for offline goal-conditioned RL on
-[OGBench](https://github.com/seohongpark/ogbench) cube manipulation. The seam lets
-Forward–Backward (FB) and GCIQL-family value representations be composed with flow,
-DDPG+BC, AWR and one-step actors and run under a single training loop, so they can be
-compared on equal footing.
-
-The research question behind it is when future-reachability methods fail on manipulation.
-The paper trees live on other branches.
+A JAX implementation of a critics annd actors on [OGBench](https://github.com/seohongpark/ogbench) 
+cube manipulation. All value representations can be  composed with flow, DDPG+BC, AWR and one-step actors 
+and run under a single training loop, so they can be compared on equal footing.
 
 ---
 
-## Method
-
-FB factors the goal-conditioned Q-function as a bilinear form:
-
-```
-Q(s, a, z) = F(s, z, a) · B(s')
-```
-
-F predicts successor features; B maps observations into a latent goal space z. A task is
-specified at test time by inferring z from relabelled offline transitions,
-`z = project(Σ rᵢ · B(next_obsᵢ))`, with no fine-tuning.
-
-The bridge restates GCIQL and its bilinear and successor-feature variants in the same
-factored API, so one loop runs all of them. Which knobs of the original research shim map
-to which critic is recorded in
-[`docs/jaxify-coverage-audit.md`](docs/jaxify-coverage-audit.md).
-
----
-
-## The seam
+## The Methods
 
 `impls/agents/__init__.py` composes a critic (the value representation) with an actor (the
 policy) over per-group Flax `TrainState`s. `check_combo` in `impls/critics/base.py`
@@ -65,11 +41,7 @@ Python 3.11. `ogbench` — and `jax`, `flax`, `optax`, `numpy` and `gymnasium` t
 make install          # uv venv then requirements.txt
 ```
 
-Verify with `python -c 'import jax; print(jax.devices())'`. The
-venv lives in tmpfs and does not survive a reboot.
-
-`impls/utils/torch_to_flax.py` reads the parity fixtures and remaps weights; despite the
-name it imports no torch.
+Verify with `python -c 'import jax; print(jax.devices())'`. 
 
 ---
 
@@ -86,51 +58,15 @@ under `impls/configs/{critic,actor,domain}/`. `--override key=value` is repeatab
 Checkpointing and restore go through `--save_dir`, `--restore_path` (a glob over run
 dirs) and `--restore_epoch`.
 
-`make run` runs the default pair; `make smoke` runs five training steps on CPU.
+`make run` runs the default pair;
 
 ---
 
 ## Data
 
-`ogbench.make_env_and_datasets(name, compact_dataset=True)` in
-`impls/utils/env_utils.py` loads the official OGBench datasets, which OGBench downloads
-and caches under `~/.ogbench` on first use. `cube_single` (`cube-single-play-v0`) is the
-only domain wired up — it is the sole file in `impls/configs/domain/`.
-
----
-
-## Tests
-
-```bash
-make test             # JAX_PLATFORMS=cpu pytest tests/impls/ -q
-make test-fast        # collection only, catches import breakage in seconds
-```
-
-Ten frozen reference arrays in `tests/impls/fixtures/*.npz` pin numerical parity against
-the original torch/shim implementation, at tolerances down to 1e-10. The generators for
-the torch-side fixtures were removed along with the torch reference, so regenerating one
-means checking out a pre-cleanup ref; see
-[`docs/jaxify-coverage-audit.md`](docs/jaxify-coverage-audit.md).
-`tests/impls/test_boot_contract.py` is the byte-identity gate over every registered
-critic × actor pair.
-
-Two tests in `test_density_fb_pixels.py` render a MuJoCo scene and fail on a headless box
-with no GL context; they need `MUJOCO_GL=egl` or a display.
-
----
-
-## Scope
-
-`cube_single` is the only wired domain. The scene domain and its factored `value_split`
-value are not here.
-
-`density_fb` has a pixel/DrQ path, selected with `--critic density_fb_pixels`. It needs
-the privileged object-coordinate channel described in
-`docs/specs/2026-08-21-density-fb-pixels-drq.md`, because the density kernel is defined by
-column slices of object coordinates and there is nothing to slice on an image. No other
-critic runs on images.
-
-The PyTorch implementation and TD-MPC2 live on other branches.
+`ogbench.make_env_and_datasets(name, compact_dataset=True)` in `impls/utils/env_utils.py` loads 
+the official OGBench datasets, which OGBench downloads and caches under `~/.ogbench` on first 
+use.
 
 ---
 
