@@ -4,7 +4,7 @@ Transcribed (NOT imported) from the PyTorch reference in this repo's torch tree,
 `agents/psm/`: `agent.py` (`_update_psm`, `_update_sf`, `sample_mixed_z`, the update
 orchestration), `model.py` (`PSMModel.sample_z_psm` / `project_z` /
 `get_targets_uncertainty` / `reward_inference`) and `proto_sampler.py`
-(`ProtoBehaviorSampler`). Nothing from `third_party/` is imported here.
+(`ProtoBehaviorSampler`).
 
 What PSM is
 -----------
@@ -247,10 +247,16 @@ class PSMCritic:
 
         # --- proto behaviour action (reference ProtoBehaviorSampler.forward) ---
         # `powers` is the reversed power list, so the dot product reads the bit array
-        # MSB-first. row_hash is the dataset row index when the loader supplies one
-        # (reference: batch["index"]), else arange(B) -- exactly the reference fallback.
+        # MSB-first. row_hash is the dataset ROW index (reference: batch["index"], which
+        # train.py enables with_index=True for psm specifically). Never batch position.
         powers = 2 ** jnp.arange(self.max_log_seed)[::-1]
-        row_hash = jnp.asarray(batch["index"]).reshape(-1) if "index" in batch else jnp.arange(B)
+        if "index" not in batch:
+            raise KeyError(
+                "psm needs batch['index'] -- the dataset ROW index. Without it the proto "
+                "policy is keyed on batch POSITION, so a transition draws a different "
+                "policy every resample and psm_psi has no fixed policy to converge to. "
+                "Dataset.get_subset emits it; a hand-built batch must too.")
+        row_hash = jnp.asarray(batch["index"]).reshape(-1)
         seed = ((z_psm.astype(jnp.int32) * powers).sum(1) + row_hash) % self.max_seed
         psm_next_action = proto_actions(seed, self.action_dim,
                                         jax.random.PRNGKey(self.proto_seed))

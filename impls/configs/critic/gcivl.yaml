@@ -20,3 +20,8 @@ actor_p_trajgoal: 1.0
 actor_p_randomgoal: 0.0
 actor_geom_sample: false
 gc_negative: true
+
+# KNOWN MISMATCH (audit): vendored gcivl.py uses AWR alpha=10.0, but impls/configs/actor/awr.yaml
+# applies alpha=3.0 to every critic and load_config merges the ACTOR last, so this file cannot
+# override it. Correct for hiql (low_alpha=3.0), a >3x temperature error for gcivl. Pass
+# `--override actor.alpha=10.0` to reproduce vendored GCIVL until the merge order is revisited.

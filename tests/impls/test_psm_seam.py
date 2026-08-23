@@ -121,6 +121,9 @@ def _batch_from_fixture(fx):
         "actions": _f(fx, "in__actions"),
         "next_observations": _f(fx, "in__next_observations"),
         "terminals": _f(fx, "in__terminated"),
+        # The torch generator did not pass batch["index"], so the reference took its
+        # arange(B) fallback; reproduce that exactly or the parity comparison is invalid.
+        "index": np.arange(_f(fx, "in__observations").shape[0]),
     }
 
 
@@ -323,7 +326,8 @@ def _batch(B=16, seed=0):
     return {"observations": rng.standard_normal((B, OBS)).astype(np.float32),
             "actions": np.tanh(rng.standard_normal((B, ACT))).astype(np.float32),
             "next_observations": rng.standard_normal((B, OBS)).astype(np.float32),
-            "terminals": rng.integers(0, 2, size=B).astype(np.float32)}
+            "terminals": rng.integers(0, 2, size=B).astype(np.float32),
+            "index": np.arange(B)}
 
 
 ACTOR_FAMILIES = ("flowbc", "ddpgbc", "awr", "fql")
@@ -412,3 +416,69 @@ def test_psm_cond_keys_never_reach_an_actor():
         assert "_cvec_vgoal" not in cond
         assert "next_action_vgoal" not in boot
         assert agent.critic.cond_vec(cond).shape == cond["z"].shape
+
+
+def test_proto_policy_is_keyed_on_the_dataset_row_id(): 
+    """PSM assigns a proto behaviour policy per transition via
+    `seed = (z_bits + row_hash) % max_seed` (reference ProtoBehaviorSampler). `row_hash`
+    must be the DATASET row id -- batch["index"], which train.py enables with
+    with_index=True for psm -- and NOT the batch position.
+
+    Note what is NOT asserted: the seed also carries `z_bits` from a per-row random z, so
+    the proto action legitimately differs between draws even for a fixed row. The property
+    that distinguishes correct from broken is narrower: the row id must actually be
+    CONSUMED. Keyed on position, arange(B) is the same vector for every batch of size B,
+    so the output would be invariant to the ids below.
+    """
+    import numpy as np
+    import jax, jax.numpy as jnp
+    from impls.agents import Agent
+    from impls.utils.config_utils import load_config
+
+    cfg = load_config("psm", "flowbc", "cube_single")
+    B, OBS, ACT = 8, 40, 5
+    cfg["batch_size"] = B
+    agent = Agent.create("psm", "flowbc", 0, jnp.zeros((B, OBS)), jnp.zeros((B, ACT)), cfg)
+
+    r = np.random.default_rng(0)
+    base = dict(observations=jnp.asarray(r.standard_normal((B, OBS))),
+                actions=jnp.asarray(np.tanh(r.standard_normal((B, ACT)))),
+                next_observations=jnp.asarray(r.standard_normal((B, OBS))),
+                rewards=jnp.zeros((B, 1)), terminals=jnp.zeros((B,)))
+
+    def act(index):
+        cond = agent.critic.sample_cond(agent.net, {**base, "index": jnp.asarray(index)},
+                                        jax.random.PRNGKey(0))
+        return np.asarray(cond["psm_next_action"])
+
+    positional = act(np.arange(B))                 # what the broken fallback produced
+    real_rows = act(np.array([5, 11, 23, 4, 9, 1, 6, 2]))
+    other_rows = act(np.array([101, 7, 42, 3, 88, 12, 60, 9]))
+
+    assert not np.allclose(positional, real_rows), \
+        "row ids are ignored -- the proto policy is still keyed on batch position"
+    assert not np.allclose(real_rows, other_rows), \
+        "different dataset rows produced identical proto actions"
+    # and it is deterministic given the same rows
+    assert np.allclose(real_rows, act(np.array([5, 11, 23, 4, 9, 1, 6, 2])))
+
+
+def test_psm_refuses_a_batch_without_the_row_index():
+    """Silently falling back to arange(B) is the defect; it must raise instead."""
+    import numpy as np
+    import jax, jax.numpy as jnp
+    import pytest as _pytest
+    from impls.agents import Agent
+    from impls.utils.config_utils import load_config
+
+    cfg = load_config("psm", "flowbc", "cube_single")
+    B, OBS, ACT = 8, 40, 5
+    cfg["batch_size"] = B
+    agent = Agent.create("psm", "flowbc", 0, jnp.zeros((B, OBS)), jnp.zeros((B, ACT)), cfg)
+    r = np.random.default_rng(0)
+    no_index = dict(observations=jnp.asarray(r.standard_normal((B, OBS))),
+                    actions=jnp.asarray(np.tanh(r.standard_normal((B, ACT)))),
+                    next_observations=jnp.asarray(r.standard_normal((B, OBS))),
+                    rewards=jnp.zeros((B, 1)), terminals=jnp.zeros((B,)))
+    with _pytest.raises(KeyError, match="index"):
+        agent.critic.sample_cond(agent.net, no_index, jax.random.PRNGKey(0))

@@ -851,3 +851,41 @@ def test_an_out_of_range_goal_prob_is_refused():
     with pytest.raises(AssertionError, match="online_explore_goal_prob"):
         _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=0, env_steps_per_update=1.0,
                  explore_goal_prob=1.5)
+
+
+# ======================================================================================
+# 7. The episode length must not come from config["horizon"].
+#
+# `horizon` is RLDP's SELF-PREDICTIVE WINDOW length (impls/configs/critic/rldp.yaml sets
+# `horizon: 5`); no domain yaml in this tree sets an episode length under that name. The
+# collector used to fall back to `cfg.get("horizon", 100)` whenever the adapter published
+# no `_horizon` -- which env/ogbench.py::OGBenchAdapter never does -- so
+# `--critic rldp --online` on an OGBench domain reset the env every FIVE steps and filled
+# the buffer with five-row "episodes", with nothing failing anywhere.
+# ======================================================================================
+class _NoHorizonAdapter(StubAdapter):
+    """An adapter that publishes no episode length -- exactly OGBenchAdapter's situation."""
+
+    def __init__(self):
+        super().__init__(name="ogbench")
+        del self._horizon
+
+
+def test_online_refuses_an_adapter_with_no_episode_length():
+    cfg = _gciql_cfg()
+    with pytest.raises(ValueError, match="_horizon"):
+        _trainer(cfg, _NoHorizonAdapter(), TinyEnv(), warmup_steps=0,
+                 env_steps_per_update=1.0)
+
+
+def test_online_never_reads_rldps_window_length_as_the_episode_length():
+    """The concrete case: the composed rldp config carries horizon=5."""
+    cfg = _gciql_cfg()
+    cfg["horizon"] = 5                       # what make_config('rldp', ...) actually yields
+    with pytest.raises(ValueError, match="RLDP"):
+        _trainer(cfg, _NoHorizonAdapter(), TinyEnv(), warmup_steps=0,
+                 env_steps_per_update=1.0)
+
+    # And with a real adapter horizon present, the config key is ignored entirely.
+    tr = _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=0, env_steps_per_update=1.0)
+    assert tr.horizon == HORIZON, "config['horizon'] leaked into the episode length"

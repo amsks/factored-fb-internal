@@ -63,9 +63,15 @@ class HIQLCritic:
 
     @property
     def TARGETS(self):
-        # vendored builds a SEPARATE target_value encoder, i.e. the target carries its own
-        # copy of goal_rep; both groups are polyak-tracked here for the same reason.
-        return {"goal_rep": self.tau, "value": self.tau}
+        # ONLY the value head is polyak-tracked. Vendored *looks* like it builds a second
+        # goal_rep (target_value_encoder_def is a fresh GCEncoder wrapping goal_rep_def,
+        # hiql.py:306), but flax binds the shared goal_rep_def instance ONCE inside the
+        # ModuleDict, so `modules_target_value` contains only `value_net` -- its concat
+        # encoder resolves to `modules_goal_rep`, the ONLINE rep. Measured on the vendored
+        # agent: the param tree has exactly one goal_rep and target_value has no encoder
+        # params. Polyak-tracking a second copy here made the TD target read a lagged rep
+        # and moved the IVL loss (see test_ivl_target_legs_read_the_online_goal_rep).
+        return {"value": self.tau}
 
     @property
     def cvec_dim(self):
@@ -98,7 +104,11 @@ class HIQLCritic:
     def _ivl(self, params, target, batch, vg):
         obs, next_obs = batch["observations"], batch["next_observations"]
         rewards, masks = batch["rewards"], batch["masks"]
-        tr, tv = target["goal_rep"], target["value"]
+        # The TD-target legs read the ONLINE goal_rep (vendored's target_value shares
+        # `modules_goal_rep`; see TARGETS), detached because vendored calls target_value
+        # without `params=grad_params`, which stops the gradient through the whole module
+        # -- encoder included (flax_utils.py:90-114).
+        tr, tv = jax.lax.stop_gradient(params["goal_rep"]), target["value"]
         orr, ov = params["goal_rep"], params["value"]
 
         nv1_t, nv2_t = self._V_rep(tv, next_obs, self._rep(tr, next_obs, vg))
@@ -214,7 +224,7 @@ class HIQLCritic:
         # config -- not from config["actor"], which belongs to whichever seam actor is
         # playing HIQL's low-level role and whose schema differs per actor family.
         high_actor = Actor(hidden_dims=tuple(config["high_actor_hidden_dims"]),
-                           action_dim=rep_dim, layer_norm=ln, tanh_squash=False,
+                           action_dim=rep_dim, layer_norm=False, tanh_squash=False,
                            const_std=bool(config.get("high_const_std", True)))
 
         rg, rv, rh = jr.split(jr.PRNGKey(config["seed"] + 8000), 3)
@@ -225,8 +235,7 @@ class HIQLCritic:
             "value": value.init(rv, ex_obs, ex_rep)["params"],
             "high_actor": high_actor.init(rh, ex_pair)["params"],
         }
-        targets = {"goal_rep": copy.deepcopy(params["goal_rep"]),
-                   "value": copy.deepcopy(params["value"])}
+        targets = {"value": copy.deepcopy(params["value"])}
         obj = cls(goal_rep=goal_rep, value=value, high_actor=high_actor,
                   discount=float(config["discount"]), expectile=float(config["expectile"]),
                   tau=float(config["tau"]), high_alpha=float(config["high_alpha"]),

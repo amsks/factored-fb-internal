@@ -328,8 +328,8 @@ class OnlineTrainer:
             f"online_explore_goal_prob must be in [0,1], got {explore_goal_prob}"
         self.obs_mask = list(cfg.get("obs_mask_dims") or ())
         self.goal_mask = list(cfg.get("goal_mask_dims") or ())
-        self.horizon = int(horizon if horizon is not None
-                           else (getattr(adapter, "_horizon", None) or cfg.get("horizon", 100)))
+        from env.base import episode_horizon
+        self.horizon = episode_horizon(adapter, horizon)
         self.tasks = list(tasks) if tasks else [None]
 
         import jax

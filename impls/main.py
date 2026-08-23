@@ -225,8 +225,13 @@ def _append_agg(agg_dir, group, seed, step, row, task):
     Pure reporting -- writes nothing unless --agg_dir is set; touches no algorithm state."""
     import json
     os.makedirs(agg_dir, exist_ok=True)
+    # NaN, not 0.0, when the row carries no success metric: a domain with no binary success
+    # rule (ExoRL walker/cheetah -- env/unified.py::evaluate omits the key there) would
+    # otherwise be aggregated as a perfect-failure 0.0, which is indistinguishable from a
+    # policy that failed every episode. NaN propagates through the daemon's mean and shows
+    # up as a gap in the plot instead of a wrong number.
     rec = dict(seed=int(seed), step=int(step),
-               success_rate=float(row.get("success", row.get("success_rate", 0.0))),
+               success_rate=float(row.get("success", row.get("success_rate", float("nan")))),
                at_goal_ticks=float(row.get("at_goal_ticks", float("nan"))),
                family=_FAMILY.get(str(task).split("-")[0]))
     with open(os.path.join(agg_dir, f"{group}__s{seed}.jsonl"), "a") as f:

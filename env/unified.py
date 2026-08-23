@@ -32,7 +32,7 @@ import numpy as np
 
 from impls.utils.datasets import FBDataset
 from env import registry
-from env.base import needs_goal_frame
+from env.base import episode_horizon, needs_goal_frame
 
 # newt's env backends (rlmini / metaworld / maniskill). Its envs/__init__ imports dm_control
 # for dmcontrol tasks we don't use, so bind the namespace directly instead of importing it.
@@ -330,7 +330,7 @@ class UnifiedAdapter:
     def evaluate(self, agent, env, task, cfg, num_episodes, num_video):
         import jax
         slug = cfg["task"]
-        horizon = getattr(self, "_horizon", None) or int(cfg.get("horizon", 100))
+        horizon = episode_horizon(self)
         is_box2d = slug.startswith(("b2d-", "p2d-"))   # at-goal ticks are Box2D-only
         # ExoRL/dm_control is REWARD-specified: undiscounted episode return is the
         # benchmark's own metric, and for walker/cheetah it is the ONLY meaningful one
@@ -393,6 +393,14 @@ class UnifiedAdapter:
 
         successes, ticks, frames = [], [], []
         returns = []                                # dmc: undiscounted episode return
+        # Did the ENV ever report a success flag? Domains with no binary success rule
+        # (ExoRL walker/cheetah) emit no `success` key at all, on purpose -- see
+        # env/exorl_env.py::ExoRLWrapper, "no `success` key is emitted rather than a
+        # fabricated 0.0 that would read as 'the policy failed' in eval.csv". This row used
+        # to fabricate exactly that 0.0, and impls/main.py::_append_agg then shipped it to
+        # the campaign aggregator as the run's success_rate while the domain's real metric
+        # (episode_return) was never aggregated at all.
+        saw_success = False
         # E0.2: per-episode goal distances, so E5's matched-radius re-scoring is an analysis
         # pass over existing logs rather than a re-run. Costs one norm per step.
         dist_min, dist_final = [], []
@@ -417,6 +425,7 @@ class UnifiedAdapter:
             if needs_goal and goal_mode == "synth":
                 ep_goal = _prep_goal(ep_goal)
             key = jax.random.PRNGKey(i + seed_off)      # action noise follows the same shift
+            saw_success = saw_success or ("success" in info)
             ep_success = _flag(info.get("success", 0))
             ep_return = 0.0
             at_goal = int(_flag(info.get("success", 0)))
@@ -430,6 +439,7 @@ class UnifiedAdapter:
                     seed=sub, temperature=0))
                 obs, _r, term, trunc, info = env.step(np.clip(a, -1.0, 1.0))
                 ep_return += float(_r)
+                saw_success = saw_success or ("success" in info)
                 now = _flag(info.get("success", 0))
                 ep_success = ep_success or now
                 at_goal += int(now)
@@ -449,7 +459,9 @@ class UnifiedAdapter:
                 if d_last is not None:
                     dist_min.append(d_min)
                     dist_final.append(d_last)
-        out = {"success": float(np.mean(successes))}
+        out = {}
+        if saw_success:                             # never fabricated -- see `saw_success`
+            out["success"] = float(np.mean(successes))
         if is_dmc:                                  # the benchmark metric for ExoRL
             out["episode_return"] = float(np.mean(returns))
         if is_box2d:                                    # at-goal ticks: Box2D only, integer scale

@@ -1,4 +1,7 @@
 import os
+
+import pytest
+
 from impls.utils.log_utils import get_exp_name, setup_wandb, CsvLogger
 
 
@@ -49,3 +52,31 @@ def test_csv_logger_reopen_appends_instead_of_truncating(tmp_path):
     body = lines[1:]
     assert body == ["1.0,1", "0.9,2", "0.5,3", "0.4,4"], \
         "pre-resume rows (steps 1-2) and post-resume rows (steps 3-4) must both survive"
+
+
+def test_csv_logger_warns_when_it_drops_a_column(tmp_path):
+    """The header is frozen on the first row (or inherited from an existing file), so a
+    later row's extra keys are dropped. That must not be SILENT: two arms sharing one
+    --save_dir is exactly how the `inferred_cond_*` witness columns -- the only evidence in
+    eval.csv that a run rolled a reward-inferred index -- disappear."""
+    p = tmp_path / "eval.csv"
+
+    lg1 = CsvLogger(str(p))
+    lg1.log({"success": 0.4}, step=100)
+    lg1.close()
+
+    lg2 = CsvLogger(str(p))
+    with pytest.warns(UserWarning, match="inferred_cond"):
+        lg2.log({"success": 0.9, "inferred_cond": 1.0, "inferred_cond_norm": 3.7}, step=200)
+    lg2.close()
+
+    assert p.read_text().strip().splitlines()[0] == "success,step"
+
+
+def test_csv_logger_does_not_warn_on_a_matching_row(tmp_path, recwarn):
+    p = tmp_path / "train.csv"
+    lg = CsvLogger(str(p))
+    lg.log({"loss": 1.0}, step=1)
+    lg.log({"loss": 0.9}, step=2)         # same keys -> nothing to drop
+    lg.close()
+    assert not [w for w in recwarn if "DROPPED" in str(w.message)]

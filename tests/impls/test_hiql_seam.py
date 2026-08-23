@@ -102,6 +102,45 @@ def test_high_actor_predicts_a_subgoal_rep_at_eval():
     assert cond["goal"].shape[-1] == int(cfg["rep_dim"])
 
 
+def test_ivl_target_legs_read_the_online_goal_rep():
+    """Vendored has ONE goal_rep, and the TD target encodes its goal with it live.
+
+    `target_value_encoder_def` (vendored hiql.py:306) *looks* like a second copy of the
+    subgoal encoder, but flax binds the shared `goal_rep_def` instance once inside the
+    ModuleDict: building the vendored agent and walking `network.params` gives exactly one
+    `modules_goal_rep`, and `modules_target_value` holds only `value_net`. So
+    `select('target_value')(...)` encodes its goal with the ONLINE rep, and only the value
+    head is polyak-tracked.
+
+    This critic used to declare `TARGETS = {"goal_rep": tau, "value": tau}` and read
+    `target["goal_rep"]` in the TD-target legs -- a lagged rep vendored never has. Measured
+    by cross-importing the vendored agent onto shared weights: IVL loss 6.7731819 (lagged
+    rep) vs 5.7215824 (vendored), max |grad| difference 3.0e-1.
+    """
+    agent, batch, _ = _agent()
+    critic = agent.critic
+    assert "goal_rep" not in critic.TARGETS, (
+        "goal_rep must not be polyak-tracked: vendored's target_value shares the online "
+        "modules_goal_rep")
+    assert "goal_rep" not in agent.target
+
+    params = {g: agent.net[g].params for g in agent.net}
+    cond = critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0))
+    base, _ = critic.stage_loss("ivl", params, agent.target, batch, cond, {})
+
+    # A target-copy of goal_rep must not be readable even if a caller supplies one.
+    bogus = jax.tree_util.tree_map(lambda x: x + 0.5, params["goal_rep"])
+    poisoned, _ = critic.stage_loss(
+        "ivl", params, {**agent.target, "goal_rep": bogus}, batch, cond, {})
+    assert float(base) == float(poisoned), (
+        "the IVL TD target read a target-copy of goal_rep; vendored reads the online one")
+
+    # ...and moving the ONLINE rep must move the loss (i.e. it really is the one being read).
+    moved, _ = critic.stage_loss("ivl", {**params, "goal_rep": bogus}, agent.target, batch,
+                                 cond, {})
+    assert not np.isclose(float(base), float(moved)), "the online goal_rep is not read at all"
+
+
 @pytest.mark.parametrize("actor", ["flowbc", "ddpgbc", "awr", "fql"])
 def test_hiql_builds_and_updates_with_every_actor(actor):
     agent, batch, _ = _agent(actor)

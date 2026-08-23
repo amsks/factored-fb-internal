@@ -467,3 +467,84 @@ def test_walker_has_no_success_key():
     assert "success" not in info
     assert obs.shape == (24,)                    # walker flat obs: 14 position + 9 velocity...
     env.close()
+
+
+# --------------------------------------------------------------------------------------
+# The OTHER half of "walker has no success key": the ADAPTER must not invent one.
+# No mujoco needed -- the wrapper's info contract is all this exercises.
+# --------------------------------------------------------------------------------------
+class _NoSuccessEnv:
+    """ExoRLWrapper's surface for walker/cheetah: dense reward, and NO 'success' in info."""
+
+    def __init__(self, obs_dim=24, horizon=10):
+        self.obs_dim, self.horizon, self.t = obs_dim, horizon, 0
+
+    def reset(self, seed=None, **_kw):
+        self.t = 0
+        return np.zeros(self.obs_dim, np.float32), {}
+
+    def step(self, _a):
+        self.t += 1
+        return (np.zeros(self.obs_dim, np.float32), 0.83, False, self.t >= self.horizon,
+                {"reward": 0.83})
+
+
+class _ZCritic:
+    PROVIDES_COND = frozenset({"z"})
+
+
+class _ZAgent:
+    critic = _ZCritic()
+
+    def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
+        return np.zeros(6, np.float32)
+
+
+def test_evaluate_does_not_fabricate_a_success_metric():
+    """env/unified.py::evaluate used to emit `success: 0.0` unconditionally. On walker /
+    cheetah that reads as "the policy failed every episode" in eval.csv, and
+    impls/main.py::_append_agg shipped it to the campaign aggregator as the run's
+    success_rate while `episode_return` -- the domain's actual benchmark metric -- was never
+    aggregated at all. ExoRLWrapper's own docstring already refuses to fabricate it; this is
+    the adapter half of that contract."""
+    from env.unified import UnifiedAdapter
+    ad = UnifiedAdapter()
+    ad._horizon = 10
+    row, _ = ad.evaluate(_ZAgent(), _NoSuccessEnv(), None,
+                         {"task": "dmc-walker", "exorl_task": "walk"},
+                         num_episodes=5, num_video=0)
+    assert "success" not in row, f"fabricated a success metric: {row}"
+    assert row["episode_return"] == pytest.approx(8.3)
+
+
+def test_evaluate_still_reports_success_when_the_env_has_a_success_rule():
+    """The guard must not cost the families that DO have one (Box2D / MW / MS / pmm)."""
+    from env.unified import UnifiedAdapter
+
+    class _WithSuccess(_NoSuccessEnv):
+        def reset(self, seed=None, **_kw):
+            self.t = 0
+            return np.zeros(self.obs_dim, np.float32), {"success": 0.0}
+
+        def step(self, _a):
+            self.t += 1
+            return (np.zeros(self.obs_dim, np.float32), 0.0, False, self.t >= self.horizon,
+                    {"success": 1.0})
+
+    ad = UnifiedAdapter()
+    ad._horizon = 10
+    row, _ = ad.evaluate(_ZAgent(), _WithSuccess(), None,
+                         {"task": "dmc-point-mass-maze", "exorl_task": "reach_top_left"},
+                         num_episodes=3, num_video=0)
+    assert row["success"] == pytest.approx(1.0)
+
+
+def test_append_agg_does_not_report_a_missing_success_as_zero():
+    """A row with no success metric must not become success_rate=0.0 in the agg jsonl."""
+    import json
+    import tempfile
+    from impls.main import _append_agg
+    d = tempfile.mkdtemp()
+    _append_agg(d, "g", 0, 100, {"episode_return": 8.3}, "dmc-walker")
+    rec = json.loads(open(os.path.join(d, "g__s0.jsonl")).read())
+    assert np.isnan(rec["success_rate"]), rec

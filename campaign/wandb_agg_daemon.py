@@ -33,11 +33,28 @@ def groups_in(agg_dir):
 
 
 def read_group(agg_dir, group):
-    """-> ({step: [success,...]}, {step: [at_goal_frac,...]}, family)."""
-    per_step = defaultdict(list)
-    per_dwell = defaultdict(list)
+    """-> ({step: [per-SEED success,...]}, {step: [per-SEED at_goal_ticks,...]}, family).
+
+    ONE entry per SEED, not per jsonl row. A seed routinely writes SEVERAL rows at the same
+    step: `impls/main.py::_append_agg` is called inside the `for task_id in
+    adapter.eval_tasks(...)` loop, so an OGBench domain that does not set
+    `eval_aggregate: true` (e.g. the default `--domain cube_single`) appends one row PER
+    EVAL TASK; and the file is opened in append mode, so a relaunched run adds its rows to
+    the ones already there. Counting rows made `main()`'s `len(v) >= n_seeds` gate fire on a
+    single seed's task rows and publish their spread as `eval/success_std`, i.e. a
+    seed-to-seed error bar computed from one seed.
+
+    Rows belonging to the same seed are averaged first -- for the per-task case that is the
+    run's mean success over its tasks, which is what the aggregate is supposed to compare
+    across seeds. The seed is taken from the FILENAME (`{group}__s{seed}.jsonl`, the run's
+    identity) and falls back to the record's own `seed` field.
+    """
+    by_seed = defaultdict(lambda: defaultdict(list))     # step -> seed -> [success]
+    dwell_by_seed = defaultdict(lambda: defaultdict(list))
     fam = None
     for f in glob.glob(os.path.join(agg_dir, f"{group}__s*.jsonl")):
+        m = re.search(r"__s(\d+)\.jsonl$", os.path.basename(f))
+        file_seed = int(m.group(1)) if m else None
         try:
             lines = Path(f).read_text().splitlines()
         except OSError:
@@ -50,15 +67,28 @@ def read_group(agg_dir, group):
                 d = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            per_step[int(d["step"])].append(float(d["success_rate"]))
+            seed = file_seed if file_seed is not None else int(d.get("seed", -1))
+            step = int(d["step"])
+            by_seed[step][seed].append(float(d["success_rate"]))
             # at_goal_ticks (Box2D only, integer scale); fall back to legacy frac*200
             tk = d.get("at_goal_ticks")
             if tk is None:
                 fr = d.get("at_goal_frac")
                 tk = (float(fr) * 200.0) if fr is not None else float("nan")
-            per_dwell[int(d["step"])].append(float(tk))
+            dwell_by_seed[step][seed].append(float(tk))
             fam = d.get("family", fam)
-    return per_step, per_dwell, fam
+
+    def _collapse(src, reduce):
+        out = defaultdict(list)
+        for step, seeds in src.items():
+            out[step] = [float(reduce(v)) for _, v in sorted(seeds.items())]
+        return out
+
+    # success: plain mean, so a NaN (a domain with no success rule) propagates instead of
+    # being silently dropped. dwell: nanmean, since it is NaN on every non-Box2D family.
+    return (_collapse(by_seed, np.mean),
+            _collapse(dwell_by_seed, lambda v: np.nanmean(v) if np.any(~np.isnan(v)) else np.nan),
+            fam)
 
 
 def main():

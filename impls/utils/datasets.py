@@ -1,6 +1,6 @@
 """Dataset utilities for the impls/ tree.
 
-`Dataset` is ported from third_party/ogbench/impls/utils/datasets.py (the compact-dataset
+`Dataset` is ported from OGBench upstream impls/utils/datasets.py (the compact-dataset
 FrozenDict with idx+1 next-observation inference). `FBDataset` adds the FB training batch:
 observations/actions/next_observations plus reward=0 (play data is unlabeled) and
 terminals=0 (always-gamma bootstrap, matching the PyTorch reference).
@@ -96,6 +96,12 @@ class Dataset(FrozenDict):
 
     def get_subset(self, idxs):
         result = jax.tree_util.tree_map(lambda arr: arr[idxs], self._dict)
+        # The row's identity in the dataset, not its position in the batch. PSM's proto
+        # behaviour sampler keys its policy assignment on this: without it the same
+        # transition draws a different proto policy every resample, so psm_psi has no fixed
+        # policy to converge to (reference: batch["index"], enabled via with_index=True for
+        # psm only). Cheap, and every other critic ignores it.
+        result['index'] = np.asarray(idxs).reshape(-1)
         if 'next_observations' not in result:
             result['next_observations'] = self._dict['observations'][np.minimum(idxs + 1, self.size - 1)]
         return result
@@ -131,6 +137,7 @@ class FBDataset(Dataset):
             'next_observations': nobs,
             'rewards': rewards,
             'terminals': np.zeros((B,), np.float32),  # always-gamma
+            'index': np.asarray(sub['index']).reshape(-1),
         }
 
 
@@ -571,43 +578,6 @@ class WindowedDataset:
         return batch
 
 
-@dataclasses.dataclass
-class VIPDataset:
-    """VIP sub-trajectory batches (Ma et al., Algorithm 1), state-based.
-
-    Anchor k is a random valid index; o0 ~ U[traj_start, k]; the goal is the trajectory's
-    FINAL frame; (o_k, o_{k+1}) is the TD transition. reward = -1 unless k+1 is the final
-    frame (VIP's sparse goal reward). actor_goals = value_goals so BC actors condition on
-    the same goal.
-    """
-    dataset: Dataset
-    config: Any
-
-    def __post_init__(self):
-        self.size = self.dataset.size
-        (self.terminal_locs,) = np.nonzero(np.asarray(self.dataset['terminals']) > 0)
-        self.initial_locs = np.concatenate([[0], self.terminal_locs[:-1] + 1])
-        assert self.terminal_locs[-1] == self.size - 1
-
-    def sample(self, batch_size, idxs=None):
-        if idxs is None:
-            idxs = self.dataset.get_random_idxs(batch_size)
-        batch = self.dataset.get_subset(idxs)
-        traj = np.searchsorted(self.terminal_locs, idxs)
-        term, init = self.terminal_locs[traj], self.initial_locs[traj]
-        t0 = init + np.floor(np.random.rand(len(idxs)) * (idxs - init + 1)).astype(np.int64)
-        obs = self.dataset['observations']
-        batch['observations'] = np.asarray(batch['observations'], np.float32)
-        batch['next_observations'] = np.asarray(batch['next_observations'], np.float32)
-        batch['actions'] = np.asarray(batch['actions'], np.float32)
-        batch['initial_observations'] = np.asarray(obs[t0], np.float32)
-        batch['value_goals'] = np.asarray(obs[term], np.float32)
-        batch['actor_goals'] = batch['value_goals']
-        reached = (idxs + 1 >= term).astype(np.float32)
-        batch['rewards'] = reached - 1.0
-        batch['masks'] = 1.0 - reached
-        return batch
-
 
 def make_dataset(base, config):
     """Wrap a base Dataset per the critic's dataset_class.
@@ -619,8 +589,6 @@ def make_dataset(base, config):
         return GCDataset(base, config)
     if config.get('dataset_class') == 'HGCDataset':
         return HGCDataset(base, config)
-    if config.get('dataset_class') == 'VIPDataset':
-        return VIPDataset(base, config)
     if config.get('dataset_class') == 'WindowedDataset':
         return WindowedDataset(base, config)
     if isinstance(base, FBDataset):

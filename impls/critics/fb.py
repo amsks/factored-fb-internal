@@ -137,7 +137,10 @@ class FBCritic:
 
     def infer_cond(self, net, obs, rewards):
         Bm = self._B(net["backward"].params, obs)
-        z = (rewards.reshape(1, -1) @ Bm).reshape(-1) / Bm.shape[0]
+        # No 1/N: the reference accumulates z += wr.T @ B and projects (agents/fb/model.py).
+        # PSM's reference DOES divide by N; that formula appears to have been copied here.
+        # Masked while norm_z=true because project_z is scale-invariant.
+        z = (rewards.reshape(1, -1) @ Bm).reshape(-1)
         return {"z": project_z(z, self.norm_z)}
 
     @classmethod

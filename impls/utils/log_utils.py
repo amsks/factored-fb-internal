@@ -1,6 +1,7 @@
 """Logging utilities for the impls/ tree: experiment naming, CSV logging, and wandb."""
 import csv
 import os
+import warnings
 
 
 def get_exp_name(seed, critic=None, actor=None, env_name=None):
@@ -17,6 +18,14 @@ class CsvLogger:
     --restore_path resume into the same --save_dir), rows are appended to it using the
     existing file's header rather than truncating it: a resume must not destroy the
     pre-resume history. A fresh/missing/empty path still gets a freshly written header.
+
+    A row key that is NOT in the frozen header is dropped -- csv.DictWriter has no other
+    option once a header is on disk -- but it is WARNED about, once per key. Silence there
+    is a real failure mode: two arms sharing a --save_dir (run-dir names encode
+    domain/critic/actor/seed but not `--override`) inherit the first arm's header, and the
+    second arm's extra columns vanish. The `inferred_cond_*` witness columns are the worst
+    case, since they are the only positive evidence in eval.csv that a run rolled a
+    reward-inferred index rather than the env goal (impls/main.py::InferredCondAgent).
     """
 
     def __init__(self, path):
@@ -24,6 +33,7 @@ class CsvLogger:
         self._file = None
         self._writer = None
         self._keys = None
+        self._warned = set()
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
 
     def log(self, row, step=None):
@@ -43,6 +53,15 @@ class CsvLogger:
                 self._file = open(self.path, 'w', newline='')
                 self._writer = csv.DictWriter(self._file, fieldnames=self._keys)
                 self._writer.writeheader()
+        dropped = sorted(set(row) - set(self._keys) - self._warned)
+        if dropped:
+            self._warned.update(dropped)
+            warnings.warn(
+                f"{self.path}: column(s) {dropped} are not in this file's header "
+                f"{self._keys} and are being DROPPED from every row. The header is frozen "
+                f"on the first row written, or inherited from a pre-existing file -- so "
+                f"this usually means two different arms are sharing one run directory."
+            )
         self._writer.writerow({k: row.get(k) for k in self._keys})
         self._file.flush()
 
