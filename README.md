@@ -90,9 +90,42 @@ goals from the buffer instead.
 
 ## Data
 
-`ogbench.make_env_and_datasets(name, compact_dataset=True)` in `impls/utils/env_utils.py` loads 
-the official OGBench datasets, which OGBench downloads and caches under `~/.ogbench` on first 
-use.
+`ogbench.make_env_and_datasets(name, compact_dataset=True)` in `impls/utils/env_utils.py` loads
+the official OGBench datasets, which OGBench downloads and caches under `~/.ogbench` on first
+use. The other four families read from directories you point at with environment variables.
+
+`env/domains/` holds 23 domains in five families. `--domain <name>` takes any of them; the
+name is the yaml stem.
+
+| family | domains | needs | downloads itself |
+|---|---|---|---|
+| OGBench | `cube-single`, `cube-double`, `scene`, `antmaze`, `pointmaze`, `cube-single-pixels` | nothing | yes, to `~/.ogbench` |
+| MetaWorld / ManiSkill | `mw-pick-place`, `mw-push`, `ms-pick-cube`, `ms-push-cube` | `FB_DATA_ROOT` | no |
+| MetaWorld (HF export) | `mw-assembly`, `mw-basketball`, `mw-bin-picking`, `mw-box-close`, `mw-button-press` | `FB_HF_EXPORT` | no |
+| Box2D | the five `b2d-*` | `FB_COLLECTED` | no |
+| ExoRL (dm_control) | `dmc-point-mass-maze`, `dmc-walker`, `dmc-cheetah` | `EXORL_DATA_ROOT`, plus `FB_MUJOCO_SITE_PACKAGES` | no |
+
+MetaWorld is split across two roots, which is easy to trip over: `mw-push` and
+`mw-pick-place` come from `FB_DATA_ROOT`, the other five from `FB_HF_EXPORT`. Setting only
+one silently leaves half the MetaWorld domains unresolvable.
+
+`FB_MUJOCO_SITE_PACKAGES` is colon-separated and must point at a site-packages directory
+whose `mujoco` matches the installed `dm_control`. Without it the ExoRL domains and their
+tests raise a `RuntimeError` that says so.
+
+ExoRL is the only family with **reward-labelled** data. Its buffers carry the reward of the
+task the data was collected under, so the loader relabels from the stored physics instead of
+passing that column through -- a passthrough would be right for one task per domain and
+silently wrong for the others.
+
+### What has actually been run here
+
+`cube-single` (offline, online and pixels) and `dmc-point-mass-maze` (the reward interface,
+end to end). The MetaWorld, ManiSkill and Box2D domains resolve their configs but their data
+is not on this machine, so they are unrun. `dmc-walker` and `dmc-cheetah` have working envs
+and reward functions but their RND buffers were never downloaded, so their observation
+layouts are inferred rather than checked, and their `measure_hit_spec` is deliberately left
+unset.
 
 ---
 
