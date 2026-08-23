@@ -116,13 +116,13 @@ use. The other four families read from directories you point at with environment
 `env/domains/` holds 23 domains in five families. `--domain <name>` takes any of them; the
 name is the yaml stem.
 
-| family | domains | needs | downloads itself |
+| family | domains | needs |
 |---|---|---|---|
-| OGBench | `cube-single`, `cube-double`, `scene`, `antmaze`, `pointmaze`, `cube-single-pixels` | nothing | yes, to `~/.ogbench` |
-| MetaWorld / ManiSkill | `mw-pick-place`, `mw-push`, `ms-pick-cube`, `ms-push-cube` | `FB_DATA_ROOT` | no |
-| MetaWorld (HF export) | `mw-assembly`, `mw-basketball`, `mw-bin-picking`, `mw-box-close`, `mw-button-press` | `FB_HF_EXPORT` | no |
+| OGBench | `cube-single`, `cube-double`, `scene`, `antmaze`, `pointmaze`, `cube-single-pixels` | nothing |
+| MetaWorld / ManiSkill | `mw-pick-place`, `mw-push`, `ms-pick-cube`, `ms-push-cube` | `FB_DATA_ROOT` |
+| MetaWorld (HF export) | `mw-assembly`, `mw-basketball`, `mw-bin-picking`, `mw-box-close`, `mw-button-press` | `FB_HF_EXPORT` |
 | Box2D | the five `b2d-*` | `FB_COLLECTED` | no |
-| ExoRL (dm_control) | `dmc-point-mass-maze`, `dmc-walker`, `dmc-cheetah` | `EXORL_DATA_ROOT`, plus `FB_MUJOCO_SITE_PACKAGES` | no |
+| ExoRL (dm_control) | `dmc-point-mass-maze`, `dmc-walker`, `dmc-cheetah` | `EXORL_DATA_ROOT`, plus `FB_MUJOCO_SITE_PACKAGES` |
 
 MetaWorld is split across two roots, which is easy to trip over: `mw-push` and
 `mw-pick-place` come from `FB_DATA_ROOT`, the other five from `FB_HF_EXPORT`. Setting only
