@@ -76,7 +76,7 @@ name it imports no torch.
 ## Running
 
 ```bash
-/dev/shm/.venv-jax/bin/python -m impls.main \
+python -m impls.main \
     --critic fb --actor flowbc --domain cube_single \
     --seed 0 --train_steps 1000000 --save_dir exp/
 ```
