@@ -130,6 +130,67 @@ class _MLP(nn.Module):
         return x
 
 
+# ── PIXEL towers (docs/specs/2026-08-21-density-fb-pixels-drq.md sections 4-5). ─────────
+# TWO encoders, one per tower, mirroring FB's `_fw_encoder` / `_bw_encoder`
+# (agents/fb/model.py) and TD-JEPA upstream. They are not a shared trunk: FB's optimizer
+# split puts `_bw_encoder` on the BACKWARD optimizer (its own comment: "grad -> trains B
+# end-to-end") and `_fw_encoder` on the FORWARD one. Here the two towers are the two seam
+# GROUPS -- `density_b` and `density_f` -- so declaring one encoder inside each reproduces
+# that split exactly, with no new group type and no new lr key.
+#
+# The ACTOR owns neither. It reads features through `cond` (published stop-gradient'd by
+# `sample_cond`) and takes its Q-term through `q_fn`, which already stop-gradients the
+# critic params -- the seam's analogue of FB's `with torch.no_grad():` around the actor's
+# encode.
+class _PixelDensityF(nn.Module):
+    """F(s, a, g) on images: ONE encoder shared by the observation and the goal image, then
+    the ensembled MLP on [enc(s), a, enc(g)].
+
+    ONE encoder for both legs, not two: this is `_fw_encoder`, the F side's single view of
+    the pixel world, and the goal is a state of that same world. `encode_cond=False` is the
+    `measure_density_z` case, where the conditioning leg is already a latent."""
+
+    hidden_dims: Sequence[int]
+    layer_norm: bool
+    encoder_cls: Any
+    num_parallel: int = 2
+    encode_cond: bool = True
+
+    def setup(self):
+        self.encoder = self.encoder_cls()
+        self.mlp = _ensemblize(_MLP, self.num_parallel)(
+            self.hidden_dims, activate_final=False, layer_norm=self.layer_norm)
+
+    def encode(self, x):
+        """The encoder alone — what the actor's conditioning and observation legs read
+        (always through a stop_gradient at the call site)."""
+        return self.encoder(x)
+
+    def __call__(self, obs, actions, cond):
+        h = self.encoder(obs)
+        c = self.encoder(cond) if self.encode_cond else cond
+        return self.mlp(jnp.concatenate([h, actions, c], -1))
+
+
+class _PixelDensityB(nn.Module):
+    """B(u) on images: `_bw_encoder` then the backward MLP. Trained END-TO-END by the
+    density loss, exactly as FB trains its `_bw_encoder` through the backward optimizer."""
+
+    hidden_dims: Sequence[int]
+    layer_norm: bool
+    encoder_cls: Any
+
+    def setup(self):
+        self.encoder = self.encoder_cls()
+        self.mlp = _MLP(self.hidden_dims, activate_final=False, layer_norm=self.layer_norm)
+
+    def encode(self, x):
+        return self.encoder(x)
+
+    def __call__(self, u):
+        return self.mlp(self.encoder(u))
+
+
 # ── sqrt(d)-sphere normalizations (bridge gciql_flow.py ~28-50), transcribed. ──
 def _sphere(x, d):
     """Project x onto the sphere of radius sqrt(d) along the last axis — FB pins
@@ -195,11 +256,67 @@ class _ZStatsState(nn.Module):
         return mu, cov, pool, filled
 
 
+# ── THE SILENT-FAILURE GUARD (pixels spec section 5.2). ─────────────────────────────────
+# This measure is DEFINED BY COLUMN SLICES. `_raw_block_cols` takes obs_rows[:, 19:22];
+# `_delta_phi` slices both of its arguments the same way. Hand either one a (B, 64, 64, 3)
+# image and jax slices the LAST axis without complaint: [:, 19:22] of a rank-4 array slices
+# the HEIGHT axis and returns a (B, 3, 64, 3) tensor that broadcasts its way through the
+# softmax; a flattened (B, 12288) image returns three arbitrary pixel intensities. Either way
+# the kernel returns NUMBERS, training proceeds against a measure computed from pixel values,
+# and nothing downstream -- not a shape error, not a nan, not a loss spike -- can tell you.
+#
+# So every array entering the kernel is checked at the boundary, on rank AND on exact width.
+# Exact width is what catches the flattened-image case, which a rank check alone lets through.
+#
+# Shapes are STATIC under jax tracing, so these run once at trace time and add nothing to the
+# compiled graph: the state path stays byte-identical (tests/impls/test_boot_contract.py).
+class MeasureChannelError(TypeError):
+    """An array reached the density kernel that is not an object-coordinate row block."""
+
+
+def _blocks_width(blocks):
+    """The concatenated width `_raw_block_cols`/`_density_queries` produce from `blocks`."""
+    return int(sum(b - a for (a, b, _e) in blocks))
+
+
+def _check_rows(arr, blocks, where, expect_dim=None):
+    """`arr` must be [N, D] object-coordinate ROWS wide enough for every block in `blocks`
+    (and exactly `expect_dim` wide when the critic knows what that is)."""
+    need = max(b for (_a, b, _e) in blocks)
+    shape = tuple(jnp.shape(arr))
+    if len(shape) != 2 or shape[-1] < need:
+        raise MeasureChannelError(
+            f"{where}: the density measure needs [N, D] object-coordinate rows with "
+            f"D >= {need} (the widest column in measure_hit_spec), got shape {shape}. "
+            f"On pixels this is the image tensor arriving where the PRIVILEGED QPOS "
+            f"CHANNEL belongs -- slicing it would return numbers computed from pixel "
+            f"values and train a silently different measure. Pass the `*_qpos` channel "
+            f"GCDataset emits under `measure_qpos_slices`.")
+    if expect_dim is not None and shape[-1] != int(expect_dim):
+        raise MeasureChannelError(
+            f"{where}: expected the measure channel to be {int(expect_dim)} columns wide "
+            f"(what this critic was built against), got shape {shape}. A width mismatch "
+            f"here means the hit spec is indexing a different quantity than it was tuned "
+            f"on -- e.g. a FLATTENED image, which passes a rank check but not this one.")
+
+
+def _check_cols(arr, blocks, where):
+    """`arr` must be [M, d_c] ALREADY-SLICED block columns (the `_raw_block_cols` output
+    convention), i.e. exactly as wide as `blocks` concatenates to."""
+    d_c = _blocks_width(blocks)
+    shape = tuple(jnp.shape(arr))
+    if len(shape) != 2 or shape[-1] != d_c:
+        raise MeasureChannelError(
+            f"{where}: the density kernel's query support must be [M, {d_c}] concatenated "
+            f"block columns (`_raw_block_cols` convention), got shape {shape}.")
+
+
 # ── the density kernel — _delta_phi / _density_queries / _raw_block_cols (bridge
 # gciql_flow.py ~1403-1449), NOT shared with td_fb (td_fb uses _hit_matrix, not this). ──
 def _density_queries(nobs, blocks):
     """[M, d_c] eps-scaled block coords of next_observations — the resampled query
-    support U AND the B-tower input rows."""
+    support U AND (on state) the B-tower input rows."""
+    _check_rows(nobs, blocks, "_density_queries(nobs)")
     parts = [nobs[:, a:b] / e for (a, b, e) in blocks]
     return jnp.concatenate(parts, axis=-1)
 
@@ -208,6 +325,7 @@ def _raw_block_cols(obs_rows, blocks):
     """[N, d_c] RAW (unscaled) concatenated block columns — the twin of
     `_density_queries` used as the `protos` argument to `_delta_phi`, which applies its
     own per-block eps scaling internally. Do NOT pre-scale this input."""
+    _check_rows(obs_rows, blocks, "_raw_block_cols(obs_rows)")
     parts = [obs_rows[:, a:b] for (a, b, e) in blocks]
     return jnp.concatenate(parts, axis=-1)
 
@@ -220,6 +338,7 @@ def _scale_block_cols(raw_cols, blocks):
     Needed by the frozen eval pool, which stores RAW coords because `_delta_phi` needs raw
     rows while the B tower needs the eps-scaled twin. The two conventions must not be
     crossed -- that is the double-scale trap this file's header warns about."""
+    _check_cols(raw_cols, blocks, "_scale_block_cols(raw_cols)")
     parts, off = [], 0
     for (a, b, e) in blocks:
         w = b - a
@@ -234,6 +353,8 @@ def _delta_phi(obs_rows, protos, blocks):
     columns (the `_raw_block_cols` convention) — eps scaling happens INTERNALLY here, so
     callers must feed both sides RAW (the `_density_queries` pre-scaled rows are the
     B-tower's own input, never this function's)."""
+    _check_rows(obs_rows, blocks, "_delta_phi(obs_rows)")
+    _check_cols(protos, blocks, "_delta_phi(protos)")
     protos = jnp.asarray(protos, jnp.float32)
     parts_x, parts_p, off = [], [], 0
     for (a, b, e) in blocks:
@@ -269,6 +390,21 @@ class DensityFBCritic:
     # bit-identical. The CE training target in stage_loss always keeps `temp`; a knob that
     # moved both would confound readout smoothness (M2) with the measure being trained.
     actor_temp: Any = None
+
+    # --- PIXEL path (docs/specs/2026-08-21-density-fb-pixels-drq.md), DEFAULT OFF ---------
+    # `pixel` is set by `build` from the example observation's rank, so it cannot be
+    # configured into disagreement with the data. With it False not one branch below is
+    # taken and the state arm is byte-identical.
+    #
+    # THE TWO CHANNELS. On pixels every one of u (the query support) and g (the goal) exists
+    # twice: as an IMAGE, which the towers encode, and as a PRIVILEGED OBJECT-COORDINATE ROW,
+    # which the hit kernel slices. The image channel keeps the existing key names
+    # (`_density_u_sc`, cond["goal"], cond["value_goal"]); the qpos channel rides alongside
+    # under `_density_u_raw`, cond["goal_qpos"] and cond["value_goal_qpos"]. `qpos_dim` is the
+    # exact width of that channel and is what `_check_rows` enforces at every kernel boundary.
+    pixel: bool = False
+    qpos_dim: int = 0
+    enc_dim: int = 0                # encoder feature width; the actor's conditioning width
 
     # --- spec 30 P1 reward-sample index (measure_density_z, DEFAULT OFF) ------------------
     # Every one of these is read ONLY when z_on is True; with z_on False not a single extra
@@ -328,8 +464,23 @@ class DensityFBCritic:
     def cvec_dim(self):
         """Width of cond_vec(cond) — what the actor's conditioning leg is sized to. With the
         reward-sample index on that is the index width d, not the observation width: the
-        actor rides z exactly as it otherwise rides the goal."""
-        return self.z_dim if self.z_on else self.obs_dim
+        actor rides z exactly as it otherwise rides the goal.
+
+        On PIXELS with the index off it is the ENCODER width: the actor cannot be handed a
+        (64, 64, 3) goal image to concatenate onto its input, so what it rides is the F-side
+        encoder's embedding of that goal, detached (spec section 5.3)."""
+        if self.z_on:
+            return self.z_dim
+        return self.enc_dim if self.pixel else self.obs_dim
+
+    @property
+    def actor_obs_dim(self):
+        """Width of the OBSERVATION leg the actor's policy nets are sized to. On pixels the
+        actor never sees the image -- it sees this critic's F-side encoder features, detached
+        (spec section 5.3) -- so it is the encoder width, not `obs_dim` (which on an image is
+        the channel count, 3). None off pixels, so Agent.create publishes nothing and every
+        other actor sizes itself from ex_obs exactly as it always did."""
+        return self.enc_dim if self.pixel else None
 
     # The critic's conditioning needs the target towers (see the Agent's `update` for why
     # a static declaration rather than signature sniffing).
@@ -344,11 +495,57 @@ class DensityFBCritic:
         return ("density_f", "density_b")
 
     # --- module apply helpers ---
-    def _F(self, p, x):
-        return self.density_f.apply({"params": p}, x)     # [2, B, d]
+    def _F(self, p, obs, acts, g):
+        """F(s, a, g) -> [2, B, d]. On state the three legs are concatenated by the CALLER's
+        equivalent of this line and handed to one MLP -- kept here so the pixel tower, which
+        must encode `obs` and `g` separately, has the same call signature."""
+        if self.pixel:
+            return self.density_f.apply({"params": p}, obs, acts, g)
+        return self.density_f.apply({"params": p}, jnp.concatenate([obs, acts, g], -1))
 
     def _B(self, p, u):
+        """B(u) -> [M, d]. `u` is the eps-scaled query row on state, the query IMAGE on
+        pixels (the tower encodes it)."""
         return self.density_b.apply({"params": p}, u)      # [M, d]
+
+    def _enc_f(self, p, x):
+        """F-side encoder alone, STOP-GRADIENT'd — the actor's view of an observation or a
+        goal. Detaching here is the seam's `with torch.no_grad():` (spec section 4): the
+        encoder is trained by the density loss and by nothing else.
+
+        Rank-tolerant, because the eval loop hands `sample_actions` a SINGLE unbatched
+        (H, W, C) frame while training always passes (B, H, W, C)."""
+        x = jnp.asarray(x)
+        unbatched = x.ndim == 3
+        xb = x[None] if unbatched else x
+        h = jax.lax.stop_gradient(
+            self.density_f.apply({"params": p}, xb, method=_PixelDensityF.encode))
+        return h[0] if unbatched else h
+
+    def _kernel_rows(self, batch_or_cond, key, arr):
+        """The OBJECT-COORDINATE rows for `key` — the ONLY thing the hit kernel may slice.
+
+        On STATE the observation IS the coordinate row, so this returns `arr` unchanged (the
+        same object, so the trace is identical). On PIXELS it returns the privileged channel
+        `<key>_qpos`, gathered by GCDataset at exactly the row index `key` came from.
+
+        INDEXED, never `.get()`-defaulted: a fallback to `arr` here is precisely the silent
+        failure this whole path exists to prevent -- the image would slice, and the measure
+        would quietly become a function of pixel values."""
+        if not self.pixel:
+            return arr
+        qk = f"{key}_qpos"
+        if qk not in batch_or_cond:
+            raise MeasureChannelError(
+                f"pixel density_fb needs {qk!r} -- the privileged object-coordinate twin of "
+                f"{key!r}. GCDataset emits it when `measure_qpos_slices` is set, and "
+                f"evaluate() builds it from the env. There is deliberately no fallback to "
+                f"{key!r}: slicing the image would return numbers and train a different "
+                f"measure with nothing failing.")
+        rows = batch_or_cond[qk]
+        _check_rows(rows, self.blocks, f"density_fb kernel channel {qk!r}",
+                    expect_dim=self.qpos_dim)
+        return rows
 
     # ------------------------------------------------------------------------------------
     # spec 30 P1 -- the TRANSLATION-GAUGE-INVARIANT CENTERED DUAL reward-sample index.
@@ -541,7 +738,7 @@ class DensityFBCritic:
             "filled": jnp.ones_like(st["filled"])})
         return net
 
-    def map_eval_cond(self, net, cond):
+    def map_eval_cond(self, net, cond, observations=None):
         """Eval-time hook: turn the env's raw goal into an index THROUGH THE REWARD-SAMPLE
         API, exactly as the bridge's `sample_actions` does under
         measure_density_z_prompt='sample' (`_density_z_eval_samples` ~1296-1307).
@@ -559,7 +756,26 @@ class DensityFBCritic:
         goal; `sample_actions_with_z` rolls a precomputed z), and it is FBCritic's behaviour
         here as well. Consequence worth knowing: impls/main.py's eval loop always passes a
         goal, so --infer_cond_episodes sets a cond_eval that the very next sample_actions
-        overwrites. Roll a reward-inferred index by calling sample_actions with goals=None."""
+        overwrites. Roll a reward-inferred index by calling sample_actions with goals=None.
+
+        PIXEL BRANCH (spec section 7). The eval loop hands us `info['goal']`, which on a
+        `visual-*` OGBench env is the goal IMAGE -- verified on this box. (The spec's section
+        2 claim that `info['goal']` is "the goal in STATE form" is FALSE for visual envs:
+        both `goal` and `goal_rendered` come back (64, 64, 3) uint8, because the env's
+        `compute_observation` returns pixels.) So the image channel is cond["goal"] and the
+        object-coordinate channel must be supplied separately as cond["goal_qpos"], which
+        impls/utils/evaluation.py builds from the env's task info. Here we encode the goal
+        image into the actor's conditioning vector and the current observation into the
+        actor's observation leg -- exactly the two things `sample_cond` publishes at training
+        time, so the policy sees the same inputs in both regimes."""
+        if self.pixel:
+            out = dict(cond)
+            fp = net["density_f"].params
+            if "goal" in cond:
+                out["_cvec"] = self._enc_f(fp, cond["goal"])
+            if observations is not None:
+                out["_obs_feat"] = self._enc_f(fp, observations)
+            return out
         if not self.z_on or "goal" not in cond:
             return cond
         g = cond["goal"]
@@ -586,11 +802,17 @@ class DensityFBCritic:
         gamma, tau = self.discount, self.temp
         blocks = self.blocks
 
-        u_raw = _raw_block_cols(nobs, blocks)                             # [M, d_c] RAW
-        u_sc = _density_queries(nobs, blocks)                             # [M, d_c] eps-scaled
+        # THE TWO CHANNELS. `nobs_q` is the object-coordinate row the kernel slices; `nobs`
+        # is what the B tower embeds. On state they are one and the same array (byte-
+        # identical); on pixels `nobs` is the image and `nobs_q` is the privileged qpos
+        # channel GCDataset gathered at the SAME row index.
+        nobs_q = self._kernel_rows(batch, "next_observations", nobs)
+        u_raw = _raw_block_cols(nobs_q, blocks)                           # [M, d_c] RAW
+        # The B tower's input: eps-scaled query rows on state, the query IMAGE on pixels.
+        u_sc = nobs if self.pixel else _density_queries(nobs_q, blocks)
 
         b_emb = self._B(params["density_b"], u_sc)                        # [M, d]
-        f_emb = self._F(params["density_f"], jnp.concatenate([obs, acts, g], -1))  # [2,B,d]
+        f_emb = self._F(params["density_f"], obs, acts, g)                # [2,B,d]
         logits = jnp.einsum('hbd,md->hbm', f_emb, b_emb) / tau            # [2, B, M]
         w = jax.nn.softmax(logits, -1)
         logp = jax.nn.log_softmax(logits, -1)
@@ -629,7 +851,7 @@ class DensityFBCritic:
             raise ValueError(f"measure_density_bootstrap must be 'actor' or 'sarsa', "
                              f"got {self.bootstrap!r}")
         tb = self._B(target["density_b"], u_sc)                           # frozen target
-        tf = self._F(target["density_f"], jnp.concatenate([nobs, a_plus, g], -1))
+        tf = self._F(target["density_f"], nobs, a_plus, g)
         w_bar = jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / tau, -1)  # [2, B, M]
 
         if self.hard:
@@ -638,7 +860,9 @@ class DensityFBCritic:
             # observed next state; the soft eps-kernel was diluting the readout.
             k = jnp.eye(nobs.shape[0])
         else:
-            k = _delta_phi(nobs, u_raw, blocks)                            # [B, M]
+            # The kernel is counted at the NEXT state, in OBJECT COORDINATES -- `nobs_q`,
+            # never the image.
+            k = _delta_phi(nobs_q, u_raw, blocks)                          # [B, M]
         t = jax.lax.stop_gradient((1.0 - gamma) * k[None] + gamma * w_bar)
         ce = -jnp.mean(jnp.sum(t * logp, axis=-1))
 
@@ -696,9 +920,13 @@ class DensityFBCritic:
                 jnp.einsum('md,bd->bm', cond["_density_tb_u"], g)
                 / jnp.sqrt(float(self.z_dim)))
         else:
+            # TWO CHANNELS AGAIN: F is conditioned on the goal the tower understands (the
+            # goal IMAGE on pixels), while the reward vector kg is the hit kernel, which only
+            # means anything in object coordinates.
             g = cond["goal"]
-            kg = jax.lax.stop_gradient(_delta_phi(g, u_raw, self.blocks))  # [B, M]
-        f_emb = self._F(f_p, jnp.concatenate([obs, actions, g], -1))
+            g_rows = self._kernel_rows(cond, "goal", g)
+            kg = jax.lax.stop_gradient(_delta_phi(g_rows, u_raw, self.blocks))  # [B, M]
+        f_emb = self._F(f_p, obs, actions, g)
         # W2 / KT-C: the ACTOR readout may use its own temperature. Raising it flattens the
         # softmax the actor ascends (M2: a spiky readout is the residual suspect for the
         # precision gap, ESS ~13 under qc03) WITHOUT touching what the measure is trained to
@@ -718,15 +946,22 @@ class DensityFBCritic:
         return q, jnp.stack([q1, q2], 0)
 
     def cond_vec(self, cond):
-        """The vector actors concatenate onto obs. The raw actor goal, or -- with the
-        reward-sample index on -- the index built at that goal."""
-        return cond["z"] if self.z_on else cond["goal"]
+        """The vector actors concatenate onto obs. The raw actor goal; with the reward-sample
+        index on, the index built at that goal; on PIXELS, the F-side encoder's DETACHED
+        embedding of the goal image (a policy net cannot concatenate a (64, 64, 3) tensor
+        onto its input, and the actor owns no encoder of its own -- spec section 5.3)."""
+        if self.z_on:
+            return cond["z"]
+        return cond["_cvec"] if self.pixel else cond["goal"]
 
     def sample_cond(self, net, batch, rng, target=None):
         # queries resampled every update from THIS batch's own next-state object coords.
         nobs = batch["next_observations"]
-        u_raw = _raw_block_cols(nobs, self.blocks)
-        u_sc = _density_queries(nobs, self.blocks)
+        nobs_q = self._kernel_rows(batch, "next_observations", nobs)
+        u_raw = _raw_block_cols(nobs_q, self.blocks)
+        # The B tower's query rows: eps-scaled object coords on state, the query IMAGE on
+        # pixels. `_density_u_raw` keeps its meaning on both (raw block columns).
+        u_sc = nobs if self.pixel else _density_queries(nobs_q, self.blocks)
         # `_cvec_vgoal` is THIS critic's conditioning vector at the value goal, published for
         # the actors' TD bootstrap draw (BOOT_COND == "value_goal"). cond_vec here is
         # cond["goal"] -- the raw goal -- so the value-goal counterpart is value_goals.
@@ -770,9 +1005,35 @@ class DensityFBCritic:
                     "_density_tb_u": jax.lax.stop_gradient(
                         self._B(target["density_b"], u_sc)),
                     "_density_u_raw": u_raw, "_density_u_sc": u_sc}
-        return {"value_goal": batch["value_goals"], "goal": batch["actor_goals"],
+        cond = {"value_goal": batch["value_goals"], "goal": batch["actor_goals"],
                 "_cvec_vgoal": batch["value_goals"],
                 "_density_u_raw": u_raw, "_density_u_sc": u_sc}
+        if self.pixel:
+            # Everything the ACTOR needs, published here because the actor cannot reach the
+            # encoder any other way: `sample_bootstrap`/`sample_actions` are handed `net` and
+            # `cond` but never the critic. Each is DETACHED (`_enc_f` stop-gradients), which
+            # is what makes the actor's stage move no encoder parameter -- FB's
+            # `with torch.no_grad():` expressed through the seam.
+            fp = net["density_f"].params
+            cond.update({
+                # The qpos twin of the ACTOR goal: q_fn's reward vector kg is
+                # `_delta_phi(goal, u_raw)`, and cond["goal"] is an image.
+                "goal_qpos": self._kernel_rows(batch, "actor_goals", None),
+                # The value goal's twin. NOTHING READS THIS TODAY -- stage_loss conditions F
+                # on the value-goal IMAGE and takes its kernel at the next state, not at the
+                # goal. It is published because the two goal legs must stay paired: any
+                # future kernel evaluated at the value goal (a sarsa-style readout, the
+                # reward index) would otherwise reach for cond["value_goal"] and get pixels.
+                "value_goal_qpos": self._kernel_rows(batch, "value_goals", None),
+                # the actor's conditioning leg at the actor goal and at the value goal
+                "_cvec": self._enc_f(fp, batch["actor_goals"]),
+                "_cvec_vgoal": self._enc_f(fp, batch["value_goals"]),
+                # the actor's OBSERVATION leg -- its policy/flow nets take features, not
+                # images (they concatenate obs with the conditioning vector).
+                "_obs_feat": self._enc_f(fp, batch["observations"]),
+                "_obs_feat_next": self._enc_f(fp, nobs),
+            })
+        return cond
 
     def eval_cond0(self, ex_obs, config):
         if self.z_on:
@@ -780,6 +1041,10 @@ class DensityFBCritic:
             # z is OFF the sqrt(d) sphere and therefore out of the conditioning
             # distribution; the point of --infer_cond_episodes is that it gets replaced.
             return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+        if self.pixel:
+            # A single blank FRAME, so the cond is well-formed before evaluate() supplies the
+            # real goal image. `evaluate` always passes `goals`, so this is never rolled on.
+            return {"goal": jnp.zeros(tuple(ex_obs.shape[1:]), jnp.uint8)}
         return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
 
     def infer_cond(self, net, obs, rewards):
@@ -808,6 +1073,14 @@ class DensityFBCritic:
             encoder returns the neutral 1_d index for it. That is the designed behaviour, not
             a failure -- but it is also not a zero-shot result, and
             impls/main.py::infer_cond_noop_reason will NOT flag it (cond did change)."""
+        if self.pixel:
+            # Not a placeholder: on pixels `obs_dim` is the CHANNEL COUNT (3), so the
+            # state branch's zero-goal would hand the eval path a 3-vector where an image
+            # belongs. And the z branch cannot run here at all (see `build`).
+            raise NotImplementedError(
+                "density_fb has no reward-sample task interface on pixels: the index "
+                "(measure_density_z) is not implemented there, so --infer_cond_episodes has "
+                "nothing to infer. Evaluate against the env goal instead.")
         if not self.z_on:
             return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
         z = self.z_from_reward_samples(net, _density_queries(obs, self.blocks), rewards)
@@ -823,7 +1096,23 @@ class DensityFBCritic:
         d = int(config["measure_density_dim"])
         blocks = parse_hit_spec(config.get("measure_hit_spec", "19:22:0.4"))
         obs_dim = int(ex_obs.shape[-1])
+        # PIXEL MODE is inferred from the DATA, not configured: an observation of rank > 2
+        # (i.e. [B, H, W, C]) is an image and there is no honest way to run the state path on
+        # it. Configuring this instead would let a config say "state" about image data, which
+        # is exactly the disagreement the kernel guard exists to make impossible.
+        pixel = int(jnp.ndim(ex_obs)) > 2
         z_on = bool(config.get("measure_density_z", False))
+        if pixel and z_on:
+            # BEFORE the z_on assertion block, because this is the more fundamental refusal:
+            # the index's FROZEN EVAL POOL stores RAW object-coordinate columns and re-scales
+            # them for the B tower (`_scale_block_cols` -> `_z_index`); on pixels the B tower
+            # consumes IMAGES, so that pool cannot be fed to it at all. Making the pool store
+            # images instead is a design change (~256 frames carried in the checkpoint), not a
+            # wiring fix -- docs/specs/2026-08-21-density-fb-pixels-drq.md section 10.
+            raise NotImplementedError(
+                "measure_density_z on pixels is not implemented and must not be faked: the "
+                "index's FROZEN EVAL POOL holds object-coordinate columns, which the pixel B "
+                "tower (which consumes images) cannot be fed.")
         z_rand_frac = float(config.get("measure_density_z_rand_frac", 0.5))
         z_lam = float(config.get("measure_density_z_ridge_lambda_mult", 0.01))
         z_floor = float(config.get("measure_density_z_cov_eig_floor", 1e-6))
@@ -862,21 +1151,62 @@ class DensityFBCritic:
                 f"measure_density_z_eval_pool_m={z_pool_m} exceeds batch_size={_bs}; the " \
                 f"frozen pool is drawn from one batch's next states"
 
-        density_f = _ensemblize(_MLP, 2)((*hd, d), activate_final=False, layer_norm=ln)
-        density_b = _MLP((*hd, d), activate_final=False, layer_norm=ln)
-
         rf, rb, rz = jr.split(jr.PRNGKey(config["seed"] + 6000), 3)
-        # F's conditioning leg is the index (width d) under measure_density_z, the raw goal
-        # (width obs_dim) otherwise -- the tower has to be INITIALIZED at that width or the
-        # first stage_loss dies with a ScopeParamShapeError.
-        ex_f = jnp.concatenate(
-            [ex_obs, ex_actions,
-             jnp.zeros((ex_obs.shape[0], d), ex_obs.dtype) if z_on else ex_obs], -1)
-        ex_u = _density_queries(ex_obs, blocks)
-        params = {
-            "density_f": density_f.init(rf, ex_f)["params"],
-            "density_b": density_b.init(rb, ex_u)["params"],
-        }
+        qpos_dim, enc_dim = 0, 0
+        if pixel:
+            from impls.utils.datasets import parse_qpos_slices
+            from impls.utils.encoders import encoder_modules
+            enc_name = config.get("encoder")
+            if enc_name is None:
+                raise KeyError(
+                    "image observations need config['encoder'] (a key of "
+                    "impls.utils.encoders.encoder_modules, e.g. 'drq'); there is no default "
+                    "visual front-end and running an MLP on raw pixels is not one.")
+            if enc_name not in encoder_modules:
+                raise KeyError(f"unknown encoder {enc_name!r}; known: {sorted(encoder_modules)}")
+            encoder_cls = encoder_modules[enc_name]
+            enc_dim = int(encoder_cls().feature_dim)
+            qslices = parse_qpos_slices(config.get("measure_qpos_slices"))
+            if qslices is None:
+                raise KeyError(
+                    "image observations need config['measure_qpos_slices'] (e.g. '14:17' on "
+                    "visual-cube-single-play-v0). density_fb's hit kernel and query support "
+                    "are literal column slices of object coordinates; on an image there is "
+                    "nothing to slice, so the measure is undefined without the privileged "
+                    "channel (spec section 1). This is the asymmetry the spec says to report, "
+                    "not a limitation to paper over.")
+            # `qslices` are (a, b) pairs (no eps -- they say where the channel comes FROM,
+            # not how the kernel scales it), unlike hit-spec blocks, which are (a, b, eps).
+            qpos_dim = int(sum(b - a for (a, b) in qslices))
+            need = max(b for (_a, b, _e) in blocks)
+            if qpos_dim < need:
+                raise ValueError(
+                    f"measure_hit_spec reaches column {need} but measure_qpos_slices builds "
+                    f"only a {qpos_dim}-column channel; the kernel would slice past its end")
+            density_f = _PixelDensityF(hidden_dims=(*hd, d), layer_norm=ln,
+                                       encoder_cls=encoder_cls, num_parallel=2,
+                                       encode_cond=True)
+            density_b = _PixelDensityB(hidden_dims=(*hd, d), layer_norm=ln,
+                                       encoder_cls=encoder_cls)
+            params = {
+                # the goal leg is initialized at an IMAGE, because that is what it is fed
+                "density_f": density_f.init(rf, ex_obs, ex_actions, ex_obs)["params"],
+                "density_b": density_b.init(rb, ex_obs)["params"],
+            }
+        else:
+            density_f = _ensemblize(_MLP, 2)((*hd, d), activate_final=False, layer_norm=ln)
+            density_b = _MLP((*hd, d), activate_final=False, layer_norm=ln)
+            # F's conditioning leg is the index (width d) under measure_density_z, the raw
+            # goal (width obs_dim) otherwise -- the tower has to be INITIALIZED at that width
+            # or the first stage_loss dies with a ScopeParamShapeError.
+            ex_f = jnp.concatenate(
+                [ex_obs, ex_actions,
+                 jnp.zeros((ex_obs.shape[0], d), ex_obs.dtype) if z_on else ex_obs], -1)
+            ex_u = _density_queries(ex_obs, blocks)
+            params = {
+                "density_f": density_f.init(rf, ex_f)["params"],
+                "density_b": density_b.init(rb, ex_u)["params"],
+            }
         targets = {"density_f": copy.deepcopy(params["density_f"]),
                    "density_b": copy.deepcopy(params["density_b"])}
         groups = ("density_f", "density_b")
@@ -899,6 +1229,7 @@ class DensityFBCritic:
                   # A2, but this fallback said False -- so any path building the critic from
                   # a partial config silently got the losing variant. Now they agree.
                   hard=bool(config.get("measure_density_hard", True)),
+                  pixel=pixel, qpos_dim=qpos_dim, enc_dim=enc_dim,
                   bootstrap=str(config.get("measure_density_bootstrap", "actor")),
                   actor_temp=config.get("measure_density_actor_temp", None),
                   z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac,

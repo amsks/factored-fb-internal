@@ -34,7 +34,7 @@ import dataclasses
 import jax
 import jax.numpy as jnp
 
-from impls.actors.ddpgbc import DDPGBCActor, _cvec
+from impls.actors.ddpgbc import DDPGBCActor, _cvec, _obs_feat, _nobs_feat
 
 
 @dataclasses.dataclass(frozen=True)
@@ -62,7 +62,9 @@ class DDPGBCDensityActor(DDPGBCActor):
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
         cvec = critic.cond_vec(cond)
-        dist = self._dist(params["actor"], obs, cvec)
+        # Policy on FEATURES, critic on the raw observation (it encodes behind
+        # `stop_encoder_grad`). Identity on state.
+        dist = self._dist(params["actor"], _obs_feat(cond, obs), cvec)
         q_actions = self._q_actions(dist, boot)
         q, qs = critic.q_fn(params, obs, cond, q_actions, stop_encoder_grad=True)
         # `qs` is the critic's normalizer leg: centered under density_fb's actor_q_center,
@@ -85,7 +87,7 @@ class DDPGBCDensityActor(DDPGBCActor):
         }
 
     def sample_bootstrap(self, net, batch, cond, rng):
-        next_obs = batch["next_observations"]
+        next_obs = _nobs_feat(cond, batch["next_observations"])
         p = net["actor"].params
         r_boot, r_sample = jax.random.split(rng)
         dist = self._dist(p, next_obs, _cvec(cond))
@@ -98,11 +100,17 @@ class DDPGBCDensityActor(DDPGBCActor):
             # `next_action` above is at the ACTOR goal and density_fb refuses it outright.
             #
             # The vector comes from the CRITIC as cond["_cvec_vgoal"] (seam section 12.1), NOT
-            # from cond["value_goal"]. This actor was exempted from that rewiring because the
-            # file was being kept unchanged, and the two keys held the same value, so nothing
-            # failed -- until measure_density_z=true makes _cvec_vgoal a z of width d while
-            # value_goal stays the raw goal, and this hands a goal-shaped vector to a z-shaped
-            # network (ScopeParamShapeError). Third occurrence of that bug class.
+            # from cond["value_goal"], matching DDPGBCActor and the block comment there.
+            #
+            # This actor was EXEMPTED from that rewiring because the file was being kept
+            # unchanged, and on the goal-conditioned state arm the two keys hold the same
+            # array -- so nothing failed and the gap stayed invisible. They differ exactly
+            # where the raw goal is not what the policy rides:
+            #   * measure_density_z=true -- _cvec_vgoal is a latent z of width d while
+            #     value_goal stays the raw goal (ScopeParamShapeError);
+            #   * pixels -- the goal is an image, which a policy net cannot concatenate onto
+            #     its input at all.
+            # Third occurrence of this bug class, and found twice independently.
             dv = self._dist(p, next_obs, cond["_cvec_vgoal"])
             boot["next_action_vgoal"] = jnp.clip(
                 dv.mode() if self.const_std else dv.sample(seed=r_boot), -1.0, 1.0)

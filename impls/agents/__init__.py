@@ -40,6 +40,18 @@ CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": H
            "qrl": QRLCritic, "vip": VIPCritic,
            "density_fb": DensityFBCritic, "td_fb": TDFBCritic,
            "psm": PSMCritic, "rldp": RLDPCritic}
+# CONFIG-ONLY VARIANTS: a --critic name that selects a different yaml but the SAME critic
+# class. `density_fb_pixels` is density_fb on image observations -- `DensityFBCritic.build`
+# infers the pixel path from the example observation's rank, so nothing about the class
+# changes; what changes is the config (encoder, frame stack, augmentation, and the privileged
+# qpos measure channel), and it needs its own file because the composer merges
+# domain-then-critic and a domain cannot override `measure_hit_spec`, which the pixel arm must.
+#
+# Kept OUT of CRITICS deliberately: that dict is enumerated by the seam's gates
+# (tests/impls/test_boot_contract.py builds every critic x actor pair from it), and an alias
+# would add a duplicate of an existing critic to every one of them without adding coverage.
+CRITIC_ALIASES = {"density_fb_pixels": "density_fb"}
+
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,
           # bridge spec 22 (see impls/actors/ddpgbc_density.py): the ddpgbc extraction
           # wired to density_fb's value-goal bootstrap + centered q normalizer.
@@ -158,7 +170,17 @@ class Agent(flax.struct.PyTreeNode):
         # `goals` is used by goal-conditioned critics (gciql: cond["goal"]); FB ignores it
         # (it conditions on cond_eval["z"]). When goals is None, use the stored eval cond.
         seed = self.rng if seed is None else seed
-        cond = self.cond_eval if goals is None else {**self.cond_eval, "goal": goals}
+        # `goals` is normally an array (the env's goal observation). It may also be a DICT of
+        # conditioning CHANNELS, which is how a critic that needs more than one view of the
+        # goal gets them: density_fb on pixels needs both the goal IMAGE (cond["goal"], what
+        # the towers encode) and the privileged object-coordinate row (cond["goal_qpos"],
+        # what the hit kernel slices), and there is no single array that is both.
+        if goals is None:
+            cond = self.cond_eval
+        elif isinstance(goals, dict):
+            cond = {**self.cond_eval, **goals}
+        else:
+            cond = {**self.cond_eval, "goal": goals}
         # Optional critic hook: some critics condition the actor on a FUNCTION of the goal
         # (iql_bilinear with actor_cond='z' feeds the actor psi(goal), width latent_dim),
         # which cannot be recovered from `cond` alone — it needs the critic's params.
@@ -180,7 +202,7 @@ class Agent(flax.struct.PyTreeNode):
     @classmethod
     def create(cls, critic_name, actor_name, seed, ex_obs, ex_actions, config):
         config = {**config, "seed": seed}
-        critic_cls = CRITICS[critic_name]
+        critic_cls = CRITICS[CRITIC_ALIASES.get(critic_name, critic_name)]
         actor_cls = ACTORS[actor_name]
         critic, cparams, targets = critic_cls.build(ex_obs, ex_actions, config)
         # Validate before building the actor: check_combo reads only class attributes, so
@@ -188,6 +210,13 @@ class Agent(flax.struct.PyTreeNode):
         # whatever config key the actor's build() indexes first.
         check_combo(critic, actor_cls)
         config = {**config, "cvec_dim": int(critic.cvec_dim)}  # actors size conditioning on this
+        # A critic whose actor sees something other than the raw observation declares its
+        # width here (density_fb on pixels: the DrQ feature width, because the policy is
+        # handed encoder features and the actor owns no encoder). Absent on every other
+        # critic, and actors then size their observation leg from ex_obs exactly as before.
+        actor_obs_dim = getattr(critic, "actor_obs_dim", None)
+        if actor_obs_dim is not None:
+            config = {**config, "actor_obs_dim": int(actor_obs_dim)}
         actor, aparams = actor_cls.build(ex_obs, ex_actions, config)
 
         params = {**cparams, **aparams}
