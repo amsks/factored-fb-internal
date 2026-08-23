@@ -73,6 +73,12 @@ class OGBenchAdapter:
         env, train_ds, val_ds = make_env_and_datasets(
             cfg["env_name"], cfg.get("frame_stack"),
             add_info=cfg.get("measure_qpos_slices") is not None)
+        # Publish the episode length for env/base.py::episode_horizon. Online rollouts and
+        # evaluate() need it, and it must NOT be inferred from config['horizon'] -- that key
+        # is RLDP's self-predictive window. OGBench carries it on the TimeLimit wrapper.
+        self._horizon = int(getattr(env, "_max_episode_steps", None)
+                            or (env.spec.max_episode_steps if env.spec is not None else 0)
+                            or 0) or None
         # Size ladder (spec E1). Train split only: the validation split is the fixed yardstick
         # every rung is measured against, so shrinking it too would move the ruler as well as
         # the data.

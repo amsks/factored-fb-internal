@@ -5,7 +5,7 @@ a 500k-step run, so most of this file is about the failure paths: unknown critic
 actor, unknown domain, an unset ${oc.env:...} root, a flag impls/main.py does not define.
 
 The rest pins spec section 7 (docs/specs/2026-08-21-density-fb-agent-branch.md): four
-tables, 288 / 192 / 45 / 9 = 534 jobs.
+tables, 288 / 192 / 36 / 9 = 525 jobs (T3 lost td_fb with the critic cull).
 
     PYTHONPATH=$PWD JAX_PLATFORMS=cpu python -m pytest tests/impls/test_gen_impls.py -q
 """
@@ -30,8 +30,8 @@ DATA_ROOTS = {"FB_DATA_ROOT": "/data/root", "FB_HF_EXPORT": "/data/hf"}
 def test_table_counts_match_spec_section_7():
     got = {name: len(t["critics"]) * len(t["actors"]) * len(t["domains"]) * len(t["seeds"])
            for name, t in G.TABLES.items()}
-    assert got == {"T1": 288, "T2": 192, "T3": 45, "T4": 9}
-    assert sum(got.values()) == 534
+    assert got == {"T1": 288, "T2": 192, "T3": 36, "T4": 9}
+    assert sum(got.values()) == 525
     # `expect` is what the summary line compares against; keep it honest.
     for name, t in G.TABLES.items():
         assert t["expect"] == got[name]
@@ -54,7 +54,7 @@ def test_table_summary_reports_every_table_and_the_total():
     text = G.table_summary()
     for name in G.TABLES:
         assert name in text
-    assert "534 jobs" in text
+    assert "525 jobs" in text
     assert "MISMATCH" not in text
 
 
@@ -247,7 +247,7 @@ def test_pending_exorl_domains_explain_themselves():
 
 
 def test_allow_unknown_domains_emits_t3_and_t4(tmp_path, capsys):
-    for table, n in (("T3", 45), ("T4", 9)):
+    for table, n in (("T3", 36), ("T4", 9)):
         out = tmp_path / f"{table}.txt"
         G.run(["--table", table, "--allow_unknown_domains", "--out", str(out),
                "--campaign_out", str(tmp_path / "c")])
@@ -379,5 +379,5 @@ def test_env_flag_requires_var_equals_value(tmp_path):
 
 def test_module_import_does_not_touch_the_filesystem_defaults():
     """The four table presets are pure data — a summary must not need a repo, a venv or a
-    dataset root, so a human can sanity-check 534 before anything is installed."""
+    dataset root, so a human can sanity-check 525 before anything is installed."""
     assert isinstance(G.table_summary(), str)

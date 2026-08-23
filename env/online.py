@@ -608,8 +608,14 @@ class OnlineTrainer:
         """
         obs_dim = int(np.asarray(example_batch["observations"]).shape[-1])
         act_dim = int(np.asarray(example_batch["actions"]).shape[-1])
+        # `valids` is OGBench compact-dataset bookkeeping consumed by
+        # Dataset.get_random_idxs, never by a critic's stage_loss (grep impls/critics: no
+        # hits). The replay buffer stores whole episodes and has no analogue, so requiring
+        # it would reject every online run on an OGBench domain.
+        _INTERNAL = {"valids"}
         buffer = ReplayBuffer(flags_ns.online_buffer_size, obs_dim, act_dim, cfg,
-                              required_keys=tuple(example_batch.keys()))
+                              required_keys=tuple(k for k in example_batch
+                                                  if k not in _INTERNAL))
         if seed_offline is None:
             seed_offline = flags_ns.online_seed_offline
         if seed_offline:

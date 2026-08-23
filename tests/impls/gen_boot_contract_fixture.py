@@ -50,6 +50,10 @@ def make_batch(seed=1):
         # every recorded loss for reasons unrelated to the change under test.
         future_observations=jnp.asarray(rh.standard_normal((B, 4, OBS))),
         future_actions=jnp.asarray(np.tanh(rh.standard_normal((B, 4, ACT)))),
+        # psm keys its proto policy on the DATASET ROW id and refuses a batch without it.
+        # Fixed ids, not arange(B): arange is the positional fallback the raise exists to
+        # prevent, so using it here would pin the very behaviour we removed.
+        index=jnp.asarray([5, 11, 23, 4, 9, 1, 6, 2][:B] * (B // 8 + 1))[:B],
         low_actor_goals=jnp.asarray(rh.standard_normal((B, OBS))),
         high_actor_goals=jnp.asarray(rh.standard_normal((B, OBS))),
         high_actor_targets=jnp.asarray(rh.standard_normal((B, OBS))),

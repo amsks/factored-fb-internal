@@ -58,7 +58,7 @@ SEEDS = [0, 1, 2]
 
 # ---------------------------------------------------------------------------------------
 # The four tables of spec section 7 (docs/specs/2026-08-21-density-fb-agent-branch.md).
-# Transcribed, not invented: the counts must come out 288 / 192 / 45 / 9 = 534.
+# Transcribed, not invented: the counts must come out 288 / 192 / 36 / 9 = 525 (T3 dropped td_fb with the critic cull).
 # ---------------------------------------------------------------------------------------
 # "8 of 8 baselines" from the progress log (spec section 12).
 T1_METHODS = ["density_fb", "fb", "gciql", "iql_bilinear", "gcivl", "hiql", "psm", "rldp"]
@@ -72,7 +72,7 @@ T1_DOMAINS = ["cube-single", "cube-double", "scene",
 T2_ACTORS = ["flowbc", "ddpgbc", "awr", "fql"]
 T2_DOMAINS = ["cube-single", "mw-pick-place"]
 # The five critics with a reward interface.
-T3_METHODS = ["density_fb", "fb", "td_fb", "psm", "rldp"]
+T3_METHODS = ["density_fb", "fb", "psm", "rldp"]   # the reward-interface family
 # ExoRL / DMC on the RND exploration dataset. T4 uses the same three.
 T3_DOMAINS = ["point_mass_maze", "walker", "cheetah"]
 
@@ -84,7 +84,7 @@ TABLES = {
                online=False, expect=192,
                note="actor study"),
     "T3": dict(critics=T3_METHODS, actors=["flowbc"], domains=T3_DOMAINS, seeds=SEEDS,
-               online=False, expect=45,
+               online=False, expect=36,
                note="ExoRL, reward-specified (workstream 6 NOT started)"),
     "T4": dict(critics=["density_fb"], actors=["flowbc"], domains=T3_DOMAINS, seeds=SEEDS,
                online=True, expect=9,

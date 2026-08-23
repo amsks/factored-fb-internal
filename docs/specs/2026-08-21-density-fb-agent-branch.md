@@ -254,17 +254,17 @@ named subset, because the full product is roughly 1,250 runs at 500k–1M steps.
 |---|---|---|
 | **T1** goal-conditioned manipulation | 8 methods × `flowbc` × 12 domains × 3 seeds | 288 |
 | **T2** actor study | 8 methods × 4 actors × {cube-single, mw-pick-place} × 3 seeds | 192 |
-| **T3** ExoRL, reward-specified | 5 methods × 3 DMC domains × 3 seeds | 45 |
+| **T3** ExoRL, reward-specified | 4 methods × 3 DMC domains × 3 seeds | 36 |
 | **T4** online Density-FB | `density_fb` online × 3 DMC domains × 3 seeds | 9 |
-| | | **≈534** |
+| | | **≈525** |
 
 T1 methods: `density_fb, fb, gciql, iql_bilinear, gcivl, hiql, psm, rldp`.
 T1 domains (12): `cube-single, cube-double, scene, mw-{pick-place, push,
 assembly, basketball, bin-picking, box-close, button-press}, ms-{pick-cube,
 push-cube}`. `env/domains/` also holds `antmaze`, `pointmaze` and five `b2d-*`
 domains; they are excluded from T1, which is manipulation-only.
-T3 methods: `density_fb, fb, td_fb, psm, rldp` — the ones with a reward
-interface. T3 domains: `point_mass_maze`, `walker`, `cheetah`, each on the **RND**
+T3 methods: `density_fb, fb, psm, rldp` — the ones with a reward interface
+(`td_fb` was culled with the other six critics). T3 domains: `point_mass_maze`, `walker`, `cheetah`, each on the **RND**
 exploration dataset (one dataset, so the table varies method and domain only).
 T4 uses the same three domains.
 
