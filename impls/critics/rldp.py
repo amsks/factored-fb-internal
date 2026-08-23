@@ -109,7 +109,6 @@ class RLDPCritic:
         assert stage == "fb"
         return self.GROUPS
 
-    # --- module apply helpers ---
     def _F(self, p, obs_feat, z, action):
         return self.forward.apply({"params": p}, obs_feat, z, action)
 

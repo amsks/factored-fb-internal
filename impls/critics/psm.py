@@ -144,7 +144,6 @@ class PSMCritic:
         assert stage == "sf", stage
         return ("sf_psi",)
 
-    # --- module apply helpers ---
     def _phi(self, p, x):
         return self.phi.apply({"params": p}, x)
 

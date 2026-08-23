@@ -11,9 +11,8 @@ def _cvec(cond):
 
     A critic whose conditioning is neither the raw goal nor a latent -- density_fb on
     PIXELS, where it is the encoder's detached embedding of the goal IMAGE -- publishes it
-    explicitly as cond["_cvec"], the same convention as the existing cond["_cvec_vgoal"].
-    Checked FIRST so no actor ever has to guess: cond["goal"] is a (64, 64, 3) tensor there,
-    and concatenating it onto an observation would fail loudly at best."""
+    as cond["_cvec"]. Checked FIRST so no actor has to guess: cond["goal"] is a (64, 64, 3)
+    tensor there, and concatenating it onto an observation would fail at best."""
     if "_cvec" in cond:
         return cond["_cvec"]
     return cond["z"] if "z" in cond else cond["goal"]
@@ -23,11 +22,9 @@ def _obs_feat(cond, obs):
     """The array the actor's POLICY nets consume in place of `obs`.
 
     Identity everywhere except pixels, where the critic publishes DETACHED encoder features
-    as cond["_obs_feat"] (and cond["_obs_feat_next"] for s'). The actor owns no encoder:
-    that is FB's own split (`actor_optimizer` holds `_actor` only, and the actor's update
-    wraps the encode in `with torch.no_grad():`), and it is why these arrive through `cond`
-    rather than being computed here -- `sample_bootstrap`/`sample_actions` are handed `net`
-    and `cond`, never the critic."""
+    as cond["_obs_feat"] (and cond["_obs_feat_next"] for s'). The actor owns no encoder, so
+    these arrive through `cond`: `sample_bootstrap`/`sample_actions` are handed `net` and
+    `cond`, never the critic."""
     return cond["_obs_feat"] if "_obs_feat" in cond else obs
 
 
@@ -52,9 +49,8 @@ class DDPGBCActor:
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
         cvec = critic.cond_vec(cond)
-        # The POLICY takes features; the CRITIC takes the raw observation and encodes it
-        # itself under `stop_encoder_grad`. Both legs are detached, so this stage moves no
-        # encoder parameter.
+        # The POLICY takes features, the CRITIC the raw observation, which it encodes under
+        # `stop_encoder_grad`. Both legs detached, so no encoder param moves.
         dist = self._dist(params["actor"], _obs_feat(cond, obs), cvec)
         q_actions = jnp.clip(dist.mode(), -1, 1)
         q, _ = critic.q_fn(params, obs, cond, q_actions, stop_encoder_grad=True)
@@ -69,19 +65,16 @@ class DDPGBCActor:
         next_obs = _nobs_feat(cond, batch["next_observations"])
         p = net["actor"].params
         boot = {"next_action": jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1)}
-        # The CRITIC decides what the actor's conditioning vector at the value goal is, and
-        # publishes it as cond["_cvec_vgoal"]. Actors must not infer it from cond["value_goal"]:
-        # that raw goal is only the right vector when the actor rides the goal itself, and
-        # guessing it broke twice -- iql_bilinear(actor_cond="z") wanted a latent, hiql wanted
-        # a subgoal rep, and both got an obs-shaped vector against a differently-shaped net.
+        # CONTRACT (canonical statement; the other actors point here). The CRITIC decides
+        # the actor's conditioning vector at the value goal and publishes it as
+        # cond["_cvec_vgoal"]. Actors must NOT infer it from cond["value_goal"], which is the
+        # right vector only when the actor rides the goal itself -- a latent- or
+        # subgoal-conditioned net gets an obs-shaped vector against a differently-shaped net.
         # Absent key => this critic does not bootstrap at the value goal, so no draw.
         if "_cvec_vgoal" in cond:
             # a+ ~ pi(.|s', g_value) at frozen params, for critics whose TD target is only
-            # valid at the VALUE goal (Critic.BOOT_COND == "value_goal"; density_fb's forward
-            # tower is F(s,a,g), so its row is g-indexed). Emitted as a SEPARATE key -- every
-            # critic reading `next_action` stays bit-identical. Mirrors
-            # FlowBCActor.sample_bootstrap; this actor is deterministic (dist.mode()), so the
-            # extra draw spends no randomness at all.
+            # valid at the VALUE goal (Critic.BOOT_COND == "value_goal"). A SEPARATE key, so
+            # critics reading `next_action` stay bit-identical.
             boot["next_action_vgoal"] = jnp.clip(
                 self._dist(p, next_obs, cond["_cvec_vgoal"]).mode(), -1, 1)
         return boot
@@ -95,14 +88,13 @@ class DDPGBCActor:
         import jax.random as jr
         from impls.utils.networks import Actor
         a_cfg = config["actor"]
-        # tanh_squash=False matches vendored GCIQL's GCActor (gciql.py:248 leaves the
-        # GCActor default). Actions are clipped at the call sites instead.
+        # tanh_squash=False matches vendored GCIQL's GCActor; actions are clipped at the
+        # call sites instead.
         actor = Actor(hidden_dims=tuple(a_cfg["hidden_dims"]), action_dim=ex_actions.shape[-1],
                       layer_norm=a_cfg.get("layer_norm", False), tanh_squash=False,
                       const_std=a_cfg.get("const_std", True))
-        # `actor_obs_dim` is published by Agent.create from the critic when the actor's
-        # observation leg is NOT the raw observation width -- density_fb on pixels, where the
-        # policy sees encoder features (width enc_dim) and never the (64, 64, 3) image.
+        # `actor_obs_dim` is published by Agent.create when the actor's observation leg is
+        # NOT the raw observation width -- density_fb on pixels sees encoder features.
         odim = int(config.get("actor_obs_dim") or ex_obs.shape[-1])
         ex_in = jnp.zeros((ex_obs.shape[0], odim + config.get("cvec_dim", config.get("z_dim"))))
         params = {"actor": actor.init(jr.PRNGKey(config["seed"] + 2000), ex_in)["params"]}

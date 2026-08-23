@@ -30,10 +30,9 @@ class AWRActor:
         cvec = critic.cond_vec(cond)
         adv_fn = getattr(critic, "adv_fn", None)
         if adv_fn is not None:
-            # The critic defines its own advantage. Required for V-only critics: their
-            # q_fn is V(s,g) ignoring actions, so the q - v form below is identically ZERO
-            # and AWR silently degenerates to plain BC (measured: qrl x awr, vip x awr).
-            # Opt-in, so every critic without the hook keeps the exact previous path.
+            # The critic defines its own advantage. Required for V-only critics: their q_fn
+            # is V(s,g) ignoring actions, so the q - v form below is identically ZERO and AWR
+            # silently degenerates to plain BC (measured on qrl x awr, vip x awr).
             adv = jax.lax.stop_gradient(adv_fn(params, batch, cond))
             exp_a = jnp.minimum(jnp.exp(adv * self.alpha), 100.0)
             dist = self._dist(params["actor"], obs, cvec)
@@ -44,8 +43,8 @@ class AWRActor:
         if getattr(critic, "PROVIDES_V", False):
             v = critic.v_fn(params, obs, cond)
         else:
-            # No V: baseline with Q at the policy's mode action (stop-grad below keeps the
-            # advantage a pure weight, so pi(s) here does not leak gradient into the actor).
+            # No V: baseline with Q at the policy's mode action. The stop-grad below keeps
+            # the advantage a pure weight, so pi(s) leaks no gradient into the actor.
             a_pi = self._dist(params["actor"], obs, cvec).mode()
             v, _ = critic.q_fn(params, obs, cond, jnp.clip(a_pi, -1.0, 1.0), stop_encoder_grad=True)
         adv = jax.lax.stop_gradient(q - v)
@@ -59,16 +58,10 @@ class AWRActor:
         next_obs = batch["next_observations"]
         p = net["actor"].params
         boot = {"next_action": jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1)}
-        # The CRITIC decides what the actor's conditioning vector at the value goal is, and
-        # publishes it as cond["_cvec_vgoal"]. Actors must not infer it from cond["value_goal"]:
-        # that raw goal is only the right vector when the actor rides the goal itself, and
-        # guessing it broke twice -- iql_bilinear(actor_cond="z") wanted a latent, hiql wanted
-        # a subgoal rep, and both got an obs-shaped vector against a differently-shaped net.
-        # Absent key => this critic does not bootstrap at the value goal, so no draw.
+        # The cond["_cvec_vgoal"] contract: see impls/actors/ddpgbc.py::sample_bootstrap.
         if "_cvec_vgoal" in cond:
-            # See the block comment in impls/actors/ddpgbc.py::sample_bootstrap: a+ drawn at
-            # the VALUE goal, for critics declaring BOOT_COND == "value_goal". Separate key,
-            # deterministic draw, no randomness spent, next_action untouched.
+            # a+ at the VALUE goal, for critics declaring BOOT_COND == "value_goal".
+            # Deterministic, so no randomness is spent and next_action is untouched.
             boot["next_action_vgoal"] = jnp.clip(
                 self._dist(p, next_obs, cond["_cvec_vgoal"]).mode(), -1, 1)
         return boot
