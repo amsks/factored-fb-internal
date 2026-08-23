@@ -136,11 +136,19 @@ def save_agent(agent, save_dir, epoch):
     print(f'Saved to {save_path}')
 
 
+def resolve_run_dir(path_glob):
+    """Resolve a --restore_path / --warm_start_path glob to THE single run directory it
+    matches. Factored out so callers that need something else from the same checkpoint
+    directory (env/online.py's replay-buffer state) resolve it exactly as restore_agent
+    does, instead of re-globbing and possibly disagreeing."""
+    candidates = glob.glob(path_glob)
+    assert len(candidates) == 1, f'Found {len(candidates)} candidates: {candidates}'
+    return candidates[0]
+
+
 def restore_agent(agent, restore_path, restore_epoch):
     """Restore the agent from restore_path (glob) / params_{restore_epoch}.pkl."""
-    candidates = glob.glob(restore_path)
-    assert len(candidates) == 1, f'Found {len(candidates)} candidates: {candidates}'
-    restore_path = candidates[0] + f'/params_{restore_epoch}.pkl'
+    restore_path = resolve_run_dir(restore_path) + f'/params_{restore_epoch}.pkl'
     with open(restore_path, 'rb') as f:
         load_dict = pickle.load(f)
     agent = flax.serialization.from_state_dict(agent, load_dict['agent'])

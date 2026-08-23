@@ -33,6 +33,11 @@ class FBCritic:
     STAGES = ("fb",)
     PROVIDES_V = False
     PROVIDES_COND = frozenset({"z"})  # sample_cond() produces {"z": ...}
+    # infer_cond's base measure: the SUCCESSOR marginal. This critic's backward tower is
+    # trained on `goal = next_obs` (stage_loss) and sample_cond mixes in B(next_observations),
+    # so the reward->z readout must be solved on the same rows, paired with the reward of
+    # that same transition. See impls/critics/base.py::INFER_COND_MARGINALS.
+    INFER_COND_MARGINAL = "next_observations"
 
     @property
     def TARGETS(self):

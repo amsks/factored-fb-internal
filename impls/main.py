@@ -18,9 +18,11 @@ import jax.numpy as jnp
 import numpy as np
 
 from impls.agents import Agent
+from impls.critics.base import infer_cond_rows
 from impls.utils.datasets import make_dataset
 from env import get_adapter, make_config
-from impls.utils.flax_utils import restore_agent, save_agent, warm_start_agent
+from impls.utils.flax_utils import (resolve_run_dir, restore_agent, save_agent,
+                                    warm_start_agent)
 from impls.utils.log_utils import CsvLogger, get_exp_name, setup_wandb
 
 FLAGS = flags.FLAGS
@@ -50,7 +52,19 @@ flags.DEFINE_string("agg_dir", None, "optional: dir for per-seed eval jsonls (ca
 flags.DEFINE_string("agg_group", None, "optional aggregation key; default <critic>_<actor>__<domain>")
 flags.DEFINE_integer("infer_cond_episodes", 0,
                      "If >0, infer eval conditioning from this many relabelled transitions "
-                     "before each eval (FB zero-shot path). 0 = use eval_cond0.")
+                     "before each eval (FB zero-shot path). 0 = use eval_cond0. The rows fed "
+                     "to infer_cond are chosen by the critic's own INFER_COND_MARGINAL "
+                     "declaration (impls/critics/base.py), not hard-coded here. On its own "
+                     "this flag only PRODUCES a conditioning vector -- see "
+                     "--eval_on_inferred_cond for the flag that makes eval actually roll it.")
+flags.DEFINE_bool("eval_on_inferred_cond", False,
+                  "Evaluate on the conditioning --infer_cond_episodes inferred, INSTEAD of "
+                  "the env's task goal. Requires --infer_cond_episodes>0. Without this the "
+                  "evaluator hands every goal-capable critic a goal frame, Agent."
+                  "sample_actions merges it over cond_eval, and the inferred index is "
+                  "discarded before it is ever used -- so the reward-sample interface was "
+                  "unreachable through the normal eval path. Off by default: a run that is "
+                  "legitimately goal-conditioned must keep behaving exactly as it did.")
 
 # --- ONLINE (env-interactive) mode. OFF by default; see env/online.py. -------------------
 # Every knob below is inert unless --online is passed: with the flag off, the training loop
@@ -84,13 +98,88 @@ flags.DEFINE_integer("online_seed_transitions", 0,
 flags.DEFINE_integer("online_reset_seed_offset", 1_000_000,
                      "Offset applied to online episode reset seeds so online rollouts never "
                      "reuse the initial states evaluate() scores (it uses seeds 0..N).")
+flags.DEFINE_bool("online_restore_buffer", True,
+                  "On --restore_path with --online, restore the replay buffer, collector "
+                  "position and exploration RNG from the checkpoint's online_state_<epoch>."
+                  "npz, and REFUSE the resume if that file is absent. False accepts an "
+                  "EMPTY buffer and a re-run prefill instead -- i.e. a fully-trained agent "
+                  "collecting a fresh warmup set, which is almost never what a resume means.")
+flags.DEFINE_float("online_explore_goal_prob", 0.0,
+                   "Per EPISODE, probability of collecting against a goal drawn uniformly "
+                   "from the replay buffer's own states instead of the eval goal. 0.0 "
+                   "(default) reproduces the existing behaviour bit-for-bit -- no draw is "
+                   "made at all. This is a coverage dial against the narrowness documented "
+                   "in env/online.py (the collection policy is conditioned on the eval goal, "
+                   "so hindsight goals inherit that support); it is not an exploration "
+                   "algorithm.")
 
 
-def infer_cond_noop_reason(pre_cond, post_cond, rewards):
+class InferredCondAgent:
+    """An EVAL-ONLY view of an `Agent` that rolls the conditioning `infer_eval_cond`
+    produced and REFUSES the env's goal. The --eval_on_inferred_cond route.
+
+    The problem it solves. `Agent.sample_actions(obs, goals=...)` does
+    `cond = self.cond_eval if goals is None else {**self.cond_eval, "goal": goals}`, and both
+    evaluators always pass a goal for any goal-capable critic (env/unified.py::evaluate builds
+    a goal frame; impls/utils/evaluation.py reads info['goal']). For every critic that owns a
+    `map_eval_cond` hook -- fb, psm, rldp, density_fb -- that goal is then re-encoded INTO the
+    conditioning, overwriting whatever `infer_cond` had just solved for. So the reward-sample
+    interface existed, was tested in isolation, and could not be exercised by a run:
+    `--infer_cond_episodes` set a `cond_eval` the very next `sample_actions` discarded.
+
+    Why a wrapper and not a change to `Agent.sample_actions`. The precedence rule is correct
+    for goal-conditioned evaluation and matches the bridge's own split (`sample_actions(obs,
+    goal)` maps the goal, `sample_actions_with_z` rolls a precomputed z). Nothing about a
+    critic changes here; what changes is which of the two entrypoints THIS RUN drives. Because
+    the wrapper only ever forwards `goals=None`, it works identically through both evaluators
+    without either of them knowing about it.
+
+    OBSERVABILITY, which is the other half of the requirement: a run must be able to prove it
+    evaluated on an inferred index rather than an env goal. `witness()` is logged into
+    eval.csv and wandb every eval point -- `inferred_cond_goals_dropped` counts the goal
+    frames this wrapper actually intercepted and threw away, so a nonzero value is positive
+    evidence that the goal path was live and was overridden, and `inferred_cond_norm`
+    fingerprints the vector that was rolled instead.
+    """
+
+    # Read by env/base.py::needs_goal_frame, which then does not even BUILD a goal frame
+    # for this agent (so `eval_goal_mode=synth` on a task with no goal-in-obs layout is not
+    # an error on this route -- there is no goal to synthesise).
+    ROLLS_INFERRED_COND = True
+
+    def __init__(self, agent):
+        self.agent = agent
+        self.critic = agent.critic       # evaluators introspect this
+        self.cond_eval = agent.cond_eval
+        self.reset_counts()
+
+    def reset_counts(self):
+        self.action_calls = 0
+        self.goals_dropped = 0
+
+    def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
+        self.action_calls += 1
+        if goals is not None:
+            self.goals_dropped += 1
+        return self.agent.sample_actions(observations, goals=None, seed=seed,
+                                         temperature=temperature)
+
+    def witness(self):
+        """Scalars proving what this eval point actually conditioned on."""
+        norms = {k: float(jnp.linalg.norm(jnp.asarray(v).ravel()))
+                 for k, v in self.cond_eval.items() if not k.startswith("_")}
+        primary = "z" if "z" in norms else (sorted(norms)[0] if norms else None)
+        return {"inferred_cond": 1.0,
+                "inferred_cond_action_calls": float(self.action_calls),
+                "inferred_cond_goals_dropped": float(self.goals_dropped),
+                "inferred_cond_norm": norms.get(primary, float("nan"))}
+
+
+def infer_cond_noop_reason(pre_cond, post_cond, rewards, agent=None):
     """Detect when infer_eval_cond() had no real effect, and return a string naming why
     (for a caller to warn on), or None if inference looks like it did something.
 
-    Two known no-op cases on the currently-supported configs:
+    Three known no-op cases on the currently-supported configs:
       - cube-single-play-v0 is unlabeled play data, so FBDataset zeroes every reward
         (impls/utils/datasets.py); FB's z = (rewards^T B)/N is then exactly 0, and
         project_z(0) returns exact zeros -- bit-identical to eval_cond0's zero z.
@@ -98,8 +187,15 @@ def infer_cond_noop_reason(pre_cond, post_cond, rewards):
         always returns a zero placeholder cond["goal"]; evaluate() overrides cond["goal"]
         with the env task goal regardless (impls/utils/evaluation.py), so this cond is
         never even read.
-    A user passing --infer_cond_episodes>0 on either path gets ordinary eval_cond0/env-goal
-    behavior with no indication z-inference actually ran, unless we say so here.
+      - THE ONE THAT MOTIVATED --eval_on_inferred_cond: inference genuinely changed
+        cond_eval, but the eval route is about to hand the actor a goal frame, which
+        Agent.sample_actions merges over cond_eval and map_eval_cond re-encodes. The
+        inferred vector is computed, logged as "changed", and then discarded before a
+        single action is drawn from it. Pass `agent` (the object eval will actually be
+        driven with) to get this case detected.
+    A user passing --infer_cond_episodes>0 on any of these paths gets ordinary
+    eval_cond0/env-goal behavior with no indication z-inference actually ran, unless we
+    say so here.
     """
     rewards = jnp.asarray(rewards)
     if rewards.size and bool(jnp.all(rewards == 0)):
@@ -109,6 +205,14 @@ def infer_cond_noop_reason(pre_cond, post_cond, rewards):
         jnp.array_equal(jnp.asarray(pre_cond[k]), jnp.asarray(post_cond[k])) for k in common
     ):
         return "inferred cond is bit-identical to the pre-inference cond (inference had no effect)"
+    if agent is not None:
+        from env.base import needs_goal_frame
+        if needs_goal_frame(agent):
+            return ("the eval route supplies an env goal frame for this critic, and "
+                    "Agent.sample_actions merges a supplied goal over cond_eval (critics "
+                    "with a map_eval_cond hook then re-derive the conditioning from it), so "
+                    "the inferred vector is discarded before any action is drawn -- pass "
+                    "--eval_on_inferred_cond to evaluate on it instead")
     return None
 
 
@@ -179,6 +283,16 @@ def _log_video(run, scope, step, video_path):
 def main(_):
     cfg = make_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
 
+    # Fail on the FLAG COMBINATION before anything expensive is built. --eval_on_inferred_cond
+    # with no inference to roll would evaluate on eval_cond0 -- a zero z, for which Q(s,a;0)
+    # == 0 and the policy is goal-blind -- while the log said "inferred". That number would be
+    # indistinguishable from a real zero-shot result.
+    if FLAGS.eval_on_inferred_cond and FLAGS.infer_cond_episodes <= 0:
+        raise ValueError(
+            "--eval_on_inferred_cond needs --infer_cond_episodes>0: it evaluates on the "
+            "conditioning inference produced, and with inference off that is eval_cond0 "
+            "(FB's zero z => Q == 0, a goal-blind policy), not a zero-shot readout.")
+
     # GCDataset draws every batch index, goal index and relabel coin from the global NumPy
     # RNG (impls/utils/datasets.py), so --seed has to reach it or two seeds replay the same
     # batch stream and the reported seed-to-seed sd is not a seed estimate. (The other half
@@ -226,13 +340,36 @@ def main(_):
             agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch)
             start_step = FLAGS.restore_epoch + 1
 
+        # A resume under --online has to restore the REPLAY BUFFER too. restore_agent brings
+        # back params/optimizer/rng only; without the buffer the resumed run starts empty,
+        # re-runs prefill, and trains a fully-trained agent on a few thousand fresh warmup
+        # transitions -- a silent change of training distribution that looks like a clean
+        # resume in every log. --online_restore_buffer=false is the explicit opt-in to that
+        # old behaviour; by default a missing online_state_<epoch>.npz is a hard error.
+        restore_online = bool(FLAGS.restore_path and FLAGS.online and FLAGS.online_restore_buffer)
+
         # ONLINE mode is entirely inside this block: `online` stays None with the flag off,
         # env/online.py is not imported, and the loop below runs the offline statements it
         # always ran. Nothing above this line is conditional on --online.
         online = None
         if FLAGS.online:
             from env.online import OnlineTrainer
-            online = OnlineTrainer.create(adapter, env, cfg, train_ds, ex, FLAGS)
+            # Seeding from the offline dataset is skipped when a restore is about to replace
+            # the buffer's contents wholesale -- the copy would be pure waste.
+            online = OnlineTrainer.create(adapter, env, cfg, train_ds, ex, FLAGS,
+                                          seed_offline=False if restore_online else None)
+            if restore_online:
+                n_rows = online.restore_state(resolve_run_dir(FLAGS.restore_path),
+                                              FLAGS.restore_epoch)
+                print(f"[online] restored {n_rows} buffer rows / "
+                      f"{online.buffer.n_episodes} episodes, {online.env_steps} env steps",
+                      flush=True)
+            elif FLAGS.restore_path:
+                warnings.warn(
+                    "--restore_path with --online and --online_restore_buffer=false: the "
+                    "replay buffer starts EMPTY and prefill re-runs, so this resume trains a "
+                    "restored agent against freshly collected warmup data. That is a "
+                    "different training distribution from the run being resumed.")
             n = online.prefill(agent)
             print(f"[online] prefilled {n} env steps, buffer {online.buffer.size} rows / "
                   f"{online.buffer.n_episodes} episodes", flush=True)
@@ -256,10 +393,21 @@ def main(_):
                 eval_agent = agent
                 if FLAGS.infer_cond_episodes > 0:
                     rb = train_ds.sample(FLAGS.infer_cond_episodes)
+                    # WHICH ROWS is the critic's call, not ours: the FB family's readout is
+                    # solved against the NEXT-state marginal its backward/index tower is
+                    # trained on, and this used to hard-code rb["observations"] for every
+                    # critic. See impls/critics/base.py::INFER_COND_MARGINALS.
+                    rows = infer_cond_rows(agent.critic)
                     pre_cond = agent.cond_eval
                     eval_agent = agent.infer_eval_cond(
-                        jnp.asarray(rb["observations"]), jnp.asarray(rb["rewards"]))
-                    reason = infer_cond_noop_reason(pre_cond, eval_agent.cond_eval, rb["rewards"])
+                        jnp.asarray(rb[rows]), jnp.asarray(rb["rewards"]))
+                    if FLAGS.eval_on_inferred_cond:
+                        # THE route that makes the inferred conditioning reachable: eval is
+                        # driven through a view that never forwards a goal, so nothing can
+                        # overwrite what inference just solved for.
+                        eval_agent = InferredCondAgent(eval_agent)
+                    reason = infer_cond_noop_reason(pre_cond, eval_agent.cond_eval,
+                                                    rb["rewards"], agent=eval_agent)
                     if reason is not None:
                         warnings.warn(
                             f"--infer_cond_episodes={FLAGS.infer_cond_episodes} requested but "
@@ -268,9 +416,21 @@ def main(_):
                             f"conditioning vector -- do not interpret these eval numbers as a "
                             f"zero-shot z-inference result."
                         )
+                    if FLAGS.eval_on_inferred_cond:
+                        print(f"[infer-cond] step {i}: evaluating on the inferred "
+                              f"conditioning from {FLAGS.infer_cond_episodes} rb[{rows!r}] "
+                              f"rows; the env goal is NOT supplied", flush=True)
                 for task_id in adapter.eval_tasks(env, cfg):
+                    if isinstance(eval_agent, InferredCondAgent):
+                        eval_agent.reset_counts()      # per-task counters, not cumulative
                     row, frames = adapter.evaluate(eval_agent, env, task_id, cfg,
                                                    FLAGS.eval_episodes, FLAGS.num_video)
+                    if isinstance(eval_agent, InferredCondAgent):
+                        # The observability half of the requirement: these columns are what a
+                        # reader of eval.csv/wandb uses to PROVE the run rolled an inferred
+                        # index rather than an env goal. goals_dropped > 0 means the goal path
+                        # was live and this wrapper intercepted it.
+                        row = {**row, **eval_agent.witness()}
                     scope = "eval" if task_id is None else f"eval/task{task_id}"
                     # Non-scalar eval payloads (per-episode goal distances, spec E0.2) go to
                     # their own jsonl: eval.csv fixes its header on the first row and wandb
@@ -287,6 +447,11 @@ def main(_):
                     print("eval", i, "task", task_id, row, flush=True)
             if i % FLAGS.save_interval == 0:
                 save_agent(agent, run_dir, i)
+                if online is not None:
+                    # The other half of the checkpoint: without it --restore_path under
+                    # --online cannot resume, and this run's own checkpoints would be the
+                    # ones that fail the resume.
+                    print(f"[online] saved {online.save_state(run_dir, i)}", flush=True)
     finally:
         csv_train.close()
         csv_eval.close()

@@ -111,6 +111,9 @@ class FbForwardBilinearCritic:
     # IqlBilinear — it cannot be promised at class level. FlowBCActor hard-requires "z"
     # unconditionally, so fb_forward_bilinear x flowbc correctly raises ComboError.
     PROVIDES_COND = frozenset({"value_goal", "goal"})
+    # infer_cond here is a fixed zero placeholder that the eval goal path overrides, so it
+    # never reads `obs`. Declared rather than defaulted -- see base.py::INFER_COND_MARGINALS.
+    INFER_COND_MARGINAL = "unused"
     NUM_HEADS = 2         # the ensembled critic has exactly 2 heads (P for the ISFB scale)
 
     @property
