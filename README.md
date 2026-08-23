@@ -60,6 +60,32 @@ dirs) and `--restore_epoch`.
 
 `make run` runs the default pair;
 
+### Online
+
+`--online` collects from the environment during training instead of reading a fixed
+dataset. Default off; the offline path is bit-identical when it is not set.
+
+```bash
+MUJOCO_GL=egl python -m impls.main \
+    --critic density_fb --actor flowbc --domain cube_single \
+    --seed 0 --train_steps 1000000 --save_dir exp/ \
+    --online=True --online_start_steps 5000 --online_buffer_size 200000
+```
+
+`--online_env_steps_per_update` sets the env-step to gradient-step ratio (1.0 default;
+0.5 is one env step every other update). `--online_action_noise` scales the exploration
+noise, `--online_start_steps` is a uniform-random warmup, and `--online_seed_offline`
+prefills the buffer from the offline dataset.
+
+The buffer stores whole episodes and is served through the same `make_dataset` the
+offline path uses, so goal-conditioned critics get real hindsight goals rather than
+placeholders. It is checkpointed alongside the agent; `--restore_path` restores both, and
+`--online_restore_buffer=false` opts back into starting with an empty buffer.
+
+Collection is conditioned on the eval goal, so the buffer only covers what a
+goal-directed policy reaches; `--online_explore_goal_prob` (default 0) draws some episode
+goals from the buffer instead.
+
 ---
 
 ## Data
