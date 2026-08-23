@@ -154,6 +154,7 @@ class GCDataset:
         successes = (idxs == value_goal_idxs).astype(np.float32)
         batch['masks'] = 1.0 - successes
         batch['rewards'] = successes - (1.0 if c['gc_negative'] else 0.0)
+        self._maybe_keep_dataset_rewards(batch, idxs)
         # Optional goal-context masking (Arm C): zero the listed obs dims in the emitted
         # goals only (e.g. the embedded target coords on goal-observable envs). Applied
         # after the reward/mask computation, which is index-based and unaffected.
@@ -175,6 +176,42 @@ class GCDataset:
             batch['observations'][:, list(obs_mask_dims)] = 0.0
             batch['next_observations'][:, list(obs_mask_dims)] = 0.0
         return batch
+
+    def _maybe_keep_dataset_rewards(self, batch, idxs):
+        """REWARD-SPECIFIED domains (ExoRL / dm_control -- see env/exorl_env.py): put the
+        dataset's OWN task reward back into `batch['rewards']`, replacing the goal-reaching
+        reward synthesised just above.
+
+        Why this needs to exist. The synthesised column is the right reward for a
+        goal-reaching task and the WRONG one for a task defined by a reward function, and
+        overwriting is silent: `impls/main.py::infer_cond_noop_reason` only flags an
+        ALL-ZERO reward vector, and the goal-reaching column is not all zero. Everything the
+        successor-measure family claims zero-shot runs through
+        `Critic.infer_cond(net, obs, rewards)`, which `impls/main.py` feeds straight from
+        `train_ds.sample(...)['rewards']` -- the "WHICH REWARDS" paragraph in
+        `impls/critics/density_fb.py::infer_cond` names exactly this failure mode. Without
+        this knob, `density_fb` / `td_fb` (the two GCDataset critics in that family) cannot
+        be evaluated on a reward-specified domain at all, and would report a number for a
+        task nobody asked about.
+
+        `masks` goes to 1.0 with it: dm_control episodes end on a time limit, never on an
+        absorbing state, so the value target must always bootstrap. The goal-reaching mask
+        (0 at the "goal reached" row) encodes a termination that does not exist here.
+
+        Default OFF. Off, this is a no-op on the batch and draws no randomness, so every
+        existing goal-conditioned run is bit-identical.
+        """
+        if not self.config.get('keep_dataset_rewards'):
+            return
+        if 'rewards' not in self.dataset:
+            raise KeyError(
+                "keep_dataset_rewards=true but the base dataset carries no 'rewards' field. "
+                "The config is asking for the environment's real task reward and there is "
+                "none to pass through (an unlabeled play dataset cannot supply one) -- "
+                "failing rather than silently handing back the goal-reaching reward.")
+        n = len(idxs)
+        batch['rewards'] = np.asarray(self.dataset['rewards'][idxs], np.float32).reshape(n)
+        batch['masks'] = np.ones(n, np.float32)
 
     def _filter_goals(self, goal_idxs):
         bad = ~self.goal_ok[goal_idxs]
@@ -250,6 +287,7 @@ class HGCDataset(GCDataset):
         successes = (idxs == value_goal_idxs).astype(np.float32)
         batch['masks'] = 1.0 - successes
         batch['rewards'] = successes - (1.0 if c['gc_negative'] else 0.0)
+        self._maybe_keep_dataset_rewards(batch, idxs)
 
         # low-level goals: subgoal_steps ahead, clamped to this trajectory's end
         sg = int(c['subgoal_steps'])

@@ -1,0 +1,29 @@
+# ExoRL cheetah (RND exploration buffer) via the unified adapter.
+#
+# REWARD-SPECIFIED domain -- see env/domains/dmc-point-mass-maze.yaml for why
+# `keep_dataset_rewards` matters and which critics can run this at all. `cheetah` has NO
+# binary success rule; the benchmark metric is episode return, which env/unified.py's
+# evaluate() reports as `episode_return` for dmc- tasks.
+#
+# `run` is the dm_control suite task; run_backward / flip / flip_backward are ExoRL
+# additions resolved through third_party/exorl_dmc_tasks (env/exorl_env.py::_load_dmc).
+#
+# density_fb / td_fb additionally need `measure_hit_spec` for THIS observation layout. It
+# cannot live in this file: env/config.py merges domain BEFORE critic, so the critic yaml's
+# cube-single default ("19:22:0.4") would win. Pass it as an override, as the launcher
+# scripts do (note the escaped quotes -- OmegaConf yaml-parses a bare `a:b:c` dotlist value
+# as a sexagesimal number):
+#     --override 'measure_hit_spec="<unverified>"'
+# NOT VERIFIED for cheetah: its 17-dim obs is 8 position then 9 velocity, and the
+# forward/backward tasks are VELOCITY-specified, so the hit block is very likely a
+# velocity block rather than a position one. Pick and justify it before quoting a
+# density_fb/td_fb number on this domain.
+adapter: unified
+env_name: dmc-cheetah         # run naming only
+task: dmc-cheetah
+exorl_task: run               # one of run / run_backward / flip / flip_backward
+exorl_algo: rnd
+data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/cheetah/rnd
+exorl_max_episodes: 2000
+keep_dataset_rewards: true
+render: false

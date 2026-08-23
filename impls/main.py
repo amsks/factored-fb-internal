@@ -216,7 +216,8 @@ def infer_cond_noop_reason(pre_cond, post_cond, rewards, agent=None):
     return None
 
 
-_FAMILY = {"b2d": "Box2D", "p2d": "Box2D", "mw": "Metaworld", "ms": "ManiSkill"}
+_FAMILY = {"b2d": "Box2D", "p2d": "Box2D", "mw": "Metaworld", "ms": "ManiSkill",
+           "dmc": "ExoRL"}
 
 
 def _append_agg(agg_dir, group, seed, step, row, task):

@@ -1,0 +1,27 @@
+# ExoRL point_mass_maze (RND exploration buffer) via the unified adapter.
+#
+# REWARD-SPECIFIED domain: the task is a dense reward function (`exorl_task`), not a goal.
+# Only the successor-measure critics can run it -- fb / psm read real rewards straight out
+# of FBDataset; density_fb / td_fb use GCDataset, which OVERWRITES `rewards` with its
+# goal-reaching reward, so `keep_dataset_rewards: true` below is load-bearing for them
+# (see impls/utils/datasets.py::GCDataset and impls/critics/density_fb.py::infer_cond).
+#
+# density_fb / td_fb additionally need `measure_hit_spec` for THIS observation layout. It
+# cannot live in this file: env/config.py merges domain BEFORE critic, so the critic yaml's
+# cube-single default ("19:22:0.4") would win. Pass it as an override, as the launcher
+# scripts do (note the escaped quotes -- OmegaConf yaml-parses a bare `a:b:c` dotlist value
+# as a sexagesimal number):
+#     --override 'measure_hit_spec="0:2:0.03"'
+# 0:2 is the (x, y) position block of the 4-dim [x, y, vx, vy] observation; 0.03 is
+# MazeMultiGoal's target_size in the published maze protocol (see env/exorl_env.py).
+adapter: unified
+env_name: dmc-point-mass-maze     # run naming only
+task: dmc-point-mass-maze
+exorl_task: reach_top_left        # one of reach_{top,bottom}_{left,right}
+exorl_algo: rnd
+data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/point_mass_maze/rnd
+# Relabelling is one mujoco set_state+get_reward per stored state and the full RND buffer is
+# 10k x 1000 transitions, so bound it. Raise (or drop) once the reward cache is warm.
+exorl_max_episodes: 2000
+keep_dataset_rewards: true
+render: false

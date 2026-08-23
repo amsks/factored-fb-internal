@@ -1,5 +1,10 @@
 """Unified adapter — our collected per-episode datasets (Box2D / Metaworld / ManiSkill)
-and their envs, behind the DomainAdapter seam.
+and their envs, plus the ExoRL/dm_control family, behind the DomainAdapter seam.
+
+ExoRL (`dmc-` tasks) rides this adapter but differs in kind from the other three: its tasks
+are REWARD functions, not goals, so its data comes from env/exorl_env.py (which relabels
+rewards off the stored mujoco physics) and its eval metric is `episode_return` rather than
+`success` — walker/cheetah have no binary success rule at all.
 
 Data layout (written by data_collection/*):
     <data_dir>/buffer/episode_XXXXXX_LLLLL.npz  with observation, action, next_observation,
@@ -106,15 +111,27 @@ def load_unified(data_dir):
 def load_domain_data(cfg):
     """Offline data for a domain, either layout: a PACKED per-task npz when the config names
     one (`data_path`, the HuggingFace export), else the per-episode collected directory
-    (`data_dir`, defaulting to the registry's path for the task)."""
+    (`data_dir`, defaulting to the registry's path for the task).
+
+    ExoRL (`dmc-`) has a THIRD layout and, more importantly, a different reward story: its
+    episode files' `reward` column is not the task reward, so the loader relabels from the
+    stored mujoco `physics` states. See env/exorl_env.py."""
+    task = cfg.get("task") or ""
+    if task.startswith("dmc-"):
+        from env.exorl_env import load_domain_data as load_exorl_domain
+        return load_exorl_domain(cfg)
     path = cfg.get("data_path")
     if path:
         return load_packed(path)
     return load_unified(cfg.get("data_dir") or registry.data_dir(cfg["task"]))
 
 
-def make_task_env(task, render=False):
-    """-> (env, horizon). Obs is the RAW factored obs, identical to the collected data."""
+def make_task_env(task, render=False, reward_task=None):
+    """-> (env, horizon). Obs is the RAW factored obs, identical to the collected data.
+
+    `reward_task` is ExoRL-only: which dm_control reward function the eval env scores. It
+    MUST be the same one the offline data was relabelled with (the domain yaml's
+    `exorl_task` feeds both), or training and eval are on two different tasks."""
     if task.startswith(("b2d-", "p2d-")):
         from envs.rlmini import RLMiniWrapper, _PREFIX_TO_ENV, episode_length_for
         prefix = "b2d-" if task.startswith("b2d-") else "p2d-"
@@ -134,6 +151,10 @@ def make_task_env(task, render=False):
     if task.startswith("ms-"):
         from env.maniskill_env import make_maniskill_env   # self-contained, no newt backend
         return make_maniskill_env(task)
+    if task.startswith("dmc-"):
+        os.environ.setdefault("MUJOCO_GL", "egl")
+        from env.exorl_env import make_exorl_env           # ExoRL / dm_control, reward-specified
+        return make_exorl_env(task, reward_task=reward_task)
     raise ValueError(f"no env builder for task {task!r}")
 
 
@@ -283,7 +304,8 @@ class UnifiedAdapter:
 
     def make_env_and_datasets(self, cfg):
         data = load_domain_data(cfg)
-        env, horizon = make_task_env(cfg["task"], render=bool(cfg.get("render", True)))
+        env, horizon = make_task_env(cfg["task"], render=bool(cfg.get("render", True)),
+                                     reward_task=cfg.get("exorl_task"))
         self._horizon = horizon
         # The eval goal for goal-conditioned critics (see `evaluate`), cached here so eval
         # never re-reads the dataset -- for a packed npz that reload costs tens of seconds.
@@ -310,6 +332,10 @@ class UnifiedAdapter:
         slug = cfg["task"]
         horizon = getattr(self, "_horizon", None) or int(cfg.get("horizon", 100))
         is_box2d = slug.startswith(("b2d-", "p2d-"))   # at-goal ticks are Box2D-only
+        # ExoRL/dm_control is REWARD-specified: undiscounted episode return is the
+        # benchmark's own metric, and for walker/cheetah it is the ONLY meaningful one
+        # (no binary success rule exists, so `success` would be a constant 0.0).
+        is_dmc = slug.startswith("dmc-")
         # z-critics condition on agent.cond_eval (goals=None); goal-conditioned critics need
         # an explicit goal, for which we use the highest-reward next_obs in the offline data.
         # A z-critic exposing map_eval_cond (fb) also needs the goal frame: the hook embeds
@@ -366,6 +392,7 @@ class UnifiedAdapter:
             goal = _prep_goal(goal)
 
         successes, ticks, frames = [], [], []
+        returns = []                                # dmc: undiscounted episode return
         # E0.2: per-episode goal distances, so E5's matched-radius re-scoring is an analysis
         # pass over existing logs rather than a re-run. Costs one norm per step.
         dist_min, dist_final = [], []
@@ -391,6 +418,7 @@ class UnifiedAdapter:
                 ep_goal = _prep_goal(ep_goal)
             key = jax.random.PRNGKey(i + seed_off)      # action noise follows the same shift
             ep_success = _flag(info.get("success", 0))
+            ep_return = 0.0
             at_goal = int(_flag(info.get("success", 0)))
             d = goal_distance(slug, obs)
             d_min, d_last = d, d
@@ -401,6 +429,7 @@ class UnifiedAdapter:
                     observations=_mask_obs(obs), goals=ep_goal,
                     seed=sub, temperature=0))
                 obs, _r, term, trunc, info = env.step(np.clip(a, -1.0, 1.0))
+                ep_return += float(_r)
                 now = _flag(info.get("success", 0))
                 ep_success = ep_success or now
                 at_goal += int(now)
@@ -415,11 +444,14 @@ class UnifiedAdapter:
                 frames.append(np.array(ff))
             else:
                 successes.append(float(ep_success))
+                returns.append(ep_return)
                 ticks.append(at_goal)                   # integer steps spent at goal
                 if d_last is not None:
                     dist_min.append(d_min)
                     dist_final.append(d_last)
         out = {"success": float(np.mean(successes))}
+        if is_dmc:                                  # the benchmark metric for ExoRL
+            out["episode_return"] = float(np.mean(returns))
         if is_box2d:                                    # at-goal ticks: Box2D only, integer scale
             out["at_goal_ticks"] = float(np.mean(ticks))
         if dist_min:
