@@ -130,12 +130,13 @@ one silently leaves half the MetaWorld domains unresolvable.
 
 `FB_MUJOCO_SITE_PACKAGES` is colon-separated and must point at a site-packages directory
 whose `mujoco` matches the installed `dm_control`. Without it the ExoRL domains and their
-tests raise a `RuntimeError` that says so.
+tests raise a `RuntimeError` that says so. 
 
 ExoRL is the only family with **reward-labelled** data. Its buffers carry the reward of the
 task the data was collected under, so the loader relabels from the stored physics instead of
 passing that column through -- a passthrough would be right for one task per domain and
 silently wrong for the others.
+
 ---
 
 ## Layout
