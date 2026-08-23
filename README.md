@@ -62,10 +62,10 @@ Python 3.11. `ogbench` — and `jax`, `flax`, `optax`, `numpy` and `gymnasium` t
 `[train]` extra — is installed editable from the vendored source in `ogbench`.
 
 ```bash
-make install          # uv venv at /dev/shm/.venv-jax, then requirements.txt
+make install          # uv venv then requirements.txt
 ```
 
-Verify with `/dev/shm/.venv-jax/bin/python -c 'import jax; print(jax.devices())'`. The
+Verify with `python -c 'import jax; print(jax.devices())'`. The
 venv lives in tmpfs and does not survive a reboot.
 
 `impls/utils/torch_to_flax.py` reads the parity fixtures and remaps weights; despite the
