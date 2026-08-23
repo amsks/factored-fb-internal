@@ -31,6 +31,7 @@ import pytest
 from impls.agents import Agent, CRITICS, _LR_KEY
 from impls.critics.psm import PSMCritic, PsmConfigError, proto_actions
 from impls.utils import torch_to_flax as t2f
+from impls.utils.fb_math import project_z
 from impls.utils.config_utils import REQUIRED_KEYS, ConfigError, load_config
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "psm_reference.npz")
@@ -482,3 +483,50 @@ def test_psm_refuses_a_batch_without_the_row_index():
                     rewards=jnp.zeros((B, 1)), terminals=jnp.zeros((B,)))
     with _pytest.raises(KeyError, match="index"):
         agent.critic.sample_cond(agent.net, no_index, jax.random.PRNGKey(0))
+
+
+def test_sample_cond_builds_the_proto_seed_msb_first():
+    """seed = (code . reversed_powers + row) mod max_seed. LSB-first is the same code read
+    backwards and yields different actions; the critic must use the MSB-first order."""
+    cfg = _cfg("flowbc", max_log_seed=4, z_dim=6)
+    agent = Agent.create("psm", "flowbc", 0, jnp.zeros((4, OBS)), jnp.zeros((4, ACT)), cfg)
+    c = agent.critic
+    batch = _batch()
+    cond = c.sample_cond(agent.net, batch, jax.random.PRNGKey(0))
+
+    code = np.asarray(cond["z_psm"]).astype(np.int64)
+    n = code.shape[0]
+    base = jax.random.PRNGKey(c.proto_seed)
+    rows = np.arange(n)
+    s_msb = ((code * (2 ** np.arange(c.max_log_seed)[::-1])).sum(1) + rows) % c.max_seed
+    s_lsb = ((code * (2 ** np.arange(c.max_log_seed))).sum(1) + rows) % c.max_seed
+    a_msb = np.asarray(proto_actions(jnp.asarray(s_msb), ACT, base))
+    a_lsb = np.asarray(proto_actions(jnp.asarray(s_lsb), ACT, base))
+    assert not np.allclose(a_msb, a_lsb), \
+        "the two bit orders agree on this batch of codes -- the check below is vacuous"
+
+    np.testing.assert_allclose(np.asarray(cond["psm_next_action"]), a_msb, rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("ratio,expect_phi", [(1.0, True), (0.0, False)])
+def test_the_z_mixture_branch_is_phi_of_a_next_state_not_the_gaussian(ratio, expect_phi):
+    """mix_ratio is the probability of the PHI-of-a-permuted-next-state branch; the
+    complement is the gaussian draw. At mix_ratio=1 every z row must therefore BE one of
+    project_z(phi(next_obs)) (a permutation of them); at mix_ratio=0 none may be. Swapping
+    the two `jnp.where` branches inverts exactly this and nothing else in the file sees it."""
+    cfg = _cfg("flowbc", mix_ratio=ratio)
+    agent = Agent.create("psm", "flowbc", 0, jnp.zeros((4, OBS)), jnp.zeros((4, ACT)), cfg)
+    c = agent.critic
+    batch = _batch()
+    z = np.asarray(c.sample_cond(agent.net, batch, jax.random.PRNGKey(0))["z"])
+    phi_rows = np.asarray(project_z(
+        c._phi(agent.net["phi"].params, jnp.asarray(batch["next_observations"])), c.norm_z))
+
+    # distance from each z row to the NEAREST phi row
+    d = np.abs(z[:, None, :] - phi_rows[None, :, :]).max(-1).min(-1)
+    if expect_phi:
+        assert d.max() < 1e-5, \
+            "mix_ratio=1 but some z row is not phi of any next state (branches swapped?)"
+    else:
+        assert d.min() > 1e-3, \
+            "mix_ratio=0 but a z row equals phi of a next state (branches swapped?)"

@@ -540,6 +540,40 @@ def test_the_actor_rides_encoder_features_not_the_image():
     assert agent.critic.cond_vec(cond).shape == (B, enc_dim)
 
 
+@pytest.mark.parametrize("actor_name", ["flowbc", "bcflow", "ddpgbc", "ddpgbc_density",
+                                        "awr", "fql"])
+def test_every_actor_family_rides_the_features_not_the_image(actor_name):
+    """The pixel contract is a SEAM contract, so it has to hold for every actor in
+    impls.agents.ACTORS, not just the two the pixel spec was written against.
+
+    density_fb on pixels publishes the actor's observation leg as cond["_obs_feat"] /
+    cond["_obs_feat_next"] and its width as `critic.actor_obs_dim`. An actor that instead
+    assumes "the policy's observation leg IS batch['observations']" concatenates a
+    (B, H, W, C) image onto a (B, enc_dim) conditioning vector. This is the same class of
+    defect as the three cond["value_goal"] cases (seam section 12.1): the actor inferring a
+    critic-owned quantity from `cond` instead of reading what the critic published.
+
+    Exercises all three entry points -- the bootstrap draw, the actor loss, and the eval
+    action -- because the observation leg is read separately in each.
+    """
+    agent, cfg = pixel_agent(actor=actor_name)
+    batch = pixel_batch()
+    cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0),
+                                    target=agent.target)
+    boot = agent.actor.sample_bootstrap(agent.net, batch, cond, jax.random.PRNGKey(1))
+    assert np.all(np.isfinite(np.asarray(boot["next_action"])))
+
+    info = agent.compute_static(batch, cond, boot)
+    assert np.isfinite(float(info["actor_loss"]))
+
+    ex_obs, _ = ex_pixels()
+    a = agent.sample_actions(
+        ex_obs[0], goals={"goal": ex_obs[1], "goal_qpos": np.zeros((1, 3), np.float32)},
+        seed=jax.random.PRNGKey(2))
+    assert np.asarray(a).shape == (ACT,)
+    assert np.all(np.isfinite(np.asarray(a)))
+
+
 def test_eval_cond_encodes_a_single_unbatched_frame():
     """`evaluate` hands `sample_actions` ONE (H, W, C) frame, not a batch."""
     agent, cfg = pixel_agent()

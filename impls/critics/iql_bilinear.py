@@ -102,7 +102,6 @@ class IqlBilinearCritic:
         assert stage == "iql"
         return self.GROUPS
 
-    # --- module apply helpers ---
     def _V(self, p, obs, goal):
         return self.value.apply({"params": p}, obs, goal)             # (B,)
 

@@ -1,6 +1,6 @@
 """FQL actor: no in-tree numerical reference (see Task 2 Step 1 investigation).
 
-Vendored OGBench (`third_party/ogbench/impls/agents/`) has no `fql` agent — only crl,
+Vendored OGBench (`OGBench upstream impls/agents/`) has no `fql` agent — only crl,
 gcbc, gciql, gcivl, hiql, qrl, sac. The only in-tree candidate reference is
 `tools/wandb_mode_shim/gciql_flow.py`'s `GCIQLFlowAgent.actor_loss`, which grafts a flow
 actor onto the vendored GCIQL critic. Term-by-term comparison against

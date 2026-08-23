@@ -876,3 +876,137 @@ def test_sample_cond_refuses_to_guess_the_target_tower():
     agent, _c = _agent()
     with pytest.raises(ValueError, match="TARGET params"):
         agent.critic.sample_cond(agent.net, _batch(), jax.random.PRNGKey(0))
+
+
+# ==========================================================================================
+# 9. the RATES and the GUARD -- found by mutation (audit 2026-08-23)
+#
+# Section 7 pins WHICH tower the index reads and THAT the moments are stored rather than
+# recomputed. It does not pin the RATES at which either is mixed, nor the covariance
+# eigenvalue floor. Three mutations survived the whole suite:
+#
+#   * measure_density_z_enc_tau -> 1.0 (the index tower stops being a slow copy);
+#   * the moments EMA'd at the JUST-WRITTEN index tower instead of the pre-step one;
+#   * the eigenvalue floor deleted from the ridge solve.
+#
+# The first two survived for the SAME structural reason as the earlier `_zenc` mutation:
+# density_b_zenc inits as an exact copy of density_b, the existing tests drive exactly ONE
+# update, and after one update from coincident towers the two rules agree to 3e-8 -- which
+# `np.allclose(..., atol=1e-12)` accepts, because its DEFAULT rtol=1e-5 dominates the
+# comparison. Every check below therefore (a) runs several updates, (b) compares with
+# rtol=0, and (c) carries an explicit vacuity guard asserting the towers have separated.
+# ==========================================================================================
+def _leafmax(a, b):
+    return max(float(np.abs(np.asarray(x) - np.asarray(y)).max())
+               for x, y in zip(jax.tree_util.tree_leaves(a), jax.tree_util.tree_leaves(b)))
+
+
+def test_the_index_tower_ema_rate_is_pinned_across_several_updates():
+    """tau_z is what makes the index tower QUASI-STATIONARY -- the property the whole
+    persisted-moments design rests on. A one-update check cannot see it: zenc inits equal to
+    density_b, so at step 1 `p*tau + ep*(1-tau)` and the tau=1 rule return the same array.
+    Run three updates, compare with rtol=0, and guard that the towers actually separated."""
+    agent, _c = _agent()
+    tau = agent.critic.z_enc_tau
+    assert 0.0 < tau < 1.0, "the centered arm requires a slow index tower"
+
+    a = agent
+    for seed in (1, 2, 3):
+        pre_b = a.net["density_b"].params            # PRE-step online tower: the EMA source
+        pre_z = a.net["density_b_zenc"].params
+        a = a.update(_batch(seed=seed))[0]
+        expect = jax.tree_util.tree_map(lambda p, ep: p * tau + ep * (1 - tau), pre_b, pre_z)
+        # atol only -- the module runs with x64 on, so a float32 leaf recombined through a
+        # python-float tau carries ~1e-14 of promotion noise. rtol is pinned to 0 on purpose:
+        # numpy's DEFAULT rtol=1e-5 is what let the tau_z=1.0 mutant through the one-update
+        # check in section 7 (it differs by only 3e-8 after a single step).
+        assert _leafmax(a.net["density_b_zenc"].params, expect) < 1e-12, (
+            "the index tower is not the tau_z EMA of the PRE-step online tower")
+
+    # vacuity guard: without this the assertions above hold for a tower that never moved
+    assert _leafmax(a.net["density_b"].params, a.net["density_b_zenc"].params) > 1e-6, \
+        "online and index towers never separated -- the rate above is untested"
+
+
+def test_a_different_index_tower_rate_produces_a_different_tower():
+    """The rate is read from the CONFIG, not hard-coded: two agents identical but for
+    measure_density_z_enc_tau must disagree after the same updates. A build that ignored the
+    knob (or pinned it to 1.0) passes every other test in this file."""
+    # both inside the (0, 0.1] band the build asserts for the centered arm
+    slow, _c = _agent(measure_density_z_enc_tau=1e-4)
+    fast, _c = _agent(measure_density_z_enc_tau=0.05)
+    for seed in (1, 2, 3):
+        b = _batch(seed=seed)
+        slow, fast = slow.update(b)[0], fast.update(b)[0]
+    zgap = _leafmax(slow.net["density_b_zenc"].params, fast.net["density_b_zenc"].params)
+    bgap = _leafmax(slow.net["density_b"].params, fast.net["density_b"].params)
+    assert zgap > 1e-6, "measure_density_z_enc_tau does not reach the index tower"
+    # The online towers drift apart a little too -- the index conditions the actor, so the
+    # rate feeds back into training. The effect must still be OVERWHELMINGLY on the tower
+    # the knob names, or the assertion above could be satisfied by that feedback alone.
+    assert zgap > 100 * bgap, \
+        f"index-tower gap {zgap:.3e} is not dominated by the knob (online gap {bgap:.3e})"
+
+
+def test_the_moments_ema_reads_the_pre_step_index_tower():
+    """Order inside update_stats: the index tower is mixed FIRST, then the moments are EMA'd
+    over this batch's query set at the tower as it was BEFORE that mix (bridge ~3903-3921).
+    Using the just-written tower instead is a one-step lookahead that survives every
+    existing check, because at step 1 the two towers coincide."""
+    a, _c = _agent()
+    for seed in (1, 2, 3):
+        b = _batch(seed=seed)
+        pre_zenc = a.net["density_b_zenc"].params
+        st_before = a.net["density_zstats"].params
+        a = a.update(b)[0]
+        st = a.net["density_zstats"].params
+
+        u_sc = _density_queries(b["next_observations"], a.critic.blocks)
+        bb = np.asarray(a.critic._B(pre_zenc, u_sc))
+        mu_b = bb.mean(0)
+        db = bb - mu_b[None]
+        cov_b = db.T @ db / bb.shape[0]
+        t = a.critic.z_sigma_tau
+        assert np.allclose(np.asarray(st["mu"]),
+                           np.asarray(st_before["mu"]) * (1 - t) + mu_b * t,
+                           rtol=0, atol=1e-9), "mu_hat is not EMA'd at the PRE-step tower"
+        assert np.allclose(np.asarray(st["cov"]),
+                           np.asarray(st_before["cov"]) * (1 - t) + cov_b * t,
+                           rtol=0, atol=1e-9), "C_hat is not EMA'd at the PRE-step tower"
+
+    # vacuity guard: the pre- and post-step index towers must differ by now, or the
+    # distinction the assertions draw does not exist on this trajectory
+    pre = a.net["density_b_zenc"].params
+    post = jax.tree_util.tree_map(
+        lambda p, ep: p * a.critic.z_enc_tau + ep * (1 - a.critic.z_enc_tau),
+        a.net["density_b"].params, pre)
+    assert _leafmax(pre, post) > 1e-9, \
+        "pre- and post-step index towers coincide -- the ordering above is untested"
+
+
+def test_the_covariance_eigenvalue_floor_is_exercised_and_load_bearing():
+    """The floor exists because the centered covariance of the d-dim tower genuinely has
+    near-zero directions (bridge: effective rank 6-21 of 50). Every other test drives the
+    solve with a FULL-RANK sample covariance whose smallest eigenvalue sits ~4.5 orders of
+    magnitude ABOVE floor*tr(C)/d, so deleting the floor changes nothing they can see.
+    Drive it with a deliberately rank-deficient C instead."""
+    critic, _params = _built()
+    rng = np.random.default_rng(77)
+    Q = np.linalg.qr(rng.standard_normal((D, D)))[0]
+    cov_np = Q @ np.diag(np.array([1.0, 0.5] + [0.0] * (D - 2))) @ Q.T
+    cov = jnp.asarray(cov_np)
+    m_c = jnp.asarray(rng.standard_normal((2, D)))
+
+    tr = float(np.trace(cov_np))
+    ev, vec = np.linalg.eigh(0.5 * (cov_np + cov_np.T))
+    floor = critic.z_cov_eig_floor * tr / D
+    assert (ev < floor).sum() >= D - 2, \
+        "this covariance does not exercise the floor -- the test would be vacuous"
+
+    lam = critic.z_ridge_lambda_mult * tr / D
+    got = np.asarray(critic._z_centered_coef(m_c, cov))
+    floored = ((np.asarray(m_c) @ vec) / (np.maximum(ev, floor) + lam)[None, :]) @ vec.T
+    unfloored = ((np.asarray(m_c) @ vec) / (ev + lam)[None, :]) @ vec.T
+    assert np.allclose(got, floored, rtol=0, atol=1e-8), "the spectrum is not floored"
+    assert not np.allclose(floored, unfloored, atol=1e-6), \
+        "floored and unfloored solves agree -- the assertion above cannot discriminate"

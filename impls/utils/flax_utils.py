@@ -1,6 +1,6 @@
 """Flax train-state primitives for the factored impls/ tree.
 
-Ported from third_party/ogbench/impls/utils/flax_utils.py (pinned 1d41409), minus the
+Ported from OGBench upstream impls/utils/flax_utils.py (pinned 1d41409), minus the
 unused `apply_loss_fn`, plus `soft_update` (Polyak, from PSMFlows agents/psm.py:_soft).
 """
 import functools

@@ -75,6 +75,52 @@ def test_value_loss_matches_an_independent_reconstruction():
         f"stage_loss {float(loss)} != reconstruction {expected}")
 
 
+def test_value_loss_reads_the_TARGET_value_net_and_not_the_online_one():
+    """The reconstruction above cannot see WHICH net the bootstrap comes from: `build()`
+    initialises `target["value"]` as an exact copy of the online value net, so `tp` and `op`
+    are the same arrays and swapping them changes nothing. Replacing `target["value"]` with
+    `params["value"]` in stage_loss survives this file AND the 60-pair byte-identity gate
+    (verified by mutation).
+
+    Drift the target away from the online net and require the loss to respond."""
+    agent, cfg = _build()
+    critic = agent.critic
+    params = {g: agent.net[g].params for g in agent.net}
+    batch = make_batch()
+    cond = critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0))
+
+    # DRIFT the target so tp != op. This is the whole point: at build they are the same
+    # arrays, so the reconstruction above holds no matter which of the two each term reads.
+    target = jax.tree_util.tree_map(lambda x: x + 0.25, dict(agent.target))
+
+    apply_v = lambda p, o, g: np.asarray(critic.value.apply({"params": p}, o, g))
+    tp, op = target["value"], params["value"]
+    vg = np.asarray(cond["value_goal"])
+    obs, nobs = np.asarray(batch["observations"]), np.asarray(batch["next_observations"])
+    r, m = np.asarray(batch["rewards"]), np.asarray(batch["masks"])
+    disc, exp_ = float(cfg["discount"]), float(cfg["expectile"])
+
+    nv1_t, nv2_t = apply_v(tp, nobs, vg)          # NEXT-state values: the TARGET net
+    v1_t, v2_t = apply_v(tp, obs, vg)
+    adv = (r + disc * m * np.minimum(nv1_t, nv2_t)) - (v1_t + v2_t) / 2
+    v1, v2 = apply_v(op, obs, vg)                 # the regressed head: the ONLINE net
+    expected = (_expectile_loss(adv, r + disc * m * nv1_t - v1, exp_).mean()
+                + _expectile_loss(adv, r + disc * m * nv2_t - v2, exp_).mean())
+
+    loss = float(critic.stage_loss("ivl", params, target, batch, cond, {})[0])
+    assert np.allclose(loss, expected, rtol=1e-10, atol=1e-12), (
+        f"stage_loss {loss} != reconstruction {expected} at a DRIFTED target")
+
+    # discriminating guard: taking the next-state values off the ONLINE net gives a
+    # different number, so the pin above genuinely separates the two nets
+    nv1_o, nv2_o = apply_v(op, nobs, vg)
+    adv_o = (r + disc * m * np.minimum(nv1_o, nv2_o)) - (v1_t + v2_t) / 2
+    wrong = (_expectile_loss(adv_o, r + disc * m * nv1_o - v1, exp_).mean()
+             + _expectile_loss(adv_o, r + disc * m * nv2_o - v2, exp_).mean())
+    assert not np.isclose(loss, wrong, rtol=1e-8, atol=1e-8), \
+        "online and target next-state values agree -- the check above is vacuous"
+
+
 def test_adv_fn_is_the_next_state_advantage():
     """vendored gcivl.py::actor_loss lines 65-69: adv = mean(V(s',g)) - mean(V(s,g))."""
     agent, _ = _build()

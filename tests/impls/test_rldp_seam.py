@@ -373,3 +373,44 @@ def test_stage_loss_is_the_sum_of_its_reported_parts():
              + cfg["ortho_coef"] * info["ortho_loss"])
     np.testing.assert_allclose(float(loss), float(recon), atol=1e-10)
     np.testing.assert_allclose(float(info["fb_loss"]), float(loss), atol=0)
+
+
+# ==========================================================================
+# 5. the detach, tested THROUGH stage_loss  (found by mutation, audit 2026-08-23)
+#
+# `test_the_successor_residual_does_not_train_the_backward_map` above asserts the right
+# property about the wrong function: it RE-IMPLEMENTS the FB residual in its own body,
+# detach included, and never calls `critic.stage_loss`. Removing the detach from
+# impls/critics/rldp.py therefore leaves it green (verified by mutation). This drives the
+# real loss instead.
+# ==========================================================================
+def test_stage_loss_itself_sends_no_backward_gradient_through_the_fb_residual():
+    """With ortho off, `stage_loss = fb + sp`. The reference detaches B(goal) inside the
+    residual, so ALL of the backward map's gradient must come from the self-predictive
+    term -- i.e. grad_B(stage_loss) == grad_B(_sp_loss), exactly. Both sides here are
+    source functions; nothing about the residual is restated in this file."""
+    cfg = _cfg(ortho_coef=0.0)
+    critic, params, target = RLDPCritic.build(*_ex(), cfg)
+    batch, boot = _batch(), _boot()
+    cond = critic.sample_cond({"backward": type("S", (), {"params": params["backward"]})},
+                              batch, jax.random.PRNGKey(0))
+
+    def full(p):
+        return critic.stage_loss("fb", {**params, **p}, target, batch, cond, boot)[0]
+
+    def sp_only(p):
+        return critic._sp_loss({**params, **p}, target, batch)[0]
+
+    g_full = jax.grad(full)({"backward": params["backward"]})["backward"]
+    g_sp = jax.grad(sp_only)({"backward": params["backward"]})["backward"]
+    for a, b in zip(jax.tree_util.tree_leaves(g_full), jax.tree_util.tree_leaves(g_sp)):
+        np.testing.assert_allclose(np.asarray(a), np.asarray(b), rtol=0, atol=0)
+
+    # vacuity guards: the residual is live (it trains the forward map), and the backward
+    # map is not simply gradient-free (the SP term does reach it).
+    g_fwd = jax.grad(full)({"forward": params["forward"]})["forward"]
+    assert any(float(np.abs(np.asarray(l)).sum()) > 0
+               for l in jax.tree_util.tree_leaves(g_fwd)), "the FB residual is dead"
+    assert any(float(np.abs(np.asarray(l)).sum()) > 0
+               for l in jax.tree_util.tree_leaves(g_full)), \
+        "the backward map gets no gradient at all -- the comparison above is vacuous"

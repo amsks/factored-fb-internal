@@ -64,7 +64,7 @@ def get_model_and_assets(task):
     `<root>/custom_dmc_tasks/point_mass_maze_{task}.xml` by walking two
     dirname()s up and back down through a hardcoded 'custom_dmc_tasks'
     package name. We vendor this file directly under
-    `third_party/exorl_dmc_tasks/`, so the XML is simply __file__-relative.
+    `env/exorl_dmc_tasks/`, so the XML is simply __file__-relative.
     """
     xml = resources.GetResource(
         os.path.join(os.path.dirname(__file__), f'point_mass_maze_{task}.xml'))

@@ -7,7 +7,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
-from impls.actors.ddpgbc import _cvec
+from impls.actors.ddpgbc import _cvec, _obs_feat, _nobs_feat
 
 
 @dataclasses.dataclass(frozen=True)
@@ -38,7 +38,10 @@ class FQLActor:
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
         cvec = critic.cond_vec(cond)
-        obs_c = jnp.concatenate([obs, cvec], -1)
+        # Both flow nets take FEATURES; the critic below still gets the raw observation and
+        # encodes it itself behind `stop_encoder_grad`. Identity off pixels, so every state
+        # cell stays bit-identical -- see impls/actors/ddpgbc.py::_obs_feat.
+        obs_c = jnp.concatenate([_obs_feat(cond, obs), cvec], -1)
         x0, t, noise = boot["flow_x0"], boot["flow_t"], boot["actor_noise"]
         xt = (1 - t) * x0 + t * action
         vel = action - x0
@@ -56,7 +59,7 @@ class FQLActor:
                       "distill_loss": distill, "q_loss": q_loss, "q": q.mean()}
 
     def sample_bootstrap(self, net, batch, cond, rng):
-        next_obs = batch["next_observations"]
+        next_obs = _nobs_feat(cond, batch["next_observations"])
         obs_c = jnp.concatenate([next_obs, _cvec(cond)], -1)
         B, A = batch["actions"].shape
         r_na, r_x0, r_t, r_n = jax.random.split(rng, 4)
@@ -82,8 +85,11 @@ class FQLActor:
         return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
-        obs_c = jnp.concatenate([obs, _cvec(cond)], -1)
-        noise = jax.random.normal(rng, (*obs.shape[:-1], self.actor_onestep.action_dim))
+        # The noise shape is taken from the FEATURE array, not the raw observation: on pixels
+        # `obs.shape[:-1]` is (H, W), which would draw an (H, W, adim) noise tensor.
+        pobs = _obs_feat(cond, obs)
+        obs_c = jnp.concatenate([pobs, _cvec(cond)], -1)
+        noise = jax.random.normal(rng, (*pobs.shape[:-1], self.actor_onestep.action_dim))
         return jnp.clip(self._one(net["actor_onestep"].params, obs_c, noise), -1, 1)
 
     @classmethod
@@ -95,7 +101,11 @@ class FQLActor:
         hd = tuple(a_cfg["hidden_dims"])
         bc = ActorVectorField(hidden_dims=hd, action_dim=A, layer_norm=a_cfg.get("layer_norm", False))
         one = ActorVectorField(hidden_dims=hd, action_dim=A, layer_norm=a_cfg.get("layer_norm", False))
-        obs_c = jnp.zeros((ex_obs.shape[0], ex_obs.shape[-1] + config.get("cvec_dim", config.get("z_dim"))))
+        # `actor_obs_dim` is published by Agent.create from the critic when the actor's
+        # observation leg is NOT the raw observation width (density_fb on pixels: encoder
+        # features). Absent elsewhere, and then this is ex_obs.shape[-1] exactly as before.
+        odim = int(config.get("actor_obs_dim") or ex_obs.shape[-1])
+        obs_c = jnp.zeros((ex_obs.shape[0], odim + config.get("cvec_dim", config.get("z_dim"))))
         rbc, ron = jr.split(jr.PRNGKey(config["seed"] + 4000))
         params = {
             "actor_bc_flow": bc.init(rbc, obs_c, ex_actions, ex_actions[..., :1])["params"],

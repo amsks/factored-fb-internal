@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 
 FB_ROOT = "/raid/tongle/rl/Factored-FB"
-IMPLS = f"{FB_ROOT}/third_party/ogbench/impls"
+IMPLS = f"{FB_ROOT}/ogbench/impls"
 SHIM = f"{FB_ROOT}/tools/wandb_mode_shim"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # eval_common
 for p in (IMPLS, SHIM):

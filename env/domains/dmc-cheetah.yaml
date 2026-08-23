@@ -6,7 +6,7 @@
 # evaluate() reports as `episode_return` for dmc- tasks.
 #
 # `run` is the dm_control suite task; run_backward / flip / flip_backward are ExoRL
-# additions resolved through third_party/exorl_dmc_tasks (env/exorl_env.py::_load_dmc).
+# additions resolved through env/exorl_dmc_tasks (env/exorl_env.py::_load_dmc).
 #
 # density_fb / td_fb additionally need `measure_hit_spec` for THIS observation layout. It
 # cannot live in this file: env/config.py merges domain BEFORE critic, so the critic yaml's

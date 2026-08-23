@@ -25,7 +25,7 @@ from registry import DEV_TASKS, DATASETS, COLLECTED  # noqa: E402
 
 JAX_PY = "/raid/tongle/rl/Factored-FB/.venv-jax/bin/python"
 EVAL_JAX = "/raid/tongle/rl/Factored-FB/campaign/eval/eval_jax.py"
-IMPLS = "/raid/tongle/rl/Factored-FB/third_party/ogbench/impls"
+IMPLS = "/raid/tongle/rl/Factored-FB/ogbench/impls"
 SHIM = "/raid/tongle/rl/Factored-FB/tools/wandb_mode_shim"
 JAX_AGENTS = "/raid/tongle/rl/Factored-FB/campaign/jax_agents"
 UNIFIED_CUBE = "/raid/tongle/rl/fb-data/unified/cube-single-play-v0"

@@ -45,7 +45,6 @@ class GCIQLCritic:
         assert stage == "iql"
         return self.GROUPS
 
-    # --- module apply helpers ---
     def _squash(self, x):
         # q_bound > 0 restricts the hypothesis class to |V|,|Q| <= q_bound via
         # kappa*tanh(x/kappa) — the bounded-monolithic control for the bilinear critic,

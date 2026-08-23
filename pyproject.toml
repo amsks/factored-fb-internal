@@ -42,7 +42,6 @@ exclude = '''
 /(
     \.git
   | \.venv
-  | third_party
   | outputs
   | multirun
   | __pycache__

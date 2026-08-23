@@ -4,7 +4,7 @@ Transcribed (NOT imported) from the PyTorch reference in this repo's torch tree,
 `agents/psm/`: `agent.py` (`_update_psm`, `_update_sf`, `sample_mixed_z`, the update
 orchestration), `model.py` (`PSMModel.sample_z_psm` / `project_z` /
 `get_targets_uncertainty` / `reward_inference`) and `proto_sampler.py`
-(`ProtoBehaviorSampler`).
+(`ProtoBehaviorSampler`). Nothing from `third_party/` is imported here.
 
 What PSM is
 -----------
@@ -144,7 +144,6 @@ class PSMCritic:
         assert stage == "sf", stage
         return ("sf_psi",)
 
-    # --- module apply helpers ---
     def _phi(self, p, x):
         return self.phi.apply({"params": p}, x)
 
@@ -247,15 +246,14 @@ class PSMCritic:
 
         # --- proto behaviour action (reference ProtoBehaviorSampler.forward) ---
         # `powers` is the reversed power list, so the dot product reads the bit array
-        # MSB-first. row_hash is the dataset ROW index (reference: batch["index"], which
-        # train.py enables with_index=True for psm specifically). Never batch position.
+        # MSB-first. row_hash is the dataset row index when the loader supplies one
+        # (reference: batch["index"]), else arange(B) -- exactly the reference fallback.
         powers = 2 ** jnp.arange(self.max_log_seed)[::-1]
         if "index" not in batch:
             raise KeyError(
-                "psm needs batch['index'] -- the dataset ROW index. Without it the proto "
-                "policy is keyed on batch POSITION, so a transition draws a different "
-                "policy every resample and psm_psi has no fixed policy to converge to. "
-                "Dataset.get_subset emits it; a hand-built batch must too.")
+                "psm needs batch['index'] -- the dataset ROW index. Keyed on batch POSITION "
+                "a transition draws a different proto policy every resample, so psm_psi has "
+                "no fixed policy to converge to. Dataset.get_subset emits it.")
         row_hash = jnp.asarray(batch["index"]).reshape(-1)
         seed = ((z_psm.astype(jnp.int32) * powers).sum(1) + row_hash) % self.max_seed
         psm_next_action = proto_actions(seed, self.action_dim,

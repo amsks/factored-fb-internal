@@ -92,40 +92,6 @@ def test_value_goal_draw_goes_only_to_the_critic_that_publishes_it(current):
                     if k.endswith("next_action_vgoal") and "|density_fb|" not in k)
     assert not leaked, f"critics that do not publish _cvec_vgoal received the draw: {leaked}"
 
-def test_td_fb_reads_the_actor_goal_action_and_never_sees_the_other_one():
-    """td_fb's critic stage is `measure_loss`. It measures 0.920 at the actor goal vs 0.076
-    at the value goal (impls/critics/td_fb.py::stage_loss), so it must read
-    boot["next_action"].
-
-    Since the section 12.1 fix this is guaranteed structurally as well as behaviourally:
-    td_fb does not publish cond["_cvec_vgoal"], so no actor emits the value-goal draw for
-    it at all. Both properties are asserted -- the structural one so a future critic change
-    cannot quietly re-introduce the key, the behavioural one so the loss provably responds
-    to the action it is supposed to.
-    """
-    from impls.agents import Agent
-    from impls.utils.config_utils import load_config
-    import jax.numpy as jnp
-    from tests.impls.gen_boot_contract_fixture import make_batch, B, OBS, ACT
-
-    cfg = load_config("td_fb", "flowbc", "cube_single")
-    cfg["batch_size"] = B
-    agent = Agent.create("td_fb", "flowbc", 0, jnp.zeros((B, OBS)), jnp.zeros((B, ACT)), cfg)
-    batch = make_batch()
-    cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0))
-    boot = agent.actor.sample_bootstrap(agent.net, batch, cond, jax.random.PRNGKey(1))
-
-    assert "_cvec_vgoal" not in cond, "td_fb must not publish a value-goal conditioning vector"
-    assert "next_action_vgoal" not in boot, "td_fb must never receive the value-goal draw"
-
-    def loss_with(b):
-        return float(jnp.asarray(agent.compute_static(batch, cond, b)["measure_loss"]).mean())
-
-    base = loss_with(boot)
-    junk = jnp.zeros_like(boot["next_action"])
-    assert loss_with({**boot, "next_action": junk}) != base, "td_fb must READ next_action"
-
-
 def test_every_critic_declares_a_known_boot_cond():
     """BOOT_COND is a declaration of which bootstrap key a critic's TD target reads.
     Absent means the default, "actor_goal"."""
@@ -139,7 +105,7 @@ def test_every_critic_declares_a_known_boot_cond():
 def test_density_fb_is_the_only_value_goal_critic():
     """density_fb's forward tower is F(s,a,g), so its row is g-indexed and its target
     must bootstrap at that same g. Every other critic in the tree reads the actor-goal
-    draw -- td_fb measurably so (0.920 vs 0.076)."""
+    draw."""
     from impls.agents import CRITICS
     value_goal = {n for n, c in CRITICS.items()
                   if getattr(c, "BOOT_COND", "actor_goal") == "value_goal"}

@@ -1,6 +1,6 @@
 """Axis-2 lock: in-house GCBilinearValue vs VENDORED OGBench GCBilinearValue.
 
-Reference: third_party/ogbench/impls/utils/networks.py:327 (upstream OGBench). This is a
+Reference: OGBench upstream impls/utils/networks.py:327 (upstream OGBench). This is a
 real upstream reference, so the bar is a hard 1e-10 on v, phi and psi, across two configs
 (latent_dim 8/ensemble and 32/no-ensemble) and both call paths (actions=None -> V(s,g);
 actions given -> Q(s,a,g)). Fixture baked by fixtures/_gen_bilinear_fixture.py.

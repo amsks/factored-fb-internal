@@ -20,16 +20,13 @@ class FlowBCActor:
     bc_coeff: float
     actor_pessimism_penalty: float
     # Weight on the critic's value term in the ONE-STEP actor objective. 1.0 is FlowBC as
-    # published. 0.0 makes this a pure behaviour-cloning flow policy — the control that
-    # answers "does the critic buy anything over BC?" — with architecture, optimiser,
-    # conditioning and data identical to the agents it is the control for.
+    # published; 0.0 is a pure behaviour-cloning flow policy, the BC control.
     q_coeff: float = 1.0
 
     GROUPS = ("actor", "actor_vf")
     NEEDS_V = False
-    # Conditions on the critic's conditioning vector (critic.cond_vec / _cvec): for FB/ISFB
-    # that IS cond["z"] (byte-identical to the original z-only path); for goal critics it is
-    # the goal, making this a goal-conditioned flow-BC actor. No hard cond-key requirement.
+    # Conditions on the critic's conditioning vector (critic.cond_vec / _cvec): cond["z"]
+    # for FB, the goal for goal critics. No hard cond-key requirement.
     REQUIRES_COND = frozenset()
 
     def _actor(self, p, obs, z, noise):
@@ -47,21 +44,11 @@ class FlowBCActor:
 
     @staticmethod
     def _policy_drift(params, obs, cond, critic, a_actor, a_data, q_actor):
-        """Diagnostics for the actor--critic bootstrap loop (R1 of the pick-place collapse
-        spec): how far the policy has walked off the behaviour support, and how much the
-        critic prefers where it walked to.
+        """Diagnostics for the actor--critic bootstrap loop: how far the policy has walked
+        off the behaviour support (mean ||a_actor - a_data||) and how much the critic prefers
+        where it walked to (mean Q(s, a_data) - Q(s, a_actor)).
 
-            action_gap_l2       mean ||a_actor - a_data||
-            q_gap_data_minus_actor   mean Q(s, a_data) - Q(s, a_actor)
-
-        Under R1 the critic target bootstraps at actor actions, the actor ascends a spiky
-        kernel readout, and the ascent leaves the region the measure was trained on -- so both
-        numbers should grow past the 100-200k success peak on play-resample pick-place and
-        stay flat on pnh-1m, which never collapses. That turns R1 from inference into
-        measurement.
-
-        Reporting only: every value is stop-gradient'd and nothing here reaches `loss`. Costs
-        one extra critic forward per update, small against the actor's 10-step flow rollout.
+        Reporting only: every value is stop-gradient'd and nothing here reaches `loss`.
         """
         q_data, _ = critic.q_fn(params, obs, cond, a_data, stop_encoder_grad=True)
         return jax.lax.stop_gradient({
@@ -71,9 +58,8 @@ class FlowBCActor:
 
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
-        # BOTH policy nets (the one-step actor and the flow vector field) take FEATURES; the
-        # critic below still gets the raw observation and encodes it itself behind
-        # `stop_encoder_grad`. On state `pobs is obs`, so nothing moves.
+        # Policy nets take FEATURES; the critic gets the raw observation and encodes it
+        # itself behind `stop_encoder_grad`. On state `pobs is obs`.
         pobs = _obs_feat(cond, obs)
         c = critic.cond_vec(cond)
         x0, t, noise = boot["flow_x0"], boot["flow_t"], boot["actor_noise"]
@@ -93,10 +79,9 @@ class FlowBCActor:
             tgt = jax.lax.stop_gradient(self._rollout(params["actor_vf"], pobs, noise))
             distill = jnp.mean((a - tgt) ** 2)
             if self.q_coeff == 0.0:
-                # Pure BC. Q is still computed and logged (so the control observes the same
-                # critic as its treatment arms) but never reaches the gradient. The
-                # Q-normalisation is dropped rather than multiplied by zero: |Qs| can be ~0
-                # early in training, and 0/0 is nan.
+                # Pure BC: Q is still computed and logged but never reaches the gradient.
+                # The Q-normalisation is DROPPED rather than multiplied by zero -- |Qs| can
+                # be ~0 early in training, and 0/0 is nan.
                 loss = self.bc_coeff * distill
             else:
                 loss = loss / jax.lax.stop_gradient(jnp.abs(Qs).mean()) + self.bc_coeff * distill
@@ -117,37 +102,20 @@ class FlowBCActor:
                 "flow_x0": jax.random.normal(r_x0, (B, adim)),
                 "flow_t": jax.random.uniform(r_t, (B, 1)),
                 "actor_noise": jax.random.normal(r_noise, (B, adim))}
-        # The CRITIC decides what the actor's conditioning vector at the value goal is, and
-        # publishes it as cond["_cvec_vgoal"]. Actors must not infer it from cond["value_goal"]:
-        # that raw goal is only the right vector when the actor rides the goal itself, and
-        # guessing it broke twice -- iql_bilinear(actor_cond="z") wanted a latent, hiql wanted
-        # a subgoal rep, and both got an obs-shaped vector against a differently-shaped net.
-        # Absent key => this critic does not bootstrap at the value goal, so no draw.
+        # The cond["_cvec_vgoal"] contract: see impls/actors/ddpgbc.py::sample_bootstrap.
         if "_cvec_vgoal" in cond:
-            # `next_action` is conditioned on `_cvec(cond)` — the ACTOR goal, i.e. the goal
-            # the policy-improvement term is taken at. A goal-conditioned VALUE/measure
-            # target is taken at the VALUE goal, so its bootstrap action must be
-            # a+ ~ pi(.|s', g_value), not pi(.|s', g_actor): otherwise the target evaluates
-            # a policy heading somewhere else and the learned object is a goal-averaged
-            # (behaviour-like) occupancy. Bridge gciql_flow.py density_loss ~2030:
-            #     noise = jax.random.normal(rng, acts.shape)
-            #     a_plus = sg(self.network.select('actor')(nobs, g, noise))   # g = value_goals
-            # Emitted as a SEPARATE key (and reusing na_noise, drawing no extra randomness)
-            # so every critic that reads `next_action` stays bit-identical.
-            # NOT universal: this is right for density_fb, whose forward tower takes the
-            # goal as an input (F(s,a,g)), so its row is g-indexed and the bootstrap must
-            # be at that same g. td_fb's forward map is phi(s,a) with NO goal leg — one
-            # vector per row serving every column — and its readout is
-            # <phi(s,a), psi(actor_goal)>, so it reads `next_action` instead. See the block
-            # comment in impls/critics/td_fb.py::stage_loss for the measured triple
-            # (0.920 actor-goal vs 0.076 value-goal on the cube-single phase-1 anchor).
+            # Reuses na_noise, so critics reading `next_action` stay bit-identical. NOT
+            # universal: right for density_fb, whose forward tower F(s,a,g) makes its row
+            # g-indexed; td_fb's forward map is phi(s,a) with no goal leg and reads
+            # `next_action` instead -- measured 0.920 actor-goal against 0.076 value-goal on
+            # the cube-single phase-1 anchor.
             boot["next_action_vgoal"] = self._actor(
                 net["actor"].params, next_obs, cond["_cvec_vgoal"], na_noise)
         return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
         c = _cvec(cond)
-        # The noise shape is taken from the FEATURE array, not the raw observation: on pixels
+        # Noise shape from the FEATURE array, not the raw observation: on pixels
         # `obs.shape[:-1]` is (64, 64), which would draw a (64, 64, adim) noise tensor.
         pobs = _obs_feat(cond, obs)
         noise = jax.random.normal(rng, (*pobs.shape[:-1], self.actor.action_dim))
@@ -159,8 +127,7 @@ class FlowBCActor:
         import jax.random as jr
         from impls.utils.networks import NoiseConditionedActor, FlowVectorField
         adim = ex_actions.shape[-1]
-        # cvec_dim is set by Agent.create from the critic (= z_dim for FB/ISFB, obs_dim for
-        # goal critics). Fall back to z_dim for the direct-build parity fixtures.
+        # cvec_dim comes from the critic via Agent.create; z_dim is the fixture fallback.
         cdim = config.get("cvec_dim", config.get("z_dim"))
         a_cfg = config["actor"]
         actor = NoiseConditionedActor(action_dim=adim, hidden_dim=a_cfg["hidden_dim"],
@@ -170,9 +137,8 @@ class FlowBCActor:
                              hidden_layers=a_cfg["flow_vf_hidden_layers"])
         ract, rvf = jr.split(jr.PRNGKey(config["seed"] + 1000), 2)
         ex_z = jnp.zeros((ex_obs.shape[0], cdim))
-        # `actor_obs_dim` is published by Agent.create when the critic's actor sees something
-        # other than the raw observation (density_fb on pixels: encoder features). On state it
-        # is absent and `ex_pobs is ex_obs`.
+        # `actor_obs_dim` is published when the actor sees something other than the raw
+        # observation (density_fb on pixels); absent on state.
         odim = config.get("actor_obs_dim")
         ex_pobs = ex_obs if odim is None else jnp.zeros((ex_obs.shape[0], int(odim)))
         params = {

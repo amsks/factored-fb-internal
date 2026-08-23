@@ -1,4 +1,4 @@
-"""Environment + dataset construction, ported from third_party/ogbench/impls/utils/env_utils.py.
+"""Environment + dataset construction, ported from OGBench upstream impls/utils/env_utils.py.
 Uses the compact dataset and wraps it in FBDataset for the FB training batch."""
 import collections
 import time

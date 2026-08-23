@@ -1,4 +1,4 @@
-"""Evaluation loop, ported from third_party/ogbench/impls/utils/evaluation.py.
+"""Evaluation loop, ported from OGBench upstream impls/utils/evaluation.py.
 
 The agent's sample_actions absorbs the `goals` kwarg (FB conditions on cond_eval, an
 inferred task latent, not a per-episode goal)."""

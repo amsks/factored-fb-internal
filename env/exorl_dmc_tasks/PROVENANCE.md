@@ -24,7 +24,7 @@ exorl's own `custom_dmc_tasks/common/` directory is not needed and was not vendo
 1. **XML path resolution** in all three modules' `get_model_and_assets()`. Upstream walked
    `dirname(dirname(__file__))` and rejoined the hardcoded package name `custom_dmc_tasks`,
    i.e. it assumed `<root>/custom_dmc_tasks/<name>.py` sits next to
-   `<root>/custom_dmc_tasks/<name>.xml`. Vendored under `third_party/exorl_dmc_tasks/`
+   `<root>/custom_dmc_tasks/<name>.xml`. Vendored under `env/exorl_dmc_tasks/`
    (no `custom_dmc_tasks` directory), that path does not exist. Patched to a plain
    `__file__`-relative join. This is the only line changed in each module; the
    `Physics` / task classes, `TASKS` tables and reward functions are byte-identical to

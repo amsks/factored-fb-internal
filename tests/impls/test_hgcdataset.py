@@ -80,6 +80,42 @@ def test_high_actor_target_never_overshoots_its_goal():
         assert np.isclose(obs, row).all(-1).any()
 
 
+def _idx_of(obs, rows):
+    """The dataset row index each emitted observation was gathered from. The fixture's rows
+    are iid gaussian, so the match is unique."""
+    out = []
+    for r in rows:
+        m = np.flatnonzero((obs == r).all(-1))
+        assert m.size == 1, "ambiguous row match -- the fixture is not unique"
+        out.append(int(m[0]))
+    return np.asarray(out)
+
+
+def test_high_actor_target_is_exactly_min_of_the_subgoal_step_and_the_goal():
+    """`test_high_actor_target_never_overshoots_its_goal` above asserts only that the emitted
+    target is SOME dataset row, which is true of any index gather -- clamping to the
+    trajectory end instead of to the goal passes it (verified by mutation). Pin the vendored
+    formula itself:
+
+        high_traj_target_idxs = min(idxs + subgoal_steps, high_traj_goal_idxs)
+
+    With actor_p_randomgoal=0 every goal is a trajectory goal, so the relation is exact."""
+    base = _base()
+    sg = 5
+    ds = make_dataset(base, _cfg(subgoal_steps=sg, actor_p_randomgoal=0.0))
+    obs = np.asarray(base["observations"])
+    np.random.seed(0)
+    idxs = np.arange(SIZE)
+    b = ds.sample(len(idxs), idxs=idxs)
+    g = _idx_of(obs, np.asarray(b["high_actor_goals"]))
+    t = _idx_of(obs, np.asarray(b["high_actor_targets"]))
+
+    # discriminating guard: unless some goal lands INSIDE the subgoal horizon, clamping to
+    # the goal and clamping to the trajectory end agree everywhere and the pin is vacuous
+    assert (g < idxs + sg).any(), "no goal falls inside the subgoal horizon -- vacuous"
+    np.testing.assert_array_equal(t, np.minimum(idxs + sg, g))
+
+
 def test_subgoal_steps_is_required():
     with pytest.raises(KeyError):
         make_dataset(_base(), _cfg(subgoal_steps=None)).sample(4)

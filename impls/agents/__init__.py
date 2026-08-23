@@ -14,17 +14,10 @@ from impls.critics.fb import FBCritic
 from impls.critics.gciql import GCIQLCritic
 from impls.critics.gcivl import GCIVLCritic
 from impls.critics.hiql import HIQLCritic
-from impls.critics.isfb import ISFBCritic
 from impls.critics.iql_bilinear import IqlBilinearCritic
-from impls.critics.simple_sf import SimpleSfCritic
-from impls.critics.sf_feature import SfFeatureCritic
-from impls.critics.centered_bilinear import CenteredBilinearCritic
-from impls.critics.fb_forward_bilinear import FbForwardBilinearCritic
 from impls.critics.crl import CRLCritic
 from impls.critics.qrl import QRLCritic
-from impls.critics.vip import VIPCritic
 from impls.critics.density_fb import DensityFBCritic
-from impls.critics.td_fb import TDFBCritic
 from impls.critics.psm import PSMCritic
 from impls.critics.rldp import RLDPCritic
 from impls.actors.flowbc import FlowBCActor
@@ -33,13 +26,8 @@ from impls.actors.ddpgbc_density import DDPGBCDensityActor
 from impls.actors.awr import AWRActor
 from impls.actors.fql import FQLActor
 
-CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": HIQLCritic, "isfb": ISFBCritic,
-           "iql_bilinear": IqlBilinearCritic, "simple_sf": SimpleSfCritic,
-           "sf_feature": SfFeatureCritic, "centered_bilinear": CenteredBilinearCritic,
-           "fb_forward_bilinear": FbForwardBilinearCritic, "crl": CRLCritic,
-           "qrl": QRLCritic, "vip": VIPCritic,
-           "density_fb": DensityFBCritic, "td_fb": TDFBCritic,
-           "psm": PSMCritic, "rldp": RLDPCritic}
+CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": HIQLCritic, "iql_bilinear": IqlBilinearCritic, "crl": CRLCritic,
+           "qrl": QRLCritic, "density_fb": DensityFBCritic, "psm": PSMCritic, "rldp": RLDPCritic}
 # CONFIG-ONLY VARIANTS: a --critic name that selects a different yaml but the SAME critic
 # class. `density_fb_pixels` is density_fb on image observations -- `DensityFBCritic.build`
 # infers the pixel path from the example observation's rank, so nothing about the class

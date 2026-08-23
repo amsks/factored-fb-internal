@@ -45,6 +45,11 @@ def make_batch(seed=1):
         # SEPARATE rng: taking them from `r` would shift its stream and change rewards/masks
         # below, moving every recorded loss for reasons that have nothing to do with the
         # change under test. (Learned the hard way -- it moved 76 scalars.)
+        # rldp's self-predictive loss needs an h-step window. Same separate-rng rule as the
+        # hierarchical keys below: taken from `r` these would shift rewards/masks and move
+        # every recorded loss for reasons unrelated to the change under test.
+        future_observations=jnp.asarray(rh.standard_normal((B, 4, OBS))),
+        future_actions=jnp.asarray(np.tanh(rh.standard_normal((B, 4, ACT)))),
         low_actor_goals=jnp.asarray(rh.standard_normal((B, OBS))),
         high_actor_goals=jnp.asarray(rh.standard_normal((B, OBS))),
         high_actor_targets=jnp.asarray(rh.standard_normal((B, OBS))),

@@ -65,7 +65,8 @@ from pathlib import Path
 import numpy as np
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_THIRD_PARTY = str(_REPO_ROOT / "third_party")
+# exorl_dmc_tasks lives under env/ now; the repo root is what must be importable.
+_TASKS_ROOT = str(_REPO_ROOT)
 
 # ExoRL exploration algorithms whose buffers are published. `rnd` is the T3 default.
 DEFAULT_ALGO = "rnd"
@@ -89,7 +90,7 @@ TASKS = {
                              "reach_bottom_left", "reach_bottom_right")),
     "dmc-walker":          ("walker", "walk", ("stand", "walk", "run", "flip")),
     # cheetah: `run` is the dm_control suite task; the other three are ExoRL additions
-    # (third_party/exorl_dmc_tasks/cheetah.py). There is no `walk` for cheetah upstream.
+    # (env/exorl_dmc_tasks/cheetah.py). There is no `walk` for cheetah upstream.
     "dmc-cheetah":         ("cheetah", "run", ("run", "run_backward", "flip",
                                                "flip_backward")),
 }
@@ -213,12 +214,12 @@ def _load_dmc(domain, reward_task, seed=0):
     reward function for `walker walk` than the benchmark uses."""
     os.environ.setdefault("MUJOCO_GL", "egl")
     _mujoco_overlay()
-    if _THIRD_PARTY not in sys.path:
-        sys.path.insert(0, _THIRD_PARTY)
+    if _TASKS_ROOT not in sys.path:
+        sys.path.insert(0, _TASKS_ROOT)
     from dm_control import suite
     if (domain, reward_task) in suite.ALL_TASKS:
         return suite.load(domain, reward_task, task_kwargs={"random": seed})
-    import exorl_dmc_tasks
+    from env import exorl_dmc_tasks
     return exorl_dmc_tasks.make(domain, reward_task, task_kwargs={"random": seed})
 
 
@@ -254,9 +255,9 @@ class ExoRLWrapper:
         self._target = None
         self._success = False
         if domain == "point_mass_maze":
-            if _THIRD_PARTY not in sys.path:
-                sys.path.insert(0, _THIRD_PARTY)
-            from exorl_dmc_tasks import point_mass_maze as _pmm
+            if _TASKS_ROOT not in sys.path:
+                sys.path.insert(0, _TASKS_ROOT)
+            from env.exorl_dmc_tasks import point_mass_maze as _pmm
             self._target = np.asarray(
                 dict(_pmm.TASKS)[reward_task][:2], np.float64)
             # MazeMultiGoal's `target_size` in the published zero-shot-RL maze protocol
@@ -282,7 +283,7 @@ class ExoRLWrapper:
         Two RNGs have to be pinned, not one: dm_control tasks draw from `task.random` (the
         RandomState handed to the constructor), but `point_mass_maze`'s own
         `initialize_episode` reaches for the GLOBAL `np.random.uniform` for the start qpos
-        (upstream quirk, third_party/exorl_dmc_tasks/point_mass_maze.py). Seeding only the
+        (upstream quirk, env/exorl_dmc_tasks/point_mass_maze.py). Seeding only the
         first would leave that domain's initial state uncontrolled, i.e. two checkpoints
         scored on different start states. The global state is restored afterwards for the
         same reason env/unified.py::_global_np_seed restores it: the dataset classes draw

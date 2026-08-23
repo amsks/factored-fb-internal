@@ -34,23 +34,14 @@ class Critic(Protocol):
 
 
 # ── which marginal `infer_cond` is solved against ──────────────────────────────────────
-# A critic's zero-shot reward->conditioning readout integrates the reward against a BASE
-# MEASURE, and which measure that is belongs to the critic's own math, not to the caller.
-# The FB family (fb / isfb / rldp / psm / density_fb) all build their backward/index tower on
-# SUCCESSOR states -- `goal = next_obs` in stage_loss, `B(next_observations)` in sample_cond,
-# density_fb's pinned rho_phi is "the next-state query marginal" -- so their readout has to be
-# solved on next_observations, paired with the reward of that same transition. impls/main.py
-# passed rb["observations"] for every critic, which is a DIFFERENT marginal that nothing
-# downstream complains about.
-#
-# Rather than pick one column for all of them, each critic declares its own:
-#   "next_observations" -- the successor / query marginal (the whole FB family)
+# The base measure a zero-shot reward->conditioning readout integrates against belongs to
+# the critic's math, not the caller's, and picking the wrong column is a different marginal
+# that nothing downstream complains about. So each critic declares its own:
+#   "next_observations" -- the successor / query marginal (the whole FB family, whose
+#                          backward/index tower is built on successor states)
 #   "observations"      -- the current-state marginal
-#   "unused"            -- infer_cond ignores `obs` entirely. Every goal-conditioned critic
-#                          here is in this class: its infer_cond returns a fixed zero
-#                          placeholder that the eval goal path overrides. The caller still
-#                          has to pass something; `infer_cond_rows` hands it _UNUSED_ROWS,
-#                          and the declaration is what says out loud that nothing reads it.
+#   "unused"            -- infer_cond ignores `obs` entirely (every goal-conditioned critic
+#                          here); `infer_cond_rows` then hands it _UNUSED_ROWS.
 INFER_COND_MARGINALS = ("observations", "next_observations", "unused")
 _UNUSED_ROWS = "next_observations"
 
@@ -80,11 +71,9 @@ def _name(obj):
     return obj.__name__ if isinstance(obj, type) else type(obj).__name__
 
 
-# A critic's TD target is only valid at one bootstrap action, and which one is a
-# property of the critic, not of the actor drawing it. Actors emit BOTH keys (guarded
-# on "value_goal" in cond); this maps a critic's declaration to the key it reads.
-# Deliberately NOT consulted by any actor: keeping it out of the draw is what makes
-# this change unable to move an existing number.
+# A critic's TD target is valid at one bootstrap action, and which one is a property of the
+# critic, not of the actor drawing it. Actors emit BOTH keys (guarded on "value_goal" in
+# cond); this maps a critic's declaration to the key it reads.
 BOOT_KEY = {"actor_goal": "next_action", "value_goal": "next_action_vgoal"}
 
 
@@ -100,13 +89,13 @@ def boot_key(critic):
 
 def check_combo(critic, actor):
     """Validate a critic×actor pair. Raises ComboError with a named reason if the actor
-    needs a V function the critic does not provide, or if the actor requires a cond key
-    (e.g. FlowBCActor's "z") the critic's sample_cond does not produce.
+    needs a V function the critic does not provide, or a cond key its sample_cond does not
+    produce.
 
-    Both arguments may be a class or an instance: every attribute consulted here is a
-    class attribute. Agent.create relies on that to validate BEFORE building the actor,
-    so an invalid pair reports its real reason instead of whatever missing config key
-    the actor's build() happens to index first (e.g. gciql×flowbc dying on z_dim)."""
+    Both arguments may be a class or an instance -- every attribute consulted here is a
+    class attribute -- so Agent.create can validate BEFORE building the actor, and an
+    invalid pair reports its real reason rather than whatever missing config key the
+    actor's build() indexes first."""
     boot_cond = getattr(critic, "BOOT_COND", "actor_goal")
     if boot_cond not in BOOT_KEY:
         raise ComboError(

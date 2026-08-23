@@ -10,7 +10,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
-from impls.actors.ddpgbc import _cvec
+from impls.actors.ddpgbc import _cvec, _obs_feat, _nobs_feat
 
 
 @dataclasses.dataclass(frozen=True)
@@ -28,6 +28,10 @@ class AWRActor:
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
         cvec = critic.cond_vec(cond)
+        # The POLICY takes features; the CRITIC below still gets the raw observation and
+        # encodes it itself behind `stop_encoder_grad`. Identity off pixels (`pobs is obs`),
+        # so every state cell stays bit-identical -- see impls/actors/ddpgbc.py::_obs_feat.
+        pobs = _obs_feat(cond, obs)
         adv_fn = getattr(critic, "adv_fn", None)
         if adv_fn is not None:
             # The critic defines its own advantage. Required for V-only critics: their
@@ -36,7 +40,7 @@ class AWRActor:
             # Opt-in, so every critic without the hook keeps the exact previous path.
             adv = jax.lax.stop_gradient(adv_fn(params, batch, cond))
             exp_a = jnp.minimum(jnp.exp(adv * self.alpha), 100.0)
-            dist = self._dist(params["actor"], obs, cvec)
+            dist = self._dist(params["actor"], pobs, cvec)
             log_prob = dist.log_prob(action)
             loss = -(exp_a * log_prob).mean()
             return loss, {"actor_loss": loss, "adv": adv.mean(), "bc_log_prob": log_prob.mean()}
@@ -46,17 +50,17 @@ class AWRActor:
         else:
             # No V: baseline with Q at the policy's mode action (stop-grad below keeps the
             # advantage a pure weight, so pi(s) here does not leak gradient into the actor).
-            a_pi = self._dist(params["actor"], obs, cvec).mode()
+            a_pi = self._dist(params["actor"], pobs, cvec).mode()
             v, _ = critic.q_fn(params, obs, cond, jnp.clip(a_pi, -1.0, 1.0), stop_encoder_grad=True)
         adv = jax.lax.stop_gradient(q - v)
         exp_a = jnp.minimum(jnp.exp(adv * self.alpha), 100.0)
-        dist = self._dist(params["actor"], obs, cvec)
+        dist = self._dist(params["actor"], pobs, cvec)
         log_prob = dist.log_prob(action)
         loss = -(exp_a * log_prob).mean()
         return loss, {"actor_loss": loss, "adv": adv.mean(), "bc_log_prob": log_prob.mean()}
 
     def sample_bootstrap(self, net, batch, cond, rng):
-        next_obs = batch["next_observations"]
+        next_obs = _nobs_feat(cond, batch["next_observations"])
         p = net["actor"].params
         boot = {"next_action": jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1)}
         # The CRITIC decides what the actor's conditioning vector at the value goal is, and
@@ -74,7 +78,7 @@ class AWRActor:
         return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
-        dist = self._dist(net["actor"].params, obs, _cvec(cond), temperature)
+        dist = self._dist(net["actor"].params, _obs_feat(cond, obs), _cvec(cond), temperature)
         return jnp.clip(dist.mode(), -1, 1)
 
     @classmethod
@@ -86,6 +90,10 @@ class AWRActor:
         actor = Actor(hidden_dims=tuple(a_cfg["hidden_dims"]), action_dim=ex_actions.shape[-1],
                       layer_norm=a_cfg.get("layer_norm", False), tanh_squash=False,
                       const_std=a_cfg.get("const_std", True))
-        ex_in = jnp.zeros((ex_obs.shape[0], ex_obs.shape[-1] + config.get("cvec_dim", config.get("z_dim"))))
+        # `actor_obs_dim` is published by Agent.create from the critic when the actor's
+        # observation leg is NOT the raw observation width (density_fb on pixels: encoder
+        # features). Absent elsewhere, and then this is ex_obs.shape[-1] exactly as before.
+        odim = int(config.get("actor_obs_dim") or ex_obs.shape[-1])
+        ex_in = jnp.zeros((ex_obs.shape[0], odim + config.get("cvec_dim", config.get("z_dim"))))
         params = {"actor": actor.init(jr.PRNGKey(config["seed"] + 3000), ex_in)["params"]}
         return cls(actor=actor, alpha=float(a_cfg["alpha"])), params

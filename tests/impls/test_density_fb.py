@@ -200,6 +200,35 @@ def test_target_towers_init_mirror_and_soft_update():
 # --------------------------------------------------------------------------
 # 4. grad hygiene
 # --------------------------------------------------------------------------
+def test_stage_loss_reads_the_TARGET_towers_and_not_the_online_ones():
+    """The bootstrap w_bar must come from the POLYAK targets. Swapping
+    `target["density_f"]/["density_b"]` for `params[...]` in stage_loss survives this whole
+    file, test_density_fb_reward_index.py and the 60-pair byte-identity gate (verified by
+    mutation), because `build()` initialises each target as an exact COPY of its tower and
+    no test evaluates the loss at a target that has drifted away from it.
+
+    test_target_towers_init_mirror_and_soft_update pins the polyak RECURSION; this pins that
+    the loss actually READS its output. Perturb the targets away from the online towers and
+    require the loss to respond."""
+    ex_obs, ex_act = _ex()
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    b, boot = _batch(), _boot()
+    cond = {"value_goal": b["value_goals"], "goal": b["actor_goals"]}
+
+    base = float(c.stage_loss("density", params, targets, b, cond, boot)[0])
+    drifted = jax.tree_util.tree_map(lambda x: x + 0.25, targets)
+    moved = float(c.stage_loss("density", params, drifted, b, cond, boot)[0])
+    assert not np.isclose(base, moved, rtol=1e-9, atol=1e-9), (
+        "the density loss is INVARIANT to its target towers -- it is bootstrapping off the "
+        "online towers")
+
+    # control: it also depends on the online towers, so the check above is about WHICH
+    # tower the target slot reaches, not about a dead loss
+    p_drift = jax.tree_util.tree_map(lambda x: x + 0.25, params)
+    assert not np.isclose(base, float(c.stage_loss("density", p_drift, targets, b, cond,
+                                                   boot)[0]), rtol=1e-9, atol=1e-9)
+
+
 def test_stage_loss_grad_touches_only_the_two_towers():
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())

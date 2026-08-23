@@ -1,100 +1,79 @@
 # Factored-FB (JAX)
 
-A clean, standalone **JAX** implementation of the **Forward–Backward (FB) ↔ GCIQL bridge**
-for offline goal-conditioned RL on state-based [OGBench](https://github.com/seohongpark/ogbench)
-cube manipulation.
+A JAX implementation of a critic × actor seam for offline goal-conditioned RL on
+[OGBench](https://github.com/seohongpark/ogbench) cube manipulation. The seam lets
+Forward–Backward (FB) and GCIQL-family value representations be composed with flow,
+DDPG+BC, AWR and one-step actors and run under a single training loop, so they can be
+compared on equal footing.
 
-Everything lives in one package, **`impls/`** — a critic × actor *seam* that lets FB-family
-and GCIQL-family value representations be composed with flow / DDPG+BC / AWR / one-step
-actors and compared on equal footing. The scientific thrust is a **failure analysis of
-future-reachability methods on manipulation** (see the paper trees on the other branches).
-
-> This branch is **code-only and state-only**. The PyTorch implementation, the pixel/DrQ
-> path, the scene domain, and the PSM/RLDP/TD-MPC2 agents are **not** here — they live on
-> other branches. See [Scope](#scope).
+The research question behind it is when future-reachability methods fail on manipulation.
+The paper trees live on other branches.
 
 ---
 
 ## Method
 
-FB decomposes the goal-conditioned Q-function as a bilinear form:
+FB factors the goal-conditioned Q-function as a bilinear form:
 
 ```
 Q(s, a, z) = F(s, z, a) · B(s')
 ```
 
-**F** (forward map) predicts successor features; **B** (backward map) maps observations to a
-latent goal space **z**. At test time a task is specified by inferring **z** as
-`z = project(Σ rᵢ · B(next_obsᵢ))` over relabelled offline transitions — no fine-tuning.
+F predicts successor features; B maps observations into a latent goal space z. A task is
+specified at test time by inferring z from relabelled offline transitions,
+`z = project(Σ rᵢ · B(next_obsᵢ))`, with no fine-tuning.
 
-The **bridge** recasts GCIQL and its bilinear/successor-feature variants in the same factored
-API, so a single training loop can run FB, GCIQL, ISFB, and the bilinear/SF critics under one
-actor family. Which knobs of the old research shim map to which critic is recorded in
+The bridge restates GCIQL and its bilinear and successor-feature variants in the same
+factored API, so one loop runs all of them. Which knobs of the original research shim map
+to which critic is recorded in
 [`docs/jaxify-coverage-audit.md`](docs/jaxify-coverage-audit.md).
 
 ---
 
-## The critic × actor seam
+## The seam
 
-`impls/agents/__init__.py` composes a **critic** (the value representation) with an **actor**
-(the policy) over per-group Flax `TrainState`s, and `check_combo` (`impls/critics/base.py`)
-validates the pair before building. **All 32 critic × actor pairs are valid** — every actor
-composes with every critic.
+`impls/agents/__init__.py` composes a critic (the value representation) with an actor (the
+policy) over per-group Flax `TrainState`s. `check_combo` in `impls/critics/base.py`
+validates the pair before building it, and `tests/impls/test_boot_contract.py` builds
+every registered pair.
 
-**Critics:** `fb`, `gciql`, `isfb`, `iql_bilinear`, `simple_sf`, `sf_feature`,
-`centered_bilinear`, `fb_forward_bilinear`
-**Actors:** `flowbc` (flow-matching + distilled noise actor), `ddpgbc` (DDPG+BC),
-`awr` (advantage-weighted regression), `fql` (one-step flow).
+The `CRITICS` and `ACTORS` dicts in `impls/agents/__init__.py` are the authoritative
+lists. Critics are the OGBench family (`gciql`, `gcivl`, `hiql`, `crl`, `qrl`), bilinear
+GCIQL (`iql_bilinear`), and the successor-measure family (`fb`, `density_fb`, `psm`,
+`rldp`). Actors are `flowbc` (flow matching with a distilled one-step actor), `bcflow`
+(the same actor with the value term switched off, i.e. a pure-BC control), `ddpgbc`,
+`ddpgbc_density`, `awr` and `fql`.
 
-| critic \ actor | flowbc | ddpgbc | awr | fql |
-|---|:---:|:---:|:---:|:---:|
-| `fb` | ✅ | ✅ | ✅ᵛ | ✅ |
-| `gciql` | ✅ᶜ | ✅ | ✅ | ✅ |
-| `isfb` | ✅ | ✅ | ✅ | ✅ |
-| `iql_bilinear` | ✅ᶜ | ✅ | ✅ | ✅ |
-| `simple_sf` | ✅ᶜ | ✅ | ✅ | ✅ |
-| `sf_feature` | ✅ᶜ | ✅ | ✅ᵛ | ✅ |
-| `centered_bilinear` | ✅ᶜ | ✅ | ✅ᵛ | ✅ |
-| `fb_forward_bilinear` | ✅ᶜ | ✅ | ✅ | ✅ |
+Two composition rules are worth knowing before reading a result table:
 
-Every pair builds and trains. Two cells use **fallback semantics** where the critic lacks the
-native quantity the actor prefers:
-
-- **ᶜ** — `flowbc` conditions on the critic's `cond_vec`. For `fb`/`isfb` that *is* the latent
-  `z` (native); for goal-critics it is the **goal**, making it a goal-conditioned flow-BC actor
-  (the flow field stays goal-agnostic; only the one-step actor is conditioned).
-- **ᵛ** — `awr` uses a native value `V(s)` when the critic provides one; for value-less critics
-  (`fb`, `sf_feature`, `centered_bilinear`) it falls back to a **policy-baseline advantage**
-  `A = Q(s,a) − Q(s, π(s))`.
-
-`fb`/`isfb`-flowbc and every V-critic-awr are **byte-identical** to before this generalization
-(guarded by the parity fixtures); only the fallback cells are new.
+- `flowbc` conditions on whatever the critic publishes as `cond_vec`. For `fb` that is
+  the latent z; for goal critics it is the goal, which makes the pair a
+  goal-conditioned flow-BC actor. The flow field stays goal-agnostic — only the one-step
+  actor is conditioned.
+- `awr` uses a native `V(s)` when the critic provides one, and otherwise falls back to the
+  policy-baseline advantage `A = Q(s,a) − Q(s, π(s))`, so it composes with value-less
+  critics too.
 
 ---
 
 ## Installation
 
-**Python ≥ 3.11.** Uses [`uv`](https://github.com/astral-sh/uv). The `ogbench` env/dataset
-library — and `jax` / `flax` / `optax` / `numpy` / `gymnasium` via its `[train]` extra — is
-installed **editable from the vendored source** at `third_party/ogbench`.
+Python 3.11. `ogbench` — and `jax`, `flax`, `optax`, `numpy` and `gymnasium` through its
+`[train]` extra — is installed editable from the vendored source in `ogbench`.
 
 ```bash
-make install          # creates /dev/shm/.venv-jax and installs requirements.txt
-# or manually:
-uv venv --python 3.11 /dev/shm/.venv-jax
-/dev/shm/.venv-jax/bin/pip install -r requirements.txt
+make install          # uv venv at /dev/shm/.venv-jax, then requirements.txt
 ```
 
-Verify: `/dev/shm/.venv-jax/bin/python -c 'import jax; print(jax.devices())'`
+Verify with `/dev/shm/.venv-jax/bin/python -c 'import jax; print(jax.devices())'`. The
+venv lives in tmpfs and does not survive a reboot.
 
-> `impls/utils/torch_to_flax.py` is a **pure-JAX** weight-remapping helper (it reads the
-> parity fixtures); despite the name it imports no torch.
+`impls/utils/torch_to_flax.py` reads the parity fixtures and remaps weights; despite the
+name it imports no torch.
 
 ---
 
 ## Running
-
-Train one critic × actor pair on cube-single via the `impls.main` entrypoint:
 
 ```bash
 /dev/shm/.venv-jax/bin/python -m impls.main \
@@ -102,57 +81,63 @@ Train one critic × actor pair on cube-single via the `impls.main` entrypoint:
     --seed 0 --train_steps 1000000 --save_dir exp/
 ```
 
-Config is **composed** from the sibling groups under `impls/configs/{critic,actor,domain}/`
-by `impls/utils/config_utils.py:load_config`. Override any key with `--override key=value`
-(repeatable). Checkpoint / restore via `--save_dir`, `--restore_path` (a glob over run dirs),
-and `--restore_epoch`.
+`impls/utils/config_utils.py:load_config` composes the config from the sibling groups
+under `impls/configs/{critic,actor,domain}/`. `--override key=value` is repeatable.
+Checkpointing and restore go through `--save_dir`, `--restore_path` (a glob over run
+dirs) and `--restore_epoch`.
 
-Quick smoke (5 steps, CPU):
-
-```bash
-make smoke            # CRITIC=fb ACTOR=flowbc by default; override on the CLI
-```
+`make run` runs the default pair; `make smoke` runs five training steps on CPU.
 
 ---
 
 ## Data
 
-The loop uses the official OGBench datasets via `ogbench.make_env_and_datasets(name,
-compact_dataset=True)` (`impls/utils/env_utils.py`). The currently wired domain is
-`cube_single` (`cube-single-play-v0`). OGBench downloads and caches datasets under
-`~/.ogbench` on first use.
+`ogbench.make_env_and_datasets(name, compact_dataset=True)` in
+`impls/utils/env_utils.py` loads the official OGBench datasets, which OGBench downloads
+and caches under `~/.ogbench` on first use. `cube_single` (`cube-single-play-v0`) is the
+only domain wired up — it is the sole file in `impls/configs/domain/`.
 
 ---
 
-## Tests & parity
+## Tests
 
 ```bash
-make test             # full impls/ suite on CPU
-# == XLA_PYTHON_CLIENT_PREALLOCATE=false JAX_PLATFORMS=cpu \
-#      /dev/shm/.venv-jax/bin/python -m pytest tests/impls/ -q
+make test             # JAX_PLATFORMS=cpu pytest tests/impls/ -q
+make test-fast        # collection only, catches import breakage in seconds
 ```
 
-Every critic and actor carries a **1e-10 numerical-parity** test against a reference
-implementation. The reference values are frozen in `tests/impls/fixtures/*.npz` — golden
-values captured at parity with the original torch/shim implementation. Those generators were
-removed with the torch reference (this is a JAX-only repo); regenerating a fixture requires
-checking out a pre-cleanup ref. See [`docs/jaxify-coverage-audit.md`](docs/jaxify-coverage-audit.md).
+Ten frozen reference arrays in `tests/impls/fixtures/*.npz` pin numerical parity against
+the original torch/shim implementation, at tolerances down to 1e-10. The generators for
+the torch-side fixtures were removed along with the torch reference, so regenerating one
+means checking out a pre-cleanup ref; see
+[`docs/jaxify-coverage-audit.md`](docs/jaxify-coverage-audit.md).
+`tests/impls/test_boot_contract.py` is the byte-identity gate over every registered
+critic × actor pair.
+
+Two tests in `test_density_fb_pixels.py` render a MuJoCo scene and fail on a headless box
+with no GL context; they need `MUJOCO_GL=egl` or a display.
 
 ---
 
 ## Scope
 
-- **In:** state-based OGBench cube-single; the FB↔GCIQL bridge critics and the four actors.
-- **Deferred:** the pixel / DrQ path; the scene domain and its factored `value_split` value.
-- **Elsewhere:** PSM, RLDP, TD-MPC2, and the PyTorch implementation live on their own branches.
+`cube_single` is the only wired domain. The scene domain and its factored `value_split`
+value are not here.
+
+`density_fb` has a pixel/DrQ path, selected with `--critic density_fb_pixels`. It needs
+the privileged object-coordinate channel described in
+`docs/specs/2026-08-21-density-fb-pixels-drq.md`, because the density kernel is defined by
+column slices of object coordinates and there is nothing to slice on an image. No other
+critic runs on images.
+
+The PyTorch implementation and TD-MPC2 live on other branches.
 
 ---
 
 ## Layout
 
 ```
-impls/            the implementation (critics/, actors/, agents/, utils/, configs/, main.py)
-tests/impls/      parity + seam suite (+ frozen .npz fixtures)
-third_party/      vendored OGBench (the runtime env/dataset dep + jax/flax via [train])
+impls/            critics/, actors/, agents/, utils/, configs/, main.py
+tests/impls/      parity and seam suite, with frozen .npz fixtures
 docs/             coverage audit, specs, plans, notes
 ```

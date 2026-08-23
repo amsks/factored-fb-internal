@@ -62,18 +62,6 @@ def _min_cfg_for(critic_kind, actor_kind):
             left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
             predictor=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
         )
-    elif critic_kind == "isfb":
-        base = dict(
-            z_dim=8, L_dim=8, num_parallel=2, discount=0.99,
-            f_target_tau=0.005, b_target_tau=0.005, ortho_coef=1.0, train_goal_ratio=0.5,
-            fb_pessimism_penalty=0.0, norm_z=True, lr_f=1e-4, lr_b=1e-4, lr_actor=1e-4,
-            forward=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
-            backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
-            left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
-            measure_insample="scalar_gate_hard", iql_expectile=0.9,
-            alpha_n=1.0, alpha_m=1.0, alpha_v=1.0, awr_beta=3.0, awr_wmax=100.0,
-            awr_normalize_adv=True, goal_mask=True,
-        )
     elif critic_kind == "iql_bilinear":
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
@@ -95,63 +83,12 @@ def _min_cfg_for(critic_kind, actor_kind):
             high_alpha=3.0, rep_dim=10, subgoal_steps=25,
             high_actor_hidden_dims=[64, 64], high_const_std=True, low_actor_rep_grad=False,
         )
-    elif critic_kind == "simple_sf":
-        base = dict(
-            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
-            lr=3e-4, lr_actor=3e-4, gc_negative=True,
-            value_latent_dim=8, ground_psi=False, reward_coef=0.0, project_z=False,
-            double_q=True, actor_cond="goal", ground_fade=False,
-            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
-        )
-    elif critic_kind == "sf_feature":
-        base = dict(
-            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, tau=0.005,
-            lr=3e-4, lr_actor=3e-4, gc_negative=True,
-            value_latent_dim=16, sf_base="frozen", sf_mask="goal", sf_base_index="current",
-            sf_joint_psi=False, sf_reward_regress=False, sf_reward_coef=1.0, sf_reward_shift=0.0,
-            sf_ortho_coef=0.0, sf_psi_ortho_coef=0.0, sf_coef=1.0, fb_forward_z=False,
-            actor_cond="goal",
-            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
-        )
-    elif critic_kind == "centered_bilinear":
-        base = dict(
-            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
-            lr=3e-4, lr_actor=3e-4, gc_negative=True,
-            value_latent_dim=8, double_q=True, mode="dueling",
-            dueling_b_coef=1.0, centered_measure_coef=1.0, center_b_coef=1.0, center_b_samples=1,
-            centered_split_bootstrap=True, centered_scale_anchors=False, use_next_actions=False,
-            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
-        )
-    elif critic_kind == "fb_forward_bilinear":
-        base = dict(
-            value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
-            lr=3e-4, lr_actor=3e-4, gc_negative=True,
-            value_latent_dim=8, phi_module="flat", objective="iql", project_z=False, double_q=True,
-            measure_coef=0.0, measure_legs="critic", measure_scale_norm=False,
-            measure_stopgrad_phi=False, measure_ortho_coef=0.0, measure_test_states="rho",
-            measure_test_rank="full", iql_ortho_coef=0.0,
-            measure_insample="scalar_gate_hard", alpha_n=1.0, alpha_m=1.0, alpha_v=1.0,
-            awr_beta=3.0, awr_wmax=100.0, awr_normalize_adv=True, fb_pessimism_penalty=0.0,
-            goal_mask=True,
-            actor_cond="goal", actor_z_from_critic=False, actor_z_infer=False,
-            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
-        )
     elif critic_kind == "density_fb":
         base = dict(
             value_hidden_dims=[32, 32], layer_norm=True, discount=0.99, tau=0.005,
             lr=3e-4, lr_actor=3e-4,
             measure_hit_spec="0:2:0.4", measure_density_dim=8, measure_density_temp=1.0,
             actor_q_center=True,
-            z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
-        )
-    elif critic_kind == "td_fb":
-        base = dict(
-            value_hidden_dims=[32, 32], layer_norm=True, value_latent_dim=8,
-            discount=0.99, tau=0.005, lr=3e-4, lr_actor=3e-4,
-            measure_hit_spec="0:2:0.4", measure_scale_norm=True,
-            measure_first_passage=True, measure_fp_absorbing=True,
-            measure_stopgrad_psi=False, measure_testpoint_dist="hindsight",
-            measure_ortho_coef=0.0, actor_q_center=False, warm_start=False,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
         )
     elif critic_kind == "psm":
@@ -163,7 +100,7 @@ def _min_cfg_for(critic_kind, actor_kind):
             phi=dict(hidden_dim=16, hidden_layers=2, norm=True),
             sf=dict(hidden_dim=32, hidden_layers=1, embedding_layers=2),
         )
-    elif critic_kind in ("crl", "vip"):
+    elif critic_kind == "crl":
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, tau=0.005,
             lr=3e-4, lr_actor=3e-4, gc_negative=True, latent_dim=8,

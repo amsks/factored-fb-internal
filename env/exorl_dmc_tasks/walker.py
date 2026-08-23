@@ -65,7 +65,7 @@ def get_model_and_assets():
     """Returns a tuple containing the model XML string and a dict of assets."""
     # PATCHED for the Factored-FB vendor layout (see PROVENANCE.md): upstream walked
     # dirname(dirname(__file__)) and rejoined the hardcoded 'custom_dmc_tasks' package
-    # name; vendored directly under third_party/exorl_dmc_tasks/ that path does not exist.
+    # name; vendored directly under env/exorl_dmc_tasks/ that path does not exist.
     xml = resources.GetResource(
         os.path.join(os.path.dirname(__file__), 'walker.xml'))
     return xml, common.ASSETS
