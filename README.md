@@ -136,16 +136,6 @@ ExoRL is the only family with **reward-labelled** data. Its buffers carry the re
 task the data was collected under, so the loader relabels from the stored physics instead of
 passing that column through -- a passthrough would be right for one task per domain and
 silently wrong for the others.
-
-### What has actually been run here
-
-`cube-single` (offline, online and pixels) and `dmc-point-mass-maze` (the reward interface,
-end to end). The MetaWorld, ManiSkill and Box2D domains resolve their configs but their data
-is not on this machine, so they are unrun. `dmc-walker` and `dmc-cheetah` have working envs
-and reward functions but their RND buffers were never downloaded, so their observation
-layouts are inferred rather than checked, and their `measure_hit_spec` is deliberately left
-unset.
-
 ---
 
 ## Layout
