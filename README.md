@@ -117,11 +117,11 @@ use. The other four families read from directories you point at with environment
 name is the yaml stem.
 
 | family | domains | needs |
-|---|---|---|---|
+|---|---|---|
 | OGBench | `cube-single`, `cube-double`, `scene`, `antmaze`, `pointmaze`, `cube-single-pixels` | nothing |
 | MetaWorld / ManiSkill | `mw-pick-place`, `mw-push`, `ms-pick-cube`, `ms-push-cube` | `FB_DATA_ROOT` |
 | MetaWorld (HF export) | `mw-assembly`, `mw-basketball`, `mw-bin-picking`, `mw-box-close`, `mw-button-press` | `FB_HF_EXPORT` |
-| Box2D | the five `b2d-*` | `FB_COLLECTED` | no |
+| Box2D | the five `b2d-*` | `FB_COLLECTED` (no) |
 | ExoRL (dm_control) | `dmc-point-mass-maze`, `dmc-walker`, `dmc-cheetah` | `EXORL_DATA_ROOT`, plus `FB_MUJOCO_SITE_PACKAGES` |
 
 MetaWorld is split across two roots, which is easy to trip over: `mw-push` and
