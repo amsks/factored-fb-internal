@@ -26,6 +26,13 @@ CONDITIONING FIDELITY. The jax branch conditions exactly the way training-time e
 into its own index (for density_fb: M reward samples over the frozen pool, then the centered
 solve). It does NOT shortcut to some other goal->z path, because then this script and the
 run's own eval.csv would be measuring different agents.
+
+`--goal_prompt point` / `point_centered` are the DELIBERATE exception, for the conditioning
+diagnostic: z is computed once per goal as sqrt(d) * normalize(B(goal)) (Meta Motivo's
+`goal_inference`), or the same with mu_hat subtracted first, and rolled via
+`cond_eval={"z": z}` with goals=None so `map_eval_cond` keeps the z and still publishes the
+norm_obs observation leg. Numbers from these routes are NOT comparable to the run's own
+eval.csv -- they answer "does the sample-route conditioning lose the goal", nothing else.
 """
 import argparse
 import glob
@@ -113,7 +120,39 @@ def jax_agent(args):
     agent = restore_agent(agent, args.restore_path, args.restore_epoch)
     key = jax.random.PRNGKey(args.seed)
 
+    def _point_z(goal):
+        """z = sqrt(d) * normalize(B(goal)) -- Meta Motivo's goal_inference, bypassing the
+        reward-sample solve. B's input is built exactly as training builds it (`_q_cols`:
+        obs-norm standardize, then per-block eps scale), through the same slow-EMA index
+        tower `_zenc` the sample route reads. point_centered subtracts mu_hat first.
+        Prints ||z|| (must be sqrt(d)) and the cosine to the sample-route z per goal."""
+        from impls.critics.density_fb import _raw_block_cols
+        critic, net = agent.critic, agent.net
+        g = jnp.asarray(goal)
+        u_sc = critic._q_cols(net, _raw_block_cols(g[None], critic.blocks))
+        b = critic._B(critic._zenc(net), u_sc)[0]                       # [d]
+        if args.goal_prompt == "point_centered":
+            b = b - critic._zstats(net)["mu"]
+        d = float(critic.z_dim)
+        z = b * jnp.sqrt(d) / jnp.linalg.norm(b)
+        z_s = critic.map_eval_cond(net, {"goal": g})["z"]               # sample route
+        cos = float(jnp.dot(z, z_s) / (jnp.linalg.norm(z) * jnp.linalg.norm(z_s)))
+        print(f"  [{args.goal_prompt}-z] ||z||={float(jnp.linalg.norm(z)):.3f} "
+              f"sqrt(d)={d ** 0.5:.3f} cos(z, sample-route)={cos:+.3f}", flush=True)
+        return z
+
     def for_goal(goal):
+        if args.goal_prompt != "sample":
+            # goals=None so map_eval_cond keeps cond_eval's z and still publishes the
+            # norm_obs observation leg (_with_obs_feat) the actor trained with.
+            agent2 = agent.replace(cond_eval={"z": _point_z(goal)})
+            def act(obs):
+                nonlocal key
+                key, sub = jax.random.split(key)
+                a = agent2.sample_actions(observations=jnp.asarray(obs), goals=None,
+                                          seed=sub, temperature=0.0)
+                return np.asarray(a, np.float32)
+            return act
         g = jnp.asarray(goal)
         def act(obs):
             nonlocal key
@@ -152,6 +191,9 @@ def main():
     ap.add_argument("--restore_path", default="")
     ap.add_argument("--restore_epoch", type=int, default=500000)
     ap.add_argument("--motivo_model", default="facebook/metamotivo-S-1")
+    ap.add_argument("--goal_prompt", choices=["sample", "point", "point_centered"],
+                    default="sample",
+                    help="jax branch only: how the goal becomes z (see module docstring)")
     ap.add_argument("--goals", choices=["buffer", "json"], default="buffer")
     ap.add_argument("--goals_json", default="")
     ap.add_argument("--buffer_root", default="")
@@ -192,6 +234,7 @@ def main():
         with open(args.out_jsonl, "a") as f:
             f.write(json.dumps({"agent": args.agent, "restore_path": args.restore_path,
                                 "restore_epoch": args.restore_epoch, "goals": args.goals,
+                                "goal_prompt": args.goal_prompt,
                                 "overall": overall, "per_goal": per_goal}) + "\n")
 
 
