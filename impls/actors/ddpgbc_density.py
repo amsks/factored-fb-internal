@@ -25,6 +25,25 @@ import jax.numpy as jnp
 from impls.actors.ddpgbc import DDPGBCActor, _cvec, _obs_feat, _nobs_feat
 
 
+def _smooth(a, rng, std, clip):
+    """TD3-style TARGET POLICY SMOOTHING on a bootstrap action.
+
+    `a + eps`, eps ~ N(0, std) truncated at +-clip, re-clipped to the action range. This is
+    the published FB recipe, not an embellishment: Touati et al. Appendix G.4 evaluates the
+    TD target at `F(s', pi(s') + eps_i, z)` with eps from a truncated centered Gaussian, and
+    Table 1 pins stddev 0.2 / truncation 0.3. Without it a deterministic actor bootstraps at
+    its own argmax and is free to ride sharp maxima of an unconverged critic -- which is the
+    shape of the FB divergence measured on ExoRL (q_mean 77 -> 436 on walker).
+
+    std=0.0 short-circuits and draws NO randomness, so every pre-existing run stays
+    bit-identical.
+    """
+    if std <= 0.0:
+        return a
+    eps = jnp.clip(std * jax.random.normal(rng, a.shape), -clip, clip)
+    return jnp.clip(a + eps, -1.0, 1.0)
+
+
 @dataclasses.dataclass(frozen=True)
 class DDPGBCDensityActor(DDPGBCActor):
     GROUPS = ("actor",)
@@ -74,8 +93,10 @@ class DDPGBCDensityActor(DDPGBCActor):
         p = net["actor"].params
         r_boot, r_sample = jax.random.split(rng)
         dist = self._dist(p, next_obs, _cvec(cond))
-        boot = {"next_action": jnp.clip(dist.mode() if self.const_std
-                                        else dist.sample(seed=r_boot), -1.0, 1.0),
+        boot = {"next_action": _smooth(
+                    jnp.clip(dist.mode() if self.const_std
+                             else dist.sample(seed=r_boot), -1.0, 1.0),
+                    r_boot, self.boot_noise_std, self.boot_noise_clip),
                 "actor_sample_rng": r_sample}
         if "_cvec_vgoal" in cond:
             # a+ ~ pi(.|s', g_value) at FROZEN params: density_fb's forward tower F(s,a,g)
@@ -84,6 +105,7 @@ class DDPGBCDensityActor(DDPGBCActor):
             # (impls/actors/ddpgbc.py). On the goal-conditioned state arm the two keys hold
             # the same array, so reading the wrong one fails SILENTLY there.
             dv = self._dist(p, next_obs, cond["_cvec_vgoal"])
-            boot["next_action_vgoal"] = jnp.clip(
-                dv.mode() if self.const_std else dv.sample(seed=r_boot), -1.0, 1.0)
+            boot["next_action_vgoal"] = _smooth(
+                jnp.clip(dv.mode() if self.const_std else dv.sample(seed=r_boot), -1.0, 1.0),
+                r_boot, self.boot_noise_std, self.boot_noise_clip)
         return boot

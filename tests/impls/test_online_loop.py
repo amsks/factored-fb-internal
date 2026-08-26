@@ -451,6 +451,49 @@ def test_online_smoke_steps_env_fills_buffer_and_trains(critic, actor, cfg_fn):
     assert "online/return" in st and np.isfinite(st["online/return"])
 
 
+def test_online_does_not_fabricate_a_success_metric_on_a_returns_only_env():
+    """ExoRL's walker/cheetah have no binary success rule, so env/exorl_env.py omits the
+    `success` key rather than emit a 0.0 that reads as "the policy failed". The eval path
+    honours that (tests/impls/test_exorl_env.py::test_evaluate_does_not_fabricate_a_success
+    _metric); the online collector must too, or every T4 locomotion log carries a hard
+    `online/success: 0.0` next to a real, rising `online/return`."""
+
+    class ReturnsOnlyEnv(TinyEnv):
+        """TinyEnv with the `success` key removed from reset AND step info."""
+
+        def reset(self, seed=None, options=None):
+            obs, info = super().reset(seed=seed, options=options)
+            info.pop("success", None)
+            return obs, info
+
+        def step(self, action):
+            obs, reward, term, trunc, info = super().step(action)
+            info.pop("success", None)
+            return obs, reward, term, trunc, info
+
+    cfg = _fb_cfg()
+    agent = _agent(cfg, "fb", "flowbc")
+
+    tr = _trainer(cfg, StubAdapter(), ReturnsOnlyEnv(), warmup_steps=20,
+                  env_steps_per_update=1.0)
+    tr.prefill(agent)
+    for _ in range(60):
+        tr.collect(agent)
+    st = tr.stats()
+    assert "online/return" in st and np.isfinite(st["online/return"]), \
+        "test premise: episodes must have closed, so return IS reported"
+    assert "online/success" not in st, \
+        f"online mode fabricated a success metric on an env that reports none: {st}"
+
+    # ... and the key IS still reported for an env that scores success, so the omission is
+    # driven by the env rather than by a blanket removal.
+    tr2 = _trainer(cfg, StubAdapter(), TinyEnv(), warmup_steps=20, env_steps_per_update=1.0)
+    tr2.prefill(agent)
+    for _ in range(60):
+        tr2.collect(agent)
+    assert "online/success" in tr2.stats()
+
+
 def test_online_smoke_through_main(tmp_path, monkeypatch):
     """The real entrypoint with --online=True: prefill, env stepping between gradient steps,
     replay sampling and checkpointing, all through impls/main.py."""

@@ -8,6 +8,10 @@
 lr: 3.0e-4
 batch_size: 1024
 value_hidden_dims: [512, 512, 512]
+# B-tower width/depth, when it must differ from F. null = same as value_hidden_dims (what
+# every published cell ran). Meta Motivo's humanoid sizes them asymmetrically -- f 1024x2,
+# b 256x1 -- so matching that config needs this knob.
+measure_density_b_hidden_dims: null
 layer_norm: true
 discount: 0.99
 tau: 0.005                        # polyak rate for BOTH density_f/density_b targets
@@ -41,6 +45,48 @@ measure_density_bootstrap: actor    # actor | sarsa
 # (bit-identical). stage_loss's CE target always uses measure_density_temp, so raising this
 # smooths what the actor ascends without changing what the measure is trained to be.
 measure_density_actor_temp: null
+
+# --- Meta Motivo NETWORK SHAPES -----------------------------------------------------------
+# "mlp" (default) is what every published cell ran: one ensembled MLP over the concatenation
+# [obs, action, cond] for F, one MLP over the query block for B.
+#
+# "motivo" is metamotivo/nn_models.py's own ForwardMap/BackwardMap. F becomes TWO embedding
+# branches -- over (obs, cond) and over (obs, action) -- each narrowing to hidden_dim//2 and
+# concatenated back to hidden_dim, then a trunk. This is a different SHAPE, not a width: our
+# [1024, 1024] is two 1024 layers over one concatenation, theirs is four layers in a Y.
+# Under "motivo", value_hidden_dims and measure_density_b_hidden_dims are read as their
+# (hidden_dim, hidden_layers) pair, so every entry must be equal and the LENGTH is the layer
+# count: [1024, 1024] -> width 1024 x 2 layers; [256] -> width 256 x 1 layer.
+# Pair it with actor.motivo_archi, which does the same for the policy net.
+measure_density_archi: mlp        # mlp | motivo
+# Motivo's archi.b.norm: B's output projected onto the sqrt(d) sphere. Applied in `_B`, so
+# it reaches the loss, the frozen target, the index encoder and the actor's reward vector
+# alike. WARNING, and it is why this defaults false: this is the scale normalization
+# docs/density-fb-design.md records as separately harmful on the bridge (the same family as
+# the orthonormalization that took cube-single 0.967 -> 0.225). It exists to reproduce
+# Motivo's config, not because it was expected to help.
+measure_density_b_norm: false
+
+# --- observation standardization (Meta Motivo `norm_obs`) ---------------------------------
+# DEFAULT OFF, so every published cell is byte-identical. On, the per-dimension running
+# mean/variance of the observation is applied wherever a network reads an observation -- F's
+# observation leg, B's query input, and the policy net's observation leg -- reproducing
+# Motivo's nn.BatchNorm1d(obs_dim, affine=False, momentum=0.01) in eval mode
+# (metamotivo/fb/model.py:77, applied at forward_map/backward_map/actor).
+#
+# The HIT KERNEL IS NOT STANDARDIZED. Kernel coordinates stay in raw observation units, so
+# measure_hit_spec's calibrated radius keeps meaning what it was calibrated to mean -- on
+# hum-humanoid that is the benchmark's own success ball over next_obs[:214].
+#
+# Two things it does NOT normalize, for want of a reference to copy: F's CONDITIONING leg
+# and the policy's conditioning leg under the goal-conditioned arm (a raw goal observation).
+# Motivo's F takes (obs, z, action) with no goal leg at all, so there is nothing to match
+# there. Under measure_density_z both legs are the sqrt(d)-normalized index already.
+#
+# Raises on pixels: the knob standardizes a vector per dimension, which an image is not.
+norm_obs: false
+norm_obs_momentum: 0.01   # new = (1-m)*old + m*batch, BatchNorm1d's momentum convention
+norm_obs_eps: 1.0e-5      # BatchNorm1d's default eps, under the sqrt
 
 # --- spec 30 P1: the REWARD-SAMPLE INDEX (impls/critics/density_fb.py) --------------------
 # DEFAULT OFF. With it off nothing below is read and the critic is byte-identical to the

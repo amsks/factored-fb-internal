@@ -33,11 +33,32 @@ def _nobs_feat(cond, next_obs):
     return cond["_obs_feat_next"] if "_obs_feat_next" in cond else next_obs
 
 
+def _smooth(a, rng, std, clip):
+    """TD3-style TARGET POLICY SMOOTHING on a bootstrap action.
+
+    `a + eps`, eps ~ N(0, std) truncated at +-clip, re-clipped to the action range. This is
+    the published FB recipe, not an embellishment: Touati et al. Appendix G.4 evaluates the
+    TD target at `F(s', pi(s') + eps_i, z)` with eps from a truncated centered Gaussian, and
+    Table 1 pins stddev 0.2 / truncation 0.3. Without it a deterministic actor bootstraps at
+    its own argmax and is free to ride sharp maxima of an unconverged critic -- which is the
+    shape of the FB divergence measured on ExoRL (q_mean 77 -> 436 on walker).
+
+    std=0.0 short-circuits and draws NO randomness, so every pre-existing run stays
+    bit-identical.
+    """
+    if std <= 0.0:
+        return a
+    eps = jnp.clip(std * jax.random.normal(rng, a.shape), -clip, clip)
+    return jnp.clip(a + eps, -1.0, 1.0)
+
+
 @dataclasses.dataclass(frozen=True)
 class DDPGBCActor:
     actor: Any
     alpha: float
     const_std: bool
+    boot_noise_std: float = 0.0      # target policy smoothing; 0.0 = off (bit-identical)
+    boot_noise_clip: float = 0.3
 
     GROUPS = ("actor",)
     NEEDS_V = False
@@ -64,7 +85,12 @@ class DDPGBCActor:
     def sample_bootstrap(self, net, batch, cond, rng):
         next_obs = _nobs_feat(cond, batch["next_observations"])
         p = net["actor"].params
-        boot = {"next_action": jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1)}
+        # ONE eps for both bootstrap keys, following flowbc's reused-noise discipline: the
+        # two keys are the same policy evaluated at two conditionings, and spending a second
+        # draw here would shift every downstream rng without changing what is smoothed.
+        boot = {"next_action": _smooth(
+            jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1),
+            rng, self.boot_noise_std, self.boot_noise_clip)}
         # CONTRACT (canonical statement; the other actors point here). The CRITIC decides
         # the actor's conditioning vector at the value goal and publishes it as
         # cond["_cvec_vgoal"]. Actors must NOT infer it from cond["value_goal"], which is the
@@ -75,8 +101,9 @@ class DDPGBCActor:
             # a+ ~ pi(.|s', g_value) at frozen params, for critics whose TD target is only
             # valid at the VALUE goal (Critic.BOOT_COND == "value_goal"). A SEPARATE key, so
             # critics reading `next_action` stay bit-identical.
-            boot["next_action_vgoal"] = jnp.clip(
-                self._dist(p, next_obs, cond["_cvec_vgoal"]).mode(), -1, 1)
+            boot["next_action_vgoal"] = _smooth(
+                jnp.clip(self._dist(p, next_obs, cond["_cvec_vgoal"]).mode(), -1, 1),
+                rng, self.boot_noise_std, self.boot_noise_clip)
         return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
@@ -88,15 +115,35 @@ class DDPGBCActor:
         import jax.random as jr
         from impls.utils.networks import Actor
         a_cfg = config["actor"]
-        # tanh_squash=False matches vendored GCIQL's GCActor; actions are clipped at the
-        # call sites instead.
-        actor = Actor(hidden_dims=tuple(a_cfg["hidden_dims"]), action_dim=ex_actions.shape[-1],
-                      layer_norm=a_cfg.get("layer_norm", False), tanh_squash=False,
-                      const_std=a_cfg.get("const_std", True))
         # `actor_obs_dim` is published by Agent.create when the actor's observation leg is
         # NOT the raw observation width -- density_fb on pixels sees encoder features.
         odim = int(config.get("actor_obs_dim") or ex_obs.shape[-1])
+        if a_cfg.get("motivo_archi", False):
+            # metamotivo/nn_models.py::Actor -- two embedding branches, over (obs, cond) and
+            # over obs alone, each narrowing to hidden_dim // 2 and concatenated back to
+            # hidden_dim, then a trunk. `hidden_dims` is read as their (hidden_dim,
+            # hidden_layers) pair, so [1024, 1024] is width 1024 with 2 trunk layers.
+            from impls.actors._motivo_nets import MotivoPolicy
+            hd = tuple(a_cfg["hidden_dims"])
+            if len(set(hd)) != 1:
+                raise ValueError(
+                    f"actor.motivo_archi reads hidden_dims as (width, n_layers) and needs "
+                    f"every entry equal; got {list(hd)}.")
+            actor = MotivoPolicy(obs_dim=odim, action_dim=ex_actions.shape[-1],
+                                 hidden_dim=hd[0], trunk_layers=len(hd), embed_layers=2,
+                                 const_std=bool(a_cfg.get("const_std", True)))
+        else:
+            # tanh_squash=False matches vendored GCIQL's GCActor; actions are clipped at the
+            # call sites instead.
+            actor = Actor(hidden_dims=tuple(a_cfg["hidden_dims"]), action_dim=ex_actions.shape[-1],
+                          layer_norm=a_cfg.get("layer_norm", False), tanh_squash=False,
+                          const_std=a_cfg.get("const_std", True))
         ex_in = jnp.zeros((ex_obs.shape[0], odim + config.get("cvec_dim", config.get("z_dim"))))
         params = {"actor": actor.init(jr.PRNGKey(config["seed"] + 2000), ex_in)["params"]}
+        # boot_noise_* default to OFF so every existing cell is bit-identical; the ExoRL
+        # arms pass the published FB values (0.2 / 0.3, Touati et al. Table 1). One builder
+        # serves DDPGBCDensityActor too -- it subclasses this actor and inherits the fields.
         return cls(actor=actor, alpha=float(a_cfg["alpha"]),
-                   const_std=bool(a_cfg.get("const_std", True))), params
+                   const_std=bool(a_cfg.get("const_std", True)),
+                   boot_noise_std=float(a_cfg.get("boot_noise_std", 0.0)),
+                   boot_noise_clip=float(a_cfg.get("boot_noise_clip", 0.3))), params

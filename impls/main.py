@@ -19,6 +19,10 @@ import numpy as np
 
 from impls.agents import Agent
 from impls.critics.base import infer_cond_rows
+# Re-exported: this class used to be defined here, and impls/main.py is where callers
+# and tests look for it. It moved to a flag-free module so a second entrypoint can
+# import it without re-registering this module's absl flags (see that file's docstring).
+from impls.utils.eval_cond import InferredCondAgent
 from impls.utils.datasets import make_dataset
 from env import get_adapter, make_config
 from impls.utils.flax_utils import (resolve_run_dir, restore_agent, save_agent,
@@ -112,67 +116,6 @@ flags.DEFINE_float("online_explore_goal_prob", 0.0,
                    "in env/online.py (the collection policy is conditioned on the eval goal, "
                    "so hindsight goals inherit that support); it is not an exploration "
                    "algorithm.")
-
-
-class InferredCondAgent:
-    """An EVAL-ONLY view of an `Agent` that rolls the conditioning `infer_eval_cond`
-    produced and REFUSES the env's goal. The --eval_on_inferred_cond route.
-
-    The problem it solves. `Agent.sample_actions(obs, goals=...)` does
-    `cond = self.cond_eval if goals is None else {**self.cond_eval, "goal": goals}`, and both
-    evaluators always pass a goal for any goal-capable critic (env/unified.py::evaluate builds
-    a goal frame; impls/utils/evaluation.py reads info['goal']). For every critic that owns a
-    `map_eval_cond` hook -- fb, psm, rldp, density_fb -- that goal is then re-encoded INTO the
-    conditioning, overwriting whatever `infer_cond` had just solved for. So the reward-sample
-    interface existed, was tested in isolation, and could not be exercised by a run:
-    `--infer_cond_episodes` set a `cond_eval` the very next `sample_actions` discarded.
-
-    Why a wrapper and not a change to `Agent.sample_actions`. The precedence rule is correct
-    for goal-conditioned evaluation and matches the bridge's own split (`sample_actions(obs,
-    goal)` maps the goal, `sample_actions_with_z` rolls a precomputed z). Nothing about a
-    critic changes here; what changes is which of the two entrypoints THIS RUN drives. Because
-    the wrapper only ever forwards `goals=None`, it works identically through both evaluators
-    without either of them knowing about it.
-
-    OBSERVABILITY, which is the other half of the requirement: a run must be able to prove it
-    evaluated on an inferred index rather than an env goal. `witness()` is logged into
-    eval.csv and wandb every eval point -- `inferred_cond_goals_dropped` counts the goal
-    frames this wrapper actually intercepted and threw away, so a nonzero value is positive
-    evidence that the goal path was live and was overridden, and `inferred_cond_norm`
-    fingerprints the vector that was rolled instead.
-    """
-
-    # Read by env/base.py::needs_goal_frame, which then does not even BUILD a goal frame
-    # for this agent (so `eval_goal_mode=synth` on a task with no goal-in-obs layout is not
-    # an error on this route -- there is no goal to synthesise).
-    ROLLS_INFERRED_COND = True
-
-    def __init__(self, agent):
-        self.agent = agent
-        self.critic = agent.critic       # evaluators introspect this
-        self.cond_eval = agent.cond_eval
-        self.reset_counts()
-
-    def reset_counts(self):
-        self.action_calls = 0
-        self.goals_dropped = 0
-
-    def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
-        self.action_calls += 1
-        if goals is not None:
-            self.goals_dropped += 1
-        return self.agent.sample_actions(observations, goals=None, seed=seed,
-                                         temperature=temperature)
-
-    def witness(self):
-        """Scalars proving what this eval point actually conditioned on."""
-        norms = {k: float(jnp.linalg.norm(jnp.asarray(v).ravel()))
-                 for k, v in self.cond_eval.items() if not k.startswith("_")}
-        primary = "z" if "z" in norms else (sorted(norms)[0] if norms else None)
-        return {"inferred_cond": 1.0,
-                "inferred_cond_action_calls": float(self.action_calls),
-                "inferred_cond_goals_dropped": float(self.goals_dropped),
-                "inferred_cond_norm": norms.get(primary, float("nan"))}
 
 
 def infer_cond_noop_reason(pre_cond, post_cond, rewards, agent=None):

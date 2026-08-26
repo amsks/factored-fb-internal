@@ -96,6 +96,34 @@ def test_the_wrapper_drops_a_supplied_goal_and_counts_it():
     assert np.isfinite(wit["inferred_cond_norm"]) and wit["inferred_cond_norm"] > 0
 
 
+def test_witness_cos_neutral_separates_the_constant_reward_fallback():
+    """`inferred_cond_norm` cannot tell density_fb's neutral fallback from a real index --
+    both are projected onto the sqrt(d) sphere -- so the witness carries cos(cond, 1_d),
+    which is 1.0 for the fallback and strictly below it for anything else."""
+    import impls.main as m
+
+    agent = _inferred(_fb_agent())
+    w = m.InferredCondAgent(agent)
+    d = int(jnp.asarray(w.cond_eval["z"]).ravel().shape[0])
+
+    # the fallback density_fb returns at ||c|| < z_const_eps: 1_d on the sqrt(d) sphere.
+    w.cond_eval = {"z": jnp.ones((d,))}
+    assert w.witness()["inferred_cond_cos_neutral"] == pytest.approx(1.0, abs=1e-6)
+
+    # a reward-informed index is not parallel to 1_d.
+    v = jnp.asarray(np.linspace(-1.0, 1.0, d), dtype=jnp.float32)
+    w.cond_eval = {"z": jnp.sqrt(jnp.array(float(d))) * v / jnp.linalg.norm(v)}
+    cos = w.witness()["inferred_cond_cos_neutral"]
+    assert abs(cos) < 0.99, f"a non-neutral index must not read as the fallback (cos={cos})"
+
+    # norm alone cannot make the distinction -- the point of the extra scalar. Both vectors
+    # below sit on the sqrt(d) sphere; only one of them is the fallback.
+    root_d = float(np.sqrt(d))
+    for z in (jnp.ones((d,)), w.cond_eval["z"]):
+        w.cond_eval = {"z": jnp.sqrt(jnp.array(float(d))) * z / jnp.linalg.norm(z)}
+        assert w.witness()["inferred_cond_norm"] == pytest.approx(root_d, rel=1e-5)
+
+
 def test_the_wrapper_carries_the_inferred_cond_not_the_placeholder():
     import impls.main as m
 

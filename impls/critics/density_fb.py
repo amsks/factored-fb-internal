@@ -82,6 +82,70 @@ class _MLP(nn.Module):
         return x
 
 
+# ── META MOTIVO's OWN NETWORK SHAPES (metamotivo/nn_models.py). ─────────────────────────
+# Selected by `measure_density_archi: motivo`; DEFAULT "mlp", so nothing published moves.
+# These are NOT width knobs -- the shape itself differs. Motivo's forward map is TWO
+# embedding branches over (obs, cond) and (obs, action) that each narrow to hidden_dim//2
+# and concatenate back to hidden_dim, then a trunk. `value_hidden_dims` is read as their
+# (hidden_dim, hidden_layers) pair: [1024, 1024] means hidden_dim 1024, 2 trunk layers.
+class _MotivoEmbed(nn.Module):
+    """`simple_embedding` (nn_models.py:167): Dense(h) + LayerNorm + Tanh, then
+    layers-2 ReLU layers of width h, then Dense(h // 2) + ReLU.
+
+    THE OUTPUT IS h // 2, not h. That is what lets two branches concatenate back to h, and
+    it is why this cannot be expressed by widening an MLP."""
+    hidden_dim: int
+    layers: int = 2
+
+    @nn.compact
+    def __call__(self, x):
+        x = jnp.tanh(nn.LayerNorm()(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(x)))
+        for _ in range(self.layers - 2):
+            x = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(x))
+        return nn.relu(nn.Dense(self.hidden_dim // 2, kernel_init=_DEFAULT_INIT)(x))
+
+
+class _MotivoF(nn.Module):
+    """`ForwardMap` (nn_models.py:176). Takes the CONCATENATED [obs, actions, cond] row the
+    seam builds and splits it by the stored widths, so `_F`'s call shape is unchanged.
+
+    Branch order follows the reference: cat([sa_embedding, z_embedding]), not the reverse."""
+    obs_dim: int
+    act_dim: int
+    hidden_dim: int
+    out_dim: int
+    trunk_layers: int = 2
+    embed_layers: int = 2
+
+    @nn.compact
+    def __call__(self, x):
+        o = x[..., :self.obs_dim]
+        a = x[..., self.obs_dim:self.obs_dim + self.act_dim]
+        c = x[..., self.obs_dim + self.act_dim:]
+        e_z = _MotivoEmbed(self.hidden_dim, self.embed_layers)(jnp.concatenate([o, c], -1))
+        e_sa = _MotivoEmbed(self.hidden_dim, self.embed_layers)(jnp.concatenate([o, a], -1))
+        h = jnp.concatenate([e_sa, e_z], -1)
+        for _ in range(self.trunk_layers):
+            h = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(h))
+        return nn.Dense(self.out_dim, kernel_init=_DEFAULT_INIT)(h)
+
+
+class _MotivoB(nn.Module):
+    """`BackwardMap` (nn_models.py:152): Dense(h) + LayerNorm + Tanh, layers-1 ReLU layers,
+    Dense(out). Its `Norm()` is NOT applied here -- `measure_density_b_norm` applies it in
+    `_B`, so it reaches every call site and both architectures alike."""
+    hidden_dim: int
+    out_dim: int
+    layers: int = 1
+
+    @nn.compact
+    def __call__(self, x):
+        h = jnp.tanh(nn.LayerNorm()(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(x)))
+        for _ in range(self.layers - 1):
+            h = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(h))
+        return nn.Dense(self.out_dim, kernel_init=_DEFAULT_INIT)(h)
+
+
 # ── PIXEL towers (docs/specs/2026-08-21-density-fb-pixels-drq.md sections 4-5). ─────────
 # TWO encoders, one per tower, not a shared trunk: the towers are the two seam GROUPS, so
 # one encoder inside each reproduces FB's forward/backward optimizer split. The ACTOR owns
@@ -180,6 +244,29 @@ class _ZStatsState(nn.Module):
                           lambda _k: jnp.zeros((self.pool_m, self.d_c), self.dtype))
         filled = self.param('filled', lambda _k: jnp.zeros((), self.dtype))
         return mu, cov, pool, filled
+
+
+class _ObsNormState(nn.Module):
+    """Running per-dimension observation mean/variance, the analogue of Meta Motivo's
+    `nn.BatchNorm1d(obs_dim, affine=False, momentum=0.01)` (metamotivo/fb/model.py:77), which
+    it applies in eval mode to F's, B's and the actor's observation leg.
+
+    Ordinary param leaves, like `_ZStatsState`, for the same reason: they SERIALIZE, so an
+    eval harness standardizes with the identical numbers training used. Init mean 0 / var 1
+    is BatchNorm's own init, so step 0 is the unnormalized net.
+
+    Written only by `update_stats`; the gradient is identically zero and the group is in no
+    stage_groups. The HIT KERNEL NEVER SEES THIS -- kernel coordinates stay in raw units, so
+    `measure_hit_spec`'s calibrated radius and humenv's own success ball keep meaning the
+    same thing."""
+    dim: int
+    dtype: Any = jnp.float32
+
+    @nn.compact
+    def __call__(self):
+        mean = self.param('mean', lambda _k: jnp.zeros((self.dim,), self.dtype))
+        var = self.param('var', lambda _k: jnp.ones((self.dim,), self.dtype))
+        return mean, var
 
 
 # ── THE SILENT-FAILURE GUARD. ───────────────────────────────────────────────────────────
@@ -314,6 +401,24 @@ class DensityFBCritic:
     qpos_dim: int = 0
     enc_dim: int = 0                # encoder feature width; the actor's conditioning width
 
+    # --- Meta Motivo network shapes (measure_density_archi, DEFAULT "mlp") ---------------
+    # "motivo" swaps F and B for metamotivo/nn_models.py's own ForwardMap/BackwardMap: two
+    # narrowing embedding branches into a trunk, rather than one MLP over the concatenation.
+    # `b_norm` is their archi.b.norm -- B's output projected onto the sqrt(d) sphere. It is
+    # applied in `_B` so it composes with EITHER architecture. Both default to the
+    # pre-existing behaviour.
+    archi: str = "mlp"
+    b_norm: bool = False
+
+    # --- observation standardization (norm_obs, DEFAULT OFF) -----------------------------
+    # Meta Motivo standardizes the observation before F, before B and before the actor's
+    # policy net. With `obs_norm` False none of this traces and every earlier run is
+    # byte-identical. NOT applied to kernel coordinates (see _ObsNormState).
+    obs_norm: bool = False
+    obs_norm_momentum: float = 0.01     # BatchNorm1d(momentum=0.01): new = (1-m)*old + m*batch
+    obs_norm_eps: float = 1e-5          # BatchNorm1d's default eps
+    density_obsnorm: Any = None
+
     # --- spec 30 P1 reward-sample index (measure_density_z, DEFAULT OFF) ------------------
     # Read ONLY when z_on is True, so the goal-conditioned arm traces no extra op and stays
     # byte-identical (tests/impls/test_boot_contract.py).
@@ -389,8 +494,19 @@ class DensityFBCritic:
 
     def _B(self, p, u):
         """B(u) -> [M, d]. `u` is the eps-scaled query row on state, the query IMAGE on
-        pixels (the tower encodes it)."""
-        return self.density_b.apply({"params": p}, u)      # [M, d]
+        pixels (the encoder consumes it).
+
+        `b_norm` (Motivo's archi.b.norm) projects the output onto the sqrt(d) sphere here
+        rather than inside the module, so every consumer -- the loss, the frozen target, the
+        index encoder, the actor's reward vector -- sees the same normalized B. NOTE this is
+        the scale normalization docs/density-fb-design.md records as separately HARMFUL on
+        the bridge; it exists to reproduce Motivo's config, not because it was expected to
+        help."""
+        out = self.density_b.apply({"params": p}, u)       # [M, d]
+        if self.b_norm:
+            nrm = jnp.linalg.norm(out, axis=-1, keepdims=True)
+            out = jnp.sqrt(float(out.shape[-1])) * out / jnp.maximum(nrm, 1e-8)
+        return out
 
     def _enc_f(self, p, x):
         """F-side encoder alone, STOP-GRADIENT'd — the actor's view of an observation or a
@@ -450,6 +566,52 @@ class DensityFBCritic:
         the online tower and never target_density_b: the shipped centered arm asserts
         measure_density_z_enc_tau > 0, which is what selects this tower."""
         return net["density_b_zenc"].params
+
+    def _obs_stats(self, c):
+        """(mean, var) from either container spelling: `net` holds TrainStates, the params
+        dict `stage_loss`/`q_fn` receive holds the leaves directly."""
+        v = c["density_obsnorm"]
+        pp = v.params if hasattr(v, "params") else v
+        return pp["mean"], pp["var"]
+
+    def _sobs(self, c, x):
+        """A full observation row as the networks see it. Identity with `obs_norm` off."""
+        if not self.obs_norm:
+            return x
+        mean, var = self._obs_stats(c)
+        return (x - mean) / jnp.sqrt(var + self.obs_norm_eps)
+
+    def _scols(self, c, raw_cols):
+        """The same standardization applied to ALREADY-SLICED block columns, using those
+        columns' own slice of the running statistics."""
+        if not self.obs_norm:
+            return raw_cols
+        mean, var = self._obs_stats(c)
+        m = _raw_block_cols(mean[None], self.blocks)[0]
+        v = _raw_block_cols(var[None], self.blocks)[0]
+        return (raw_cols - m) / jnp.sqrt(v + self.obs_norm_eps)
+
+    def _q_cols(self, c, raw_cols):
+        """B's input built from raw block columns: standardize first when `obs_norm`, then
+        the usual per-block eps scaling."""
+        return _scale_block_cols(self._scols(c, raw_cols), self.blocks)
+
+    def _q_in(self, c, rows):
+        """B's input built from full observation rows (state path only)."""
+        if not self.obs_norm:
+            return _density_queries(rows, self.blocks)
+        return self._q_cols(c, _raw_block_cols(rows, self.blocks))
+
+    def _with_obs_feat(self, c, cond, obs, nobs=None):
+        """Publish the actor's observation leg when `obs_norm` is on off pixels. The actors
+        already read `cond['_obs_feat']` / `_obs_feat_next` when present (impls/actors/
+        ddpgbc.py::_obs_feat), so no actor changes."""
+        if not self.obs_norm or self.pixel:
+            return cond
+        out = {**cond, "_obs_feat": self._sobs(c, obs)}
+        if nobs is not None:
+            out["_obs_feat_next"] = self._sobs(c, nobs)
+        return out
 
     def _z_centered_moment(self, zenc_params, u_sc, mu, r):
         """m_c = (1/M) sum_j (B(u_j) - mu_hat)(r_j - rbar), rbar = (1/M) sum_j r_j.
@@ -525,6 +687,24 @@ class DensityFBCritic:
         use_rand = jax.random.bernoulli(rng_mix, self.z_rand_frac, (n, 1))
         return jax.lax.stop_gradient(jnp.where(use_rand, z_rand, z_g))
 
+    def _update_obs_norm(self, net, batch):
+        """EMA the running observation statistics, Motivo's BatchNorm1d(momentum=0.01) rule:
+        new = (1 - m) * old + m * batch. No-op with `obs_norm` off (a Python-level return, so
+        nothing extra is traced). Uses the batch's own observations, and the biased batch
+        variance rather than torch's unbiased one -- a 1/1024 difference on the estimate."""
+        if not self.obs_norm:
+            return net
+        x = batch["observations"]
+        m = self.obs_norm_momentum
+        pp = net["density_obsnorm"].params
+        mean_b = jnp.mean(x, axis=0)
+        var_b = jnp.mean((x - mean_b[None]) ** 2, axis=0)
+        net = dict(net)
+        net["density_obsnorm"] = net["density_obsnorm"].replace(params={
+            "mean": jnp.asarray(pp["mean"] * (1.0 - m) + mean_b * m, pp["mean"].dtype),
+            "var": jnp.asarray(pp["var"] * (1.0 - m) + var_b * m, pp["var"].dtype)})
+        return net
+
     def update_stats(self, net, pre_net, batch):
         """Write the three persistent index objects. Called once per update by
         Agent.apply_update AFTER the gradient step and the polyak targets. `pre_net` is the
@@ -535,11 +715,12 @@ class DensityFBCritic:
 
         Order matters and matches the bridge: index tower first, then the moments EMA'd at
         the OLD zenc (not the one just written), then the pool frozen on the first update."""
+        net = self._update_obs_norm(net, batch)
         if not self.z_on:
             return net
         blocks = self.blocks
         nobs = batch["next_observations"]
-        u_sc = _density_queries(nobs, blocks)                            # [M, d_c] eps-scaled
+        u_sc = self._q_in(net, nobs)                                     # [M, d_c] eps-scaled
 
         # (1) the index tower: a slow-EMA copy of the PRE-STEP online density_b at tau_z.
         zenc_old = net["density_b_zenc"].params
@@ -609,16 +790,18 @@ class DensityFBCritic:
                 out["_obs_feat"] = self._enc_f(fp, observations)
             return out
         if not self.z_on or "goal" not in cond:
-            return cond
+            return self._with_obs_feat(net, cond, observations) \
+                if observations is not None else cond
         g = cond["goal"]
         unbatched = g.ndim == 1
         g2 = g[None] if unbatched else g
         st = self._zstats(net)
         pool_raw = st["pool"]                                       # [M, d_c] RAW
-        u_sc = _scale_block_cols(pool_raw, self.blocks)             # [M, d_c] eps-scaled
+        u_sc = self._q_cols(net, pool_raw)                          # [M, d_c] eps-scaled
         kg = jax.lax.stop_gradient(_delta_phi(g2, pool_raw, self.blocks))   # [B, M]
         z = self._z_index(self._zenc(net), st, u_sc, kg)
-        return {**cond, "z": z[0] if unbatched else z}
+        out = {**cond, "z": z[0] if unbatched else z}
+        return out if observations is None else self._with_obs_feat(net, out, observations)
 
     def stage_loss(self, stage, params, target, batch, cond, boot):
         assert stage == "density"
@@ -637,10 +820,10 @@ class DensityFBCritic:
         nobs_q = self._kernel_rows(batch, "next_observations", nobs)
         u_raw = _raw_block_cols(nobs_q, blocks)                           # [M, d_c] RAW
         # The B tower's input: eps-scaled query rows on state, the query IMAGE on pixels.
-        u_sc = nobs if self.pixel else _density_queries(nobs_q, blocks)
+        u_sc = nobs if self.pixel else self._q_in(params, nobs_q)
 
         b_emb = self._B(params["density_b"], u_sc)                        # [M, d]
-        f_emb = self._F(params["density_f"], obs, acts, g)                # [2,B,d]
+        f_emb = self._F(params["density_f"], self._sobs(params, obs), acts, g)   # [2,B,d]
         logits = jnp.einsum('hbd,md->hbm', f_emb, b_emb) / tau            # [2, B, M]
         w = jax.nn.softmax(logits, -1)
         logp = jax.nn.log_softmax(logits, -1)
@@ -672,7 +855,7 @@ class DensityFBCritic:
             raise ValueError(f"measure_density_bootstrap must be 'actor' or 'sarsa', "
                              f"got {self.bootstrap!r}")
         tb = self._B(target["density_b"], u_sc)                           # frozen target
-        tf = self._F(target["density_f"], nobs, a_plus, g)
+        tf = self._F(target["density_f"], self._sobs(params, nobs), a_plus, g)
         w_bar = jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / tau, -1)  # [2, B, M]
 
         if self.hard:
@@ -737,7 +920,7 @@ class DensityFBCritic:
             g = cond["goal"]
             g_rows = self._kernel_rows(cond, "goal", g)
             kg = jax.lax.stop_gradient(_delta_phi(g_rows, u_raw, self.blocks))  # [B, M]
-        f_emb = self._F(f_p, obs, actions, g)
+        f_emb = self._F(f_p, self._sobs(params, obs), actions, g)
         # W2: the ACTOR readout may use its own temperature, flattening the softmax the actor
         # ascends without touching what the measure is trained to be (stage_loss keeps
         # self.temp). Default None => self.temp => bit-identical.
@@ -769,7 +952,7 @@ class DensityFBCritic:
         u_raw = _raw_block_cols(nobs_q, self.blocks)
         # The B tower's query rows: eps-scaled object coords on state, the query IMAGE on
         # pixels. `_density_u_raw` keeps its meaning on both.
-        u_sc = nobs if self.pixel else _density_queries(nobs_q, self.blocks)
+        u_sc = nobs if self.pixel else self._q_in(net, nobs_q)
         # `_cvec_vgoal` is THIS critic's conditioning vector at the value goal, published so
         # the actors' TD bootstrap draw is correct rather than inferred (impls/actors/ddpgbc).
         if self.z_on:
@@ -793,17 +976,20 @@ class DensityFBCritic:
                 r = jax.lax.stop_gradient(_delta_phi(goals, u_raw, self.blocks))  # [B, M]
                 return self._z_mix(self._z_index(zenc_p, st, u_sc, r), r_mix)
 
-            return {"value_goal": batch["value_goals"], "goal": batch["actor_goals"],
+            return self._with_obs_feat(net, {
+                    "value_goal": batch["value_goals"], "goal": batch["actor_goals"],
                     "z": _z_at(batch["actor_goals"], r_a),
                     "_cvec_vgoal": _z_at(batch["value_goals"], r_v),
                     # TARGET backward embedding of the query support (q_fn sees only online
                     # params), for its reward vector r_z = B~(u)^T z / sqrt(d).
                     "_density_tb_u": jax.lax.stop_gradient(
                         self._B(target["density_b"], u_sc)),
-                    "_density_u_raw": u_raw, "_density_u_sc": u_sc}
+                    "_density_u_raw": u_raw, "_density_u_sc": u_sc},
+                batch["observations"], nobs)
         cond = {"value_goal": batch["value_goals"], "goal": batch["actor_goals"],
                 "_cvec_vgoal": batch["value_goals"],
                 "_density_u_raw": u_raw, "_density_u_sc": u_sc}
+        cond = self._with_obs_feat(net, cond, batch["observations"], nobs)
         if self.pixel:
             # Everything the ACTOR needs: `sample_bootstrap`/`sample_actions` get `net` and
             # `cond` but never the critic, so the encoder is unreachable any other way. Each
@@ -862,7 +1048,7 @@ class DensityFBCritic:
                 "nothing to infer. Evaluate against the env goal instead.")
         if not self.z_on:
             return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
-        z = self.z_from_reward_samples(net, _density_queries(obs, self.blocks), rewards)
+        z = self.z_from_reward_samples(net, self._q_in(net, obs), rewards)
         # A flat [M] reward vector is ONE task -> a 1-D z, matching eval_cond0's shape.
         return {"z": z[0] if jnp.ndim(rewards) == 1 else z}
 
@@ -870,6 +1056,9 @@ class DensityFBCritic:
     def build(cls, ex_obs, ex_actions, config):
         import jax.random as jr
         hd = tuple(config["value_hidden_dims"])
+        # None/absent -> same as F (the historical behaviour).
+        _hb = config.get("measure_density_b_hidden_dims") or None
+        hd_b = tuple(_hb) if _hb else hd
         ln = bool(config["layer_norm"])
         d = int(config["measure_density_dim"])
         blocks = parse_hit_spec(config.get("measure_hit_spec", "19:22:0.4"))
@@ -893,6 +1082,16 @@ class DensityFBCritic:
         z_enc_tau = float(config.get("measure_density_z_enc_tau", 0.0005))
         z_sigma_tau = float(config.get("measure_density_z_sigma_tau", 0.005))
         z_pool_m = int(config.get("measure_density_z_eval_pool_m", 256))
+        obs_norm = bool(config.get("norm_obs", False))
+        archi = str(config.get("measure_density_archi", "mlp"))
+        if archi not in ("mlp", "motivo"):
+            raise ValueError(f"measure_density_archi must be 'mlp' or 'motivo', got {archi!r}")
+        b_norm = bool(config.get("measure_density_b_norm", False))
+        if archi == "motivo" and pixel:
+            raise NotImplementedError(
+                "measure_density_archi='motivo' is the metamotivo STATE forward/backward "
+                "shape; on pixels the encoders own the input and there is no reference "
+                "shape to copy.")
         if z_on:
             assert 0.0 <= z_rand_frac <= 1.0, \
                 f"measure_density_z_rand_frac must be in [0,1], got {z_rand_frac}"
@@ -966,8 +1165,29 @@ class DensityFBCritic:
                 "density_b": density_b.init(rb, ex_obs)["params"],
             }
         else:
-            density_f = _ensemblize(_MLP, 2)((*hd, d), activate_final=False, layer_norm=ln)
-            density_b = _MLP((*hd, d), activate_final=False, layer_norm=ln)
+            # The B tower may be sized SEPARATELY from F. Motivo's humanoid config makes
+            # them deliberately asymmetric -- f 1024 wide x 2 layers, b 256 wide x 1 -- and a
+            # single `value_hidden_dims` cannot express that, so ours ran a B tower ~6x their
+            # parameter count against a half-width F. Defaults to `hd`, so every existing run
+            # is unchanged.
+            if archi == "motivo":
+                # `value_hidden_dims` / `measure_density_b_hidden_dims` are read as Motivo's
+                # (hidden_dim, hidden_layers) pair: [1024, 1024] -> width 1024, 2 trunk
+                # layers; [256] -> width 256, 1 layer. Every entry must be equal, because
+                # their shape has ONE width and a layer count -- a ragged list would be
+                # silently truncated to its first entry.
+                if len(set(hd)) != 1 or len(set(hd_b)) != 1:
+                    raise ValueError(
+                        f"measure_density_archi='motivo' reads hidden dims as (width, "
+                        f"n_layers) and needs every entry equal; got value_hidden_dims={list(hd)} "
+                        f"and b={list(hd_b)}. Write [1024, 1024], not [1024, 512].")
+                density_f = _ensemblize(_MotivoF, 2)(
+                    obs_dim=obs_dim, act_dim=ex_actions.shape[-1], hidden_dim=hd[0],
+                    out_dim=d, trunk_layers=len(hd), embed_layers=2)
+                density_b = _MotivoB(hidden_dim=hd_b[0], out_dim=d, layers=len(hd_b))
+            else:
+                density_f = _ensemblize(_MLP, 2)((*hd, d), activate_final=False, layer_norm=ln)
+                density_b = _MLP((*hd_b, d), activate_final=False, layer_norm=ln)
             # F's conditioning leg is the index (width d) under measure_density_z and the raw
             # goal otherwise; initializing at the wrong width dies in the first stage_loss.
             ex_f = jnp.concatenate(
@@ -991,6 +1211,21 @@ class DensityFBCritic:
                                       dtype=jnp.zeros((), ex_obs.dtype).dtype)
             params["density_zstats"] = zstats_mod.init(rz)["params"]
             groups = groups + ("density_b_zenc", "density_zstats")
+        obsnorm_mod = None
+        if obs_norm:
+            if pixel:
+                raise NotImplementedError(
+                    "norm_obs standardizes an observation VECTOR per dimension; on pixels the "
+                    "observation is an image the encoder consumes, so this knob has no "
+                    "meaning there. Do not fake it with a per-channel statistic.")
+            obsnorm_mod = _ObsNormState(dim=obs_dim,
+                                        dtype=jnp.zeros((), ex_obs.dtype).dtype)
+            # `rz` is REUSED rather than a fourth split: the init is zeros/ones, so the key
+            # is never read, and widening the split above would move rf/rb and with them
+            # every density_fb parameter -- which is exactly what
+            # tests/impls/test_boot_contract.py caught.
+            params["density_obsnorm"] = obsnorm_mod.init(rz)["params"]
+            groups = groups + ("density_obsnorm",)
         obj = cls(density_f=density_f, density_b=density_b, obs_dim=obs_dim, blocks=blocks,
                   discount=float(config["discount"]),
                   temp=float(config["measure_density_temp"]), tau=float(config["tau"]),
@@ -1004,6 +1239,11 @@ class DensityFBCritic:
                   z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac,
                   z_ridge_lambda_mult=z_lam, z_cov_eig_floor=z_floor, z_const_eps=z_eps,
                   z_enc_tau=z_enc_tau, z_sigma_tau=z_sigma_tau, z_eval_pool_m=z_pool_m,
+                  archi=archi, b_norm=b_norm,
+                  obs_norm=obs_norm,
+                  obs_norm_momentum=float(config.get("norm_obs_momentum", 0.01)),
+                  obs_norm_eps=float(config.get("norm_obs_eps", 1e-5)),
+                  density_obsnorm=obsnorm_mod,
                   GROUPS=groups,
                   # `density_b_zenc` shares density_b's module DEF; only the params differ.
                   density_b_zenc=(density_b if z_on else None),

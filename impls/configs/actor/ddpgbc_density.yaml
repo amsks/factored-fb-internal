@@ -14,3 +14,9 @@ actor:
   alpha: 0.3          # BC coefficient in DDPG+BC (bridge `alpha`)
   const_std: true     # true -> the q-term is taken at dist.mode(); false draws a sample
   layer_norm: false
+  # Meta Motivo's policy SHAPE (metamotivo/nn_models.py::Actor): two embedding branches,
+  # over (obs, cond) and over obs alone, each narrowing to hidden_dim//2 and concatenated
+  # back, then a trunk. hidden_dims is then read as (width, n_layers) with every entry
+  # equal. Default false = the plain MLP policy every published cell ran. Pair it with the
+  # critic's measure_density_archi: motivo.
+  motivo_archi: false

@@ -55,7 +55,11 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            "predictor": "lr_b",
            "value_forward": "lr_f",                       # isfb F_V rides the forward group
            "value": "lr", "critic": "lr", "center_b": "lr",  # gciql / centered_bilinear groups
-           "density_f": "lr", "density_b": "lr",           # density_fb's two towers
+           # density_fb's two towers. They ride the single `lr` unless the config carries
+           # the FB-style split (`lr_f` / `lr_b`), which Meta Motivo's humanoid recipe does
+           # -- lr_f 1e-4 against lr_b 1e-5. Resolved by _group_lr below, so a config
+           # without those keys is bit-identical to before.
+           "density_f": "lr", "density_b": "lr",
            "phi": "lr_phi", "sf_psi": "lr_sf", "psm_psi": "lr_sf",  # psm's basis + two psi towers
            # density_fb's index state under measure_density_z (default off, so these groups
            # only EXIST on that arm). Neither ever receives a gradient -- they are not in
@@ -63,11 +67,27 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            # is never stepped; they live in `net` because that is the only container every
            # consumer (sample_cond, q_fn via `params`, infer_cond, map_eval_cond) can see,
            # and because `net` is what save_agent serializes.
-           "density_b_zenc": "lr", "density_zstats": "lr",
+           # Same story for the running observation statistics under `norm_obs`.
+           "density_b_zenc": "lr", "density_zstats": "lr", "density_obsnorm": "lr",
            "goal_rep": "lr", "high_actor": "lr",                             # hiql's high-level policy, which
                                                            # the CRITIC owns (see critics/hiql.py)
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf
            "actor_bc_flow": "lr_actor", "actor_onestep": "lr_actor"}  # fql groups
+
+
+# density_fb's towers accept an optional FB-style per-tower split. Preferred key first,
+# fallback second; absent preferred key => the fallback, i.e. every pre-existing run.
+_LR_SPLIT = {"density_f": "lr_f", "density_b": "lr_b"}
+
+
+def _group_lr(group, config):
+    """The learning rate one optimizer group is built with."""
+    if group == "actor_vf":                       # flowbc's value-flow head owns its own lr
+        return float(config["actor"]["lr_actor_vf"])
+    split = _LR_SPLIT.get(group)
+    if split is not None and config.get(split) is not None:
+        return float(config[split])
+    return float(config[_LR_KEY[group]])
 
 
 class Agent(flax.struct.PyTreeNode):
@@ -214,7 +234,7 @@ class Agent(flax.struct.PyTreeNode):
         net = {}
         for g, p in params.items():
             # actor_vf (flowbc) has its own lr; other groups map to a config lr key.
-            lr = float(config["actor"]["lr_actor_vf"]) if g == "actor_vf" else float(config[_LR_KEY[g]])
+            lr = _group_lr(g, config)
             net[g] = TrainState.create(modules[g], p, tx=optax.adam(lr))
 
         cond_eval = critic.eval_cond0(ex_obs, config)
