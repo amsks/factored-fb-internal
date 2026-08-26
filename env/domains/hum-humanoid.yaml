@@ -1,0 +1,52 @@
+# HumEnv / Meta Motivo SMPL humanoid, trained OFFLINE on the released FB-CPR replay buffer.
+#
+# PROVENANCE, stated because spec 23 §6.1 requires it: the data is `buffer.hdf5` from the
+# HuggingFace checkpoint `facebook/metamotivo-S-1` -- the training replay stream of an
+# increasingly competent ONLINE agent, i.e. AGENT-REPLAY data, not play data. A result here
+# answers "can our method distill FB-CPR's own data offline", not "does the method work on a
+# new domain's unlabeled data". 16,650 episodes / 5,000,000 transitions (passes the 1M rule),
+# rewritten to the per-episode npz layout by scripts/convert_humenv_buffer.py.
+#
+# THE FB-CPR CHECKPOINT IS AN ORACLE, NEVER A BASELINE (spec 23 §6.4): it is online-trained
+# on 30M interactive steps with AMASS regularization. Comparing an offline method against it
+# is a distillation question, not a win/loss.
+#
+# REWARD: the buffer's own `reward` column is FB-CPR's z-conditioned TRAINING reward, not a
+# task reward. `keep_dataset_rewards` is deliberately left UNSET so GCDataset overwrites it
+# with the goal-reaching reward -- that is the point of the goal-reaching arm. A reward-family
+# arm would need a relabelling pass first, like env/exorl_env.py does for ExoRL.
+#
+# EVAL: this domain's env returns reward 0.0 and emits no `success` key -- see the header of
+# env/humenv_env.py. The benchmark metric comes from humenv.bench.GoalEvaluation as a
+# post-hoc pass over checkpoints. Run hum- training with a high EVAL_INTERVAL.
+#
+# density_fb / td_fb need `measure_hit_spec` for THIS layout, and it cannot live in this file:
+# env/config.py merges domain BEFORE critic, so critic/density_fb.yaml's cube-single default
+# ("19:22:0.4") would win. Pass it as an override (escaped quotes are load-bearing -- OmegaConf
+# yaml-parses a bare a:b:c dotlist value as a sexagesimal number):
+#     --override 'measure_hit_spec="0:214:2.548"'
+# DECIDED 2026-08-24: the block is `0:214`, which is the benchmark's OWN pose block
+# (humenv/bench/utils/metrics.py::distance_smpl slices `next_obs[..., :214]`). Taking their
+# block means our kernel and their metric resolve the same coordinates, so the arm can report
+# the PUBLISHED proximity metric rather than a declared-modified one -- which spec 23 §6.3 had
+# assumed impossible. That assumption rested on "an eps-kernel over even a 20-dim block is a
+# nearest-neighbour lookup (ESS -> 1 by construction)"; measured geometric ESS on real
+# humanoid states is 17.6 at d_c=214 (eps=1.0), and it is the REDUCED blocks that degenerate
+# toward a uniform kernel (d_c=8 sits at ESS ~1000 for every eps >= 0.05). The usable eps
+# scales with the block; it does not vanish.
+# The RADIUS is calibrated, not picked, by the same procedure as the ExoRL domains
+# (scripts/calibrate_hit_spec.py): 2.548 is where the fraction of random observation pairs
+# inside the block's L2 ball matches cube-single's own hit rate (19:22:0.4 -> 0.0133;
+# hum 0:214:2.548 -> 0.0133, measured over 400k pairs from 200 buffer episodes). It lands
+# between the metric's success bound (2.0 -> hit rate 0.0030) and its proximity ramp top
+# (4.0 -> 0.1210), i.e. inside the band the benchmark itself gives credit for.
+adapter: unified
+env_name: hum-humanoid          # run naming only
+task: hum-humanoid
+
+# The converted buffer. Not under COLLECTED: HumEnv ships no episode tree of its own.
+data_dir: ${oc.env:FB_HUMENV_ROOT,${oc.env:SCRATCH}/fb-data/humenv-S1}
+
+# 358-dim observations / 69-dim actions -- 9x and 14x the cube stack. spec 23 §6.5
+# pre-registers a capacity sweep d in {50, 128, 256} precisely because the d=50 default is
+# unvalidated at this scale; a d-sweep failure is a scale RESULT, not something to tune away.
