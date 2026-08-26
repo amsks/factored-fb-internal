@@ -10,17 +10,29 @@
 # cube-single default ("19:22:0.4") would win. Pass it as an override, as the launcher
 # scripts do (note the escaped quotes -- OmegaConf yaml-parses a bare `a:b:c` dotlist value
 # as a sexagesimal number):
-#     --override 'measure_hit_spec="<unverified>"'
-# NOT VERIFIED for walker: its 24-dim obs is 14 position (torso height + orientation
-# matrices + joint angles) then 9 velocity, and which block the successor measure
-# should resolve is a modelling choice nobody here has made yet. Pick and justify it
-# before quoting a density_fb/td_fb number on this domain.
+#     --override 'measure_hit_spec="0:24:15.9"'
+# DECIDED 2026-08-24: the FULL observation block. walker's measured layout is orientations
+# 0:14, height 14:15, velocity 15:24 (dm_control observation_spec, not inferred) -- so a
+# task-aligned block was available, but taking the whole observation makes no modelling
+# claim about which dims the successor measure should resolve, which is the point of the
+# choice. The cost is a 24-dim kernel where the method was tuned on 3.
+# The RADIUS is calibrated, not picked: 15.9 is the value at which the fraction of random
+# observation pairs inside the block's L2 ball matches cube-single's own hit rate under its
+# published spec (19:22:0.4 -> 0.0133; walker 0:24:15.9 -> 0.0131, measured over 400k pairs
+# from 200 RND episodes). The same procedure run on point_mass_maze returns 0.021 for the
+# independently human-decided 0:2:0.03, which is what certifies it.
+# NOTE the radius is dominated by the velocity dims, which dm_control leaves unnormalised
+# (pairwise distance median 50.8 over the full block). That is inherent to the full-block
+# choice, not a calibration artifact.
 adapter: unified
 env_name: dmc-walker          # run naming only
 task: dmc-walker
 exorl_task: walk              # one of stand / walk / run / flip
 exorl_algo: rnd
 data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/walker/rnd
-exorl_max_episodes: 2000
+# 5000 = 5M transitions, matching MetaMotivo's ExoRL/DMC setting
+# (`examples/fb_train_dmc.py`: `load_n_episodes: 5_000`, RND buffer). See
+# env/domains/dmc-point-mass-maze.yaml for the full note.
+exorl_max_episodes: 5000
 keep_dataset_rewards: true
 render: false

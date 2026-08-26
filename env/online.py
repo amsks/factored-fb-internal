@@ -341,6 +341,13 @@ class OnlineTrainer:
         self._ep_len = 0
         self._ep_return = 0.0
         self._ep_success = False
+        # Whether the env reported a `success` key AT ALL this episode. ExoRL's walker and
+        # cheetah have no binary success rule, so env/exorl_env.py deliberately omits the key
+        # rather than emit a 0.0 that reads as "the policy failed" -- and `info.get("success",
+        # 0)` would quietly undo that. `online/success` is therefore reported only for envs
+        # that actually score it; the eval path already behaves this way
+        # (tests/impls/test_exorl_env.py::test_evaluate_does_not_fabricate_a_success_metric).
+        self._ep_has_success = False
         self._episode_index = 0
         self.env_steps = 0
         self._returns, self._successes, self._lengths = [], [], []
@@ -443,7 +450,15 @@ class OnlineTrainer:
         self._ep_goal = self._episode_goal(agent, obs, info)
         self._ep_len = 0
         self._ep_return = 0.0
-        self._ep_success = _flag(info.get("success", 0)) if hasattr(info, "get") else False
+        self._ep_success, self._ep_has_success = self._read_success(info, False, False)
+
+    @staticmethod
+    def _read_success(info, seen_true, seen_key):
+        """-> (success-so-far, whether the env reported the key at all). Absence of the key
+        is carried through as absence, never as False."""
+        if hasattr(info, "get") and "success" in info:
+            return bool(seen_true or _flag(info["success"])), True
+        return bool(seen_true), bool(seen_key)
 
     def _action(self, agent):
         """Exploration policy: the agent's own sample_actions plus Gaussian noise, uniform
@@ -478,13 +493,14 @@ class OnlineTrainer:
         self.env_steps += 1
         self._ep_len += 1
         self._ep_return += reward
-        if hasattr(info, "get"):
-            self._ep_success = self._ep_success or _flag(info.get("success", 0))
+        self._ep_success, self._ep_has_success = self._read_success(
+            info, self._ep_success, self._ep_has_success)
         self._obs = next_obs
         if _flag(term) or _flag(trunc) or self._ep_len >= self.horizon:
             self.buffer.end_episode()
             self._returns.append(self._ep_return)
-            self._successes.append(float(self._ep_success))
+            if self._ep_has_success:
+                self._successes.append(float(self._ep_success))
             self._lengths.append(float(self._ep_len))
             for buf in (self._returns, self._successes, self._lengths):
                 del buf[:-100]                          # keep a trailing window only
@@ -588,8 +604,9 @@ class OnlineTrainer:
                "online/episodes_rolled": float(self._episode_index)}
         if self._returns:
             out["online/return"] = float(np.mean(self._returns))
-            out["online/success"] = float(np.mean(self._successes))
             out["online/ep_len"] = float(np.mean(self._lengths))
+        if self._successes:                 # absent on envs with no success rule, not 0.0
+            out["online/success"] = float(np.mean(self._successes))
         return out
 
     # ---------------- construction ----------------

@@ -13,17 +13,26 @@
 # cube-single default ("19:22:0.4") would win. Pass it as an override, as the launcher
 # scripts do (note the escaped quotes -- OmegaConf yaml-parses a bare `a:b:c` dotlist value
 # as a sexagesimal number):
-#     --override 'measure_hit_spec="<unverified>"'
-# NOT VERIFIED for cheetah: its 17-dim obs is 8 position then 9 velocity, and the
-# forward/backward tasks are VELOCITY-specified, so the hit block is very likely a
-# velocity block rather than a position one. Pick and justify it before quoting a
-# density_fb/td_fb number on this domain.
+#     --override 'measure_hit_spec="0:17:7.5"'
+# DECIDED 2026-08-24: the FULL observation block (position 0:8 then velocity 8:17, measured
+# from dm_control's observation_spec). The velocity-only block was the task-aligned candidate
+# -- run / run_backward / flip are all velocity-specified -- and was NOT taken: the full
+# block makes no modelling claim about which dims matter. Cost: a 17-dim kernel against the
+# 3-dim block the method was tuned on.
+# RADIUS calibrated the same way as dmc-walker.yaml: 7.5 matches cube-single's hit rate
+# (0:17:7.5 -> 0.0132 vs cube-single 19:22:0.4 -> 0.0133, 400k pairs / 200 RND episodes),
+# and the procedure reproduces point_mass_maze's independently decided 0:2:0.03 to within
+# 1.6x. Pairwise distance median over the block is 25.1, dominated by the unnormalised
+# velocity dims -- inherent to the full-block choice.
 adapter: unified
 env_name: dmc-cheetah         # run naming only
 task: dmc-cheetah
 exorl_task: run               # one of run / run_backward / flip / flip_backward
 exorl_algo: rnd
 data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/cheetah/rnd
-exorl_max_episodes: 2000
+# 5000 = 5M transitions, matching MetaMotivo's ExoRL/DMC setting
+# (`examples/fb_train_dmc.py`: `load_n_episodes: 5_000`, RND buffer). See
+# env/domains/dmc-point-mass-maze.yaml for the full note.
+exorl_max_episodes: 5000
 keep_dataset_rewards: true
 render: false

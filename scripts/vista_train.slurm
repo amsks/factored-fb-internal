@@ -46,6 +46,13 @@ SAVE_DIR="${SAVE_DIR:-$SCRATCH/factored-fb-exp}"
 # which the campaign launcher sets per data_type (expert / play-noise / play-resample).
 export FB_HF_EXPORT="${FB_HF_EXPORT:-$SCRATCH/fb-data/hf_export}"
 export FB_DATA_ROOT="${FB_DATA_ROOT:-$SCRATCH/fb-data/expert}"
+# ExoRL (dmc-*) roots. Without these, env/exorl_env.py falls back to ~/exorl_data, which does
+# not exist on this box, and the job dies in the loader after the node has been allocated.
+# EXORL_CACHE_ROOT holds the relabelled-reward cache -- one .npy per (domain, algo, task,
+# episode set), so the first job of a cell pays the mujoco relabelling cost and the rest hit
+# the cache.
+export EXORL_DATA_ROOT="${EXORL_DATA_ROOT:-$SCRATCH/exorl_data/exorl/datasets}"
+export EXORL_CACHE_ROOT="${EXORL_CACHE_ROOT:-$SCRATCH/exorl_data/relabel_cache}"
 
 # GH200 has one visible GPU per node.
 export CUDA_VISIBLE_DEVICES=0

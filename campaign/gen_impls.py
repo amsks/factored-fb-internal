@@ -74,7 +74,7 @@ T2_DOMAINS = ["cube-single", "mw-pick-place"]
 # The five critics with a reward interface.
 T3_METHODS = ["density_fb", "fb", "psm", "rldp"]   # the reward-interface family
 # ExoRL / DMC on the RND exploration dataset. T4 uses the same three.
-T3_DOMAINS = ["point_mass_maze", "walker", "cheetah"]
+T3_DOMAINS = ["dmc-point-mass-maze", "dmc-walker", "dmc-cheetah"]
 
 TABLES = {
     "T1": dict(critics=T1_METHODS, actors=["flowbc"], domains=T1_DOMAINS, seeds=SEEDS,
@@ -85,19 +85,17 @@ TABLES = {
                note="actor study"),
     "T3": dict(critics=T3_METHODS, actors=["flowbc"], domains=T3_DOMAINS, seeds=SEEDS,
                online=False, expect=36,
-               note="ExoRL, reward-specified (workstream 6 NOT started)"),
+               note="ExoRL, reward-specified"),
     "T4": dict(critics=["density_fb"], actors=["flowbc"], domains=T3_DOMAINS, seeds=SEEDS,
                online=True, expect=9,
                note="online Density-FB"),
 }
 
-# Domains section 7 names that no yaml defines yet. Workstream 6 (the ExoRL env family) is
-# "not started" in the spec's own progress log, so T3/T4 are emittable but NOT launchable.
-# They still fail validation by default; --allow_unknown_domains is the deliberate override.
-PENDING_DOMAINS = {
-    d: "ExoRL/DMC — workstream 6 (env/registry.py prefix + backend + loader) is not started"
-    for d in T3_DOMAINS
-}
+# Domains a pending workstream will add but no yaml defines yet. Empty since workstream 6
+# (the ExoRL env family) landed: env/domains/dmc-{point-mass-maze,walker,cheetah}.yaml all
+# exist, so T3/T4 validate like any other table. Kept as the hook for the next such case --
+# --allow_unknown_domains reads it to explain WHY a name is unknown.
+PENDING_DOMAINS = {}
 
 
 class GenError(ValueError):

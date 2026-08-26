@@ -10,6 +10,25 @@ Reuses impls.main's own code path (adapter, Agent.create, restore_agent, adapter
 rather than reimplementing it, so this script and a real training run can never disagree
 about how a checkpoint is built or scored.
 
+ExoRL / T3 use (the reason this script grew the two --infer_cond_* flags): the successor
+measure is trained REWARD-FREE -- `rewards` is read only inside `infer_cond` for density_fb,
+fb, psm and rldp -- so ONE checkpoint per (method, domain, seed) already serves every reward
+task of that domain, and the tasks differ only in the eval-time relabelling. Scoring the
+other tasks is therefore a re-eval, not a retrain:
+
+  for t in stand walk run flip; do
+    python -m scripts.reeval_checkpoint --critic density_fb --actor flowbc \
+        --domain dmc-walker --seed 0 --restore_path <run dir> --restore_epoch 500000 \
+        --infer_cond_episodes 50000 --eval_on_inferred_cond \
+        --override "measure_density_z=true" --override 'measure_hit_spec="0:24:15.9"' \
+        --override "exorl_task=$t" --out_jsonl t3_zeroshot.jsonl
+  done
+
+`--override exorl_task=<task>` relabels the dataset AND builds the env for that task
+together (env/exorl_env.py::load_domain_data and env/unified.py), so the two cannot drift
+apart. Without --eval_on_inferred_cond the inferred index is computed and then discarded --
+see that flag's help in impls/main.py.
+
 Usage:
   python -m scripts.reeval_checkpoint \
       --critic gciql --actor bcflow --domain ms-pick-cube --seed 0 \
@@ -34,6 +53,11 @@ from impls.agents import Agent
 from impls.utils.datasets import make_dataset
 from env import get_adapter, make_config
 from impls.utils.flax_utils import restore_agent
+from impls.critics.base import infer_cond_rows
+# NOT from impls.main: that module defines absl flags at import time, and this script defines
+# its own --critic/--actor/--domain, so importing it raises DuplicateFlagError before main()
+# ever runs. The class lives in a flag-free module for exactly this reason.
+from impls.utils.eval_cond import InferredCondAgent
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("critic", "fb", "Critic name.")
@@ -46,6 +70,16 @@ flags.DEFINE_integer("restore_epoch", 300000, "Checkpoint step to restore (param
 flags.DEFINE_integer("eval_episodes", 50, "Episodes to evaluate.")
 flags.DEFINE_string("tag", "", "Free-text label written into the output row (e.g. run name).")
 flags.DEFINE_string("out_jsonl", "", "Optional: append the result row to this jsonl file.")
+flags.DEFINE_integer("infer_cond_episodes", 0,
+                     "If >0, infer eval conditioning from this many relabelled transitions "
+                     "before evaluating (the zero-shot reward-sample route). Same meaning as "
+                     "impls/main.py's flag of this name, including that the rows fed to "
+                     "infer_cond come from the critic's own INFER_COND_MARGINAL.")
+flags.DEFINE_bool("eval_on_inferred_cond", False,
+                  "Evaluate on the inferred conditioning INSTEAD of the env's task goal. "
+                  "Requires --infer_cond_episodes>0. Without it the evaluator hands a goal "
+                  "frame to any goal-capable critic and the inferred index is discarded "
+                  "before it is used -- see impls/main.py.")
 
 
 def main(_):
@@ -60,8 +94,30 @@ def main(_):
                          jnp.asarray(ex["observations"]), jnp.asarray(ex["actions"]), cfg)
     agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch)
 
+    if FLAGS.eval_on_inferred_cond and FLAGS.infer_cond_episodes <= 0:
+        raise ValueError("--eval_on_inferred_cond needs --infer_cond_episodes>0: it "
+                         "evaluates on an index nothing has inferred otherwise.")
+    # Mirrors impls/main.py's eval block exactly, including WHICH rows feed infer_cond (the
+    # critic's own INFER_COND_MARGINAL, not a hard-coded column) and the wrapper that stops
+    # a goal frame overwriting the index. Kept as the same two calls in the same order so a
+    # re-eval and a training-time eval cannot disagree about what was conditioned on.
+    eval_agent = agent
+    if FLAGS.infer_cond_episodes > 0:
+        rb = train_ds.sample(FLAGS.infer_cond_episodes)
+        rows = infer_cond_rows(agent.critic)
+        eval_agent = agent.infer_eval_cond(jnp.asarray(rb[rows]),
+                                           jnp.asarray(rb["rewards"]))
+        if FLAGS.eval_on_inferred_cond:
+            eval_agent = InferredCondAgent(eval_agent)
+        print(f"[infer-cond] conditioning inferred from {FLAGS.infer_cond_episodes} "
+              f"rb[{rows!r}] rows; eval_on_inferred_cond={FLAGS.eval_on_inferred_cond}",
+              flush=True)
+
     for task_id in adapter.eval_tasks(env, cfg):
-        row, _frames = adapter.evaluate(agent, env, task_id, cfg, FLAGS.eval_episodes, 0)
+        row, _frames = adapter.evaluate(eval_agent, env, task_id, cfg, FLAGS.eval_episodes, 0)
+        if hasattr(eval_agent, "witness"):
+            row.update(eval_agent.witness())
+            eval_agent.reset_counts()
         row.pop("_per_episode", None)   # scalar-only report; per-episode payload not needed here
         print(f"REEVAL tag={FLAGS.tag} task={task_id} epoch={FLAGS.restore_epoch} "
               f"episodes={FLAGS.eval_episodes} {row}", flush=True)
@@ -69,7 +125,8 @@ def main(_):
             rec = dict(tag=FLAGS.tag, critic=FLAGS.critic, actor=FLAGS.actor,
                        domain=FLAGS.domain, seed=FLAGS.seed,
                        restore_path=FLAGS.restore_path, restore_epoch=FLAGS.restore_epoch,
-                       eval_episodes=FLAGS.eval_episodes, task_id=task_id, **row)
+                       eval_episodes=FLAGS.eval_episodes, task_id=task_id,
+                       exorl_task=cfg.get("exorl_task"), **row)
             with open(FLAGS.out_jsonl, "a") as f:
                 f.write(json.dumps(rec, default=float) + "\n")
     # Return NOTHING. absl does `sys.exit(main(argv))`, so a returned list becomes the exit

@@ -22,6 +22,13 @@ _PREFIX = {
     # under COLLECTED -- ExoRL ships its own `<domain>/<algo>/buffer` trees, so the domain
     # yamls set `data_dir` explicitly (env/exorl_env.py::DATA_ROOT is the default root).
     "dmc": ("exorl", 1000, "ExoRL"),
+    # HumEnv / Meta Motivo SMPL humanoid. Data is the RELEASED REPLAY BUFFER of a trained
+    # FB-CPR checkpoint (agent-replay, not play data -- spec 23 §6.1 requires saying so), so
+    # it ships no `buffer/episode_*.npz` tree of its own: scripts/convert_humenv_buffer.py
+    # writes that layout and the domain yaml sets `data_dir` explicitly. Horizon 300 is
+    # HumEnv's episode length (30 Hz decisions), which the buffer confirms -- 16,600 of its
+    # 16,650 episodes are exactly 300 steps.
+    "hum": ("humenv", 300, "HumEnv"),
 }
 
 # per-task overrides (data_dir / horizon / family), for anything the prefix rule doesn't cover

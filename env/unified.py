@@ -155,6 +155,10 @@ def make_task_env(task, render=False, reward_task=None):
         os.environ.setdefault("MUJOCO_GL", "egl")
         from env.exorl_env import make_exorl_env           # ExoRL / dm_control, reward-specified
         return make_exorl_env(task, reward_task=reward_task)
+    if task.startswith("hum-"):
+        os.environ.setdefault("MUJOCO_GL", "egl")
+        from env.humenv_env import make_humenv_env         # HumEnv / Meta Motivo SMPL humanoid
+        return make_humenv_env(task)
     raise ValueError(f"no env builder for task {task!r}")
 
 
