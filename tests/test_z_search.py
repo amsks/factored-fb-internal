@@ -94,3 +94,33 @@ def test_all_rounds_stay_on_sphere():
     for Z in seen:
         np.testing.assert_allclose(np.linalg.norm(Z, axis=-1),
                                    np.sqrt(float(d)), rtol=1e-6)
+
+
+from z_search import affine_argmax_check  # noqa: E402
+
+
+def test_affine_argmax_exact_under_renorm():
+    rng = np.random.default_rng(6)
+    K, M = 40, 25
+    # sub-normalized rows with VARYING row sums (the min-convention regime)
+    W = rng.random((K, M))
+    W /= W.sum(-1, keepdims=True)
+    W *= rng.uniform(0.5, 1.0, size=(K, 1))
+    r = rng.standard_normal(M)
+    out = affine_argmax_check(W, r, [(2.0, 0.0), (1.0, 3.0), (0.5, -7.0)])
+    # renormalized: argmax_z (W@(a r + b)) == argmax_z (W@r) EXACTLY, a > 0
+    assert out["renorm_all_match"] is True
+    for cell in out["renorm"].values():
+        assert cell["match"] is True
+    # min convention: reported (bool present), not asserted true
+    assert set(out["min_convention"]) == set(out["renorm"])
+    assert isinstance(out["min_all_match"], bool)
+
+
+def test_affine_argmax_base_is_plain_reward_argmax():
+    rng = np.random.default_rng(7)
+    W = rng.random((10, 6))
+    r = rng.standard_normal(6)
+    out = affine_argmax_check(W, r, [(1.0, 1.0)])
+    Wn = W / W.sum(-1, keepdims=True)
+    assert out["argmax_base"] == int(np.argmax(Wn @ r))

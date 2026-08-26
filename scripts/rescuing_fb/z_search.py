@@ -83,3 +83,52 @@ def cem_search(score_fn, weights_of, d: int, rng: np.random.Generator,
             "Z0": Z_all[0], "W0": W_all[0], "J0": J_all[0],
             "n_evaluated": int(len(Jc))}
     return z_star, diag
+
+
+def affine_argmax_check(W0: np.ndarray, r: np.ndarray, transforms):
+    """Spec 31 §3 affine cell. W does not depend on r, so J under alpha*r+beta
+    is a re-read of the cached table. Renormalized rows: argmax invariance is
+    EXACT for alpha > 0 (beta adds a constant). Min-convention rows are
+    sub-normalized (beta couples to ||w||_1): reported, never asserted."""
+    W0 = np.asarray(W0, np.float64)
+    r = np.asarray(r, np.float64)
+    Wn = W0 / W0.sum(-1, keepdims=True)
+    out = {"argmax_base": int(np.argmax(Wn @ r)), "renorm": {},
+           "min_convention": {}}
+    base_min = int(np.argmax(W0 @ r))
+    for a, b in transforms:
+        rt = a * r + b
+        kr = int(np.argmax(Wn @ rt))
+        km = int(np.argmax(W0 @ rt))
+        out["renorm"][f"({a},{b})"] = {"argmax": kr,
+                                       "match": kr == out["argmax_base"]}
+        out["min_convention"][f"({a},{b})"] = {"argmax": km,
+                                               "match": km == base_min}
+    out["renorm_all_match"] = all(c["match"] for c in out["renorm"].values())
+    out["min_all_match"] = all(c["match"] for c in out["min_convention"].values())
+    return out
+
+
+def make_weights_fn(agent, b_sub: np.ndarray, temp: float,
+                    init_obs: np.ndarray, seed):
+    """weights_of(Z [K,d]) -> W [K,M] for cem_search, through the agent's own
+    actor + F towers (the g293 oracle computation, one candidate at a time).
+    jax imported lazily so this module stays importable from the torch venv.
+    `seed` is a jax PRNGKey; it is FIXED across candidates so J differences
+    come from z, not action noise."""
+    import jax.numpy as jnp
+    b64 = np.asarray(b_sub, np.float64)
+    S = len(init_obs)
+    obs_j = jnp.asarray(np.asarray(init_obs, np.float32))
+
+    def weights_of(Z):
+        W = np.zeros((len(Z), len(b64)))
+        for k, z in enumerate(np.asarray(Z, np.float32)):
+            zb = jnp.asarray(np.tile(z[None], (S, 1)))
+            a = agent.sample_actions_with_z(obs_j, zb, seed=seed)
+            f = agent.network.select("density_f")(
+                jnp.concatenate([obs_j, a, zb], -1))
+            W[k] = min_head_weights(np.asarray(f), b64, temp).mean(0)
+        return W
+
+    return weights_of
