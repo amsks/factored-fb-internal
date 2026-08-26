@@ -388,7 +388,7 @@ def main():
     if args.stage in ("corr", "all") and not args.quick:
         from scipy.stats import spearmanr
         assert summary, "corr stage needs families in the same invocation " \
-                        "(use --stage all or families,corr)"
+                        "(use --stage all)"
         corr_fams = [n for n in ("dense_g1", "tma10") if n in summary]
         corr = {}
         for name in corr_fams:
