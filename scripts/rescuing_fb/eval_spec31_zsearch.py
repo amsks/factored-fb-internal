@@ -259,6 +259,167 @@ def main():
         (out_dir / "families_summary.json").write_text(
             json.dumps(pub, indent=1, default=str))
 
+    # ================================================================== sweep
+    if args.stage in ("sweep", "all") and not args.quick:
+        sweep_fams = ("dense_g1", "tma10")
+        sweep = {}
+        for name in sweep_fams:
+            fd = fams[name]
+            init_obs = (summary[name]["_init_obs"] if name in summary
+                        else reset_states(fd["task"]))
+            z_enc = encode_frozen(fd["r"](pool_raw_frozen))
+            cells = {}
+            zstars = {}
+            for m in SWEEP_M:
+                idx_m = rng.choice(P, m, replace=False)
+                b_m = np.asarray(agent.network.select("density_b")(
+                    jnp.asarray(u_sc[idx_m])))
+                r_m = fd["r"](u_raw[idx_m])
+                weights_of = make_weights_fn(agent, b_m, temp, init_obs,
+                                             seed=jax.random.PRNGKey(11))
+                z_star, diag = cem_search(lambda W: W @ r_m, weights_of, d,
+                                          np.random.default_rng(args.seed + 200),
+                                          seed_z=z_enc, **cem_kw)
+                zstars[m] = z_star
+                cube, lengths, _ = rollout(fd["task"], z_star, mode="z")
+                rr = fd["succ"](cube, lengths)
+                cells[str(m)] = {"J_star": diag["J_star"], "succ": rr["succ"],
+                                 "cos_vs_enc": cos(z_star, z_enc)}
+            stab = {f"cos_{SWEEP_M[i]}_{SWEEP_M[i+1]}":
+                    cos(zstars[SWEEP_M[i]], zstars[SWEEP_M[i + 1]])
+                    for i in range(len(SWEEP_M) - 1)}
+            sweep[name] = {"cells": cells, "stability": stab}
+            print(f"[s31] sweep {name}: " + " ".join(
+                f"M{m}:succ={cells[str(m)]['succ']:.2f}" for m in SWEEP_M)
+                + f" stab={stab} ({time.time()-t00:.0f}s)", flush=True)
+
+        # init-state ablation (spec 31 §2): dataset episode-start states
+        # instead of env-reset states, one family, expected no-op
+        fd = fams["dense_g1"]
+        term = np.asarray(ds["terminals"]).astype(bool)
+        starts = np.concatenate([[0], np.where(term[:-1])[0] + 1])
+        ds_init = obs_all[rng.choice(starts, N_INIT_STATES, replace=False)]
+        z_enc = encode_frozen(fd["r"](pool_raw_frozen))
+        r_sub_d = fd["r"](u_raw[sub])
+        weights_of = make_weights_fn(agent, b_sub, temp, ds_init,
+                                     seed=jax.random.PRNGKey(11))
+        z_star_ds, diag_ds = cem_search(lambda W: W @ r_sub_d, weights_of, d,
+                                        np.random.default_rng(args.seed + 100),
+                                        seed_z=z_enc, **cem_kw)
+        z_star_env = (np.asarray(summary["dense_g1"]["z_star"])
+                      if "dense_g1" in summary else None)
+        cube, lengths, _ = rollout(fd["task"], z_star_ds, mode="z")
+        sweep["init_state_ablation"] = {
+            "family": "dense_g1", "J_star_dataset_s0": diag_ds["J_star"],
+            "succ_dataset_s0": fd["succ"](cube, lengths)["succ"],
+            "cos_vs_env_reset_zstar": (cos(z_star_ds, z_star_env)
+                                       if z_star_env is not None else None)}
+        print(f"[s31] init ablation: succ={sweep['init_state_ablation']['succ_dataset_s0']:.2f} "
+              f"cos={sweep['init_state_ablation']['cos_vs_env_reset_zstar']}", flush=True)
+        (out_dir / "sweep.json").write_text(json.dumps(sweep, indent=1))
+
+    # ================================================================ utility
+    if args.stage in ("utility", "all") and not args.quick:
+        BINS = 4
+        half_w = 0.6
+        lo = g1 - half_w
+        edges = [np.linspace(lo[i], lo[i] + 2 * half_w, BINS + 1) for i in range(3)]
+
+        def bin_index(u):
+            """u [N,3] -> flat bin id in [0, BINS^3] (last id = outside)."""
+            ids = np.zeros(len(u), np.int64)
+            outside = np.zeros(len(u), bool)
+            mul = 1
+            for i in range(3):
+                k = np.digitize(u[:, i], edges[i]) - 1
+                outside |= (k < 0) | (k >= BINS)
+                ids += np.clip(k, 0, BINS - 1) * mul
+                mul *= BINS
+            ids[outside] = BINS ** 3
+            return ids
+
+        pool_bins = bin_index(u_raw[sub])
+        n_bins = BINS ** 3 + 1
+        target = np.full(n_bins, 1e-3)
+        target[:BINS ** 3] = 1.0
+        target /= target.sum()
+
+        def f_kl(W):
+            """W [K, M] -> J [K] = -KL(Pi(w) || target), rows renormalized."""
+            Wn = W / W.sum(-1, keepdims=True)
+            proj = np.zeros((len(W), n_bins))
+            np.add.at(proj.T, pool_bins, Wn.T)          # sum w over bins
+            proj = np.clip(proj, 1e-9, None)
+            proj /= proj.sum(-1, keepdims=True)
+            return -np.sum(proj * np.log(proj / target[None]), -1)
+
+        init_obs = reset_states(G1_TASK)
+        weights_of = make_weights_fn(agent, b_sub, temp, init_obs,
+                                     seed=jax.random.PRNGKey(11))
+        z_star, diag = cem_search(f_kl, weights_of, d,
+                                  np.random.default_rng(args.seed + 300),
+                                  seed_z=None, **cem_kw)
+        z_goal = encode_frozen(fams["dense_g1"]["r"](pool_raw_frozen))
+
+        def occupancy_report(z, tag):
+            cube, lengths, _ = rollout(G1_TASK, z, mode="z")
+            ids = bin_index(cube.reshape(-1, 3))
+            occ = np.bincount(ids, minlength=n_bins).astype(float)
+            occ /= occ.sum()
+            occ_c = np.clip(occ, 1e-9, None)
+            return {"kl_vs_target": float(np.sum(occ_c * np.log(occ_c / target))),
+                    "frac_region_bins_visited": float(
+                        (occ[:BINS ** 3] > 0).mean()),
+                    "frac_time_in_region": float(occ[:BINS ** 3].sum())}
+
+        util = {"J_star": diag["J_star"],
+                "J_median_round0": float(np.median(diag["J0"])),
+                "round_max": diag["round_max"],
+                "search": occupancy_report(z_star, "search"),
+                "goal_contrast": occupancy_report(z_goal, "goal"),
+                "z_star": z_star.tolist(), "bins": BINS, "half_w": half_w}
+        (out_dir / "utility.json").write_text(json.dumps(util, indent=1))
+        print(f"[s31] utility: J*={diag['J_star']:.4f} "
+              f"search_cov={util['search']['frac_region_bins_visited']:.2f} "
+              f"goal_cov={util['goal_contrast']['frac_region_bins_visited']:.2f} "
+              f"({time.time()-t00:.0f}s)", flush=True)
+
+    # =================================================================== corr
+    if args.stage in ("corr", "all") and not args.quick:
+        from scipy.stats import spearmanr
+        assert summary, "corr stage needs families in the same invocation " \
+                        "(use --stage all or families,corr)"
+        corr_fams = [n for n in ("dense_g1", "tma10") if n in summary]
+        corr = {}
+        for name in corr_fams:
+            fd = fams[name]
+            J0 = summary[name]["_J0"]; Z0 = summary[name]["_Z0"]
+            qs = np.unique(np.quantile(np.arange(len(J0)), np.linspace(0, 1, 12))
+                           .astype(int))
+            order = np.argsort(J0)
+            pick = order[qs]
+            rets, js = [], []
+            for k in pick:
+                cube, lengths, _ = rollout(fd["task"], Z0[k], mode="z", n=5)
+                rets.append(disc_return(cube, lengths, fd["r"]))
+                js.append(float(J0[k]))
+            corr[name] = {"spearman": float(spearmanr(js, rets).statistic),
+                          "J": js, "returns": rets, "eps_per_candidate": 5}
+            print(f"[s31] corr {name}: spearman={corr[name]['spearman']:.3f} "
+                  f"({time.time()-t00:.0f}s)", flush=True)
+        (out_dir / "corr.json").write_text(json.dumps(corr, indent=1))
+
+    # top-level summary (whatever stages ran)
+    top = {"stages_run": args.stage, "quick": bool(args.quick),
+           "cem": cem_kw, "p_sub": P_SUB, "n_init_states": N_INIT_STATES,
+           "ckpt": str(run_dir), "step": args.checkpoint_step}
+    for f in ("gate", "families_summary", "sweep", "utility", "corr"):
+        p = out_dir / f"{f}.json"
+        if p.exists():
+            top[f] = json.loads(p.read_text())
+    (out_dir / "summary.json").write_text(json.dumps(top, indent=1, default=str))
+    print(f"[s31] DONE ({time.time()-t00:.0f}s)", flush=True)
+
 
 if __name__ == "__main__":
     main()
