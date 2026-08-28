@@ -55,6 +55,27 @@ declare -A HIT=( [dmc-walker]="0:24:15.9" [dmc-cheetah]="0:17:7.5" [dmc-point-ma
 # locomotion domains use 0.98. Recorded as an ambiguity resolution in the spec's §6 item 2.
 declare -A DISC=( [dmc-walker]="0.98" [dmc-cheetah]="0.98" [dmc-point-mass-maze]="0.99" )
 
+# THE ACTOR IS PART OF THE PARITY, and the seam's ddpgbc defaults are not the reference's.
+# Official RLDP extracts with a PURE TD3 objective -- `actor_loss = -Q.mean()`
+# (baselines/rldp rldp/agent.py::update_td3_actor, reached from update_actor) -- with:
+#   * NO behavior-cloning term at all                    => actor.alpha=0.0
+#   * the actor-loss action SAMPLED, not the mode:
+#     dist.sample(clip=stddev_clip) at actor_std          => q_noise_std=0.2, clip=0.3
+#     (model.py:57 actor_std=0.2; agent.py:28 stddev_clip=0.3)
+#   * the same sampling on the bootstrap next action
+#     (agent.py:312-313)                                  => boot_noise_std=0.2, clip=0.3
+#   * NO q-magnitude normalizer on the value term         => actor.q_normalize=false
+# The seam ships alpha=0.3, noiseless modes and the normalizer on, because those are right
+# for the goal-conditioned manipulation cells this actor was written for. Left at the
+# defaults, this campaign would compare a DDPG+BC extractor against a published TD3 one and
+# call the difference a replication result.
+# Pessimism (0.5, agent.py:27) rides the CRITIC's q_fn, which is what the actor calls, and
+# is already set in critic/rldp_official.yaml.
+ACTOR_OV=( --override "actor.alpha=0.0"
+           --override "actor.q_noise_std=0.2"  --override "actor.q_noise_clip=0.3"
+           --override "actor.boot_noise_std=0.2" --override "actor.boot_noise_clip=0.3"
+           --override "actor.q_normalize=false" )
+
 tmux has-session -t="$SESSION" 2>/dev/null && {
   echo "tmux session '$SESSION' already exists -- attach and finish or kill it first:"
   echo "  tmux attach -t $SESSION ; tmux kill-session -t $SESSION"; exit 1; }
@@ -74,7 +95,8 @@ for CRITIC in $CRITICS; do
 
       OV=( --override "discount=${DISC[$DOM]}"
            --override "rldp_phase1_steps=$PHASE1"
-           --override "measure_hit_spec=\"${HIT[$DOM]}\"" )
+           --override "measure_hit_spec=\"${HIT[$DOM]}\""
+           "${ACTOR_OV[@]}" )
       CMD="cd $REPO && CUDA_VISIBLE_DEVICES=$((GPU % NGPU)) $PY -m impls.main \
 --critic $CRITIC --actor $ACTOR --domain $DOM --seed $SEED \
 --train_steps $STEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL \

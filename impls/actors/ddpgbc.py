@@ -66,6 +66,14 @@ class DDPGBCActor:
     # existing draw stream.
     q_noise_std: float = 0.0
     q_noise_clip: float = 0.3
+    # Divide the Q term by sg[|q|.mean()] before adding the BC term. True (default) is the
+    # shipped behavior: it fixes the scale of the value term relative to BC, which matters
+    # when the two are summed. RLDP's official actor is a PURE TD3 objective with no BC
+    # term at all -- `actor_loss = -Q.mean()` (baselines/rldp agent.py::update_td3_actor) --
+    # so there is nothing to balance against and the normalizer would only act as an
+    # adaptive, q-magnitude-dependent learning rate the reference does not have. Set false
+    # for that arm; every existing cell keeps the normalizer.
+    q_normalize: bool = True
 
     GROUPS = ("actor",)
     NEEDS_V = False
@@ -85,7 +93,9 @@ class DDPGBCActor:
             q_actions = _smooth(q_actions, boot["actor_q_rng"],
                                 self.q_noise_std, self.q_noise_clip)
         q, _ = critic.q_fn(params, obs, cond, q_actions, stop_encoder_grad=True)
-        q_loss = -q.mean() / jax.lax.stop_gradient(jnp.abs(q).mean() + 1e-6)
+        q_loss = -q.mean()
+        if self.q_normalize:
+            q_loss = q_loss / jax.lax.stop_gradient(jnp.abs(q).mean() + 1e-6)
         log_prob = dist.log_prob(action)
         bc_loss = -(self.alpha * log_prob).mean()
         loss = q_loss + bc_loss
@@ -161,4 +171,5 @@ class DDPGBCActor:
                    boot_noise_std=float(a_cfg.get("boot_noise_std", 0.0)),
                    boot_noise_clip=float(a_cfg.get("boot_noise_clip", 0.3)),
                    q_noise_std=float(a_cfg.get("q_noise_std", 0.0)),
-                   q_noise_clip=float(a_cfg.get("q_noise_clip", 0.3))), params
+                   q_noise_clip=float(a_cfg.get("q_noise_clip", 0.3)),
+                   q_normalize=bool(a_cfg.get("q_normalize", True))), params
