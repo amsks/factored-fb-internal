@@ -43,6 +43,7 @@ import json
 import os
 import statistics
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -92,7 +93,16 @@ def run_cell(args, domain, task, seed):
            "--out_jsonl", args.out,
            "--override", f"exorl_task={task}",
            "--override", f"discount={DISCOUNT[domain]}",
-           "--override", f'measure_hit_spec="{HIT[domain]}"']
+           "--override", f'measure_hit_spec="{HIT[domain]}"',
+           # The training-time actor settings. All four are LOSS-only -- they change no
+           # network shape and no eval-time forward pass (eval takes dist.mode()) -- so the
+           # restore works without them. They are passed anyway so the eval config is
+           # literally the training config: a future knob that IS shape-bearing would
+           # otherwise fail as a confusing restore error rather than a config mismatch.
+           "--override", "actor.alpha=0.0",
+           "--override", "actor.q_normalize=false",
+           "--override", "actor.q_noise_std=0.2",
+           "--override", "actor.boot_noise_std=0.2"]
     if args.dry_run:
         print(("MISSING-RUNDIR " if missing else "") + " ".join(cmd))
         return {"domain": domain, "task": task, "seed": seed, "status": "dryrun"}
@@ -168,6 +178,8 @@ def main():
                     help="reward-labelled TRANSITIONS for z inference (RLDP 50k, HILP 10k)")
     ap.add_argument("--out", default="exp/paper_eval.jsonl")
     ap.add_argument("--python", default="/dev/shm/.venv-jax/bin/python")
+    ap.add_argument("--jobs", type=int, default=1,
+                    help="cells to evaluate concurrently (one subprocess each)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--report-only", action="store_true")
     args = ap.parse_args()
@@ -177,10 +189,19 @@ def main():
         report(args.out, args.critic); return
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     todo = [(d, t, s) for d in args.domains for t in PAPER_TASKS[d] for s in args.seeds]
-    print(f"{len(todo)} cells: {len(args.domains)} domains x 4 tasks x {len(args.seeds)} seeds",
-          flush=True)
-    for dom, task, seed in todo:
-        run_cell(args, dom, task, seed)
+    print(f"{len(todo)} cells: {len(args.domains)} domains x 4 tasks x {len(args.seeds)} seeds"
+          f" ({args.jobs} at a time)", flush=True)
+    # Each cell is an independent subprocess that appends one line to --out; the sequential
+    # loop this replaced took hours for a full 32-cell table. ThreadPoolExecutor is the right
+    # pool here because the work is entirely in the child processes -- the threads only wait
+    # on subprocess.run. Appends are a single short write per cell, done by separate
+    # processes, so they do not interleave in practice.
+    if args.jobs > 1:
+        with ThreadPoolExecutor(max_workers=args.jobs) as ex:
+            list(ex.map(lambda t: run_cell(args, *t), todo))
+    else:
+        for dom, task, seed in todo:
+            run_cell(args, dom, task, seed)
     if not args.dry_run:
         print(); report(args.out, args.critic)
 

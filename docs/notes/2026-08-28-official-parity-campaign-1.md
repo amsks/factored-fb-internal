@@ -19,6 +19,30 @@ transitions, projected to sqrt(d), goal path disabled), 10 episodes:
 Gate (spec sec.4) needs >= 3 of 4 within 1 sigma and no task below 50% of an official mean
 > 100. All four fail both conditions. Not a near miss.
 
+FULL TABLE, all 8 cells x 4 tasks x 4 seeds, 10 episodes (`scripts/exorl_paper_eval.py`,
+32/32 cells evaluated, 0 failures):
+
+| domain  | task          | ours (n=4)      | official RLDP    | ratio |
+|---------|---------------|-----------------|------------------|-------|
+| walker  | stand         | 226.0 +- 149.4  | 877.69 +- 45.03  | 0.26  |
+| walker  | walk          |  99.2 +- 105.6  | 790.94 +- 67.55  | 0.13  |
+| walker  | run           |  38.5 +-  42.9  | 324.85 +- 54.57  | 0.12  |
+| walker  | flip          |  90.2 +-  42.2  | 491.64 +- 37.30  | 0.18  |
+| cheetah | run           |  16.6 +-  19.0  | 236.31 +- 20.75  | 0.07  |
+| cheetah | run_backward  |  20.3 +-  20.7  | 322.08 +- 39.28  | 0.06  |
+| cheetah | walk          | 104.0 +- 124.6  | 895.31 +- 49.84  | 0.12  |
+| cheetah | walk_backward |  84.7 +- 112.0  | 984.76 +-  0.85  | 0.09  |
+
+0 of 8 cells pass. Note the SPREAD as a second piece of evidence: std ~= mean on five of the
+eight cells. That is the signature of policies driven by a representation that learned no
+structure -- return dominated by initialization -- not of a method that is merely mistuned,
+which would show a tighter spread at a lower mean. It is consistent with sec.2's measured
+gradient imbalance and inconsistent with a hyperparameter being slightly off.
+
+Episode count is 10, not the paper's 50. For an arm failing by 4-16x that is ample to
+document the magnitude, and spec sec.6 records `eval-10` as a legitimate setting. Any arm
+that PASSES must be re-scored at 50.
+
 ## 2. Root cause: phase 1 optimized whitening, not dynamics
 
 `scripts/rldp_grad_balance.py`, real config, real data, batch 1024:
