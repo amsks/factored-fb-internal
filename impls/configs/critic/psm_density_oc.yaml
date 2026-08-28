@@ -1,0 +1,50 @@
+# psm_density_oc: critic/psm_density.yaml + backward_input: hit_spec (object-coordinate B/phi input).
+# Shipped parent HPs kept verbatim; see the appended block at the bottom.
+#
+# PSM-Density-SF — PSM's proto representation learner (proto measures + ortho on phi,
+# untouched) with a Density-FB SF branch and reward-integrating q_fn. See
+# impls/critics/psm_density.py for the objective and the two lattice refusals
+# (pessimism_penalty must stay 0; temp must be > 0). Actor pessimism is PRESERVED, on
+# scalars after reward integration (actor_pessimism_penalty, as in the reference).
+#
+# Everything except the three density knobs at the bottom is critic/psm.yaml verbatim —
+# the point of the arm is that ONLY the SF successor estimator and readout change.
+batch_size: 256
+discount: 0.99
+z_dim: 128
+max_log_seed: 16
+num_parallel: 2
+norm_z: true
+target_tau: 0.01
+ortho_coef: 1.0
+mix_ratio: 0.5
+pessimism_penalty: 0.0        # lattice-refused if nonzero (distribution targets are headwise)
+actor_pessimism_penalty: 0.5  # scalar pessimism AFTER reward integration (q_fn)
+proto_seed: 0
+
+phi:
+  hidden_dim: 256
+  hidden_layers: 2
+  norm: true
+
+sf:
+  hidden_dim: 1024
+  hidden_layers: 1
+  embedding_layers: 2
+
+lr_sf: 1.0e-4
+lr_phi: 1.0e-5
+lr_actor: 1.0e-4
+
+# ── density knobs (impls/critics/psm_density.py) ───────────────────────────── #
+temp: 1.0                 # softmax temperature of the SF successor density
+actor_temp: null          # null => temp; the actor readout may flatten its own softmax (W2)
+actor_q_center: true      # spec-19a lattice: FlowBC/FQL normalizer sees the CENTERED spread
+
+# ── object-coordinate backward input (this _oc arm's ONE change) ───────────── #
+# B (rldp family) / phi (psm family) consumes the eps-scaled hit-spec block slice of
+# the observation instead of the full state — density_fb's `_density_queries` input
+# transform, applied inside the `_B`/`_phi` choke point (impls/critics/{rldp,psm}.py).
+# Everything above is the parent yaml verbatim.
+backward_input: hit_spec
+measure_hit_spec: "19:22:0.4"     # cube-single: the cube xyz block, env success radius

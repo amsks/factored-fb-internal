@@ -19,7 +19,9 @@ from impls.critics.crl import CRLCritic
 from impls.critics.qrl import QRLCritic
 from impls.critics.density_fb import DensityFBCritic
 from impls.critics.psm import PSMCritic
+from impls.critics.psm_density import PSMDensityCritic
 from impls.critics.rldp import RLDPCritic
+from impls.critics.rldp_density import RLDPDensityCritic
 from impls.actors.flowbc import FlowBCActor
 from impls.actors.ddpgbc import DDPGBCActor
 from impls.actors.ddpgbc_density import DDPGBCDensityActor
@@ -28,7 +30,10 @@ from impls.actors.awr import AWRActor
 from impls.actors.fql import FQLActor
 
 CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": HIQLCritic, "iql_bilinear": IqlBilinearCritic, "crl": CRLCritic,
-           "qrl": QRLCritic, "density_fb": DensityFBCritic, "psm": PSMCritic, "rldp": RLDPCritic}
+           "qrl": QRLCritic, "density_fb": DensityFBCritic, "psm": PSMCritic, "rldp": RLDPCritic,
+           # Density-FB's categorical successor estimator under PSM's / RLDP's own
+           # representation learners (impls/critics/{psm,rldp}_density.py).
+           "psm_density": PSMDensityCritic, "rldp_density": RLDPDensityCritic}
 # CONFIG-ONLY VARIANTS: a --critic name that selects a different yaml but the SAME critic
 # class. `density_fb_pixels` is density_fb on image observations -- `DensityFBCritic.build`
 # infers the pixel path from the example observation's rank, so nothing about the class
@@ -39,7 +44,24 @@ CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": H
 # Kept OUT of CRITICS deliberately: that dict is enumerated by the seam's gates
 # (tests/impls/test_boot_contract.py builds every critic x actor pair from it), and an alias
 # would add a duplicate of an existing critic to every one of them without adding coverage.
-CRITIC_ALIASES = {"density_fb_pixels": "density_fb"}
+CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
+                  # Exp B: density_fb with the spec-30 centered dual reward-sample index on
+                  # (the yaml sets `measure_density_z: true`); same class, config-only.
+                  "density_fb_z": "density_fb",
+                  # Exp A: rldp_density with density_fb's task interface (the yaml sets
+                  # `goal_kernel: true`); same RLDPDensityCritic class, config-only.
+                  "rldp_density_gk": "rldp_density",
+                  # Diag-screen repair arms: psm / psm_density at the torch sweep-winning
+                  # cube config (batch 1024, discount 0.98, ortho_coef 1000); config-only.
+                  "psm_repair": "psm",
+                  "psm_density_repair": "psm_density",
+                  # Object-coordinate backward-input arms: the yaml sets
+                  # `backward_input: hit_spec`, so B (rldp family) / phi (psm family)
+                  # consumes the eps-scaled hit-spec block slice of the observation
+                  # instead of the full state (impls/critics/{rldp,psm}.py::build);
+                  # same classes, config-only.
+                  "rldp_oc": "rldp", "rldp_density_oc": "rldp_density",
+                  "psm_oc": "psm", "psm_density_oc": "psm_density"}
 
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,
           # bridge spec 22 (see impls/actors/ddpgbc_density.py): the ddpgbc extraction

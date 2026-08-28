@@ -50,7 +50,7 @@ def _min_cfg_for(critic_kind, actor_kind):
             backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
             left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
         )
-    elif critic_kind == "rldp":
+    elif critic_kind in ("rldp", "rldp_density"):
         # fb's block plus the two rldp-only pieces: `horizon` and the `predictor` group.
         base = dict(
             z_dim=8, L_dim=8, num_parallel=2, discount=0.99,
@@ -62,6 +62,8 @@ def _min_cfg_for(critic_kind, actor_kind):
             left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
             predictor=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
         )
+        if critic_kind == "rldp_density":
+            base.update(temp=1.0, actor_temp=None, actor_q_center=True)
     elif critic_kind == "iql_bilinear":
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, expectile=0.9, tau=0.005,
@@ -91,7 +93,7 @@ def _min_cfg_for(critic_kind, actor_kind):
             actor_q_center=True,
             z_dim=8,  # only read if paired with an actor (flowbc) that needs a latent width
         )
-    elif critic_kind == "psm":
+    elif critic_kind in ("psm", "psm_density"):
         base = dict(
             z_dim=8, max_log_seed=4, num_parallel=2, discount=0.99, ortho_coef=1.0,
             pessimism_penalty=0.0, actor_pessimism_penalty=0.5, mix_ratio=0.5,
@@ -100,6 +102,8 @@ def _min_cfg_for(critic_kind, actor_kind):
             phi=dict(hidden_dim=16, hidden_layers=2, norm=True),
             sf=dict(hidden_dim=32, hidden_layers=1, embedding_layers=2),
         )
+        if critic_kind == "psm_density":
+            base.update(temp=1.0, actor_temp=None, actor_q_center=True)
     elif critic_kind == "crl":
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, tau=0.005,
