@@ -93,6 +93,21 @@ for CRITIC in $CRITICS; do
            'NR>1{v=$NF;gsub(/[\r[:space:]]/,"",v);if(v==w)f=1}END{exit !f}' "$RUN_DIR/eval.csv"; then
         echo "SKIP(done) $NAME" | tee -a "$MANIFEST"; continue; fi
 
+      # RESUME=1: continue an existing cell from its newest checkpoint instead of
+      # restarting. start_step becomes restore_epoch+1 and the phase is derived from it
+      # (impls/main.py), so a cell resumed past rldp_phase1_steps re-enters phase 2
+      # directly and one resumed before it finishes phase 1 first -- no flag needed.
+      RES=()
+      if [ "${RESUME:-0}" = "1" ]; then
+        EP=$(ls "$RUN_DIR"/params_*.pkl 2>/dev/null | sed -E 's/.*params_([0-9]+)\.pkl/\1/' \
+             | sort -n | tail -1)
+        if [ -n "$EP" ]; then
+          RES=( --restore_path "$RUN_DIR" --restore_epoch "$EP" )
+          echo "RESUME $NAME from step $EP" | tee -a "$MANIFEST"
+        else
+          echo "RESUME $NAME: no checkpoint, starting from scratch" | tee -a "$MANIFEST"
+        fi
+      fi
       OV=( --override "discount=${DISC[$DOM]}"
            --override "rldp_phase1_steps=$PHASE1"
            --override "measure_hit_spec=\"${HIT[$DOM]}\""
@@ -109,7 +124,7 @@ XLA_PYTHON_CLIENT_PREALLOCATE=false"
 --critic $CRITIC --actor $ACTOR --domain $DOM --seed $SEED \
 --train_steps $STEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL \
 --eval_episodes $EVAL_EPISODES --num_video 0 \
---save_dir $SAVE_ROOT/$DOM/$CRITIC ${OV[*]} 2>&1 | tee $REPO/logs/$NAME.log"
+--save_dir $SAVE_ROOT/$DOM/$CRITIC ${RES[*]} ${OV[*]} 2>&1 | tee -a $REPO/logs/$NAME.log"
 
       if [ "$DRYRUN" = "1" ]; then
         echo "DRYRUN gpu=$((GPU % NGPU)) $NAME" | tee -a "$MANIFEST"

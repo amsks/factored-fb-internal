@@ -128,6 +128,21 @@ class RLDPCritic:
     # False (default) keeps the paper's Eq-7 form (offdiag + diag), which is what the
     # official-parity config ships with. See the spec's item-1 footnote.
     ortho_inert: bool = False
+    # Which backward map the FB TD TARGET is built from.
+    # False (default) = the TARGET tower, which is what td_jepa does and what this file was
+    # audited as. True = the ONLINE tower, which is what OFFICIAL RLDP does:
+    # `target_B = self._model._backward_map(goal)` (baselines/rldp agent.py::update_fb) --
+    # its `_target_backward_map` is a PHASE-1-ONLY object, used solely as the SP target in
+    # update_mr and refreshed there by hard copy; update_fb never touches it.
+    # This matters precisely in the two-phase arm. With B frozen in phase 2 and the target
+    # tower left wherever phase 1's last hard copy put it, the residual
+    #     diff = F(s,a,z)^T B_online - gamma * F_target(s',a',z)^T B_target
+    # compares two DIFFERENT bases forever. The diagonal term -mean(diag(diff)) is linear
+    # and unbounded, so F can grow along directions the off-diagonal quadratic does not
+    # penalize, and the FB loss diverges geometrically. With the online tower on both
+    # sides the residual is (F - gamma F_target)^T B in ONE fixed basis, i.e. an ordinary
+    # TD residual.
+    fb_target_online_b: bool = False
 
     GROUPS = ("forward", "backward", "left_encoder", "predictor")
     # STAGES is read by Agent.apply_update. One stage in every phase; what changes is
@@ -354,7 +369,12 @@ class RLDPCritic:
         # target measure (stop-grad): target nets on next_obs.
         nle = self._le(target["left_encoder"], next_obs)
         tFs = self._F(target["forward"], nle, z, next_action)
-        tB = self._B(target["backward"], goal)
+        # Official RLDP builds the FB target from the ONLINE backward map (see
+        # `fb_target_online_b`). It is stop-gradded either way -- the successor residual
+        # never trains B (divergence 1 above) -- so this changes which weights are read,
+        # not what receives gradient.
+        tB = self._B(params["backward"] if self.fb_target_online_b else target["backward"],
+                     goal)
         tM = jnp.einsum("pbz,cz->pbc", tFs, tB)
         tmean, tunc = targets_uncertainty(tM, P)
         target_M = jax.lax.stop_gradient(tmean - self.fb_pessimism_penalty * tunc)
@@ -511,6 +531,7 @@ class RLDPCritic:
             no_left_encoder=no_left_encoder,
             sp_official_scale=bool(config.get("rldp_sp_official_scale", False)),
             ortho_inert=bool(config.get("rldp_ortho_inert", False)),
+            fb_target_online_b=bool(config.get("rldp_fb_target_online_b", False)),
         )
         targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
         return critic, params, targets

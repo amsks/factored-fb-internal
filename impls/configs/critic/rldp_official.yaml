@@ -35,6 +35,19 @@ rldp_sp_official_scale: true
 # for logging and never enters the objective, so under a sqrt(d)-normalized B the term is
 # inert. We follow the PAPER and keep the code-exact variant one flag away.
 rldp_ortho_inert: false
+# The FB TD target is built from the ONLINE backward map, as official RLDP does
+# (`target_B = self._model._backward_map(goal)`, agent.py::update_fb). Its
+# _target_backward_map is a PHASE-1-ONLY object -- the SP target in update_mr, refreshed
+# there by the hard copy above -- and update_fb never reads it.
+# NOT COSMETIC. Measured A/B from one shared 2M checkpoint, phase 2 only, this flag the
+# only difference (dmc-walker, 50k steps):
+#     target tower : fb_loss   256 ->  30,650   (geometric, doubling every ~5k steps)
+#     online tower : fb_loss   227 ->     437   (flat, q_mean decelerating)
+# With B frozen in phase 2 and the target tower stuck wherever phase 1's last hard copy
+# left it, the residual F^T B_online - gamma F_target^T B_target compares two different
+# bases forever; the linear -mean(diag(diff)) term then grows F along directions the
+# off-diagonal quadratic never penalizes. One basis makes it an ordinary TD residual.
+rldp_fb_target_online_b: true
 ortho_coef: 1.0
 
 # Architecture / optimization, from the official ExoRL example.
