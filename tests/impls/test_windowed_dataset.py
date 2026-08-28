@@ -6,9 +6,15 @@ trajectory, and nothing fails loudly — the shapes are right and the loss is fi
 So the boundary behaviour is pinned here first, in the same way
 tests/impls/test_hgcdataset.py pins HGCDataset's `low_actor_goals` clamp.
 
-Contract (matching HGCDataset's convention, `np.minimum(idxs + k, final_state_idxs)`):
+Contract (td_jepa's parallel.py layout; clamping per HGCDataset's convention):
   * future_observations / future_actions have shape [B, h-1, ...];
-  * column k (0-based) is dataset row `min(idx + 1 + k, traj_final_idx)`;
+  * future_actions      column k (0-based) is dataset row `min(idx + 1 + k, traj_final_idx)` (a_{t+1+k});
+  * future_observations column k (0-based) is dataset row `min(idx + 2 + k, traj_final_idx)` (s_{t+2+k})
+    -- the observation column LEADS the action column by one step, so column k is the
+    aligned rollout pair (a_{t+1+k} -> the state it reaches, s_{t+2+k}); prepending the
+    batch's own (action, next_observations) gives RLDP's h-step rollout, step k -> s_{t+k}
+    (the 2026-08-25 off-by-one fix: both windows used to sit at rows t+1..t+h-1, so the
+    SP target sequence duplicated s_{t+1} and never reached s_{t+h});
   * a window starting near the end of a trajectory REPEATS that trajectory's last row
     rather than reading the first rows of the next episode.
 """
@@ -105,40 +111,53 @@ def test_window_contents_are_the_actual_next_h_rows():
     idxs = np.array([0, 1, 5, T + 2, 2 * T + 3])     # all far from any trajectory end
     b = ds.sample(len(idxs), idxs=idxs)
     for k in range(3):                               # h-1 == 3 future columns
-        np.testing.assert_allclose(b["future_observations"][:, k], obs[idxs + 1 + k])
+        np.testing.assert_allclose(b["future_observations"][:, k], obs[idxs + 2 + k])
         np.testing.assert_allclose(b["future_actions"][:, k], acts[idxs + 1 + k])
 
 
-def test_future_column_zero_is_the_next_observation():
-    """Column 0 of the window is s_{t+1}: the same row `next_observations` carries. If
-    these disagree the predictor's first rollout step is matched against the wrong state."""
-    ds = make_dataset(_base(), _cfg(horizon=3))
+def test_future_column_zero_starts_one_step_past_the_transition():
+    """Column 0 of the observation window is s_{t+2} -- the row AFTER the one
+    `next_observations` carries -- paired with action column 0 = a_{t+1}, the action
+    taken AT s_{t+1}. The pre-fix window duplicated `next_observations` in column 0
+    (2026-08-25 off-by-one), which taught the predictor that a_{t+1} does not move the
+    embedding; this is the regression pin."""
+    base = _base()
+    obs = np.asarray(base["observations"])
+    acts = np.asarray(base["actions"])
+    ds = make_dataset(base, _cfg(horizon=3))
     idxs = np.array([0, 2, T + 1])
     b = ds.sample(len(idxs), idxs=idxs)
-    np.testing.assert_allclose(b["future_observations"][:, 0], b["next_observations"])
+    np.testing.assert_allclose(b["future_observations"][:, 0], obs[idxs + 2])
+    np.testing.assert_allclose(b["future_actions"][:, 0], acts[idxs + 1])
+    assert not np.allclose(b["future_observations"][:, 0], b["next_observations"]), \
+        "column 0 duplicates next_observations -- the pre-fix off-by-one is back"
 
 
 # --------------------------------------------------------------------------
 # THE point: boundary clamping
 # --------------------------------------------------------------------------
 def test_window_near_a_trajectory_end_is_clamped_not_bled():
-    """idx = T-3 with h=4 would reach rows T-2, T-1, T -- and row T is the FIRST row of
-    the next episode. It must be clamped to T-1 (this trajectory's own last row)."""
+    """idx = T-3 with h=4: the observation window wants rows T-1, T, T+1 and the action
+    window rows T-2, T-1, T -- rows T and T+1 are in the NEXT episode. Both must clamp
+    to T-1 (this trajectory's own last row)."""
     base = _base()
     obs = np.asarray(base["observations"])
     ds = make_dataset(base, _cfg(horizon=4))
     idx = np.array([T - 3])
     b = ds.sample(1, idxs=idx)
-    got = b["future_observations"][0][:, 0]          # the row tag
-    np.testing.assert_allclose(got, [T - 2, T - 1, T - 1])
-    assert not np.any(got >= T), "window bled into the next episode"
-    np.testing.assert_allclose(b["future_observations"][0], obs[[T - 2, T - 1, T - 1]])
+    got_o = b["future_observations"][0][:, 0]        # the row tag
+    got_a = b["future_actions"][0][:, 0]
+    np.testing.assert_allclose(got_o, [T - 1, T - 1, T - 1])
+    np.testing.assert_allclose(got_a, [T - 2, T - 1, T - 1])
+    assert not np.any(got_o >= T) and not np.any(got_a >= T), "window bled into the next episode"
+    np.testing.assert_allclose(b["future_observations"][0], obs[[T - 1, T - 1, T - 1]])
 
 
 def test_clamping_matches_the_hgc_convention_over_every_start_row():
-    """Exhaustive: for EVERY dataset row and a horizon long enough to overrun, the window
-    must equal `min(idx + 1 + k, final_state_idx)` -- HGCDataset's clamp, applied to all
-    h-1 columns. A version that clamped to `size - 1` instead of the trajectory end would
+    """Exhaustive: for EVERY dataset row and a horizon long enough to overrun, the action
+    window must equal `min(idx + 1 + k, final_state_idx)` and the observation window
+    `min(idx + 2 + k, final_state_idx)` -- HGCDataset's clamp, applied to all h-1
+    columns. A version that clamped to `size - 1` instead of the trajectory end would
     pass every interior row and fail here."""
     base = _base()
     obs = np.asarray(base["observations"])
@@ -149,9 +168,8 @@ def test_clamping_matches_the_hgc_convention_over_every_start_row():
     b = ds.sample(SIZE, idxs=idxs)
     final = _final_idxs(idxs)
     for k in range(h - 1):
-        want = np.minimum(idxs + 1 + k, final)
-        np.testing.assert_allclose(b["future_observations"][:, k], obs[want])
-        np.testing.assert_allclose(b["future_actions"][:, k], acts[want])
+        np.testing.assert_allclose(b["future_observations"][:, k], obs[np.minimum(idxs + 2 + k, final)])
+        np.testing.assert_allclose(b["future_actions"][:, k], acts[np.minimum(idxs + 1 + k, final)])
 
 
 def test_every_window_row_stays_inside_its_own_trajectory():
@@ -160,19 +178,26 @@ def test_every_window_row_stays_inside_its_own_trajectory():
     ds = make_dataset(_base(), _cfg(horizon=5))
     idxs = np.arange(SIZE)
     b = ds.sample(SIZE, idxs=idxs)
-    rows = b["future_observations"][:, :, 0]         # row tags, [SIZE, h-1]
-    assert np.all(rows // T == (idxs // T)[:, None]), "a window crossed into another episode"
-    assert np.all(rows >= idxs[:, None]), "a window went backwards in time"
-    assert np.all(np.diff(rows, axis=1) >= 0), "a window is not monotone in time"
+    for key in ("future_observations", "future_actions"):
+        rows = b[key][:, :, 0]                       # row tags, [SIZE, h-1]
+        assert np.all(rows // T == (idxs // T)[:, None]), "a window crossed into another episode"
+        assert np.all(rows >= idxs[:, None]), "a window went backwards in time"
+        assert np.all(np.diff(rows, axis=1) >= 0), "a window is not monotone in time"
 
 
-def test_actions_are_clamped_on_the_same_rows_as_observations():
-    """Clamping obs but not actions (or vice versa) would silently pair a state with an
-    action from a different step -- the classic off-by-one in windowed samplers."""
+def test_observation_rows_lead_action_rows_by_one_step():
+    """The alignment invariant of the fixed window: column k's observation is the state
+    REACHED by column k's action, i.e. obs row = min(action row + 1, traj_final_idx),
+    everywhere -- interior AND clamped. Equal rows (the pre-fix layout) would silently
+    pair each action with the state it was taken FROM, the classic off-by-one in
+    windowed samplers."""
     ds = make_dataset(_base(), _cfg(horizon=6))
     idxs = np.arange(SIZE)
     b = ds.sample(SIZE, idxs=idxs)
-    np.testing.assert_allclose(b["future_observations"][:, :, 0], b["future_actions"][:, :, 0])
+    final = _final_idxs(idxs)
+    np.testing.assert_allclose(
+        b["future_observations"][:, :, 0],
+        np.minimum(b["future_actions"][:, :, 0] + 1, final[:, None]))
 
 
 # --------------------------------------------------------------------------

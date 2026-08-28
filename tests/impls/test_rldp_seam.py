@@ -150,7 +150,12 @@ def _np_predictor(p, x, action, hidden_layers):
 
 
 def _np_sp(critic, params, target, batch, cfg):
-    """agents/rldp/agent.py::update_fb's SP block, in numpy."""
+    """td_jepa's update_fb SP block (metamotivo/agents/rldp/agent.py), in numpy: prepend
+    the one-step pair, then zip window columns 1:1. The columns arrive PRE-ALIGNED from
+    WindowedDataset (obs column k = the state action column k reaches, s_{t+2+k}; the
+    2026-08-25 off-by-one fix), so this enumeration is the corrected pairing
+    (a_{t+k-1} -> s_{t+k}); the alignment itself is pinned by
+    `test_sp_pairs_on_a_real_window_implement_the_reference_alignment` below."""
     obs = np.asarray(batch["observations"])
     hl_b, norm_b = cfg["backward"]["hidden_layers"], cfg["backward"]["norm"]
     hl_p = cfg["predictor"]["hidden_layers"]
@@ -199,6 +204,40 @@ def test_sp_loss_reads_every_window_column():
             bumped[key] = jnp.asarray(arr)
             assert float(critic._sp_loss(params, target, bumped)[0]) != base, \
                 f"{key} column {k} is not read by the SP rollout"
+
+
+def test_sp_pairs_on_a_real_window_implement_the_reference_alignment():
+    """END-TO-END pin of the 2026-08-25 off-by-one fix: run _sp_pairs on a batch served
+    by the REAL WindowedDataset over row-tagged data and check the zipped rollout is
+    td_jepa's alignment -- step k applies a_{t+k-1} and targets s_{t+k}, for k = 1..h:
+
+        actions = [a_t, a_{t+1}, ..., a_{t+h-1}]
+        targets = [s_{t+1}, s_{t+2}, ..., s_{t+h}]
+
+    The pre-fix pairing (targets [s_{t+1}, s_{t+1}, s_{t+2}, ..., s_{t+h-1}]: step 2
+    re-targeting s_{t+1}, s_{t+h} never reached) fails this on every column."""
+    h = HOR
+    critic, _, _ = RLDPCritic.build(*_ex(), _cfg())
+    T, n_traj = 10, 3
+    n = T * n_traj
+    rng = np.random.default_rng(0)
+    terminals = np.zeros(n, np.float32)
+    terminals[np.arange(1, n_traj + 1) * T - 1] = 1.0
+    obs = rng.standard_normal((n, OBS)).astype(np.float32)
+    acts = np.tanh(rng.standard_normal((n, ACT))).astype(np.float32)
+    obs[:, 0] = np.arange(n)                          # row tag
+    acts[:, 0] = np.arange(n)                         # row tag
+    ds = make_dataset(Dataset.create(observations=obs, actions=acts, terminals=terminals),
+                      _cfg())
+    idxs = np.array([0, 3, 12, 2 * T + 5])            # interior: idx + h <= traj end
+    batch = ds.sample(len(idxs), idxs=idxs)
+    actions, targets = critic._sp_pairs(batch)
+    assert len(actions) == len(targets) == h
+    for k in range(1, h + 1):
+        np.testing.assert_allclose(np.asarray(actions[k - 1])[:, 0], idxs + k - 1,
+                                   err_msg=f"rollout step {k} does not apply a_(t+{k - 1})")
+        np.testing.assert_allclose(np.asarray(targets[k - 1])[:, 0], idxs + k,
+                                   err_msg=f"rollout step {k} does not target s_(t+{k})")
 
 
 def test_sp_targets_come_from_the_TARGET_backward_map():

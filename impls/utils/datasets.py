@@ -486,19 +486,31 @@ class HGCDataset(GCDataset):
 @dataclasses.dataclass
 class WindowedDataset:
     """h-step WINDOWED batches: the FB training batch plus, for every sampled index, the
-    next h-1 (observation, action) pairs.
+    rest of the h-step self-predictive rollout's (action, target-state) columns.
 
     Added for RLDP (impls/critics/rldp.py), whose self-predictive head rolls a learned
-    predictor forward h steps from B(obs) and matches each step against the target
-    backward map at the corresponding future state. The torch reference gets these from
-    `DictBuffer.sample(batch_size, horizon=h)` and slices `batch["observation"][:, 1:]` /
-    `batch["action"][:, 1:]` (agents/rldp/agent.py::update); this is the seam's equivalent.
+    predictor forward h steps from B(obs) and matches step k against the target backward
+    map at s_{t+k}, k = 1..h. The true reference sampler is td_jepa's
+    `metamotivo/buffers/parallel.py::_sample` (H > 1 branch): `traj_observation` holds
+    s_{t+2}..s_{t+H} while `traj_action` holds a_{t+1}..a_{t+H-1} -- the observation
+    column leads the action column by ONE STEP, so that after the agent prepends the
+    one-step pair (a_t -> s_{t+1}), zipping actions with targets gives the aligned
+    rollout (a_{t+k-1} -> s_{t+k}). This class emits the same layout:
 
-    Emits, on top of everything `FBDataset.sample` emits:
-      * future_observations -- [B, h-1, obs_dim]
-      * future_actions      -- [B, h-1, action_dim]
-    with column k (0-based) being dataset row `min(idx + 1 + k, traj_final_idx)`.
-    Column 0 is therefore s_{t+1}, the same row `next_observations` carries.
+      * future_observations -- [B, h-1, obs_dim],    column k = row `min(idx + 2 + k, traj_final_idx)`  (s_{t+2+k})
+      * future_actions      -- [B, h-1, action_dim], column k = row `min(idx + 1 + k, traj_final_idx)`  (a_{t+1+k})
+
+    on top of everything `FBDataset.sample` emits. Column k of future_observations is the
+    next state REACHED BY column k of future_actions.
+
+    HISTORY (2026-08-25 off-by-one fix). This class originally sliced BOTH windows at
+    rows t+1..t+h-1 (copying the torch port agents/rldp/agent.py, which slices
+    `batch["observation"][:, 1:]` where td_jepa reads the NEXT-observation sequence), so
+    future_observations column 0 duplicated `next_observations` (s_{t+1}): rollout step 2
+    was matched against s_{t+1} again -- training the predictor that a_{t+1} does not
+    move the embedding -- and the rollout never reached s_{t+h}. The off-by-one was the
+    port's, not td_jepa's. The observation window now extends one row further (to
+    s_{t+h}) and drops the duplicated s_{t+1} column, reproducing the reference exactly.
 
     TRAJECTORY BOUNDARIES. The window is clamped to the anchor row's OWN final index,
     exactly as `HGCDataset.sample` clamps `low_actor_goals`
@@ -564,11 +576,15 @@ class WindowedDataset:
         if h > 1:
             all_obs, all_acts = self.dataset['observations'], self.dataset['actions']
             final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
-            offsets = np.arange(1, h)                                   # [h-1]
-            win = np.minimum(idxs[:, None] + offsets[None, :],          # [B, h-1]
-                             final_idxs[:, None])
-            batch['future_observations'] = np.asarray(all_obs[win], np.float32)
-            batch['future_actions'] = np.asarray(all_acts[win], np.float32)
+            # The observation window LEADS the action window by one row (see the class
+            # docstring): column k pairs action row t+1+k with the state it reaches,
+            # row t+2+k. Both windows clamp to the anchor's own trajectory end.
+            act_win = np.minimum(idxs[:, None] + np.arange(1, h)[None, :],      # [B, h-1]
+                                 final_idxs[:, None])
+            obs_win = np.minimum(idxs[:, None] + np.arange(2, h + 1)[None, :],  # [B, h-1]
+                                 final_idxs[:, None])
+            batch['future_observations'] = np.asarray(all_obs[obs_win], np.float32)
+            batch['future_actions'] = np.asarray(all_acts[act_win], np.float32)
 
         if self.mask_dims:
             batch['observations'][:, self.mask_dims] = 0.0

@@ -15,11 +15,13 @@ window, and each step is L2-matched against the TARGET backward map at the corre
 future state:
 
     curr_0 = B(s_t)
-    curr_k = P(curr_{k-1}, a_k)      for k = 1..h
-    sp     = mean_k  || curr_k - sg[B_target(y_k)] ||^2      (sum over z, mean over P x B)
+    curr_k = P(curr_{k-1}, a_{t+k-1})      for k = 1..h
+    sp     = mean_k  || curr_k - sg[B_target(s_{t+k})] ||^2  (sum over z, mean over P x B)
 
-with (a_k, y_k) enumerated exactly as the reference enumerates them (see
-`_sp_pairs` and the off-by-one note there).
+i.e. step k applies the action taken at s_{t+k-1} and predicts the embedding of the
+state it reaches, exactly td_jepa's alignment (see `_sp_pairs`; the torch port
+agents/rldp/agent.py has an off-by-one here that this transcription CORRECTS —
+history in the `_sp_pairs` docstring).
 
 What RLDP changes relative to `impls/critics/fb.py`
 ---------------------------------------------------
@@ -123,22 +125,29 @@ class RLDPCritic:
 
     # --- the self-predictive head ---
     def _sp_pairs(self, batch):
-        """The (action, target-state) sequence the rollout is trained on, enumerated
-        exactly as `RLDPAgent.update_fb` enumerates it:
+        """The (action, target-state) sequence the rollout is trained on — the
+        reference's h-step alignment: rollout step k applies a_{t+k-1} and is matched
+        against B_target(s_{t+k}), for k = 1..h.
 
-            targets = [next_obs]  + [future_obs[:, i] for i in range(h-1)]
-            actions = [action]    + [future_act[:, i] for i in range(h-1)]
+            actions = [a_t]      + [a_{t+1}, ..., a_{t+h-1}]   ([action]   + future_act columns)
+            targets = [s_{t+1}]  + [s_{t+2}, ..., s_{t+h}]     ([next_obs] + future_obs columns)
 
-        NOTE (transcription, not a design choice). `future_obs[:, 0]` IS `next_obs` —
-        the window's column 0 is s_{t+1}, the same row `next_observations` carries — so
-        the first two entries of `targets` are the SAME state while `actions` advances.
-        Step k >= 2 of the rollout is therefore matched against s_{t+k-1} rather than
-        s_{t+k}: the target sequence lags the action sequence by one from the second step
-        on. The reference does this (its `future_obs` is `batch["observation"][:, 1:]`,
-        not `batch["next"]["observation"][:, 1:]`) and this port reproduces it so the two
-        implementations compute the same number. It looks like an off-by-one in the
-        reference; it is flagged here rather than silently corrected, because correcting
-        it would make this critic and the PyTorch agent disagree.
+        The window arrives PRE-ALIGNED from WindowedDataset (impls/utils/datasets.py):
+        future_actions column i is a_{t+1+i} and future_observations column i is
+        s_{t+2+i} — the state that action reaches — mirroring td_jepa's sampler
+        (metamotivo/buffers/parallel.py: `traj_action` = a_{t+1}..a_{t+H-1},
+        `traj_observation` = s_{t+2}..s_{t+H}). So the plain per-column zip below is
+        exactly the reference's zip in `update_fb`.
+
+        HISTORY (2026-08-25 fix). This port originally copied the torch port
+        agents/rldp/agent.py, whose window slices `batch["observation"][:, 1:]` where
+        td_jepa reads the next-observation sequence: targets came out as
+        [s_{t+1}, s_{t+1}, s_{t+2}, ..., s_{t+h-1}] — step 2 re-targeted s_{t+1}
+        (training the predictor that a_{t+1} does not move the embedding) and the
+        rollout never reached s_{t+h}. That off-by-one was the TORCH PORT's, not the
+        td_jepa reference's, and is corrected here; the correction lives in
+        WindowedDataset's column offsets, so this enumeration matches the reference
+        literally.
 
         With h == 1 the batch carries no window and this degenerates to the single
         one-step pair, matching the reference's `if self.horizon > 1` guard.
