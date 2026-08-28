@@ -11,6 +11,10 @@ import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
+# fbcpr_density imports metamotivo at module scope; the jax venv has torch but not
+# metamotivo, and a bare import there aborts COLLECTION of the whole suite (so
+# `make test` fails on a torch-only file). Skip on the real dependency, not just torch.
+pytest.importorskip("metamotivo")
 
 from impls.torch_density.fbcpr_density import density_ce_loss  # noqa: E402
 
