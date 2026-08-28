@@ -53,6 +53,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
+from impls.critics._measure_common import parse_hit_spec, scaled_hit_cols
 from impls.utils.networks import ForwardMap, PhiMap, PredictorMap
 from impls.utils.fb_math import project_z, targets_uncertainty
 
@@ -73,6 +74,16 @@ class RLDPCritic:
     norm_z: bool
     f_tau: float
     b_tau: float
+    # `backward_input` ("state" | "hit_spec"): what the backward tower B consumes as its
+    # RAW input. "state" (default) = the full observation, bit-identical shipped behavior.
+    # "hit_spec" = the eps-scaled hit-spec block slice of the observation — exactly
+    # density_fb.py's `_density_queries` transform (see _measure_common.scaled_hit_cols),
+    # applied inside `_B` itself so EVERY consumer (stage_loss's B(goal), the SP rollout's
+    # start/targets, sample_cond, map_eval_cond, infer_cond, and every subclass) inherits
+    # it through the one choke point. The SP predictor lives in B's EMBEDDING space and is
+    # untouched. `blocks` is the parsed measure_hit_spec, only read in "hit_spec" mode.
+    backward_input: str = "state"
+    blocks: tuple = ()
 
     GROUPS = ("forward", "backward", "left_encoder", "predictor")
     STAGES = ("fb",)
@@ -114,8 +125,18 @@ class RLDPCritic:
     def _F(self, p, obs_feat, z, action):
         return self.forward.apply({"params": p}, obs_feat, z, action)
 
+    def _b_in(self, x):
+        """B's raw input under `backward_input`. THE choke point: every `_B` call routes
+        through here, so no caller (parent or subclass) can hand B the wrong view. In
+        "state" mode this is the identity; in "hit_spec" mode it is the eps-scaled
+        hit-spec block slice (density_fb's `_density_queries` semantics). No caller
+        pre-slices — `_B` always receives full observation rows."""
+        if self.backward_input == "state":
+            return x
+        return scaled_hit_cols(x, self.blocks)
+
     def _B(self, p, x):
-        return self.backward.apply({"params": p}, x)
+        return self.backward.apply({"params": p}, self._b_in(x))
 
     def _le(self, p, x):
         return self.left_encoder.apply({"params": p}, x)
@@ -273,6 +294,23 @@ class RLDPCritic:
         z_dim, L_dim, P = config["z_dim"], config["L_dim"], config["num_parallel"]
         horizon = int(config["horizon"])
         assert horizon >= 1, f"horizon must be >= 1, got {horizon}"
+        backward_input = str(config.get("backward_input", "state"))
+        assert backward_input in ("state", "hit_spec"), (
+            f"backward_input must be 'state' or 'hit_spec', got {backward_input!r}")
+        blocks = ()
+        ex_b_in = ex_obs
+        if backward_input == "hit_spec":
+            # The B tower's input is a literal column slice of the observation, so the
+            # spec must fit inside it — jax would otherwise clip short rows into a
+            # silently different (narrower) input at trace time.
+            blocks = parse_hit_spec(config.get("measure_hit_spec", "19:22:0.4"))
+            need = max(b for (_a, b, _e) in blocks)
+            obs_dim = int(ex_obs.shape[-1])
+            assert obs_dim >= need, (
+                f"backward_input='hit_spec' needs observations wide enough for every "
+                f"measure_hit_spec block: the spec reaches column {need} but the "
+                f"observations are only {obs_dim} wide.")
+            ex_b_in = scaled_hit_cols(ex_obs, blocks)
         forward = ForwardMap(z_dim=z_dim, hidden_dim=config["forward"]["hidden_dim"],
                              num_parallel=P, hidden_layers=config["forward"]["hidden_layers"],
                              embedding_layers=config["forward"]["embedding_layers"])
@@ -293,7 +331,9 @@ class RLDPCritic:
         ex_pred_in = jnp.zeros((P, ex_obs.shape[0], z_dim))
         params = {
             "left_encoder": left_encoder.init(rle, ex_obs)["params"],
-            "backward": backward.init(rb, ex_obs)["params"],
+            # PhiMap infers its input width from the example: the SLICED example in
+            # hit_spec mode, so the first Dense is exactly d_c wide.
+            "backward": backward.init(rb, ex_b_in)["params"],
             "forward": forward.init(rf, ex_feat, ex_z, ex_actions)["params"],
             "predictor": predictor.init(rp, ex_pred_in, ex_actions)["params"],
         }
@@ -304,6 +344,7 @@ class RLDPCritic:
             ortho_coef=config["ortho_coef"], fb_pessimism_penalty=config["fb_pessimism_penalty"],
             train_goal_ratio=config["train_goal_ratio"], norm_z=config["norm_z"],
             f_tau=config["f_target_tau"], b_tau=config["b_target_tau"],
+            backward_input=backward_input, blocks=blocks,
         )
         targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
         return critic, params, targets

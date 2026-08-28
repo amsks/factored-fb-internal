@@ -6,6 +6,10 @@ docs/specs/2026-08-10-measure-objectives-on-mw-play.md P2, the acceptable shared
 between the two critics is the parser + hit matrix ONLY; every other symbol (the density
 kernel `_delta_phi`/`_density_queries`/`_raw_block_cols`, `_measure_terms`) lives in its
 own critic file so the two stay isolated.
+
+`scaled_hit_cols` is a later addition OUTSIDE that pair: it serves the rldp/psm critic
+families' `backward_input: "hit_spec"` mode (object-coordinate B/phi input), and like the
+parser it is generic hit-spec machinery, not part of either measure objective.
 """
 import jax.numpy as jnp
 
@@ -54,6 +58,19 @@ def parse_hit_spec(spec):
         blocks.append((a, b, e))
     assert blocks, f"measure_hit_spec parsed to no blocks: {spec!r}"
     return tuple(blocks)
+
+
+def scaled_hit_cols(x, blocks):
+    """[..., d_c] eps-scaled hit-spec block columns of full observation rows — exactly the
+    transformation density_fb.py::_density_queries applies to build the B tower's input
+    (slice each `blocks` block, divide it by its eps, concatenate), generalized to any
+    leading shape so a single eval goal row ([D]) works as well as a batch ([N, D]).
+
+    This is the `backward_input: "hit_spec"` input map for the rldp/psm critic families:
+    their B / phi towers consume this in place of the raw observation. Callers validate
+    obs width at build time (the blocks must fit inside the observation); at trace time a
+    too-short row would silently wrap/clip under jax slicing, so keep the build check."""
+    return jnp.concatenate([x[..., a:b] / e for (a, b, e) in blocks], axis=-1)
 
 
 def hit_matrix(row_obs, col_obs, blocks, dtype):

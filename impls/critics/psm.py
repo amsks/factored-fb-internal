@@ -72,6 +72,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
+from impls.critics._measure_common import parse_hit_spec, scaled_hit_cols
 from impls.utils.networks import ForwardMap, PhiMap
 from impls.utils.fb_math import project_z, targets_uncertainty, contrastive_loss, ortho_loss
 
@@ -111,6 +112,17 @@ class PSMCritic:
     norm_z: bool
     target_tau: float
     proto_seed: int
+    # `backward_input` ("state" | "hit_spec"): what the basis phi consumes as its RAW
+    # input. "state" (default) = the full observation, bit-identical shipped behavior.
+    # "hit_spec" = the eps-scaled hit-spec block slice of the observation — exactly
+    # density_fb.py's `_density_queries` transform (_measure_common.scaled_hit_cols),
+    # applied inside `_phi` itself so EVERY consumer (both stages' phi(goal), the ortho
+    # term, sample_cond's mixed z, map_eval_cond, infer_cond, and every subclass)
+    # inherits it through the one choke point. The psi towers consume the observation
+    # through their own legs and are untouched. `blocks` is the parsed measure_hit_spec,
+    # only read in "hit_spec" mode.
+    backward_input: str = "state"
+    blocks: tuple = ()
 
     GROUPS = ("phi", "sf_psi", "psm_psi")
     STAGES = ("psm", "sf")
@@ -144,8 +156,17 @@ class PSMCritic:
         assert stage == "sf", stage
         return ("sf_psi",)
 
+    def _phi_in(self, x):
+        """phi's raw input under `backward_input`. THE choke point: every `_phi` call
+        routes through here, so no caller (parent or subclass) can hand phi the wrong
+        view. Identity in "state" mode; the eps-scaled hit-spec block slice in
+        "hit_spec" mode. No caller pre-slices — `_phi` always receives full rows."""
+        if self.backward_input == "state":
+            return x
+        return scaled_hit_cols(x, self.blocks)
+
     def _phi(self, p, x):
-        return self.phi.apply({"params": p}, x)
+        return self.phi.apply({"params": p}, self._phi_in(x))
 
     def _sf(self, p, obs, z, action):
         return self.sf_psi.apply({"params": p}, obs, z, action)
@@ -295,6 +316,26 @@ class PSMCritic:
             # sample_cond draws the code as an int32 in [0, 2**max_log_seed) and shifts it.
             raise PsmConfigError(f"max_log_seed must be in [1, 30] (got {max_log_seed})")
 
+        backward_input = str(config.get("backward_input", "state"))
+        if backward_input not in ("state", "hit_spec"):
+            raise PsmConfigError(
+                f"backward_input must be 'state' or 'hit_spec', got {backward_input!r}")
+        blocks = ()
+        ex_phi_in = ex_obs
+        if backward_input == "hit_spec":
+            # phi's input is a literal column slice of the observation, so the spec must
+            # fit inside it — jax would otherwise clip short rows into a silently
+            # different (narrower) input at trace time.
+            blocks = parse_hit_spec(config.get("measure_hit_spec", "19:22:0.4"))
+            need = max(b for (_a, b, _e) in blocks)
+            obs_dim = int(ex_obs.shape[-1])
+            if obs_dim < need:
+                raise PsmConfigError(
+                    f"backward_input='hit_spec' needs observations wide enough for every "
+                    f"measure_hit_spec block: the spec reaches column {need} but the "
+                    f"observations are only {obs_dim} wide.")
+            ex_phi_in = scaled_hit_cols(ex_obs, blocks)
+
         phi = PhiMap(z_dim=z_dim, hidden_dim=config["phi"]["hidden_dim"],
                      hidden_layers=config["phi"]["hidden_layers"], norm=config["phi"]["norm"])
         psi_kw = dict(z_dim=z_dim, hidden_dim=config["sf"]["hidden_dim"], num_parallel=P,
@@ -306,7 +347,9 @@ class PSMCritic:
         rp, rs, rq = jr.split(jr.PRNGKey(config["seed"] + 7000), 3)
         n = ex_obs.shape[0]
         params = {
-            "phi": phi.init(rp, ex_obs)["params"],
+            # PhiMap infers its input width from the example: the SLICED example in
+            # hit_spec mode, so the first Dense is exactly d_c wide.
+            "phi": phi.init(rp, ex_phi_in)["params"],
             "sf_psi": sf_psi.init(rs, ex_obs, jnp.zeros((n, z_dim)), ex_actions)["params"],
             "psm_psi": psm_psi.init(rq, ex_obs, jnp.zeros((n, max_log_seed)), ex_actions)["params"],
         }
@@ -324,5 +367,6 @@ class PSMCritic:
             # fixed constant of the code, identical in every run, so the proto policy
             # family must not vary with the run seed either.
             proto_seed=int(config["proto_seed"]),
+            backward_input=backward_input, blocks=blocks,
         )
         return critic, params, targets
