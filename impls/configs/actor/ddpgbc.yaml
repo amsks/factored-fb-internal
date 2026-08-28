@@ -4,3 +4,7 @@ actor:
   alpha: 0.3          # BC coefficient in DDPG+BC
   const_std: true
   layer_norm: false
+  # Touati parity: noise on the ACTOR-loss action (eq. 43 / fb_ddpg dist.sample(clip)).
+  # 0.0 = the noiseless mode every prior cell ran.
+  q_noise_std: 0.0
+  q_noise_clip: 0.3

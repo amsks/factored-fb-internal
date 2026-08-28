@@ -71,6 +71,9 @@ class DDPGBCDensityActor(DDPGBCActor):
         # Policy on FEATURES, critic on the raw observation; identity on state.
         dist = self._dist(params["actor"], _obs_feat(cond, obs), cvec)
         q_actions = self._q_actions(dist, boot)
+        if self.q_noise_std > 0.0:
+            q_actions = _smooth(q_actions, boot["actor_q_rng"],
+                                self.q_noise_std, self.q_noise_clip)
         q, qs = critic.q_fn(params, obs, cond, q_actions, stop_encoder_grad=True)
         # `qs` is the critic's normalizer leg, centered under density_fb's actor_q_center.
         # Only the DENOMINATOR is centered: centering the numerator would make -q.mean() the
@@ -97,7 +100,9 @@ class DDPGBCDensityActor(DDPGBCActor):
                     jnp.clip(dist.mode() if self.const_std
                              else dist.sample(seed=r_boot), -1.0, 1.0),
                     r_boot, self.boot_noise_std, self.boot_noise_clip),
-                "actor_sample_rng": r_sample}
+                "actor_sample_rng": r_sample,
+                # fold_in consumes nothing from the stream (see impls/actors/ddpgbc.py).
+                "actor_q_rng": jax.random.fold_in(rng, 7)}
         if "_cvec_vgoal" in cond:
             # a+ ~ pi(.|s', g_value) at FROZEN params: density_fb's forward tower F(s,a,g)
             # makes its row g-indexed, and it refuses the ACTOR-goal `next_action` above.

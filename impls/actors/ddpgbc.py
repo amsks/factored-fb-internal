@@ -59,6 +59,13 @@ class DDPGBCActor:
     const_std: bool
     boot_noise_std: float = 0.0      # target policy smoothing; 0.0 = off (bit-identical)
     boot_noise_clip: float = 0.3
+    # Touati parity (2026-08-27): the reference's ACTOR loss also samples the action —
+    # dist.sample(clip=stddev_clip) around the mode (controllable_agent fb_ddpg.py; paper
+    # eq. 43's eps inside the policy objective). 0.0 = the noiseless mode every prior cell
+    # ran. The rng arrives as boot["actor_q_rng"], a fold_in that consumes nothing from the
+    # existing draw stream.
+    q_noise_std: float = 0.0
+    q_noise_clip: float = 0.3
 
     GROUPS = ("actor",)
     NEEDS_V = False
@@ -74,6 +81,9 @@ class DDPGBCActor:
         # `stop_encoder_grad`. Both legs detached, so no encoder param moves.
         dist = self._dist(params["actor"], _obs_feat(cond, obs), cvec)
         q_actions = jnp.clip(dist.mode(), -1, 1)
+        if self.q_noise_std > 0.0:
+            q_actions = _smooth(q_actions, boot["actor_q_rng"],
+                                self.q_noise_std, self.q_noise_clip)
         q, _ = critic.q_fn(params, obs, cond, q_actions, stop_encoder_grad=True)
         q_loss = -q.mean() / jax.lax.stop_gradient(jnp.abs(q).mean() + 1e-6)
         log_prob = dist.log_prob(action)
@@ -90,7 +100,10 @@ class DDPGBCActor:
         # draw here would shift every downstream rng without changing what is smoothed.
         boot = {"next_action": _smooth(
             jnp.clip(self._dist(p, next_obs, _cvec(cond)).mode(), -1, 1),
-            rng, self.boot_noise_std, self.boot_noise_clip)}
+            rng, self.boot_noise_std, self.boot_noise_clip),
+                # For loss()'s q-term noise (q_noise_std > 0). fold_in derives a fresh key
+                # WITHOUT consuming the stream, so every existing draw is bit-identical.
+                "actor_q_rng": jax.random.fold_in(rng, 7)}
         # CONTRACT (canonical statement; the other actors point here). The CRITIC decides
         # the actor's conditioning vector at the value goal and publishes it as
         # cond["_cvec_vgoal"]. Actors must NOT infer it from cond["value_goal"], which is the
@@ -146,4 +159,6 @@ class DDPGBCActor:
         return cls(actor=actor, alpha=float(a_cfg["alpha"]),
                    const_std=bool(a_cfg.get("const_std", True)),
                    boot_noise_std=float(a_cfg.get("boot_noise_std", 0.0)),
-                   boot_noise_clip=float(a_cfg.get("boot_noise_clip", 0.3))), params
+                   boot_noise_clip=float(a_cfg.get("boot_noise_clip", 0.3)),
+                   q_noise_std=float(a_cfg.get("q_noise_std", 0.0)),
+                   q_noise_clip=float(a_cfg.get("q_noise_clip", 0.3))), params

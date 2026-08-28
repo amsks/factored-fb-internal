@@ -10,8 +10,20 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
+import flax.linen as nn
+
 from impls.utils.networks import ForwardMap, PhiMap
 from impls.utils.fb_math import project_z, targets_uncertainty
+
+
+class _IdentityMap(nn.Module):
+    """Parameterless stand-in for the left encoder (`left_encoder.identity: true`): the
+    reference FB feeds F the raw observation. init() yields empty params, so the group's
+    optimizer and polyak target are no-ops without any special-casing in the seam."""
+
+    @nn.compact
+    def __call__(self, x):
+        return x
 
 
 @dataclasses.dataclass(frozen=True)
@@ -28,6 +40,17 @@ class FBCritic:
     norm_z: bool
     f_tau: float
     b_tau: float
+    # Touati et al. parity knobs (2026-08-27), both default 0.0 = every prior cell identical.
+    # q_loss_coef: the reference's auxiliary Q loss (fb_ddpg.py `q_loss`; paper eq. 42) —
+    #   MSE(F_k^T z, implicit_reward + gamma * min_l F_l^-T z) with the implicit reward read
+    #   off the ONLINE B covariance inverse. The paper's Listing 1 divides by z_dim where the
+    #   repo uses a 0.01 coefficient; pass the coefficient explicitly (1/z_dim for the
+    #   paper's reading).
+    # actor_pessimism_penalty: q_fn returns mean - c * unc over the F heads. With 2 heads
+    #   unc = |Q1 - Q2|, so c = 0.5 IS the reference's min(Q1, Q2) exactly; 0.0 keeps the
+    #   mean-of-heads every earlier cell ran.
+    q_loss_coef: float = 0.0
+    actor_pessimism_penalty: float = 0.0
 
     GROUPS = ("forward", "backward", "left_encoder")
     STAGES = ("fb",)
@@ -104,7 +127,24 @@ class FBCritic:
         orth_diag = -jnp.mean(jnp.diagonal(cov))
         orth = orth_off + orth_diag
         loss = fb_off + fb_diag + self.ortho_coef * orth
-        return loss, {"fb_loss": loss, "fb_offdiag": fb_off, "fb_diag": fb_diag, "ortho_loss": orth}
+        info = {"fb_loss": loss, "fb_offdiag": fb_off, "fb_diag": fb_diag, "ortho_loss": orth}
+        if self.q_loss_coef > 0.0:
+            # Reference auxiliary Q loss (fb_ddpg.py, paper eq. 42), transcribed exactly:
+            # min over TARGET heads for next_Q, ONLINE B covariance inverse (torch.inverse,
+            # not pinv) for the implicit reward, both heads regressed to one target.
+            next_Q = jnp.min(jnp.einsum("pbz,bz->pb", tFs, z), axis=0)          # [B]
+            # pinv, not inv: the paper's Listing 1 choice (the repo's torch.inverse blew up
+            # here — maze z100 NaN'd by 100k with aux loss ~5e3 at step 200; pinv is equal
+            # where inverse is sane and bounded where it is not).
+            cov = Bm.T @ Bm / Bm.shape[0]                                        # [z, z]
+            implicit_reward = ((Bm @ jnp.linalg.pinv(cov)) * z).sum(-1)          # [B]
+            target_Q = jax.lax.stop_gradient(implicit_reward + disc * next_Q)
+            Qs = jnp.einsum("pbz,bz->pb", Fs, z)                                 # [P, B]
+            q_loss = ((Qs - target_Q[None]) ** 2).mean(axis=1).sum()
+            loss = loss + self.q_loss_coef * q_loss
+            info.update({"fb_loss": loss, "fb_q_loss": q_loss,
+                         "fb_implicit_reward": implicit_reward.mean()})
+        return loss, info
 
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         z = cond["z"]
@@ -113,9 +153,10 @@ class FBCritic:
             le = jax.lax.stop_gradient(le)
         Fs = self._F(params["forward"], le, z, actions)
         Qs = (Fs * z).sum(-1)
-        qmean, _ = targets_uncertainty(Qs, self.num_parallel)
-        # actor_pessimism_penalty is 0 in scope; keep the mean-of-heads reduction.
-        return qmean, Qs
+        qmean, qunc = targets_uncertainty(Qs, self.num_parallel)
+        # c = 0.5 at 2 heads is the reference's min(Q1, Q2); 0.0 is the mean every earlier
+        # cell ran (see the field comment).
+        return qmean - self.actor_pessimism_penalty * qunc, Qs
 
     def cond_vec(self, cond):
         """The vector actors concatenate onto obs to condition. FB: the latent z."""
@@ -150,14 +191,23 @@ class FBCritic:
                              embedding_layers=config["forward"]["embedding_layers"])
         backward = PhiMap(z_dim=z_dim, hidden_dim=config["backward"]["hidden_dim"],
                           hidden_layers=config["backward"]["hidden_layers"], norm=config["backward"]["norm"])
-        left_encoder = PhiMap(z_dim=L_dim, hidden_dim=config["left_encoder"]["hidden_dim"],
-                              hidden_layers=config["left_encoder"]["hidden_layers"],
-                              norm=config["left_encoder"]["norm"])
+        if config["left_encoder"].get("identity", False):
+            # Touati parity: the reference FB has NO encoder in front of F — its
+            # preprocessors read the raw observation (controllable_agent fb_modules.py).
+            # An identity module keeps the group/target plumbing untouched (empty params,
+            # zero-cost soft_update) so nothing else in the seam changes shape.
+            left_encoder = _IdentityMap()
+            ex_feat = jnp.zeros_like(ex_obs)
+        else:
+            left_encoder = PhiMap(z_dim=L_dim, hidden_dim=config["left_encoder"]["hidden_dim"],
+                                  hidden_layers=config["left_encoder"]["hidden_layers"],
+                                  norm=config["left_encoder"]["norm"])
+            ex_feat = jnp.zeros((ex_obs.shape[0], L_dim))
         rf, rb, rle = jr.split(jr.PRNGKey(config["seed"]), 3)
-        ex_feat = jnp.zeros((ex_obs.shape[0], L_dim))
         ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
         params = {
-            "left_encoder": left_encoder.init(rle, ex_obs)["params"],
+            # .get: _IdentityMap creates no variables, so init() has no "params" collection.
+            "left_encoder": left_encoder.init(rle, ex_obs).get("params", {}),
             "backward": backward.init(rb, ex_obs)["params"],
             "forward": forward.init(rf, ex_feat, ex_z, ex_actions)["params"],
         }
@@ -168,5 +218,7 @@ class FBCritic:
             ortho_coef=config["ortho_coef"], fb_pessimism_penalty=config["fb_pessimism_penalty"],
             train_goal_ratio=config["train_goal_ratio"], norm_z=config["norm_z"],
             f_tau=config["f_target_tau"], b_tau=config["b_target_tau"],
+            q_loss_coef=float(config.get("q_loss_coef", 0.0)),
+            actor_pessimism_penalty=float(config.get("actor_pessimism_penalty", 0.0)),
         )
         return critic, params, targets

@@ -20,3 +20,7 @@ actor:
   # equal. Default false = the plain MLP policy every published cell ran. Pair it with the
   # critic's measure_density_archi: motivo.
   motivo_archi: false
+  # Touati parity: noise on the ACTOR-loss action (eq. 43 / fb_ddpg dist.sample(clip)).
+  # 0.0 = the noiseless mode every prior cell ran.
+  q_noise_std: 0.0
+  q_noise_clip: 0.3
