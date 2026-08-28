@@ -453,3 +453,119 @@ def test_stage_loss_itself_sends_no_backward_gradient_through_the_fb_residual():
     assert any(float(np.abs(np.asarray(l)).sum()) > 0
                for l in jax.tree_util.tree_leaves(g_full)), \
         "the backward map gets no gradient at all -- the comparison above is vacuous"
+
+
+# ── official-parity knobs: the default-off gate ───────────────────────────────
+# docs/specs/2026-08-28-exorl-official-parity-validation.md item A house rule: "every knob
+# default-off; parent td_jepa arm must remain bit-identical". These pin that literally.
+
+_OFFICIAL_KNOBS = dict(
+    rldp_phase="fb", rldp_pred_norm=True, rldp_actor_pessimism=0.5,
+    rldp_no_left_encoder=True, rldp_sp_official_scale=True, rldp_ortho_inert=True,
+)
+
+
+def test_knob_defaults_are_all_off():
+    """A config naming NO knob builds the td_jepa critic: joint phase, no predictor
+    normalization, no actor pessimism, learned left encoder, td_jepa SP scale, paper
+    ortho. If a default flips, every previously-recorded rldp cell silently changes
+    meaning -- so the defaults are pinned by value, not by behavior."""
+    critic, _, _ = RLDPCritic.build(*_ex(), _cfg())
+    assert critic.phase == "joint"
+    assert critic.pred_norm is False
+    assert critic.actor_pessimism == 0.0
+    assert critic.no_left_encoder is False
+    assert critic.sp_official_scale is False
+    assert critic.ortho_inert is False
+    # ... and the phase-dependent plumbing is the shipped plumbing.
+    assert critic.stage_groups("fb") == critic.GROUPS
+    assert critic.FROZEN_GROUPS == ()
+    assert critic.TRAIN_ACTOR is True
+    assert set(critic.TARGETS) == {"forward", "left_encoder", "backward"}
+    assert critic.TARGETS["backward"] == _cfg()["b_target_tau"]
+
+
+def test_stage_loss_is_bit_identical_with_knobs_defaulted():
+    """The parent arm's LOSS, not just its flags: building with the knob keys explicitly
+    present-and-off must give the same number, to the last bit, as building without them.
+    Catches a knob that reads its config key but changes the expression anyway."""
+    ex = _ex()
+    off = dict(rldp_phase="joint", rldp_pred_norm=False, rldp_actor_pessimism=0.0,
+               rldp_no_left_encoder=False, rldp_sp_official_scale=False,
+               rldp_ortho_inert=False)
+    c0, p0, t0 = RLDPCritic.build(*ex, _cfg())
+    c1, p1, t1 = RLDPCritic.build(*ex, _cfg(**off))
+    batch, boot = _batch(), _boot()
+    cond = {"z": jnp.asarray(np.random.default_rng(3).standard_normal((B, Z)))}
+    l0, i0 = c0.stage_loss("fb", p0, t0, batch, cond, boot)
+    l1, i1 = c1.stage_loss("fb", p1, t1, batch, cond, boot)
+    assert np.asarray(l0).dtype == np.asarray(l1).dtype
+    np.testing.assert_array_equal(np.asarray(l0), np.asarray(l1))
+    for k in ("fb_loss", "fb_offdiag", "fb_diag", "sp_loss", "ortho_loss"):
+        np.testing.assert_array_equal(np.asarray(i0[k]), np.asarray(i1[k]),
+                                      err_msg=f"metric {k} moved with knobs defaulted off")
+
+
+@pytest.mark.parametrize("knob,value", sorted(_OFFICIAL_KNOBS.items()))
+def test_each_official_knob_actually_changes_something(knob, value):
+    """The other half of the gate: a knob that silently does nothing would pass the
+    default-off test and then quietly fail to replicate. Each one must move either the
+    loss or the plumbing."""
+    ex = _ex()
+    c0, p0, t0 = RLDPCritic.build(*ex, _cfg())
+    c1, p1, t1 = RLDPCritic.build(*ex, _cfg(**{knob: value}))
+    batch, boot = _batch(), _boot()
+    cond = {"z": jnp.asarray(np.random.default_rng(3).standard_normal((B, Z)))}
+    l0, _ = c0.stage_loss("fb", p0, t0, batch, cond, boot)
+    l1, _ = c1.stage_loss("fb", p1, t1, batch, cond, boot)
+    plumbing_moved = (c0.stage_groups("fb") != c1.stage_groups("fb")
+                      or c0.TARGETS != c1.TARGETS
+                      or c0.TRAIN_ACTOR != c1.TRAIN_ACTOR
+                      or type(c0.left_encoder) is not type(c1.left_encoder))
+    loss_moved = not np.array_equal(np.asarray(l0), np.asarray(l1))
+    if knob == "rldp_actor_pessimism":
+        # q_fn, not stage_loss: pessimism only enters through the actor's critic call.
+        obs = batch["observations"]
+        q0, _ = c0.q_fn(p0, obs, cond, batch["actions"])
+        q1, _ = c1.q_fn(p1, obs, cond, batch["actions"])
+        assert not np.array_equal(np.asarray(q0), np.asarray(q1))
+        return
+    assert loss_moved or plumbing_moved, f"{knob}={value} changed nothing"
+
+
+def test_two_phase_freezes_the_right_groups():
+    """The structural claim of official RLDP: phase 1 trains B and the predictor with no
+    FB loss and no actor; phase 2 trains F with B FROZEN. Freezing is by group EXCLUSION
+    (no optimizer step at all), not a zeroed gradient -- Adam moves params on a zero
+    gradient via momentum, so a masked-gradient implementation would not hold B fixed."""
+    ex = _ex()
+    mr, _, _ = RLDPCritic.build(*ex, _cfg(rldp_phase="mr"))
+    fb, _, _ = RLDPCritic.build(*ex, _cfg(rldp_phase="fb"))
+
+    assert set(mr.stage_groups("fb")) == {"backward", "predictor"}
+    assert mr.TRAIN_ACTOR is False
+    # every target still EXISTS in phase 1 (the SP loss reads target["backward"]) but
+    # none of them polyak -- phase 1 refreshes B's target by hard copy instead.
+    assert set(mr.TARGETS) == {"forward", "left_encoder", "backward"}
+    assert set(mr.TARGETS.values()) == {0.0}
+
+    assert set(fb.stage_groups("fb")) == {"forward", "left_encoder"}
+    assert fb.TRAIN_ACTOR is True
+    assert fb.TARGETS["backward"] == 0.0          # B frozen => its target must not drift
+    assert fb.TARGETS["forward"] == _cfg()["f_target_tau"]
+
+
+def test_phase1_loss_has_no_fb_term_and_phase2_has_no_sp_term():
+    """The losses themselves, not just the group lists."""
+    ex = _ex()
+    batch, boot = _batch(), _boot()
+    cond = {"z": jnp.asarray(np.random.default_rng(3).standard_normal((B, Z)))}
+    mr, pm, tm = RLDPCritic.build(*ex, _cfg(rldp_phase="mr"))
+    _, i_mr = mr.stage_loss("fb", pm, tm, batch, cond, boot)
+    assert float(i_mr["fb_loss"]) == 0.0 and float(i_mr["fb_diag"]) == 0.0
+    assert float(i_mr["sp_loss"]) != 0.0
+
+    fb, pf, tf = RLDPCritic.build(*ex, _cfg(rldp_phase="fb"))
+    _, i_fb = fb.stage_loss("fb", pf, tf, batch, cond, boot)
+    assert float(i_fb["sp_loss"]) == 0.0 and float(i_fb["ortho_loss"]) == 0.0
+    assert float(i_fb["fb_diag"]) != 0.0

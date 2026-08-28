@@ -61,7 +61,13 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # instead of the full state (impls/critics/{rldp,psm}.py::build);
                   # same classes, config-only.
                   "rldp_oc": "rldp", "rldp_density_oc": "rldp_density",
-                  "psm_oc": "psm", "psm_density_oc": "psm_density"}
+                  "psm_oc": "psm", "psm_density_oc": "psm_density",
+                  # ExoRL official-parity arms (docs/specs/2026-08-28-exorl-official-
+                  # parity-validation.md): the SAME RLDP / Density-RLDP classes with the
+                  # six official knobs turned on in the yaml. Config-only, so the audited
+                  # td_jepa arms (`rldp`, `rldp_density`) are untouched.
+                  "rldp_official": "rldp",
+                  "rldp_density_official": "rldp_density"}
 
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,
           # bridge spec 22 (see impls/actors/ddpgbc_density.py): the ddpgbc extraction
@@ -146,15 +152,22 @@ class Agent(flax.struct.PyTreeNode):
                 net[g] = net[g].apply_gradients(grads=grads[g])
             info.update(sinfo)
 
-        def actor_loss_fn(gp):
-            params = {**online(), **gp}
-            return self.actor.loss(params, target, batch, self.critic, cond, boot)
+        # A critic may declare that this phase trains no actor at all. Only RLDP under
+        # `rldp_two_phase` does: its official phase 1 runs the representation update alone
+        # (baselines/rldp agent.py:174-197 calls update_mr and nothing else). The attribute
+        # is read with a default of True, so every other critic is untouched and nothing
+        # extra is traced for it. Skipping the block entirely -- rather than zeroing the
+        # gradient -- is what keeps the actor's Adam moments frozen too.
+        if getattr(self.critic, "TRAIN_ACTOR", True):
+            def actor_loss_fn(gp):
+                params = {**online(), **gp}
+                return self.actor.loss(params, target, batch, self.critic, cond, boot)
 
-        (_, ainfo), agrads = jax.value_and_grad(actor_loss_fn, has_aux=True)(
-            {g: net[g].params for g in self.actor.GROUPS})
-        for g in self.actor.GROUPS:
-            net[g] = net[g].apply_gradients(grads=agrads[g])
-        info.update(ainfo)
+            (_, ainfo), agrads = jax.value_and_grad(actor_loss_fn, has_aux=True)(
+                {g: net[g].params for g in self.actor.GROUPS})
+            for g in self.actor.GROUPS:
+                net[g] = net[g].apply_gradients(grads=agrads[g])
+            info.update(ainfo)
 
         for g, tau in self.critic.TARGETS.items():
             target[g] = soft_update(net[g].params, target[g], tau)
@@ -179,8 +192,9 @@ class Agent(flax.struct.PyTreeNode):
         for stage in self.critic.STAGES:
             _, sinfo = self.critic.stage_loss(stage, online, self.target, batch, cond, boot)
             info.update(sinfo)
-        _, ainfo = self.actor.loss(online, self.target, batch, self.critic, cond, boot)
-        info.update(ainfo)
+        if getattr(self.critic, "TRAIN_ACTOR", True):
+            _, ainfo = self.actor.loss(online, self.target, batch, self.critic, cond, boot)
+            info.update(ainfo)
         return info
 
     # ---------------- live update (draws randomness) ----------------

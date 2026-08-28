@@ -54,6 +54,7 @@ import jax
 import jax.numpy as jnp
 
 from impls.critics._measure_common import parse_hit_spec, scaled_hit_cols
+from impls.critics.fb import _IdentityMap
 from impls.utils.networks import ForwardMap, PhiMap, PredictorMap
 from impls.utils.fb_math import project_z, targets_uncertainty
 
@@ -85,7 +86,52 @@ class RLDPCritic:
     backward_input: str = "state"
     blocks: tuple = ()
 
+    # ---- official-parity knobs (docs/specs/2026-08-28-exorl-official-parity-validation.md
+    # item A). ALL default-off: with the defaults below every expression in this class is
+    # the td_jepa-variant transcription this file was audited as, bit-for-bit. Each knob
+    # names the line in the official repo (~/git/baselines/rldp) it reproduces.
+    #
+    # `phase` ("joint" | "mr" | "fb") is the two-phase schedule's CURRENT phase. It is a
+    # static field, not a traced value: impls/main.py replaces the critic at the
+    # representation_steps boundary, which retraces `Agent.update` exactly once. It has to
+    # be static because the phase decides WHICH OPTIMIZER GROUPS receive gradients
+    # (stage_groups below) -- masking gradients to zero inside one trace would not do,
+    # because Adam still moves parameters on a zero gradient via its momentum term, and
+    # the official phase 2 requires B to be exactly frozen (agent.py:351-356 steps only
+    # `forward_optimizer`).
+    #   "joint" = the shipped single-phase update (td_jepa). The ONLY value the parent
+    #             arm ever takes, and the default.
+    #   "mr"    = official phase 1 (step < representation_steps): SP + ortho, backward
+    #             and predictor only; no FB loss, no actor, no F.       agent.py:174-197
+    #   "fb"    = official phase 2: FB loss with B FROZEN.               agent.py:198-243
+    phase: str = "joint"
+    # sqrt(d)-normalize the predictor output at every unroll step. Official
+    # `EncoderMap.model_unroll` (nn_models.py:324-332) does this whenever the backward map
+    # is norm=True; td_jepa's predictor does not.
+    pred_norm: bool = False
+    # Actor maximizes mean - coef * uncertainty over the F ensemble. The official ExoRL
+    # example passes 0.5 (agent.py:392); td_jepa uses the plain mean.
+    actor_pessimism: float = 0.0
+    # Identity left encoder: official F consumes the raw observation, the seam's learned
+    # 4-layer PhiMap is a td_jepa-ism. Wired in `build` (the module is replaced), so
+    # nothing downstream branches on it.
+    no_left_encoder: bool = False
+    # SP loss reduction. False (default) = td_jepa's mean-over-batch of the sum over z,
+    # divided by h. True = official's per-step mean over BOTH batch and z, SUMMED over h
+    # (`F.mse_loss(..., reduction='none').mean()` accumulated in a loop, agent.py:269-271).
+    # The two differ by a factor of z_dim/h, which reweights SP against the ortho term.
+    sp_official_scale: bool = False
+    # Official's ortho term is DIAG-ONLY: `loss = ortho_coef * orth_loss_diag`
+    # (agent.py:270) -- the off-diagonal whitening is computed for logging and never
+    # enters the objective, at any b_norm setting. Under a sqrt(d)-normalized B the diag
+    # is the constant d, so the whole term is inert. True reproduces that code exactly;
+    # False (default) keeps the paper's Eq-7 form (offdiag + diag), which is what the
+    # official-parity config ships with. See the spec's item-1 footnote.
+    ortho_inert: bool = False
+
     GROUPS = ("forward", "backward", "left_encoder", "predictor")
+    # STAGES is read by Agent.apply_update. One stage in every phase; what changes is
+    # which groups it trains (stage_groups) and which terms it computes (stage_loss).
     STAGES = ("fb",)
     PROVIDES_V = False
     PROVIDES_COND = frozenset({"z"})  # sample_cond() produces {"z": ...}
@@ -99,7 +145,40 @@ class RLDPCritic:
     def TARGETS(self):
         # No entry for `predictor`: the reference soft-updates only these three
         # (RLDPAgent.update -> _soft_update_params on forward / backward / left_encoder).
+        # NOTE ON tau=0 RATHER THAN A MISSING KEY. This dict does double duty: `build`
+        # constructs the target params from its keys, and Agent.apply_update polyaks
+        # exactly its keys. A frozen target therefore has to stay PRESENT with rate 0
+        # (soft_update with tau=0 returns the target unchanged) -- dropping the key would
+        # delete the params, and phase 1's SP loss reads `target["backward"]`.
+        if self.phase == "mr":
+            # Official phase 1 polyaks nothing (agent.py:174-197 calls no _soft_update).
+            # The SP target backward map is refreshed by a HARD COPY every
+            # `hard_b_target` steps (agent.py:196-197), driven from impls/main.py. F is
+            # not trained yet, so its target simply stays at initialization.
+            return {"forward": 0.0, "left_encoder": 0.0, "backward": 0.0}
+        if self.phase == "fb":
+            # Official phase 2 polyaks the FORWARD map only, at fb_target_tau
+            # (agent.py:240). B is frozen, so its target must not drift either.
+            return {"forward": self.f_tau, "left_encoder": self.f_tau, "backward": 0.0}
         return {"forward": self.f_tau, "left_encoder": self.f_tau, "backward": self.b_tau}
+
+    # Groups whose optimizer must not step in this phase. Agent.apply_update reads this to
+    # skip them entirely (no apply_gradients call), which is what keeps Adam's moments and
+    # the parameters themselves EXACTLY fixed -- the difference between "frozen" and
+    # "receiving zero gradients".
+    @property
+    def FROZEN_GROUPS(self):
+        if self.phase == "mr":
+            return ("forward", "left_encoder")
+        if self.phase == "fb":
+            return ("backward", "predictor")
+        return ()
+
+    # Whether the actor is trained this phase. Official phase 1 runs no actor update at
+    # all (agent.py:174-197 calls update_mr only).
+    @property
+    def TRAIN_ACTOR(self):
+        return self.phase != "mr"
 
     @property
     def cvec_dim(self):
@@ -120,7 +199,8 @@ class RLDPCritic:
 
     def stage_groups(self, stage):
         assert stage == "fb"
-        return self.GROUPS
+        frozen = set(self.FROZEN_GROUPS)
+        return tuple(g for g in self.GROUPS if g not in frozen)
 
     def _F(self, p, obs_feat, z, action):
         return self.forward.apply({"params": p}, obs_feat, z, action)
@@ -142,7 +222,14 @@ class RLDPCritic:
         return self.left_encoder.apply({"params": p}, x)
 
     def _P(self, p, x, action):
-        return self.predictor.apply({"params": p}, x, action)
+        out = self.predictor.apply({"params": p}, x, action)
+        if self.pred_norm:
+            # Official `EncoderMap.model_unroll` (nn_models.py:329-330):
+            # sqrt(d) * F.normalize(zsa, dim=-1), applied at EVERY unroll step so the
+            # rollout stays on the same sphere the backward map's outputs live on.
+            out = jnp.sqrt(out.shape[-1]) * out / (
+                jnp.linalg.norm(out, axis=-1, keepdims=True) + 1e-12)
+        return out
 
     # --- the self-predictive head ---
     def _sp_pairs(self, batch):
@@ -209,11 +296,53 @@ class RLDPCritic:
         sp = 0.0
         for a_t, y_t in zip(actions, ys):
             curr = self._P(params["predictor"], curr, a_t)
-            sp = sp + jnp.mean(jnp.sum((curr - y_t[None]) ** 2, axis=-1))
+            se = (curr - y_t[None]) ** 2
+            if self.sp_official_scale:
+                # Official: `F.mse_loss(pred, target, reduction='none').mean()` per step,
+                # accumulated over the horizon with NO division by h (agent.py:269-271).
+                # The mean runs over the z axis too, so this is smaller than the td_jepa
+                # form by z_dim and larger by h -- exactly the z_dim/h reweighting of SP
+                # against the ortho term that the spec's item-6 calls out.
+                sp = sp + jnp.mean(se)
+            else:
+                sp = sp + jnp.mean(jnp.sum(se, axis=-1))
+        if self.sp_official_scale:
+            return sp, B_pred
         return sp / max(len(actions), 1), B_pred
+
+    def _ortho(self, B_pred, off, off_sum):
+        """The orthonormality term on B(obs). Two forms:
+
+        paper (default) -- Eq-7: offdiag whitening + diag pull, both optimized.
+        code (ortho_inert=True) -- what the official repo actually optimizes:
+            `loss = ortho_coef * orth_loss_diag` (agent.py:270). `orth_loss` (offdiag +
+            diag) is computed and logged but never added to the objective. Under a
+            sqrt(d)-normalized B the diag is the constant d, so the term contributes no
+            gradient at all -- hence the name.
+        Both forms report the same diagnostics so the two arms stay comparable."""
+        cov = B_pred @ B_pred.T
+        orth_off = 0.5 * jnp.sum((cov * off) ** 2) / off_sum
+        orth_diag = -jnp.mean(jnp.diagonal(cov))
+        return (orth_diag if self.ortho_inert else orth_off + orth_diag), orth_off, orth_diag
+
+    def _mr_loss(self, params, target, batch):
+        """Official phase 1 (`update_mr`, agent.py:245-298): SP rollout + ortho, over the
+        backward and predictor groups only. No FB residual, no F, no actor."""
+        sp, B_pred = self._sp_loss(params, target, batch)
+        B = B_pred.shape[0]
+        off = 1.0 - jnp.eye(B)
+        orth, orth_off, orth_diag = self._ortho(B_pred, off, off.sum())
+        loss = sp + self.ortho_coef * orth
+        zero = jnp.zeros((), loss.dtype)
+        return loss, {"fb_loss": zero, "fb_offdiag": zero, "fb_diag": zero,
+                      "ortho_loss": orth, "ortho_offdiag": orth_off,
+                      "ortho_diag": orth_diag, "sp_loss": sp,
+                      "representation_loss": loss}
 
     def stage_loss(self, stage, params, target, batch, cond, boot):
         assert stage == "fb"
+        if self.phase == "mr":
+            return self._mr_loss(params, target, batch)
         obs, action, next_obs = batch["observations"], batch["actions"], batch["next_observations"]
         goal = next_obs  # bw_encoder = Identity for state
         disc, P = self.discount, self.num_parallel
@@ -242,18 +371,26 @@ class RLDPCritic:
         fb_diag = -jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2)) * P
         fb = fb_off + fb_diag
 
+        if self.phase == "fb":
+            # Official phase 2 (agent.py:198-243): the FB residual alone. B, the predictor
+            # and the ortho term all belong to phase 1 and are frozen here -- the official
+            # code multiplies its ortho term by 0 (agent.py:334) and steps only
+            # `forward_optimizer`. Computing them would be dead work inside the trace.
+            zero = jnp.zeros((), fb.dtype)
+            return fb, {"fb_loss": fb, "fb_offdiag": fb_off, "fb_diag": fb_diag,
+                        "ortho_loss": zero, "ortho_offdiag": zero, "ortho_diag": zero,
+                        "sp_loss": zero}
+
         # self-predictive head (also returns the B(obs) the ortho term whitens).
         sp, B_pred = self._sp_loss(params, target, batch)
 
         # Divergence 2: orthonormality at B(obs), not B(goal).
-        cov = B_pred @ B_pred.T
-        orth_off = 0.5 * jnp.sum((cov * off) ** 2) / off_sum
-        orth_diag = -jnp.mean(jnp.diagonal(cov))
-        orth = orth_off + orth_diag
+        orth, orth_off, orth_diag = self._ortho(B_pred, off, off_sum)
 
         loss = fb + sp + self.ortho_coef * orth
         return loss, {"fb_loss": loss, "fb_offdiag": fb_off, "fb_diag": fb_diag,
-                      "ortho_loss": orth, "sp_loss": sp}
+                      "ortho_loss": orth, "ortho_offdiag": orth_off,
+                      "ortho_diag": orth_diag, "sp_loss": sp}
 
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         z = cond["z"]
@@ -262,8 +399,12 @@ class RLDPCritic:
             le = jax.lax.stop_gradient(le)
         Fs = self._F(params["forward"], le, z, actions)
         Qs = (Fs * z).sum(-1)
-        qmean, _ = targets_uncertainty(Qs, self.num_parallel)
-        # actor_pessimism_penalty is 0 in scope; keep the mean-of-heads reduction.
+        qmean, qunc = targets_uncertainty(Qs, self.num_parallel)
+        if self.actor_pessimism:
+            # Official ExoRL example: the actor maximizes mean - 0.5 * uncertainty over
+            # the F ensemble (agent.py:392). Default 0.0 keeps td_jepa's plain mean, so
+            # the parent arm is untouched.
+            return qmean - self.actor_pessimism * qunc, Qs
         return qmean, Qs
 
     def cond_vec(self, cond):
@@ -316,9 +457,22 @@ class RLDPCritic:
                              embedding_layers=config["forward"]["embedding_layers"])
         backward = PhiMap(z_dim=z_dim, hidden_dim=config["backward"]["hidden_dim"],
                           hidden_layers=config["backward"]["hidden_layers"], norm=config["backward"]["norm"])
-        left_encoder = PhiMap(z_dim=L_dim, hidden_dim=config["left_encoder"]["hidden_dim"],
-                              hidden_layers=config["left_encoder"]["hidden_layers"],
-                              norm=config["left_encoder"]["norm"])
+        # `rldp_no_left_encoder`: official F consumes the raw observation
+        # (rldp/model.py builds no left encoder at all); the seam's learned 4-layer PhiMap
+        # is a td_jepa-ism. IdentityMap keeps the module interface -- and therefore every
+        # `_le` call site, the "left_encoder" optimizer group and its target -- intact,
+        # with an empty parameter dict, so nothing else in this file branches on it.
+        # Also honours fb.yaml's existing `left_encoder.identity` spelling, so the two
+        # families select the same behavior the same way.
+        no_left_encoder = bool(config.get("rldp_no_left_encoder", False)) or bool(
+            config["left_encoder"].get("identity", False))
+        if no_left_encoder:
+            left_encoder = _IdentityMap()
+            L_dim = int(ex_obs.shape[-1])
+        else:
+            left_encoder = PhiMap(z_dim=L_dim, hidden_dim=config["left_encoder"]["hidden_dim"],
+                                  hidden_layers=config["left_encoder"]["hidden_layers"],
+                                  norm=config["left_encoder"]["norm"])
         # RLDPModel builds the predictor as VForwardMap(obs=z_space[z_dim], z=action_dim)
         # -> z_dim, i.e. it lives entirely in backward-embedding space.
         predictor = PredictorMap(out_dim=z_dim, hidden_dim=config["predictor"]["hidden_dim"],
@@ -330,7 +484,11 @@ class RLDPCritic:
         ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
         ex_pred_in = jnp.zeros((P, ex_obs.shape[0], z_dim))
         params = {
-            "left_encoder": left_encoder.init(rle, ex_obs)["params"],
+            # `.get("params", {})`: _IdentityMap has no parameters, so its init returns
+            # an empty variable dict with no "params" collection at all (fb.py:210 does
+            # the same). The empty dict keeps the group, its optimizer and its polyak
+            # target present but no-ops.
+            "left_encoder": left_encoder.init(rle, ex_obs).get("params", {}),
             # PhiMap infers its input width from the example: the SLICED example in
             # hit_spec mode, so the first Dense is exactly d_c wide.
             "backward": backward.init(rb, ex_b_in)["params"],
@@ -345,6 +503,14 @@ class RLDPCritic:
             train_goal_ratio=config["train_goal_ratio"], norm_z=config["norm_z"],
             f_tau=config["f_target_tau"], b_tau=config["b_target_tau"],
             backward_input=backward_input, blocks=blocks,
+            # official-parity knobs; every one defaults off, so a config that names none
+            # of them builds the td_jepa-variant critic this file was audited as.
+            phase=str(config.get("rldp_phase", "joint")),
+            pred_norm=bool(config.get("rldp_pred_norm", False)),
+            actor_pessimism=float(config.get("rldp_actor_pessimism", 0.0)),
+            no_left_encoder=no_left_encoder,
+            sp_official_scale=bool(config.get("rldp_sp_official_scale", False)),
+            ortho_inert=bool(config.get("rldp_ortho_inert", False)),
         )
         targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
         return critic, params, targets

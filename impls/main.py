@@ -3,6 +3,7 @@
 Config is composed from the critic/actor/domain sibling groups under impls/configs/ via
 load_config() (spec §3); the old flat get_config() has been replaced.
 """
+import dataclasses
 import os
 import warnings
 
@@ -323,13 +324,52 @@ def main(_):
             print(f"[online] prefilled {n} env steps, buffer {online.buffer.size} rows / "
                   f"{online.buffer.n_episodes} episodes", flush=True)
 
+        # Two-phase schedule (RLDP official parity; docs/specs/2026-08-28-exorl-official-
+        # parity-validation.md item A.1). `rldp_two_phase` is off for every other config, in
+        # which case `phase_of` returns "joint" for all i and nothing below ever fires.
+        two_phase = bool(cfg.get("rldp_two_phase", False))
+        repr_steps = int(cfg.get("rldp_phase1_steps", 0))
+        hard_b_every = int(cfg.get("rldp_hard_b_target", 0))
+
+        def phase_of(step):
+            if not two_phase:
+                return "joint"
+            return "mr" if step < repr_steps else "fb"
+
+        def set_phase(ag, ph):
+            """Swap the critic's static `phase`. The critic is a nonpytree_field, so this
+            changes the jit key and retraces `Agent.update` ONCE, at the boundary -- which
+            is the point: the phase decides which optimizer groups exist in the traced
+            update, and that cannot be a traced value (see RLDPCritic.phase)."""
+            return ag.replace(critic=dataclasses.replace(ag.critic, phase=ph))
+
+        cur_phase = phase_of(start_step)
+        if two_phase:
+            agent = set_phase(agent, cur_phase)
+            print(f"[two-phase] start_step={start_step} phase={cur_phase} "
+                  f"(phase1_steps={repr_steps}, hard_b_target={hard_b_every})", flush=True)
+
         for i in range(start_step, FLAGS.train_steps + 1):
+            if two_phase:
+                ph = phase_of(i)
+                if ph != cur_phase:
+                    # Entering phase 2. The official code carries the phase-1 backward map
+                    # straight through (it is simply never stepped again); the target
+                    # forward map begins polyaking from here.
+                    agent, cur_phase = set_phase(agent, ph), ph
+                    print(f"[two-phase] step {i}: -> phase {ph}", flush=True)
             if online is None:
                 batch = train_ds.sample(cfg["batch_size"])
             else:
                 online.collect(agent)
                 batch = online.sample(cfg["batch_size"])
             agent, info = agent.update(batch)
+            if two_phase and cur_phase == "mr" and hard_b_every and i % hard_b_every == 0:
+                # Official phase-1 target refresh: a HARD COPY of the backward map every
+                # N steps (agent.py:196-197), not a polyak. RLDPCritic.TARGETS reports
+                # tau=0 for `backward` in this phase, so the two never fight.
+                agent = agent.replace(
+                    target={**agent.target, "backward": agent.net["backward"].params})
             if i % FLAGS.log_interval == 0:
                 row = {k: float(jnp.asarray(v).mean()) for k, v in info.items()}
                 if online is not None:
