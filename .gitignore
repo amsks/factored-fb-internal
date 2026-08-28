@@ -85,3 +85,6 @@ PAPER/
 analysis/
 results/
 data/
+
+# run artifacts (default --save_dir)
+exp/
