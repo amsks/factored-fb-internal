@@ -89,10 +89,12 @@ TASKS = {
                             ("reach_top_left", "reach_top_right",
                              "reach_bottom_left", "reach_bottom_right")),
     "dmc-walker":          ("walker", "walk", ("stand", "walk", "run", "flip")),
-    # cheetah: `run` is the dm_control suite task; the other three are ExoRL additions
-    # (env/exorl_dmc_tasks/cheetah.py). There is no `walk` for cheetah upstream.
-    "dmc-cheetah":         ("cheetah", "run", ("run", "run_backward", "flip",
-                                               "flip_backward")),
+    # cheetah: `run` is the dm_control suite task; the others are additions in
+    # env/exorl_dmc_tasks/cheetah.py. walk/walk_backward (speed threshold 2) come from
+    # Touati et al.'s controllable_agent fork, NOT the exorl repo — they are the tasks the
+    # paper's cheetah rows report alongside run/run_backward (its Table 2 has no cheetah flip).
+    "dmc-cheetah":         ("cheetah", "run", ("run", "run_backward", "walk",
+                                               "walk_backward", "flip", "flip_backward")),
 }
 
 

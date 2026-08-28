@@ -30,6 +30,7 @@ _DEFAULT_TIME_LIMIT = 10
 
 # Running speed above which reward is 1.
 _RUN_SPEED = 10
+_WALK_SPEED = 2
 _SPIN_SPEED = 5
 
 SUITE = containers.TaggedTasks()
@@ -66,6 +67,34 @@ def run_backward(time_limit=_DEFAULT_TIME_LIMIT,
     """Returns the run task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
     task = Cheetah(forward=False, flip=False, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
+
+@SUITE.add('benchmarking')
+def walk(time_limit=_DEFAULT_TIME_LIMIT,
+         random=None,
+         environment_kwargs=None):
+    """Returns the walk task (Touati et al. controllable_agent: speed threshold 2)."""
+    physics = Physics.from_xml_string(*get_model_and_assets())
+    task = Cheetah(move_speed=_WALK_SPEED, forward=True, flip=False, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               **environment_kwargs)
+
+
+@SUITE.add('benchmarking')
+def walk_backward(time_limit=_DEFAULT_TIME_LIMIT,
+                  random=None,
+                  environment_kwargs=None):
+    """Returns the walk_backward task."""
+    physics = Physics.from_xml_string(*get_model_and_assets())
+    task = Cheetah(move_speed=_WALK_SPEED, forward=False, flip=False, random=random)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics,
                                task,
@@ -114,7 +143,8 @@ class Physics(mujoco.Physics):
 
 class Cheetah(base.Task):
     """A `Task` to train a running Cheetah."""
-    def __init__(self, forward=True, flip=False, random=None):
+    def __init__(self, move_speed=_RUN_SPEED, forward=True, flip=False, random=None):
+        self._move_speed = move_speed
         self._forward = 1 if forward else -1
         self._flip = flip
         super(Cheetah, self).__init__(random=random)
@@ -154,8 +184,8 @@ class Cheetah(base.Task):
 
         else:
             reward = rewards.tolerance(self._forward * physics.speed(),
-                                       bounds=(_RUN_SPEED, float('inf')),
-                                       margin=_RUN_SPEED,
+                                       bounds=(self._move_speed, float('inf')),
+                                       margin=self._move_speed,
                                        value_at_margin=0,
                                        sigmoid='linear')
         return reward
