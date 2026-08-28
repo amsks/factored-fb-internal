@@ -23,6 +23,7 @@ from impls.critics.rldp import RLDPCritic
 from impls.actors.flowbc import FlowBCActor
 from impls.actors.ddpgbc import DDPGBCActor
 from impls.actors.ddpgbc_density import DDPGBCDensityActor
+from impls.actors.ddpgbc_density_cpr import DDPGBCDensityCPRActor
 from impls.actors.awr import AWRActor
 from impls.actors.fql import FQLActor
 
@@ -44,6 +45,10 @@ ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": 
           # bridge spec 22 (see impls/actors/ddpgbc_density.py): the ddpgbc extraction
           # wired to density_fb's value-goal bootstrap + centered q normalizer.
           "ddpgbc_density": DDPGBCDensityActor,
+          # ddpgbc_density plus the hindsight-z-conditioned BC term (offline core of
+          # FB-CPR's anchoring; impls/actors/ddpgbc_density_cpr.py). q_coeff=0 is the
+          # pure hindsight-BC floor, the bcflow precedent.
+          "ddpgbc_density_cpr": DDPGBCDensityCPRActor,
           # bcflow is FlowBCActor with the value term switched off (actor/bcflow.yaml sets
           # q_coeff: 0) — the pure-BC control, so it composes with exactly the same critics.
           "bcflow": FlowBCActor}

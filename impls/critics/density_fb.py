@@ -676,16 +676,24 @@ class DensityFBCritic:
         (`_density_queries` output) and `r` is [B, M] (or [M]) reward values on it."""
         return self._z_index(self._zenc(net), self._zstats(net), u_sc, r)
 
-    def _z_mix(self, z_g, rng):
-        """FB's standard task-prior mix: keep the encoded index with probability
-        1 - z_rand_frac, else a FRESH uniform sqrt(d)-sphere draw. Both branches carry
-        ||z|| = sqrt(d); the whole result is stop_gradded. (The bridge's hindsight indicator
-        feeds a BC mask that is not ported.)"""
+    def _z_mix_masked(self, z_g, rng):
+        """`_z_mix` plus the hindsight indicator: -> (z, hindsight) with hindsight [n, 1]
+        float, 1.0 where the row KEPT the encoded index (the bridge's hindsight branch) and
+        0.0 where it was replaced by the sphere draw. Draw order is `_z_mix`'s exactly, so a
+        caller switching between the two changes no downstream randomness."""
         d, n = int(self.z_dim), z_g.shape[0]
         rng_sphere, rng_mix = jax.random.split(rng)
         z_rand = _sphere(jax.random.normal(rng_sphere, (n, d)), d)
         use_rand = jax.random.bernoulli(rng_mix, self.z_rand_frac, (n, 1))
-        return jax.lax.stop_gradient(jnp.where(use_rand, z_rand, z_g))
+        z = jax.lax.stop_gradient(jnp.where(use_rand, z_rand, z_g))
+        return z, jax.lax.stop_gradient(1.0 - use_rand.astype(z.dtype))
+
+    def _z_mix(self, z_g, rng):
+        """FB's standard task-prior mix: keep the encoded index with probability
+        1 - z_rand_frac, else a FRESH uniform sqrt(d)-sphere draw. Both branches carry
+        ||z|| = sqrt(d); the whole result is stop_gradded. (The bridge's hindsight indicator
+        feeds a BC mask, ported as `_z_mix_masked` for the CPR actor.)"""
+        return self._z_mix_masked(z_g, rng)[0]
 
     def _update_obs_norm(self, net, batch):
         """EMA the running observation statistics, Motivo's BatchNorm1d(momentum=0.01) rule:
@@ -974,12 +982,17 @@ class DensityFBCritic:
 
             def _z_at(goals, r_mix):
                 r = jax.lax.stop_gradient(_delta_phi(goals, u_raw, self.blocks))  # [B, M]
-                return self._z_mix(self._z_index(zenc_p, st, u_sc, r), r_mix)
+                return self._z_mix_masked(self._z_index(zenc_p, st, u_sc, r), r_mix)
 
+            # `_z_hindsight` marks the ACTOR-leg rows whose z kept the encoded index of
+            # their own actor_goal (a same-trajectory future under actor_p_trajgoal=1).
+            # Published for DDPGBCDensityCPRActor's hindsight-masked BC term; every other
+            # actor ignores it, and the z values themselves are unchanged.
+            z_a, hs_a = _z_at(batch["actor_goals"], r_a)
             return self._with_obs_feat(net, {
                     "value_goal": batch["value_goals"], "goal": batch["actor_goals"],
-                    "z": _z_at(batch["actor_goals"], r_a),
-                    "_cvec_vgoal": _z_at(batch["value_goals"], r_v),
+                    "z": z_a, "_z_hindsight": hs_a,
+                    "_cvec_vgoal": _z_at(batch["value_goals"], r_v)[0],
                     # TARGET backward embedding of the query support (q_fn sees only online
                     # params), for its reward vector r_z = B~(u)^T z / sqrt(d).
                     "_density_tb_u": jax.lax.stop_gradient(
