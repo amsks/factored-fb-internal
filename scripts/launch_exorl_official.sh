@@ -97,7 +97,15 @@ for CRITIC in $CRITICS; do
            --override "rldp_phase1_steps=$PHASE1"
            --override "measure_hit_spec=\"${HIT[$DOM]}\""
            "${ACTOR_OV[@]}" )
-      CMD="cd $REPO && CUDA_VISIBLE_DEVICES=$((GPU % NGPU)) $PY -m impls.main \
+      # ENV MUST BE INSIDE $CMD, not exported. A tmux window inherits the environment of
+      # the tmux SERVER, which on this box is already running from an older session -- an
+      # `export` in this script never reaches it, and the run dies in _mujoco_overlay()
+      # with "no usable mujoco/dm_control pairing found". Setting them in the command
+      # string means the shell tmux spawns sets them itself.
+      ENVV="FB_MUJOCO_SITE_PACKAGES=$FB_MUJOCO_SITE_PACKAGES \
+EXORL_DATA_ROOT=$EXORL_DATA_ROOT EXORL_CACHE_ROOT=$EXORL_CACHE_ROOT \
+XLA_PYTHON_CLIENT_PREALLOCATE=false"
+      CMD="cd $REPO && $ENVV CUDA_VISIBLE_DEVICES=$((GPU % NGPU)) $PY -m impls.main \
 --critic $CRITIC --actor $ACTOR --domain $DOM --seed $SEED \
 --train_steps $STEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL \
 --eval_episodes $EVAL_EPISODES --num_video 0 \
