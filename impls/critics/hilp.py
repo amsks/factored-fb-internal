@@ -197,11 +197,15 @@ class HILPCritic:
     # --- losses -------------------------------------------------------------
     def stage_loss(self, stage, params, target, batch, cond, boot):
         if stage == "phi":
-            # Goals are the hindsight future observations the dataset supplies.
+            # Goals are the GEOMETRICALLY-sampled hindsight futures from
+            # HILPFutureDataset (impls/utils/datasets.py). NOT `actor_goals`: the
+            # ExoRL path uses FBDataset, which emits no goal keys at all, so
+            # reading actor_goals raised KeyError on the first real batch --
+            # after 15 unit tests passed, because they feed arrays directly.
             return hilp_phi_loss(
                 params["hilp_phi1"], params["hilp_phi2"], target["hilp_phi1"], target["hilp_phi2"],
                 lambda p, x: self.hilp_phi1.apply({"params": p}, x),
-                batch["observations"], batch["actor_goals"], batch["next_observations"],
+                batch["observations"], batch["future_observations"], batch["next_observations"],
                 self.hilp_discount, self.hilp_expectile)
 
         assert stage == "sf", stage

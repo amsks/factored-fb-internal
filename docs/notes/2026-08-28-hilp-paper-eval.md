@@ -516,3 +516,25 @@ Five details the spec's summary does not carry, all of the kind that decide a re
 Ports must reproduce items 1-4 exactly or the arm is not HILP. Item 2 in particular means
 a port that "fixes" the expectile to 0.7 would be running a different algorithm than the
 published numbers.
+
+### The expectile is inert on real ExoRL data, not just at the shipped setting (2026-08-29)
+
+Trap 2 above says `hilp_expectile` ships at 0.5, where the weight
+`where(adv>=0, e, 1-e)` is a constant and the loss degenerates to `0.5*diff^2`. A 200-step
+run of the port on `dmc-walker` shows the point is stronger than that, and holds at ANY
+expectile:
+
+    step  50  hilp_accept_prob 0.047   hilp_adv_mean -1.154
+    step 100  hilp_accept_prob 0.016   hilp_adv_mean -1.096
+    step 150  hilp_accept_prob 0.016   hilp_adv_mean -1.096
+    step 200  hilp_accept_prob 0.000   hilp_adv_mean -1.165
+
+`accept_prob` is the fraction of rows with `adv >= 0`. It is ~0-5%, because HILP's reward
+is -1 on every row where the hindsight goal is not reached, so `q` sits near -1 while the
+values sit near 0. The expectile weight depends ONLY on sign(adv), so at 0.7 it would
+apply the same weight to ~99% of rows -- the asymmetry has almost nothing to act on.
+
+Predicted synthetically first (`test_advantage_is_almost_always_negative` asserts
+accept_prob <= 0.35 on random fixtures) and then observed at <= 0.05 on real data. Worth
+carrying into the report: calling this arm "expectile/IQL" is structurally accurate and
+numerically close to meaningless on this benchmark.

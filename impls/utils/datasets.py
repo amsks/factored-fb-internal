@@ -595,6 +595,55 @@ class WindowedDataset:
 
 
 
+@dataclasses.dataclass
+class HILPFutureDataset:
+    """The FB batch plus ONE geometrically-sampled hindsight future observation.
+
+    Added for HILP (impls/critics/hilp.py), whose phi objective takes `future_obs` as the
+    goal and asks whether the current state IS that goal:
+    `rewards = 1[||obs - goals|| < 1e-6] - 1`.
+
+    WHY A NEW CLASS RATHER THAN AN EXISTING ONE. Neither existing option is HILP's
+    sampler. `FBDataset` emits no goal at all (FB's goal IS next_obs, resolved inside the
+    critic). `WindowedDataset` emits FIXED offsets 1..h, which is RLDP's rollout window,
+    not a hindsight draw. HILP's buffer samples a GEOMETRIC offset
+    (`in_memory_replay_buffer.py:231-233`):
+
+        future_idx = step_idx + np.random.geometric(p=(1 - future))
+        future_idx = np.clip(future_idx, 0, eps_lengths)
+
+    with `future = 0.99` (train_offline.py:69), i.e. p = 0.01 and a mean offset of 100
+    steps. Using a fixed offset instead would change WHICH states become goals and so what
+    the Hilbert metric is fitted to -- it would be a different representation, silently.
+
+    The clip is to the anchor row's OWN trajectory end, the same discipline
+    WindowedDataset and HGCDataset use: a future drawn past the episode boundary would
+    otherwise be a state from the NEXT episode, which is not a reachable future at all.
+    numpy's `geometric` returns >= 1, so the future is always strictly ahead of the anchor;
+    obs == goal still occurs, via the clip at the trajectory end, and that is exactly the
+    row HILP's indicator reward is written for.
+    """
+    dataset: Any
+    config: Any
+
+    def __post_init__(self):
+        self.size = self.dataset.size
+        (self.terminal_locs,) = np.nonzero(np.asarray(self.dataset['terminals']) > 0)
+        self.p = 1.0 - float(self.config.get('hilp_future', 0.99))
+        assert 0.0 < self.p <= 1.0, (
+            f"hilp_future must be in [0, 1); got {self.config.get('hilp_future')}")
+
+    def sample(self, batch_size, idxs=None):
+        batch = self.dataset.sample(batch_size, idxs)
+        idxs = np.asarray(batch['index']).reshape(-1)
+        final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
+        offs = np.random.geometric(p=self.p, size=idxs.shape[0])
+        fut = np.minimum(idxs + offs, final_idxs)
+        batch['future_observations'] = np.asarray(
+            self.dataset['observations'][fut], np.float32)
+        return batch
+
+
 def make_dataset(base, config):
     """Wrap a base Dataset per the critic's dataset_class.
 
@@ -607,6 +656,8 @@ def make_dataset(base, config):
         return HGCDataset(base, config)
     if config.get('dataset_class') == 'WindowedDataset':
         return WindowedDataset(base, config)
+    if config.get('dataset_class') == 'HILPFutureDataset':
+        return HILPFutureDataset(base, config)
     if isinstance(base, FBDataset):
         dims = sorted(set(config.get('obs_mask_dims') or ()) |
                       set(config.get('goal_mask_dims') or ()))
