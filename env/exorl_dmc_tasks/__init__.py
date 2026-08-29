@@ -5,7 +5,7 @@ exact scope and the two deliberate patches.
 
 `make(domain, task)` mirrors upstream's dispatcher. Note that it only covers the tasks
 ExoRL ADDS on top of the dm_control suite (cheetah run_backward/flip/flip_backward,
-walker flip, all four point_mass_maze reach targets); the standard suite tasks
+walker flip, quadruped stand/jump, all four point_mass_maze reach targets); the standard suite tasks
 (walker stand/walk/run, cheetah run) still come from `dm_control.suite.load`, exactly as
 ExoRL's own `dmc.py` resolves them (`suite.ALL_TASKS` first, custom tasks second).
 Sub-modules are imported LAZILY: importing this package must not pull in dm_control /
@@ -13,7 +13,7 @@ mujoco, because env/registry.py's prefix table is read by processes that have ne
 """
 import importlib
 
-_DOMAINS = ("cheetah", "walker", "point_mass_maze")
+_DOMAINS = ("cheetah", "walker", "point_mass_maze", "quadruped")
 
 
 def _module(domain):

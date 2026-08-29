@@ -95,6 +95,12 @@ TASKS = {
     # paper's cheetah rows report alongside run/run_backward (its Table 2 has no cheetah flip).
     "dmc-cheetah":         ("cheetah", "run", ("run", "run_backward", "walk",
                                                "walk_backward", "flip", "flip_backward")),
+    # quadruped (spec phase 1b). RLDP Table 1 / Table 4 report stand, walk, run, jump.
+    # `walk` and `run` are dm_control suite tasks; `stand` and `jump` exist only in ExoRL's
+    # custom_dmc_tasks, now vendored (see env/exorl_dmc_tasks/PROVENANCE.md). The default is
+    # `walk`, the suite task, matching the other locomotion domains' convention of defaulting
+    # to a suite task rather than a custom one.
+    "dmc-quadruped":       ("quadruped", "walk", ("stand", "walk", "run", "jump")),
 }
 
 

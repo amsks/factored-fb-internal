@@ -1,12 +1,16 @@
-# exorl_dmc_tasks — vendored ExoRL task definitions (point_mass_maze / walker / cheetah)
+# exorl_dmc_tasks — vendored ExoRL task definitions (point_mass_maze / walker / cheetah / quadruped)
 
 - **Upstream:** https://github.com/denisyarats/exorl
 - **Pinned commit:** a3fb07a420939280aa0918150923dcca7e82bf2a (2022-02-07)
 - **License:** MIT (exorl repo); see `LICENSE` in this directory.
-- **Scope:** only the task modules the three T3 ExoRL domains need —
-  `custom_dmc_tasks/{point_mass_maze,walker,cheetah}.py` plus their XML models
-  (`walker.xml`, `cheetah.xml`, `point_mass_maze_reach_{top,bottom}_{left,right}.xml`).
-  Not `hopper`/`quadruped`/`jaco`, not the agents, not the collection loop.
+- **Scope:** the task modules the T3 ExoRL domains need —
+  `custom_dmc_tasks/{point_mass_maze,walker,cheetah,quadruped}.py` plus their XML models
+  (`walker.xml`, `cheetah.xml`, `quadruped.xml`,
+  `point_mass_maze_reach_{top,bottom}_{left,right}.xml`).
+  Not `hopper`/`jaco`, not the agents, not the collection loop.
+  `quadruped` was added 2026-08-29 for spec phase 1b: RLDP Table 1 scores
+  quadruped `stand`/`walk`/`run`/`jump`, and `stand`/`jump` exist ONLY as ExoRL
+  additions — `walk`/`run` still load from `dm_control.suite`.
 
 These modules exist because ExoRL's benchmark tasks are **not all** dm_control suite
 tasks: `cheetah run_backward / flip / flip_backward`, `walker flip` and the four
@@ -47,3 +51,19 @@ stored `physics` state into the *target* task's env and calls `task.get_reward(p
 these modules have to be present and faithful: a loader that passed the stored column
 through would be silently correct on one task per domain and silently wrong on all the
 others.
+
+## Patches to `quadruped.py` (2026-08-29)
+
+Three, all mechanical:
+
+1/2. `get_model_and_assets()` and `make_model()` both resolved the XML as
+`dirname(dirname(__file__))/custom_dmc_tasks/quadruped.xml`. Vendored directly under
+`env/exorl_dmc_tasks/` that path does not exist; both now join against
+`dirname(__file__)`. This is the same patch already applied to `walker.py`/`cheetah.py`.
+
+3. `np.in1d` -> `np.isin` in `_get_sensor_names`. `np.in1d` was removed in NumPy 2.0 and
+this box runs 2.4.6; `np.isin` is the documented replacement with identical semantics for
+the 1-D integer arrays used there.
+
+Verified after patching: all four scored tasks build and step, obs 78 / act 12 /
+horizon 1000, matching RLDP Table 4's row for the domain.

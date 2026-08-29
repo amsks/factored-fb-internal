@@ -1,0 +1,26 @@
+# ExoRL quadruped (RND exploration buffer) via the unified adapter — spec phase 1b.
+#
+# REWARD-SPECIFIED domain, same shape as dmc-walker.yaml: no binary success rule, the
+# benchmark metric is episode return, reported as `episode_return` for dmc- tasks.
+# obs 78 / act 12, episode length 1000 — verified against the built env and matching
+# RLDP Table 4's row for this domain.
+#
+# Two of the four scored tasks are NOT dm_control suite tasks: `stand` and `jump` come
+# from ExoRL's custom_dmc_tasks, vendored in env/exorl_dmc_tasks/quadruped.{py,xml}
+# (see PROVENANCE.md for the three patches). `walk` and `run` load from the suite.
+adapter: unified
+env_name: dmc-quadruped        # run naming only
+task: dmc-quadruped
+exorl_task: walk               # one of stand / walk / run / jump
+exorl_algo: rnd
+data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/quadruped/rnd
+exorl_max_episodes: 5000
+keep_dataset_rewards: true
+render: false
+
+# NOTE — `measure_hit_spec` is deliberately NOT set here, and this domain is therefore NOT
+# ready for the density arms. The walker/cheetah radii were CALIBRATED (match cube-single's
+# hit rate over 400k random observation pairs; see dmc-walker.yaml), and no such calibration
+# has been run for quadruped's 78-dim observation. The rldp/fb arms do not read it, so
+# phase-1b vanilla runs are unaffected; a density arm on this domain must calibrate first
+# rather than inherit a number from another domain.
