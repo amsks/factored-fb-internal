@@ -37,6 +37,13 @@ SAVE_INTERVAL="${SAVE_INTERVAL:-1000000}"
 EVAL_EPISODES="${EVAL_EPISODES:-10}"   # in-training only; the GATE number is the paper-exact
                                        # final eval (50 eps) run by scripts/exorl_paper_eval.py
 NGPU="${NGPU:-8}"
+# In-training eval MUST infer z. Without these the eval runs on eval_cond0 = {"z": zeros},
+# so Q = F.0 = 0 and the policy is goal-blind -- run 1 produced 5M steps of meaningless
+# eval rows this way, and no warning fires because the warning lives inside the
+# `infer_cond_episodes > 0` block that never runs. The count is a TRANSITION count despite
+# the flag's name (it goes straight to train_ds.sample), so this is the paper's 50k.
+INFER_EPISODES="${INFER_EPISODES:-50000}"
+INFER_FLAGS="--infer_cond_episodes $INFER_EPISODES --eval_on_inferred_cond"
 DRYRUN="${DRYRUN:-0}"
 SAVE_ROOT="${SAVE_ROOT:-$REPO/exp/exorl-official}"
 export EXORL_DATA_ROOT="${EXORL_DATA_ROOT:-$HOME/exorl_data/exorl/datasets}"
@@ -123,7 +130,7 @@ XLA_PYTHON_CLIENT_PREALLOCATE=false"
       CMD="cd $REPO && $ENVV CUDA_VISIBLE_DEVICES=$((GPU % NGPU)) $PY -m impls.main \
 --critic $CRITIC --actor $ACTOR --domain $DOM --seed $SEED \
 --train_steps $STEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL \
---eval_episodes $EVAL_EPISODES --num_video 0 \
+--eval_episodes $EVAL_EPISODES --num_video 0 $INFER_FLAGS \
 --save_dir $SAVE_ROOT/$DOM/$CRITIC ${RES[*]} ${OV[*]} 2>&1 | tee -a $REPO/logs/$NAME.log"
 
       if [ "$DRYRUN" = "1" ]; then
