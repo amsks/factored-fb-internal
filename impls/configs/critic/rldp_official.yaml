@@ -34,7 +34,7 @@ rldp_sp_official_scale: true
 # `ortho_coef * orth_loss_diag` (agent.py:270) -- the off-diagonal whitening is computed
 # for logging and never enters the objective, so under a sqrt(d)-normalized B the term is
 # inert. We follow the PAPER and keep the code-exact variant one flag away.
-rldp_ortho_inert: false
+rldp_ortho_inert: true
 # The FB TD target is built from the ONLINE backward map, as official RLDP does
 # (`target_B = self._model._backward_map(goal)`, agent.py::update_fb). Its
 # _target_backward_map is a PHASE-1-ONLY object -- the SP target in update_mr, refreshed

@@ -52,10 +52,50 @@ with a default-off equivalence test):
 
 New config `impls/configs/critic/rldp_official.yaml`: all six knobs ON,
 z_dim 512, batch 1024, discount 0.98 (0.99 pointmass), F 1024×1, B 256×2,
-predictor as reference, τ_F 0.01, ortho λ=1 in the PAPER's Eq-7 form (note:
-official CODE's ortho term is inert under b_norm — we follow the paper,
-footnote the code discrepancy; keep a `rldp_ortho_inert` ablation knob so
-the code-exact variant is one flag away if the gate fails).
+predictor as reference, τ_F 0.01, and the ortho term as set out below.
+
+**ORTHO — REVERSED 2026-08-29 after run 1 failed. `rldp_ortho_inert: true`
+is now the shipped setting; ortho λ=1 in the paper's Eq-7 form is the
+FAILED first rung of the ladder.** As written this spec said: "ortho λ=1 in
+the PAPER's Eq-7 form (note: official CODE's ortho term is inert under
+b_norm — we follow the paper, footnote the code discrepancy; keep a
+`rldp_ortho_inert` ablation knob so the code-exact variant is one flag away
+if the gate fails)." The gate failed and the knob was flipped. What the run
+established, and why the reversal is a correction rather than a preference:
+
+* The code discrepancy is stronger than "inert under b_norm". Official's
+  loss receives ONLY `ortho_coef * orth_loss_diag` (agent.py:270); the
+  off-diagonal whitening is computed for logging and never enters the
+  objective, at any `b_norm` setting. Under the √d-normalized B that
+  diagonal is the constant d — measured at exactly `ortho_diag = -512.0`
+  on every logged phase-1 step — so its gradient is zero and **official's
+  phase 1 is SP-only**. Following the paper therefore did not add a
+  footnote-worthy nuance; it added an objective the reference does not
+  optimize at all.
+* That objective then dominated. `scripts/rldp_grad_balance.py` on the real
+  config and data: `||grad SP|| = 0.588` against `||grad ortho|| = 35806.6`,
+  a ratio of 6.1e4. The self-predictive term contributed about one part in
+  60,000, so B never learned dynamics and phase 2 regressed F onto a
+  dynamics-blind frozen basis.
+* Two knobs compounded: `rldp_sp_official_scale: true` divides SP by z_dim
+  (102× weaker) while `ortho_coef: 1.0` is 100× the seam's 0.01. The seam's
+  own `rldp` arm sits near 6:1 because it pairs td_jepa's SP scale with the
+  smaller coefficient.
+* Loss values did not reveal any of this (`sp ~ 1.66` vs ortho terms ~510
+  that nearly cancel in VALUE while ortho dominates in GRADIENT). **Run the
+  gradient probe before committing GPUs to any phase-1 configuration.**
+
+Result: walker/cheetah, 4 seeds, 32/32 cells evaluated, 0 pass, ratios
+0.06–0.26 vs Table 1. Full record: `docs/notes/2026-08-28-official-parity-
+campaign-1.md`.
+
+ABLATION LADDER for the final report (§7), in the order actually run:
+  rung 1 — paper Eq-7 ortho, λ=1  →  RUN 1, FAILED, cause measured (above)
+  rung 2 — code-exact `rldp_ortho_inert: true` (phase 1 SP-only)  →  run 2
+  rung 3+ — remaining recorded ambiguities, only if rung 2 also fails:
+           steps 3M+3M, eval-50 vs eval-10, pointmass γ.
+`ortho_coef` and `rldp_sp_official_scale` become moot for B's learning at
+rung 2, since SP is then the only term carrying gradient into B.
 
 `rldp_density_official.yaml` = same knobs on `rldp_density.py` (the CE
 estimator already trains F+encoder only, so the phase-2 B-freeze composes
