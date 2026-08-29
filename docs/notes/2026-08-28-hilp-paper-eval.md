@@ -467,3 +467,52 @@ otherwise identical per-domain HPs to the state-based commands.
    goal-conditioned (`HILP-G`) command for Jaco; whether HILP-G was also run
    on Walker/Cheetah/Quadruped in the paper (Table 3 showed `—` for those
    cells in the unreliable extraction) was not confirmed from paper prose.
+
+---
+
+## Official source acquired + code-level audit of the phi objective (2026-08-29)
+
+`github.com/seohongpark/HILP` cloned to `~/git/baselines/HILP`. The zero-shot RL code is
+`hilp_zsrl/url_benchmark/agent/{sf.py,ddpg.py}`, exactly as spec sec.3 named. Neither
+locally-available alternative is the official one -- `baselines/RLU/controllable_agent/
+url_benchmark/agent/hilp.py` is Meta's reimplementation and `baselines/td_jepa/metamotivo/
+agents/hilp/` is td_jepa's -- and porting from a third-party reimplementation is exactly
+the mistake that produced run 1 (a faithful transcription of td_jepa's RLDP, which is a
+structurally different algorithm from official RLDP).
+
+**Spec sec.3's description of the phi objective is ACCURATE**, verified line by line
+against `sf.py:154-198`: goals are hindsight future observations; `rewards =
+1[||obs-goal|| < 1e-6] - 1`; `masks = 1 - 1[...]` (computed BEFORE the -1, so it is the
+indicator's complement); twin `V_i(s,g) = -sqrt(clamp(||phi_i(s)-phi_i(g)||^2, min=1e-6))`;
+`Q_i = r + hilp_discount * mask * Vbar_target`; expectile loss on the advantage; twin
+heads.
+
+Five details the spec's summary does not carry, all of the kind that decide a replication:
+
+1. **The advantage and the regression targets use DIFFERENT q's.** `adv` is built from
+   `next_v = min(next_v1, next_v2)`, but the two value losses regress `q1`/`q2` built from
+   `next_v1`/`next_v2` SEPARATELY. And `adv` subtracts `v_t = (v1_t + v2_t)/2`, the MEAN of
+   the target heads, not the min. Min for the advantage's q, mean for its baseline,
+   per-head for the regressed targets -- three different reductions in one loss.
+2. **`hilp_expectile` defaults to 0.5, not 0.7.** `expectile_loss`'s own signature default
+   is 0.7 but the config passes 0.5 (`SFAgentConfig.hilp_expectile`), and at 0.5 the weight
+   is `where(adv>=0, 0.5, 0.5)` -- a CONSTANT. So the IQL asymmetry is effectively OFF in
+   the shipped ExoRL configuration and the loss degenerates to `0.5 * diff^2`. `adv` is
+   still computed (and logged) but does not weight anything. Worth stating plainly in the
+   report: describing this arm as "expectile/IQL" is structurally true but numerically
+   inert at the published setting.
+3. **A running mean is subtracted from phi at read time.** `feature_net` returns
+   `phi1(obs) - running_mean`, where `running_mean` is an EMA (0.995/0.005) over batch
+   phi1. `running_std` is tracked in the same place but never used by `feature_net`.
+4. **The target phi soft-update happens INSIDE `forward()`** (tau 0.005), i.e. the loss
+   function mutates state as a side effect. A port that hoists it into the optimizer step
+   must keep the same ordering: update happens AFTER the loss is computed, BEFORE the
+   running-mean update.
+5. **`z_dim` is 50, not 512.** HILP's ExoRL config is a much smaller latent than RLDP's
+   swept 512, with `feature_dim: 512`, `batch_size: 1024`, `lr: 1e-4`,
+   `hilp_discount: 0.98`, `feature_type: 'state'`. The first MLP layer uses `ntanh`
+   (normalized tanh), which the seam has no equivalent of yet.
+
+Ports must reproduce items 1-4 exactly or the arm is not HILP. Item 2 in particular means
+a port that "fixes" the expectile to 0.7 would be running a different algorithm than the
+published numbers.
