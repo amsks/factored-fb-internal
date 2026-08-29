@@ -112,3 +112,168 @@ def hilp_phi_loss(phi1_p, phi2_p, tphi1_p, tphi2_p, apply_phi,
             "hilp_adv_mean": jnp.mean(adv), "hilp_abs_adv_mean": jnp.mean(jnp.abs(adv)),
             "hilp_accept_prob": jnp.mean((adv >= 0).astype(loss.dtype))}
     return loss, info
+
+
+@dataclasses.dataclass(frozen=True)
+class HILPCritic:
+    """HILP as a seam critic: a Hilbert phi learner + a successor-feature layer.
+
+    ARCHITECTURE NOTE. The seam's `PhiMap` is already exactly HILP's phi tower --
+    `mlp(obs_dim, hidden, "ntanh", hidden, "relu", feature_dim)` is Dense -> LayerNorm ->
+    tanh -> Dense -> relu -> Dense, which is PhiMap's body verbatim (its docstring even
+    calls the first block "ntanh"). The one setting that matters is `norm=False`: HILP's
+    phi layer list ends at `feature_dim` with no trailing "L2", unlike its `Identity`
+    feature learner which does.
+    """
+    phi1: Any
+    phi2: Any
+    sf: Any
+    z_dim: int
+    num_parallel: int
+    discount: float
+    hilp_discount: float
+    hilp_expectile: float
+    phi_tau: float
+    sf_tau: float
+    norm_z: bool
+    stats_momentum: float
+    q_loss: bool
+
+    GROUPS = ("phi1", "phi2", "sf_psi", "hilp_stats")
+    STAGES = ("phi", "sf")
+    PROVIDES_V = False
+    PROVIDES_COND = frozenset({"z"})
+    # z is solved by least squares against phi(s'), so the readout must be posed on the
+    # same rows the SF target's phi is read at (`feature_net(next_obs)`, sf.py:614).
+    INFER_COND_MARGINAL = "next_observations"
+    BOOT_COND = "actor_goal"
+
+    @property
+    def TARGETS(self):
+        # `hilp_stats` is a params-only slot (the running mean), never polyaked -- it is
+        # written by update_stats. Giving it tau 0 keeps it present without drifting.
+        return {"phi1": self.phi_tau, "phi2": self.phi_tau,
+                "sf_psi": self.sf_tau, "hilp_stats": 0.0}
+
+    @property
+    def cvec_dim(self):
+        return self.z_dim
+
+    def stage_groups(self, stage):
+        # Upstream runs two separate .backward() calls: the phi learner's value loss steps
+        # only the phi towers, and the SF loss detaches phi entirely (it reads
+        # `feature_net(...).detach()`), so no phi gradient flows from the SF stage.
+        if stage == "phi":
+            return ("phi1", "phi2")
+        assert stage == "sf", stage
+        return ("sf_psi",)
+
+    # --- towers -------------------------------------------------------------
+    def _phi(self, p, x):
+        return self.phi1.apply({"params": p}, x)
+
+    def _phi2(self, p, x):
+        return self.phi2.apply({"params": p}, x)
+
+    def _sf(self, p, obs, z, action):
+        return self.sf.apply({"params": p}, obs, z, action)
+
+    def _feature_net(self, net_or_params, stats_params, x):
+        """phi1(x) - running_mean (sf.py:120-124).
+
+        TRAP 3: the running mean is subtracted at READ time, so every consumer of the
+        feature -- the SF target and the z readout both -- sees the centered feature,
+        while the phi VALUE loss uses the raw towers. `running_std` is maintained upstream
+        beside it and never read; it is kept in the stats slot for fidelity and as a
+        diagnostic, not used in any expression."""
+        return self._phi(net_or_params, x) - stats_params["mean"]
+
+    # --- losses -------------------------------------------------------------
+    def stage_loss(self, stage, params, target, batch, cond, boot):
+        if stage == "phi":
+            # Goals are the hindsight future observations the dataset supplies.
+            return hilp_phi_loss(
+                params["phi1"], params["phi2"], target["phi1"], target["phi2"],
+                lambda p, x: self.phi1.apply({"params": p}, x),
+                batch["observations"], batch["actor_goals"], batch["next_observations"],
+                self.hilp_discount, self.hilp_expectile)
+
+        assert stage == "sf", stage
+        obs, action = batch["observations"], batch["actions"]
+        nobs, z = batch["next_observations"], cond["z"]
+        P = self.num_parallel
+
+        tF = self._sf(target["sf_psi"], nobs, z, boot["next_action"])        # [P, B, d]
+        # TRAP 4: the SF target reads the ONLINE feature net, detached -- NOT a target phi.
+        # The target phi towers exist only inside the phi value loss. (The RLDP run-1
+        # divergence was the mirror image of this: reading the target tower where official
+        # reads the online one.)
+        target_phi = jax.lax.stop_gradient(
+            self._feature_net(params["phi1"], params["hilp_stats"], nobs))   # [B, d]
+        # TRAP 5b: next_F is chosen PER SAMPLE by argmin over Q -- the whole vector of the
+        # head with the smaller Q, not an elementwise min over the two vectors.
+        tQ = jnp.einsum("pbd,bd->pb", tF, z)                                 # [P, B]
+        pick = (tQ[0] < tQ[1])[:, None]                                      # [B, 1]
+        next_F = jnp.where(pick, tF[0], tF[1])                               # [B, d]
+        target_F = jax.lax.stop_gradient(target_phi + self.discount * next_F)
+
+        F = self._sf(params["sf_psi"], obs, z, action)                       # [P, B, d]
+        if self.q_loss:
+            # TRAP 5a: with q_loss (the shipped default) the regression is on the SCALAR
+            # Q = <F, z>, not on the vector F.
+            Q = jnp.einsum("pbd,bd->pb", F, z)
+            tQs = jnp.einsum("bd,bd->b", target_F, z)
+            sf_loss = jnp.sum(jnp.mean((Q - tQs[None]) ** 2, axis=-1))
+        else:
+            sf_loss = jnp.sum(jnp.mean((F - target_F[None]) ** 2, axis=(-1, -2)))
+        return sf_loss, {"sf_loss": sf_loss, "target_F": jnp.mean(target_F),
+                         "phi_norm": jnp.mean(jnp.linalg.norm(target_phi, axis=-1)),
+                         "z_norm": jnp.mean(jnp.linalg.norm(z, axis=-1))}
+
+    # --- control ------------------------------------------------------------
+    def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
+        z = cond["z"]
+        Qs = jnp.einsum("pbd,bd->pb", self._sf(params["sf_psi"], obs, z, actions), z)
+        # Upstream update_actor: Q = min(Q1, Q2), then actor_loss = -Q.mean() -- a pure
+        # TD3 objective with no BC term, exactly as official RLDP's extractor.
+        qmin = jnp.min(Qs, axis=0)
+        return qmin, Qs
+
+    def cond_vec(self, cond):
+        return cond["z"]
+
+    def eval_cond0(self, ex_obs, config):
+        return {"z": jnp.zeros((self.z_dim,))}
+
+    def sample_cond(self, net, batch, rng):
+        """z ~ sqrt(d) * normalize(gaussian) (sf.py::sample_z)."""
+        B = batch["observations"].shape[0]
+        g = jax.random.normal(rng, (B, self.z_dim))
+        return {"z": project_z(g, self.norm_z)}
+
+    def infer_cond(self, net, obs, rewards):
+        """z = lstsq(phi(s'), r), then sqrt(d)-normalized (sf.py:535-552).
+
+        This is HILP's readout and it is NOT FB's reward moment: a least-squares SOLVE
+        against the feature matrix, not `E[r phi]`. Spec sec.2 records 10,000 transitions
+        for this domain, against RLDP's 50,000."""
+        phi = self._feature_net(net["phi1"].params, net["hilp_stats"].params,
+                                jnp.asarray(obs))
+        r = jnp.asarray(rewards).reshape(-1, 1)
+        z = jnp.linalg.lstsq(phi, r, rcond=None)[0].reshape(-1)
+        return {"z": project_z(z, self.norm_z)}
+
+    def update_stats(self, net, pre_net, batch):
+        """EMA the phi running mean (sf.py:184-187), from the PRE-STEP online tower.
+
+        Upstream does this inside `forward()` as a side effect, ordered AFTER the loss and
+        AFTER the target polyak. Agent.apply_update calls update_stats after both, so the
+        ordering is preserved rather than merely approximated."""
+        m = self.stats_momentum
+        p = net["hilp_stats"].params
+        phi1 = self._phi(pre_net["phi1"].params, batch["observations"])
+        net = dict(net)
+        net["hilp_stats"] = net["hilp_stats"].replace(params={
+            "mean": p["mean"] * (1.0 - m) + jnp.mean(phi1, axis=0) * m,
+            "std": p["std"] * (1.0 - m) + jnp.std(phi1, axis=0) * m})
+        return net
