@@ -37,6 +37,26 @@ Already supported via the vendored OGBench restore path:
 `++exp_name=<name>` to keep the same output dir. (Use `++` because the base
 `cube_single_*` configs do not predefine these keys.)
 
+## JAX / factored impls (`impls/main.py`, `scripts/vista_train.slurm`)
+
+- Auto-resume from the latest `params_<N>.pkl` in the run's own directory:
+  `--auto_resume` (fresh start when none exists, so launchers can pass it always).
+  Continues at step `N+1`; `train.csv`/`eval.csv` are appended with the step axis
+  intact (CsvLogger keeps a pre-existing file's header). Not bit-exact: the global
+  NumPy batch stream is re-seeded from `(seed, restored step)` so a resume does not
+  replay already-trained batch indices; the agent pytree itself (params, opt state,
+  target params, agent rng, density_fb's `density_zstats`/`density_b_zenc`/
+  `density_obsnorm` index state) restores exactly from the pickle.
+- Explicit cross-directory resume: `--restore_path <run-dir glob> --restore_epoch N`
+  (loses to `--auto_resume` when the run dir already has a checkpoint).
+- Walltime: `scripts/vista_train.slurm` carries `#SBATCH --signal=USR1@600`;
+  `impls/main.py` catches SIGUSR1/SIGTERM between steps, writes `params_<step>.pkl`
+  (atomic tmp+rename) and exits 0, so `AUTO_RESUME=1 sbatch ... vista_train.slurm`
+  with the same knobs continues it. Hard kills (SIGKILL, node crash) fall back to
+  the last `SAVE_INTERVAL` checkpoint.
+- `scripts/launch_exorl_paperx.sh` passes `AUTO_RESUME=1` and marks resubmissions of
+  partially-run cells as `(resume)` in its manifest.
+
 ## Smoke tests
 
 - PyTorch: `scripts/smoke_resume.sh` (state); `DOMAIN=visual_cube_single
