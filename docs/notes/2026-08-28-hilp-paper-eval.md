@@ -113,25 +113,77 @@ are reported only for goal-reachable domains (e.g. Jaco), not for
 locomotion-reward domains like Walker/Cheetah (those cells read `—` in what
 was extracted).
 
-**[LOW CONFIDENCE — VERIFY AGAINST PDF]** Two independent per-cell
-transcriptions of Table 3 disagreed with each other (see reliability note
-above), so the exact numeric cells are **not** reproduced here as facts. A
-representative (unverified, possibly wrong) sample of what was extracted for
-the RND-dataset row is:
+**RESOLVED 2026-08-29 — Table 3 re-extracted exactly.** The earlier low-confidence
+ranges are superseded by the block below. Method: `arxiv.org/pdf/2402.15567v2`
+downloaded and parsed with PyMuPDF in a throwaway `uv` venv (this box has no
+`pdftotext`/`pdftoppm`, and the Read tool's PDF path needs poppler, so neither
+was available; the shared jax venv was deliberately not modified). The parse
+recovers exactly 64 rows = 4 datasets x 4 envs x 4 tasks, which is the
+structural check that it read the table rather than reflowed prose.
 
-| Domain | Task | HILP (unverified) | FB (unverified) |
+Why the two earlier transcriptions disagreed: they were almost certainly
+reading DIFFERENT DATASET BLOCKS. Table 3 stacks APS / APT / Proto / RND with
+the dataset name appearing once, so a row can easily be attributed to the wrong
+block. E.g. Walker Flip HILP is 573+-37 under APS but 563+-136 under RND.
+**Our campaign uses RND**, so RND is the row set that matters.
+
+### Table 3, RND dataset (the campaign's dataset), FB and HILP columns
+
+| Env | Task | FB | HILP |
 |---|---|---|---|
-| Walker | Flip | ~560–570 ± ~40–140 | ~330–550 ± ~90 |
-| Walker | Walk | ~810–860 ± ~30–50 | ~810–840 ± ~50–100 |
-| Cheetah | Run | ~260–370 ± ~50–70 | ~180–250 ± ~40–130 |
-| Cheetah | Walk Backward | ~840–985 ± ~2–180 | ~680–980 ± ~3–85 |
+| Walker | Flip | 548 +-94 | 563 +-136 |
+| Walker | Run | 409 +-15 | 401 +-30 |
+| Walker | Stand | 866 +-120 | 800 +-61 |
+| Walker | Walk | 811 +-52 | 855 +-34 |
+| Cheetah | Run | 183 +-83 | 262 +-53 |
+| Cheetah | Run Backward | 153 +-41 | 187 +-55 |
+| Cheetah | Walk | 636 +-291 | 823 +-141 |
+| Cheetah | Walk Backward | 677 +-85 | 843 +-184 |
 
-Directionally these are consistent with the paper's claim (HILP ≥ FB on most
-cells, both far above Rand/CL), but **do not cite specific numeric values from
-this table without re-extracting from the actual PDF/HTML with a proper PDF
-reader** — this environment had no `pdftotext`/`pdftoppm`/`pymupdf`/`pip`
-available to render the PDF locally for exact transcription (see §5, "facts
-not found").
+Phase-1b domains, same block: Quadruped FB/HILP Jump 642+-36 / 556+-101, Run
+436+-26 / 393+-42, Stand 797+-72 / 810+-97, Walk 642+-202 / 542+-32. Jaco adds
+a HILP-G column (goal-reachable only): Reach Bottom Left 18+-11 / 19+-20 /
+46+-14, Bottom Right 29+-12 / 18+-17 / 55+-23, Top Left 45+-16 / 8+-10 /
+47+-15, Top Right 22+-7 / 5+-4 / 38+-18.
+
+### THE TWO PUBLISHED SOURCES DISAGREE, AND NOT SYMMETRICALLY
+
+Spec sec.4 asks us to gate HILP against both RLDP Table 1's HILP column and
+HILP's own Table 3, and to flag disagreement rather than pick one. There is a
+large, one-directional disagreement:
+
+| Env / Task | HILP own | RLDP's HILP | x | FB own | RLDP's FB | x |
+|---|---|---|---|---|---|---|
+| Walker Flip | 563 | 277.95 | 2.03 | 548 | 206.22 | 2.66 |
+| Walker Run | 401 | 107.84 | 3.72 | 409 | 392.76 | 1.04 |
+| Walker Stand | 800 | 607.07 | 1.32 | 866 | 902.63 | 0.96 |
+| Walker Walk | 855 | 399.67 | 2.14 | 811 | 877.10 | 0.92 |
+| Cheetah Run | 262 | 68.22 | 3.84 | 183 | 257.59 | 0.71 |
+| Cheetah Run Bwd | 187 | 37.99 | 4.92 | 153 | 307.07 | 0.50 |
+| Cheetah Walk | 823 | 318.30 | 2.59 | 636 | 799.83 | 0.80 |
+| Cheetah Walk Bwd | 843 | 349.61 | 2.41 | 677 | 980.76 | 0.69 |
+
+**RLDP's FB reproduction tracks HILP's FB numbers (ratios 0.50-1.04, median
+~0.86, scattered both sides of 1). RLDP's HILP reproduction is BELOW HILP's own
+on 8 of 8 cells, by 1.3-4.9x (median ~2.4x).** Eight of eight in one direction
+is not sampling noise. The straightforward reading is that the RLDP authors
+reproduced the FB baseline faithfully and under-tuned the HILP one.
+
+CONSEQUENCE FOR OUR GATE (decision needed before the HILP arm runs): gating our
+HILP port against RLDP's HILP column would set a bar roughly 2.4x too low --
+our port could clear it while being nowhere near what HILP actually achieves,
+and we would then report a "successful HILP replication" that HILP's authors
+would dispute. Gating against HILP's OWN Table 3 RND rows is both the harder
+and the more defensible target. Recommend: gate on HILP Table 3, report the
+RLDP column alongside as a second reference, and state the discrepancy
+explicitly in the final report.
+
+CAVEAT ON COMPARABILITY, not yet resolved: the two papers may not be scoring
+the same protocol. HILP's own numbers come with its own z-inference recipe
+(least squares on 10k transitions) and its own eval budget; RLDP re-ran HILP
+under RLDP's harness. Part of the 2.4x could be protocol rather than tuning.
+Establishing which would need HILP's own eval code, which is not in this
+snapshot -- so the discrepancy is REPORTED, not adjudicated.
 
 ## 4. Method structure (for a future port)
 
