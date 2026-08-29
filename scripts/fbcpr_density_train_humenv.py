@@ -1,6 +1,8 @@
-# VERBATIM COPY of metamotivo examples/fbcpr_train_humenv.py (main branch, fetched
-# 2026-08-27) with EXACTLY TWO edits, marked DENSITY-SWAP below: the import and the
-# agent class. Every config value, schedule, buffer, and eval is theirs.
+# COPY of metamotivo examples/fbcpr_train_humenv.py (main branch, fetched
+# 2026-08-27) with two kinds of edits: (1) EXACTLY TWO lines marked DENSITY-SWAP —
+# the import and the agent class; (2) checkpoint/resume support, every edit marked
+# RESUME-SUPPORT (full-state checkpoints, --resume flag, signal handling).
+# Every config value, schedule, buffer, and eval is theirs.
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
 # This source code is licensed under the CC BY-NC 4.0 license found in the
@@ -21,6 +23,8 @@ import dataclasses
 import json
 import numbers
 import random
+import signal  # RESUME-SUPPORT
+import sys  # RESUME-SUPPORT
 import time
 from pathlib import Path
 from typing import List
@@ -49,6 +53,18 @@ if Version(humenv.__version__) < Version("0.1.2"):
     raise RuntimeError("This script requires humenv>=0.1.2")
 if Version(gymnasium.__version__) < Version("1.0"):
     raise RuntimeError("This script requires gymnasium>=1.0")
+
+
+# RESUME-SUPPORT: cooperative shutdown. Slurm sends SIGTERM before a walltime
+# kill, and the launcher requests USR1 10 minutes early (#SBATCH --signal=B:USR1@600,
+# forwarded by the batch shell). The handler only sets a flag; the training loop
+# checks it once per iteration, writes a full-state checkpoint, and exits with
+# code 99 so the launcher knows to resubmit with --resume.
+_STOP_SIGNAL = {"num": None}
+
+
+def _request_stop(signum, frame):  # RESUME-SUPPORT
+    _STOP_SIGNAL["num"] = signum
 
 
 def set_seed_everywhere(seed):
@@ -93,6 +109,7 @@ class TrainConfig:
     num_seed_steps: int | None = None
     num_agent_updates: int | None = None
     checkpoint_every_steps: int = 5_000_000
+    resume: bool = False  # RESUME-SUPPORT: restore from work_dir/resume_ckpt if a checkpoint exists, else start fresh
     prioritization: bool = False
     prioritization_min_val: float = 0.5
     prioritization_max_val: float = 5
@@ -186,6 +203,124 @@ class Workspace:
         self.start_time = time.time()
         self.train_online()
 
+    # RESUME-SUPPORT: full training-state checkpoint. Contents:
+    #   * self.agent._model.state_dict() — covers every net INCLUDING the target
+    #     copies (_target_forward_map/_target_backward_map from fb/model.py
+    #     _prepare_for_train, _target_critic from fb_cpr/model.py) and the
+    #     BatchNorm1d obs normalizer's running stats, since all are registered
+    #     submodules of FBcprModel.
+    #   * all five optimizers that setup_training creates: forward/backward/actor
+    #     (metamotivo fb/agent.py) + critic/discriminator (fb_cpr/agent.py).
+    #   * the agent's z_buffer (rollout-context reservoir) and the online 'train'
+    #     DictBuffer. The buffer storage tensors are preallocated at full capacity;
+    #     they are saved whole (idx/is_full mark the valid region) to avoid a
+    #     multi-GB transient clone of a sliced copy.
+    #   * the 'expert_slicer' TrajectoryBuffer is rebuilt from the motions files at
+    #     startup, so only its priorities vector (mutated when prioritization is on)
+    #     is persisted. The env-side motion_buffer priorities are NOT persisted
+    #     (prioritization is off in the production run).
+    #   * env-step counter and python/numpy/torch/cuda RNG states.
+    # Written atomically (tmp file then os.replace); the latest 2 kept.
+    def save_resume_checkpoint(self, t: int, replay_buffer, reason: str) -> None:
+        ckpt_dir = self.work_dir / "resume_ckpt"
+        ckpt_dir.mkdir(exist_ok=True, parents=True)
+        train_buf = replay_buffer["train"]
+        z_buf = self.agent.z_buffer
+        resume_t = t + self.cfg.online_parallel_envs  # the iteration at step t is complete when this runs
+        state = {
+            "resume_t": resume_t,
+            "num_env_steps": self.cfg.num_env_steps,
+            "model": self.agent._model.state_dict(),
+            "optimizers": {
+                "forward": self.agent.forward_optimizer.state_dict(),
+                "backward": self.agent.backward_optimizer.state_dict(),
+                "actor": self.agent.actor_optimizer.state_dict(),
+                "critic": self.agent.critic_optimizer.state_dict(),
+                "discriminator": self.agent.discriminator_optimizer.state_dict(),
+            },
+            "z_buffer": {
+                "storage": z_buf._storage.detach().to("cpu"),
+                "idx": z_buf._idx,
+                "is_full": z_buf._is_full,
+            },
+            "train_buffer": {
+                "storage": train_buf.storage,
+                "idx": train_buf._idx,
+                "is_full": train_buf._is_full,
+                "capacity": train_buf.capacity,
+                "non_nested_key": getattr(train_buf, "_non_nested_key", None),
+            },
+            "expert_priorities": replay_buffer["expert_slicer"].priorities,
+            "rng": {
+                "python": random.getstate(),
+                "numpy": np.random.get_state(),
+                "torch": torch.get_rng_state(),
+                "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+            },
+        }
+        start = time.time()
+        tmp_path = ckpt_dir / "tmp_ckpt.pt"
+        torch.save(state, tmp_path)
+        final_path = ckpt_dir / f"ckpt_{resume_t:010d}.pt"
+        os.replace(tmp_path, final_path)  # atomic within the same filesystem
+        size_gb = final_path.stat().st_size / 1e9
+        print(
+            f"[resume-ckpt] wrote {final_path.name} ({size_gb:.2f} GB, buffer len {len(train_buf)}) "
+            f"in {time.time() - start:.1f}s (reason={reason})",
+            flush=True,
+        )
+        for old in sorted(ckpt_dir.glob("ckpt_*.pt"))[:-2]:  # keep the latest 2
+            old.unlink()
+
+    # RESUME-SUPPORT: restore everything saved above. Returns the env step to
+    # continue from (0 when no checkpoint exists -> fresh start). The online envs
+    # cannot be restored mid-episode; the caller resets them, which loses at most
+    # one partial episode per parallel env, and the rollout context z is resampled
+    # from the restored z_buffer on the first loop iteration.
+    def load_resume_checkpoint(self, replay_buffer) -> int:
+        ckpt_dir = self.work_dir / "resume_ckpt"
+        ckpts = sorted(ckpt_dir.glob("ckpt_*.pt")) if ckpt_dir.exists() else []
+        if not ckpts:
+            print("[resume-ckpt] no checkpoint found, starting fresh", flush=True)
+            return 0
+        path = ckpts[-1]
+        state = torch.load(path, map_location=None, weights_only=False)
+        self.agent._model.load_state_dict(state["model"])
+        self.agent.forward_optimizer.load_state_dict(state["optimizers"]["forward"])
+        self.agent.backward_optimizer.load_state_dict(state["optimizers"]["backward"])
+        self.agent.actor_optimizer.load_state_dict(state["optimizers"]["actor"])
+        self.agent.critic_optimizer.load_state_dict(state["optimizers"]["critic"])
+        self.agent.discriminator_optimizer.load_state_dict(state["optimizers"]["discriminator"])
+        z_buf = self.agent.z_buffer
+        z_buf._storage.copy_(state["z_buffer"]["storage"].to(z_buf._storage.device))
+        z_buf._idx = state["z_buffer"]["idx"]
+        z_buf._is_full = state["z_buffer"]["is_full"]
+        train_buf = replay_buffer["train"]
+        tb = state["train_buffer"]
+        if tb["storage"] is not None:
+            assert tb["capacity"] == train_buf.capacity, (
+                f"buffer_size changed: checkpoint {tb['capacity']} vs config {train_buf.capacity}"
+            )
+            train_buf.storage = tb["storage"]
+            train_buf._idx = tb["idx"]
+            train_buf._is_full = tb["is_full"]
+            if tb["non_nested_key"] is not None:
+                train_buf._non_nested_key = tb["non_nested_key"]
+        expert_buf = replay_buffer["expert_slicer"]
+        if state["expert_priorities"] is not None and expert_buf.priorities is not None:
+            expert_buf.priorities.copy_(state["expert_priorities"].to(expert_buf.priorities.device))
+        random.setstate(state["rng"]["python"])
+        np.random.set_state(state["rng"]["numpy"])
+        torch.set_rng_state(state["rng"]["torch"])
+        if state["rng"]["cuda"] is not None and torch.cuda.is_available():
+            torch.cuda.set_rng_state_all(state["rng"]["cuda"])
+        print(
+            f"[resume-ckpt] restored {path.name}: resuming at t={state['resume_t']} "
+            f"(train buffer len {len(train_buf)}, z_buffer len {len(z_buf)})",
+            flush=True,
+        )
+        return state["resume_t"]
+
     def train_online(self) -> None:
         print("Loading expert trajectories")
         expert_buffer = load_expert_trajectories(self.cfg.motions, self.cfg.motions_root, device=self.cfg.buffer_device, sequence_length=self.agent_cfg.model.seq_length)
@@ -212,14 +347,24 @@ class Workspace:
             "expert_slicer": expert_buffer,
         }
 
+        # RESUME-SUPPORT: restore model/optimizers/buffers/RNG and get the step to
+        # continue from. The envs below are freshly reset regardless (they cannot be
+        # restored mid-episode); the logging aggregates (total_metrics) restart too.
+        # The seeding phase is skipped automatically when start_t >= num_seed_steps
+        # because the loop's `t < num_seed_steps` check uses the absolute step.
+        start_t = 0
+        if self.cfg.resume:
+            start_t = self.load_resume_checkpoint(replay_buffer)
+
         print("Starting training")
         progb = tqdm(total=self.cfg.num_env_steps)
+        progb.update(start_t)  # RESUME-SUPPORT
         td, info = train_env.reset()
         done = np.zeros(self.cfg.online_parallel_envs, dtype=np.bool)
         total_metrics, context = None, None
         start_time = time.time()
         fps_start_time = time.time()
-        for t in range(0, self.cfg.num_env_steps, self.cfg.online_parallel_envs):
+        for t in range(start_t, self.cfg.num_env_steps, self.cfg.online_parallel_envs):  # RESUME-SUPPORT: was range(0, ...)
             if self.cfg.evaluate and t % self.cfg.eval_every_steps == 0:
                 eval_metrics = self.eval(t, replay_buffer=replay_buffer)
                 if self.cfg.prioritization:
@@ -320,6 +465,19 @@ class Workspace:
 
             if t % self.cfg.checkpoint_every_steps == 0:
                 self.agent.save(str(self.work_dir / "checkpoint"))
+
+            # RESUME-SUPPORT: full-state checkpoint at the checkpoint_every_steps
+            # cadence (skipping t=0 and the step just restored from) and immediately
+            # when SIGTERM/SIGUSR1 arrived; on a signal, exit 99 so the launcher
+            # resubmits with --resume.
+            if (t > start_t and t % self.cfg.checkpoint_every_steps == 0) or _STOP_SIGNAL["num"] is not None:
+                reason = f"signal {_STOP_SIGNAL['num']}" if _STOP_SIGNAL["num"] is not None else "cadence"
+                self.save_resume_checkpoint(t, replay_buffer, reason=reason)
+                if _STOP_SIGNAL["num"] is not None:
+                    print(f"[resume-ckpt] stopping at t={t} on {reason}; resubmit with --resume", flush=True)
+                    if mp_info is not None:
+                        mp_info["manager"].shutdown()
+                    sys.exit(99)
             progb.update(self.cfg.online_parallel_envs)
             td = new_td
             done = new_done
@@ -417,6 +575,12 @@ class Workspace:
 
 if __name__ == "__main__":
     config = tyro.cli(TrainConfig)
+
+    # RESUME-SUPPORT: catch slurm's pre-kill signals (SIGTERM at walltime/scancel,
+    # SIGUSR1 forwarded by the launcher 10 minutes before the limit) so the loop
+    # can write a resume checkpoint before dying.
+    signal.signal(signal.SIGTERM, _request_stop)
+    signal.signal(signal.SIGUSR1, _request_stop)
 
     env, _ = make_humenv(
         num_envs=1,
