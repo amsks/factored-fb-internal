@@ -126,9 +126,14 @@ class HILPCritic:
     phi layer list ends at `feature_dim` with no trailing "L2", unlike its `Identity`
     feature learner which does.
     """
-    phi1: Any
-    phi2: Any
-    sf: Any
+    # Field names ARE the group names: Agent.create does getattr(critic, group) to
+    # find each module. They are namespaced `hilp_*` because _LR_KEY is keyed by
+    # GROUP NAME across all critics -- an unprefixed `sf_psi` silently re-keyed PSM's
+    # own sf_psi group from lr_sf to lr_f and broke every PSM pair.
+    hilp_phi1: Any
+    hilp_phi2: Any
+    hilp_sf: Any
+    hilp_stats: Any
     z_dim: int
     num_parallel: int
     discount: float
@@ -140,7 +145,7 @@ class HILPCritic:
     stats_momentum: float
     q_loss: bool
 
-    GROUPS = ("phi1", "phi2", "sf_psi", "hilp_stats")
+    GROUPS = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats")
     STAGES = ("phi", "sf")
     PROVIDES_V = False
     PROVIDES_COND = frozenset({"z"})
@@ -153,8 +158,8 @@ class HILPCritic:
     def TARGETS(self):
         # `hilp_stats` is a params-only slot (the running mean), never polyaked -- it is
         # written by update_stats. Giving it tau 0 keeps it present without drifting.
-        return {"phi1": self.phi_tau, "phi2": self.phi_tau,
-                "sf_psi": self.sf_tau, "hilp_stats": 0.0}
+        return {"hilp_phi1": self.phi_tau, "hilp_phi2": self.phi_tau,
+                "hilp_sf": self.sf_tau, "hilp_stats": 0.0}
 
     @property
     def cvec_dim(self):
@@ -165,19 +170,19 @@ class HILPCritic:
         # only the phi towers, and the SF loss detaches phi entirely (it reads
         # `feature_net(...).detach()`), so no phi gradient flows from the SF stage.
         if stage == "phi":
-            return ("phi1", "phi2")
+            return ("hilp_phi1", "hilp_phi2")
         assert stage == "sf", stage
-        return ("sf_psi",)
+        return ("hilp_sf",)
 
     # --- towers -------------------------------------------------------------
     def _phi(self, p, x):
-        return self.phi1.apply({"params": p}, x)
+        return self.hilp_phi1.apply({"params": p}, x)
 
     def _phi2(self, p, x):
-        return self.phi2.apply({"params": p}, x)
+        return self.hilp_phi2.apply({"params": p}, x)
 
     def _sf(self, p, obs, z, action):
-        return self.sf.apply({"params": p}, obs, z, action)
+        return self.hilp_sf.apply({"params": p}, obs, z, action)
 
     def _feature_net(self, net_or_params, stats_params, x):
         """phi1(x) - running_mean (sf.py:120-124).
@@ -194,8 +199,8 @@ class HILPCritic:
         if stage == "phi":
             # Goals are the hindsight future observations the dataset supplies.
             return hilp_phi_loss(
-                params["phi1"], params["phi2"], target["phi1"], target["phi2"],
-                lambda p, x: self.phi1.apply({"params": p}, x),
+                params["hilp_phi1"], params["hilp_phi2"], target["hilp_phi1"], target["hilp_phi2"],
+                lambda p, x: self.hilp_phi1.apply({"params": p}, x),
                 batch["observations"], batch["actor_goals"], batch["next_observations"],
                 self.hilp_discount, self.hilp_expectile)
 
@@ -204,13 +209,13 @@ class HILPCritic:
         nobs, z = batch["next_observations"], cond["z"]
         P = self.num_parallel
 
-        tF = self._sf(target["sf_psi"], nobs, z, boot["next_action"])        # [P, B, d]
+        tF = self._sf(target["hilp_sf"], nobs, z, boot["next_action"])        # [P, B, d]
         # TRAP 4: the SF target reads the ONLINE feature net, detached -- NOT a target phi.
         # The target phi towers exist only inside the phi value loss. (The RLDP run-1
         # divergence was the mirror image of this: reading the target tower where official
         # reads the online one.)
         target_phi = jax.lax.stop_gradient(
-            self._feature_net(params["phi1"], params["hilp_stats"], nobs))   # [B, d]
+            self._feature_net(params["hilp_phi1"], params["hilp_stats"], nobs))   # [B, d]
         # TRAP 5b: next_F is chosen PER SAMPLE by argmin over Q -- the whole vector of the
         # head with the smaller Q, not an elementwise min over the two vectors.
         tQ = jnp.einsum("pbd,bd->pb", tF, z)                                 # [P, B]
@@ -218,7 +223,7 @@ class HILPCritic:
         next_F = jnp.where(pick, tF[0], tF[1])                               # [B, d]
         target_F = jax.lax.stop_gradient(target_phi + self.discount * next_F)
 
-        F = self._sf(params["sf_psi"], obs, z, action)                       # [P, B, d]
+        F = self._sf(params["hilp_sf"], obs, z, action)                       # [P, B, d]
         if self.q_loss:
             # TRAP 5a: with q_loss (the shipped default) the regression is on the SCALAR
             # Q = <F, z>, not on the vector F.
@@ -234,7 +239,7 @@ class HILPCritic:
     # --- control ------------------------------------------------------------
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         z = cond["z"]
-        Qs = jnp.einsum("pbd,bd->pb", self._sf(params["sf_psi"], obs, z, actions), z)
+        Qs = jnp.einsum("pbd,bd->pb", self._sf(params["hilp_sf"], obs, z, actions), z)
         # Upstream update_actor: Q = min(Q1, Q2), then actor_loss = -Q.mean() -- a pure
         # TD3 objective with no BC term, exactly as official RLDP's extractor.
         qmin = jnp.min(Qs, axis=0)
@@ -258,7 +263,7 @@ class HILPCritic:
         This is HILP's readout and it is NOT FB's reward moment: a least-squares SOLVE
         against the feature matrix, not `E[r phi]`. Spec sec.2 records 10,000 transitions
         for this domain, against RLDP's 50,000."""
-        phi = self._feature_net(net["phi1"].params, net["hilp_stats"].params,
+        phi = self._feature_net(net["hilp_phi1"].params, net["hilp_stats"].params,
                                 jnp.asarray(obs))
         r = jnp.asarray(rewards).reshape(-1, 1)
         z = jnp.linalg.lstsq(phi, r, rcond=None)[0].reshape(-1)
@@ -272,7 +277,7 @@ class HILPCritic:
         ordering is preserved rather than merely approximated."""
         m = self.stats_momentum
         p = net["hilp_stats"].params
-        phi1 = self._phi(pre_net["phi1"].params, batch["observations"])
+        phi1 = self._phi(pre_net["hilp_phi1"].params, batch["observations"])
         net = dict(net)
         net["hilp_stats"] = net["hilp_stats"].replace(params={
             "mean": p["mean"] * (1.0 - m) + jnp.mean(phi1, axis=0) * m,
@@ -331,13 +336,13 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
     r1, r2, rs, rst = jr.split(jr.PRNGKey(config["seed"]), 4)
     ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
     params = {
-        "phi1": phi1.init(r1, ex_obs)["params"],
-        "phi2": phi2.init(r2, ex_obs)["params"],
-        "sf_psi": sf.init(rs, ex_obs, ex_z, ex_actions)["params"],
+        "hilp_phi1": phi1.init(r1, ex_obs)["params"],
+        "hilp_phi2": phi2.init(r2, ex_obs)["params"],
+        "hilp_sf": sf.init(rs, ex_obs, ex_z, ex_actions)["params"],
         "hilp_stats": stats_mod.init(rst)["params"],
     }
     critic = cls(
-        phi1=phi1, phi2=phi2, sf=sf, z_dim=z_dim, num_parallel=P,
+        hilp_phi1=phi1, hilp_phi2=phi2, hilp_sf=sf, hilp_stats=stats_mod, z_dim=z_dim, num_parallel=P,
         discount=float(config["discount"]),
         hilp_discount=float(config.get("hilp_discount", 0.98)),
         hilp_expectile=float(config.get("hilp_expectile", 0.5)),

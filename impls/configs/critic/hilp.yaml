@@ -1,0 +1,45 @@
+# HILP — Hilbert-representation successor features (Park et al., ICML 2024).
+#
+# Values are the OFFICIAL ones: github.com/seohongpark/HILP,
+# hilp_zsrl/url_benchmark/agent/sf.py::SFAgentConfig, cloned to ~/git/baselines/HILP.
+# The line-level audit of the objective, and the five transcription traps this arm has to
+# reproduce, are in docs/notes/2026-08-28-hilp-paper-eval.md; the traps are pinned by
+# tests/impls/test_hilp_seam.py.
+#
+# NOTE ON THE GATE, unresolved and NOT a config question. RLDP Table 1's HILP column and
+# HILP's own Table 3 disagree: RLDP's rerun is BELOW HILP's own on 8 of 8 walker/cheetah
+# cells, by 1.3-4.9x (median ~2.4x), while RLDP's FB rerun tracks HILP's FB within noise.
+# Gating this arm against RLDP's column would set the bar ~2.4x too low. See the notes.
+batch_size: 1024
+z_dim: 50                  # HILP's latent is SMALL -- 50, against RLDP's swept 512
+num_parallel: 2            # twin successor heads
+discount: 0.98             # SF discount; 0.99 for point-mass-maze, set per domain
+norm_z: true               # z on the sqrt(d) sphere, as sample_z / infer_meta project it
+
+# --- phi (the Hilbert representation) ---
+# PhiMap IS this architecture: mlp(obs, hidden, "ntanh", hidden, "relu", feature_dim) is
+# Dense -> LayerNorm -> tanh -> Dense -> relu -> Dense. norm is forced False in build(),
+# since HILP's phi layer list has no trailing "L2".
+phi:
+  hidden_dim: 512          # SFAgentConfig.phi_hidden_dim
+  hidden_layers: 2
+hilp_discount: 0.98
+# 0.5, NOT the 0.7 default in expectile_loss's own signature. At 0.5 the weight is a
+# CONSTANT, so the IQL asymmetry is numerically inert and the loss is plain 0.5*diff^2.
+# Do not "fix" this to 0.7 -- that would not be HILP's published configuration.
+hilp_expectile: 0.5
+phi_target_tau: 0.005      # the soft update upstream does inside forward()
+hilp_stats_momentum: 0.005 # running-mean EMA on phi (0.995 old / 0.005 new)
+feature_type: state        # 'diff'/'concat' are refused in build() rather than approximated
+
+# --- successor features ---
+sf:
+  hidden_dim: 1024         # SFAgentConfig.hidden_dim
+  hidden_layers: 2
+  embedding_layers: 2
+sf_target_tau: 0.01
+hilp_q_loss: true          # regress the SCALAR Q = <F,z>, not the vector F
+
+lr_f: 1.0e-4               # SFAgentConfig.lr
+lr_b: 1.0e-4
+lr_actor: 1.0e-4

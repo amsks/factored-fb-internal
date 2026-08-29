@@ -104,6 +104,16 @@ def _min_cfg_for(critic_kind, actor_kind):
         )
         if critic_kind == "psm_density":
             base.update(temp=1.0, actor_temp=None, actor_q_center=True)
+    elif critic_kind == "hilp":
+        base = dict(
+            z_dim=8, num_parallel=2, discount=0.98, norm_z=True,
+            hilp_discount=0.98, hilp_expectile=0.5, phi_target_tau=0.005,
+            sf_target_tau=0.01, hilp_stats_momentum=0.005, hilp_q_loss=True,
+            feature_type="state",
+            lr_f=1e-4, lr_b=1e-4, lr_actor=1e-4,
+            phi=dict(hidden_dim=16, hidden_layers=2),
+            sf=dict(hidden_dim=32, hidden_layers=1, embedding_layers=2),
+        )
     elif critic_kind == "crl":
         base = dict(
             value_hidden_dims=[64, 64], layer_norm=True, discount=0.99, tau=0.005,

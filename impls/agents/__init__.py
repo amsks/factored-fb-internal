@@ -20,6 +20,7 @@ from impls.critics.qrl import QRLCritic
 from impls.critics.density_fb import DensityFBCritic
 from impls.critics.psm import PSMCritic
 from impls.critics.psm_density import PSMDensityCritic
+from impls.critics.hilp import HILPCritic
 from impls.critics.rldp import RLDPCritic
 from impls.critics.rldp_density import RLDPDensityCritic
 from impls.actors.flowbc import FlowBCActor
@@ -33,7 +34,11 @@ CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": H
            "qrl": QRLCritic, "density_fb": DensityFBCritic, "psm": PSMCritic, "rldp": RLDPCritic,
            # Density-FB's categorical successor estimator under PSM's / RLDP's own
            # representation learners (impls/critics/{psm,rldp}_density.py).
-           "psm_density": PSMDensityCritic, "rldp_density": RLDPDensityCritic}
+           "psm_density": PSMDensityCritic, "rldp_density": RLDPDensityCritic,
+           # HILP (Park et al. 2024), transcribed from the official repo; the second
+           # method of the ExoRL parity campaign. Both its stages are pinned by
+           # tests/impls/test_hilp_seam.py.
+           "hilp": HILPCritic}
 # CONFIG-ONLY VARIANTS: a --critic name that selects a different yaml but the SAME critic
 # class. `density_fb_pixels` is density_fb on image observations -- `DensityFBCritic.build`
 # infers the pixel path from the example observation's rank, so nothing about the class
@@ -102,6 +107,12 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            # and because `net` is what save_agent serializes.
            # Same story for the running observation statistics under `norm_obs`.
            "density_b_zenc": "lr", "density_zstats": "lr", "density_obsnorm": "lr",
+           # hilp: groups are namespaced `hilp_*` ON PURPOSE. _LR_KEY is keyed by GROUP
+           # NAME across every critic, so an unprefixed "sf_psi" here silently re-keyed
+           # PSM's own sf_psi group from lr_sf to lr_f and broke all 8 PSM pairs --
+           # caught by test_boot_contract's recorded baseline, which is exactly what it
+           # is for. phi towers ride lr_b, the successor net lr_f; hilp_stats never steps.
+           "hilp_phi1": "lr_b", "hilp_phi2": "lr_b", "hilp_sf": "lr_f", "hilp_stats": "lr_b",
            "goal_rep": "lr", "high_actor": "lr",                             # hiql's high-level policy, which
                                                            # the CRITIC owns (see critics/hiql.py)
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf

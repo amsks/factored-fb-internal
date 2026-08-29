@@ -190,8 +190,8 @@ def test_build_produces_the_declared_groups_and_targets():
     # the stats slot must never polyak -- it is written by update_stats
     assert critic.TARGETS["hilp_stats"] == 0.0
     # phi is trained ONLY by the phi stage and sf ONLY by the sf stage
-    assert set(critic.stage_groups("phi")) == {"phi1", "phi2"}
-    assert set(critic.stage_groups("sf")) == {"sf_psi"}
+    assert set(critic.stage_groups("phi")) == {"hilp_phi1", "hilp_phi2"}
+    assert set(critic.stage_groups("sf")) == {"hilp_sf"}
     # init reads the raw tower: mean 0, std 1
     assert np.allclose(np.asarray(params["hilp_stats"]["mean"]), 0.0)
     assert np.allclose(np.asarray(params["hilp_stats"]["std"]), 1.0)
@@ -206,15 +206,15 @@ def test_sf_loss_matches_numpy_reconstruction():
     boot = {"next_action": jnp.asarray(np.tanh(rng.standard_normal((SB, SACT))))}
     got, _ = critic.stage_loss("sf", params, targets, batch, {"z": z}, boot)
 
-    tF = np.asarray(critic._sf(targets["sf_psi"], batch["next_observations"], z,
+    tF = np.asarray(critic._sf(targets["hilp_sf"], batch["next_observations"], z,
                                boot["next_action"]))                    # [P,B,d]
-    phi = np.asarray(critic._phi(params["phi1"], batch["next_observations"]))
+    phi = np.asarray(critic._phi(params["hilp_phi1"], batch["next_observations"]))
     target_phi = phi - np.asarray(params["hilp_stats"]["mean"])          # feature_net
     zz = np.asarray(z)
     tQ = np.einsum("pbd,bd->pb", tF, zz)
     next_F = np.where((tQ[0] < tQ[1])[:, None], tF[0], tF[1])            # per-sample pick
     target_F = target_phi + 0.98 * next_F
-    F = np.asarray(critic._sf(params["sf_psi"], batch["observations"], zz, batch["actions"]))
+    F = np.asarray(critic._sf(params["hilp_sf"], batch["observations"], zz, batch["actions"]))
     Q = np.einsum("pbd,bd->pb", F, zz)
     tQs = np.einsum("bd,bd->b", target_F, zz)
     want = float(((Q - tQs[None]) ** 2).mean(axis=-1).sum())
@@ -232,11 +232,11 @@ def test_sf_target_reads_the_ONLINE_phi_not_the_target_phi():
     base, _ = critic.stage_loss("sf", params, targets, batch, z, boot)
 
     bump = lambda tree: jax.tree_util.tree_map(lambda a: a + 1.0, tree)
-    t2 = {**targets, "phi1": bump(targets["phi1"]), "phi2": bump(targets["phi2"])}
+    t2 = {**targets, "hilp_phi1": bump(targets["hilp_phi1"]), "hilp_phi2": bump(targets["hilp_phi2"])}
     same, _ = critic.stage_loss("sf", params, t2, batch, z, boot)
     assert abs(float(same) - float(base)) < 1e-12, "SF loss must not read the target phi"
 
-    p2 = {**params, "phi1": bump(params["phi1"])}
+    p2 = {**params, "hilp_phi1": bump(params["hilp_phi1"])}
     diff, _ = critic.stage_loss("sf", p2, targets, batch, z, boot)
     assert abs(float(diff) - float(base)) > 1e-8, "SF loss must read the ONLINE phi"
 
