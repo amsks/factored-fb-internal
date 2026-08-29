@@ -128,11 +128,18 @@ def soft_update(online_params, target_params, tau):
 
 
 def save_agent(agent, save_dir, epoch):
-    """Save the agent to a pickle under save_dir/params_{epoch}.pkl."""
+    """Save the agent to a pickle under save_dir/params_{epoch}.pkl.
+
+    Written atomically (tmp file + rename): checkpoints are now also written on
+    SIGUSR1/SIGTERM right before a walltime kill (impls/main.py), and a SIGKILL landing
+    mid-write must leave no truncated params_N.pkl -- --auto_resume picks the LATEST N,
+    so a half-written file would poison every future resume of that run."""
     save_dict = dict(agent=flax.serialization.to_state_dict(agent))
     save_path = os.path.join(save_dir, f'params_{epoch}.pkl')
-    with open(save_path, 'wb') as f:
+    tmp_path = save_path + '.tmp'
+    with open(tmp_path, 'wb') as f:
         pickle.dump(save_dict, f)
+    os.replace(tmp_path, save_path)
     print(f'Saved to {save_path}')
 
 

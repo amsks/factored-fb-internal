@@ -4,6 +4,7 @@ Config is composed from the critic/actor/domain sibling groups under impls/confi
 load_config() (spec §3); the old flat get_config() has been replaced.
 """
 import os
+import signal
 import warnings
 
 # Device/EGL pin MUST precede any mujoco/ogbench import (carried from run_gciql.py:97-104).
@@ -46,6 +47,14 @@ flags.DEFINE_integer("num_video", 0,
 flags.DEFINE_string("save_dir", "exp/", "Checkpoint directory.")
 flags.DEFINE_string("restore_path", "", "Glob matching exactly one run dir to restore from.")
 flags.DEFINE_integer("restore_epoch", 0, "Checkpoint step to restore (params_{epoch}.pkl).")
+flags.DEFINE_bool("auto_resume", False,
+                  "Resume from the LATEST params_<N>.pkl already in this run's own "
+                  "directory (save_dir/exp_name), continuing training at step N+1. With no "
+                  "checkpoint present this is a fresh start, so a launcher can pass it "
+                  "unconditionally and resubmission after a walltime kill just works. "
+                  "Takes precedence over --restore_path when a checkpoint exists; "
+                  "eval.csv/train.csv are appended, not truncated (CsvLogger already does "
+                  "this), so the step axis continues.")
 flags.DEFINE_string("warm_start_path", "",
                     "Glob matching exactly one run dir to warm-start params from (params + "
                     "target params only, fresh optimizer state and rng -- distinct from "
@@ -163,6 +172,32 @@ _FAMILY = {"b2d": "Box2D", "p2d": "Box2D", "mw": "Metaworld", "ms": "ManiSkill",
            "dmc": "ExoRL"}
 
 
+def _latest_checkpoint_epoch(run_dir):
+    """Largest N for which run_dir/params_<N>.pkl exists, or None. Signal-triggered
+    checkpoints land at arbitrary (non-save_interval) steps, so this scans rather than
+    stepping by save_interval."""
+    import glob as _glob
+    import re as _re
+    epochs = []
+    for p in _glob.glob(os.path.join(run_dir, "params_*.pkl")):
+        m = _re.fullmatch(r"params_(\d+)\.pkl", os.path.basename(p))
+        if m:
+            epochs.append(int(m.group(1)))
+    return max(epochs) if epochs else None
+
+
+# Set by the signal handler, checked once per training step (the jax step is synchronous,
+# so a between-steps check is prompt enough). SIGUSR1 is what `#SBATCH --signal=USR1@N`
+# delivers N seconds before the walltime kill; SIGTERM is what scancel sends first. Either
+# way: finish the current step, write a checkpoint, exit 0 so the resubmission (with
+# --auto_resume) continues from it.
+_CHECKPOINT_SIGNAL = {"num": None}
+
+
+def _request_checkpoint(signum, frame):                     # noqa: ARG001 - signal API
+    _CHECKPOINT_SIGNAL["num"] = signum
+
+
 def _append_agg(agg_dir, group, seed, step, row, task):
     """Optional: append this run's eval point as a jsonl the campaign agg daemon reads.
     Pure reporting -- writes nothing unless --agg_dir is set; touches no algorithm state."""
@@ -269,6 +304,13 @@ def main(_):
     except Exception as e:                                  # noqa: BLE001
         warnings.warn(f"could not write config.json: {type(e).__name__}: {e}")
 
+    # Walltime insurance: slurm's `--signal=USR1@N` (scripts/vista_train.slurm) lands here,
+    # as does scancel's SIGTERM. The handler only sets a flag; the training loop below
+    # checks it after each step and does checkpoint-then-clean-exit, so a killed run loses
+    # at most one step instead of everything since the last save_interval checkpoint.
+    signal.signal(signal.SIGUSR1, _request_checkpoint)
+    signal.signal(signal.SIGTERM, _request_checkpoint)
+
     agg_group = FLAGS.agg_group or f"{FLAGS.critic}_{FLAGS.actor}__{FLAGS.domain}"
     run = setup_wandb(cfg, group=f"{FLAGS.critic}-{FLAGS.actor}", name=exp_name)
     csv_train = CsvLogger(os.path.join(run_dir, "train.csv"))
@@ -284,10 +326,33 @@ def main(_):
         if FLAGS.warm_start_path:
             agent = warm_start_agent(agent, FLAGS.warm_start_path, FLAGS.warm_start_epoch)
 
+        # Resolve WHAT to restore before touching the agent. --auto_resume looks in this
+        # run's own directory and wins when a checkpoint exists there (the resubmit-after-
+        # walltime-kill case: same flags, same run_dir); otherwise --restore_path (an
+        # explicit cross-directory resume) applies as before; otherwise fresh start.
         start_step = 1
-        if FLAGS.restore_path:
-            agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch)
-            start_step = FLAGS.restore_epoch + 1
+        restore_dir, restore_epoch = None, 0
+        if FLAGS.auto_resume:
+            latest = _latest_checkpoint_epoch(run_dir)
+            if latest is not None:
+                restore_dir, restore_epoch = run_dir, latest
+                print(f"[auto_resume] found {run_dir}/params_{latest}.pkl", flush=True)
+            else:
+                print(f"[auto_resume] no params_*.pkl under {run_dir}; fresh start", flush=True)
+        if restore_dir is None and FLAGS.restore_path:
+            restore_dir = resolve_run_dir(FLAGS.restore_path)
+            restore_epoch = FLAGS.restore_epoch
+        if restore_dir is not None:
+            agent = restore_agent(agent, restore_dir, restore_epoch)
+            start_step = restore_epoch + 1
+            # Re-seed the GLOBAL NumPy RNG (the dataset/batch stream -- see the
+            # np.random.seed(FLAGS.seed) above) as a function of (seed, restored step).
+            # Bit-exact continuation of the pre-kill batch stream is NOT attempted -- that
+            # would require checkpointing np.random's state -- and is not needed; what this
+            # buys is (a) the resumed run does not REPLAY the step-1..N batch indices it
+            # already trained on, which plain np.random.seed(seed) would, and (b) two seeds
+            # stay distinct after both resume at the same step.
+            np.random.seed((FLAGS.seed * 1_000_003 + start_step) % (2 ** 32))
 
         # A resume under --online has to restore the REPLAY BUFFER too. restore_agent brings
         # back params/optimizer/rng only; without the buffer the resumed run starts empty,
@@ -295,7 +360,8 @@ def main(_):
         # transitions -- a silent change of training distribution that looks like a clean
         # resume in every log. --online_restore_buffer=false is the explicit opt-in to that
         # old behaviour; by default a missing online_state_<epoch>.npz is a hard error.
-        restore_online = bool(FLAGS.restore_path and FLAGS.online and FLAGS.online_restore_buffer)
+        restore_online = bool(restore_dir is not None and FLAGS.online
+                              and FLAGS.online_restore_buffer)
 
         # ONLINE mode is entirely inside this block: `online` stays None with the flag off,
         # env/online.py is not imported, and the loop below runs the offline statements it
@@ -308,12 +374,11 @@ def main(_):
             online = OnlineTrainer.create(adapter, env, cfg, train_ds, ex, FLAGS,
                                           seed_offline=False if restore_online else None)
             if restore_online:
-                n_rows = online.restore_state(resolve_run_dir(FLAGS.restore_path),
-                                              FLAGS.restore_epoch)
+                n_rows = online.restore_state(restore_dir, restore_epoch)
                 print(f"[online] restored {n_rows} buffer rows / "
                       f"{online.buffer.n_episodes} episodes, {online.env_steps} env steps",
                       flush=True)
-            elif FLAGS.restore_path:
+            elif restore_dir is not None:
                 warnings.warn(
                     "--restore_path with --online and --online_restore_buffer=false: the "
                     "replay buffer starts EMPTY and prefill re-runs, so this resume trains a "
@@ -401,6 +466,18 @@ def main(_):
                     # --online cannot resume, and this run's own checkpoints would be the
                     # ones that fail the resume.
                     print(f"[online] saved {online.save_state(run_dir, i)}", flush=True)
+            if _CHECKPOINT_SIGNAL["num"] is not None:
+                # Signal-triggered checkpoint at an ARBITRARY step, then a clean exit so a
+                # resubmission with --auto_resume picks it up. Skip the save if this very
+                # step already wrote one above.
+                if i % FLAGS.save_interval != 0:
+                    save_agent(agent, run_dir, i)
+                    if online is not None:
+                        print(f"[online] saved {online.save_state(run_dir, i)}", flush=True)
+                print(f"[signal] caught signal {_CHECKPOINT_SIGNAL['num']} -- checkpointed "
+                      f"at step {i} and exiting; resubmit with --auto_resume to continue",
+                      flush=True)
+                break
     finally:
         csv_train.close()
         csv_eval.close()
