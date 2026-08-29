@@ -639,7 +639,11 @@ class HILPFutureDataset:
         final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
         offs = np.random.geometric(p=self.p, size=idxs.shape[0])
         fut = np.minimum(idxs + offs, final_idxs)
-        batch['future_observations'] = np.asarray(
+        # `hilp_future_observations`, NOT `future_observations`: WindowedDataset already
+        # owns that name for rldp's [B, h-1, obs] rollout window, and this is a single
+        # [B, obs] draw. Same-name-different-shape is how a batch key silently becomes the
+        # wrong tensor for one of its two consumers.
+        batch['hilp_future_observations'] = np.asarray(
             self.dataset['observations'][fut], np.float32)
         return batch
 

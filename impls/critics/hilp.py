@@ -205,7 +205,7 @@ class HILPCritic:
             return hilp_phi_loss(
                 params["hilp_phi1"], params["hilp_phi2"], target["hilp_phi1"], target["hilp_phi2"],
                 lambda p, x: self.hilp_phi1.apply({"params": p}, x),
-                batch["observations"], batch["future_observations"], batch["next_observations"],
+                batch["observations"], batch["hilp_future_observations"], batch["next_observations"],
                 self.hilp_discount, self.hilp_expectile)
 
         assert stage == "sf", stage

@@ -40,6 +40,14 @@ def make_batch(seed=1):
         # vip's stage_loss reads initial_observations; every other critic ignores it.
         initial_observations=jnp.asarray(r.standard_normal((B, OBS))),
         value_goals=g_value, actor_goals=g_actor,
+        # hilp's phi loss reads ONE geometric hindsight future, [B, obs] -- a different
+        # shape AND a different object from rldp's windowed `future_observations`
+        # ([B, h-1, obs]) below, which is why it gets its own key rather than overloading
+        # that one. SEPARATE rng on purpose, like the hierarchical keys: `r` is consumed in
+        # sequence, so drawing from it here would shift every later array and rewrite the
+        # baseline for every critic.
+        hilp_future_observations=jnp.asarray(
+            np.random.default_rng(seed + 4100).standard_normal((B, OBS))),
         # hierarchical keys, so hiql is covered by this gate too (HGCDataset emits these; a
         # GCDataset-shaped batch alone makes HIQLCritic.sample_cond raise). Drawn from a
         # SEPARATE rng: taking them from `r` would shift its stream and change rewards/masks

@@ -48,6 +48,8 @@ lr_actor: 1.0e-4
 #   future_idx = step_idx + geometric(p = 1 - hilp_future), clipped to the episode end
 # (in_memory_replay_buffer.py:231-233; train_offline.py:69 sets future = 0.99, so the mean
 # offset is 100 steps). See impls/utils/datasets.py::HILPFutureDataset for why neither
-# FBDataset nor WindowedDataset can stand in.
+# FBDataset nor WindowedDataset can stand in. It emits `hilp_future_observations`,
+# namespaced because WindowedDataset already owns `future_observations` for rldp's
+# [B, h-1, obs] window while this is a single [B, obs] draw.
 dataset_class: HILPFutureDataset
 hilp_future: 0.99
