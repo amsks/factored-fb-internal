@@ -33,7 +33,11 @@ ACTOR="${ACTOR:-ddpgbc}"
 STEPS="${STEPS:-5000000}"          # paper text: 2M representation + 3M FB
 PHASE1="${PHASE1:-2000000}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-1000000}"
-SAVE_INTERVAL="${SAVE_INTERVAL:-1000000}"
+# 250k, not 1M. A CUDA stream-capture fault has now taken out one cell in each of two
+# runs, and with a 1M interval walker-s1 died at 980k with NO checkpoint -- 2.8 h of work
+# lost 20k steps short of its first save. Checkpoints are ~150 MB, so a tighter interval
+# costs disk and buys back hours.
+SAVE_INTERVAL="${SAVE_INTERVAL:-250000}"
 EVAL_EPISODES="${EVAL_EPISODES:-10}"   # in-training only; the GATE number is the paper-exact
                                        # final eval (50 eps) run by scripts/exorl_paper_eval.py
 NGPU="${NGPU:-8}"
@@ -45,7 +49,16 @@ NGPU="${NGPU:-8}"
 INFER_EPISODES="${INFER_EPISODES:-50000}"
 INFER_FLAGS="--infer_cond_episodes $INFER_EPISODES --eval_on_inferred_cond"
 DRYRUN="${DRYRUN:-0}"
-SAVE_ROOT="${SAVE_ROOT:-$REPO/exp/exorl-official}"
+# NO DEFAULT that points at a completed campaign. `exp/exorl-official` is run 1's root and
+# every cell there has a 5M eval row, so a relaunch that forgets SAVE_ROOT would read those
+# as done and SKIP the whole matrix -- silently, with a plausible-looking "SKIP(done)" per
+# cell. Requiring it explicitly turns a silent no-op into an error.
+if [ -z "${SAVE_ROOT:-}" ]; then
+  echo "SAVE_ROOT is required (e.g. SAVE_ROOT=\$PWD/exp/exorl-official-r2)." >&2
+  echo "There is deliberately no default: the old one pointed at run 1, whose cells are" >&2
+  echo "all complete, so a forgotten SAVE_ROOT would skip every cell as already done." >&2
+  exit 2
+fi
 export EXORL_DATA_ROOT="${EXORL_DATA_ROOT:-$HOME/exorl_data/exorl/datasets}"
 export EXORL_CACHE_ROOT="${EXORL_CACHE_ROOT:-$HOME/exorl_data/relabel_cache}"
 export FB_MUJOCO_SITE_PACKAGES="${FB_MUJOCO_SITE_PACKAGES:-$HOME/git/Factored-FB/.venv/lib/python3.11/site-packages}"
@@ -83,9 +96,18 @@ ACTOR_OV=( --override "actor.alpha=0.0"
            --override "actor.boot_noise_std=0.2" --override "actor.boot_noise_clip=0.3"
            --override "actor.q_normalize=false" )
 
-tmux has-session -t="$SESSION" 2>/dev/null && {
-  echo "tmux session '$SESSION' already exists -- attach and finish or kill it first:"
-  echo "  tmux attach -t $SESSION ; tmux kill-session -t $SESSION"; exit 1; }
+# WINDOW_ONLY=1 adds cells to an EXISTING session instead of refusing. Without it a
+# single-cell restart is impossible: the guard below exits 1, and scraping the command out
+# of a DRYRUN then yields an empty string that `tmux new-window` happily runs as a bare
+# shell -- which looks like a successful restart and is not. That cost a silent no-op
+# during run 1's cheetah-s3 recovery. A transient CUDA fault taking out one of eight cells
+# is the normal case, not the exception, so recovering one cell has to be a supported path.
+if [ "${WINDOW_ONLY:-0}" != "1" ]; then
+  tmux has-session -t="$SESSION" 2>/dev/null && {
+    echo "tmux session '$SESSION' already exists -- attach and finish or kill it first,"
+    echo "or set WINDOW_ONLY=1 to add these cells to it (single-cell restart):"
+    echo "  tmux attach -t $SESSION ; tmux kill-session -t $SESSION"; exit 1; }
+fi
 
 GPU=0
 LAUNCHED=0
@@ -137,7 +159,7 @@ XLA_PYTHON_CLIENT_PREALLOCATE=false"
         echo "DRYRUN gpu=$((GPU % NGPU)) $NAME" | tee -a "$MANIFEST"
         echo "    $CMD" | tee -a "$MANIFEST"
       else
-        if [ "$LAUNCHED" = "0" ]; then
+        if [ "$LAUNCHED" = "0" ] && [ "${WINDOW_ONLY:-0}" != "1" ]; then
           tmux new-session -d -s "$SESSION" -n "$NAME" "$CMD; echo '== $NAME EXITED rc='\$?; exec bash"
         else
           tmux new-window -t "$SESSION" -n "$NAME" "$CMD; echo '== $NAME EXITED rc='\$?; exec bash"
