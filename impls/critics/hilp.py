@@ -44,6 +44,7 @@ import copy
 import dataclasses
 from typing import Any
 
+import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
@@ -277,3 +278,77 @@ class HILPCritic:
             "mean": p["mean"] * (1.0 - m) + jnp.mean(phi1, axis=0) * m,
             "std": p["std"] * (1.0 - m) + jnp.std(phi1, axis=0) * m})
         return net
+
+
+class _HILPStats(nn.Module):
+    """The phi running mean/std (sf.py's `register_buffer('running_mean'|'running_std')`).
+
+    Ordinary param leaves, following density_fb's `_ObsNormState`, for the same reason:
+    they SERIALIZE, so an eval harness centers phi with the identical numbers training
+    used. Init mean 0 / std 1 matches upstream's buffer init, so step 0 reads the raw
+    tower. Written only by `update_stats`; the gradient is identically zero and the group
+    appears in no stage_groups.
+
+    `std` is carried because upstream maintains it in the same EMA and it serializes with
+    the checkpoint; nothing reads it. It is kept rather than dropped so that a later
+    change upstream (or a diagnostic here) has the number, and so the checkpoint shape
+    matches what the reference stores."""
+    dim: int
+    dtype: Any = jnp.float32
+
+    @nn.compact
+    def __call__(self):
+        mean = self.param("mean", lambda _k: jnp.zeros((self.dim,), self.dtype))
+        std = self.param("std", lambda _k: jnp.ones((self.dim,), self.dtype))
+        return mean, std
+
+
+def _hilp_build(cls, ex_obs, ex_actions, config):
+    import jax.random as jr
+    z_dim = int(config["z_dim"])
+    P = int(config["num_parallel"])
+    feature_type = str(config.get("feature_type", "state"))
+    if feature_type != "state":
+        # 'diff' and 'concat' are real upstream options (sf.py:614-620) that change what
+        # the SF target regresses and, for 'concat', halve the phi width. Refused rather
+        # than silently approximated: the published ExoRL configuration is 'state'.
+        raise NotImplementedError(
+            f"feature_type={feature_type!r} is not ported; upstream's 'diff' and 'concat' "
+            f"change the SF target (and 'concat' halves the phi width to z_dim//2). The "
+            f"published ExoRL setting is 'state'.")
+    feature_dim = z_dim
+
+    # PhiMap IS HILP's phi tower (see the class docstring); norm=False because HILP's
+    # layer list ends at feature_dim with no trailing "L2".
+    mk_phi = lambda: PhiMap(z_dim=feature_dim, hidden_dim=config["phi"]["hidden_dim"],
+                            hidden_layers=config["phi"]["hidden_layers"], norm=False)
+    phi1, phi2 = mk_phi(), mk_phi()
+    sf = ForwardMap(z_dim=z_dim, hidden_dim=config["sf"]["hidden_dim"], num_parallel=P,
+                    hidden_layers=config["sf"]["hidden_layers"],
+                    embedding_layers=config["sf"]["embedding_layers"])
+    stats_mod = _HILPStats(dim=feature_dim, dtype=jnp.zeros((), ex_obs.dtype).dtype)
+
+    r1, r2, rs, rst = jr.split(jr.PRNGKey(config["seed"]), 4)
+    ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
+    params = {
+        "phi1": phi1.init(r1, ex_obs)["params"],
+        "phi2": phi2.init(r2, ex_obs)["params"],
+        "sf_psi": sf.init(rs, ex_obs, ex_z, ex_actions)["params"],
+        "hilp_stats": stats_mod.init(rst)["params"],
+    }
+    critic = cls(
+        phi1=phi1, phi2=phi2, sf=sf, z_dim=z_dim, num_parallel=P,
+        discount=float(config["discount"]),
+        hilp_discount=float(config.get("hilp_discount", 0.98)),
+        hilp_expectile=float(config.get("hilp_expectile", 0.5)),
+        phi_tau=float(config.get("phi_target_tau", 0.005)),
+        sf_tau=float(config.get("sf_target_tau", 0.01)),
+        norm_z=bool(config.get("norm_z", True)),
+        stats_momentum=float(config.get("hilp_stats_momentum", 0.005)),
+        q_loss=bool(config.get("hilp_q_loss", True)),
+    )
+    targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
+    return critic, params, targets
+
+
+HILPCritic.build = classmethod(_hilp_build)

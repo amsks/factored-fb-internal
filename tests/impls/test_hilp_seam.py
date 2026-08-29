@@ -151,3 +151,121 @@ def test_advantage_is_almost_always_negative():
         obs, goals, nobs, ps = _fixture(seed)
         _, info = _run(obs, goals, nobs, ps)
         assert float(info["hilp_accept_prob"]) <= 0.35, (seed, info["hilp_accept_prob"])
+
+
+# ── SF stage: build + an independent numpy reconstruction of update_sf ──────────
+from impls.critics.hilp import HILPCritic  # noqa: E402
+
+SB, SOBS, SACT, SZ, SH = 6, 5, 3, 4, 8
+
+
+def _sf_cfg(**over):
+    cfg = dict(seed=0, z_dim=SZ, num_parallel=2, discount=0.98, norm_z=True,
+               hilp_discount=0.98, hilp_expectile=0.5, phi_target_tau=0.005,
+               sf_target_tau=0.01, hilp_stats_momentum=0.005, hilp_q_loss=True,
+               phi=dict(hidden_dim=SH, hidden_layers=2),
+               sf=dict(hidden_dim=SH, hidden_layers=2, embedding_layers=2))
+    cfg.update(over)
+    return cfg
+
+
+def _sf_ex():
+    rng = np.random.default_rng(0)
+    return (jnp.asarray(rng.standard_normal((SB, SOBS))),
+            jnp.asarray(np.tanh(rng.standard_normal((SB, SACT)))))
+
+
+def _sf_batch(seed=1):
+    rng = np.random.default_rng(seed)
+    return dict(observations=jnp.asarray(rng.standard_normal((SB, SOBS))),
+                actions=jnp.asarray(np.tanh(rng.standard_normal((SB, SACT)))),
+                next_observations=jnp.asarray(rng.standard_normal((SB, SOBS))),
+                actor_goals=jnp.asarray(rng.standard_normal((SB, SOBS))))
+
+
+def test_build_produces_the_declared_groups_and_targets():
+    critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
+    assert set(params) == set(critic.GROUPS)
+    assert set(targets) == set(critic.TARGETS)
+    # the stats slot must never polyak -- it is written by update_stats
+    assert critic.TARGETS["hilp_stats"] == 0.0
+    # phi is trained ONLY by the phi stage and sf ONLY by the sf stage
+    assert set(critic.stage_groups("phi")) == {"phi1", "phi2"}
+    assert set(critic.stage_groups("sf")) == {"sf_psi"}
+    # init reads the raw tower: mean 0, std 1
+    assert np.allclose(np.asarray(params["hilp_stats"]["mean"]), 0.0)
+    assert np.allclose(np.asarray(params["hilp_stats"]["std"]), 1.0)
+
+
+def test_sf_loss_matches_numpy_reconstruction():
+    """update_sf (sf.py:600-637) re-derived in numpy, reading only the flax arrays."""
+    critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
+    batch = _sf_batch()
+    rng = np.random.default_rng(9)
+    z = jnp.asarray(np.tanh(rng.standard_normal((SB, SZ))))
+    boot = {"next_action": jnp.asarray(np.tanh(rng.standard_normal((SB, SACT))))}
+    got, _ = critic.stage_loss("sf", params, targets, batch, {"z": z}, boot)
+
+    tF = np.asarray(critic._sf(targets["sf_psi"], batch["next_observations"], z,
+                               boot["next_action"]))                    # [P,B,d]
+    phi = np.asarray(critic._phi(params["phi1"], batch["next_observations"]))
+    target_phi = phi - np.asarray(params["hilp_stats"]["mean"])          # feature_net
+    zz = np.asarray(z)
+    tQ = np.einsum("pbd,bd->pb", tF, zz)
+    next_F = np.where((tQ[0] < tQ[1])[:, None], tF[0], tF[1])            # per-sample pick
+    target_F = target_phi + 0.98 * next_F
+    F = np.asarray(critic._sf(params["sf_psi"], batch["observations"], zz, batch["actions"]))
+    Q = np.einsum("pbd,bd->pb", F, zz)
+    tQs = np.einsum("bd,bd->b", target_F, zz)
+    want = float(((Q - tQs[None]) ** 2).mean(axis=-1).sum())
+    assert abs(float(got) - want) < 1e-10, f"{float(got)} vs {want}"
+
+
+def test_sf_target_reads_the_ONLINE_phi_not_the_target_phi():
+    """Trap 4, and the mirror of the RLDP run-1 bug. Perturbing the TARGET phi must leave
+    the SF loss untouched; perturbing the ONLINE phi must change it."""
+    critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
+    batch = _sf_batch()
+    rng = np.random.default_rng(9)
+    z = {"z": jnp.asarray(np.tanh(rng.standard_normal((SB, SZ))))}
+    boot = {"next_action": jnp.asarray(np.tanh(rng.standard_normal((SB, SACT))))}
+    base, _ = critic.stage_loss("sf", params, targets, batch, z, boot)
+
+    bump = lambda tree: jax.tree_util.tree_map(lambda a: a + 1.0, tree)
+    t2 = {**targets, "phi1": bump(targets["phi1"]), "phi2": bump(targets["phi2"])}
+    same, _ = critic.stage_loss("sf", params, t2, batch, z, boot)
+    assert abs(float(same) - float(base)) < 1e-12, "SF loss must not read the target phi"
+
+    p2 = {**params, "phi1": bump(params["phi1"])}
+    diff, _ = critic.stage_loss("sf", p2, targets, batch, z, boot)
+    assert abs(float(diff) - float(base)) > 1e-8, "SF loss must read the ONLINE phi"
+
+
+def test_next_F_selection_is_per_sample_not_elementwise():
+    """Trap 5b. The reference picks the WHOLE vector of the head with the smaller Q; an
+    elementwise minimum over the two F vectors is a different object. The two agree only
+    by coincidence, so this pins the difference on a constructed case."""
+    critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
+    rng = np.random.default_rng(4)
+    tF = rng.standard_normal((2, SB, SZ))
+    zz = rng.standard_normal((SB, SZ))
+    tQ = np.einsum("pbd,bd->pb", tF, zz)
+    per_sample = np.where((tQ[0] < tQ[1])[:, None], tF[0], tF[1])
+    elementwise = np.minimum(tF[0], tF[1])
+    assert not np.allclose(per_sample, elementwise)
+
+
+def test_running_mean_arithmetic():
+    """The EMA rule `update_stats` applies. Deliberately tests the ARITHMETIC only: a full
+    update_stats call needs Agent-level TrainState fixtures, and once this critic is
+    registered test_boot_contract.py exercises that path for every critic x actor pair.
+    A skipped placeholder here would read as coverage without being any.
+
+    The rule itself: new = (1-m)*old + m*batch_stat, m = 0.005 (sf.py:185-187)."""
+    m = 0.005
+    old_mean, old_std = np.zeros(SZ), np.ones(SZ)
+    phi = np.random.default_rng(2).standard_normal((SB, SZ))
+    new_mean = old_mean * (1 - m) + phi.mean(axis=0) * m
+    new_std = old_std * (1 - m) + phi.std(axis=0) * m
+    assert np.allclose(new_mean, phi.mean(axis=0) * m)
+    assert np.all(np.abs(new_std - 1.0) < 0.02)
