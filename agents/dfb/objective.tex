@@ -1,0 +1,742 @@
+
+\documentclass[11pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[margin=1in]{geometry}
+
+% Additions (2026-08-19) are set in green.
+\definecolor{addgreen}{HTML}{1A7A3C}
+
+% No paragraph indentation
+\setlength{\parindent}{0pt}
+
+\title{Density-FB Derivation}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Successor measure}
+
+For a policy $\pi$, define the discounted successor measure over future states as
+\begin{equation}
+    M^\pi(s,a,ds^+) = \mathbb E_\pi \left[ \sum_{t=0}^{\infty} \gamma^t \delta_{s_{t+1}}(ds^+) \mid s_0=s,\ a_0=a \right].
+    \label{eq:M-definition}
+\end{equation}
+
+Its total mass is
+\begin{align}
+    \int_{\mathcal S} M^\pi(s,a,ds^+)   &=  \sum_{t=0}^{\infty}\gamma^t \\
+                                        &=  \frac{1}{1-\gamma}.
+    \label{eq:M-mass}
+\end{align}
+
+The successor measure satisfies the Bellman equation
+\begin{equation}
+    M^\pi(s,a,ds^+) = P(ds^+\mid s,a) + \gamma \mathbb E_{\substack{ s'\sim P(\cdot\mid s,a)\\  a'\sim\pi(\cdot\mid s') }}  \left[  M^\pi(s',a',ds^+)   \right].
+    \label{eq:M-bellman}
+\end{equation}
+
+\subsection{Density with respect to the dataset marginal}
+
+Assume that the successor measure admits a density with respect to $\rho$:
+\begin{equation}
+m^\pi(s,a,s^+) = \frac{dM^\pi(s,a,\cdot)}{d\rho}(s^+).
+\label{eq:m-definition}
+\end{equation}
+
+Similarly, define the one-step transition density ratio
+\begin{equation}
+q(s,a,s^+) = \frac{dP(\cdot\mid s,a)}{d\rho}(s^+). 
+\label{eq:q-definition}
+\end{equation}
+
+Dividing Equation~\eqref{eq:M-bellman} by $\rho$ gives
+\begin{equation}
+m^\pi(s,a,s^+) = q(s,a,s^+) + \gamma \mathbb E_{\substack{ s'\sim P(\cdot\mid s,a)\\ a'\sim\pi(\cdot\mid s') }} \left[ m^\pi(s',a',s^+) \right].
+\label{eq:m-bellman}
+\end{equation}
+
+\subsection{Squared Bellman objective}
+
+Using a fixed target density $\bar m$, consider the squared $L_2(\rho)$ Bellman objective
+\begin{align}
+\mathcal L_M    =   \frac12 \mathbb E_{\substack{(s,a,s')\sim\mathcal D\\ a'\sim\pi(\cdot\mid s')\\ s^+\sim\rho }}  \left[  m(s,a,s^+)  -   q(s,a,s^+)  -   \gamma\bar m(s',a',s^+) \right]^2.
+\label{eq:M-L2}
+\end{align}
+
+Expanding the square,
+\begin{equation}
+\begin{aligned}
+\mathcal L_M    ={}&    \frac12 \mathbb E \left[ m(s,a,s^+)^2 \right]
+                    -  \mathbb E \left[  m(s,a,s^+)  q(s,a,s^+)  \right] \\
+                    &-  \gamma  \mathbb E \left[m(s,a,s^+) \bar m(s',a',s^+) \right]  + C,
+\end{aligned}
+\label{eq:M-expanded}
+\end{equation}
+where $C$ contains terms independent of the current density $m$.
+
+The middle term can be rewritten using the definition of $q$:
+\begin{align}
+    \mathbb E_{s^+\sim\rho} \left[ m(s,a,s^+)q(s,a,s^+) \right] &= \int m(s,a,s^+) \frac{dP(\cdot\mid s,a)}{d\rho}(s^+) \,d\rho(s^+) \\
+    &= \int m(s,a,s^+) \,dP(s^+\mid s,a) \\
+    &= \mathbb E_{s'\sim P(\cdot\mid s,a)} \left[ m(s,a,s') \right].
+    \label{eq:change-measure-M}
+\end{align}
+
+Therefore, after dropping $C$ and changing sign, the objective is
+\begin{equation}
+\boxed{
+\begin{aligned} 
+    \max_m\quad \mathcal J_M ={}& \mathbb E_{(s,a,s')\sim\mathcal D} \left[ m(s,a,s') \right]
+                                + \gamma \mathbb E_{\substack{ (s,a,s')\sim\mathcal D\\ a'\sim\pi(\cdot\mid s')\\ s^+\sim\rho }} \left[ m(s,a,s^+) \bar m(s',a',s^+) \right] \\
+                                &- \frac12 \mathbb E_{\substack{ (s,a,s')\sim\mathcal D\\ s^+\sim\rho }} \left[ m(s,a,s^+)^2 \right].
+\end{aligned}
+}
+\label{eq:M-objective}
+\end{equation}
+
+\subsection{FB factorization}
+
+FB parameterizes the successor density as
+\begin{equation}
+    m_z(s,a,s^+) = F(s,a,z)^\top B(s^+).
+    \label{eq:fb-factorization}
+\end{equation}
+
+For the standard FB policy family, the bootstrap action is
+\begin{equation}
+    a'_z \in \arg\max_{a'} \bar F(s',a',z)^\top z.
+\label{eq:fb-action}
+\end{equation}
+
+The target successor density is therefore
+\begin{equation}
+\bar m_z(s',a'_z,s^+) = \bar F(s',a'_z,z)^\top \bar B(s^+).
+\end{equation}
+
+Substituting the FB factorization into
+Equation~\eqref{eq:M-objective} gives
+\begin{align}
+\label{eq:fb-objective}
+\boxed{
+\begin{aligned}
+    \max_{F,B}\quad \mathcal J_{\mathrm{FB}} 
+        ={}& \mathbb E_{\substack{ z\sim p(z)\\ (s,a,s')\sim\mathcal D }} \left[ F(s,a,z)^\top B(s') \right] 
+        + \gamma \mathbb E_{\substack{ z\sim p(z)\\ (s,a,s')\sim\mathcal D\\ s^+\sim\rho}} \left[ \left( F(s,a,z)^\top B(s^+) \right) \left( \bar F(s',a'_z,z)^\top \bar B(s^+) \right) \right] \\
+        &- \frac12 \mathbb E_{\substack{ z\sim p(z)\\ (s,a,s')\sim\mathcal D\\ s^+\sim\rho}} \left[ \left( F(s,a,z)^\top B(s^+) \right)^2 \right].
+\end{aligned}
+}
+\end{align}
+
+\section{Density-FB}
+
+\subsection*{Step 1: normalize the successor measure}
+
+Define the normalized successor measure
+\begin{equation}
+\boxed{ \nu^\pi(s,a,ds^+) = (1-\gamma) M^\pi(s,a,ds^+). }
+\label{eq:nu-definition}
+\end{equation}
+
+Therefore $\nu^\pi$ is a probability measure over successor states.
+Multiply Equation~\eqref{eq:M-bellman} by $1-\gamma$:
+\begin{equation}
+    (1-\gamma)M^\pi(s,a,ds^+) = (1-\gamma)P(ds^+\mid s,a)
+                                + \gamma \mathbb E_{\substack{ s'\sim P(\cdot\mid s,a)\\  a'\sim\pi(\cdot\mid s') }} \left[ (1-\gamma) M^\pi(s',a',ds^+) \right].
+\end{equation}
+
+Using Equation~\eqref{eq:nu-definition},
+\begin{equation}
+\boxed{ 
+\nu^\pi(s,a,ds^+) = (1-\gamma)P(ds^+\mid s,a) 
+                        + \gamma \mathbb E_{\substack{ s'\sim P(\cdot\mid s,a)\\ a'\sim\pi(\cdot\mid s') }}
+                                \left[ \nu^\pi(s',a',ds^+) \right].
+}
+\label{eq:nu-bellman}
+\end{equation}
+
+The immediate component has mass $1-\gamma$ and the bootstrap component has mass $\gamma$.
+
+\subsection*{Step 2: density of the normalized measure}
+
+Define
+\begin{equation}
+    h^\pi(s,a,s^+) = \frac{d\nu^\pi(s,a,\cdot)}{d\rho}(s^+). 
+    \label{eq:h-definition}
+\end{equation}
+
+Because $\nu^\pi$ is normalized,
+\begin{equation}
+\boxed{ \mathbb E_{s^+\sim\rho} \left[ h^\pi(s,a,s^+) \right] = 1 }
+\label{eq:h-normalized}
+\end{equation}
+
+Using Equation~\eqref{eq:q-definition}, the normalized Bellman equation becomes
+\begin{equation}
+h^\pi(s,a,s^+) = (1-\gamma)q(s,a,s^+) + \gamma \mathbb E_{\substack{ s'\sim P(\cdot\mid s,a)\\ a'\sim\pi(\cdot\mid s') }}
+                                            \left[ h^\pi(s',a',s^+) \right]. \label{eq:h-bellman}
+\end{equation}
+
+For a sampled transition and a target-policy bootstrap action $a'\sim\bar\pi(\cdot\mid s'),$ define the target density (its dependence on the sampled $(s',a')$ is left implicit in the notation)
+\begin{equation}
+    \boxed{ h^{\mathrm{tgt}}(s,a,s^+) = (1-\gamma)q(s,a,s^+) + \gamma \bar h(s',a',s^+). }
+    \label{eq:h-target}
+\end{equation}
+
+The target is normalized:
+\begin{equation}
+\begin{aligned}
+\mathbb E_{s^+\sim\rho} \left[ h^{\mathrm{tgt}}(s,a,s^+) \right] &= (1-\gamma) \mathbb E_{s^+\sim\rho} [q(s,a,s^+)]
+                                                                    + \gamma \mathbb E_{s^+\sim\rho} [\bar h(s',a',s^+)] \\
+                                                                 &= (1-\gamma) + \gamma = 1.
+\end{aligned}
+\end{equation}
+
+\subsection*{Step 3: fit the normalized Bellman target}
+
+At this point both $h$ and $h^{\mathrm{tgt}}$ are normalized densities. 
+We fit the target distribution with cross-entropy by maximizing
+\begin{equation}
+    \mathcal J_{\mathrm{DFB}} = \mathbb E_{s^+\sim\rho} \left[ h^{\mathrm{tgt}}(s,a,s^+) \log h(s,a,s^+) \right].
+\label{eq:dfb-ce}
+\end{equation}
+
+Substituting Equation~\eqref{eq:h-target},
+\begin{equation}
+\begin{aligned}
+    \mathcal J_{\mathrm{DFB}} ={}& (1-\gamma) \mathbb E_{s^+\sim\rho} \left[ q(s,a,s^+) \log h(s,a,s^+) \right] \\
+                                &+ \gamma \mathbb E_{s^+\sim\rho} \left[ \bar h(s',a',s^+) \log h(s,a,s^+) \right].
+\end{aligned}
+    \label{eq:dfb-expanded}
+\end{equation}
+
+The immediate term can again be rewritten by change of measure:
+\begin{align}
+    \mathbb E_{s^+\sim\rho} \left[ q(s,a,s^+) \log h(s,a,s^+) \right] &= \int \frac{dP(\cdot\mid s,a)}{d\rho}(s^+) \log h(s,a,s^+) \,d\rho(s^+) \\
+    &= \int \log h(s,a,s^+) \,dP(s^+\mid s,a) \\
+    &= \mathbb E_{s'\sim P(\cdot\mid s,a)} \left[ \log h(s,a,s')\right].
+\label{eq:change-measure-h}
+\end{align}
+
+Hence the Density-FB objective is
+\begin{equation}
+\label{eq:dfb-population}
+\boxed{
+\begin{aligned}
+    \max_h\quad \mathcal J_{\mathrm{DFB}} ={}& (1-\gamma) \mathbb E_{(s,a,s')\sim\mathcal D} \left[ \log h(s,a,s') \right] \\
+                                            &+ \gamma \mathbb E_{\substack{ (s,a,s')\sim\mathcal D\\ a'\sim\bar\pi(\cdot\mid s')\\ s^+\sim\rho }}
+                                                \left[ \bar h(s',a',s^+) \log h(s,a,s^+) \right].
+\end{aligned}
+}
+\end{equation}
+
+{\color{addgreen}
+\subsection*{Soft immediate targets (the flagship variant)}
+
+The target of Equation~\eqref{eq:h-target} places the immediate mass $1-\gamma$ exactly on the observed successor.
+The soft variant smooths it over a neighborhood.
+Let $k_\epsilon(x,u)>0$ be a fixed kernel and define the base-measure-dependent Markov kernel
+\begin{equation}
+    K_{\rho,\epsilon}(du\mid x)
+    =
+    \frac{k_\epsilon(x,u)\,\rho(du)}{\int k_\epsilon(x,v)\,\rho(dv)}.
+\label{eq:soft-kernel}
+\end{equation}
+Replacing the immediate term of Equation~\eqref{eq:nu-bellman} by
+$\mathbb E_{s'\sim P(\cdot\mid s,a)}\left[K_{\rho,\epsilon}(\cdot\mid s')\right]$
+leaves a $\gamma$-contraction whose fixed point is the kernel-smoothed occupancy
+\begin{equation}
+    \nu_K^\pi(du\mid s,a)
+    =
+    (1-\gamma)\sum_{t=0}^{\infty}\gamma^t\,
+    \mathbb E\left[ K_{\rho,\epsilon}(du\mid s_{t+1}) \mid s_0=s,\ a_0=a,\ \pi \right].
+\label{eq:soft-fixed-point}
+\end{equation}
+For any reward $r$,
+\begin{equation}
+    \int r(u)\, \nu_K^\pi(du\mid s,a)
+    =
+    \int (K_{\rho,\epsilon} r)(x)\, \nu^\pi(dx\mid s,a),
+    \qquad
+    (K_{\rho,\epsilon} r)(x) = \int r(u)\, K_{\rho,\epsilon}(du\mid x),
+\label{eq:soft-smoothed-reward}
+\end{equation}
+so the soft model evaluates the original occupancy under the \emph{smoothed} reward $K_{\rho,\epsilon}r$, not under $r$ itself.
+Sums of rewards remain linear under smoothing, but sharp boundaries, maxima, and exclusion regions are softened; the hard target is the semantically exact interface for such rewards.
+Note also that $K_{\rho,\epsilon}$ is the kernel multiplied by the data density, not a Lebesgue kernel: its semantics depend on $\rho$.
+The flagship experiments run this soft variant; the hard target is the ablation.
+}
+
+\subsection*{Step 4: parameterize the normalized density}
+
+The density must satisfy $h(s,a,s^+)\geq 0$ and $\mathbb E_{s^+\sim\rho} [h(s,a,s^+)] = 1.$
+Define the bilinear score
+\begin{equation}
+f_\theta(s,a,z,s^+) = \frac{ F_\theta(s,a,z)^\top B_\theta(s^+) }{\tau}.
+\label{eq:score}
+\end{equation}
+
+A natural parameterization of this is
+\begin{equation}
+    \boxed{ h_\theta(s,a,z,s^+) = \frac{ \exp f_\theta(s,a,z,s^+) }{ Z_\theta(s,a,z) }, }
+\label{eq:h-exponential}
+\end{equation}
+where
+\begin{equation}
+Z_\theta(s,a,z) = \mathbb E_{s^+\sim\rho} \left[ \exp f_\theta(s,a,z,s^+) \right].
+\label{eq:partition}
+\end{equation}
+
+The corresponding target density is constructed from target networks:
+\begin{equation}
+    \boxed{ \bar h(s',a',z,s^+) = \frac{ \exp \bar f(s',a',z,s^+) }{ \bar Z(s',a',z) }, }
+\end{equation}
+where
+\begin{equation}
+    \bar f(s',a',z,s^+) = \frac{ \bar F(s',a',z)^\top \bar B(s^+) }{\tau},
+\end{equation}
+and
+\begin{equation}
+    \bar Z(s',a',z) = \mathbb E_{s^+\sim\rho} \left[ \exp \bar f(s',a',z,s^+) \right].
+\end{equation}
+
+The normalization of the current density follows directly:
+\begin{equation}
+\mathbb E_{s^+\sim\rho} [h_\theta(s,a,z,s^+)]   = \frac{ \mathbb E_{s^+\sim\rho} [\exp f_\theta(s,a,z,s^+)] }{ Z_\theta(s,a,z) }
+                                                = 1.
+\end{equation}
+
+Thus the role of the FB bilinear quantity changes.
+In ordinary FB, $F(s,a,z)^\top B(s^+)$ directly represents the successor density.
+In Density-FB, $\frac{F(s,a,z)^\top B(s^+)}{\tau}$ is a log-score whose exponential is normalized with respect to $\rho$.
+
+\subsection*{Step 5: substitute the exponential density}
+
+From Equation~\eqref{eq:h-exponential},
+\begin{equation}
+    \log h_\theta(s,a,z,s^+) = f_\theta(s,a,z,s^+) - \log Z_\theta(s,a,z).
+    \label{eq:log-h}
+\end{equation}
+
+Substitute this into Equation~\eqref{eq:dfb-population}:
+\begin{align}
+    \mathcal J_{\mathrm{DFB}} ={}& (1-\gamma) \mathbb E_{\mathcal D} \left[ f_\theta(s,a,z,s') - \log Z_\theta(s,a,z) \right] \nonumber\\
+                                &+ \gamma \mathbb E_{\substack{ (s,a,s')\sim\mathcal D\\ a'\sim\bar\pi(\cdot\mid s',z)\\ s^+\sim\rho }}
+                                        \left[ \bar h(s',a',z,s^+) \left( f_\theta(s,a,z,s^+) - \log Z_\theta(s,a,z) \right) \right].
+    \label{eq:dfb-substitution}
+\end{align}
+
+Expanding,
+\begin{align}
+    \mathcal J_{\mathrm{DFB}} ={}& (1-\gamma) \mathbb E_{\mathcal D} [f_\theta(s,a,z,s')]
+                                - (1-\gamma) \mathbb E_{\mathcal D} [\log Z_\theta(s,a,z)] \nonumber\\
+                                &+ \gamma \mathbb E_{\substack{ (s,a,s')\sim\mathcal D\\ a'\sim\bar\pi(\cdot\mid s',z)\\ s^+\sim\rho }}
+                                        \left[ \bar h(s',a',z,s^+) f_\theta(s,a,z,s^+) \right]
+                                - \gamma \mathbb E_{\substack{ (s,a,s')\sim\mathcal D\\ a'\sim\bar\pi(\cdot\mid s',z)\\ s^+\sim\rho }}
+                                        \left[ \bar h(s',a',z,s^+) \log Z_\theta(s,a,z) \right].
+    \label{eq:dfb-four-terms}
+\end{align}
+
+Since $\log Z_\theta(s,a,z)$ does not depend on $s^+$,
+\begin{equation}
+    \mathbb E_{s^+\sim\rho} \left[ \bar h(s',a',z,s^+) \log Z_\theta(s,a,z) \right] = \log Z_\theta(s,a,z) \mathbb E_{s^+\sim\rho} \left[ \bar h(s',a',z,s^+) \right]
+    = \log Z_\theta(s,a,z).
+\end{equation}
+
+Therefore the two normalization terms combine as
+\begin{equation}
+-(1-\gamma)\log Z - \gamma\log Z = -\log Z.
+\end{equation}
+
+The final population objective is
+\begin{align}
+\label{eq:dfb-final}
+\boxed{
+\begin{aligned}
+    \max_\theta\quad \mathcal J_{\mathrm{DFB}} ={}& (1-\gamma) \mathbb E_{\mathcal D} \left[ f_\theta(s,a,z,s') \right] 
+                                                + \gamma \mathbb E_{\substack{(s,a,s')\sim\mathcal D\\a'\sim\bar\pi(\cdot\mid s',z)\\ s^+\sim\rho}} \left[ \bar h(s',a',z,s^+)f_\theta(s,a,z,s^+)\right] \\
+                                                &- \mathbb E_{\mathcal D} \left[\log\mathbb E_{s^+\sim\rho}\exp f_\theta(s,a,z,s^+)\right].
+\end{aligned}
+}
+\end{align}
+
+Or if we are to fully expand this objective with the $F,B$ embeddings, we get
+
+\begin{align}
+\boxed{
+\begin{aligned}
+    \max_{F,B}\quad \mathcal J_{\mathrm{DFB}} ={}& (1-\gamma) \mathbb E_{\substack{ z\sim p_Z\\ (s,a,s')\sim\mathcal D }} \left[                                                               \frac{F(s,a,z)^\top B(s')}{\tau} \right] \\
+                                                &+ \gamma \mathbb E_{\substack{z\sim p_Z\\(s,a,s')\sim\mathcal D\\a'\sim\bar\pi(\cdot\mid s',z)\\s^+\sim\rho}} \left[ \frac{\exp\left(\frac{\bar F(s',a',z)^\top\bar B(s^+)}{\tau}\right)}{\mathbb E_{\tilde s^+\sim\rho}\left[\exp\left(\frac{\bar F(s',a',z)^\top\bar B(\tilde s^+)}{\tau}\right) \right]} \frac{F(s,a,z)^\top B(s^+)}{\tau}\right] \\
+                                                &- \mathbb E_{\substack{z\sim p_Z\\(s,a,s')\sim\mathcal D}}\left[\log\mathbb E_{s^+\sim\rho}\exp\left(\frac{F(s,a,z)^\top B(s^+)}{\tau}\right)\right].
+\end{aligned}
+}
+\label{eq:dfb-final-expanded}
+\end{align}
+
+\subsection{Importance-weight connection}
+
+The normalized density
+\begin{equation}
+    h(s,a,z,s^+) = \frac{d\nu^\pi(s,a,\cdot)}{d\rho}(s^+)
+\end{equation}
+is also an importance ratio between the normalized successor distribution $\nu^\pi$ and the reference distribution $\rho$.
+For any function $g$,
+\begin{align}
+    \mathbb E_{s^+\sim\nu^\pi(\cdot\mid s,a,z)} \left[g(s^+)\right] &= \int g(s^+) h(s,a,z,s^+) \, d\rho(s^+) \\
+                                                                    &= \mathbb E_{s^+\sim\rho} \left[ h(s,a,z,s^+)g(s^+) \right].
+\end{align}
+
+Under the exponential parameterization, define the unnormalized importance weight
+\begin{equation}
+    w(s,a,z,s^+) = \exp\left( \frac{F(s,a,z)^\top B(s^+)}{\tau} \right).
+    \label{eq:importance-weight}
+\end{equation}
+
+Then
+\begin{equation}
+    \boxed{
+    h(s,a,z,s^+) = \frac{w(s,a,z,s^+)}{ \mathbb E_{\tilde s^+\sim\rho} [w(s,a,z,\tilde s^+)] }. 
+    }
+    \label{eq:importance-ratio}
+\end{equation}
+
+Similarly, the target networks define
+\begin{equation}
+    \bar w(s',a',z,s^+) = \exp\left( \frac{ \bar F(s',a',z)^\top\bar B(s^+)}{\tau}\right),
+\end{equation}
+and
+\begin{equation}
+    \boxed{
+    \bar h(s',a',z,s^+) = \frac{ \bar w(s',a',z,s^+)}{\mathbb E_{\tilde s^+\sim\rho}[\bar w(s',a',z,\tilde s^+)]}.
+    }
+    \label{eq:target-importance-ratio}
+\end{equation}
+
+Therefore the Density-FB objective can be written directly as an importance-weighted objective:
+\begin{align}
+\boxed{
+\begin{aligned}
+    \max_{F,B}\quad \mathcal J_{\mathrm{DFB}} ={}& (1-\gamma) \mathbb E_{\substack{z\sim p_Z\\ (s,a,s')\sim\mathcal D}} 
+                                                    \left[ \log \frac{w(s,a,z,s')}{\mathbb E_{s^+\sim\rho}[w(s,a,z,s^+)]}\right] \\
+                                                &+ \gamma \mathbb E_{\substack{z\sim p_Z\\(s,a,s')\sim\mathcal D\\a'\sim\bar\pi(\cdot\mid s',z)\\s^+\sim\rho}} \left[ \frac{\bar w(s',a',z,s^+)}{\mathbb E_{\tilde s^+\sim\rho}[\bar w(s',a',z,\tilde s^+)]} \log\frac{w(s,a,z,s^+)}{\mathbb E_{\tilde s^+\sim\rho}[w(s,a,z,\tilde s^+)]}\right].
+\end{aligned}
+}
+\label{eq:dfb-importance-population}
+\end{align}
+
+The first term evaluates the likelihood of the observed successor $s'$.
+In the second term, states are sampled from $\rho$ and reweighted by the target importance ratio
+\[
+\bar h(s',a',z,s^+) = \frac{d\bar\nu(s',a',z,\cdot)}{d\rho}(s^+),
+\]
+so that the expectation corresponds to an expectation under the bootstrapped successor distribution.
+
+{\color{addgreen}
+When the reference expectations here are replaced by finite pools of samples from $\rho$, both ratios become \emph{self-normalized importance-sampling} (SNIS) estimators: consistent as the pool grows, biased at any finite pool size, with the effective sample size of the weights as the standard collapse diagnostic.
+
+\subsection{Relation to TD-InfoNCE}
+
+The update derived above is closely related to TD-InfoNCE (Zheng, Salakhutdinov, and Eysenbach, ICLR 2024; arXiv:2310.20141).
+With hard immediate labels and matched query supports, the cross-entropy update of Equation~\eqref{eq:dfb-population} reduces to the categorical Bellman update underlying TD-InfoNCE: a $(1-\gamma)$-weighted classification of the observed next state against samples from the marginal, plus a $\gamma$-weighted classification term soft-labeled by the stop-gradient target softmax.
+Their analysis likewise identifies the induced classifier with the normalized discounted future-state distribution --- the object $h$ of Step~2.
+We therefore do not claim the categorical update itself as a contribution.
+
+The differences are in what surrounds the update.
+TD-InfoNCE has no task latent: its critic is goal-conditioned, $f(s,a,g,s^+)$, so there is no $F(s,a,z)^\top B(s^+)$ policy family and no mechanism for inferring a policy index from a reward; its arbitrary-reward evaluation is a fixed-policy observation, not a deployed interface.
+Its actor maximizes the classification likelihood of the commanded goal, rather than integrating externally supplied reward samples (Section~\ref{sec:policy-extraction}).
+It has no kernel-smoothed variant (the soft immediate target above).
+TD-InfoNCE does operate offline --- D4RL AntMaze with a behavioral-cloning regularizer --- so the distinction is the reward-prompted task interface, not the offline setting.
+
+The distinction is also empirical: a paper-exact TD-InfoNCE control (their normalized towers, query supports, goal-contrastive actor, and behavioral-cloning regularizer, on the same outcome coordinates) reaches $0.576$ on cube-double, where soft Density-FB reaches $0.736$ --- one seed each, preliminary.
+
+\section{Turning Density-FB into an algorithm}
+\label{sec:algorithm}
+
+Consider a minibatch $\{(s_i,a_i,s_i')\}_{i=1}^{n}$.
+The batch next states $\{s_j'\}_{j=1}^{n}$ are used as the finite candidate successor-state pool.
+For every transition $i$ and candidate successor state $s_j'$, compute
+\begin{equation}
+    f_{ij} = \frac{ F_\theta(s_i,a_i,z_i)^\top B_\theta(s_j') }{\tau},
+\end{equation}
+and normalize over the candidate states:
+\begin{equation}
+\boxed{
+    p_{ij} = \frac{ \exp(f_{ij}) }{ \sum_{k=1}^{n}\exp(f_{ik}) }.
+}
+\label{eq:p-current}
+\end{equation}
+
+For each observed next state $s_i'$, obtain a bootstrap action $a_i' \sim \bar\pi(\cdot\mid s_i',z_i)$.
+Using the target networks, compute $\bar f_{ij}' = \bar F(s_i',a_i',z_i)^\top \bar B(s_j') / \tau$ and normalize:
+\begin{equation}
+\boxed{
+    \bar p_{ij}' = \frac{ \exp(\bar f_{ij}') }{ \sum_{k=1}^{n} \exp(\bar f_{ik}') }.
+}
+\label{eq:p-target-bootstrap}
+\end{equation}
+
+For transition $i$, the observed next state is $s_i'$.
+Because that state appears as candidate $i$ in the query pool, define $e_{ij} = \mathbf 1[j=i]$.
+The normalized Bellman target is
+\begin{equation}
+\boxed{
+    p_{ij}^{\mathrm{tgt}} = (1-\gamma)e_{ij} + \gamma\bar p_{ij}'.
+}
+\label{eq:p-bellman-target}
+\end{equation}
+Both $e_i$ and $\bar p_i'$ are probability vectors, hence $\sum_j p_{ij}^{\mathrm{tgt}} = 1$.
+
+The successor model is trained with cross-entropy:
+\begin{equation}
+\boxed{
+    \mathcal L_{\mathrm{DFB}}
+    =
+    -\frac{1}{n} \sum_{i=1}^{n} \sum_{j=1}^{n} p_{ij}^{\mathrm{tgt}} \log p_{ij}.
+}
+\label{eq:dfb-algorithm-loss}
+\end{equation}
+
+A representation-learning update therefore consists of:
+\begin{enumerate}
+    \item Sample a minibatch $(s_i,a_i,s_i')$.
+    \item Use the batch next states $s_j'$ as candidate successor states.
+    \item Compute the current normalized distribution $p_{ij}$.
+    \item From each $s_i'$, compute the target-network bootstrap distribution $\bar p_{ij}'$.
+    \item Form $p_i^{\mathrm{tgt}} = (1-\gamma)e_i + \gamma\bar p_i'$.
+    \item Minimize the cross-entropy between $p_i^{\mathrm{tgt}}$ and $p_i$.
+    \item Update the target networks.
+\end{enumerate}
+
+\subsection*{Implementation notes}
+
+Five properties of the implementation deserve explicit note.
+(i) The candidate states and the backward inputs are the goal-relevant object coordinates $\phi(s')$, not raw states: the derivation applies verbatim to the pushforward measure, with $\rho$ the object-coordinate next-state marginal.
+(ii) The batch softmax replaces the reference expectations of Step~4 with finite-pool estimates: the resulting objective is a self-normalized importance-sampling estimate, consistent as $n$ grows and biased at finite $n$; the effective sample size of the weights is the monitored diagnostic.
+(iii) Two score heads are trained, each bootstrapping its own target head, with the mean cross-entropy; the pessimistic minimum over heads is applied only in the actor.
+(iv) The bootstrap expectation over $a'$ is estimated with a single stop-gradient action drawn from the current actor.
+(v) The one-hot label $e_{ij}=\mathbf 1[j=i]$ presumes distinct candidates; in dwell-heavy data, near-duplicate candidates make the label unattainable at identical logits --- an irreducible cross-entropy floor that is instrumented rather than corrected.
+}
+
+\section{Policy extraction}
+\label{sec:policy-extraction}
+
+\subsection{Standard FB}
+
+In standard FB, the value of a reward $r$ can be obtained directly from the successor density $Q_r^{\pi_z}(s,a)$.
+Define the reward task vector
+\begin{equation}
+    z_r = \mathbb E_{s^+\sim\rho} \left[ r(s^+)B(s^+) \right].
+\label{eq:fb-zr}
+\end{equation}
+
+Setting the policy index to $z=z_r$ therefore gives
+\begin{equation}
+    Q_r^{\pi_{z_r}}(s,a) = F(s,a,z_r)^\top z_r.
+\end{equation}
+
+The actor can consequently be co-trained with the FB representation by maximizing
+\begin{equation}
+    \max_\pi \quad \mathbb E_{s,z}\left[ F(s,\pi(s,z),z)^\top z \right].
+\end{equation}
+
+\subsection{Density-FB}
+
+In Density-FB, the normalized successor density is instead $h(s,a,z,s^+)$.
+Since $\nu^\pi=(1-\gamma)M^\pi$,
+\begin{align}
+    (1-\gamma)Q_r^{\pi_z}(s,a)  &= \int r(s^+) \nu^{\pi_z}(s,a,ds^+) \\
+                                &= \mathbb E_{s^+\sim\rho} \left[ h(s,a,z,s^+) r(s^+) \right].
+\end{align}
+
+For a task $z$ with reward $r_z$, define
+\begin{equation}
+\boxed{
+    q_z(s,a) = \mathbb E_{s^+\sim\rho} \left[ h(s,a,z,s^+)r_z(s^+) \right].
+}
+\label{eq:actor-q}
+\end{equation}
+
+Thus
+\begin{equation}
+    q_z(s,a) = (1-\gamma)Q_{r_z}^{\pi_z}(s,a),
+\end{equation}
+and the factor $1-\gamma$ does not affect the greedy action.
+
+Using the exponential parameterization of the normalized density,
+\begin{equation}
+    h(s,a,z,s^+)    = \frac{ \exp f(s,a,z,s^+) }{ \mathbb E_{\tilde s^+\sim\rho} \left[\exp f(s,a,z,\tilde s^+)\right]},
+\end{equation}
+Equation~\eqref{eq:actor-q} becomes
+\begin{equation}
+\boxed{
+    q_z(s,a) = \frac{\mathbb E_{s^+\sim\rho}\left[\exp f(s,a,z,s^+)r_z(s^+)\right]}{\mathbb E_{s^+\sim\rho}\left[\exp f(s,a,z,s^+)\right]}.
+}
+\label{eq:actor-q-density}
+\end{equation}
+
+The actor now maximizes the reward integrated under the successor distribution predicted by Density-FB.
+
+{\color{addgreen}
+Two consequences follow.
+First, Equation~\eqref{eq:fb-action} is no longer a policy-improvement rule: $q_z$ is nonlinear in the score $f$ through the partition function, so no closed-form greedy action in the latent survives, and the actor must maximize Equation~\eqref{eq:actor-q-density} directly.
+Second, with a finite candidate pool $\{s_j^+\}_{j=1}^{M}$, $s_j^+\sim\rho$, Equation~\eqref{eq:actor-q-density} becomes the pool-softmax form
+\begin{equation}
+    q_z(s,a) = \sum_{j=1}^{M} p_j(s,a,z)\, r_z(s_j^+),
+    \qquad
+    p_j = \frac{\exp f(s,a,z,s_j^+)}{\sum_{k}\exp f(s,a,z,s_k^+)},
+\label{eq:actor-q-pool}
+\end{equation}
+the self-normalized importance-sampling estimate of the reward under the predicted successor distribution.
+The pool is the same successor support the density loss trains against, so the actor queries the model exactly where it was fit.
+With twin score heads, the actor uses the elementwise minimum of the two head values; the representation loss itself averages the heads.
+
+\subsection*{Behavior-regularized maximization}
+
+Offline, an unconstrained $\arg\max_a q_z(s,a)$ leaves the data support.
+The actor therefore maximizes Equation~\eqref{eq:actor-q} under a behavior-cloning constraint:
+\begin{equation}
+    \mathcal L_{\mathrm{actor}}
+    =
+    -\,\mathbb E_{s,z}\left[ q_z(s, \pi(s,z)) \right]
+    \;+\;
+    \beta\, \mathcal L_{\mathrm{BC}}(\pi),
+\label{eq:actor-raw}
+\end{equation}
+where $\mathcal L_{\mathrm{BC}}$ is a flow-matching distillation loss (or a squared-error term for a deterministic actor) toward the dataset actions.
+Throughout, the actor receives no gradient path into $F$ or $B$ (the representation is frozen with respect to the actor's update), and $r_z$ is treated as a constant.
+
+\subsection*{The scale correction}
+
+Equation~\eqref{eq:actor-raw} is not usable as written, because its two terms are not commensurate.
+The critic $q_z$ is a probability-scale quantity: its magnitude is set by the pool normalization and by an affine offset the actor cannot influence.
+Writing $q_z = c + \tilde q_z$ with $c$ constant in $a$, only $\tilde q_z$ carries policy information, and in variants where the value contains an explicit immediate term the controllable part is $(1-\gamma)$-scaled while $|q_z| = O(1)$.
+Normalizing the greedy term by the raw magnitude $\mathbb E|q_z|$ --- the standard offline recipe --- then divides the useful gradient by the offset and suppresses it against $\mathcal L_{\mathrm{BC}}$.
+
+Density-FB instead normalizes by the \emph{centered} magnitude, held constant through the gradient:
+\begin{equation}
+\boxed{
+    \mathcal L_{\mathrm{actor}}
+    =
+    -\,
+    \frac{
+        \mathbb E\left[ q_z(s,\pi(s,z)) \right]
+    }{
+        \mathrm{sg}\!\left(
+        \mathbb E\bigl| q_z - \mathbb E[q_z] \bigr| + \varepsilon
+        \right)
+    }
+    \;+\;
+    \beta\, \mathcal L_{\mathrm{BC}}(\pi).
+}
+\label{eq:actor-centered}
+\end{equation}
+This has two properties.
+First, the greedy/BC balance is invariant to an affine offset $q_z \mapsto q_z + c$: the offset changes neither the normalizer nor the gradient of the numerator, so the effective strength of the greedy term is set by the variation of $q_z$ the actor can actually control.
+Second, the centering lives entirely inside the stop-gradient, and this placement is load-bearing: if the mean is instead subtracted on the differentiated path, the mean-gradient term cancels the greedy gradient \emph{exactly} whenever the minimum over twin heads selects the same head on every sample, and attenuates it otherwise.
+The correction must change the normalization of the objective, not the objective itself.
+
+\subsection*{Summary of the modification}
+
+Relative to the FB greedy actor, Density-FB changes three things:
+(1) the maximized quantity is the reward integral of Equation~\eqref{eq:actor-q} under the normalized successor model, with the reward supplied externally, rather than the bilinear latent value $F^\top z$;
+(2) maximization is behavior-regularized, with the representation frozen with respect to the actor's gradients;
+(3) the greedy term is normalized by the stop-gradded centered magnitude of the critic, which makes the greedy/BC balance invariant to the probability-scale offset the normalized density introduces.
+The third item is the modification that makes the greedy term effective in practice; without it, the actor collapses to behavior cloning.
+
+\section{The task interface: where $r_z$ comes from}
+
+\subsection*{What standard FB promises, and why it fails here}
+
+Standard FB supports posterior reward specification: after unsupervised training, Equation~\eqref{eq:fb-zr} maps a reward to a task vector and $\pi_{z_r}$ is deployed with no further optimization.
+This rests on two properties that hold jointly in FB: the value is \emph{linear} in the task vector, $Q_r^{\pi_z} = F(s,a,z)^\top \mathbb E_\rho[rB]$, and the training loss constrains $B$ itself, so Equation~\eqref{eq:fb-zr} is evaluated in meaningful coordinates.
+
+Density-FB breaks both properties.
+First, the value $(1-\gamma) Q_r = \mathbb E_{s^+\sim\rho}[h\, r]$ is nonlinear in the score through the partition function, so no closed-form inverse from rewards to task vectors follows from the model.
+Second, the cross-entropy objective constrains only the \emph{normalized} density: any transformation of $B$ invisible to the softmax --- in particular the additive gauge $B \mapsto B + b$, since $F^\top b$ is constant over the candidate axis --- leaves every prediction unchanged.
+The coordinates in which Equation~\eqref{eq:fb-zr} is computed are therefore arbitrary.
+Empirically this is not a technicality: the uncentered second moment of the learned $B$ is dominated by a gauge direction $33$--$103\times$ larger than the informative signal, the moment embedding assigns rewards to task vectors at chance, and a constant reward shift $r \mapsto r + \beta$ --- which leaves the optimal policy unchanged --- rotates Equation~\eqref{eq:fb-zr} to a nearly orthogonal vector.
+
+\subsection*{Three candidate interfaces}
+
+The actor objective requires an association $z \leftrightarrow r_z$ during actor training.
+There are three ways to supply it.
+
+\textbf{(i) Goal conditioning.}
+Set $z = g$ and let $r_g(\cdot) = \kappa(g,\cdot)$ be a fixed kernel around the commanded goal.
+The reward is known at training time.
+This is the primary instantiation in our experiments; it is goal-conditioned RL, and we claim it as such --- not as posterior reward specification.
+
+\textbf{(ii) The linear self-supervised family.}
+Set $r_z(s^+) = B(s^+)^\top z$, giving the compact actor value $q_z(s,a) = \left(\mathbb E_\rho[h(s,a,z,s^+) B(s^+)]\right)^\top z$.
+This inherits FB's algebra but none of its justification: the reward family is expressed in the gauge-arbitrary coordinates above.
+We tested it, and it fails: reward reconstruction from $B^\top z$ is at or below chance for uncentered task vectors, and an actor trained on this family reaches $0.368$ where the same architecture with externally supplied rewards reaches $0.812$.
+
+\textbf{(iii) A reward-sample interface.}
+Supply the reward, after training, as evaluations $\{(s_j^+, r_j)\}_{j=1}^{M}$ on states $s_j^+ \sim \rho$ --- the same posterior interface FB uses to estimate Equation~\eqref{eq:fb-zr} in practice --- and construct the task vector by \emph{regression} rather than by the moment:
+\begin{equation}
+\boxed{
+    z_r
+    =
+    \sqrt d\,\operatorname{normalize}\!\left(
+    \left( C_B + \lambda I \right)^{-1}
+    \frac1M \sum_{j=1}^{M}
+    \left( B(s_j^+) - \mu_B \right)\left( r_j - \bar r \right)
+    \right),
+}
+\label{eq:centered-dual}
+\end{equation}
+with $\mu_B, C_B$ the mean and covariance of $B$ under $\rho$ and $\bar r$ the sample mean reward.
+This is the ridge coefficient for reconstructing the centered reward from the centered features.
+It is exactly invariant to the additive gauge $B \mapsto B+b$ and to positive affine reward transformations $r \mapsto \alpha r + \beta$ --- the invariances a task code must have and that Equation~\eqref{eq:fb-zr} provably lacks here.
+The actor is trained across a family of such tasks (hindsight goal kernels and sampled task vectors), integrating the \emph{actual} reward samples in its value; the task vector is only a policy index, and reward semantics never pass through $B^\top z$.
+
+Two structural remarks.
+Because Equation~\eqref{eq:centered-dual} centers the rewards, it has no one-sample limit ($M=1$ gives $r_1 - \bar r = 0$): point-goal prompting is a separate analytic mode, $z_g = \sqrt d\,\operatorname{normalize}(B(g) - \mu_B)$, not a special case of the sample encoder.
+And constant rewards give $z_r = 0$ before normalization; they are mapped to a designated neutral index, since every policy is optimal for them.
+
+\subsection*{What is claimed}
+
+Interface (iii) restores the \emph{form} of posterior reward specification: reward in, task vector out, frozen policy deployed.
+It does not restore FB's theorem.
+The deployment-time guarantee is empirical and factors into three measurable conditions: the reward must be representable in the centered feature basis (measured by held-out reconstruction), the encoder must assign it to the right index (measured against a search over task vectors using the model's own reward integral), and the trained policy family must contain a policy for it (the residual when reconstruction and assignment both succeed).
+We therefore state the claim as: a gauge-corrected, affine-invariant reward-to-index interface whose zero-shot validity is established per reward family by evaluation, not by construction.
+
+\section{The algorithm}
+
+Algorithm~\ref{alg:dfb} assembles the pieces: the categorical representation update of Section~\ref{sec:algorithm}, the behavior-regularized actor with the centered scale correction, the target-network update, and the two deployment-time prompting modes.
+
+\begin{algorithm}[h]
+\caption{Density-FB (hard or soft immediate target)}
+\label{alg:dfb}
+\begin{algorithmic}[1]
+\Require dataset $\mathcal D$, towers $F_\theta, B_\theta$ (two score heads), targets $\bar F, \bar B$, actor $\pi$, kernel $k_\epsilon$, temperature $\tau$, rates $\eta, \zeta$
+\For{each training step}
+    \State sample minibatch $\{(s_i,a_i,s_i')\}_{i=1}^{n}$; task $z_i$ (commanded goal or sampled task vector)
+    \State query pool $\{u_j\}_{j=1}^{n} \gets \phi(s_j')$ \Comment{batch next-state object coordinates}
+    \State $p_{ij} \gets \mathrm{softmax}_j\!\left( F_\theta(s_i,a_i,z_i)^\top B_\theta(u_j)/\tau \right)$ per head
+    \State $a_i' \gets \pi(s_i', z_i)$, stop-gradient \Comment{one-shot bootstrap action}
+    \State $\bar p_{ij}' \gets \mathrm{softmax}_j\!\left( \bar F(s_i',a_i',z_i)^\top \bar B(u_j)/\tau \right)$ per head
+    \State $k_{ij} \gets \mathbf 1[j=i]$ (hard) \textbf{or} $\mathrm{softmax}_j\, k_\epsilon(\phi(s_i'), u_j)$ (soft)
+    \State $t_{ij} \gets \mathrm{sg}\!\left[ (1-\gamma) k_{ij} + \gamma \bar p_{ij}' \right]$
+    \State $\theta \gets \theta - \eta \nabla_\theta \left( -\tfrac1n \sum_{i,j} t_{ij} \log p_{ij} \right)$ \Comment{mean over heads}
+    \State $q_i \gets \min_{\text{heads}} \sum_j p_{ij}\big|_{\mathrm{frozen}\ \theta}\; r_{z_i}(u_j)$ \Comment{$r_{z}$ external: goal kernel or reward samples}
+    \State update $\pi$: minimize $-\,\mathbb E[q] \,/\, \mathrm{sg}\!\left(\mathbb E|q - \mathbb E q| + \varepsilon\right) + \beta\,\mathcal L_{\mathrm{BC}}(\pi)$
+    \State $(\bar F, \bar B) \gets (1-\zeta)(\bar F, \bar B) + \zeta (F_\theta, B_\theta)$
+\EndFor
+\Statex \textbf{Deployment} (frozen $F, B, \pi$; pool statistics $\mu_B, C_B$):
+\State goal $g$: \quad $\hat z \gets \sqrt d\,\operatorname{normalize}(B(g) - \mu_B)$ \Comment{analytic centered point prompt}
+\State reward samples $\{(u_j, r_j)\}_{j=1}^{M}$, $M>1$: \quad $\hat z \gets$ Equation~\eqref{eq:centered-dual} \Comment{centered dual encoder}
+\State act with $\pi(s, \hat z)$
+\end{algorithmic}
+\end{algorithm}
+}
+
+\end{document}
+

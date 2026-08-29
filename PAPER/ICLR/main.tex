@@ -1,0 +1,99 @@
+\documentclass{article}
+\usepackage{iclr2027_conference,times}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newtheorem{remark}{Remark}
+
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue]{hyperref}
+\usepackage{url}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
+\newcommand{\sg}{\mathrm{sg}}
+\newcommand{\DensityFB}{\textsc{Density-FB}}
+
+% Turn comments on/off:
+\newif\ifcomments
+\commentstrue      % show comments
+%\commentsfalse     % hide comments
+
+% Per-author comment commands
+\newcommand{\aditya}[1]{%
+  \ifcomments
+    \textcolor{blue}{[\textbf{Aditya}: #1]}%
+  \fi
+}
+\newcommand{\tongle}[1]{%
+  \ifcomments
+    \textcolor{red}{[\textbf{Tongle}: #1]}%
+  \fi
+}
+\newcommand{\siddhant}[1]{%
+  \ifcomments
+    \textcolor{green}{[\textbf{Siddhant}: #1]}%
+  \fi
+}
+\newcommand{\fan}[1]{%
+  \ifcomments
+    \textcolor{orange}{[\textbf{Fan}: #1]}%
+  \fi
+}
+\newcommand{\caleb}[1]{%
+  \ifcomments
+    \textcolor{cyan}{[\textbf{Caleb}: #1]}%
+  \fi
+}
+\newcommand{\benjamin}[1]{%
+  \ifcomments
+    \textcolor{violet}{[\textbf{Ben}: #1]}%
+  \fi
+}
+\newcommand{\amy}[1]{%
+  \ifcomments
+    \textcolor{magenta}{[\textbf{Amy}: #1]}%
+  \fi
+}
+
+\definecolor{fbdiff}{HTML}{2A78D6}   % lines that differ from standard FB
+\definecolor{softvar}{HTML}{EB6834}  % soft-variant choice
+\definecolor{hardvar}{HTML}{1A9E77}  % hard-variant choice
+
+\title{Learning Successor Measures from Manipulation Play}
+\author{%
+Aditya Mohan \And Tongle Shen \And Siddhant Agarwal \And Fan Feng \\
+Caleb Chuck \And Benjamin Eysenbach \And Amy Zhang
+}
+
+% \iclrfinalcopy
+
+\begin{document}
+\maketitle
+
+\input{content/abstract}
+\input{content/introduction}
+\input{content/prelims}
+\input{content/method}
+% \input{content/experiments}
+% \input{content/related-work}
+
+\newpage
+\bibliography{bib/strings,bib/lib,bib/local,bib/proc}
+\bibliographystyle{iclr2027_conference}
+
+\appendix
+\input{content/appendix/theory}
+\input{content/appendix/implementation}
+
+\end{document}
+
+\end{document}

@@ -15,6 +15,8 @@
 \usepackage[colorlinks=true,linkcolor=blue,citecolor=blue]{hyperref}
 \usepackage{url}
 
+\newtheorem{proposition}{Proposition}
+
 \newcommand{\E}{\mathbb{E}}
 \newcommand{\ind}[1]{\mathbf{1}\!\left[#1\right]}
 \newcommand{\sg}{\mathrm{sg}}
@@ -27,6 +29,16 @@
 
 \begin{document}
 \maketitle
+
+\begin{abstract}
+We study categorical successor densities for offline zero-shot reinforcement learning on object manipulation.
+The model rescales the discounted successor measure to a probability distribution and fits it with a softmax-normalized two-tower representation and a cross-entropy Bellman update; the hard variant of this update reduces to the categorical Bellman update underlying TD InfoNCE, while the soft variant learns a kernel-smoothed successor distribution over goal-relevant outcome coordinates.
+On dwell-heavy manipulation play, where the standard forward--backward (FB) estimator collapses, this model works: on OGBench \texttt{cube-double}, goal-conditioned success rises from $0.005$ with plain FB to $0.736$, and the gain survives exchanging the flow actor for DDPG+BC.
+Reusing the model's backward features as FB-style latent task prompts, however, fails at the behavior-cloning floor, and we trace this to an overlooked property of normalized successor models: the softmax leaves an additive gauge direction in the backward features unconstrained, and in practice this direction dominates them --- its norm is $33$--$103\times$ the centered signal --- so point and reward-moment prompts collapse onto a task-irrelevant mean and reward-to-index inference performs at chance.
+We construct a centered dual task encoder, invariant to feature translations and positive affine reward transformations, and pair it with policy extraction that integrates reward samples directly against the predicted occupancy.
+In an initial single-seed experiment this restores latent-conditioned control from the behavior-cloning floor ($0.111$) to $0.812$ on \texttt{cube-single}, about $87\%$ of the goal-conditioned anchor.
+We state explicitly what remains open: estimator-level controls against TD InfoNCE, isolation of the privileged outcome coordinates, and validation of the general reward-sample interface.
+\end{abstract}
 
 % ======================================================================
 \section{Setting}
@@ -65,6 +77,24 @@ The standard FB estimator is
 \end{equation}
 where $a^+$ is sampled from the policy associated with $z$.
 Random future-state queries receive the squared Bellman residual, while the observed successor supplies the immediate positive term.
+
+This paper sits in two active lines of work.
+Normalized and generative successor measures have several precedents: temporal-difference flows \citep{farebrother2025tdflows}, Bellman diffusion models \citep{shribak2024bellmandiffusion}, and intention-conditioned occupancy models \citep{zheng2026infom} all represent the successor measure as a probability distribution, and Section~\ref{sec:tdinfonce} relates our estimator to the closest precedent, TD InfoNCE \citep{zheng2024tdinfonce}.
+The FB lineage has likewise moved past the original formulation: conservatism for low-quality data \citep{jeen2024lowquality}, autoregressive task features with advantage-weighted extraction \citep{cetin2024finer}, dual-value variants \citep{sun2025dvfb}, stochastic policies and general utilities \citep{bagatella2026softfb}, critiques of joint FB training \citep{zheng2026onestepfb}, distribution-corrected off-policy variants \citep{asadulaev2026zol}, latent-dynamics pretraining \citep{bagatella-iclr26a}, and reward-sample task encoders \citep{frans2024fre}.
+Task inference itself has prior art: covariance-corrected reward regression is the standard successor-feature encoding \citep{cetin2024finer}, and OpTI-BFM \citep{rupf2026optibfm} formalizes behavior-foundation-model task inference as exactly this regression, studied under online reward feedback.
+Our contribution on that axis is not the regression but the reason it becomes mandatory here: the density objective leaves the backward features identifiable only up to transformations the softmax cannot see, so they are not automatically a valid task basis (Section~\ref{sec:latent}), and the regression must moreover be the centered one.
+We position against these where each becomes relevant.
+
+Concretely, this paper contributes:
+\begin{enumerate}
+\item \textbf{Empirical:} a documented failure of the standard LSIF-style FB estimator on OGBench manipulation play, and a categorical successor-density model that works there ($0.005 \to 0.736$ on \texttt{cube-double}), with the gain surviving a flow-to-DDPG+BC actor swap (Section~\ref{sec:main-results}).
+\item \textbf{Methodological:} outcome-space, task-conditioned categorical successor densities with offline, reward-integrating policy extraction, including the soft variant and its kernel-smoothed fixed point (Section~\ref{sec:method}).
+\item \textbf{Analytical:} a gauge analysis of latent task prompting in normalized successor models: the softmax removes FB's linear reward-to-index identity and leaves an additive gauge direction unconstrained, and we measure that gauge dominating the learned features and breaking every naive prompt built from them (Section~\ref{sec:latent}).
+\item \textbf{Algorithmic:} a centered dual task encoder --- invariant to feature translations and positive affine reward transformations --- combined with external reward-sample integration, validated so far in an initial single-seed screen (Section~\ref{sec:latent}, with the outstanding checks in Section~\ref{sec:todo}).
+\end{enumerate}
+The first two are demonstrated; the fourth is preliminary.
+We do not claim the estimator itself, which reduces to TD InfoNCE's update \citep[Proposition~\ref{prop:tdinfonce};][]{zheng2024tdinfonce}; nor normalized successor measures as objects \citep{farebrother2025tdflows,shribak2024bellmandiffusion,zheng2026infom}; nor covariance-corrected reward regression per se \citep{cetin2024finer,rupf2026optibfm}.
+The contribution is where these meet: a normalized successor model whose feature gauge silently breaks the task interface it inherits from FB, and the corrected interface that repairs it.
 
 % ======================================================================
 \section{Why manipulation play stresses the FB estimator}
@@ -117,7 +147,13 @@ M^\pi(s,a,\mathcal X) = \sum_{t\ge0}\gamma^t = \frac{1}{1-\gamma}.
 \end{equation}
 This constraint is not enforced by the bilinear prediction itself.
 Repeated positive updates at persistent configurations can therefore be expressed by increasing critic scale rather than only by reallocating a fixed amount of future occupancy.
-This is the failure mode we target.
+
+This is the imbalance we target, but its causal status should be stated carefully, because two facts cut against reading the count argument as a proven mechanism.
+First, the population FB objective has a finite scale optimum --- scaling a candidate $m$ by $c$ changes the loss by $\tfrac{c^2}{2}\E_\rho[m^2] - c\,\E_{M^\pi}[m]$, minimized at finite $c$ --- and stationary configurations also appear proportionally more often as \emph{negative} queries drawn from the data marginal, which pushes back on the same states.
+In our own estimator this counterweight is built in: the query support is the batch's next states, so dwell configurations enter the negatives exactly as often as they enter the positives.
+Second, the repetition argument counts configurations in the object coordinates $\phi(s')$, but the plain-FB baseline's backward map receives the \emph{full} observation, in which the arm keeps moving while the object rests; the baseline's successor inputs during a stationary run are therefore not identical.
+We accordingly claim the empirical contrast --- plain FB fails on these dwell-heavy datasets while the normalized categorical estimator below does not --- and identify outcome imbalance and the unconstrained scale direction as candidate factors, without asserting a unique causal channel.
+A plain-FB control that receives the same $\phi(s')$ is future work (Section~\ref{sec:todo}).
 
 % ======================================================================
 \section{\DensityFB: normalized successor learning}
@@ -140,7 +176,8 @@ $F$ receives the full current state and action, while $B$ represents a candidate
 
 In our manipulation experiments, $\phi$ extracts the object coordinates.
 We therefore condition on the full state but predict future occupancy over the goal-relevant object configuration.
-This is the pushforward of the full-state successor measure and is sufficient for any reward defined only on those coordinates.
+This is the pushforward of the full-state successor measure, and it fixes the method's reward scope: any bounded reward measurable on the chosen outcome coordinates and supported by the data marginal --- not arbitrary MDP rewards, which may depend on robot joint state, action costs, contact forces, or path-dependent quantities that $\phi$ discards.
+The choice of $\phi$ is also privileged information: the method receives the goal-relevant coordinate blocks and their tolerances $\epsilon_b$, which the plain-FB baseline does not; no reward labels are used, but the pretraining is not domain-agnostic.
 Setting $\phi$ to the identity instead gives $x=s$ and asks $B$ to represent the full state; we are testing this separately.
 
 \subsection{From a successor measure to a probability distribution}
@@ -245,6 +282,24 @@ The update has a simple interpretation.
 The observed successor receives $1-\gamma$ of the normalized occupancy, while the remaining $\gamma$ is inherited from the predicted occupancy after the next state.
 Equations~\ref{eq:density-softmax}--\ref{eq:density-loss} define hard \DensityFB{}.
 
+\subsection{Relation to TD InfoNCE}
+\label{sec:tdinfonce}
+
+The hard estimator is not new in isolation.
+Its target is the categorical Bellman update of TD InfoNCE \citep{zheng2024tdinfonce}, which classifies the observed next state against negatives from the state marginal, bootstraps with the stop-gradient softmax of the next state-action's scores, and whose analysis shows the resulting classifier represents the normalized discounted future-state distribution.
+
+\begin{proposition}[Relation to TD InfoNCE]
+\label{prop:tdinfonce}
+With the one-hot immediate label $e_i$, a query support shared between the immediate and bootstrap terms, and matched normalization conventions, the hard \DensityFB{} loss (Equation~\ref{eq:density-loss}) reduces to the categorical Bellman update underlying TD InfoNCE, evaluated on the outcome coordinates $x=\phi(s)$ and with the task variable carried in the forward tower.
+\end{proposition}
+
+We therefore do not claim the estimator as a contribution.
+The proposition is a reduction under matched conventions, not an implementation identity: TD InfoNCE labels the dynamics next state in its immediate term but a marginal draw in its bootstrap term (with one shared negative pool), uses $\ell_2$-normalized towers, and extracts its policy with a goal-contrastive cross-entropy plus a goal-conditioned behavioral-cloning regularizer over relabeled goals.
+It is, moreover, an offline-capable goal-conditioned method --- it reports offline D4RL results with that regularizer --- so the distinction is not offline versus online.
+The distinction is the interface: TD InfoNCE learns a raw-goal-conditioned policy and occupancy estimator; it has no reward-prompted latent policy family, no general reward-to-policy-index inference mechanism, and no validated zero-shot control for arbitrary reward functions (its arbitrary-reward evaluation is a fixed-policy appendix observation rather than a deployed mechanism).
+\DensityFB{} contributes the outcome-space construction, the offline reward-integrating policy extraction (Section~\ref{sec:method-control}), and the latent task interface and its correction (Section~\ref{sec:latent}).
+Note also that the headline goal-reaching cells in Table~\ref{tab:main} and the latent-index results of Section~\ref{sec:latent} use the \emph{soft} variant below; the hard variant --- the direct TD InfoNCE correspondence --- is the ablation, and it is the stronger configuration for reward transfer (Table~\ref{tab:zeroshot}).
+
 \subsection{What changed relative to FB?}
 
 Hard \DensityFB{} keeps the forward--backward factorization and the policy-conditioned Bellman bootstrap.
@@ -264,7 +319,7 @@ First, we fit the distributional target with cross-entropy rather than FB's squa
 Second, the query set is built from batch successors, guaranteeing that the observed successor appears in the support of the immediate one-hot target.
 
 We also remove FB's orthonormalization objective.
-The softmax does not make $B$ orthogonal; rather, $F^\top B$ is no longer a calibrated density.
+The softmax does not make $B$ orthogonal; rather, $F^\top B$ is no longer an estimate of the density ratio itself.
 Only the resulting probabilities have predictive meaning, and downstream reward evaluation is performed directly under this distribution.
 We therefore do not impose an orthonormal constraint on $B$.
 
@@ -280,6 +335,7 @@ Repeated stationary transitions can therefore change where the predicted occupan
 This preserves the fact that the cube tends to remain where it was left while removing scale as a degree of freedom.
 
 \subsection{Soft immediate targets}
+\label{sec:soft-targets}
 
 Hard \DensityFB{} places the immediate $1-\gamma$ mass exactly on the observed successor.
 We also evaluate a smoothed version.
@@ -297,6 +353,17 @@ Soft \DensityFB{} changes only the immediate term:
 
 Everything else is unchanged.
 The hard variant learns the normalized successor measure itself, whereas the soft variant smooths each one-step successor over an $\epsilon$-neighborhood before propagating occupancy.
+Because the kernel row is normalized over the sampled query set, its effective base measure is the kernel multiplied by the query-pool density, not the kernel alone: the smoothing is data-density weighted and depends on pool composition and size.
+The hard immediate term is the cleaner estimator in this respect, since the expected one-hot label represents $P_\phi(\cdot\mid s,a)$ directly.
+
+The soft variant is best understood as estimating a different, equally valid successor object rather than as label smoothing.
+Writing $K_{\rho,\epsilon}(du\mid x) = k_\epsilon(x,u)\,\rho_\phi(du) / \int k_\epsilon(x,v)\,\rho_\phi(dv)$ for the data-density-weighted kernel, the population soft operator is
+\begin{equation}
+\mathcal T_K^{\pi}\nu = (1-\gamma)\,\E_{x'\sim P_\phi(\cdot\mid s,a)}\!\left[ K_{\rho,\epsilon}(\cdot\mid x') \right] + \gamma\,\E_{s',a'}\!\left[ \nu(\cdot\mid s',a') \right],
+\end{equation}
+whose fixed point $\nu_K^\pi$ is the kernel-smoothed discounted occupancy.
+Reward integration under it satisfies $\int r\,d\nu_K^\pi = \int (K_{\rho,\epsilon}r)\,d\nu^\pi$: the soft model evaluates --- and its actor optimizes --- the smoothed reward $K_{\rho,\epsilon}r$, not $r$ itself.
+Sums of rewards remain linear under this smoothing, but sharp boundaries, conjunctions, maxima over goals, and avoidance terms are altered; for reward families of that kind the hard variant is the semantically exact interface, and evaluations of them should either use it or state the smoothing.
 
 \subsection{Role of the goal}
 
@@ -305,6 +372,7 @@ We use $g$ because hindsight relabeling supplies goals from the play data, allow
 In this sense, $g$ plays the same indexing role that the latent task vector $z$ plays in standard FB, and training still requires no reward labels or task labels.
 
 \subsection{Control}
+\label{sec:method-control}
 
 The policy-extraction recipe is unchanged from the corresponding baseline.
 The only difference is the critic supplied to the actor.
@@ -317,7 +385,6 @@ For either hard or soft \DensityFB{}, define the goal readout
 \end{equation}
 The scalar critic supplied to the actor is
 \begin{equation}
-\label{eq:goal-readout}
     q_g(s,a) = \sum_j p_j(s,a,g)\, h_g^\epsilon(u_j).
 \end{equation}
 The same goal readout is used for both training variants.
@@ -346,6 +413,25 @@ The predicted occupancy contains a large action-independent component, whereas t
 We therefore center $q_g$ before computing its magnitude normalizer.
 The behavior-cloning baseline trains the same actor with the $q_g$ term removed.
 We separately evaluate Gaussian DDPG+BC as an alternative policy extractor.
+
+\subsection{The readout is self-normalized importance sampling}
+\label{sec:snis}
+
+Every scalar the actor or the reward evaluation consumes has the same estimator form, and it is worth naming.
+The model represents $\nu(du\mid s,a) \propto e^{f(s,a,u)}\,\rho_\phi(du)$ with $f=F^\top B/\tau$, so for queries $u_j\sim\rho_\phi$ any finite-pool readout
+\begin{equation}
+\label{eq:snis}
+\sum_j p_j(s,a)\, r(u_j)
+=
+\frac{ \sum_j e^{f(s,a,u_j)}\, r(u_j) }{ \sum_j e^{f(s,a,u_j)} }
+\end{equation}
+is self-normalized importance sampling of $\E_{\nu}[r]$, with proposal $\rho_\phi$ and unnormalized weights $e^{f}$ \citep{owen2013mc}.
+Three consequences follow.
+First, the estimator is consistent as the pool grows, under the usual support and moment conditions, but biased at any finite pool size, as every self-normalized estimator is; this, not implementation detail, is why the open items call for pool-size curves (Section~\ref{sec:todo}).
+Second, the standard quality diagnostic for such weights is their effective sample size \citep{kong1992ess}, which we monitor throughout training as a collapse check on the learned weights.
+Third, the zero-shot reward evaluation of Section~\ref{sec:reward-transfer} is the same estimator class evaluated on a larger pool, so its finite-pool correction inherits the same analysis.\footnote{One implementation detail qualifies the statement. $F$ is a two-head ensemble, and both the actor and the shipped evaluation take the elementwise minimum of the two heads' softmax weight vectors before the readout, without renormalizing. The resulting weights are conservative but sum to at most one, so what is computed is a sub-normalized version of Equation~\ref{eq:snis}; the consistency statement above is for the single-head weights. Every cell of Table~\ref{tab:zeroshot} uses this two-head path.}
+The softmax weights therefore play two roles at once: they are the learned successor probabilities, and they are the importance weights of the readout.
+This is why the composition of the query support --- the data-density base measure discussed in Section~\ref{sec:soft-targets} --- enters the semantics of every readout, not only the soft training target.
 
 \subsection{One training step}
 Algorithm~\ref{alg:densityfb} summarizes one \DensityFB{} update.
@@ -416,13 +502,13 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
 & FQL + BC
 & $0.005 \pm 0.016$
 & $\mathbf{0.736 \pm 0.139}$
-& $0.667 \pm 0.072$
+& $0.680 \pm 0.070$
 & -- \\
 
 & DDPG + BC
 & $0.013 \pm 0.029$
-& $\mathbf{0.652 \pm 0.055}$
-& $0.600 \pm 0.147$
+& $\mathbf{0.646 \pm 0.019}$
+& $0.599 \pm 0.077$
 & $0.40 \pm 0.05$ \\
 \midrule
 
@@ -457,20 +543,23 @@ Environment & Actor & Plain FB & \DensityFB{} (soft) & \DensityFB{} (hard) & \sh
 
 \caption{
 Native goal-conditioned success by environment and policy-extraction rule.
-All \DensityFB{} cells use three seeds. Plain FB uses three seeds except \texttt{cube-double} with FQL + BC (four) and \texttt{scene} with FQL + BC (five). The \emph{pending} cell never ran: its launch failed because the AntMaze dataset was absent from the expected path.
+All \DensityFB{} cells use three seeds except \texttt{cube-double} with DDPG + BC, which uses four. Plain FB uses three seeds except \texttt{cube-double} with FQL + BC (four) and \texttt{scene} with FQL + BC (five). The \emph{pending} cell never ran: its launch failed because the AntMaze dataset was absent from the expected path.
 Seeds for the completed manipulation cells:
 soft flow \texttt{cube-single} $.896/.928/.964$,
 \texttt{cube-double} $.680/.736/.792$,
 \texttt{scene} $.672/.568/.644$;
 hard flow \texttt{cube-single} $.876/.944/.924$,
-\texttt{scene} $.692/.620/.612$.
+\texttt{cube-double} $.692/.700/.648$,
+\texttt{scene} $.692/.620/.612$;
+soft DDPG + BC \texttt{cube-double} $.644/.660/.648/.632$,
+hard DDPG + BC \texttt{cube-double} $.668/.560/.596/.572$.
 }
 \label{tab:main}
 \end{table}
 
 On \texttt{cube-single}, both \DensityFB{} variants reach about $0.92$, leaving little room to distinguish them.
 The harder manipulation tasks separate the methods more clearly.
-On \texttt{cube-double}, soft \DensityFB{} reaches $0.736$ with the flow actor, compared with $0.005$ for plain FB and $0.019$ for behavior cloning; with DDPG+BC it reaches $0.652$, against a published $0.40$ for GCIQL at twice the training budget.
+On \texttt{cube-double}, soft \DensityFB{} reaches $0.736$ with the flow actor, compared with $0.005$ for plain FB and $0.019$ for behavior cloning; with DDPG+BC it reaches $0.646$, against a published $0.40$ for GCIQL at twice the training budget.
 On \texttt{scene}, \DensityFB{} reaches about $0.64$ while plain FB remains near zero.
 
 The \texttt{scene} average also hides a consistent task split.
@@ -478,7 +567,7 @@ All seeds solve \texttt{open}, \texttt{unlock-and-lock}, and \texttt{rearrange-m
 \texttt{put-in-drawer} ($0.02$--$0.50$) and \texttt{rearrange-hard} ($0.0$--$0.04$) remain difficult.
 
 \paragraph{Manipulation results are similar under DDPG+BC.}
-Switching from FQL + BC to DDPG+BC lowers soft \DensityFB{} from $0.929$ to $0.879$ on \texttt{cube-single} and from $0.736$ to $0.652$ on \texttt{cube-double}.
+Switching from FQL + BC to DDPG+BC lowers soft \DensityFB{} from $0.929$ to $0.879$ on \texttt{cube-single} and from $0.736$ to $0.646$ on \texttt{cube-double}.
 The improvement is therefore not specific to the flow actor.
 On \texttt{antmaze-medium}, the same switch moves \DensityFB{} from $0.563$ to $0.829$, so actor extraction matters much more there.
 
@@ -486,6 +575,16 @@ On \texttt{antmaze-medium}, the same switch moves \DensityFB{} from $0.563$ to $
 \texttt{antmaze-medium} removes the structure that motivated \DensityFB{}: the goal-relevant variable is the agent itself, so there is no manipulated object that remains stationary while actions continue.
 Under DDPG+BC, \DensityFB{} reaches $0.829$ against $0.837$ for our matched GCIQL control, and both remain below the strongest published method on that benchmark ($0.96$ for HIQL).
 This supports the narrower hypothesis that \DensityFB{} helps when play data contains long stationary segments in the goal-relevant object variables.
+
+\paragraph{Isolating the estimator from the outcome coordinates.}
+\DensityFB{} departs from FB in two places at once: the categorical estimator, and the privileged outcome coordinates $\phi$ that the successor measure is predicted over.
+Two controls separate them on \texttt{cube-double}, the discriminating environment, matched in everything else (one seed each, $500$k steps; we quote the $500$k value and, in parentheses, the mean over evaluations after $350$k).
+A paper-exact TD InfoNCE critic (Proposition~\ref{prop:tdinfonce}) reaches $0.576$ ($0.545$).
+A goal-conditioned outcome-space LSIF model --- FB's own unnormalized loss, but on our $\phi$, with our external kernel readout and our actor --- reaches $0.300$ ($0.329$).
+Both fall below soft \DensityFB{} ($0.736$) and hard \DensityFB{} ($0.680$).
+Read together they split the improvement: $\phi$ plus an external readout carries plain FB from $0.005$ to $0.300$, and the normalized categorical estimator carries $0.300$ to $0.736$.
+The privileged coordinates are therefore load-bearing, and the estimator change still accounts for the larger share.
+These are single-seed runs, and the matched-extractor TD InfoNCE arm has not been run (Section~\ref{sec:todo}).
 
 % ======================================================================
 \section{Reward evaluation}
@@ -510,7 +609,7 @@ We replace the interpolated reward $c_x^\top r(U_P)$ with its exact value $r(x)$
 \label{eq:density-readout}
     \widehat Q_r(s,a,g) = \frac{ r(x) + \left( p(s,a,g;U_P)-c_x \right)^\top r(U_P)}{1-\gamma}.
 \end{equation}
-The correction is action independent, so it changes calibration without changing the ranking of actions.
+The correction is action independent, so it changes the absolute value estimate without changing the ranking of actions.
 The resulting readout remains linear in $r$ and requires no retraining.
 
 To act under a new reward, we score candidate goals using Equation~\ref{eq:density-readout}, select the highest-valued goal from the initial state, and execute its goal-conditioned policy.
@@ -657,7 +756,7 @@ This is consistent with continuous query representations helping most when the r
 
 Hard and soft targets behave differently across environments.
 On \texttt{cube-single} and \texttt{scene}, the hard target improves all three reward families; on \texttt{scene}, for example, sparse transfer rises from $0.395$ to $0.640$.
-On \texttt{cube-double}, however, the two targets are nearly indistinguishable ($0.549$ vs.\ $0.544$, $0.488$ vs.\ $0.532$, $0.177$ vs.\ $0.165$).
+On \texttt{cube-double}, however, the two targets sit inside each other's intervals ($0.549$ vs.\ $0.573$, $0.488$ vs.\ $0.520$, $0.177$ vs.\ $0.167$).
 Hard targets therefore improve reward readout on some manipulation tasks and not others.
 On goal reaching, the two variants are within noise everywhere (Table~\ref{tab:main}).
 
@@ -666,7 +765,7 @@ Table~\ref{tab:published} places our sparse-reward results alongside published s
 This is not a controlled comparison.
 The published results use $1$M gradient steps, $10$ seeds, and $10$ evaluation episodes per task, whereas ours use $500$k steps, three seeds, and $25$ episodes.
 The task-index inference also differs: their methods use linear regression on relabeled data, whereas \DensityFB{} searches over candidate goals.
-Our matched plain-FB column partially validates itself against that table: it reproduces the published FB result on \texttt{cube-single} ($0.536$ local vs $49.6$ published) and the \texttt{cube-double} floor (${\le}0.056$ vs $2.6$), but on \texttt{scene} our FB reaches ${\sim}0.45$ against a published $12.8$, so the published scene FB number should not be used as a comparison point for this stack; the matched local baseline is the honest one.
+Our matched plain-FB column partially validates itself against that table: it reproduces the published FB result on \texttt{cube-single} ($0.536$ on the stock-hyperparameter seed, $0.413 \pm 0.308$ over the three seeds of Table~\ref{tab:zeroshot}, against $49.6$ published) and the \texttt{cube-double} floor (${\le}0.056$ vs $2.6$), but on \texttt{scene} our FB reaches ${\sim}0.45$ against a published $12.8$, so the published scene FB number should not be used as a comparison point for this stack; the matched local baseline is the honest one.
 A related observation from the same probes: on \texttt{scene}, plain FB's reward interface outperforms its own goal conditioning ($0.45$ via $z_r$ vs $0.14$ native), so FB's weakness there is its goal encoding rather than its reward inference.
 
 \begin{table}[h]
@@ -755,6 +854,142 @@ Because the checkpoint is identical, this gap enters through the reward-readout 
 An oracle that selects the reward center directly would separate readout error from goal-selection error.
 
 % ======================================================================
+\section{A latent task index}
+\label{sec:latent}
+
+Everything above conditions on a goal $g$.
+Standard FB instead conditions on a latent vector $z$, which is what makes its zero-shot interface possible: any reward is embedded as $z_r \propto \E_\rho[r(x)B(x)]$ and executed by the policy indexed by $z_r$.
+This section ports that interface to \DensityFB{}, shows where the direct port fails, and gives the correction.
+
+\subsection{The direct port fails}
+\label{sec:latent-fails}
+
+The natural encoding replaces the goal with its backward embedding,
+\begin{equation}
+\label{eq:zenc}
+z(g) = \sqrt d\;\frac{\bar B(\phi(g))}{\|\bar B(\phi(g))\|},
+\end{equation}
+trains the measure and actor on a mixture of hindsight indices $z(g)$ and random unit-sphere indices, and replaces the actor's kernel readout with the latent reward $r_z(u)=B(u)^\top z/\sqrt d$.
+This collapses.
+On \texttt{cube-double}, success falls from $0.736$ (goal-conditioned) to $0.017$, at the behavior-cloning floor of $0.019$; on \texttt{cube-single} the corresponding arms read $0.096$--$0.108$ against a floor of $0.111$.
+The failure is not in the estimator: under $z$ the measure trains to the same cross-entropy as under $g$ and shows the same occupancy-ranking fidelity against Monte-Carlo rollouts.
+
+\subsection{Diagnosis: the backward basis has an arbitrary, gauge-dominated geometry}
+
+The cross-entropy loss constrains only the product $F^\top B$: for any invertible $C$, replacing $B$ by $CB$ and $F$ by $C^{-\top}F$ leaves every prediction unchanged.
+The softmax adds a further exact invariance: for any constant vector $b$, replacing $B(x)$ by $B(x)+b$ shifts every logit in a row by the same $F^\top b$, which the softmax cancels.
+The mean of $B$ is therefore pure gauge --- it can grow without changing a single predicted probability --- and training drives it to an extreme value.
+Measured on every checkpoint, $\|\mu_B\|$ is $33$--$103$ times the average centered feature norm $\E\|B-\mu_B\|$, so the uncentered second moment $\Sigma_B=\E_\rho[B(x)B(x)^\top]$ is dominated by a single gauge direction: effective rank $1.0002$ of $d=50$, condition number $10^6$--$10^7$.
+The centered covariance tells the opposite story: $\operatorname{Cov}(B)$ has effective rank $6.3$--$20.8$ of $50$ across the same checkpoints.
+The informative geometry is rich; what looks like rank collapse is a softmax-gauge mean sitting on top of it.
+Two consequences follow.
+
+First, Equation~\ref{eq:zenc} collapses.
+Normalizing $B(g)$ pins every goal to the gauge direction: over $4{,}096$ dataset goals, the mean pairwise cosine of $z(g)$ is $0.998$--$1.000$, where matched random unit vectors give $0.002$; subtracting the mean before normalizing drops it to ${\sim}0.003$.
+The actor behaves accordingly: its output moves by $0.000$ when the goal index changes (noise floor $0.19$), while a random index moves it by $1.9$--$2.0$.
+The policy is index-capable; the encoding never hands it two different indices.
+The same collapse appears on goal-conditioned checkpoints that never trained with $z$, so it is a property of the encoding, not of latent training.
+
+Second, FB's reward embedding is the wrong vector once the measure is normalized.
+The identity behind $z_r\propto\E[rB]$ is linear --- $Q_r = F^\top \E[rB]$ holds because the FB value is linear in $B$ --- and the softmax removes exactly that linearity.
+To read a reward through $r(u)\approx B(u)^\top c$, the correct coefficient is the least-squares one,
+$c_r = (\Sigma_B+\lambda I)^{-1}\E[rB]$;
+the moment $\E[rB]$ coincides with it only when $\Sigma_B\approx I$, which is what standard FB's orthonormality term enforces and \DensityFB{} deliberately removed.
+With $\Sigma_B$ gauge-dominated, the two are nearly orthogonal: measured $\cos\!\left(\E[rB],\,c_r\right) = 0.010$--$0.025$.
+The consequences are direct.
+Reconstructing goal rewards as $B(u)^\top z$ scores AUC $0.43$--$0.87$ when $z$ is the moment or the point embedding of Equation~\ref{eq:zenc}, and $0.99$--$1.00$ when $z=c_r$.
+Assigning rewards to their indices is at chance with the moment ($0.35$--$0.51$ coordinate percentile, where $0.50$ is chance) and matches the goal-indexed control with $c_r$ ($0.000$--$0.008$).
+Consistent with the gauge diagnosis, centering alone recovers most of this: the centered point index $\operatorname{normalize}(B(g)-\mu_B)$ reconstructs rewards at AUC $0.99$--$1.00$ on the same pools (verified on disjoint fit and evaluation halves), while the inverse covariance additionally expands low-variance task directions and spreads the index set (participation ratio $28$--$30$ versus $6.6$--$19.8$ for centered pointing).
+
+The uncentered encoder also fails an invariance a task code must have.
+Adding a constant $\beta$ to a reward leaves its optimal policy unchanged but shifts the moment by $\beta\,\E[B]$ --- almost exactly the gauge direction --- and measured on our checkpoints the uncentered index of $r$ and of $r+1$ are nearly orthogonal ($\cos = 0.035$, $-0.000$, $-0.044$ on the three checkpoints tested), while the centered construction below is invariant to the digit.
+
+\subsection{The corrected index}
+
+The repair follows from the diagnosis: encode tasks with the least-squares coefficient rather than the moment, and let the actor integrate the actual reward rather than a latent surrogate.
+Given a task specified by reward samples $\{(u_j, r_j)\}_{j=1}^M$,
+\begin{equation}
+\label{eq:dual-index}
+\hat z = \sqrt d\, \frac{(\hat\Sigma_B+\lambda I)^{-1} \hat m}{\big\| (\hat\Sigma_B+\lambda I)^{-1} \hat m \big\|},
+\qquad
+\hat m = \frac1M \sum_{j} \bar B(u_j)\, r_j,
+\end{equation}
+where $\hat\Sigma_B$ is an exponential moving average of $\bar B(u)\bar B(u)^\top$ over query samples, stored with the network parameters so that training and evaluation whiten with the same statistics.
+Hindsight goals supply reward samples for free through the kernel of Equation~\ref{eq:goal-readout}, $r_j = k_j^\epsilon(g)$.
+The measure and the actor condition on $\hat z$; the actor's scalar critic integrates the reward samples themselves,
+\begin{equation}
+q_{\hat z}(s,a) = \sum_j p_j(s,a,\hat z)\, r(u_j),
+\end{equation}
+so the latent serves only as a policy index and the reward semantics stay external --- the same division of labor that makes the goal-conditioned readout work.
+This is whitening at the interface rather than in the loss: the orthonormality penalty that would make $\E[rB]$ correct also caps manipulation success at $0.225$ (Section~\ref{sec:todo}), so the basis is left free and the correction is applied where the index is built.
+
+The gauge analysis identifies one further correction, which the first corrected-index run predates and the centered arms of Section~\ref{sec:latent} implement.
+Because the mean of $B$ is unidentifiable and reward shifts move the moment along it, the principled statistics are the centered ones:
+\begin{equation}
+\label{eq:centered-index}
+\hat z^{\,\mathrm{c}} = \sqrt d\, \frac{(\hat C_B+\lambda I)^{-1} \hat m^{\mathrm{c}}}{\big\| (\hat C_B+\lambda I)^{-1} \hat m^{\mathrm{c}} \big\|},
+\qquad
+\hat m^{\mathrm{c}} = \frac1M \sum_j \left(\bar B(u_j)-\hat\mu_B\right)\left(r_j - \bar r\right),
+\end{equation}
+with $\hat\mu_B$ and $\hat C_B$ the running mean and centered covariance and $\bar r$ the sample-mean reward.
+
+\begin{proposition}[Invariances of the centered index]
+\label{prop:invariance}
+$\hat z^{\,\mathrm{c}}$ is invariant to the gauge translation $B(x)\mapsto B(x)+b$, to the reward shift $r\mapsto r+\beta$, and, after normalization, to positive reward scaling $r\mapsto\alpha r$.
+The uncentered index of Equation~\ref{eq:dual-index} has only the last of these.
+\end{proposition}
+\emph{Proof sketch.} Centering removes both translations exactly: $(B+b)-(\mu_B+b)=B-\mu_B$ and $(r+\beta)-(\bar r+\beta)=r-\bar r$, and $\hat C_B$ is unchanged by either; scaling $r$ by $\alpha>0$ scales $\hat m^{\mathrm{c}}$ linearly and is absorbed by the normalization. \hfill$\square$
+
+Two scope notes on this proposition.
+First, it corrects the \emph{additive} gauge only: the factorization also admits $B\mapsto AB$, $F\mapsto A^{-\top}F$ for invertible $A$, under which the coefficient transforms dually ($c\mapsto A^{-\top}c$ at $\lambda=0$) but isotropic ridge regularization and sphere normalization are not invariant, so the encoder is translation-gauge-invariant, not fully gauge-invariant.
+The additive direction is the empirically dominant pathology.
+Second, the invariance is exact for the population object; the implementation tracks $\hat\mu_B$ and $\hat C_B$ as moving averages during joint training, and only approximates it (both moments run on the same schedule against the same base measure --- the batch next-state marginal used for queries --- with $\hat C_B$ symmetrized and eigenvalue-floored, and the mismatch between stored and probe statistics logged).
+
+The centered encoder also forces an interface split that the uncentered form obscured.
+Its reward-sample moment vanishes identically at $M=1$ ($r_1-\bar r=0$), so it has no one-sample limit: point-goal prompting and reward-sample prompting are different inference modes.
+For goals we use the \emph{analytic centered point prompt} $z_g = \sqrt d\,\operatorname{normalize}(\bar B(\phi(g))-\hat\mu_B)$ --- the population moment of a Dirac-style goal reward --- while the general interface consumes an actual sample set with $M>1$ (in practice $M\ge256$), and results for one mode are not evidence for the other.
+A constant reward has $\hat m^{\mathrm{c}}=0$ exactly; the implementation returns a neutral index when $\|(\hat C_B+\lambda I)^{-1}\hat m^{\mathrm{c}}\|$ falls below a threshold, since normalizing a near-zero coefficient would amplify noise.
+
+\subsection{Result}
+
+Both links of the repair were verified on existing checkpoints before retraining: the ridge solve de-collapses the index (participation ratio $1.0\to 9$--$38$), and the least-squares coefficient fixes reward reconstruction and assignment as quoted above.
+We then retrained with the corrected index (\texttt{cube-single}, $500$k steps, one seed per arm), in both encodings and in both inference modes that the centering forces apart (see the discussion after Proposition~\ref{prop:invariance}).
+The \emph{analytic point prompt} encodes a goal as the population moment of a Dirac-style goal reward, $\hat z \propto (\hat\Sigma_B+\lambda I)^{-1}\bar B(\phi(g))$; the \emph{reward-sample} prompt is the general interface, and builds $\hat z$ from an actual set of $M=256$ samples $\{(u_j,r_j)\}$ drawn from a frozen pool, with no one-sample shortcut available to it.
+Evaluation is noisy at this budget, so we report the $500$k value and the mean over evaluations after $350$k:
+
+\begin{center}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llcc}
+\toprule
+Index & Prompt at evaluation & at $500$k & mean $\ge 350$k \\
+\midrule
+centered, Eq.~\ref{eq:centered-index} & reward samples, $M{=}256$ & $\mathbf{0.816}$ & $0.785$ \\
+centered, Eq.~\ref{eq:centered-index} & analytic point & $0.824$ & $0.868$ \\
+uncentered, Eq.~\ref{eq:dual-index} & analytic point & $0.812$ & $0.743$ \\
+uncentered, actor uses $B^\top \hat z$ & analytic point & $0.368$ & $0.291$ \\
+\midrule
+uncorrected latent arms & --- & $0.096$--$0.108$ & --- \\
+behavior cloning & --- & $0.111$ & --- \\
+goal-conditioned \DensityFB{} (soft) & goal & $0.929$ & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The corrected index with the sample-based readout is the first latent-conditioned \DensityFB{} that works: roughly $7.5\times$ the uncorrected arms and $88\%$ of the goal-conditioned anchor.
+Three readings follow from the rows.
+First, the top row is the general interface actually exercised: that number comes from a rollout whose index was built from $256$ reward samples, not from the point shortcut, and it matches the point prompt on the same encoder ($0.816$ against $0.824$), so for goal-kernel rewards the two inference modes agree.
+Second, centering costs nothing: the centered arms reach $0.824$ and $0.816$ against $0.812$ for the uncentered encoder, so the invariances of Proposition~\ref{prop:invariance} are bought for free, and we take the centered index of Equation~\ref{eq:centered-index} as the method and keep the uncentered run as an ablation.
+Third, the gap between the last two rows isolates the readout: conditioning is identical, so integrating real reward samples versus the linear surrogate $B^\top\hat z$ accounts for $0.812$ versus $0.368$.
+During training the index stays de-collapsed, and on the uncentered run the actor's index sensitivity rises from exactly $0.000$ to $0.132$ (measured at $100$k steps), with the earlier pathology inverted: goal-derived indices now move the policy more than random ones ($0.132$ vs $0.065$).
+
+Three limits, stated plainly.
+These are single-seed numbers on one environment; the multi-seed and \texttt{cube-double} runs have not been done.
+Evaluation noise is real --- the uncentered run read $0.564$ at $400$k, and the centered point arm averages $0.868$ after $350$k against $0.824$ at the endpoint --- which is why the time-averaged column is quoted alongside the $500$k value.
+And the rewards driving the sample interface so far are goal kernels: the mechanism is exercised, but the property that would make this a zero-shot \emph{reward} interface --- transfer to reward families the index has never seen, including the constant-shifted copies that Proposition~\ref{prop:invariance} is about --- is still pending (Section~\ref{sec:todo}).
+These numbers come from different arms than the uncorrected ones and are not comparable to them beyond the floor-versus-working contrast.
+
+% ======================================================================
 \section{Open items}
 \label{sec:todo}
 
@@ -765,13 +1000,26 @@ Every published number in Table~\ref{tab:published} is quoted rather than re-run
 A controlled comparison requires rerunning these methods with the same training budget, seeds, evaluation episodes, and task-index inference.
 Until that is done, the table shows our numbers next to published ones rather than a controlled comparison.
 We have re-run FB from the same codebase on \texttt{cube-single}; the remaining environments and methods have not yet been checked this way.
+The contemporary obligations are TD-JEPA \citep{bagatella-iclr26a}, which evaluates on OGBench manipulation, and distribution-corrected FB \citep{asadulaev2026zol}, which evaluates on the same cube environments.
+The estimator-level control is TD InfoNCE (Proposition~\ref{prop:tdinfonce}), and it requires two arms rather than one: a paper-exact replication ($\ell_2$-normalized towers, its query supports, its goal-contrastive actor with behavioral-cloning regularization and goal relabeling), which measures the published method in our setting, and a matched-extractor variant (its critic under our outcome coordinates, external reward readout, and actor), which separates the estimator from the extraction.
+The paper-exact arm has been run, together with the outcome-space LSIF control of Section~\ref{sec:play} --- $F(s,a,g)^\top B(\phi(x))$ with the unnormalized FB loss but our $\phi$, our external kernel readout, and our actor, which isolates the estimator change from the privileged outcome coordinates; both are reported in Section~\ref{sec:main-results} at one seed on \texttt{cube-double}.
+Outstanding here are the matched-extractor TD InfoNCE arm, additional seeds for both controls, and the remaining environments.
+Standard full-observation FB remains in the tables separately as the literature method.
 
 \paragraph{Seed parity.}
 Our cells use three seeds against ten in the published results, which is why several of our confidence intervals are wider than the differences they bracket.
 The \texttt{cube-single} comparison in Table~\ref{tab:published} lies inside our interval and should not be read as a separation until the seed count matches.
 
 \paragraph{Cells still outstanding.}
-Only one cell is missing: plain FB with the DDPG+BC actor on \texttt{antmaze-medium}, whose launch failed because the AntMaze dataset was absent from the expected path. This is a missing run rather than a slow one.
+One table cell is missing: plain FB with the DDPG+BC actor on \texttt{antmaze-medium}, whose launch failed because the AntMaze dataset was absent from the expected path.
+This value is already established in the reference FB codebase, so the cell will be filled from that source with its provenance cited, rather than re-run here.
+
+\paragraph{Latent-index coverage.}
+The corrected-index results of Section~\ref{sec:latent} are one seed per arm on \texttt{cube-single}, and the rewards driving the sample interface there are goal kernels at a single pool size.
+Outstanding: additional seeds, \texttt{cube-double}, and the reward-family transfer evaluation through the same interface --- the direct analogue of Table~\ref{tab:zeroshot} with $\hat z$ in place of $g$, on the centered encoder of Equation~\ref{eq:centered-index}, with constant-shifted copies of each reward family included as the affine-invariance check of Proposition~\ref{prop:invariance}, and reported over reward-sample pool sizes $M$ rather than at $M=256$ alone (these curves also quantify the self-normalized-importance-sampling bias of Section~\ref{sec:snis}).
+That evaluation should be accompanied by a search-over-$z$ oracle --- optimizing the index directly against the model's own reward integral --- since it separates a failing task encoder (closed-form fails, search succeeds) from a policy family that lacks the required behavior (both fail while reward reconstruction is good).
+All of it is evaluation-only on the checkpoint already trained.
+Until it runs, Section~\ref{sec:latent} claims a repaired index driven by real reward samples, not a validated zero-shot reward interface.
 
 \paragraph{Full-state successor ablation.}
 Our main manipulation experiments predict occupancy over object coordinates, $x=\phi(s)$.

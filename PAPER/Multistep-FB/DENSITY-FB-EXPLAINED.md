@@ -1,10 +1,22 @@
 # Density-FB, end to end: the problem, the math, the code, and every number
 
-**Status:** written 2026-08-14, updated the same day with spec 28 P0. Covers
+**Status:** written 2026-08-14; updated 2026-08-15 with spec 29's screen,
+2026-08-16 with the completed hard cube-double wave, and 2026-08-16 again with
+spec 30 (the external method review, verified three ways). Covers
 specs 18 (the method), 21/22 (variants and actor ablation), 19 (zero-shot
 readout), 24/25/27-Q2 (the z-indexed interface), 26 (the mechanism synthetic),
 28 (the z-interface diagnosis — §6.6, which overturns two earlier conclusions
-recorded in §6.4), and 29 (the R-A repair and its screen — §6.7).
+recorded in §6.4), 29 (the R-A repair and its screen — §6.7), and 30 (three
+review-driven corrections: the hard estimator is TD InfoNCE's categorical
+update — §3.6; the "rank-1 collapse" is a softmax-gauge mean, and the centered
+geometry is rich — §6.6.1; the R-A encoder is reward-shift-unstable and the
+centered form is the identified fix — §6.6.1, §6.7). Spec 30 Rev 1
+(2026-08-16, post-assessment) added four corrections recorded in place: TD
+InfoNCE is offline-capable (§3.6), the Finer-BFM rebuttal is retracted and
+OpTI-BFM added as prior art (Part 8), the centered encoder has no one-sample
+Dirac shortcut so point and reward-sample prompting are separate APIs (§4.4),
+and the soft variant is a kernel-smoothed occupancy that evaluates smoothed
+rewards (§3.6).
 
 **Who this is for:** someone who has never seen this codebase and wants to
 understand what Density-FB is, why it exists, what the code actually computes,
@@ -254,6 +266,59 @@ finite-pool artifact. **They must be kept together** — an early version of the
 G4 calibration probe dropped one half of that pair and produced a dramatic false
 null (Spearman .13–.18) that a control later corrected to .767–.790.
 
+## 3.6 Where the estimator sits: it is TD InfoNCE's update (spec 30)
+
+Honesty first: **the hard estimator is not ours.** TD InfoNCE ("Contrastive
+Difference Predictive Coding", Zheng–Salakhutdinov–Eysenbach, ICLR 2024,
+arXiv:2310.20141) uses the same categorical Bellman update — classify the
+observed next state against negatives from the state marginal, bootstrap with
+the stop-grad softmax of the next state-action's scores, bilinear two-tower
+critic — and its appendix proves the classifier represents the normalized
+discounted future-state distribution. With hard immediate labels and matched
+query supports, our §3.2 target **reduces to** the categorical Bellman update
+underlying their Eq. 10. This was verified against their paper, not assumed.
+Rev-1 precision (do not overstate the identity): it is a reduction under
+matched conventions, not an implementation identity. Their immediate term
+labels the dynamics next state while their bootstrap term labels a *marginal*
+draw — the two terms differ in the positive-slot support but share ONE
+negative pool `s^(2:N)`; their towers are ℓ2-normalized; their actor is a
+goal-contrastive cross-entropy (commanded goal vs marginal negatives, their
+Eq. 11) plus an MSE goal-BC regularizer over relabeled goals.
+
+What they do **not** have (verified; Rev-1 corrected): ⚠ TD InfoNCE **is**
+offline-capable — it reports offline D4RL AntMaze with the GC-BC regularizer
+(their App. D.3) — so "they are online, we are offline" is NOT the delta and
+must never be written. The real delta: they learn a raw-goal-conditioned
+policy and occupancy estimator, with **no reward-prompted latent policy
+family** (`f(s,a,g,x)`, no `F(s,a,z)ᵀB`), **no general reward→policy-index
+inference mechanism**, and **no validated zero-shot control for arbitrary
+rewards** (their arbitrary-reward evaluation is fixed-policy, appendix-level).
+Also absent: the outcome-space projection φ and reward-integrating policy
+extraction.
+
+Two consequences for how we talk:
+- The estimator is **cite-and-extend**, never claimed as new. Novelty lives in
+  the outcome space, the offline extraction, the gauge diagnosis (§6.6), and
+  the corrected task interface (§6.7).
+- ⚠ The **flagship cells are the soft variant** (`measure_density_hard: False`
+  in every tab:main headline cell and the R-A screen). The hard mode — the
+  direct TD InfoNCE correspondence — is the ablation, and it wins on reward
+  *transfer* (§5.2), not on the headline goal-reaching cells. The soft
+  variant's kernel row is normalized over the sampled pool, so its base
+  measure is kernel × pool density — data-density-weighted smoothing, stated
+  as such since spec 30.
+- **The soft variant is a kernel-smoothed occupancy, not label smoothing**
+  (Rev 1). With `K_ρ,ε(du|x) = k_ε(x,u)ρ_φ(du) / ∫k_ε(x,v)ρ_φ(dv)`, the
+  population soft operator is
+  `T_K ν = (1−γ)·E_{x′∼P_φ}[K_ρ,ε(·|x′)] + γ·E[ν(·|s′,a′)]`, whose fixed
+  point ν_K is the kernel-smoothed discounted occupancy — valid, but reward
+  integration under it obeys `∫r dν_K = ∫(K_ρ,ε r) dν`: the soft model
+  evaluates (and its actor optimizes) the SMOOTHED reward `K_ρ,ε r`, not r.
+  Sums stay linear; sharp boundaries, conjunctions, max-mixtures, and
+  avoid-terms are altered ⇒ for those reward families the hard mode is the
+  semantically exact interface (G29-3 consequence recorded in spec 30
+  P-soft/P3).
+
 ---
 
 # Part 4 — The code
@@ -337,6 +402,82 @@ SECONDARY mu   = sum_j w_j B(u~tilde_j);  mu0 = kappa(x0|U_P)^T B(U~P)
           Qhat_r ~= ( r(x0) + (mu - mu0)^T w_r ) / (1 - gamma)
 ```
 
+## 4.4 The R-A dual index (spec 29)
+
+`_density_z_dual`, `_density_z_encode` (dual branch), and
+`density_z_from_reward_samples`. One stored object, one solve, one renorm:
+
+```python
+# Sigma_hat_B = E[B(u)B(u)^T], the UNCENTERED second moment, EMA-written in
+# update() and stored as an ORDINARY PARAM LEAF (module ZSigmaState) so it
+# serializes; read here at frozen params — the EMA is its only writer.
+sigma = self.network.select('density_zsigma')()                    # [d, d]
+lam   = lam_mult * jnp.trace(sigma) / d          # multiples of the MEAN eigenvalue,
+                                                 # same convention as spec28_encodings.py
+
+# the primal moment of the row's reward samples, through the SLOW-EMA tower
+# (a ridge solve through a fast-drifting B is the obvious non-stationarity risk).
+# Hindsight rows: r = kg = _delta_phi(goals, u_raw) — the query-set-normalized
+# kernel, matched exactly to the g path (the standing spec-28 rule).
+b_u   = self.network.select(enc_mod)(u_scaled)                     # [M, d] frozen
+m_hat = jnp.einsum('bm,md->bd', r, b_u) / r.shape[-1]              # (1/M) Σ_j B̄(u_j) r_j
+
+# the primal→dual correction — the ONLY place it happens, so train and eval
+# cannot drift apart in it; ‖ẑ‖ = √d is RE-IMPOSED (a ridge coefficient is not
+# norm-preserving, and everything downstream assumes the standing invariant).
+c    = jnp.linalg.solve(sigma + lam * jnp.eye(d), m_hat.T).T       # [B, d]
+zhat = jax.lax.stop_gradient(_sphere(c, d))
+```
+
+The two arms differ only in what the actor integrates against `w(s,a,ẑ)`:
+
+```python
+q_kernel = (w * kg[None]).sum(-1)                    # R-A/kernel: actual reward samples
+q_latent = (w * (b_emb @ zhat.T).T[None]).sum(-1) / jnp.sqrt(d)   # R-A/latent: B̃ᵀẑ
+```
+
+Three details that carry weight:
+
+- **Eval without a pool.** `sample_actions` gets a goal and no query set, so the
+  dual branch falls back to `m_hat = B̄(x̃_g)` — the **analytic point prompt**
+  associated with a Dirac-style goal reward. ⚠ Rev-1 wording rule: never call
+  this the "Dirac/M=1 limit of the reward-sample family". For the UNCENTERED
+  encoder the one-sample limit happens to coincide directionally (the pinned
+  unit test uses a degenerate queries=goals set), but the CENTERED encoder has
+  **no one-sample limit at all**: `m̂ᶜ = (1/M)Σ(B(u_j)−μ)(r_j−r̄)` is
+  identically zero at M=1 because `r₁−r̄=0`. Point prompting and reward-sample
+  prompting are therefore SEPARATE APIs — point prompt
+  `z = √d·norm(B̄(φ(g))−μ)` for native goals, reward samples (M>1, practically
+  M≥256) for the general interface — and results for one are not evidence for
+  the other. A harness wanting the pool moment calls
+  `density_z_from_reward_samples` + `sample_actions_with_z`; general-encoder
+  rows must never silently route through the point shortcut. Constant rewards
+  give `m̂ᶜ = 0` exactly ⇒ `dual_centered` needs a `‖c‖ < ε_z → z_neutral`
+  fallback, logging `‖m̂ᶜ‖`, `‖c‖`, `Var[r]`.
+- **`density_z_from_reward_samples` is the general reward interface** — reward
+  samples `{(u_j, r_j)}` → index, no goal anywhere. It is the identical solve
+  the training rows go through; only the reward samples differ. This is the
+  entrypoint gate G29-3 reads.
+- **Everything is stop-gradded**: the dual correction must not become a path by
+  which the actor's loss reshapes `B`, and the sphere branch is byte-for-byte
+  the shipped code, so every pre-existing arm stays bit-identical.
+- **`Σ̂` is deliberately UNCENTERED** (`test_sigma_is_ema_uncentered_and_matches_
+  spec28_pool`). Spec 30 showed the uncentered statistic is dominated by the
+  softmax-gauge mean (‖μ_B‖ = 33–103× the centered signal) and the resulting
+  encoder is reward-shift-unstable (§6.6.1c). The planned correction is a
+  `dual_centered` mode carrying EMA (μ, Cov) leaves and the centered moment
+  `E[(B−μ)(r−r̄)]` — same serialization discipline, exact B-translation and
+  reward-affine invariance. Rev-1 implementation pins: μ and Cov on the SAME
+  EMA schedule against ONE pinned base measure (the batch next-state marginal,
+  i.e. the query distribution — also the measure reward samples are assumed to
+  come from; no importance correction for other proposals yet); symmetrize
+  `C ← ½(C+Cᵀ)`; eigenvalue floor/jitter; log min-eig and the EMA-vs-probe sync
+  errors `‖μ̂−E_probe[B̄]‖`, `‖Ĉ−Cov_probe(B̄)‖_F`. Scope of the invariance
+  claim: **translation-gauge (additive) only** — the full linear gauge
+  `B→AB, F→A⁻ᵀF` is not fixed (isotropic ridge + sphere norm are not
+  A-invariant); the population encoder is exactly invariant, the EMA
+  implementation approximates it during joint training.
+
 ---
 
 # Part 5 — What Density-FB scores
@@ -352,7 +493,7 @@ cube-double.
 |---|---|---|---|---|---|
 | cube-single | FQL + BC | 0.420 (10 seeds) | **0.929 ± 0.085** | 0.915 ± 0.087 | — |
 | cube-single | DDPG + BC | 0.353 ± 0.38 | 0.879 ± 0.095 | 0.887 ± 0.066 | 0.68 ± 0.06 |
-| cube-double | FQL + BC | 0.005 ± 0.016 | **0.736 ± 0.139** | 0.667 ± 0.072 | — |
+| cube-double | FQL + BC | 0.005 ± 0.016 | **0.736 ± 0.139** | 0.680 ± 0.070 | — |
 | cube-double | DDPG + BC | 0.013 ± 0.029 | **0.652 ± 0.055** | 0.600 ± 0.147 | 0.40 ± 0.05 |
 | scene | FQL + BC | 0.076 ± 0.057 | 0.628 ± 0.134 | **0.641 ± 0.109** | — |
 | scene | DDPG + BC | 0.047 ± 0.057 | 0.563 ± 0.011 | 0.581 ± 0.322 | 0.51 ± 0.04 |
@@ -367,13 +508,21 @@ Per-seed values, so nothing here is a single lucky run:
 | soft flow cube-double | .680 / .736 / .792 |
 | soft flow scene | .672 / .568 / .644 |
 | hard flow cube-single | .876 / .944 / .924 |
-| hard flow cube-double | .652 / .700 / .648 |
+| hard flow cube-double | .692 / .700 / .648 |
 | hard flow scene | .692 / .620 / .612 |
 | hard flow antmaze | .772 / .580 / .656 |
 | soft ddpgbc cube-double | .676 / .648 / .632 |
 | hard ddpgbc cube-double | .668 / .560 / .572 |
 | hard ddpgbc scene | .664 / .648 / .432 |
 | hard ddpgbc antmaze | .920 / .868 / .844 |
+
+> The hard-flow cube-double wave finished 2026-08-16 (.692/.700/.648 at 500k
+> from the runs' own `eval.csv`; an earlier .667 ± .072 in this cell had no
+> recorded provenance). A fourth run in that wandb group, `hx_cd_hard_s0_re`,
+> is a **restore-continuation of s0** (`restore_epoch=100k`, ran to 600k) and
+> is excluded from the seed stats via the results-map's per-run exclusion —
+> any `*_re` run sharing a group will otherwise contaminate its per-seed
+> columns.
 
 **Readings.**
 
@@ -579,7 +728,9 @@ out: the z arms have *lower* `degenerate_frac`, meaning they enter **more**
 boxes than the working control.
 
 > ⚠ Standing caveat, stated because it is easy to overclaim here: G4 rolls the
-> agent's **own** policy. "Calibrated" means the measure faithfully predicts the
+> agent's **own** policy, and its metric is Spearman rank agreement — call the
+> result **occupancy-ranking fidelity**, not "calibration" (no NLL/Brier/
+> reliability numbers exist; spec 30). It means the measure faithfully ranks the
 > occupancy of the policy it trained alongside. Successor measures are
 > policy-relative (`M^π` models `π`). This rules out a *broken* measure; it is
 > **not** proof that a better policy is extractable from it.
@@ -682,7 +833,11 @@ a pipeline metric able to isolate a component.**
 | **z25_cs_full** | **0.713** | **0.503** | 0.704 |
 
 Both pass, sit *between* the two g-indexed controls, and again have **lower**
-`degenerate_frac`. **The readout is calibrated. Extraction is the blocker.**
+`degenerate_frac`. **The readout has control-level occupancy-ranking fidelity.
+Extraction is the blocker.** (Spec-30 terminology note: this is a Spearman
+rank-agreement result, not probabilistic calibration — no NLL, Brier, or
+reliability measurement exists; say "occupancy-ranking fidelity", never
+"calibrated".)
 
 **And the sharpest single result in the whole z program:** checking where E2b's
 argmax actually points — the coordinate percentile of the selected candidate
@@ -723,7 +878,7 @@ Everything above localizes the failure to two ends: the actor cannot use the
 index, and reward→index assignment is at chance. Spec 28 found *why*, and the
 cause is a single property of `B`.
 
-### 6.6.1 The mechanism: `Σ_B` is rank-1 dominated
+### 6.6.1 The mechanism: `Σ_B` is dominated by a softmax-gauge mean
 
 The cross-entropy loss pins only the **product** `FᵀB`. Nothing constrains `B`'s
 Euclidean geometry — it is gauge-arbitrary. Measured on every checkpoint:
@@ -734,8 +889,30 @@ Euclidean geometry — it is gauge-arbitrary. Measured on every checkpoint:
 | condition number | **1e6 – 1e7** |
 | eigenvalues (`z25_cs_actor`) | max 1.18e6, min 0.115 |
 
-`B` collapses onto essentially **one direction**. Two consequences follow
-mechanically.
+> ⚠ **Spec-30 correction to the reading of this table.** As first written, this
+> section said "`B` collapses onto essentially one direction." That overstates.
+> The softmax has an *exact translation gauge*: `B(x) → B(x)+b` shifts every
+> logit in a row by the same `Fᵀb`, which the softmax cancels — the **mean of B
+> is unidentifiable**, free to grow without changing any prediction. And it
+> does: measured (results/spec30_geom/, control-gated against the archived
+> spec-28 numbers),
+>
+> | ckpt | ‖μ_B‖ | E‖B−μ‖ | eff_rank Σ_B (uncentered) | **eff_rank Cov(B) (centered)** |
+> |---|---|---|---|---|
+> | z25_cs_actor | 1087.8 | 10.6 (103×) | 1.0002 | **20.8 / 50** |
+> | d18_cs_dens_s0 (g) | 615.9 | 18.6 (33×) | 1.0017 | **6.3 / 50** |
+> | z24_cd_z_s0 | 496.5 | 11.4 (44×) | 1.0010 | **19.1 / 50** |
+>
+> The centered geometry is **rich, not rank-1**. What the uncentered table
+> measures is a gauge mean 33–103× the informative signal. Consequently
+> **centering alone rescues the point index**: `normalize(B(g) − μ_B)` reads
+> pairwise cos .001–.004 (was .9995+) and reconstruction AUC .990–1.000 (was
+> .43–.86), verified on disjoint fit/eval pool halves. The ridge solve still
+> earns its keep — participation ratio 28–30 vs 6.6–19.8 for centered pointing,
+> and a small AUC edge — but the dominant effect is mean subtraction. All
+> spec-28 *measurements* below stand; this reinterprets them.
+
+Two consequences follow mechanically.
 
 **(a) `z(g)` is collapsed.** Over 4096 dataset goals, mean pairwise cosine is
 **0.998–1.000** against a sphere reference of **0.002**; median distance is
@@ -758,6 +935,19 @@ cos( primal moment , dual ridge )  =  0.010 – 0.025      ← nearly orthogonal
 **We were using one object where the algebra requires the other.** This also
 explains why dropping ortho was harmless on the g path: *the g path never reads
 reward off `Bᵀz`.*
+
+**(c) Spec-30 addition: the uncentered encoder is reward-shift-unstable.**
+`r → r+β` leaves the optimal policy unchanged but moves the moment by
+`β·E[B]` — almost exactly the gauge direction. Measured: the uncentered ridge
+encoder (the one the trained R-A arm uses) maps `kg` and `kg+1` to
+near-orthogonal indices, cos **.035 / −.000 / −.044** across the three
+checkpoints. The centered encoder
+`ẑᶜ ∝ (Cov(B)+λI)⁻¹ E[(B−μ_B)(r−r̄)]` reads **1.000000** on the same probe and
+is exactly invariant to `B+b`, `r+β`, and (after √d-normalization) `αr` —
+centering removes both translations identically: `(B+b)−(μ+b) = B−μ`,
+`(r+β)−(r̄+β) = r−r̄`. This is the P1 correction of spec 30: the centered form
+is the principled object, and the pending G29-3 must include shifted copies
+of each reward family as the invariance check.
 
 ### 6.6.2 The consequences, measured (P0a)
 
@@ -894,6 +1084,13 @@ suppressing `v` (eigenvalue ~1e6) against the goal-specific directions
 (~0.1). The dual is therefore not a correction to the primal; at
 cos = .010–.025 it points somewhere else entirely.
 
+Spec 30 sharpened what `v` *is*: the softmax-gauge **mean** of B (§6.6.1's
+correction block — ‖μ_B‖ is 33–103× the centered signal, and the centered
+covariance has effective rank 6–21, not 1). So the ridge solve works here
+mostly because dividing by the top eigenvalue is a stand-in for subtracting
+the mean; the centered encoder does the same job by construction and adds
+exact shift invariance.
+
 **Why the loss permitted this.** The cross-entropy pins only the *product*
 `FᵀB`: for any invertible `A`, sending `F → FA⁻ᵀ` and `B → BA` leaves the loss
 unchanged, so B's geometry is **gauge-arbitrary** and nothing pushes `Σ_B`
@@ -919,6 +1116,13 @@ And ρ(q_g, q_z) rose to **.929**, against **−.026** on the g anchor: under th
 dual index the closed-form readout and the exact kernel rank actions almost
 identically, which is §6.6.3's prediction realized in a trained model.
 
+The de-collapse also **survives training**, which G29-0 alone could not
+guarantee: `z_cos_spread` ran .128 → .149 over the kernel arm's 500k steps
+(references: .113 fully spread, .326 fully collapsed under the 50%-sphere mix),
+rising to .157 at 185k and settling at .148–.154. The index never re-collapsed.
+The mechanics of the encode — the EMA `Σ̂` as a serialized parameter leaf, the
+slow-EMA tower, the analytic-point-prompt eval fallback — are in §4.4.
+
 ### G29-2 — the screen (cube-single, 500k, **seed 0 only**)
 
 | arm | @500k | mean(≥350k) |
@@ -938,7 +1142,7 @@ split isolates change 2 as what converts a repaired index into control. The
 100k probe predicted it before the results existed: kernel's actor sensitivity
 lifted to .132 while latent's stayed at .006.
 
-> ⚠ **Three limits, all load-bearing.**
+> ⚠ **Five limits, all load-bearing** (the last two added by spec 30).
 > **One seed per arm** — the spec promotes discriminating cells to cube-double
 > plus a second seed, and that has not run.
 > **Eval noise is real**: the kernel arm dipped to **.564 at 400k** before
@@ -947,6 +1151,15 @@ lifted to .132 while latent's stayed at .006.
 > **G29-3 has not run.** The zero-shot reward-family eval through the dual
 > interface *is* the general-reward-interface claim. Goal reaching through a
 > repaired index does not license that sentence.
+> **The .812 rollout used the analytic point prompt**: eval-time
+> `sample_actions` has no pool, so ẑ ∝ (Σ̂+λI)⁻¹B̄(φ(g)) (§4.4). It validates
+> the corrected *goal* code; `density_z_from_reward_samples` — trained-through
+> and unit-tested — has never driven a rollout, and for the centered encoder
+> no point shortcut to it exists (§4.4), so G29-3 must go through actual
+> reward pools (M ≥ 256), which is exactly what it exercises.
+> **The encoder in this run is shift-unstable** (§6.6.1c): cos(enc(r),
+> enc(r+1)) ≈ 0. The centered form is the identified fix; G29-3 runs with it
+> and includes shifted reward copies.
 
 > This is a **new arm**: archived spec-24 and spec-25 numbers are not comparable
 > to it in one table without saying so.
@@ -1006,6 +1219,20 @@ and the rank-constrained columns do not. That is why both halves fail together.
 > form "FB's estimator is pathological under dwell" is **not supported** by this
 > synthetic as built.
 
+**Spec 30 added two more counterweights to the count-based dwell argument,
+both verified.** First, the population LSIF objective has a *finite* scale
+optimum (scaling m by c changes the loss by c²/2·E_ρ[m²] − c·E_{M^π}[m]), and
+dwell states appear proportionally more often as ρ-negatives too — in our own
+estimator this is built in, since the query support is literally the batch's
+next states. Second, the "same successor repeated L times" story counts in
+φ-space, but the plain-FB baseline's backward map receives the **full
+observation** (agents/fb/model.py — the arm keeps moving while the object
+rests), so the failing baseline never literally sees identical successors.
+The paper wording adopted in consequence: we claim the empirical contrast and
+name outcome imbalance plus the unconstrained scale direction as *candidate*
+factors — no unique causal channel. The missing control is plain FB given the
+same φ(s′), now a standing open item.
+
 ---
 
 # Part 8 — Honest summary
@@ -1016,18 +1243,45 @@ GC-IQL at half the budget, survives the actor swap, and transfers zero-shot to
 unseen rewards with a passing native control on the baseline column. The hard
 immediate target is the better configuration and should be the shipped default.
 
+**What is not ours (spec 30, Rev 1).** The hard estimator's update is TD
+InfoNCE's categorical Bellman update, verified against their paper (§3.6) —
+cite and extend, never claim; and TD InfoNCE is itself offline-capable, so the
+delta is the reward-prompted latent interface, never "offline vs online".
+Covariance-inverse task regression is also established prior art: Finer BFM's
+§3.1 states the FB-vs-SF contrast `z = E[rB]` vs `(E[φφᵀ])⁻¹E[rφ]` verbatim
+(an earlier fetch missed it — rebuttal RETRACTED), and OpTI-BFM (ICLR 2026
+oral, arXiv 2510.20264) formalizes BFM task inference as exactly this reward
+regression (uncentered normal equations, online reward feedback). What is ours
+on that axis is strictly the **softmax-gauge × task-inference interaction**:
+the density objective leaves B identifiable only up to density-invisible
+transformations, so B is not automatically a valid task basis, the dominant
+additive mode is measured, and the corrected regression must be the CENTERED
+one. And the comparison against plain FB is not yet estimator-pure: Density-FB
+receives the goal-relevant coordinate blocks and tolerances (privileged φ/ε)
+that the baseline does not, and the TD InfoNCE / outcome-space LSIF controls
+have not run. The scope of "any reward" is rewards measurable on the chosen
+outcome coordinates and supported by the data — never arbitrary MDP rewards
+(and under the soft variant, evaluated rewards are kernel-smoothed, §3.6).
+
 **What is scoped.** AntMaze shows no advantage in either direction — consistent
 with the mechanism only mattering when a goal-relevant object stays still while
 actions continue.
 
 **What now works that did not.** The FB-style latent interface, after the R-A
-repair (§6.7). Both broken ends traced to one cause — B's covariance is rank-1
-dominated, so the index and the readout had drifted nearly orthogonal once the
-gauge-fixing orthonormality term was removed. Replacing the primal index with
-the dual coefficient and letting the actor integrate real reward samples takes
-cube-single from 0.108 to **0.812**, against a 0.111 floor and a 0.93
-goal-indexed anchor. ⚠ One seed, and the zero-shot reward-family eval that would
-license the *general reward interface* claim has not run.
+repair (§6.7). Both broken ends traced to one cause — B's uncentered geometry
+is dominated by a softmax-gauge mean 33–103× the informative signal (the
+centered covariance is rich, eff. rank 6–21 of 50), so the index and the
+readout had drifted nearly orthogonal once the gauge-fixing orthonormality
+term was removed. Replacing the primal index with the dual coefficient and
+letting the actor integrate real reward samples takes cube-single from 0.108
+to **0.812**, against a 0.111 floor and a 0.93 goal-indexed anchor. ⚠ One
+seed; the rollout used the analytic point prompt, not the reward-sample
+encoder — and the centered encoder has NO one-sample shortcut at all
+(r₁−r̄=0), so the two prompting modes are separate APIs and the general-
+interface eval must go through actual reward pools; the run's encoder is
+reward-shift-unstable (centered form = identified fix); and the zero-shot
+reward-family eval that would license the *general reward interface* claim
+has not run.
 
 **What is unproven.** The causal story. Two synthetic rounds have failed to show
 the pathology in FB's own architecture, and the one real effect found lives in a
@@ -1040,6 +1294,8 @@ critic Density-FB does not use.
   than the differences they bracket.
 - Never quote a mid-run eval. A cell in this program read 0.984 at 450k and
   0.876 at 500k.
+- Never say "calibrated" for G4 — it is Spearman rank agreement
+  (occupancy-ranking fidelity). Probabilistic calibration was never measured.
 - Verify a run's identity from its recorded config, never its group or directory
   name. In the torch codebase `agent: fb` is the **Gaussian+BC** actor and
   `agent: fb_flowbc` is the **flow** actor — that exact confusion once put the

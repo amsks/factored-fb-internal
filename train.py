@@ -181,6 +181,50 @@ def make_agent(cfg: DictConfig, obs_space, action_dim: int):
                                    "embedding_layers": cfg.actor.embedding_layers}
         return PSMAgent(**psm_shared)
 
+    if cfg.agent == "dfb":
+        # Density-FB torch port (agents/dfb): two-tower categorical successor
+        # density + reward-integrating extraction. Early return: dfb.yaml does
+        # not define the FB forward/backward blocks `shared` below requires.
+        from agents.dfb.agent import DFBAgent
+        actor_kind = cfg.get("actor_kind", "flow")
+        if actor_kind == "flow":
+            dfb_actor_cfg = NoiseConditionedActorArchiConfig(
+                hidden_dim=cfg.actor.hidden_dim,
+                hidden_layers=cfg.actor.hidden_layers,
+                embedding_layers=cfg.actor.embedding_layers,
+            )
+        else:
+            dfb_actor_cfg = None  # stock gaussian Actor defaults inside DFBModel
+        return DFBAgent(
+            obs_space,
+            action_dim,
+            measure_hit_spec=cfg.measure_hit_spec,
+            measure_density_dim=cfg.measure_density_dim,
+            measure_density_temp=cfg.measure_density_temp,
+            measure_density_hard=cfg.measure_density_hard,
+            hidden_dims=tuple(cfg.density_hidden_dims),
+            actor_kind=actor_kind,
+            actor_cfg=dfb_actor_cfg,
+            actor_vf_cfg=SimpleVectorFieldArchiConfig(
+                hidden_dim=cfg.actor_vf.hidden_dim,
+                hidden_layers=cfg.actor_vf.hidden_layers,
+            ) if actor_kind == "flow" else None,
+            discount=cfg.discount,
+            lr_f=cfg.lr_f,
+            lr_b=cfg.lr_b,
+            lr_actor=cfg.lr_actor,
+            lr_actor_vf=cfg.get("lr_actor_vf", 3e-4),
+            flow_steps=cfg.get("flow_steps", 10),
+            bc_coeff=cfg.get("bc_coeff", 3.0),
+            alpha=cfg.get("alpha", 0.3),
+            const_std=cfg.get("const_std", True),
+            double_q=cfg.get("double_q", True),
+            actor_q_center=cfg.get("actor_q_center", True),
+            target_tau=cfg.get("target_tau", 0.005),
+            weight_decay=cfg.weight_decay,
+            device=cfg.device,
+        )
+
     forward_cfg = ForwardArchiConfig(
         hidden_dim=cfg.forward.hidden_dim,
         hidden_layers=cfg.forward.hidden_layers,

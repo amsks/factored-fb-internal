@@ -1,0 +1,56 @@
+% Successor measures are a compelling route to BFMs, but cstruggle with precision.
+Behavior foundation models (BFMs) offer the tantalizing promise of creating generally capable agents: simply pretrain policies using offline data that offers broad coverage, and recover optimal policies for a wide range of tasks~\citep{pirotta-iclr24a,sikchi-arxiv25a,li-iclr26a}.
+For example, such pretraining can enable a robot to perform complex manipulations, even those not exactly demonstrated in the dataset. 
+Successor-measure (SM) methods provide a natural framework for this goal.
+Methods such as Forward-Backward representations (FB)~\citep{touati-neurips21a,touati-iclr23a} and Proto-Successor Measures (PSM)~\citep{agarwal-icml25a} learn reusable representations that, in principle, support zero-shot policy recovery for rewards that were never specified during pretraining.
+Yet this promise remains difficult to realize when control requires precise interactions~\citep{cetin-rlj24a,mohan-rlbrew26a}.
+In manipulation, FB can reach the relevant object while failing at the interaction that determines task success, such as establishing a reliable grasp in cube pick-and-place, causing performance to deteriorate sharply as tasks require more precise or compositional behavior~\citep{mohan-rlbrew26a}.
+
+% Our hypothesis: control bottlenecks expose a weakness of successor-density approximation:
+We hypothesize that this loss of precision arises at \emph{control bottlenecks}: states where a small number of precise actions determine access to a much broader region of future behavior.
+Unlike classical TD learning, which compresses an action's consequences into a scalar value for a given reward, SM methods must represent the full distribution of possible future states.
+This distinction becomes particularly important at a bottleneck, where the effect of a critical action may only become apparent across the large set of states that become reachable afterwards.
+Consider the state immediately before grasping a cube. 
+For many nearby future states, successful and unsuccessful grasping actions induce similar successor predictions because the cube has not yet moved.
+The distinction that matters for control appears primarily after the bottleneck: a successful grasp makes a large family of downstream cube configurations reachable, whereas a failed grasp does not. 
+This action-discriminative signal is therefore distributed across many individual future states. 
+Under finite-capacity SM-approximation, the model must simultaneously represent the large set of weakly informative futures and this diffuse but control-critical downstream region, potentially allocating insufficient capacity to the latter.
+This mismatch explains why SM models can accurately capture coarse future occupancy while still failing at the precise interactions that determine task success. 
+The same structure arises beyond manipulation: passing through a narrow doorway can unlock an entire region in navigation, placing a foot correctly can determine access to subsequent locomotion states, and picking up a key or opening a door can make a large set of otherwise unreachable states accessible.
+
+% This means that the learned successor model fails to sufficiently allocate representational capacity to the precision-sensitive components (ex. the initial grasp in manipulation). Intuitively, this is because instead of learning to represent a single number, as with classical TD learning, SM models must capture a full distribution of possible futures. For example, consider again the block picking example. Suppose we approximate the successor measure of a state and action before the grasp, and compare what happens based on which future state we sample. For a future state sampled before the bottleneck state, any action that is taken has little effect on the outcome of the bottleneck---the block stays in the same position. If sampled after the bottleneck state, the representational capacity is diffused over the full space of possibilities for the block. This significant mismatch between the two representations results tangibly in poor optimization and final performance. However, this property is not manipulation specific, but plagues any environment where a policy is missing a future state.
+
+% We changes the approximation geometry by modeling the normalized successor distribution
+In this work, we provide a simple, elegant solution to this problem: rather than learning each future-state occupancy in isolation, we let possible futures compete for a fixed amount of successor probability. 
+Our method, \name{}, recasts the successor measure as a normalized distribution over future states and extends it to FB-style zero-shot control. 
+Normalization preserves the information in the successor measure while changing what the model must learn: instead of matching the absolute magnitude of individual occupancy values, it must determine how to allocate future probability across competing outcomes.
+We then train this distribution directly with a cross-entropy Bellman objective, so errors correspond to placing too much probability on some futures and too little on others. At a control bottleneck, this means that a successful action is rewarded for shifting probability mass toward the entire downstream region it unlocks, rather than requiring each of those future states to carry a strong learning signal on its own. \name{} therefore makes the consequences of precise bottleneck actions easier to distinguish while retaining the reusable successor representation central to FB.
+
+% Concretely, \name{} utilizes the FB bilinear product as a log-density score and replaces squared successor-density regression with a cross-entropy Bellman objective over the normalized distribution, thereby re-balancing how SM approximation allocates capacity across possible futures. 
+% This changes the relative importance of approximation errors across future states, reducing the dominance of concentrated successor regions and better preserving collectively important distinctions across diffuse post-bottleneck futures. Density-FB thereby retains the reusable successor representation central to FB while making it better suited to precision-sensitive control.
+
+
+% Old
+% In this work, we provide a simple, elegant solution to this problem by rebalancing the representational capacity: apply self-normalizing weights to the successor measure values, then replace the objective with a cross-entropy one. This is inspired by two insights. First, normalizing the successor measure estimate balances the overestimation bias from the "before bottleneck" sampling with the underestimation of the "after bottleneck" sampling. Second, both these elements, but especially the cross-entropy objective, stabilizes the learning process, preventing the successor measure values to become extreme, and then unusable. By extending normalized successor-distribution learning to FB-style zero-shot control, this resolves both the core representational challenges and enables zero shot control in manipulation environments. Combined, these modifications make FB more robust to bottleneck states, especially when training with a neural network.
+
+% Evidence: What are we able to demonstrate and why is that important
+
+% COntributions: Our list of contributions in paraenum
+
+\aditya{
+TODO: flesh this out with results.
+We show that this improves the performance of goal-conditioned benchmarks
+We also show that unseen sparse, dense and held-out rewards are possible from the same successor representation
+}
+
+
+
+% Zero shot manipulation is a highly desirable capability that FB models provide.
+% However, FB models fail miserably at manipulation because of severe imprecision.
+% In this work we expose the key limitation which explains this difficulty: bottleneck state misapplication of capacity
+% grasping example: overly permissive when approaching the block, poor retention after grasping it
+% We offer a simple and elegant solution that targets the core of this problem: Redistributing representational capacity to stabilize performance.
+% by extending normalized successor-distribution learning to FB-style zero-shot control, this resolves both the core representational challenges and the zero shot control
+% We show that this improves the performance of goal-conditioned benchmarks
+% We also show that unseen sparse, dense and held-out rewards are possible from the same successor representation
+

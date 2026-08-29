@@ -1,0 +1,31 @@
+\section{Preliminaries}
+\label{sec:prelim}
+
+\paragraph{Offline reward-free setting.}
+We consider a discounted Markov decision process $\mathcal M=(\mathcal S,\mathcal A,P,\gamma)$ with $\gamma\in(0,1)$. 
+The agent is given a fixed dataset $\mathcal D=\{(s_i,a_i,s_i')\}_{i=1}^{N}$ collected without downstream reward labels.
+We denote by $\rho$ the marginal distribution of next states $s'$ in $\mathcal D$. 
+Downstream tasks are specified by rewards $r:\mathcal S\rightarrow\mathbb R$.
+
+\paragraph{Successor measures.}
+For a policy $\pi$, define its discounted successor measure over future states as
+\begin{equation}
+    M^\pi(s,a,X) := \E_\pi\!\left[ \sum_{t\ge0}\gamma^t \ind{s_{t+1}\in X} \;\middle|\; s_0=s,\;a_0=a \right],
+    \label{eq:sm}
+\end{equation}
+for measurable $X\subseteq\mathcal S$.
+It satisfies the Bellman recursion
+\begin{equation}
+    M^\pi(s,a,\cdot) = P(\cdot\mid s,a) + \gamma \E_{\substack{ s'\sim P(\cdot\mid s,a)\\ a'\sim\pi(\cdot\mid s')}} \left[ M^\pi(s',a',\cdot) \right].
+    \label{eq:sm-bellman}
+\end{equation}
+For any downstream reward $r$, integrating $r$ against the successor measure recovers its action value,
+\begin{equation}
+    Q_r^\pi(s,a) = \int_{\mathcal S} r(s^+)\,M^\pi(s,a,ds^+) = \E_\pi\!\left[ \sum_{t\ge0}\gamma^t r(s_{t+1}) \;\middle|\; s_0=s,\;a_0=a \right].
+    \label{eq:sm-value}
+\end{equation}
+Importantly, every successor measure has fixed total mass
+\begin{equation}
+    M^\pi(s,a,\mathcal S) = \sum_{t\ge0}\gamma^t = \frac{1}{1-\gamma}.
+    \label{eq:sm-mass}
+\end{equation}

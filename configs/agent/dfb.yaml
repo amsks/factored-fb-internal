@@ -1,0 +1,39 @@
+# @package _global_
+# Density-FB as a standalone torch agent (agents/dfb) — the g-conditioned
+# flagship recipe ported from the jax stack (spec 18 lineage). The flagship is
+# the SOFT immediate target; measure_density_hard=true is the ablation
+# (and the TD-InfoNCE-reduction candidate).
+agent: dfb
+
+# measure
+measure_hit_spec: "19:22:0.4"      # cube-single; cube-double "19:22:0.4,28:31:0.4"
+measure_density_dim: 50
+measure_density_temp: 1.0
+measure_density_hard: false
+density_hidden_dims: [512, 512, 512]
+
+# extraction
+actor_kind: flow                   # flow | ddpgbc
+flow_steps: 10
+bc_coeff: 3.0                      # manipulation default (antmaze would be 0.3)
+alpha: 0.3                         # ddpgbc BC coefficient
+const_std: true
+double_q: true
+actor_q_center: true
+
+actor:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+actor_vf:
+  hidden_dim: 512
+  hidden_layers: 4
+
+# optimization
+discount: 0.99
+lr_f: 3.0e-4
+lr_b: 3.0e-4
+lr_actor: 3.0e-4
+lr_actor_vf: 3.0e-4
+target_tau: 0.005
+weight_decay: 0.0

@@ -4,6 +4,14 @@ _Living single-page orientation. Last refreshed **2026-07-07**. Consolidates
 `MEMORY.md`, the per-project papers under `PAPER/`, and `docs/superpowers/specs/`.
 Update this when a campaign finishes or the plan turns._
 
+> ⚠ **2026-08-16 pointer — this map pre-dates the current program.** The active
+> track since 2026-08-06 is the **successor-density (Density-FB) program** under
+> **`PAPER/Multistep-FB/`**: paper `density-fb.tex` (ICLR style), specs
+> `specs/15…29-*.md`, and the full compendium — math, code, every number, the
+> z-interface diagnosis and its repair — at
+> **`PAPER/Multistep-FB/DENSITY-FB-EXPLAINED.md`**. Read that document first;
+> the three projects below are the earlier context it grew out of.
+
 The repo is a **faithful port of Forward–Backward (FB) / FlowBC** to **OGBench**,
 and the work has split into **three distinct projects**. They share substrate
 (OGBench cube/antmaze/scene, GCIQL/FB/PSM/RLDP agents, wandb `amsks/factored-fb`)

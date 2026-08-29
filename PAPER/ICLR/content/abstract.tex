@@ -1,0 +1,23 @@
+% \begin{abstract}
+% \caleb{not an abstract, just an outline of the intro}
+% Zero shot manipulation is a highly desirable capability that FB models provide.
+% However, FB models fail miserably at manipulation because of severe imprecision.
+% In this work we expose the key limitation which explains this difficulty: bottleneck state misapplication of capacity
+% grasping example: overly permissive when approaching the block, poor retention after grasping it
+% We offer a simple and elegant solution that targets the core of this problem: Redistributing representational capacity to stabilize performance.
+% by extending normalized successor-distribution learning to FB-style zero-shot control, this resolves both the core representational challenges and the zero shot control
+% We show that this improves the performance of goal-conditioned benchmarks
+% We also show that unseen sparse, dense and held-out rewards are possible from the same successor representation
+    
+% \end{abstract}
+
+\begin{abstract}
+Behavior foundation models offer the promise of zero-shot control: pretrain on offline data, then reuse learned behaviors for downstream tasks without further environment interaction.
+Yet successor-measure approaches remain brittle when success depends on precise interactions.
+We hypothesize that this failure arises at \emph{control bottlenecks}, where a few precise actions unlock a broad set of future behaviors, spreading their control-relevant consequences across many successor states.
+We introduce \name{}, which addresses this problem by learning a normalized distribution over future states rather than regressing individual successor occupancies.
+By making possible futures compete for a fixed amount of probability mass, \name{} better preserves distinctions around bottlenecks while retaining a reusable successor representation for policy learning and zero-shot reward specification.
+\aditya{TODO: goal-conditioned results.}
+\aditya{TODO: zero-shot transfer results.}
+\end{abstract}
+    

@@ -160,6 +160,11 @@ def main():
             audit.append(f"EXCLUDED {grp}: {spec['reason']} (n={len(by_group.get(grp, []))})")
             continue
         runs = by_group.get(grp, [])
+        dropped = [r for r in runs if (r['name'] or '') in spec.get('exclude_runs', ())]
+        if dropped:
+            runs = [r for r in runs if r not in dropped]
+            audit.append(f"DROPPED-RUNS {grp}: {','.join(r['name'] for r in dropped)} "
+                         f"({spec.get('exclude_runs_reason', 'per-run exclusion in results_map')})")
         metric = 'overall_success' if any(r['overall_success'] is not None for r in runs) else 'success_overall'
         wkey = 'evaluation/overall_success' if metric == 'overall_success' else 'success/overall'
         vals, seeds, partial = [], [], []

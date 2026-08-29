@@ -1,0 +1,119 @@
+\section{Implementation Details}
+\label{app:implementation}
+
+This appendix states the parts of \DensityFB{} that Section~\ref{sec:method} abstracts: the outcome map actually used, the two-head ensembling of the forward tower, the exact policy-extraction losses, and the zero-shot evaluation protocol. Hyperparameters are collected in Table~\ref{tab:hparams}.
+
+\subsection{Outcome map and tolerances}
+\label{app:hitspec}
+
+The outcome map $\phi$ concatenates a fixed list of observation coordinate blocks, one per manipulable object, each with its own tolerance $\epsilon_b$. A block is written \texttt{start:stop:$\epsilon$} over observation indices. The backward tower receives the tolerance-scaled coordinates $\big(x_b/\epsilon_b\big)_b$, and the tolerance kernel of Equation~\eqref{eq:goal-kernel} applies the same per-block scaling before taking the squared distance:
+\begin{equation}
+    k^\epsilon_y(u_j) = \operatorname{softmax}_{j}\!\left(-\tfrac12\sum_b \big\|(u_{j,b}-y_b)/\epsilon_b\big\|^2\right).
+\end{equation}
+The block lists are given in Table~\ref{tab:hparams}. The same $\epsilon_b$ serve three roles --- backward-tower input scaling, the actor's goal weighting, and the control variate of Equation~\eqref{eq:zs-readout} --- so a single tolerance per object is the only geometric quantity the method receives.
+
+\subsection{Networks and ensembling}
+\label{app:networks}
+
+Both towers are MLPs with the layer convention \textsc{Linear}\,$\rightarrow$\,\textsc{GELU}\,$\rightarrow$\,\textsc{LayerNorm} per hidden layer and a bare linear output; there is no output normalization on $B_\theta$ and no orthonormality penalty anywhere.
+$F_\theta$ takes the concatenation $[s,a,z]$ --- in the goal-conditioned flagship, $z$ is the raw goal observation --- and is a two-head ensemble, $F_\theta(s,a,z)\in\mathbb R^{2\times d}$. $B_\theta$ is a single tower.
+Target towers $\bar F,\bar B$ are copies updated by an exponential moving average with rate $\eta$ after every step; the actor has no target network, and the bootstrap action is taken from the live actor under a stop-gradient.
+
+The two heads are combined only at readout time, and the combination is taken over probability \emph{vectors} rather than over scalars: writing $p^{(1)},p^{(2)}$ for the two heads' softmax weights over the pool,
+\begin{equation}
+    p := \min\big(p^{(1)},p^{(2)}\big) \quad\text{elementwise.}
+    \label{eq:app-double-q}
+\end{equation}
+This is the conservative choice used by both the actor and the zero-shot evaluation. It is worth stating plainly that the elementwise minimum of two simplex vectors is \emph{sub}-normalized whenever the heads disagree, $\sum_j p_j\le1$, so what the readouts compute is a sub-normalized version of the self-normalized estimator of Equation~\eqref{eq:reward-readout}; the consistency statement of Section~\ref{sec:method-control} is for single-head weights. We report this rather than silently renormalize, because every deployed number uses this path.
+The representation loss $\mathcal L_{\mathrm{occ}}$ is averaged over the two heads, each fitted against its own target-network bootstrap.
+
+\subsection{Policy extraction}
+\label{app:actor}
+
+Let $q:=\min(q^{(1)},q^{(2)})$ be the two-head goal readout of Section~\ref{sec:method-control} and
+\begin{equation}
+    s_q := \sg\!\left[\E\left|q-\E[q]\right|+\varepsilon\right], \qquad \varepsilon=10^{-6},
+\end{equation}
+its centered magnitude normalizer. Centering matters because the predicted occupancy carries a large action-independent component that would otherwise dominate the scale.
+
+\paragraph{Flow actor (flagship).}
+A one-shot actor $\pi_\omega(s,g;\eta)$ maps noise $\eta\sim\mathcal N(0,I)$ to an action, and a separate goal-agnostic velocity field $v_\psi(s,a,t)$ is trained by flow matching on the dataset actions. With $x_0\sim\mathcal N(0,I)$, $x_1=a$, $t\sim\mathcal U[0,1]$ and $x_t=(1-t)x_0+tx_1$,
+\begin{equation}
+    \mathcal L_{\mathrm{flow}} := \E\big\|v_\psi(s,x_t,t)-(x_1-x_0)\big\|^2 .
+\end{equation}
+Let $\mathrm{ODE}_\psi(s,\eta)$ denote the $K$-step Euler rollout of $v_\psi$ from $\eta$, taken without gradient. The full actor objective is
+\begin{equation}
+    \mathcal L_\pi = -\frac{\E\left[q\big(s,\pi_\omega(s,g;\eta)\big)\right]}{s_q}
+    \;+\;\lambda_{\mathrm{BC}}\,\E\big\|\pi_\omega(s,g;\eta)-\mathrm{ODE}_\psi(s,\eta)\big\|^2
+    \;+\;\mathcal L_{\mathrm{flow}} ,
+    \label{eq:app-flow-actor}
+\end{equation}
+i.e.\ the distillation term is scaled against the normalized value term while the flow-matching term, which trains a different network, is not. This is the FQL-style extractor; the behavior-cloning baseline is Equation~\eqref{eq:app-flow-actor} with the value term removed.
+
+\paragraph{Gaussian DDPG+BC actor (alternative extractor).}
+With $\pi_\omega(\cdot\mid s,g)=\mathcal N(\mu_\omega(s,g),\sigma^2 I)$ at fixed $\sigma$,
+\begin{equation}
+    \mathcal L_\pi = -\frac{\E\left[q(s,\mu_\omega(s,g))\right]}{s_q} - \alpha\,\E\left[\log\pi_\omega(a\mid s,g)\right].
+\end{equation}
+
+\paragraph{Gradient hygiene.}
+The value term differentiates through the action input of $F_\theta$, so the towers appear in the actor graph. Their optimizers are never stepped on the actor loss and their gradients are cleared before the next representation update, so no actor gradient reaches $F_\theta$ or $B_\theta$. The kernel weights $k^\epsilon_g$ are stop-gradded: the tolerance kernel is fixed geometry, not a trained object.
+
+\subsection{Zero-shot evaluation protocol}
+\label{app:zeroshot-protocol}
+
+A pool $U_P=\{u_1,\dots,u_P\}$ is drawn once from the dataset outcome marginal $\rho_\phi$ with a fixed seed and its backward embeddings $B_\theta(u_j)$ are precomputed. Because $P$ is a Monte-Carlo sample size and not a spatial resolution, evaluation may use a far larger pool than training ever saw; growing $P$ reduces the self-normalization error of Equation~\eqref{eq:reward-readout} without changing the represented space. We report a pool sweep in addition to the default $P$.
+
+The reward enters only as the sample vector $\big(r(u_1),\dots,r(u_P)\big)$ together with $r(x_0)$; no reward labels, gradients, or fine-tuning are used. For fixed $(s,a,z)$ and pool, both $p$ and $\kappa$ are independent of $r$, so the readout of Equation~\eqref{eq:zs-readout} is exactly a dot product of an $r$-independent vector against the reward samples --- linear in $r$ for any $r$, in exact arithmetic. The identity underlying the control variate is derived in Appendix~\ref{app:debiased-readout}.
+
+\subsection{Hyperparameters}
+\label{app:hparams}
+
+\begin{table}[t]
+\centering
+\caption{\DensityFB{} hyperparameters. Values are shared across environments unless stated.}
+\label{tab:hparams}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+& Symbol & Value \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Successor model}}\\
+Latent dimension                 & $d$        & $50$ \\
+Score temperature                & $\tau$     & $1.0$ \\
+Tower hidden sizes               & --         & $(512,512,512)$, \textsc{GELU} + \textsc{LayerNorm} \\
+Forward-tower heads              & --         & $2$ (elementwise $\min$ at readout, Eq.~\eqref{eq:app-double-q}) \\
+Backward-tower output norm       & --         & none \\
+Orthonormality penalty           & --         & none \\
+Immediate target                 & --         & hard (one-hot); soft kernel is the ablation \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Optimization}}\\
+Discount                         & $\gamma$   & $0.99$ \\
+Batch size $=$ training query-set size & $n$  & $256$ \\
+Gradient steps                   & --         & $10^6$ \\
+Optimizer                        & --         & Adam, no weight decay \\
+Learning rate ($F$, $B$, actor, velocity field) & -- & $3\times10^{-4}$ \\
+Target EMA rate                  & $\eta$     & $0.005$ \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Policy extraction}}\\
+Extractor                        & --         & one-shot flow actor (Gaussian DDPG+BC as alternative) \\
+Actor hidden / layers            & --         & $512$, $2$ hidden $+$ $2$ embedding layers \\
+Velocity-field hidden / layers   & --         & $512$, $4$ \\
+Euler steps in $\mathrm{ODE}_\psi$ & $K$      & $10$ \\
+Distillation weight              & $\lambda_{\mathrm{BC}}$ & $3.0$ (manipulation); $0.3$ (antmaze) \\
+DDPG+BC weight                   & $\alpha$   & $0.3$ \\
+Policy std (DDPG+BC)             & $\sigma$   & $0.2$, constant \\
+Value centering                  & --         & on \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Zero-shot evaluation}}\\
+Default pool size                & $P$        & $4096$ \\
+Pool sweep                       & $P$        & $256$, $1024$, $4096$, $16384$ \\
+Episodes per task                & --         & $25$ \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Outcome map $\phi$ (blocks \texttt{start:stop:$\epsilon$} over observation indices)}}\\
+\texttt{cube-single}  & -- & \texttt{19:22:0.4} \\
+\texttt{cube-double}  & -- & \texttt{19:22:0.4, 28:31:0.4} \\
+\texttt{scene}        & -- & \texttt{19:22:0.4, 28:30:0.5, 32:34:0.5, 36:37:0.72, 38:39:0.6} \\
+\bottomrule
+\end{tabular}
+\end{table}
