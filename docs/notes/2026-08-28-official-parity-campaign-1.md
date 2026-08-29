@@ -39,6 +39,32 @@ structure -- return dominated by initialization -- not of a method that is merel
 which would show a tighter spread at a lower mean. It is consistent with sec.2's measured
 gradient imbalance and inconsistent with a hyperparameter being slightly off.
 
+### Against the RANDOM-POLICY FLOOR (`scripts/exorl_random_floors.py`, 10 eps)
+
+Raw returns have no natural zero, so the ratio to official understates how bad this is.
+Measured floors for a uniform-random policy under the same eval harness:
+
+| task                  | random floor    | run 1           | verdict                |
+|-----------------------|-----------------|-----------------|------------------------|
+| walker stand          | 126.16 +- 18.95 | 226.0 +- 149.4  | ~0.7 sigma above       |
+| walker walk           |  33.92 +-  5.35 |  99.2 +- 105.6  | within noise           |
+| walker run            |  22.65 +-  3.21 |  38.5 +-  42.9  | within noise           |
+| walker flip           |  50.07 +-  5.94 |  90.2 +-  42.2  | ~1 sigma above         |
+| cheetah run           |   3.68 +-  1.25 |  16.6 +-  19.0  | within noise           |
+| cheetah run_backward  |  20.15 +-  2.02 |  20.3 +-  20.7  | EXACTLY AT FLOOR       |
+| cheetah walk          |  18.39 +-  6.24 | 104.0 +- 124.6  | within noise           |
+| cheetah walk_backward | 100.75 +- 10.08 |  84.7 +- 112.0  | BELOW FLOOR            |
+
+**Run 1's policies are statistically indistinguishable from uniform random on 6 of 8
+tasks, and below random on one.** That is a stronger and more useful statement than
+"0.06-0.26x of official": it says the learned representation contributed nothing, which is
+exactly what the 6.1e4 gradient imbalance predicts, and it rules out "trained but
+under-tuned" as an explanation.
+
+It also shows why the floors were worth measuring at all (spec sec.6 item 3): cheetah
+walk_backward has a floor of 100.75, so reading its 84.7 as a weak-but-real result would
+have had the sign backwards. Any future table cell should be quoted against its floor.
+
 Episode count is 10, not the paper's 50. For an arm failing by 4-16x that is ample to
 document the magnitude, and spec sec.6 records `eval-10` as a legitimate setting. Any arm
 that PASSES must be re-scored at 50.
