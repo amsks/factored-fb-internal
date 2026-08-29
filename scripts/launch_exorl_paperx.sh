@@ -79,21 +79,28 @@ measure_density_b_norm=true lr=1.0e-4 lr_f=1.0e-4 lr_b=1.0e-4" ;;
     for SEED in $SEEDS; do
       NAME="XP-$CRITIC-${DOM#dmc-}-s$SEED"
       SD="$SAVE_ROOT/$DOM/$CRITIC"
-      DONE_F="$SD/${DOM}_${CRITIC}_${ACTOR}_seed_${SEED}/eval.csv"
+      RUN_D="$SD/${DOM}_${CRITIC}_${ACTOR}_seed_${SEED}"
+      DONE_F="$RUN_D/eval.csv"
+      # Three states, not two: DONE (eval.csv reached $STEPS -- skip), QUEUED (skip), and
+      # PARTIAL (a walltime-killed run left params_*.pkl behind -- resubmit; AUTO_RESUME=1
+      # below makes the new job continue from the latest checkpoint instead of restarting).
       if [ -f "$DONE_F" ] && awk -F, -v w="$STEPS" 'NR>1{v=$NF;gsub(/[\r[:space:]]/,"",v);if(v==w)f=1}END{exit !f}' "$DONE_F"; then
         echo "SKIP(done) $NAME" | tee -a "$MANIFEST"; continue; fi
       if squeue -h -u "$USER" -n "$NAME" 2>/dev/null | grep -q .; then
         echo "SKIP(queued) $NAME" | tee -a "$MANIFEST"; continue; fi
+      MODE="new"
+      if ls "$RUN_D"/params_*.pkl >/dev/null 2>&1; then MODE="resume"; fi
       if [ "$DRYRUN" = "1" ]; then
-        echo "DRYRUN $NAME actor=$ACTOR z=$Z disc=${DISC[$DOM]} eps=${EPS[$DOM]}" | tee -a "$MANIFEST"
+        echo "DRYRUN($MODE) $NAME actor=$ACTOR z=$Z disc=${DISC[$DOM]} eps=${EPS[$DOM]}" | tee -a "$MANIFEST"
         echo "        OVERRIDE='$(echo $OV)'" | tee -a "$MANIFEST"; continue; fi
       id=$(CRITIC=$CRITIC ACTOR=$ACTOR DOMAIN=$DOM SEED=$SEED OVERRIDE="$OV" \
            EXTRA_FLAGS="--infer_cond_episodes 10000 --eval_on_inferred_cond" \
            TRAIN_STEPS=$STEPS EVAL_INTERVAL=100000 SAVE_INTERVAL=500000 \
            EVAL_EPISODES=50 NUM_VIDEO=0 CODE_DIR=$PWD VENV=$VENV SAVE_DIR="$SD" \
+           AUTO_RESUME=1 \
            sbatch -A "$ALLOC" -J "$NAME" --parsable scripts/vista_train.slurm 2>/dev/null \
            | grep -oE '^[0-9]+' | tail -1)
-      echo "${id:-SUBMIT-FAILED} $NAME actor=$ACTOR z=$Z ov='$(echo $OV)'" | tee -a "$MANIFEST"
+      echo "${id:-SUBMIT-FAILED}($MODE) $NAME actor=$ACTOR z=$Z ov='$(echo $OV)'" | tee -a "$MANIFEST"
     done
   done
 done
