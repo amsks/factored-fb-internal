@@ -655,6 +655,12 @@ class HILPFutureDataset:
         self.p = 1.0 - float(self.config.get('hilp_future', 0.99))
         assert 0.0 < self.p <= 1.0, (
             f"hilp_future must be in [0, 1); got {self.config.get('hilp_future')}")
+        # The two goal REPLACEMENT probabilities (in_memory_replay_buffer.py:247-249).
+        # Both default to 0 in train_offline.py's Config, but every published HILP-zsrl
+        # command in the repo README passes p_randomgoal=0.375 -- so 0 is the source
+        # default and 0.375 is the setting the numbers were produced at.
+        self.p_randomgoal = float(self.config.get('hilp_p_randomgoal', 0.0))
+        self.p_currgoal = float(self.config.get('hilp_p_currgoal', 0.0))
 
     def sample(self, batch_size, idxs=None):
         batch = self.dataset.sample(batch_size, idxs)
@@ -666,8 +672,28 @@ class HILPFutureDataset:
         # owns that name for rldp's [B, h-1, obs] rollout window, and this is a single
         # [B, obs] draw. Same-name-different-shape is how a batch key silently becomes the
         # wrong tensor for one of its two consumers.
-        batch['hilp_future_observations'] = np.asarray(
-            self.dataset['observations'][fut], np.float32)
+        goals = np.asarray(self.dataset['observations'][fut], np.float32)
+
+        # Upstream applies TWO replacements, in this order, AFTER the geometric draw:
+        #   future_obs = where(rand < p_currgoal/(1-p_randomgoal), curr_obs,   future_obs)
+        #   future_obs = where(rand < p_randomgoal,                random_obs, future_obs)
+        # (in_memory_replay_buffer.py:247-249). The odd first threshold is upstream's own:
+        # dividing by (1-p_randomgoal) makes p_currgoal the MARGINAL current-goal rate
+        # after the second replacement overwrites part of the first. Order and threshold
+        # are reproduced rather than simplified.
+        n = goals.shape[0]
+        if self.p_currgoal > 0.0:
+            thr = self.p_currgoal / max(1.0 - self.p_randomgoal, 1e-12)
+            cur = np.asarray(batch['observations'], np.float32)
+            goals = np.where((np.random.rand(n) < thr)[:, None], cur, goals)
+        if self.p_randomgoal > 0.0:
+            # A uniformly random row IS upstream's "random episode, random step within it"
+            # on ExoRL, where every episode is exactly 1000 steps.
+            rnd = np.asarray(
+                self.dataset['observations'][np.random.randint(0, self.size, n)], np.float32)
+            goals = np.where((np.random.rand(n) < self.p_randomgoal)[:, None], rnd, goals)
+
+        batch['hilp_future_observations'] = goals
         return batch
 
 

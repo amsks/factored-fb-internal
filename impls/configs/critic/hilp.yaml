@@ -62,3 +62,18 @@ hilp_future: 0.99
 # and the actor use 1e-4 (sf.py:486-487). Riding lr_b would make phi 5x too slow, and phi
 # IS the method.
 group_lr: {hilp_phi1: 5.0e-4, hilp_phi2: 5.0e-4}
+
+# Goal replacement. Source default is 0, but EVERY published HILP-zsrl command in the
+# official README passes p_randomgoal=0.375 -- 37.5% of goals are drawn from a DIFFERENT
+# episode. With 0 the phi objective never sees an unreachable goal, so the Hilbert metric
+# is fitted on a materially different goal distribution.
+hilp_p_randomgoal: 0.375
+hilp_p_currgoal: 0.0
+# PER-DOMAIN, from the README's reproducing commands. Defaults here are the cheetah/
+# quadruped/jaco values; walker needs hilp_discount 0.96, and walker+cheetah need
+# q_loss False -- the launcher passes those as overrides.
+#   walker    hilp_discount 0.96  q_loss False
+#   cheetah   hilp_discount 0.98  q_loss False
+#   quadruped hilp_discount 0.98  q_loss True
+#   jaco      hilp_discount 0.98  q_loss True
+hilp_mix_ratio: 0.5        # SFAgentConfig.mix_ratio
