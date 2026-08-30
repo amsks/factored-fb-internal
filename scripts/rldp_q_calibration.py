@@ -35,6 +35,9 @@ task = sys.argv[4] if len(sys.argv) > 4 else "walk"
 cfg = make_config("rldp_official", "ddpgbc", domain,
                   ["discount=0.98", "exorl_max_episodes=400", f"exorl_task={task}",
                    "actor.alpha=0.0", "actor.q_normalize=false",
+                   # the official actor architecture -- a checkpoint trained with it cannot
+                   # be restored into the seam's default MLP actor (different param tree)
+                   "actor.motivo_archi=true", "actor.hidden_dims=[1024]",
                    "actor.q_noise_std=0.2", "actor.boot_noise_std=0.2"])
 adapter = get_adapter(cfg)
 env_, ds, _ = adapter.make_env_and_datasets(cfg)

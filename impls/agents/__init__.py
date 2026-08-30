@@ -72,6 +72,11 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # six official knobs turned on in the yaml. Config-only, so the audited
                   # td_jepa arms (`rldp`, `rldp_density`) are untouched.
                   "rldp_official": "rldp",
+                  # ExoRL ortho arms: identical to rldp_official except that the paper's
+                  # cosine-similarity regularizer is ON. `a` keeps official's ortho_coef=1
+                  # (= run 1, ratio 1.3e4); `b` uses 1e-4, where the ortho and SP gradients
+                  # balance. Config-only; same RLDPCritic class.
+                  "rldp_orthoa": "rldp", "rldp_orthob": "rldp",
                   "rldp_density_official": "rldp_density"}
 
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,

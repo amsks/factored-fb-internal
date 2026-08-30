@@ -25,7 +25,7 @@ sys.path.insert(0, "/home/adityamohan/git/Factored-FB-seam")
 import jax, jax.numpy as jnp, numpy as np
 from env import make_config, get_adapter
 
-cfg = make_config("rldp_official","ddpgbc","dmc-walker",
+cfg = make_config(__import__('os').environ.get('GB_CRITIC','rldp_official'),"ddpgbc","dmc-walker",
                   ["discount=0.98","exorl_max_episodes=300"])
 adapter = get_adapter(cfg)
 env, train_ds, _ = adapter.make_env_and_datasets(cfg)

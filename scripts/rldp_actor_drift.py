@@ -37,6 +37,9 @@ disc = "0.98"
 cfg = make_config("rldp_official", "ddpgbc", domain,
                   [f"discount={disc}", "exorl_max_episodes=300",
                    "actor.alpha=0.0", "actor.q_normalize=false",
+                   # the official actor architecture -- a checkpoint trained with it cannot
+                   # be restored into the seam's default MLP actor (different param tree)
+                   "actor.motivo_archi=true", "actor.hidden_dims=[1024]",
                    "actor.q_noise_std=0.2", "actor.boot_noise_std=0.2"])
 adapter = get_adapter(cfg)
 env, ds, _ = adapter.make_env_and_datasets(cfg)
