@@ -32,11 +32,29 @@ THE FIVE TRANSCRIPTION TRAPS (docs/notes/2026-08-28-hilp-paper-eval.md records t
      (`where(next_Q1 < next_Q2, next_F1, next_F2)`) -- a whole-vector choice, not an
      elementwise min.
 
-STATUS: the phi learner below is transcribed and pinned by an independent numpy
-reconstruction (tests/impls/test_hilp_seam.py). The SF layer and the extractor are
-transcribed but NOT yet pinned by a parity test, and this critic is deliberately NOT
-registered in impls/agents/__init__.py::CRITICS until they are -- an unregistered critic
-cannot be selected by --critic and so cannot silently produce a number.
+STATUS (2026-08-30). Both stages are pinned by independent numpy reconstructions
+(tests/impls/test_hilp_seam.py) and the critic IS registered in
+impls/agents/__init__.py::CRITICS. An earlier version of this docstring claimed it was
+deliberately unregistered; that stopped being true when it was registered, and the
+"cannot silently produce a number" guarantee no longer holds -- it can be selected by
+--critic today.
+
+KNOWN DIVERGENCES FROM OFFICIAL, from the 2026-08-30 audit
+(docs/notes/2026-08-30-hilp-audit.md). This critic is NOT yet a one-to-one port:
+  * `mix_ratio` 0.5 z-relabelling is ABSENT. Official replaces half the batch's z with
+    whitened feature directions, sqrt(d)*normalize(phi[perm] @ pinv(cov)), and uses that
+    for BOTH the SF and actor updates (sf.py:735-759).
+  * phi's learning rate is 5x too small: official is `lr_coef * lr` = 5e-4 (sf.py:37,490),
+    ours rides lr_b = 1e-4.
+  * the successor net ensemblizes the WHOLE tower, so each head gets its own embedding
+    branches; official SHARES the two embeddings and separates only the 2-layer heads
+    (fb_modules.py:148-193). Ours also has one extra trunk layer and orthogonal init
+    gain sqrt(2) where official uses 1.0.
+  * the published ExoRL launch passes p_randomgoal=0.375 (37.5% of goals drawn from a
+    DIFFERENT episode), per-domain hilp_discount (0.96 walker), and q_loss=False for
+    walker/cheetah. None of these is expressible here yet.
+Verified as matching: the phi tower architecture, the phi value loss arithmetic, the SF
+loss arithmetic, and z inference/sampling.
 """
 from __future__ import annotations
 
@@ -48,7 +66,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
-from impls.utils.networks import ForwardMap, PhiMap
+from impls.utils.networks import ForwardMap, HILPForwardMap, PhiMap
 from impls.utils.fb_math import project_z, targets_uncertainty
 
 
@@ -144,6 +162,7 @@ class HILPCritic:
     norm_z: bool
     stats_momentum: float
     q_loss: bool
+    mix_ratio: float
 
     GROUPS = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats")
     STAGES = ("phi", "sf")
@@ -256,10 +275,40 @@ class HILPCritic:
         return {"z": jnp.zeros((self.z_dim,))}
 
     def sample_cond(self, net, batch, rng):
-        """z ~ sqrt(d) * normalize(gaussian) (sf.py::sample_z)."""
+        """z ~ sqrt(d)*normalize(gaussian) (sf.py::sample_z), then MIX_RATIO relabelling.
+
+        Official replaces a `mix_ratio` fraction of the batch's z with WHITENED feature
+        directions (sf.py:735-759):
+
+            phi     = feature_net(next_obs[perm])            # no grad, feature_type='state'
+            cov     = phi.T @ phi / N ;  inv_cov = pinv(cov)
+            new_z   = sqrt(d) * normalize(phi[mix] @ inv_cov)
+
+        and the mixed z drives BOTH update_sf and update_actor. This is what grounds the
+        policy family in directions the features can actually express; training on
+        isotropic Gaussian z alone is a different algorithm. The whitening is not optional
+        decoration -- PSM's superficially similar mix omits `inv_cov`, so it is NOT a
+        drop-in for this.
+
+        mix_ratio=0 (the default here) reproduces the pure-Gaussian behavior every earlier
+        cell ran, so this is additive.
+        """
         B = batch["observations"].shape[0]
-        g = jax.random.normal(rng, (B, self.z_dim))
-        return {"z": project_z(g, self.norm_z)}
+        r_g, r_perm, r_mask = jax.random.split(rng, 3)
+        z = project_z(jax.random.normal(r_g, (B, self.z_dim)), self.norm_z)
+        if self.mix_ratio <= 0.0:
+            return {"z": z}
+        nobs = batch["next_observations"]
+        phi = jax.lax.stop_gradient(self._feature_net(
+            net["hilp_phi1"].params, net["hilp_stats"].params,
+            nobs[jax.random.permutation(r_perm, B)]))              # [B, d]
+        cov = (phi.T @ phi) / phi.shape[0]
+        inv_cov = jnp.linalg.pinv(cov)
+        new_z = project_z(phi @ inv_cov, self.norm_z)
+        # A boolean mask, not an index gather: the count must be static under jit, and
+        # upstream's `np.where(uniform < mix_ratio)` is exactly a per-row Bernoulli draw.
+        mix = (jax.random.uniform(r_mask, (B,)) < self.mix_ratio)[:, None]
+        return {"z": jnp.where(mix, new_z, z)}
 
     def infer_cond(self, net, obs, rewards):
         """z = lstsq(phi(s'), r), then sqrt(d)-normalized (sf.py:535-552).
@@ -332,9 +381,16 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
     mk_phi = lambda: PhiMap(z_dim=feature_dim, hidden_dim=config["phi"]["hidden_dim"],
                             hidden_layers=config["phi"]["hidden_layers"], norm=False)
     phi1, phi2 = mk_phi(), mk_phi()
-    sf = ForwardMap(z_dim=z_dim, hidden_dim=config["sf"]["hidden_dim"], num_parallel=P,
-                    hidden_layers=config["sf"]["hidden_layers"],
-                    embedding_layers=config["sf"]["embedding_layers"])
+    # HILPForwardMap, not the seam's ForwardMap: upstream SHARES the two embedding
+    # branches between F1/F2 and separates only the heads, uses ONE trunk layer per head,
+    # and carries `feature_dim` as its own knob rather than hidden_dim//2. See the class
+    # docstring. num_parallel is not a parameter -- the two heads are structural.
+    if int(config.get("num_parallel", 2)) != 2:
+        raise ValueError("HILP's successor net is F1/F2 by construction; num_parallel "
+                         "must be 2.")
+    sf = HILPForwardMap(z_dim=z_dim, hidden_dim=config["sf"]["hidden_dim"],
+                        feature_dim=int(config["sf"].get("feature_dim",
+                                                         config["sf"]["hidden_dim"] // 2)))
     stats_mod = _HILPStats(dim=feature_dim, dtype=jnp.zeros((), ex_obs.dtype).dtype)
 
     r1, r2, rs, rst = jr.split(jr.PRNGKey(config["seed"]), 4)
@@ -355,6 +411,7 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
         norm_z=bool(config.get("norm_z", True)),
         stats_momentum=float(config.get("hilp_stats_momentum", 0.005)),
         q_loss=bool(config.get("hilp_q_loss", True)),
+        mix_ratio=float(config.get("hilp_mix_ratio", 0.0)),
     )
     targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
     return critic, params, targets

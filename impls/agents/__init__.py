@@ -124,6 +124,46 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
 _LR_SPLIT = {"density_f": "lr_f", "density_b": "lr_b"}
 
 
+def _group_opt(group, config):
+    """(lr, weight_decay, use_adamw) for one optimizer group.
+
+    Two references need per-GROUP optimizer settings that a single `optax.adam(lr)` cannot
+    express, and in both cases the difference is on the representation towers specifically:
+
+      * official RLDP builds its ENCODER optimizer as `AdamW(..., weight_decay=1e-4)`
+        (hard-coded, baselines/rldp agent.py:66-71) while the forward and actor optimizers
+        are plain Adam at `cfg.train.weight_decay` (0.0). Decoupled decay on exactly the
+        towers whose weights we measured blowing up (||F|| 1486, M diag 576 vs an expected
+        ~50) is not something to leave off.
+      * official HILP gives phi its own learning rate, `lr_coef * lr` = 5e-4, against 1e-4
+        for the successor net and actor (HILP sf.py:37,486-490).
+
+    Config shape, both default-absent so every existing cell is bit-identical:
+        group_weight_decay: {group: float}
+        group_adamw:        [group, ...]
+        group_lr:           {group: float}     # overrides the _LR_KEY lookup
+    """
+    lr = _group_lr(group, config)
+    lr = float((config.get("group_lr") or {}).get(group, lr))
+    wd = float((config.get("group_weight_decay") or {}).get(group, 0.0))
+    adamw = group in set(config.get("group_adamw") or ())
+    return lr, wd, adamw
+
+
+def _group_tx(group, config):
+    lr, wd, adamw = _group_opt(group, config)
+    if adamw:
+        # optax.adamw is torch's AdamW: decoupled decay, applied to the UPDATE.
+        return optax.adamw(lr, weight_decay=wd)
+    if wd:
+        raise ValueError(
+            f"group_weight_decay set for {group!r} but it is not in group_adamw. "
+            f"optax.adam has no weight_decay argument, and folding decay into a plain "
+            f"Adam is L2-into-the-gradient, which is NOT what torch AdamW does -- name "
+            f"the group in group_adamw so the difference is explicit.")
+    return optax.adam(lr)
+
+
 def _group_lr(group, config):
     """The learning rate one optimizer group is built with."""
     if group == "actor_vf":                       # flowbc's value-flow head owns its own lr
@@ -286,8 +326,7 @@ class Agent(flax.struct.PyTreeNode):
         net = {}
         for g, p in params.items():
             # actor_vf (flowbc) has its own lr; other groups map to a config lr key.
-            lr = _group_lr(g, config)
-            net[g] = TrainState.create(modules[g], p, tx=optax.adam(lr))
+            net[g] = TrainState.create(modules[g], p, tx=_group_tx(g, config))
 
         cond_eval = critic.eval_cond0(ex_obs, config)
         return cls(rng=jax.random.PRNGKey(seed), net=net, target=targets,

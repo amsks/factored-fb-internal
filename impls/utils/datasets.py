@@ -533,6 +533,9 @@ class WindowedDataset:
         (self.terminal_locs,) = np.nonzero(np.asarray(self.dataset['terminals']) > 0)
         self.initial_locs = np.concatenate([[0], self.terminal_locs[:-1] + 1])
         assert self.terminal_locs[-1] == self.size - 1
+        # Default False keeps the shipped clamping behavior bit-identical; the official
+        # parity arm turns it on (see the branch in sample()).
+        self.no_clamp_windows = bool(self.config.get('rldp_no_clamp_windows', False))
         # obs_mask_dims|goal_mask_dims are unioned exactly as make_dataset does for
         # FBDataset: FB's goal IS next_observations, so both knobs blank the same frames.
         dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
@@ -579,10 +582,30 @@ class WindowedDataset:
             # The observation window LEADS the action window by one row (see the class
             # docstring): column k pairs action row t+1+k with the state it reaches,
             # row t+2+k. Both windows clamp to the anchor's own trajectory end.
-            act_win = np.minimum(idxs[:, None] + np.arange(1, h)[None, :],      # [B, h-1]
-                                 final_idxs[:, None])
-            obs_win = np.minimum(idxs[:, None] + np.arange(2, h + 1)[None, :],  # [B, h-1]
-                                 final_idxs[:, None])
+            if self.no_clamp_windows:
+                # OFFICIAL RLDP draws segment starts from [0, L-H] (agent.py::sample_segments
+                # step 2), so a window NEVER reaches a trajectory end and never clamps. The
+                # clamping below instead REPEATS the terminal state, which feeds the SP head
+                # "nothing moved" targets and biases the predictor toward the identity --
+                # exactly the degenerate solution the phase-1 predictiveness gate exists to
+                # detect. Here the anchors are already drawn, so rather than resample we
+                # SHIFT any window that would overrun back so it ends at the trajectory end,
+                # which preserves the batch size and the contiguity of the segment.
+                span = h                       # the obs window reaches idx + h
+                start = np.minimum(idxs, final_idxs - span)
+                # floor at the anchor's own trajectory START, using the same
+                # searchsorted convention GCDataset uses at line ~231.
+                start = np.maximum(start, self.initial_locs[
+                    np.searchsorted(self.initial_locs, idxs, side='right') - 1])
+                act_win = start[:, None] + np.arange(1, h)[None, :]
+                obs_win = start[:, None] + np.arange(2, h + 1)[None, :]
+                act_win = np.minimum(act_win, final_idxs[:, None])
+                obs_win = np.minimum(obs_win, final_idxs[:, None])
+            else:
+                act_win = np.minimum(idxs[:, None] + np.arange(1, h)[None, :],      # [B, h-1]
+                                     final_idxs[:, None])
+                obs_win = np.minimum(idxs[:, None] + np.arange(2, h + 1)[None, :],  # [B, h-1]
+                                     final_idxs[:, None])
             batch['future_observations'] = np.asarray(all_obs[obs_win], np.float32)
             batch['future_actions'] = np.asarray(all_acts[act_win], np.float32)
 

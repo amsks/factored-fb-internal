@@ -822,3 +822,112 @@ class GCFbForwardValue(GCBilinearValue):
         if info:
             return v, phi, psi
         return v
+
+
+# ── Official RLDP's encoder modules (~/git/baselines/rldp/rldp/nn_models.py) ────────────
+# The seam's PhiMap / PredictorMap are td_jepa's modules. Official RLDP builds its backward
+# map and predictor as ONE `EncoderMap` (model.py:67-68 comments out `build_backward` and
+# calls `build_encoder`), whose pieces are the two classes below. Ported so the ExoRL
+# parity arm can run official's networks and not merely official's losses --- see
+# docs/notes/2026-08-30-rldp-network-audit.md for the measurement that made this necessary.
+
+def _ln_activ(x, activ):
+    """`nn_models.ln_activ`: LayerNorm FIRST, then the activation. The order matters and is
+    the opposite of the seam's usual Dense->activation->LayerNorm convention."""
+    return activ(nn.LayerNorm(epsilon=1e-5)(x))
+
+
+class BaseMLP(nn.Module):
+    """`nn_models.BaseMLP` -- official RLDP's backward tower (`EncoderMap.zs`) and the body
+    of its predictor.
+
+        y = ln_activ(l1(x), elu)      # LayerNorm -> ELU
+        y = ln_activ(l2(y), elu)      # LayerNorm -> ELU   <-- the seam's PhiMap has no
+        y = l3(y)                     #                        LayerNorm on this layer
+        if norm: sqrt(d) * y / ||y||
+
+    Exactly three linears regardless of depth settings: upstream's `hidden_layers` is
+    accepted by EncoderMap and never reaches BaseMLP. Activation is ELU throughout, where
+    PhiMap uses tanh then relu. Init is `nn.init.orthogonal_` with bias 0 (weight_init),
+    which `_ORTH1` matches.
+    """
+    out_dim: int
+    hidden_dim: int
+    norm: bool = True
+
+    @nn.compact
+    def __call__(self, x):
+        y = _ln_activ(nn.Dense(self.hidden_dim, kernel_init=_ORTH1)(x), nn.elu)
+        y = _ln_activ(nn.Dense(self.hidden_dim, kernel_init=_ORTH1)(y), nn.elu)
+        y = nn.Dense(self.out_dim, kernel_init=_ORTH1)(y)
+        return psm_norm(y) if self.norm else y
+
+
+class EncoderPredictor(nn.Module):
+    """`EncoderMap.model_unroll` -- official RLDP's one-step latent predictor.
+
+        za  = elu(Linear(action -> za_dim))
+        zsa = BaseMLP([zs, za] -> zsa_dim)
+        out = Linear(zsa_dim -> zs_dim);  if norm: sqrt(d)-normalized
+
+    Differences from the seam's `PredictorMap` (td_jepa's VForwardMap), both structural:
+    the action enters through a single Linear+ELU rather than a state-action embedding
+    branch, and there is exactly ONE predictor upstream where PredictorMap is ensembled
+    with num_parallel=2.
+
+    The sqrt(d) output normalization is upstream's own `if self.norm` -- it is the same
+    quantity the `rldp_pred_norm` knob applied post-hoc to the td_jepa module, and it is
+    built in here rather than bolted on.
+    """
+    zs_dim: int
+    za_dim: int
+    zsa_dim: int
+    hidden_dim: int
+    norm: bool = True
+
+    @nn.compact
+    def __call__(self, zs, action):
+        za = nn.elu(nn.Dense(self.za_dim, kernel_init=_ORTH1)(action))
+        za = jnp.broadcast_to(za, zs.shape[:-1] + (self.za_dim,))
+        zsa = BaseMLP(out_dim=self.zsa_dim, hidden_dim=self.hidden_dim,
+                      norm=self.norm)(jnp.concatenate([zs, za], -1))
+        out = nn.Dense(self.zs_dim, kernel_init=_ORTH1)(zsa)
+        return psm_norm(out) if self.norm else out
+
+
+class HILPForwardMap(nn.Module):
+    """Official HILP's successor net: `fb_modules.ForwardMap(preprocess=True, add_trunk=False)`.
+
+    Structurally different from the seam's `ForwardMap`, in three ways that all matter:
+
+      1. THE EMBEDDINGS ARE SHARED. Upstream builds ONE `obs_action_net` and ONE
+         `obs_z_net`, concatenates them, and feeds the SAME h to two separate heads F1/F2.
+         `ForwardMap` ensemblizes the WHOLE tower, so each head gets its own embeddings.
+         That changes how much the heads disagree, which is not cosmetic here: the SF
+         target picks `next_F` by argmin over the two heads' Q, so head decorrelation
+         drives the target's pessimism directly.
+      2. ONE trunk layer per head (`mlp(feature_dim, hidden_dim, "irelu", z_dim)` is
+         Linear -> ReLU -> Linear), where `_ForwardTower` at hidden_layers=2 has two.
+      3. `feature_dim` is its OWN knob (512) and is not `hidden_dim // 2`. At the published
+         hidden_dim=1024 the two coincide, so the seam's tower happens to be the right
+         width -- a coincidence that breaks silently the moment hidden_dim changes.
+
+    Init is `utils.weight_init` = orthogonal(gain=1.0), bias 0, on every Linear -- NOT the
+    relu gain sqrt(2) the seam uses for its forward towers.
+    """
+    z_dim: int
+    hidden_dim: int = 1024
+    feature_dim: int = 512
+
+    @nn.compact
+    def __call__(self, obs, z, action):
+        emb = lambda x: nn.relu(nn.Dense(self.feature_dim, kernel_init=_ORTH1)(
+            jnp.tanh(nn.LayerNorm(epsilon=1e-5)(
+                nn.Dense(self.hidden_dim, kernel_init=_ORTH1)(x)))))
+        # `cat([obs_action, obs_z])`, upstream's order.
+        h = jnp.concatenate([emb(jnp.concatenate([obs, action], -1)),
+                             emb(jnp.concatenate([obs, z], -1))], -1)
+        head = lambda: nn.Sequential([
+            nn.Dense(self.hidden_dim, kernel_init=_ORTH1), nn.relu,
+            nn.Dense(self.z_dim, kernel_init=_ORTH1)])
+        return jnp.stack([head()(h), head()(h)], axis=0)      # [2, B, z_dim]

@@ -91,7 +91,20 @@ declare -A DISC=( [dmc-walker]="0.98" [dmc-cheetah]="0.98" [dmc-point-mass-maze]
 # call the difference a replication result.
 # Pessimism (0.5, agent.py:27) rides the CRITIC's q_fn, which is what the actor calls, and
 # is already set in critic/rldp_official.yaml.
-ACTOR_OV=( --override "actor.alpha=0.0"
+# ARCHITECTURE, not just coefficients. Official's actor is nn_models.Actor: two
+# simple_embedding branches (over [obs,z] and over obs alone, each h//2) concatenated to h,
+# a ReLU trunk, and `mu = torch.tanh(policy(embedding))`. The seam's DEFAULT ddpgbc actor is
+# a single MLP over concat([obs,cvec]) with tanh_squash=False and a HARD CLIP at +-1 -- and
+# that clip is an absorbing fixed point: past +-1 the gradient through it is exactly zero.
+# Measured consequence in runs 1 and 2: policy saturation 1.000 on both domains (dataset
+# 0.26), and an action-blind critic. impls/actors/_motivo_nets.py::MotivoPolicy is already
+# a faithful port of official's actor, tanh included; it was simply never switched on.
+# hidden_dims is read as (width, n_trunk_layers), so [1024] is official's
+# archi.actor.hidden_dim 1024 / hidden_layers 1.
+# See docs/notes/2026-08-30-rldp-network-audit.md.
+ACTOR_OV=( --override "actor.motivo_archi=true"
+           --override "actor.hidden_dims=[1024]"
+           --override "actor.alpha=0.0"
            --override "actor.q_noise_std=0.2"  --override "actor.q_noise_clip=0.3"
            --override "actor.boot_noise_std=0.2" --override "actor.boot_noise_clip=0.3"
            --override "actor.q_normalize=false" )

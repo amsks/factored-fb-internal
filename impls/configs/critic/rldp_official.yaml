@@ -83,3 +83,26 @@ predictor:
   hidden_layers: 2
   embedding_layers: 2
 dataset_class: WindowedDataset
+
+# ── NETWORKS (docs/notes/2026-08-30-rldp-network-audit.md) ─────────────────────────────
+# The six knobs above make the LOSSES and the SCHEDULE official's. They do not touch the
+# MODULES, which were td_jepa's -- and that, not the losses, is what produced an
+# action-blind critic and a fully saturated policy in runs 1 and 2.
+#   B         -> nn_models.BaseMLP        (Linear->LayerNorm->ELU twice, Linear, sqrt(d))
+#   predictor -> EncoderMap.model_unroll  (elu(Linear(a)) -> BaseMLP -> Linear, single)
+rldp_official_nets: true
+rldp_za_dim: 256          # archi.b.za_dim
+# Official draws phase-1 segment starts from [0, L-H] so a window never clamps at a
+# trajectory end; the shipped sampler clamps, repeating the terminal state and feeding the
+# SP head "nothing moved" targets.
+rldp_no_clamp_windows: true
+
+# OPTIMIZERS. Official builds THREE (agent.py:66-82): the encoder one is
+# `AdamW(_backward_map.parameters(), lr=lr_b, weight_decay=1e-4)` -- hard-coded, not a
+# config knob -- while the forward and actor optimizers are plain `Adam` at
+# `cfg.train.weight_decay`, which defaults to 0.0. Official's `_backward_map` IS the whole
+# EncoderMap, so its single optimizer covers what the seam splits into `backward` and
+# `predictor`; naming both here reproduces it (Adam/AdamW state is per-parameter, so one
+# optimizer over two param sets equals two over one each at identical settings).
+group_adamw: [backward, predictor]
+group_weight_decay: {backward: 1.0e-4, predictor: 1.0e-4}

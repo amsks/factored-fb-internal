@@ -79,3 +79,13 @@ dataset_class: WindowedDataset
 temp: 1.0                 # softmax temperature of the successor density (density_fb default)
 actor_temp: null          # null => temp
 actor_q_center: true      # centered spread for the actor normalizer
+
+# networks, as in rldp_official.yaml -- the whole point of this arm is that the ONLY
+# difference from the vanilla cell is the successor estimator.
+rldp_official_nets: true
+rldp_za_dim: 256
+rldp_no_clamp_windows: true
+
+# optimizers, as in rldp_official.yaml
+group_adamw: [backward, predictor]
+group_weight_decay: {backward: 1.0e-4, predictor: 1.0e-4}

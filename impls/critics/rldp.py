@@ -55,7 +55,8 @@ import jax.numpy as jnp
 
 from impls.critics._measure_common import parse_hit_spec, scaled_hit_cols
 from impls.critics.fb import _IdentityMap
-from impls.utils.networks import ForwardMap, PhiMap, PredictorMap
+from impls.utils.networks import (BaseMLP, EncoderPredictor, ForwardMap, PhiMap,
+                                  PredictorMap)
 from impls.utils.fb_math import project_z, targets_uncertainty
 
 
@@ -143,6 +144,17 @@ class RLDPCritic:
     # sides the residual is (F - gamma F_target)^T B in ONE fixed basis, i.e. an ordinary
     # TD residual.
     fb_target_online_b: bool = False
+    # Use OFFICIAL RLDP's encoder modules for the backward tower and the predictor instead
+    # of td_jepa's. Default False keeps the audited td_jepa arm bit-identical.
+    #   B:         nn_models.BaseMLP     -- Linear->LayerNorm->ELU twice, Linear, sqrt(d)-norm.
+    #              The seam's PhiMap is Dense->LN->tanh, Dense->relu (NO LayerNorm), Dense.
+    #   predictor: EncoderMap.model_unroll -- elu(Linear(a)) -> BaseMLP -> Linear ->
+    #              sqrt(d)-norm, and SINGLE where PredictorMap is ensembled x2.
+    # Official builds both as one `EncoderMap` (model.py:67-68 comments out build_backward);
+    # they stay separate groups here because the seam's optimizer/target plumbing is
+    # per-group and official's phase-1 hard copy refreshes only the `.zs` half anyway,
+    # which is exactly this split. See docs/notes/2026-08-30-rldp-network-audit.md.
+    official_nets: bool = False
 
     GROUPS = ("forward", "backward", "left_encoder", "predictor")
     # STAGES is read by Agent.apply_update. One stage in every phase; what changes is
@@ -455,6 +467,7 @@ class RLDPCritic:
         z_dim, L_dim, P = config["z_dim"], config["L_dim"], config["num_parallel"]
         horizon = int(config["horizon"])
         assert horizon >= 1, f"horizon must be >= 1, got {horizon}"
+        official_nets = bool(config.get("rldp_official_nets", False))
         backward_input = str(config.get("backward_input", "state"))
         assert backward_input in ("state", "hit_spec"), (
             f"backward_input must be 'state' or 'hit_spec', got {backward_input!r}")
@@ -475,8 +488,13 @@ class RLDPCritic:
         forward = ForwardMap(z_dim=z_dim, hidden_dim=config["forward"]["hidden_dim"],
                              num_parallel=P, hidden_layers=config["forward"]["hidden_layers"],
                              embedding_layers=config["forward"]["embedding_layers"])
-        backward = PhiMap(z_dim=z_dim, hidden_dim=config["backward"]["hidden_dim"],
-                          hidden_layers=config["backward"]["hidden_layers"], norm=config["backward"]["norm"])
+        if official_nets:
+            backward = BaseMLP(out_dim=z_dim, hidden_dim=config["backward"]["hidden_dim"],
+                               norm=bool(config["backward"]["norm"]))
+        else:
+            backward = PhiMap(z_dim=z_dim, hidden_dim=config["backward"]["hidden_dim"],
+                              hidden_layers=config["backward"]["hidden_layers"],
+                              norm=config["backward"]["norm"])
         # `rldp_no_left_encoder`: official F consumes the raw observation
         # (rldp/model.py builds no left encoder at all); the seam's learned 4-layer PhiMap
         # is a td_jepa-ism. IdentityMap keeps the module interface -- and therefore every
@@ -495,10 +513,17 @@ class RLDPCritic:
                                   norm=config["left_encoder"]["norm"])
         # RLDPModel builds the predictor as VForwardMap(obs=z_space[z_dim], z=action_dim)
         # -> z_dim, i.e. it lives entirely in backward-embedding space.
-        predictor = PredictorMap(out_dim=z_dim, hidden_dim=config["predictor"]["hidden_dim"],
-                                 num_parallel=P,
-                                 hidden_layers=config["predictor"]["hidden_layers"],
-                                 embedding_layers=config["predictor"]["embedding_layers"])
+        if official_nets:
+            # num_parallel is deliberately absent: official has ONE predictor.
+            predictor = EncoderPredictor(
+                zs_dim=z_dim, za_dim=int(config.get("rldp_za_dim", 256)), zsa_dim=z_dim,
+                hidden_dim=config["predictor"]["hidden_dim"],
+                norm=bool(config["backward"]["norm"]))
+        else:
+            predictor = PredictorMap(out_dim=z_dim, hidden_dim=config["predictor"]["hidden_dim"],
+                                     num_parallel=P,
+                                     hidden_layers=config["predictor"]["hidden_layers"],
+                                     embedding_layers=config["predictor"]["embedding_layers"])
         rf, rb, rle, rp = jr.split(jr.PRNGKey(config["seed"]), 4)
         ex_feat = jnp.zeros((ex_obs.shape[0], L_dim))
         ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
@@ -522,7 +547,7 @@ class RLDPCritic:
             ortho_coef=config["ortho_coef"], fb_pessimism_penalty=config["fb_pessimism_penalty"],
             train_goal_ratio=config["train_goal_ratio"], norm_z=config["norm_z"],
             f_tau=config["f_target_tau"], b_tau=config["b_target_tau"],
-            backward_input=backward_input, blocks=blocks,
+            backward_input=backward_input, blocks=blocks, official_nets=official_nets,
             # official-parity knobs; every one defaults off, so a config that names none
             # of them builds the td_jepa-variant critic this file was audited as.
             phase=str(config.get("rldp_phase", "joint")),
