@@ -414,6 +414,21 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
         mix_ratio=float(config.get("hilp_mix_ratio", 0.0)),
     )
     targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
+    if bool(config.get("hilp_independent_target_init", False)):
+        # UPSTREAM BEHAVIOR, and very likely an upstream BUG -- reproduced because it is
+        # the published configuration, not because it looks right. sf.py:111-114 does:
+        #     target_phi1.load_state_dict(phi1.state_dict())
+        #     target_phi2.load_state_dict(phi2.state_dict())
+        #     self.apply(utils.weight_init)          <-- AFTER the copy
+        # `self.apply` re-initializes EVERY Linear in the module, targets included, each
+        # with a fresh orthogonal draw. So after __init__ the target phis are INDEPENDENT
+        # random networks, not copies, and the first few thousand steps bootstrap against
+        # an unrelated network until tau=0.005 washes it out (~10^3 steps).
+        # Default off: "fixing" it is a deviation from the reference either way, so the
+        # choice is explicit rather than silent.
+        rt1, rt2 = jr.split(jr.PRNGKey(config["seed"] + 7717), 2)
+        targets["hilp_phi1"] = mk_phi().init(rt1, ex_obs)["params"]
+        targets["hilp_phi2"] = mk_phi().init(rt2, ex_obs)["params"]
     return critic, params, targets
 
 

@@ -190,18 +190,34 @@ class Agent(flax.struct.PyTreeNode):
         info = {}
         online = lambda: {g: net[g].params for g in net}
 
+        # STAGE PARAMETER SOURCE. By default each stage re-reads `net`, so a later stage
+        # sees the parameters an earlier one just stepped. Official HILP does NOT: its
+        # `update_sf` computes the SF loss, the phi loss and target_phi all from the SAME
+        # pre-step parameters and only then steps sf_opt and phi_opt (sf.py:610-666,
+        # 766-770). With the default the SF target chases a phi that is always one Adam
+        # step ahead. `stages_from_pre_step_params` reproduces the reference; it is
+        # default-off so every multi-stage cell (psm, psm_density) stays bit-identical.
+        pre_step = {g: net[g].params for g in net}
+        from_pre = bool(self.config.get("stages_from_pre_step_params", False))
+        pending = {}
         for stage in self.critic.STAGES:
             groups = self.critic.stage_groups(stage)
+            base = pre_step if from_pre else None
 
-            def stage_loss_fn(gp):
-                params = {**online(), **gp}
+            def stage_loss_fn(gp, _base=base):
+                params = {**(_base if _base is not None else online()), **gp}
                 return self.critic.stage_loss(stage, params, target, batch, cond, boot)
 
             (_, sinfo), grads = jax.value_and_grad(stage_loss_fn, has_aux=True)(
-                {g: net[g].params for g in groups})
-            for g in groups:
-                net[g] = net[g].apply_gradients(grads=grads[g])
+                {g: (pre_step[g] if from_pre else net[g].params) for g in groups})
+            if from_pre:
+                pending.update({g: grads[g] for g in groups})
+            else:
+                for g in groups:
+                    net[g] = net[g].apply_gradients(grads=grads[g])
             info.update(sinfo)
+        for g, gr in pending.items():          # all stages stepped together, after the fact
+            net[g] = net[g].apply_gradients(grads=gr)
 
         # A critic may declare that this phase trains no actor at all. Only RLDP under
         # `rldp_two_phase` does: its official phase 1 runs the representation update alone

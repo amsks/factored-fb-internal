@@ -77,3 +77,13 @@ hilp_p_currgoal: 0.0
 #   quadruped hilp_discount 0.98  q_loss True
 #   jaco      hilp_discount 0.98  q_loss True
 hilp_mix_ratio: 0.5        # SFAgentConfig.mix_ratio
+
+# Official computes the SF loss, the phi loss and target_phi ALL from pre-step parameters
+# and steps both optimizers afterwards (sf.py:610-666, 766-770). The seam's default lets a
+# later stage read what an earlier one just stepped, so the SF target would chase a phi one
+# Adam step ahead.
+stages_from_pre_step_params: true
+# Upstream's target phis are INDEPENDENT random draws, not copies: `self.apply(weight_init)`
+# runs AFTER the state_dict copy (sf.py:111-114) and re-initializes the targets too. Almost
+# certainly an upstream bug; on because it is the published configuration.
+hilp_independent_target_init: true
