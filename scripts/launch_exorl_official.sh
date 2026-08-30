@@ -30,7 +30,8 @@ CRITICS="${CRITICS:-rldp_official}"
 DOMAINS="${DOMAINS:-dmc-walker dmc-cheetah dmc-point-mass-maze}"
 SEEDS="${SEEDS:-0 1 2 3}"
 ACTOR="${ACTOR:-ddpgbc}"
-STEPS="${STEPS:-5000000}"          # paper text: 2M representation + 3M FB
+STEPS="${STEPS:-5000000}"          # rldp: paper text 2M representation + 3M FB.
+                                   # HILP is 1M state steps (spec §3) -- set per critic below.
 PHASE1="${PHASE1:-2000000}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-1000000}"
 # 250k, not 1M. A CUDA stream-capture fault has now taken out one cell in each of two
@@ -131,7 +132,7 @@ for CRITIC in $CRITICS; do
       RUN_DIR="$SAVE_ROOT/$DOM/$CRITIC/${DOM}_${CRITIC}_${ACTOR}_seed_${SEED}"
       # done check: eval.csv already carries a row at the final step. CRLF-safe (see
       # scripts/launch_exorl.sh::cell_done for why a bare grep is not).
-      if [ -f "$RUN_DIR/eval.csv" ] && awk -F, -v w="$STEPS" \
+      if [ -f "$RUN_DIR/eval.csv" ] && awk -F, -v w="${CSTEPS:-$STEPS}" \
            'NR>1{v=$NF;gsub(/[\r[:space:]]/,"",v);if(v==w)f=1}END{exit !f}' "$RUN_DIR/eval.csv"; then
         echo "SKIP(done) $NAME" | tee -a "$MANIFEST"; continue; fi
 
@@ -150,10 +151,28 @@ for CRITIC in $CRITICS; do
           echo "RESUME $NAME: no checkpoint, starting from scratch" | tee -a "$MANIFEST"
         fi
       fi
-      OV=( --override "discount=${DISC[$DOM]}"
-           --override "rldp_phase1_steps=$PHASE1"
-           --override "measure_hit_spec=\"${HIT[$DOM]}\""
-           "${ACTOR_OV[@]}" )
+      # Per-critic budget and overrides. The two methods are not interchangeable: RLDP is
+      # 5M two-phase steps, HILP is 1M with no phases and its own per-domain settings from
+      # the official README's reproducing commands (hilp_discount 0.96 walker / 0.98
+      # cheetah, q_loss False for both).
+      case "$CRITIC" in
+        hilp*)
+          CSTEPS="${HILP_STEPS:-1000000}"
+          declare -A HDISC=( [dmc-walker]="0.96" [dmc-cheetah]="0.98" \
+                             [dmc-quadruped]="0.98" [dmc-point-mass-maze]="0.98" )
+          declare -A HQL=( [dmc-walker]="false" [dmc-cheetah]="false" \
+                           [dmc-quadruped]="true" [dmc-point-mass-maze]="true" )
+          OV=( --override "discount=${DISC[$DOM]}"
+               --override "hilp_discount=${HDISC[$DOM]}"
+               --override "hilp_q_loss=${HQL[$DOM]}"
+               "${ACTOR_OV[@]}" ) ;;
+        *)
+          CSTEPS="$STEPS"
+          OV=( --override "discount=${DISC[$DOM]}"
+               --override "rldp_phase1_steps=$PHASE1"
+               --override "measure_hit_spec=\"${HIT[$DOM]}\""
+               "${ACTOR_OV[@]}" ) ;;
+      esac
       # ENV MUST BE INSIDE $CMD, not exported. A tmux window inherits the environment of
       # the tmux SERVER, which on this box is already running from an older session -- an
       # `export` in this script never reaches it, and the run dies in _mujoco_overlay()
@@ -164,7 +183,7 @@ EXORL_DATA_ROOT=$EXORL_DATA_ROOT EXORL_CACHE_ROOT=$EXORL_CACHE_ROOT \
 XLA_PYTHON_CLIENT_PREALLOCATE=false"
       CMD="cd $REPO && $ENVV CUDA_VISIBLE_DEVICES=$((GPU % NGPU)) $PY -m impls.main \
 --critic $CRITIC --actor $ACTOR --domain $DOM --seed $SEED \
---train_steps $STEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL \
+--train_steps $CSTEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL \
 --eval_episodes $EVAL_EPISODES --num_video 0 $INFER_FLAGS \
 --save_dir $SAVE_ROOT/$DOM/$CRITIC ${RES[*]} ${OV[*]} 2>&1 | tee -a $REPO/logs/$NAME.log"
 
