@@ -186,6 +186,7 @@ def report(out_path, critic=None):
     if not os.path.exists(out_path):
         print(f"no results at {out_path}"); return
     cells = {}
+    dupes = set()
     for line in open(out_path):
         line = line.strip()
         if not line:
@@ -201,9 +202,22 @@ def report(out_path, critic=None):
         v = _metric(row)
         if v is None:
             continue
-        cells.setdefault((c, dom, task), []).append(v)
+        # Keyed by SEED, last-wins -- not appended blindly. --out is append-only and a
+        # cell gets re-scored whenever an eval is retried, so appending every matching
+        # row would count one seed twice: n inflates and the std shrinks toward the
+        # within-seed spread instead of the across-seed spread. Silent, and it makes a
+        # result look more precise than it is. (Same shape as the wandb_agg_daemon
+        # row-vs-seed bug: rows that are not seeds being counted as seeds.)
+        by_seed = cells.setdefault((c, dom, task), {})
+        if _seed in by_seed:
+            dupes.add((c, dom, task, _seed))
+        by_seed[_seed] = v
+    if dupes:
+        print(f"NOTE: {len(dupes)} cell(s) re-scored in this file; kept the LAST row for "
+              f"each. n below counts distinct seeds.")
     print(f"{'critic':<24} {'domain':<22} {'task':<20} {'mean':>9} {'std':>8}  n")
-    for (c, dom, task), vals in sorted(cells.items()):
+    for (c, dom, task), by_seed in sorted(cells.items()):
+        vals = [by_seed[k] for k in sorted(by_seed)]
         sd = statistics.stdev(vals) if len(vals) > 1 else 0.0
         print(f"{c:<24} {dom:<22} {task:<20} {statistics.mean(vals):9.1f} {sd:8.1f}  {len(vals)}")
     print("\nCompare against RLDP Table 1 in docs/notes/2026-08-28-rldp-paper-eval.md. "
