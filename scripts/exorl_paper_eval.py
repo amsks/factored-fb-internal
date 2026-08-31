@@ -28,7 +28,8 @@ PROTOCOL KNOBS AND WHERE THEY COME FROM
   --seeds 0 1 2 3             4 seeds, mean +- std per cell.
   HILP uses a least-squares z rather than the reward-weighted mean, over 10,000
   transitions; that is a property of the CRITIC's infer_cond, not of this driver, so the
-  only thing that changes here is --inference-samples.
+  only thing that changes here is --inference-samples -- which now defaults per critic
+  via INFERENCE_SAMPLES rather than relying on the caller to remember.
 
 TASK SETS are RLDP Table 1's row names, taken from env/exorl_env.py::TASKS so this file
 cannot disagree with what the env layer will actually build.
@@ -64,6 +65,19 @@ PAPER_TASKS = {
 HIT = {"dmc-walker": "0:24:15.9", "dmc-cheetah": "0:17:7.5",
        "dmc-point-mass-maze": "0:2:0.03"}
 DISCOUNT = {"dmc-walker": 0.98, "dmc-cheetah": 0.98, "dmc-point-mass-maze": 0.99}
+
+
+# Each method infers z under its own published protocol, so a single default would score
+# one of them wrong. Resolved from the critic rather than left to the caller: the failure
+# mode is silent -- HILP scored with RLDP's 50k just returns a slightly different number,
+# with nothing in the output saying which protocol produced it.
+#   RLDP 50k  examples/rldp_train_dmc.py:151, TrainConfig.num_inference_samples
+#   HILP 10k  the official HILP eval draws 10,000 reward-labelled transitions for lstsq
+INFERENCE_SAMPLES = {
+    "rldp": 50_000, "rldp_official": 50_000, "rldp_density_official": 50_000,
+    "rldp_orthoa": 50_000, "rldp_orthob": 50_000,
+    "hilp": 10_000, "hilp_density": 10_000,
+}
 
 
 def _check_tasks():
@@ -174,8 +188,9 @@ def main():
     ap.add_argument("--steps", type=int, required=False, default=5_000_000,
                     help="checkpoint step to restore (params_{steps}.pkl)")
     ap.add_argument("--episodes", type=int, default=50, help="paper text; code default 10")
-    ap.add_argument("--inference-samples", type=int, default=50_000,
-                    help="reward-labelled TRANSITIONS for z inference (RLDP 50k, HILP 10k)")
+    ap.add_argument("--inference-samples", type=int, default=None,
+                    help="reward-labelled TRANSITIONS for z inference; default resolves "
+                         "from the critic (RLDP 50k, HILP 10k)")
     ap.add_argument("--out", default="exp/paper_eval.jsonl")
     ap.add_argument("--python", default="/dev/shm/.venv-jax/bin/python")
     ap.add_argument("--jobs", type=int, default=1,
@@ -183,6 +198,10 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--report-only", action="store_true")
     args = ap.parse_args()
+    if args.inference_samples is None:
+        args.inference_samples = INFERENCE_SAMPLES.get(args.critic, 50_000)
+        print(f"--inference-samples defaulted to {args.inference_samples} "
+              f"for critic {args.critic}", flush=True)
 
     _check_tasks()
     if args.report_only:
