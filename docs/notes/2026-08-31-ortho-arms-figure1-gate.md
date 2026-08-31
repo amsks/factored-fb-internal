@@ -166,3 +166,21 @@ discrimination, gradient balance is the wrong lens for predicting it.
 3M-step phase 2. Above-chance ranking is a low bar -- it says the critic is not broken,
 not that it is good. Returns at 5M remain the test that matters, and nothing here
 forecloses arm B recovering with more actor training.
+
+### 3M: neither arm moves, so "arm B may recover" looks wrong
+
+Same measurement 500k steps later.
+
+| run | 2.5M P[>rand] / P[>neg] | 3M P[>rand] / P[>neg] |
+|---|---|---|
+| `orthoa` s1 | 0.529 / 0.614 | 0.530 / 0.619 |
+| `orthoa` s3 | 0.547 / 0.646 | 0.553 / 0.618 |
+| `orthob` s2 | 0.445 / 0.490 | 0.419 / 0.465 |
+
+I listed "arm B recovering with more actor training" as an open possibility. Half a
+million further steps move neither arm in either direction, so on this metric both have
+converged and that possibility is weakly refuted rather than still open. Arm A holds
+above chance, arm B holds below it.
+
+Returns at 5M remain the deciding measurement -- a critic that ranks actions above chance
+is a precondition for control, not a demonstration of it.
