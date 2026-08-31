@@ -184,3 +184,27 @@ above chance, arm B holds below it.
 
 Returns at 5M remain the deciding measurement -- a critic that ranks actions above chance
 is a precondition for control, not a demonstration of it.
+
+## The run-2 baseline, scored at n=4 (walker, 5M, 50 episodes, 50k inference samples)
+
+| task | run 2 (ours) | RLDP Table 1 | ours / published |
+|---|---|---|---|
+| stand | 365.4 +- 153.9 | 877.69 +- 45.03 | 0.42 |
+| walk  | 106.9 +- 87.7  | 790.94 +- 67.55 | 0.14 |
+| run   |  66.5 +- 32.7  | 324.85 +- 54.57 | 0.20 |
+| flip  | 124.9 +- 90.3  | 491.64 +- 37.30 | 0.25 |
+
+The spec's gate -- per-task mean within 1 sigma of the official cell on at least 3 of 4
+tasks -- fails on all four. Run 2 reaches 14-42% of published.
+
+This is the number the campaign has been chasing, and it now has a mechanism attached
+rather than being an unexplained shortfall: run 2 replicates the official repository
+including its inert regularizer, and consequently trains a backward map that ends at 26
+of 512 effective dimensions with a critic that ranks actions at chance.
+
+Note also the seed spread. Our stds (33-154) are two to four times the published ones
+(37-68) on three of four tasks, so run 2 is not merely lower, it is much less stable
+across seeds -- consistent with a critic providing little usable signal to the actor.
+
+The ortho arms finish 5M shortly and get the identical treatment. That comparison is the
+campaign's actual result: whether a live regularizer moves these four numbers.
