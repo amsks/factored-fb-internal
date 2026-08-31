@@ -98,10 +98,15 @@ INFERENCE_SAMPLES = {
 #
 # Keys are added here as they appear. Absent from a run's config.json => it predates the
 # key => the flag was off for that run.
-_ARCH_KEYS_DEFAULT_OFF = ("rldp_official_nets",)
+# Each entry is (config key, critic-name prefix it applies to). The prefix matters:
+# rldp_official_nets is read only by the RLDP family, so injecting it for a HILP run
+# was a harmless no-op that still printed a LEGACY-ARCH line claiming to have pinned
+# something. Harmless is not the same as correct -- the line is meant to be evidence of
+# what was pinned, and evidence that fires when nothing was pinned is worse than silence.
+_ARCH_KEYS_DEFAULT_OFF = (("rldp_official_nets", "rldp"),)
 
 
-def _legacy_arch_overrides(run_dir):
+def _legacy_arch_overrides(run_dir, critic):
     """Overrides that pin a pre-existing run to the architecture it was trained with."""
     cfg_path = os.path.join(run_dir, "config.json")
     if not os.path.isfile(cfg_path):
@@ -112,8 +117,8 @@ def _legacy_arch_overrides(run_dir):
     except (OSError, ValueError):
         return []          # unreadable config: fall through to the yaml and fail loudly
     out = []
-    for key in _ARCH_KEYS_DEFAULT_OFF:
-        if key not in recorded:
+    for key, prefix in _ARCH_KEYS_DEFAULT_OFF:
+        if critic.startswith(prefix) and key not in recorded:
             out += ["--override", f"{key}=false"]
     return out
 
@@ -136,7 +141,7 @@ def run_cell(args, domain, task, seed):
     # must show up as a hole in the table rather than as a smaller n. Checked AFTER the
     # dry-run print so `--dry-run` shows the full matrix before anything has trained.
     missing = not os.path.isdir(run_dir)
-    legacy = _legacy_arch_overrides(run_dir)
+    legacy = _legacy_arch_overrides(run_dir, args.critic)
     cmd = [args.python, "-m", "scripts.reeval_checkpoint",
            "--critic", args.critic, "--actor", args.actor, "--domain", domain,
            "--seed", str(seed), "--restore_path", run_dir,
