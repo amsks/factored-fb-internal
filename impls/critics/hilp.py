@@ -163,6 +163,13 @@ class HILPCritic:
     stats_momentum: float
     q_loss: bool
     mix_ratio: float
+    # td_jepa parity knobs. Defaults reproduce OFFICIAL HILP, which is what critic/hilp.yaml
+    # is transcribed from; critic/hilp_tdj.yaml flips all three. They are separate flags
+    # rather than one "tdjepa mode" because they are independent choices in independent
+    # places, and bundling them would hide which one moved a number.
+    head_reduce: str        # SF TARGET across parallel heads: "argmin_q" (official) | "mean"
+    actor_head_reduce: str  # ACTOR's Q across heads: "min" (official) | "mean"
+    sf_loss_scale: float    # multiplies the SF loss: 1.0 (official) | 0.5 (td_jepa)
 
     GROUPS = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats")
     STAGES = ("phi", "sf")
@@ -239,11 +246,24 @@ class HILPCritic:
         # reads the online one.)
         target_phi = jax.lax.stop_gradient(
             self._feature_net(params["hilp_phi1"], params["hilp_stats"], nobs))   # [B, d]
-        # TRAP 5b: next_F is chosen PER SAMPLE by argmin over Q -- the whole vector of the
-        # head with the smaller Q, not an elementwise min over the two vectors.
-        tQ = jnp.einsum("pbd,bd->pb", tF, z)                                 # [P, B]
-        pick = (tQ[0] < tQ[1])[:, None]                                      # [B, 1]
-        next_F = jnp.where(pick, tF[0], tF[1])                               # [B, d]
+        # TRAP 5b: official HILP chooses next_F PER SAMPLE by argmin over Q -- the whole
+        # vector of the head with the smaller Q, not an elementwise min over the vectors.
+        #
+        # td_jepa does NOT do this. Its sf_loss calls
+        # get_targets_uncertainty(next_SFs, sf_pessimism_penalty) and the penalty defaults
+        # to 0.0 (agents/sf/agent.py:29), which returns preds.mean(dim=0) -- a plain MEAN
+        # over heads, with no pessimism anywhere. Replicating td_jepa therefore requires
+        # "mean"; leaving it at "argmin_q" makes the SF target pessimistic in a way theirs
+        # never is.
+        if self.head_reduce == "mean":
+            next_F = jnp.mean(tF, axis=0)                                    # [B, d]
+        elif self.head_reduce == "argmin_q":
+            tQ = jnp.einsum("pbd,bd->pb", tF, z)                             # [P, B]
+            pick = (tQ[0] < tQ[1])[:, None]                                  # [B, 1]
+            next_F = jnp.where(pick, tF[0], tF[1])                           # [B, d]
+        else:
+            raise ValueError(f"hilp_head_reduce must be 'mean' or 'argmin_q', "
+                             f"got {self.head_reduce!r}")
         target_F = jax.lax.stop_gradient(target_phi + self.discount * next_F)
 
         F = self._sf(params["hilp_sf"], obs, z, action)                       # [P, B, d]
@@ -255,6 +275,11 @@ class HILPCritic:
             sf_loss = jnp.sum(jnp.mean((Q - tQs[None]) ** 2, axis=-1))
         else:
             sf_loss = jnp.sum(jnp.mean((F - target_F[None]) ** 2, axis=(-1, -2)))
+        # td_jepa's vector branch is 0.5 * P * F.mse_loss(SFs, target_SF), and torch's
+        # mse_loss averages over ALL P*B*d elements, giving 0.5/(B*d) * sum. The line above
+        # gives 1/(B*d) * sum, i.e. exactly 2x theirs -- a 2x learning rate on hilp_sf by
+        # another name. sf_loss_scale=0.5 recovers their magnitude.
+        sf_loss = self.sf_loss_scale * sf_loss
         return sf_loss, {"sf_loss": sf_loss, "target_F": jnp.mean(target_F),
                          "phi_norm": jnp.mean(jnp.linalg.norm(target_phi, axis=-1)),
                          "z_norm": jnp.mean(jnp.linalg.norm(z, axis=-1))}
@@ -263,10 +288,16 @@ class HILPCritic:
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         z = cond["z"]
         Qs = jnp.einsum("pbd,bd->pb", self._sf(params["hilp_sf"], obs, z, actions), z)
-        # Upstream update_actor: Q = min(Q1, Q2), then actor_loss = -Q.mean() -- a pure
-        # TD3 objective with no BC term, exactly as official RLDP's extractor.
-        qmin = jnp.min(Qs, axis=0)
-        return qmin, Qs
+        # Official HILP's update_actor: Q = min(Q1, Q2), then actor_loss = -Q.mean() -- a
+        # pure TD3 objective with no BC term.
+        #
+        # td_jepa again does not: its update_actor reduces with
+        # get_targets_uncertainty(Qs, actor_pessimism_penalty), penalty 0.0 by default
+        # (agents/sf/agent.py:30), i.e. the MEAN over heads. Its bc_coeff is 0.0 too, so the
+        # Qs.abs() normalisation on the next line never fires -- which our
+        # actor.alpha=0.0 / actor.q_normalize=false already match.
+        q = jnp.mean(Qs, axis=0) if self.actor_head_reduce == "mean" else jnp.min(Qs, axis=0)
+        return q, Qs
 
     def cond_vec(self, cond):
         return cond["z"]
@@ -412,6 +443,9 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
         stats_momentum=float(config.get("hilp_stats_momentum", 0.005)),
         q_loss=bool(config.get("hilp_q_loss", True)),
         mix_ratio=float(config.get("hilp_mix_ratio", 0.0)),
+        head_reduce=str(config.get("hilp_head_reduce", "argmin_q")),
+        actor_head_reduce=str(config.get("hilp_actor_head_reduce", "min")),
+        sf_loss_scale=float(config.get("hilp_sf_loss_scale", 1.0)),
     )
     targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
     if bool(config.get("hilp_independent_target_init", False)):

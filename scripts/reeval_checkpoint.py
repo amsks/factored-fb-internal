@@ -70,6 +70,13 @@ flags.DEFINE_integer("restore_epoch", 300000, "Checkpoint step to restore (param
 flags.DEFINE_integer("eval_episodes", 50, "Episodes to evaluate.")
 flags.DEFINE_string("tag", "", "Free-text label written into the output row (e.g. run name).")
 flags.DEFINE_string("out_jsonl", "", "Optional: append the result row to this jsonl file.")
+flags.DEFINE_bool("keep_per_episode", False,
+                  "Keep the per-episode arrays in the jsonl row instead of dropping them. "
+                  "The mean hides the SHAPE of the return distribution, and on some tasks "
+                  "the shape is the finding: walker/spin is bimodal (nine episodes near 975, "
+                  "one near 40), so one catastrophic episode moves the mean ~100 and the std "
+                  "reads as 'high variance' when the truth is 'rare total failure'. Off by "
+                  "default because it makes rows much larger.")
 flags.DEFINE_integer("infer_cond_episodes", 0,
                      "If >0, infer eval conditioning from this many relabelled transitions "
                      "before evaluating (the zero-shot reward-sample route). Same meaning as "
@@ -165,7 +172,7 @@ def main(_):
         if hasattr(eval_agent, "witness"):
             row.update(eval_agent.witness())
             eval_agent.reset_counts()
-        row.pop("_per_episode", None)   # scalar-only report; per-episode payload not needed here
+        per_episode = row.pop("_per_episode", None)   # kept out of the printed line either way
         print(f"REEVAL tag={FLAGS.tag} task={task_id} epoch={FLAGS.restore_epoch} "
               f"episodes={FLAGS.eval_episodes} {row}", flush=True)
         if FLAGS.out_jsonl:
@@ -174,6 +181,8 @@ def main(_):
                        restore_path=FLAGS.restore_path, restore_epoch=FLAGS.restore_epoch,
                        eval_episodes=FLAGS.eval_episodes, task_id=task_id,
                        exorl_task=cfg.get("exorl_task"), **row)
+            if FLAGS.keep_per_episode and per_episode:
+                rec["_per_episode"] = per_episode
             with open(FLAGS.out_jsonl, "a") as f:
                 f.write(json.dumps(rec, default=float) + "\n")
     # Return NOTHING. absl does `sys.exit(main(argv))`, so a returned list becomes the exit

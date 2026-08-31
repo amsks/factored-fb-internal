@@ -42,7 +42,20 @@ sf:
   hidden_layers: 2
   embedding_layers: 2
 sf_target_tau: 0.001       # td_jepa sf_target_tau (official HILP: 0.01)
-hilp_q_loss: true
+hilp_q_loss: false        # td_jepa's SFAgentTrainConfig.q_loss default, which neither
+                          # BASE_AGENT_CFG["hilp"] nor sweep_hilp_walker overrides. FALSE
+                          # regresses the SF VECTOR (target_SF = next_phi + discount*next_SF,
+                          # MSE over all z_dim components); TRUE regresses only the SCALAR
+                          # Q = <psi, z>.
+                          #
+                          # This is not a stylistic difference. Under the scalar loss only
+                          # psi's component ALONG z is constrained and the other 49
+                          # directions are free, so psi collapses -- measured at 2.5-2.8
+                          # effective dimensions of 50, with the surviving subspace nearly
+                          # ORTHOGONAL between seeds (principal cosines 0.29/0.18/0.02).
+                          # Q = <psi,z> then lives on a ~2-dim, seed-arbitrary surface and
+                          # the actor optimises a different objective per seed: walker/spin
+                          # came out 218 / 409 / 953 across three seeds.
 lr_f: 1.0e-4
 lr_b: 1.0e-4
 lr_actor: 1.0e-4
@@ -54,3 +67,13 @@ hilp_p_currgoal: 0.0
 hilp_mix_ratio: 0.5
 stages_from_pre_step_params: true
 hilp_independent_target_init: true
+
+# --- td_jepa parity: head reductions and loss scale ---
+# All three default to OFFICIAL HILP's behaviour in impls/critics/hilp.py; td_jepa differs
+# on every one, and every difference is theirs being NON-pessimistic where official HILP is
+# pessimistic. Measured consequence of getting these wrong, together with hilp_q_loss:
+# psi collapsed to 2.5-2.8 effective dimensions of 50 with a seed-arbitrary surviving
+# subspace, and walker/spin came out 218 / 409 / 953 across three seeds.
+hilp_head_reduce: mean          # sf_loss: get_targets_uncertainty(next_SFs, 0.0) = mean over heads
+hilp_actor_head_reduce: mean    # update_actor: get_targets_uncertainty(Qs, 0.0) = mean over heads
+hilp_sf_loss_scale: 0.5         # theirs is 0.5*P*mse_loss (mean over P*B*d); ours was 2x that

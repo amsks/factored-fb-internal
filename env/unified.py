@@ -473,10 +473,23 @@ class UnifiedAdapter:
         if dist_min:
             out["goal_dist_min"] = float(np.mean(dist_min))
             out["goal_dist_final"] = float(np.mean(dist_final))
-            # The per-episode arrays are what E5 re-scores at a sweep of radii; the means
-            # above are only the at-a-glance summary that fits in eval.csv. impls/main.py
-            # pops this key out of the row before logging and writes it to its own file.
-            out["_per_episode"] = {"goal_dist_min": [float(x) for x in dist_min],
-                                   "goal_dist_final": [float(x) for x in dist_final],
-                                   "success": [float(x) for x in successes]}
+        # The per-episode arrays are what E5 re-scores at a sweep of radii; the means above
+        # are only the at-a-glance summary that fits in eval.csv. impls/main.py pops this
+        # key out of the row before logging and writes it to its own file.
+        #
+        # episode_return is kept per-episode for DMC because the MEAN hides the shape of
+        # the distribution, and on some tasks the shape IS the finding. walker/spin is
+        # bimodal: nine episodes near 975 and one near 40, so a single catastrophic episode
+        # moves the seed mean by ~100 and the reported std says "high variance" when the
+        # truth is "rare total failure". Without the raw episodes there is no way to tell a
+        # policy that fails 10% of the time from one that is uniformly mediocre.
+        per_ep = {}
+        if is_dmc:
+            per_ep["episode_return"] = [float(x) for x in returns]
+        if dist_min:
+            per_ep.update({"goal_dist_min": [float(x) for x in dist_min],
+                           "goal_dist_final": [float(x) for x in dist_final],
+                           "success": [float(x) for x in successes]})
+        if per_ep:
+            out["_per_episode"] = per_ep
         return out, frames
