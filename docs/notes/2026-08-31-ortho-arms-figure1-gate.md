@@ -92,3 +92,30 @@ rather than immediately. Waiting is weakly dominant: they were at ~790k against 
 checkpoint, so rolling at once would have discarded 30-50k steps each, whereas a death
 while waiting resumes from that same 750k. Nothing died; the roll cost ~10k steps per
 cell instead of ~40k.
+
+## End of phase 1 (2M): B is final, and the arm ordering resolves
+
+Phase 2 freezes B, so these are the numbers that characterise each arm's representation.
+
+| arm | seed | mean\|cos\| | mean cos | eff.rank |
+|---|---|---|---|---|
+| `rldp_orthoa` | 1 | 0.0481 | +0.0093 | 181.6 |
+| `rldp_orthoa` | 3 | 0.0480 | +0.0092 | 180.5 |
+| `rldp_orthob` | 1 | 0.0482 | +0.0155 | 151.4 |
+| `rldp_orthob` | 2 | 0.0487 | +0.0166 | 151.9 |
+| run 2 (inert)  | 1 | 0.4270 | +0.4270 | 25.8  |
+
+**Correction to the 500k entry above.** I wrote there that the arm A vs arm B ordering
+was "well inside the range where seed noise could explain it." With two seeds per arm
+that is wrong and the ordering is resolved: within-arm spread is ~1 rank unit (181.6 vs
+180.5; 151.4 vs 151.9) against a ~29 unit gap between arms. Arm A really does hold ~20%
+more effective dimensions than arm B.
+
+The representation also converges early -- 500k to 2M moves effective rank by less than
+7 units in either arm -- so the 500k gate reading was not a transient.
+
+What is still open is whether rank buys returns. Arm A pays 3.4x arm B's prediction loss
+(sp_loss 1.78 vs 0.52) for its extra dimensions, and nothing measured so far says which
+side of that trade lands better on task performance. Phase 2 trains the actor from 2M to
+5M; that is the first point where the question is answerable, and mid-run evals are not
+a substitute (see the standing rule about comparing evals across steps).
