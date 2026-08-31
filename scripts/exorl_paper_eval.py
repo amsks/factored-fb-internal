@@ -54,6 +54,15 @@ from env import exorl_env  # noqa: E402
 # The four tasks per domain that RLDP Table 1 reports. Read off the env layer's own
 # registry, then narrowed to the paper's four where the registry carries more (cheetah
 # also defines flip / flip_backward, which Table 1 does not report).
+# td_jepa's ALL_TASKS, which differ from RLDP Table 1 on walker: their fourth task is
+# `spin`, not `flip`, and the two are different rewards (env/exorl_dmc_tasks/walker.py).
+# Selected with --task-set tdjepa, so a td_jepa replication scores THEIR four tasks
+# without changing what the RLDP-paper comparison scores.
+TDJEPA_TASKS = {
+    "dmc-walker": ("stand", "walk", "run", "spin"),
+    "dmc-cheetah": ("walk", "walk_backward", "run", "run_backward"),
+}
+
 PAPER_TASKS = {
     "dmc-walker": ("stand", "walk", "run", "flip"),
     "dmc-cheetah": ("run", "run_backward", "walk", "walk_backward"),
@@ -112,10 +121,12 @@ def _legacy_arch_overrides(run_dir):
 def _check_tasks():
     """Fail loudly if the paper's task names are not the env layer's task names. A typo
     here would silently score a different task than the table claims."""
-    for dom, tasks in PAPER_TASKS.items():
-        known = set(exorl_env.reward_tasks(dom))
-        missing = [t for t in tasks if t not in known]
-        assert not missing, f"{dom}: {missing} not in env/exorl_env.py TASKS ({sorted(known)})"
+    for label, table in (("PAPER_TASKS", PAPER_TASKS), ("TDJEPA_TASKS", TDJEPA_TASKS)):
+        for dom, tasks in table.items():
+            known = set(exorl_env.reward_tasks(dom))
+            missing = [t for t in tasks if t not in known]
+            assert not missing, (f"{label}[{dom}]: {missing} not in env/exorl_env.py "
+                                 f"TASKS ({sorted(known)})")
 
 
 def run_cell(args, domain, task, seed):
@@ -238,6 +249,9 @@ def main():
     ap.add_argument("--inference-samples", type=int, default=None,
                     help="reward-labelled TRANSITIONS for z inference; default resolves "
                          "from the critic (RLDP 50k, HILP 10k)")
+    ap.add_argument("--task-set", choices=["paper", "tdjepa"], default="paper",
+                    help="which four tasks per domain to score. 'paper' is RLDP Table 1; "
+                         "'tdjepa' is td_jepa's ALL_TASKS (walker uses spin, not flip)")
     ap.add_argument("--out", default="exp/paper_eval.jsonl")
     ap.add_argument("--python", default="/dev/shm/.venv-jax/bin/python")
     ap.add_argument("--jobs", type=int, default=1,
@@ -254,7 +268,11 @@ def main():
     if args.report_only:
         report(args.out, args.critic); return
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    todo = [(d, t, s) for d in args.domains for t in PAPER_TASKS[d] for s in args.seeds]
+    table = TDJEPA_TASKS if args.task_set == "tdjepa" else PAPER_TASKS
+    missing = [d for d in args.domains if d not in table]
+    if missing:
+        raise SystemExit(f"--task-set {args.task_set} has no tasks for {missing}")
+    todo = [(d, t, s) for d in args.domains for t in table[d] for s in args.seeds]
     print(f"{len(todo)} cells: {len(args.domains)} domains x 4 tasks x {len(args.seeds)} seeds"
           f" ({args.jobs} at a time)", flush=True)
     # Each cell is an independent subprocess that appends one line to --out; the sequential
