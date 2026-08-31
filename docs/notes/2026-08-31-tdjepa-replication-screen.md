@@ -95,3 +95,34 @@ A large RLDP gap means our jax RLDP diverges from theirs and the divergence is f
 A small gap licenses using our jax codebase — which has PSM and all three density
 variants, none of which exist in td_jepa — for the density comparison, anchored to an
 external reference.
+
+## Correction, 2026-08-31: the first HILP attempt ran the wrong config
+
+The first `hilp_tdj` cells trained ~260k steps under a config the yaml did not describe,
+and were discarded. `scripts/launch_exorl_official.sh` matched them with its `hilp*`
+branch, which force-overrides `hilp_discount` and `hilp_q_loss` per domain from OFFICIAL
+HILP's README reproducing commands -- walker gets 0.96 and `q_loss=false`. `hilp_tdj.yaml`
+sets 0.98 and true to match td_jepa, and an `--override` always beats the yaml, so the
+file documented one configuration and the run executed another. It also inherited the
+`hilp*` branch's 1M step budget instead of this screen's 500k.
+
+Caught by reading the actual process command line rather than trusting the yaml. Fixed
+with a `hilp_tdj*` case ahead of `hilp*` that passes no per-domain HILP overrides and
+takes its step budget from STEPS.
+
+Discarded: 260k steps x 3 seeds, plus their 250k checkpoints. Output moved to
+`exp/exorl-tdj/dmc-walker/hilp_tdj_WRONGCFG/` and `logs/hilp_tdj-walker-s*.WRONGCFG.log`
+rather than deleted. Restarted from scratch on dedicated GPUs.
+
+Worth stating plainly: this is the same class of defect as everything else found today --
+a value that is right in the file that describes the run and wrong in the run itself, with
+nothing failing. The general lesson is that a config file is a claim about a run, not
+evidence of one; the process command line is the evidence.
+
+## Compute allocation (wall-clock only, does not affect the numbers)
+
+The two sides did not get equal hardware. td_jepa ran one cell per GPU throughout. Ours
+started packed three-per-GPU and were moved to one-per-GPU as their cells finished, which
+cost a restart: RLDP discarded ~85k steps (no checkpoint existed below its 250k interval,
+since lowered to 100k). Both sides still train the same 500k steps and are scored
+identically, so this is a wall-clock note, not a confound.

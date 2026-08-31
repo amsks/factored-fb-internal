@@ -162,6 +162,15 @@ for CRITIC in $CRITICS; do
       # the official README's reproducing commands (hilp_discount 0.96 walker / 0.98
       # cheetah, q_loss False for both).
       case "$CRITIC" in
+        hilp_tdj*)
+          # The td_jepa replication arm. It must NOT get the official-README per-domain
+          # settings below: those are official HILP's (walker hilp_discount 0.96,
+          # q_loss false) and they silently clobber what hilp_tdj.yaml sets to match
+          # td_jepa (0.98, true). An --override always beats the yaml, so leaving this
+          # arm in the hilp* branch meant the config file documented one thing and the
+          # run did another. Everything it needs is in its yaml.
+          CSTEPS="${HILP_STEPS:-$STEPS}"
+          OV=( --override "discount=${DISC[$DOM]}" "${ACTOR_OV[@]}" ) ;;
         hilp*)
           CSTEPS="${HILP_STEPS:-1000000}"
           declare -A HDISC=( [dmc-walker]="0.96" [dmc-cheetah]="0.98" \
