@@ -123,7 +123,10 @@ if [ "${WINDOW_ONLY:-0}" != "1" ]; then
     echo "  tmux attach -t $SESSION ; tmux kill-session -t $SESSION"; exit 1; }
 fi
 
-GPU=0
+# GPU_START offsets the device counter. Restarting a subset of a running matrix needs it:
+# the counter always begins at 0, so relaunching two dead cells would put them on GPUs 0
+# and 1 -- on top of two healthy runs -- rather than on the devices the dead cells freed.
+GPU=${GPU_START:-0}
 LAUNCHED=0
 for CRITIC in $CRITICS; do
   for DOM in $DOMAINS; do
