@@ -61,7 +61,11 @@ hilp_future: 0.99
 # lr = lr_coef * lr)` with lr_coef 5 and lr 1e-4 (sf.py:37,490), while the successor net
 # and the actor use 1e-4 (sf.py:486-487). Riding lr_b would make phi 5x too slow, and phi
 # IS the method.
-group_lr: {hilp_phi1: 5.0e-4, hilp_phi2: 5.0e-4}
+# `lr_actor` in a CRITIC yaml is inert: config_utils merges actor LAST, and every actor
+# yaml defines lr_actor (ddpgbc 3e-4), so it silently overwrites the critic's. Official
+# HILP uses 1e-4 for the actor (sf.py:486). Routed through group_lr, which the actor
+# yaml cannot overwrite.
+group_lr: {hilp_phi1: 5.0e-4, hilp_phi2: 5.0e-4, actor: 1.0e-4}
 
 # Goal replacement. Source default is 0, but EVERY published HILP-zsrl command in the
 # official README passes p_randomgoal=0.375 -- 37.5% of goals are drawn from a DIFFERENT
