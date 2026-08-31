@@ -126,3 +126,30 @@ started packed three-per-GPU and were moved to one-per-GPU as their cells finish
 cost a restart: RLDP discarded ~85k steps (no checkpoint existed below its 250k interval,
 since lowered to 100k). Both sides still train the same 500k steps and are scored
 identically, so this is a wall-clock note, not a confound.
+
+## THEIR side is finished — the reference numbers
+
+td_jepa, walker, 500k, 3 seeds, their own protocol (10 eval episodes, 10k inference
+samples), read from their `reward.csv` via `scripts/tdjepa_report.py`.
+
+| task | their RLDP | their HILP |
+|---|---|---|
+| stand | 762.9 +- 51.8 | 863.6 +- 65.2 |
+| walk  | 508.8 +- 88.4 | 872.7 +- 52.4 |
+| run   | 226.3 +- 44.5 | 301.0 +- 47.1 |
+| spin  | 916.9 +- 55.5 | 981.0 +-  2.3 |
+| **aggregate** | **603.7** | **754.6** |
+
+**500k has enough discriminating power.** Against their published 3M walker column --
+RLDP 723.9, HILP 796.4 -- these sit at 83% and 95% at one sixth of the training. So a gap
+on our side will not be dismissable as "both undertrained".
+
+**HILP beats RLDP here too**, 754.6 vs 603.7, matching the ordering in their published
+table and inverting RLDP's own paper. That is now a third independent source for RLDP
+under-reporting HILP, after HILP's own Table 3 and td_jepa's published column.
+
+Untrained floor for reference (their t=0 evals): stand 164.9, walk 29.7, run 27.4,
+spin 27.0. Every trained cell above clears it comfortably, so the eval path is sound on
+their side.
+
+Ours is still training and will be scored at the same protocol with `--task-set tdjepa`.
