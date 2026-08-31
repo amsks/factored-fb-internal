@@ -65,3 +65,30 @@ representation question, and phase 1 trains no actor -- so it is not answerable 
 Seed 1 only, one domain, one checkpoint per arm. The effect is large enough that seed
 noise is not a plausible explanation for a 10x gap, but the arm A vs arm B ordering
 is well inside the range where it could be.
+
+## Operational addendum: the whole matrix is now on the mitigation
+
+Two more cells (orthoa-s2 @ 500k, orthob-s0 @ 250k) hit
+`CUDA_ERROR_STREAM_CAPTURE_INVALIDATED` in the same place -- the device-to-host copy
+behind the logging line. Both were launched before the command-buffer mitigation went
+into the launcher. The two cells restarted WITH it were still running. That is three
+waves in which only unmitigated cells have died, which is enough to stop treating it as
+coincidence.
+
+All 8 cells now run with `XLA_FLAGS=--xla_gpu_enable_command_buffer=` and all resumed
+from checkpoint rather than from zero.
+
+Two launcher defects surfaced doing it:
+
+- **`RESUME=1` is opt-in and the earlier restart did not set it.** Harmless at the time
+  (those cells crashed at 65k and 120k, before the first 250k checkpoint existed, so
+  there was nothing to resume) but it would have silently discarded 500k steps here.
+- **`GPU_START` did not exist.** The device counter always starts at 0, so relaunching
+  2 of 8 cells would have placed them on GPUs 0 and 1, on top of two healthy runs,
+  instead of on the devices the dead cells had just freed.
+
+The four healthy-but-unmitigated cells were rolled onto the fix at their 1M checkpoint
+rather than immediately. Waiting is weakly dominant: they were at ~790k against a 750k
+checkpoint, so rolling at once would have discarded 30-50k steps each, whereas a death
+while waiting resumes from that same 750k. Nothing died; the roll cost ~10k steps per
+cell instead of ~40k.
