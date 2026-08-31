@@ -146,13 +146,46 @@ def resolve_run_dir(path_glob):
     return candidates[0]
 
 
-def restore_agent(agent, restore_path, restore_epoch):
-    """Restore the agent from restore_path (glob) / params_{restore_epoch}.pkl."""
+def _keep_fresh_opt_state(fresh_sd, loaded):
+    """Return `loaded` with every 'opt_state' subtree replaced by the fresh agent's.
+
+    Deliberately NOT a shape check: the point is to ignore the optimizer entirely, whatever
+    it looks like on either side."""
+    if not isinstance(loaded, dict) or not isinstance(fresh_sd, dict):
+        return loaded
+    out = {}
+    for k, v in loaded.items():
+        if k not in fresh_sd:
+            out[k] = v
+        elif k == 'opt_state':
+            out[k] = fresh_sd[k]
+        else:
+            out[k] = _keep_fresh_opt_state(fresh_sd[k], v)
+    return out
+
+
+def restore_agent(agent, restore_path, restore_epoch, params_only=False):
+    """Restore the agent from restore_path (glob) / params_{restore_epoch}.pkl.
+
+    params_only=True keeps the freshly-built optimizer state and restores everything else,
+    which is what EVALUATION wants: an eval never steps the optimizer, so making the run
+    depend on the optax chain matching couples scoring an old checkpoint to every later
+    change in how groups are optimized. Adding per-group AdamW turned a 2-transform chain
+    into a 3-transform one and made every pre-existing run unevaluable with
+    "The size of the list and the state dict do not match, got 3 and 2".
+
+    Params stay STRICT under this flag -- a shape or key mismatch in the actual weights
+    still raises. That is the difference from warm_start_agent, which silently leaves a
+    mismatched group at its fresh init; silently evaluating a randomly-initialised tower
+    is exactly the failure an eval path must not have."""
     restore_path = resolve_run_dir(restore_path) + f'/params_{restore_epoch}.pkl'
     with open(restore_path, 'rb') as f:
         load_dict = pickle.load(f)
-    agent = flax.serialization.from_state_dict(agent, load_dict['agent'])
-    print(f'Restored from {restore_path}')
+    loaded = load_dict['agent']
+    if params_only:
+        loaded = _keep_fresh_opt_state(flax.serialization.to_state_dict(agent), loaded)
+    agent = flax.serialization.from_state_dict(agent, loaded)
+    print(f'Restored from {restore_path}' + (' (params only)' if params_only else ''))
     return agent
 
 

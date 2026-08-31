@@ -92,7 +92,9 @@ def main(_):
     ex = train_ds.sample(1)
     agent = Agent.create(FLAGS.critic, FLAGS.actor, FLAGS.seed,
                          jnp.asarray(ex["observations"]), jnp.asarray(ex["actions"]), cfg)
-    agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch)
+    # params_only: an eval never steps the optimizer, so a checkpoint written under a
+    # different optax chain must still score. See restore_agent's docstring.
+    agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch, params_only=True)
 
     if FLAGS.eval_on_inferred_cond and FLAGS.infer_cond_episodes <= 0:
         raise ValueError("--eval_on_inferred_cond needs --infer_cond_episodes>0: it "

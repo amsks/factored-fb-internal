@@ -428,7 +428,8 @@ def test_every_registered_reward_task_builds_and_steps(slug, reward_task):
     env, horizon = E.make_exorl_env(slug, reward_task=reward_task)
     assert horizon == 1000
     obs, _info = env.reset(seed=0)
-    expected_dim = {"point_mass_maze": 4, "walker": 24, "cheetah": 17}[E.domain_of(slug)]
+    expected_dim = {"point_mass_maze": 4, "walker": 24, "cheetah": 17,
+                        "quadruped": 78}[E.domain_of(slug)]
     assert obs.shape == (expected_dim,), f"{slug}/{reward_task}: obs {obs.shape}"
     obs, r, term, trunc, info = env.step(np.zeros(env.env.action_spec().shape))
     assert obs.shape == (expected_dim,) and not term
