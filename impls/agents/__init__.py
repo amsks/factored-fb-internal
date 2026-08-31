@@ -77,7 +77,14 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # (= run 1, ratio 1.3e4); `b` uses 1e-4, where the ortho and SP gradients
                   # balance. Config-only; same RLDPCritic class.
                   "rldp_orthoa": "rldp", "rldp_orthob": "rldp",
-                  "rldp_density_official": "rldp_density"}
+                  "rldp_density_official": "rldp_density",
+                  # td_jepa DMC replication arms. `rldp` mirrors td_jepa's OGBENCH
+                  # launcher (512-wide, L_dim 50, batch 256, discount 0.99); their DMC
+                  # launcher -- the one behind the ExoRL numbers we compare against -- is
+                  # a different configuration, so `rldp_tdj` carries it. `hilp_tdj` is
+                  # only a PARTIAL match (optimiser knobs yes, towers no); see the header
+                  # of its yaml before quoting any comparison from it. Config-only.
+                  "rldp_tdj": "rldp", "hilp_tdj": "hilp"}
 
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,
           # bridge spec 22 (see impls/actors/ddpgbc_density.py): the ddpgbc extraction

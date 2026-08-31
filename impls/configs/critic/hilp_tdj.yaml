@@ -1,0 +1,56 @@
+# HILP with td_jepa's *DMC* optimisation settings, for the replication screen against
+# their published walker number (arXiv 2510.00739 Table 1: HILP walker 796.4).
+#
+# READ THIS BEFORE QUOTING A COMPARISON FROM THIS FILE. Unlike rldp_tdj.yaml, this is
+# only a PARTIAL match. critic/hilp.yaml is transcribed from OFFICIAL HILP
+# (SFAgentConfig), while td_jepa's HILP is one of their SF-family agents wearing their
+# FB towers. Three optimisation knobs are matchable and are matched here; the network
+# architecture is a different family and is NOT matched.
+#
+# MATCHED to scripts/train/proprio/launch_sf_dmc.py BASE_CFG + BASE_AGENT_CFG["hilp"]:
+#   sf_target_tau 0.001, features_target_tau 0.001, lr_features 1e-4,
+#   expectile 0.5, prob_random_goal 0.375, data.future 0.99, z_dim 50,
+#   batch 1024, discount 0.98, norm_z true
+#
+# NOT MATCHED (theirs -> ours):
+#   phi/feature tower      256x2 norm      -> 512x2
+#   forward (SF) tower     1024x1          -> 1024, feature_dim 512
+#   left_encoder           256x0 norm      -> absent from our HILP path
+#   features.norm          False           -> our phi normalisation is not the same knob
+#   center_features        True            -> ours is hilp_stats_momentum (running mean)
+#
+# So a gap against their 796.4 does NOT by itself mean our HILP is wrong; it may mean
+# the towers differ. Treat this arm as "first HILP numbers we have ever had", not as a
+# like-for-like replication. rldp_tdj.yaml is the arm that carries the clean test.
+
+batch_size: 1024
+z_dim: 50
+num_parallel: 2
+discount: 0.98
+norm_z: true
+phi:
+  hidden_dim: 512
+  hidden_layers: 2
+hilp_discount: 0.98
+hilp_expectile: 0.5
+phi_target_tau: 0.001      # td_jepa features_target_tau (official HILP: 0.005)
+hilp_stats_momentum: 0.005
+feature_type: state
+sf:
+  hidden_dim: 1024
+  feature_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+sf_target_tau: 0.001       # td_jepa sf_target_tau (official HILP: 0.01)
+hilp_q_loss: true
+lr_f: 1.0e-4
+lr_b: 1.0e-4
+lr_actor: 1.0e-4
+dataset_class: HILPFutureDataset
+hilp_future: 0.99
+group_lr: {hilp_phi1: 1.0e-4, hilp_phi2: 1.0e-4, actor: 1.0e-4}   # td_jepa lr_features
+hilp_p_randomgoal: 0.375
+hilp_p_currgoal: 0.0
+hilp_mix_ratio: 0.5
+stages_from_pre_step_params: true
+hilp_independent_target_init: true

@@ -1,0 +1,59 @@
+# RLDP at td_jepa's *DMC/ExoRL* settings, for a like-for-like replication of their
+# published walker numbers (arXiv 2510.00739 Table 1).
+#
+# WHY THIS FILE EXISTS: critic/rldp.yaml mirrors td_jepa's *OGBench* launcher
+# (scripts/train/proprio/launch_rldp_ogbench.py) -- 512-wide towers, L_dim 50,
+# batch 256, discount 0.99, tau 0.005. Their DMC launcher is a materially different
+# configuration, and it is the one that produced the ExoRL numbers we have been
+# comparing against. Every value below is read from
+# scripts/train/proprio/launch_rldp_dmc.py BASE_CFG and the FBAgentTrainConfig
+# defaults it inherits (metamotivo/agents/fb/agent.py:22).
+#
+# Their sweep_walker overrides ortho_coef to {0.001, 0.01, 0.1} and lr_b to
+# {1e-4, 1e-5}; BASE_CFG's ortho_coef=1 is never what their walker column reports.
+# We pin the middle of that sweep, 0.01, on BOTH sides of the comparison.
+
+batch_size: 1024          # DMC launcher (ogbench uses 256)
+z_dim: 50
+L_dim: 256                # DMC launcher (ogbench uses 50)
+num_parallel: 2
+discount: 0.98            # DMC launcher (ogbench uses 0.99)
+f_target_tau: 0.001       # DMC launcher (FBAgentTrainConfig default is 0.01)
+b_target_tau: 0.001
+ortho_coef: 0.01          # middle of sweep_walker's {0.001, 0.01, 0.1}
+train_goal_ratio: 0.5
+fb_pessimism_penalty: 0.0
+norm_z: true
+lr_f: 1.0e-4
+lr_b: 1.0e-4              # the `predictor` group rides this
+lr_actor: 1.0e-4
+horizon: 5
+
+# Architectures: DMC launcher BASE_CFG.agent.model.archi.
+forward:
+  hidden_dim: 1024
+  hidden_layers: 1
+  embedding_layers: 2
+backward:
+  hidden_dim: 256
+  hidden_layers: 2
+  norm: true
+left_encoder:
+  hidden_dim: 256
+  hidden_layers: 0        # "shallow" left encoder, the launcher's default
+  norm: true
+predictor:
+  hidden_dim: 1024
+  hidden_layers: 1
+  embedding_layers: 2     # our module needs it; td_jepa's predictor has no such knob,
+                          # so this is critic/rldp.yaml's value, not a reference value
+
+# Single joint objective -- td_jepa's RLDP has NO representation/FB phase split
+# (no representation_steps anywhere; agents/rldp/agent.py:188 adds the ortho term
+# straight into fb_loss every step). This is what makes a 500k comparison meaningful
+# at all: under the official repo's two-phase schedule no actor exists before 2M.
+rldp_two_phase: false
+rldp_ortho_inert: false
+
+# horizon 5 needs the windowed sampler (critic/rldp.yaml carries the same line).
+dataset_class: WindowedDataset
