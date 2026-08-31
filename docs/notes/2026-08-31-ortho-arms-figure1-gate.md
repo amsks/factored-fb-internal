@@ -208,3 +208,59 @@ across seeds -- consistent with a critic providing little usable signal to the a
 
 The ortho arms finish 5M shortly and get the identical treatment. That comparison is the
 campaign's actual result: whether a live regularizer moves these four numbers.
+
+## RESULT: walker at 5M, n=4, full protocol (50 episodes, 50k inference samples)
+
+| run | regularizer | eff.rank | P[Q>neg] @2.5M | stand | walk | run | flip |
+|---|---|---|---|---|---|---|---|
+| run 2 | inert (official-literal) | 25.8 | 0.493 | 365.4 | 106.9 | 66.5 | 124.9 |
+| `orthoa` | live, coef 1.0 | 181 | 0.614 / 0.646 | **828.3** | **489.7** | **224.7** | **346.9** |
+| `orthob` | live, coef 1e-4 | 152 | 0.465 / 0.490 | 147.9 | 40.9 | 24.7 | 28.2 |
+| RLDP Table 1 | -- | -- | -- | 877.7 | 790.9 | 324.9 | 491.6 |
+
+`orthoa` moves every task 2.3x-4.6x over the faithful replication and goes from 14-42%
+of published to 62-94%.
+
+### The regularizer being dead is the single biggest defect, and coefficient 1.0 is right
+
+The official repository sets `ortho_coef = 1.0` and then contributes no gradient from it.
+Running that same coefficient for real is what recovers most of the gap. This is not a
+tuning result -- arm A changes exactly one thing against the official configuration, and
+that thing is whether the published coefficient actually does anything.
+
+### Weakening the coefficient is worse than having no regularizer at all
+
+`orthob` is the worst of the three on every task, below even the inert baseline, despite
+de-collapsing the representation nearly as well (152 effective dimensions against 26).
+Two things follow.
+
+**Effective rank is not the operative variable.** 152 vs 181 is a modest gap in rank and a
+5x-12x gap in return. Rank was the right diagnostic for showing the collapse is real; it
+does not predict control.
+
+**The gradient-balance framing was wrong, and I had it backwards.** I built arm B at a
+balanced ortho/SP ratio of 1.09 specifically to resemble td_jepa's working 0.56, and
+characterised arm A's 1.09e4 as pathological. Arm A is the arm that works and arm B is
+worse than doing nothing. Whatever makes the regularizer useful here, the gradient-norm
+ratio does not track it, and I should not have reasoned from that summary statistic.
+
+### The 2.5M sign test predicted the 5M returns
+
+Ranked by `P[Q_dataset > Q_negated]` at 2.5M: arm A 0.614/0.646 (above chance), arm B
+0.465/0.490 and run 2 0.493 (at or below chance). That is exactly the final ordering,
+called from a checkpoint 2.5M steps early using no rollouts. Worth keeping as a cheap
+screen -- an arm whose critic cannot beat chance at ranking a real action against its own
+negation did not go on to produce a usable policy.
+
+### What is still missing
+
+The gate is not passed. Strictly -- per-task mean within 1 sigma of the official cell on
+at least 3 of 4 tasks -- arm A fails on all four, though `stand` only narrowly (49.4 off
+against sigma 45.0). The second condition, no task below 50% of an official mean above
+100, now passes on all four where run 2 failed three.
+
+So a live regularizer at the published coefficient explains most of the shortfall but not
+the remainder. `walk` is the weakest cell at 0.62 of published and carries by far the
+largest seed spread (+-203.6 against a published +-67.6), which points at instability
+rather than a uniform offset. Cheetah and quadruped are unrun for these arms, and both
+are in Table 1.
