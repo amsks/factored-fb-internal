@@ -119,3 +119,50 @@ What is still open is whether rank buys returns. Arm A pays 3.4x arm B's predict
 side of that trade lands better on task performance. Phase 2 trains the actor from 2M to
 5M; that is the first point where the question is answerable, and mid-run evals are not
 a substitute (see the standing rule about comparing evals across steps).
+
+## Phase 2 at 2.5M: de-collapsing is necessary but NOT sufficient
+
+`scripts/rldp_action_sensitivity.py`, walker, 1024 states, one fixed random z, matched
+step 2.5M (500k of phase-2 training in every run). Sign tests over the same 1024 states;
+chance is 0.500 and the standard error is about 0.016.
+
+| run | eff.rank | ratio | P[Q_data > Q_rand] | P[Q_data > Q_neg] |
+|---|---|---|---|---|
+| run 2 (inert)   | 25.8  | 0.016 | 0.415 | 0.493 |
+| `orthoa` s1     | 181.6 | 0.033 | 0.529 | **0.614** |
+| `orthoa` s3     | 180.5 | 0.049 | 0.547 | **0.646** |
+| `orthob` s1     | 151.4 | 0.033 | 0.427 | 0.469 |
+| `orthob` s2     | 151.9 | 0.037 | 0.445 | 0.490 |
+
+**Correction to what I claimed at the gate.** I wrote that the collapse "is the diagnosis
+for the action-blind critic." That is not supported. Arm B de-collapses the representation
+just as arm A does -- 152 effective dimensions against run 2's 26 -- and its critic still
+ranks actions at chance, indistinguishable from the collapsed run. Removing the collapse
+does not by itself produce a critic that can order actions. The collapse and the
+action-blindness are both real, and the first does not explain the second.
+
+**And the raw ratio was the wrong statistic.** In any control task Q varies far more
+across states than across actions at a fixed state, because state value dominates the
+advantage. A ratio of 0.03 is not evidence of anything on its own, so the original
+"action/state sensitivity 0.061" reading proved less than I took it to prove. The sign
+tests are scale-free and are what separates the arms.
+
+**What does separate them.** Arm A is the only configuration whose critic beats chance,
+and it is not marginal on the negated-action test: 0.614 and 0.646 against 0.500, roughly
+7 and 9 standard errors, consistent across both seeds. Arm B sits at or below chance on
+both tests in both seeds, exactly where run 2 sits.
+
+So the ordering is arm A > arm B, on the one measurement that speaks to control, and it
+agrees with the effective-rank ordering (181 vs 152) rather than with the prediction-loss
+ordering (sp_loss 1.78 vs 0.52). The cheaper prediction loss buys nothing here.
+
+This is the opposite of what the gradient-balance argument predicted. Arm A is the
+configuration with the 1.09e4 ortho/SP gradient imbalance -- the one I had characterised
+as pathological, with arm B at a balanced 1.09 chosen to resemble td_jepa's working 0.56.
+The imbalanced arm is the one that works. Whatever the regularizer is doing for action
+discrimination, gradient balance is the wrong lens for predicting it.
+
+**Standing caveats.** Two seeds per arm, walker only, one fixed z, and 500k steps into a
+3M-step phase 2. Above-chance ranking is a low bar -- it says the critic is not broken,
+not that it is good. Returns at 5M remain the test that matters, and nothing here
+forecloses arm B recovering with more actor training.
