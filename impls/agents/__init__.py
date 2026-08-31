@@ -21,6 +21,7 @@ from impls.critics.density_fb import DensityFBCritic
 from impls.critics.psm import PSMCritic
 from impls.critics.psm_density import PSMDensityCritic
 from impls.critics.hilp import HILPCritic
+from impls.critics.hilp_density import HILPDensityCritic
 from impls.critics.rldp import RLDPCritic
 from impls.critics.rldp_density import RLDPDensityCritic
 from impls.actors.flowbc import FlowBCActor
@@ -35,6 +36,10 @@ CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": H
            # Density-FB's categorical successor estimator under PSM's / RLDP's own
            # representation learners (impls/critics/{psm,rldp}_density.py).
            "psm_density": PSMDensityCritic, "rldp_density": RLDPDensityCritic,
+           # ...and under HILP's, which qualifies for the same reason RLDP does: phi is
+           # trained only by the Hilbert value loss, so swapping the successor estimator
+           # changes exactly one thing (impls/critics/hilp_density.py).
+           "hilp_density": HILPDensityCritic,
            # HILP (Park et al. 2024), transcribed from the official repo; the second
            # method of the ExoRL parity campaign. Both its stages are pinned by
            # tests/impls/test_hilp_seam.py.
@@ -84,7 +89,15 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # a different configuration, so `rldp_tdj` carries it. `hilp_tdj` is
                   # only a PARTIAL match (optimiser knobs yes, towers no); see the header
                   # of its yaml before quoting any comparison from it. Config-only.
-                  "rldp_tdj": "rldp", "hilp_tdj": "hilp"}
+                  "rldp_tdj": "rldp", "hilp_tdj": "hilp",
+                  # The density ablation on that substrate: rldp_density_tdj.yaml is
+                  # rldp_tdj.yaml plus the density knobs, so this pair differs in the
+                  # successor estimator alone. Config-only; same RLDPDensityCritic.
+                  "rldp_density_tdj": "rldp_density",
+                  # The density ablation on the HILP substrate. hilp_density_tdj.yaml
+                  # extends hilp_tdj.yaml, so the four td_jepa parity fixes are inherited
+                  # rather than re-decided. Config-only; same HILPDensityCritic.
+                  "hilp_density_tdj": "hilp_density"}
 
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,
           # bridge spec 22 (see impls/actors/ddpgbc_density.py): the ddpgbc extraction

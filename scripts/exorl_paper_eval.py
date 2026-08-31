@@ -89,7 +89,7 @@ INFERENCE_SAMPLES = {
     # td_jepa replication arms: their launcher asks for 10k on BOTH methods
     # (scripts/train/proprio/launch_{rldp,sf}_dmc.py), unlike RLDP's own 50k. A missing
     # entry here silently falls back to 50k and scores the arm under the wrong protocol.
-    "rldp_tdj": 10_000, "hilp_tdj": 10_000,
+    "rldp_tdj": 10_000, "hilp_tdj": 10_000, "rldp_density_tdj": 10_000, "hilp_density_tdj": 10_000,
 }
 
 
