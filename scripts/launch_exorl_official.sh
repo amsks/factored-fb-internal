@@ -116,7 +116,10 @@ ACTOR_OV=( --override "actor.motivo_archi=true"
 # shell -- which looks like a successful restart and is not. That cost a silent no-op
 # during run 1's cheetah-s3 recovery. A transient CUDA fault taking out one of eight cells
 # is the normal case, not the exception, so recovering one cell has to be a supported path.
-if [ "${WINDOW_ONLY:-0}" != "1" ]; then
+# DRYRUN is exempt: it never touches tmux, so refusing to PLAN a matrix because an
+# unrelated one is still running just hides the plan. Planning the next wave while the
+# current one trains is the normal way this script gets used.
+if [ "${WINDOW_ONLY:-0}" != "1" ] && [ "${DRYRUN:-0}" != "1" ]; then
   tmux has-session -t="$SESSION" 2>/dev/null && {
     echo "tmux session '$SESSION' already exists -- attach and finish or kill it first,"
     echo "or set WINDOW_ONLY=1 to add these cells to it (single-cell restart):"
