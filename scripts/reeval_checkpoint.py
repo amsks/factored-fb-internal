@@ -52,7 +52,7 @@ import numpy as np
 from impls.agents import Agent
 from impls.utils.datasets import make_dataset
 from env import get_adapter, make_config
-from impls.utils.flax_utils import restore_agent
+from impls.utils.flax_utils import resolve_run_dir, restore_agent
 from impls.critics.base import infer_cond_rows
 # NOT from impls.main: that module defines absl flags at import time, and this script defines
 # its own --critic/--actor/--domain, so importing it raises DuplicateFlagError before main()
@@ -75,6 +75,17 @@ flags.DEFINE_integer("infer_cond_episodes", 0,
                      "before evaluating (the zero-shot reward-sample route). Same meaning as "
                      "impls/main.py's flag of this name, including that the rows fed to "
                      "infer_cond come from the critic's own INFER_COND_MARGINAL.")
+flags.DEFINE_bool("config_from_run", True,
+                  "Rebuild the agent from the config.json the run recorded next to its "
+                  "checkpoints, instead of from today's yaml. An eval has to construct the "
+                  "SAME networks the checkpoint was written from, and the yaml describes "
+                  "what we train now -- every knob added or retuned since a run finished "
+                  "silently changes the tower the eval builds and the restore then fails "
+                  "on a key or shape mismatch. Three separate instances of this "
+                  "(rldp_official_nets, the optax chain, actor.motivo_archi) came from "
+                  "enumerating the keys that mattered; the run's own config is the "
+                  "authority and needs no enumeration. --override still wins over it, and "
+                  "false restores the old yaml-only behaviour.")
 flags.DEFINE_bool("eval_on_inferred_cond", False,
                   "Evaluate on the inferred conditioning INSTEAD of the env's task goal. "
                   "Requires --infer_cond_episodes>0. Without it the evaluator hands a goal "
@@ -82,8 +93,42 @@ flags.DEFINE_bool("eval_on_inferred_cond", False,
                   "before it is used -- see impls/main.py.")
 
 
+def _recorded_config_overrides(run_dir):
+    """Dotlist overrides reproducing the config a run recorded, minus the keys that are
+    properties of THIS eval rather than of the trained networks."""
+    path = os.path.join(resolve_run_dir(run_dir), "config.json")
+    if not os.path.isfile(path):
+        print(f"[config_from_run] no config.json at {path}; using yaml defaults")
+        return []
+    with open(path) as f:
+        recorded = json.load(f).get("config", {})
+    # Keys the eval sets for itself. Everything else describes the trained agent.
+    skip = {"seed", "save_dir", "restore_path", "restore_epoch", "train_steps",
+            "eval_episodes", "eval_interval", "save_interval", "log_interval",
+            "exorl_task", "wandb", "run_group", "online"}
+    out = []
+
+    def walk(prefix, node):
+        for k, v in node.items():
+            if not prefix and k in skip:
+                continue
+            key = f"{prefix}{k}"
+            if isinstance(v, dict):
+                walk(f"{key}.", v)
+            elif isinstance(v, str):
+                out.append(f'{key}="{v}"')
+            else:
+                out.append(f"{key}={json.dumps(v)}")
+
+    walk("", recorded)
+    return out
+
+
 def main(_):
-    cfg = make_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
+    # Recorded config first, CLI --override last, so an explicit override still wins.
+    base = (_recorded_config_overrides(FLAGS.restore_path)
+            if FLAGS.config_from_run and FLAGS.restore_path else [])
+    cfg = make_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, base + list(FLAGS.override))
     np.random.seed(FLAGS.seed)
 
     adapter = get_adapter(cfg)
