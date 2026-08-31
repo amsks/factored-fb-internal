@@ -88,7 +88,12 @@ TASKS = {
     "dmc-point-mass-maze": ("point_mass_maze", "reach_top_left",
                             ("reach_top_left", "reach_top_right",
                              "reach_bottom_left", "reach_bottom_right")),
-    "dmc-walker":          ("walker", "walk", ("stand", "walk", "run", "flip")),
+    # `spin` is td_jepa's fourth walker task; ExoRL's and RLDP Table 1's is `flip`, and
+    # they are different rewards (see env/exorl_dmc_tasks/walker.py::spin). Both are
+    # registered so a td_jepa comparison can score theirs without changing what the
+    # RLDP-paper comparison scores -- PAPER_TASKS in scripts/exorl_paper_eval.py still
+    # names flip.
+    "dmc-walker":          ("walker", "walk", ("stand", "walk", "run", "flip", "spin")),
     # cheetah: `run` is the dm_control suite task; the others are additions in
     # env/exorl_dmc_tasks/cheetah.py. walk/walk_backward (speed threshold 2) come from
     # Touati et al.'s controllable_agent fork, NOT the exorl repo — they are the tasks the

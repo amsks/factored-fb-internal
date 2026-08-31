@@ -45,6 +45,9 @@ _WALK_SPEED = 1
 _RUN_SPEED = 8
 _SPIN_SPEED = 5
 
+# td_jepa's `spin` task threshold; their walker.py uses a literal 10, not _SPIN_SPEED.
+_TDJEPA_SPIN_THRESHOLD = 10
+
 SUITE = containers.TaggedTasks()
 
 
@@ -76,6 +79,30 @@ def flip(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
     """Returns the Run task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
     task = PlanarWalker(move_speed=_RUN_SPEED, flip=True, random=random)
+    environment_kwargs = environment_kwargs or {}
+    return control.Environment(physics,
+                               task,
+                               time_limit=time_limit,
+                               control_timestep=_CONTROL_TIMESTEP,
+                               **environment_kwargs)
+
+
+@SUITE.add('benchmarking')
+def spin(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
+    """Returns the Spin task.
+
+    NOT a synonym for `flip`, despite both rewarding angular momentum. Ported from
+    td_jepa (metamotivo/envs/dmc_tasks/walker.py) so their walker column can be compared
+    cell-for-cell: their ALL_TASKS['walker'] is (stand, walk, run, SPIN) where ExoRL's --
+    and RLDP Table 1's -- fourth task is `flip`.
+
+    spin: tolerance(angmomentum, bounds=(10, inf), margin=10), returned ALONE.
+    flip: tolerance(angmomentum, bounds=( 5, inf), margin= 5), multiplied into standing.
+
+    So spin needs twice the angular momentum and carries no standing requirement.
+    """
+    physics = Physics.from_xml_string(*get_model_and_assets())
+    task = PlanarWalker(move_speed=_RUN_SPEED, spin=True, random=random)
     environment_kwargs = environment_kwargs or {}
     return control.Environment(physics,
                                task,
@@ -124,7 +151,7 @@ class Physics(mujoco.Physics):
 
 class PlanarWalker(base.Task):
     """A planar walker task."""
-    def __init__(self, move_speed, flip=False, random=None):
+    def __init__(self, move_speed, flip=False, spin=False, random=None):
         """Initializes an instance of `PlanarWalker`.
 
     Args:
@@ -137,6 +164,7 @@ class PlanarWalker(base.Task):
     """
         self._move_speed = move_speed
         self._flip = flip
+        self._spin = spin
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
@@ -168,6 +196,15 @@ class PlanarWalker(base.Task):
                                      margin=_STAND_HEIGHT / 2)
         upright = (1 + physics.torso_upright()) / 2
         stand_reward = (3 * standing + upright) / 4
+
+        if self._spin:
+            # td_jepa returns the spin term ALONE -- no stand_reward factor, and a
+            # threshold of 10 rather than flip's _SPIN_SPEED (5).
+            return rewards.tolerance(physics.angmomentum(),
+                                     bounds=(_TDJEPA_SPIN_THRESHOLD, float('inf')),
+                                     margin=_TDJEPA_SPIN_THRESHOLD,
+                                     value_at_margin=0,
+                                     sigmoid='linear')
 
         if self._flip:
             move_reward = rewards.tolerance(physics.angmomentum(),
