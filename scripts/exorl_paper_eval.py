@@ -80,6 +80,35 @@ INFERENCE_SAMPLES = {
 }
 
 
+# Architecture-affecting config keys that were ADDED after some runs were trained. A run
+# checkpointed before the key existed was trained with the flag off, but today's yaml
+# turns it on, so rebuilding the agent from the yaml alone produces a tower the checkpoint
+# cannot populate -- flax then fails with a key mismatch on every cell. The run's own
+# config.json sits next to its checkpoints and records what it was actually trained with,
+# so that is the authority, not the current yaml.
+#
+# Keys are added here as they appear. Absent from a run's config.json => it predates the
+# key => the flag was off for that run.
+_ARCH_KEYS_DEFAULT_OFF = ("rldp_official_nets",)
+
+
+def _legacy_arch_overrides(run_dir):
+    """Overrides that pin a pre-existing run to the architecture it was trained with."""
+    cfg_path = os.path.join(run_dir, "config.json")
+    if not os.path.isfile(cfg_path):
+        return []
+    try:
+        with open(cfg_path) as f:
+            recorded = json.load(f).get("config", {})
+    except (OSError, ValueError):
+        return []          # unreadable config: fall through to the yaml and fail loudly
+    out = []
+    for key in _ARCH_KEYS_DEFAULT_OFF:
+        if key not in recorded:
+            out += ["--override", f"{key}=false"]
+    return out
+
+
 def _check_tasks():
     """Fail loudly if the paper's task names are not the env layer's task names. A typo
     here would silently score a different task than the table claims."""
@@ -96,6 +125,7 @@ def run_cell(args, domain, task, seed):
     # must show up as a hole in the table rather than as a smaller n. Checked AFTER the
     # dry-run print so `--dry-run` shows the full matrix before anything has trained.
     missing = not os.path.isdir(run_dir)
+    legacy = _legacy_arch_overrides(run_dir)
     cmd = [args.python, "-m", "scripts.reeval_checkpoint",
            "--critic", args.critic, "--actor", args.actor, "--domain", domain,
            "--seed", str(seed), "--restore_path", run_dir,
@@ -116,7 +146,10 @@ def run_cell(args, domain, task, seed):
            "--override", "actor.alpha=0.0",
            "--override", "actor.q_normalize=false",
            "--override", "actor.q_noise_std=0.2",
-           "--override", "actor.boot_noise_std=0.2"]
+           "--override", "actor.boot_noise_std=0.2"] + legacy
+    if legacy and not args.dry_run:
+        print(f"LEGACY-ARCH {domain}/{task}/s{seed}: {' '.join(legacy[1::2])} "
+              f"(from {os.path.basename(run_dir)}/config.json)", flush=True)
     if args.dry_run:
         print(("MISSING-RUNDIR " if missing else "") + " ".join(cmd))
         return {"domain": domain, "task": task, "seed": seed, "status": "dryrun"}
