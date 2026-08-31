@@ -178,9 +178,15 @@ for CRITIC in $CRITICS; do
       # `export` in this script never reaches it, and the run dies in _mujoco_overlay()
       # with "no usable mujoco/dm_control pairing found". Setting them in the command
       # string means the shell tmux spawns sets them itself.
+      # CUDA GRAPHS OFF. `CUDA_ERROR_STREAM_CAPTURE_INVALIDATED` has now killed a cell in
+      # every wave -- 4 occurrences, ~25% of cells -- always inside the logging line's
+      # device->host transfer. Run 2's walker-s1 was restarted with command buffers
+      # disabled and ran to 5M without recurrence. Disabling them is an execution-
+      # scheduling change; it does not alter numerics.
       ENVV="FB_MUJOCO_SITE_PACKAGES=$FB_MUJOCO_SITE_PACKAGES \
 EXORL_DATA_ROOT=$EXORL_DATA_ROOT EXORL_CACHE_ROOT=$EXORL_CACHE_ROOT \
-XLA_PYTHON_CLIENT_PREALLOCATE=false"
+XLA_PYTHON_CLIENT_PREALLOCATE=false \
+XLA_FLAGS=--xla_gpu_enable_command_buffer="
       CMD="cd $REPO && $ENVV CUDA_VISIBLE_DEVICES=$((GPU % NGPU)) $PY -m impls.main \
 --critic $CRITIC --actor $ACTOR --domain $DOM --seed $SEED \
 --train_steps $CSTEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL \
