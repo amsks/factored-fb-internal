@@ -66,6 +66,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
+from impls.critics._measure_common import parse_hit_spec, scaled_hit_cols
 from impls.utils.networks import ForwardMap, HILPForwardMap, PhiMap
 from impls.utils.fb_math import project_z, targets_uncertainty
 
@@ -170,6 +171,21 @@ class HILPCritic:
     head_reduce: str        # SF TARGET across parallel heads: "argmin_q" (official) | "mean"
     actor_head_reduce: str  # ACTOR's Q across heads: "min" (official) | "mean"
     sf_loss_scale: float    # multiplies the SF loss: 1.0 (official) | 0.5 (td_jepa)
+    # `backward_input` ("state" | "hit_spec"): what the phi towers consume as their RAW
+    # input, the same knob rldp.py and psm.py carry for B / phi. "state" (default) is the
+    # identity and reproduces every published HILP cell byte-for-byte; "hit_spec" feeds
+    # the eps-scaled object-coordinate block slice instead (density_fb's
+    # `_density_queries` semantics). On cube this is the ingredient that separates the
+    # 1.0 rldp_density_oc cell from the 0.2 state-input one.
+    #
+    # NOTE what it changes for HILP specifically, which is MORE than it changes for RLDP:
+    # phi is not only the successor outcome space here, it is also the Hilbert METRIC the
+    # IQL value loss fits. Under "hit_spec" that metric measures temporal distance between
+    # OBJECT configurations with the arm marginalized out, and r(u) = phi(u)^T z becomes a
+    # purely object-defined reward. That is the intended transfer on manipulation, but it
+    # is a change to the representation's meaning, not just to a tower's input width.
+    backward_input: str = "state"
+    blocks: tuple = ()
 
     GROUPS = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats")
     STAGES = ("phi", "sf")
@@ -201,11 +217,21 @@ class HILPCritic:
         return ("hilp_sf",)
 
     # --- towers -------------------------------------------------------------
+    def _phi_in(self, x):
+        """phi's raw input under `backward_input`. THE choke point: every phi application
+        routes through here -- `_phi`, `_phi2`, and the `apply_phi` closure the value loss
+        is handed -- so no caller can feed the value loss a full state while the SF branch
+        reads a slice. In "state" mode this is the identity; in "hit_spec" mode it is the
+        eps-scaled hit-spec block slice. No caller pre-slices."""
+        if self.backward_input == "state":
+            return x
+        return scaled_hit_cols(x, self.blocks)
+
     def _phi(self, p, x):
-        return self.hilp_phi1.apply({"params": p}, x)
+        return self.hilp_phi1.apply({"params": p}, self._phi_in(x))
 
     def _phi2(self, p, x):
-        return self.hilp_phi2.apply({"params": p}, x)
+        return self.hilp_phi2.apply({"params": p}, self._phi_in(x))
 
     def _sf(self, p, obs, z, action):
         return self.hilp_sf.apply({"params": p}, obs, z, action)
@@ -230,7 +256,11 @@ class HILPCritic:
             # after 15 unit tests passed, because they feed arrays directly.
             return hilp_phi_loss(
                 params["hilp_phi1"], params["hilp_phi2"], target["hilp_phi1"], target["hilp_phi2"],
-                lambda p, x: self.hilp_phi1.apply({"params": p}, x),
+                # THROUGH the choke point: phi1's module applied to whichever tower's
+                # params, on the `backward_input` view. Bypassing `_phi_in` here would fit
+                # the Hilbert metric on full states while the SF branch reads object
+                # coordinates -- two different representations under one name.
+                lambda p, x: self._phi(p, x),
                 batch["observations"], batch["hilp_future_observations"], batch["next_observations"],
                 self.hilp_discount, self.hilp_expectile)
 
@@ -407,6 +437,24 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
             f"published ExoRL setting is 'state'.")
     feature_dim = z_dim
 
+    backward_input = str(config.get("backward_input", "state"))
+    assert backward_input in ("state", "hit_spec"), (
+        f"backward_input must be 'state' or 'hit_spec', got {backward_input!r}")
+    blocks = ()
+    ex_phi_in = ex_obs
+    if backward_input == "hit_spec":
+        # phi's input becomes a literal column slice of the observation, so the spec must
+        # fit inside it -- jax would otherwise clip short rows into a silently different
+        # (narrower) input at trace time. Same check as rldp.py / psm.py.
+        blocks = parse_hit_spec(config.get("measure_hit_spec", "19:22:0.4"))
+        need = max(b for (_a, b, _e) in blocks)
+        obs_dim = int(ex_obs.shape[-1])
+        assert obs_dim >= need, (
+            f"backward_input='hit_spec' needs observations wide enough for every "
+            f"measure_hit_spec block: the spec reaches column {need} but the "
+            f"observations are only {obs_dim} wide.")
+        ex_phi_in = scaled_hit_cols(ex_obs, blocks)
+
     # PhiMap IS HILP's phi tower (see the class docstring); norm=False because HILP's
     # layer list ends at feature_dim with no trailing "L2".
     mk_phi = lambda: PhiMap(z_dim=feature_dim, hidden_dim=config["phi"]["hidden_dim"],
@@ -427,8 +475,8 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
     r1, r2, rs, rst = jr.split(jr.PRNGKey(config["seed"]), 4)
     ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
     params = {
-        "hilp_phi1": phi1.init(r1, ex_obs)["params"],
-        "hilp_phi2": phi2.init(r2, ex_obs)["params"],
+        "hilp_phi1": phi1.init(r1, ex_phi_in)["params"],
+        "hilp_phi2": phi2.init(r2, ex_phi_in)["params"],
         "hilp_sf": sf.init(rs, ex_obs, ex_z, ex_actions)["params"],
         "hilp_stats": stats_mod.init(rst)["params"],
     }
@@ -446,6 +494,7 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
         head_reduce=str(config.get("hilp_head_reduce", "argmin_q")),
         actor_head_reduce=str(config.get("hilp_actor_head_reduce", "min")),
         sf_loss_scale=float(config.get("hilp_sf_loss_scale", 1.0)),
+        backward_input=backward_input, blocks=blocks,
     )
     targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
     if bool(config.get("hilp_independent_target_init", False)):
@@ -461,8 +510,8 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
         # Default off: "fixing" it is a deviation from the reference either way, so the
         # choice is explicit rather than silent.
         rt1, rt2 = jr.split(jr.PRNGKey(config["seed"] + 7717), 2)
-        targets["hilp_phi1"] = mk_phi().init(rt1, ex_obs)["params"]
-        targets["hilp_phi2"] = mk_phi().init(rt2, ex_obs)["params"]
+        targets["hilp_phi1"] = mk_phi().init(rt1, ex_phi_in)["params"]
+        targets["hilp_phi2"] = mk_phi().init(rt2, ex_phi_in)["params"]
     return critic, params, targets
 
 

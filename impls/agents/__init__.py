@@ -72,6 +72,12 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # same classes, config-only.
                   "rldp_oc": "rldp", "rldp_density_oc": "rldp_density",
                   "psm_oc": "psm", "psm_density_oc": "psm_density",
+                  # ... and the HILP family, whose `_phi_in` choke point takes the same
+                  # knob (impls/critics/hilp.py). These two yamls are also where the cube
+                  # substrate lives for HILP -- official HILP values plus the td_jepa
+                  # degeneracy fixes -- so they are not pure oc variants of critic/hilp.yaml
+                  # the way rldp_oc is of critic/rldp.yaml.
+                  "hilp_oc": "hilp", "hilp_density_oc": "hilp_density",
                   # ExoRL official-parity arms (docs/specs/2026-08-28-exorl-official-
                   # parity-validation.md): the SAME RLDP / Density-RLDP classes with the
                   # six official knobs turned on in the yaml. Config-only, so the audited
