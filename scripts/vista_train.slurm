@@ -15,6 +15,14 @@
 #SBATCH -t 12:00:00              # walltime (gh max 48h; gh-dev max 2h)
 #SBATCH -o logs/%x.o%j           # stdout -> logs/<jobname>.o<jobid>
 #SBATCH -e logs/%x.e%j           # stderr
+# 10 min before the walltime kill, SIGUSR1 is sent to the job STEPS (the srun'd python;
+# no B: prefix means steps, not this batch shell). impls/main.py catches it between
+# training steps, writes params_<step>.pkl, and exits cleanly, so a resubmission with
+# AUTO_RESUME=1 continues from there instead of losing everything since the last
+# SAVE_INTERVAL checkpoint. The 600 s margin has to cover at most one training step plus
+# one eval pass plus the pickle write. If a run is killed harder than that (node crash,
+# SIGKILL), the loss window falls back to SAVE_INTERVAL steps.
+#SBATCH --signal=USR1@600
 # #SBATCH -A your_allocation     # set via `sbatch -A ...` or uncomment and edit
 
 set -euo pipefail
@@ -40,6 +48,11 @@ SAVE_INTERVAL="${SAVE_INTERVAL:-50000}"     # 7 checkpoints: post-hoc video/prob
 EVAL_EPISODES="${EVAL_EPISODES:-20}"
 NUM_VIDEO="${NUM_VIDEO:-4}"                 # extra rendered episodes per eval (~7 ms/frame)
 SAVE_DIR="${SAVE_DIR:-$SCRATCH/factored-fb-exp}"
+# AUTO_RESUME=1 passes --auto_resume: continue from the latest params_*.pkl in this run's
+# own directory (fresh start if none). Safe to set unconditionally on resubmission -- the
+# run dir is derived from CRITIC/ACTOR/DOMAIN/SEED/SAVE_DIR, so the same sbatch line that
+# started a run resumes it. Default 0 keeps prior launches bit-identical.
+AUTO_RESUME="${AUTO_RESUME:-0}"
 
 # Data roots. Old bin-picking/button-press domains interpolate ${oc.env:FB_HF_EXPORT}; the
 # regime-selectable domains (mw-pick-place/push, ms-*) interpolate ${oc.env:FB_DATA_ROOT},
@@ -87,6 +100,9 @@ $PY -c 'import jax; print("jax", jax.__version__, "devices:", jax.devices())'
 OVERRIDE="${OVERRIDE:-}"
 ov_flags=()
 for kv in $OVERRIDE; do ov_flags+=(--override "$kv"); done
+# `if`, not `[ ... ] &&`: this script runs under set -e, and a failed test at the end of
+# an AND list would kill the job before srun ever ran.
+if [ "$AUTO_RESUME" = "1" ]; then ov_flags+=(--auto_resume); fi
 
 # EXTRA_FLAGS: verbatim additional impls.main flags that are NOT config overrides
 # (e.g. "--warm_start_path <p1 run dir> --warm_start_epoch 500000" for td_fb phase 2).
