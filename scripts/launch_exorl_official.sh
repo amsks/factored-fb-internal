@@ -162,8 +162,13 @@ for CRITIC in $CRITICS; do
       # the official README's reproducing commands (hilp_discount 0.96 walker / 0.98
       # cheetah, q_loss False for both).
       case "$CRITIC" in
-        hilp_tdj*)
-          # The td_jepa replication arm. It must NOT get the official-README per-domain
+        hilp*tdj*)
+          # Every td_jepa-derived HILP arm -- hilp_tdj AND hilp_density_tdj. The glob was
+          # `hilp_tdj*` and did not match hilp_density_tdj, so that arm fell through to the
+          # branch below and trained with hilp_discount=0.96 (official HILP's walker value)
+          # against its yaml's 0.98, breaking the very ablation it exists to run.
+          #
+          # It must NOT get the official-README per-domain
           # settings below: those are official HILP's (walker hilp_discount 0.96,
           # q_loss false) and they silently clobber what hilp_tdj.yaml sets to match
           # td_jepa (0.98, true). An --override always beats the yaml, so leaving this
