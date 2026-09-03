@@ -78,6 +78,27 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # degeneracy fixes -- so they are not pure oc variants of critic/hilp.yaml
                   # the way rldp_oc is of critic/rldp.yaml.
                   "hilp_oc": "hilp", "hilp_density_oc": "hilp_density",
+                  # `hilp_cube` is the matched state-input CONTROL for hilp_oc (same
+                  # cube substrate, backward_input: state); `fb_oc` is plain FB with
+                  # the same object-coordinate B input (impls/critics/fb.py::_b_in).
+                  "hilp_cube": "hilp", "fb_oc": "fb",
+                  # `density_fb_state` is Density-FB with backward_input: state --
+                  # the matched no-privileged-coordinates control the method never
+                  # had (impls/critics/density_fb.py::_b_query). Config-only.
+                  "density_fb_state": "density_fb",
+                  # `hilp_density_cube` = Density-HILP at backward_input: state (the
+                  # control for hilp_density_oc); `fb_ref` = plain FB at the reference
+                  # stack's ortho_coef 1000. Both config-only.
+                  "hilp_density_cube": "hilp_density", "fb_ref": "fb",
+                  # `fb_tdj` = the minimal fb_tdj parity arm (docs/notes/2026-09-03-fb-vs-
+                  # tdjepa.md #7): fb.yaml at ortho_coef 1000 (same value as fb_ref, kept as
+                  # its own config so this arm's own runs/eval.csv/wandb group are not
+                  # tangled with fb_ref's earlier audit-arm history). Config-only.
+                  "fb_tdj": "fb",
+                  # `rldp_portalign` = RLDP with the paper implementation's
+                  # self-predictive window off-by-one reinstated (dataset flag
+                  # rldp_sp_port_alignment). Config-only.
+                  "rldp_portalign": "rldp",
                   # ExoRL official-parity arms (docs/specs/2026-08-28-exorl-official-
                   # parity-validation.md): the SAME RLDP / Density-RLDP classes with the
                   # six official knobs turned on in the yaml. Config-only, so the audited

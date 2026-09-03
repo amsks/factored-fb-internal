@@ -316,6 +316,13 @@ def main(_):
     run = setup_wandb(cfg, group=f"{FLAGS.critic}-{FLAGS.actor}", name=exp_name)
     csv_train = CsvLogger(os.path.join(run_dir, "train.csv"))
     csv_eval = CsvLogger(os.path.join(run_dir, "eval.csv"))
+    # A SEPARATE file, not a second schema squeezed into eval.csv: CsvLogger freezes its
+    # header on the first row logged, so the relabel route's extra inferred_cond_* witness
+    # columns -- the only positive evidence a run actually rolled a reward-inferred z -- would
+    # be silently DROPPED the moment a goal-conditioned row (fewer columns) logs first, and
+    # both routes share the same task_id, so their rows would also be indistinguishable in
+    # one file. See CsvLogger's own docstring warning.
+    csv_eval_relabel = CsvLogger(os.path.join(run_dir, "eval_relabel.csv"))
 
     try:
         adapter = get_adapter(cfg)
@@ -499,6 +506,44 @@ def main(_):
                         _append_agg(FLAGS.agg_dir, agg_group, FLAGS.seed, i, row,
                                     cfg.get("task", cfg.get("env_name")))
                     print("eval", i, "task", task_id, row, flush=True)
+
+                # --- OGBench reward-relabel zero-shot eval (fb_tdj parity arm) ---------------
+                # A SECOND route, alongside -- not instead of -- the goal-conditioned loop
+                # above. Off (cfg['eval_relabel_size'] unset/0) by default, so every existing
+                # run is byte-for-byte unaffected: nothing above this comment changed.
+                # docs/notes/2026-09-03-fb-vs-tdjepa.md #7.
+                if cfg.get("eval_relabel_size"):
+                    relabel_fn = getattr(adapter, "relabel_infer_batch", None)
+                    if relabel_fn is None:
+                        raise NotImplementedError(
+                            f"eval_relabel_size={cfg['eval_relabel_size']} is set but adapter "
+                            f"{type(adapter).__name__} has no relabel_infer_batch -- only "
+                            f"OGBenchAdapter implements the td_jepa reward-relabel protocol "
+                            f"(docs/notes/2026-09-03-fb-vs-tdjepa.md #7)")
+                    n_relabel_tasks = len(env.unwrapped.task_infos)
+                    n_relabel_eps = int(cfg.get("eval_relabel_episodes", 10))
+                    for tid in range(1, n_relabel_tasks + 1):
+                        relabel_obs, relabel_rewards = relabel_fn(
+                            train_ds, env, tid, cfg["eval_relabel_size"],
+                            shift_reward=cfg.get("eval_relabel_shift", 1.0))
+                        relabel_agent = agent.infer_eval_cond(
+                            jnp.asarray(relabel_obs), jnp.asarray(relabel_rewards))
+                        # ROLLS_INFERRED_COND=True: the goal frame is never forwarded, so the
+                        # inferred z from the relabelled rewards is what actually gets rolled.
+                        relabel_agent = InferredCondAgent(relabel_agent)
+                        row, _frames = adapter.evaluate(
+                            relabel_agent, env, tid, cfg, n_relabel_eps, 0,
+                            any_step_success=True)
+                        row = {**row, **relabel_agent.witness()}
+                        scope = f"eval_relabel/task{tid}"
+                        row = _drain_per_episode(run_dir, scope, i, row)
+                        csv_eval_relabel.log({**row, "task_id": tid}, step=i)
+                        if run is not None:
+                            run.log({f"{scope}/{k}": v for k, v in row.items()}, step=i)
+                        if FLAGS.agg_dir:
+                            _append_agg(FLAGS.agg_dir, f"{agg_group}_relabel", FLAGS.seed, i,
+                                        row, cfg.get("task", cfg.get("env_name")))
+                        print("eval_relabel", i, "task", tid, row, flush=True)
             if i % FLAGS.save_interval == 0:
                 save_agent(agent, run_dir, i)
                 if online is not None:
@@ -521,6 +566,7 @@ def main(_):
     finally:
         csv_train.close()
         csv_eval.close()
+        csv_eval_relabel.close()
         if run is not None:
             run.finish()
 

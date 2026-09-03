@@ -60,8 +60,17 @@ def goal_qpos_channel(env):
 
 
 def evaluate(agent, env, task_id=None, config=None, num_eval_episodes=50,
-             num_video_episodes=0, video_frame_skip=3, eval_temperature=0, eval_gaussian=None):
-    """Evaluate the agent in the environment. Returns (stats, trajs, renders)."""
+             num_video_episodes=0, video_frame_skip=3, eval_temperature=0, eval_gaussian=None,
+             any_step_success=False):
+    """Evaluate the agent in the environment. Returns (stats, trajs, renders).
+
+    `any_step_success`: td_jepa's OGBench zero-shot accounting
+    (docs/notes/2026-09-03-fb-vs-tdjepa.md #7 item 3) scores an episode's success as ANY step
+    reaching it, not only the final step's `info['success']` (this env build's default
+    `terminate_at_goal=True` ends the episode the instant success first fires, so the two
+    usually coincide -- this reducer is what makes that non-load-bearing rather than assumed).
+    False by default: every existing caller is bit-identical to before this parameter existed.
+    """
     config = config or {}
     actor_fn = supply_rng(agent.sample_actions, rng=jax.random.PRNGKey(np.random.randint(0, 2 ** 32)))
     trajs = []
@@ -102,7 +111,11 @@ def evaluate(agent, env, task_id=None, config=None, num_eval_episodes=50,
                               action=action, reward=reward, done=done, info=info))
             observation = next_observation
         if i < num_eval_episodes:
-            add_to(stats, flatten(info))
+            ep_info = info
+            if any_step_success:
+                ep_info = dict(info)
+                ep_info['success'] = any(bool(s.get('success', False)) for s in traj['info'])
+            add_to(stats, flatten(ep_info))
             trajs.append(traj)
         else:
             renders.append(np.array(render))

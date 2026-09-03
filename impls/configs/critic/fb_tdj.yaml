@@ -1,0 +1,39 @@
+# fb_tdj — the minimal fb_tdj parity arm (docs/notes/2026-09-03-fb-vs-tdjepa.md §7 item 1).
+# fb.yaml with ortho_coef 1000 (same value as fb_ref.yaml, kept as a separate config so this
+# arm's launch scripts and eval.csv/wandb group name are not tangled up with fb_ref's earlier
+# audit-arm history). Swept against lr_b in {1e-4, 1e-5}; run with --actor flowbc (bc_coeff
+# 3.0 is the actor's own default), --train_steps 1000000, and
+# --override eval_relabel_size=... to also record the td_jepa reward-relabel zero-shot route
+# (env/ogbench.py::OGBenchAdapter.relabel_infer_batch) alongside the existing goal-conditioned
+# one.
+batch_size: 256
+z_dim: 50
+L_dim: 50
+num_parallel: 2
+discount: 0.99
+f_target_tau: 0.005
+b_target_tau: 0.005
+ortho_coef: 1000.0
+train_goal_ratio: 0.5
+fb_pessimism_penalty: 0.0
+# Touati parity knobs (impls/critics/fb.py field comments). Defaults keep every prior cell
+# bit-identical; the paper arm passes q_loss_coef=1/z_dim and both pessimism knobs 0.5.
+q_loss_coef: 0.0
+actor_pessimism_penalty: 0.0
+norm_z: true
+lr_f: 1.0e-4
+lr_b: 1.0e-4
+lr_actor: 1.0e-4
+forward:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+backward:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+left_encoder:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+  identity: false   # true = no encoder, F reads raw obs (Touati parity)
