@@ -61,6 +61,13 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # Exp A: rldp_density with density_fb's task interface (the yaml sets
                   # `goal_kernel: true`); same RLDPDensityCritic class, config-only.
                   "rldp_density_gk": "rldp_density",
+                  # 2026-09-06 goal-conditioned training variants (config-only aliases):
+                  # density families via goal_kernel, vanilla via all-goal z sampling.
+                  "rldp_density_gk_oc": "rldp_density",
+                  "density_fb_z_state": "density_fb",
+                  "hilp_density_gk": "hilp_density", "hilp_density_gk_oc": "hilp_density",
+                  "hilp_gc": "hilp", "hilp_gc_oc": "hilp",
+                  "rldp_gc": "rldp", "rldp_gc_oc": "rldp",
                   # Diag-screen repair arms: psm / psm_density at the torch sweep-winning
                   # cube config (batch 1024, discount 0.98, ortho_coef 1000); config-only.
                   "psm_repair": "psm",

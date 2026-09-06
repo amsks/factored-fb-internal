@@ -1,0 +1,54 @@
+# rldp_gc -- rldp with train_goal_ratio 1.0: every row conditioned on z=B(hindsight goal) (goal-conditioned training for vanilla RLDP). 2026-09-06
+# RLDP critic — FB plus a self-predictive (SP) head. See impls/critics/rldp.py for the
+# transcription notes (three divergences from critic/fb.yaml's objective: B is detached
+# inside the successor residual, the orthonormality term whitens B(obs) rather than
+# B(goal), and a fourth `predictor` module group rides lr_b).
+#
+# Everything below the `predictor`/`horizon`/`ortho_coef` block is critic/fb.yaml at
+# cube-single launch values, unchanged. The three that DO differ are taken from the
+# PyTorch reference's own configs (configs/agent/rldp.yaml on branch gciql-fb-bridge,
+# which inherits configs/agent/fb.yaml and overrides exactly these).
+batch_size: 256
+z_dim: 50
+L_dim: 50
+num_parallel: 2
+discount: 0.99
+f_target_tau: 0.005
+b_target_tau: 0.005
+# 0.01, not FB's 1.0 (reference configs/agent/rldp.yaml). With divergence 1 the successor
+# residual no longer trains B at all, so the backward map is shaped by the SP loss and
+# this term alone -- a whitening pull at FB's strength would dominate the prediction
+# objective it is meant to regularize.
+ortho_coef: 0.01
+train_goal_ratio: 1.0
+fb_pessimism_penalty: 0.0
+norm_z: true
+lr_f: 1.0e-4
+lr_b: 1.0e-4              # the `predictor` group rides this (impls/agents/__init__.py::_LR_KEY)
+lr_actor: 1.0e-4
+# Window length for the self-predictive rollout: h steps of the predictor, so h-1 future
+# (observation, action) columns in the batch. h=1 is legal and degenerates to the plain
+# one-step SP loss with no window at all.
+horizon: 5
+forward:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+backward:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+left_encoder:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+predictor:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+
+# dataset: the h-step windowed sampler (impls/utils/datasets.py::WindowedDataset), which
+# is what supplies future_observations/future_actions. It reads `horizon` above, and
+# rldp.py asserts the two agree -- a critic built for h=5 handed 2-column windows is a
+# named error, not a quietly shorter rollout.
+dataset_class: WindowedDataset

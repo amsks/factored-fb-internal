@@ -48,7 +48,9 @@ import jax
 import jax.numpy as jnp
 
 from impls.critics.hilp import HILPCritic
-from impls.utils.fb_math import targets_uncertainty
+from impls.critics._measure_common import parse_hit_spec
+from impls.critics.density_fb import _delta_phi, _raw_block_cols
+from impls.utils.fb_math import project_z, targets_uncertainty
 
 
 class HilpDensityConfigError(ValueError):
@@ -60,6 +62,12 @@ class HILPDensityCritic(HILPCritic):
     temp: float = 1.0
     actor_temp: Any = None
     actor_q_center: bool = True
+    # goal_kernel (2026-09-06, mirrors rldp_density's Exp A): every row is conditioned on
+    # the WHITENED index of a real hindsight goal (no random-direction mix) and the actor's
+    # reward is that goal's object-coordinate kernel over the pool -- density_fb's goal
+    # interface on the HILP substrate. Default False = the pre-existing critic bit-for-bit.
+    goal_kernel: bool = False
+    kernel_blocks: tuple = ()
 
     def _row_discount(self, batch, B):
         """gamma * (1 - terminated), shaped [B, 1].
@@ -124,12 +132,25 @@ class HILPDensityCritic(HILPCritic):
         }
 
     def sample_cond(self, net, batch, rng):
-        cond = super().sample_cond(net, batch, rng)
+        nobs = batch["next_observations"]
         # q_fn's candidate pool: the batch's own next states through the ONLINE phi,
         # stop-gradded. q_fn cannot reach the batch through its signature.
         pool = jax.lax.stop_gradient(self._feature_net(
-            net["hilp_phi1"].params, net["hilp_stats"].params, batch["next_observations"]))
-        return {**cond, "_pool_phi": pool}
+            net["hilp_phi1"].params, net["hilp_stats"].params, nobs))
+        if not self.goal_kernel:
+            cond = super().sample_cond(net, batch, rng)
+            return {**cond, "_pool_phi": pool}
+        # goal_kernel: z = HILP's own whitened goal index, sqrt(d)*normalize(phi(g) @ pinv(cov)),
+        # for every row (the parent's mix_ratio encoding, applied to real goals only).
+        goals = batch["actor_goals"] if "actor_goals" in batch else \
+            nobs[jax.random.permutation(rng, nobs.shape[0])]
+        phi_g = jax.lax.stop_gradient(self._feature_net(
+            net["hilp_phi1"].params, net["hilp_stats"].params, goals))
+        cov = (pool.T @ pool) / pool.shape[0]
+        z = jax.lax.stop_gradient(project_z(phi_g @ jnp.linalg.pinv(cov), self.norm_z))
+        return {"z": z, "_pool_phi": pool,
+                "_pool_u_raw": jax.lax.stop_gradient(_raw_block_cols(nobs, self.kernel_blocks)),
+                "_goal_obs": jax.lax.stop_gradient(goals)}
 
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         """Reward integration through the normalized successor density, at FROZEN critic
@@ -141,8 +162,13 @@ class HILPDensityCritic(HILPCritic):
                        self._le(jax.lax.stop_gradient(params), obs), z, actions)
         a_tau = self.temp if self.actor_temp is None else float(self.actor_temp)
         w = jax.nn.softmax(jnp.einsum("pbd,cd->pbc", psi, pool) / a_tau, -1)  # [P, B, C]
-        # r(u) = phi(u)^T z is HILP's own reward convention, the one infer_cond inverts.
-        kg = jax.lax.stop_gradient(jnp.einsum("cd,bd->bc", pool, z))          # [B, C]
+        if self.goal_kernel:
+            # the goal's query-set-normalized object-coordinate kernel over the pool
+            kg = jax.lax.stop_gradient(
+                _delta_phi(cond["_goal_obs"], cond["_pool_u_raw"], self.kernel_blocks))  # [B, C]
+        else:
+            # r(u) = phi(u)^T z is HILP's own reward convention, the one infer_cond inverts.
+            kg = jax.lax.stop_gradient(jnp.einsum("cd,bd->bc", pool, z))      # [B, C]
         Qs = (w * kg[None]).sum(-1)                                           # [P, B]
         qmean, _ = targets_uncertainty(Qs, self.num_parallel)
         if self.actor_q_center:
@@ -157,11 +183,21 @@ def _hilp_density_build(cls, ex_obs, ex_actions, config):
             "the SF vector and the scalar <psi,z>, and this critic does neither -- it "
             "fits a categorical distribution. Set hilp_q_loss: false.")
     critic, params, targets = HILPCritic.build.__func__(cls, ex_obs, ex_actions, config)
+    goal_kernel = bool(config.get("goal_kernel", False))
+    kernel_blocks = ()
+    if goal_kernel:
+        kernel_blocks = parse_hit_spec(config.get("measure_hit_spec", "19:22:0.4"))
+        need = max(b for (_a, b, _e) in kernel_blocks)
+        if int(ex_obs.shape[-1]) < need:
+            raise HilpDensityConfigError(
+                f"goal_kernel=true needs observations at least {need} wide for every "
+                f"measure_hit_spec block; got {int(ex_obs.shape[-1])}.")
     critic = dataclasses.replace(
         critic,
         temp=float(config.get("temp", 1.0)),
         actor_temp=config.get("actor_temp", None),
         actor_q_center=bool(config.get("actor_q_center", True)),
+        goal_kernel=goal_kernel, kernel_blocks=kernel_blocks,
     )
     return critic, params, targets
 
