@@ -16,6 +16,10 @@ ARMS=(
   "lc_hard 2 measure_density_z_actor_reward=latent_centered measure_density_hard=true  2"
   "lc_soft 0 measure_density_z_actor_reward=latent_centered measure_density_hard=false 3"
   "l_soft  0 measure_density_z_actor_reward=latent          measure_density_hard=false 4"
+  # full-state backward map + index (pool stores full rows since 2026-09-06), GPUs 5-7
+  "lc_hard_state 0 backward_input=state measure_density_hard=true 5"
+  "lc_hard_state 1 backward_input=state measure_density_hard=true 6"
+  "lc_hard_state 2 backward_input=state measure_density_hard=true 7"
 )
 mkdir -p "$LOGDIR"; cd "$REPO"
 tmux has-session -t "=$SESSION" 2>/dev/null && { echo "session $SESSION exists"; exit 1; }

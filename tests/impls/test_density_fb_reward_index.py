@@ -1089,3 +1089,36 @@ def test_shipped_z_config_defaults_to_latent_centered():
     assert cfg["measure_density_z_actor_reward"] == "latent_centered"
     base = yaml.safe_load(open("impls/configs/critic/density_fb.yaml"))
     assert "measure_density_z_actor_reward" not in base, "the goal-conditioned config is untouched"
+
+
+# ==========================================================================================
+# 8. the index with the backward map on the FULL observation (2026-09-06)
+# ==========================================================================================
+def test_state_input_with_index_builds_and_pool_is_full_width():
+    critic, params, _t = _built_full(backward_input="state")
+    assert critic.backward_input == "state" and critic.z_on
+    assert params["density_zstats"]["pool"].shape == (8, OBS), "pool stores full observation rows"
+
+
+def test_state_input_index_paths_run_on_full_rows():
+    critic, params, targets = _built_full(backward_input="state")
+    rng = np.random.default_rng(5)
+    st = dict(params["density_zstats"])
+    st["pool"] = jnp.asarray(rng.standard_normal((8, OBS))); st["filled"] = jnp.ones_like(st["filled"])
+    params = {**params, "density_zstats": st}
+    net = _net_from(params)
+    goal = jnp.asarray(rng.standard_normal((OBS,)))
+    z = critic.map_eval_cond(net, {"goal": goal})["z"]
+    assert z.shape == (D,) and np.isfinite(np.asarray(z)).all()
+    assert abs(float(jnp.linalg.norm(z)) - np.sqrt(D)) < 1e-3
+    obs = jnp.asarray(rng.standard_normal((32, OBS))); r = jnp.asarray(rng.standard_normal((32,)))
+    zr = critic.infer_cond(net, obs, r)["z"]
+    assert zr.shape == (D,) and np.isfinite(np.asarray(zr)).all()
+    cond = critic.sample_cond(net, _batch(), jax.random.PRNGKey(0), target=targets)
+    assert cond["_density_u_sc"].shape[-1] == OBS, "B's query rows are full observations on 'state'"
+    assert cond["_density_zenc_u"].shape == (B, D)
+
+
+def test_hit_spec_pool_width_is_unchanged():
+    _c, params, _t = _built_full()
+    assert params["density_zstats"]["pool"].shape[-1] == 3, "object-coordinate pool on hit_spec"

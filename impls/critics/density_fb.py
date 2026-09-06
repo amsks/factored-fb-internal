@@ -764,7 +764,8 @@ class DensityFBCritic:
             return net
         blocks = self.blocks
         nobs = batch["next_observations"]
-        u_sc = self._q_in(net, nobs)                                     # [M, d_c] eps-scaled
+        u_sc = self._b_query(net, nobs, nobs)      # B's own input rows: full obs on 'state',
+                                                   # eps-scaled block columns otherwise
 
         # (1) the index tower: a slow-EMA copy of the PRE-STEP online density_b at tau_z.
         zenc_old = net["density_b_zenc"].params
@@ -785,7 +786,7 @@ class DensityFBCritic:
 
         # (3) the frozen eval pool: written ONCE, on the first update, so the native-goal
         #     eval index is a function of the params, not of whichever batch was last.
-        raw = _raw_block_cols(nobs, blocks)
+        raw = nobs if self.backward_input == "state" else _raw_block_cols(nobs, blocks)
         if raw.shape[0] < self.z_eval_pool_m:
             raise ValueError(
                 f"measure_density_z_eval_pool_m={self.z_eval_pool_m} needs a batch of at "
@@ -840,8 +841,13 @@ class DensityFBCritic:
         unbatched = g.ndim == 1
         g2 = g[None] if unbatched else g
         st = self._zstats(net)
-        pool_raw = st["pool"]                                       # [M, d_c] RAW
-        u_sc = self._q_cols(net, pool_raw)                          # [M, d_c] eps-scaled
+        pool = st["pool"]
+        if self.backward_input == "state":
+            u_sc = pool                                             # [M, obs_dim] full rows
+            pool_raw = _raw_block_cols(pool, self.blocks)           # [M, d_c] for the kernel
+        else:
+            pool_raw = pool                                         # [M, d_c] RAW
+            u_sc = self._q_cols(net, pool_raw)                      # [M, d_c] eps-scaled
         kg = jax.lax.stop_gradient(_delta_phi(g2, pool_raw, self.blocks))   # [B, M]
         z = self._z_index(self._zenc(net), st, u_sc, kg)
         out = {**cond, "z": z[0] if unbatched else z}
@@ -1106,7 +1112,7 @@ class DensityFBCritic:
                 "nothing to infer. Evaluate against the env goal instead.")
         if not self.z_on:
             return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
-        z = self.z_from_reward_samples(net, self._q_in(net, obs), rewards)
+        z = self.z_from_reward_samples(net, self._b_query(net, obs, obs), rewards)
         # A flat [M] reward vector is ONE task -> a 1-D z, matching eval_cond0's shape.
         return {"z": z[0] if jnp.ndim(rewards) == 1 else z}
 
@@ -1277,7 +1283,11 @@ class DensityFBCritic:
             # step 0 it is the index density_b implies; the EMA then holds it quasi-stationary.
             params["density_b_zenc"] = copy.deepcopy(params["density_b"])
             d_c = int(sum(b - a for (a, b, _e) in blocks))
-            zstats_mod = _ZStatsState(dim=d, pool_m=z_pool_m, d_c=d_c,
+            # The frozen eval pool stores the B tower's INPUT rows: full observations under
+            # backward_input='state' (sliced to block columns for the kernel at use time),
+            # eps-scaled block columns otherwise. Width follows the input mode (2026-09-06).
+            pool_w = obs_dim if backward_input == "state" else d_c
+            zstats_mod = _ZStatsState(dim=d, pool_m=z_pool_m, d_c=pool_w,
                                       dtype=jnp.zeros((), ex_obs.dtype).dtype)
             params["density_zstats"] = zstats_mod.init(rz)["params"]
             groups = groups + ("density_b_zenc", "density_zstats")
@@ -1296,16 +1306,6 @@ class DensityFBCritic:
             # tests/impls/test_boot_contract.py caught.
             params["density_obsnorm"] = obsnorm_mod.init(rz)["params"]
             groups = groups + ("density_obsnorm",)
-        if backward_input == "state" and z_on:
-            # The reward-sample index paths (`_z_index`, `z_from_reward_samples`,
-            # `map_eval_cond`) build their pool as PRE-SLICED eps-scaled block columns
-            # (`_q_cols(pool_raw)`), which is a different object from a full-state row.
-            # Refused rather than served half-correctly.
-            raise ValueError(
-                "backward_input='state' with measure_density_z=true is not implemented: the "
-                "index encoder's pool is built from pre-sliced block columns, so B would be "
-                "fed two different row shapes. Run the state control with the goal interface "
-                "(measure_density_z=false).")
         obj = cls(density_f=density_f, density_b=density_b, obs_dim=obs_dim, blocks=blocks,
                   backward_input=backward_input,
                   discount=float(config["discount"]),

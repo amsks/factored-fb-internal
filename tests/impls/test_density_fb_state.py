@@ -62,12 +62,14 @@ def test_the_knob_moves_only_b_not_the_kernel_reward():
     assert np.allclose(out["density_fb_state"][1], np.asarray(nobs))
 
 
-def test_state_plus_reward_index_is_refused():
-    """The index pool is pre-sliced block columns; serving both would feed B two shapes."""
+def test_state_plus_reward_index_builds_with_a_full_width_pool():
+    """2026-09-06: the index pool now stores B's own input rows, so the full-observation
+    backward map and the reward-sample index coexist (the pool is [M, obs_dim] here)."""
     cfg = make_config("density_fb_state", "flowbc", "cube_single",
-                      ["measure_density_z=true"])
+                      ["measure_density_z=true", "measure_density_z_eval_pool_m=4"])
     rng = np.random.default_rng(0)
-    with pytest.raises(ValueError, match="not implemented"):
-        Agent.create("density_fb_state", "flowbc", 0,
-                     jnp.asarray(rng.standard_normal((B, OBS_DIM))),
-                     jnp.asarray(rng.standard_normal((B, ACT_DIM))), cfg)
+    agent = Agent.create("density_fb_state", "flowbc", 0,
+                         jnp.asarray(rng.standard_normal((B, OBS_DIM))),
+                         jnp.asarray(rng.standard_normal((B, ACT_DIM))), cfg)
+    assert agent.critic.backward_input == "state" and agent.critic.z_on
+    assert agent.net["density_zstats"].params["pool"].shape == (4, OBS_DIM)
