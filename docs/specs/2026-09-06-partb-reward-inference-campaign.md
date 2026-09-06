@@ -90,3 +90,13 @@ vanilla + density, 3 seeds = 24 runs. Only if a full method × route grid is wan
 - Quote `eval.csv` of a `density_fb_z` run as "goal-conditioned": it is the own-pool
   reward-sample route.
 - Launch with `&`/`nohup`; use tmux or slurm. Never `XLA_PYTHON_CLIENT_PREALLOCATE=true`.
+
+## Update 2026-09-06 (after the first Tier 1b cell)
+
+`density_fb_z` seed 0 (500k) under Route B scored **0.28** on cube-single (tasks .1/.3/.2/.4/.4;
+goal frame withheld, index non-neutral) against 0.82 on its own frozen pool. Gate 4's "~0.70"
+was optimistic. This does NOT block Tier 1 training: the encoder solve (centered moment +
+ridge) happens at inference on stored moments, so sample count, reward shape (0/1 indicator vs
+the kernel the encoder was trained on) and the ridge multiplier can all be varied eval-only on
+the trained checkpoints. Train Tier 1 as specified and hand back the checkpoints; the eval box
+owns the encoder question. Do not tune `measure_density_z_*` in the training configs.
