@@ -59,7 +59,13 @@ measure_density_actor_temp: null
 #
 # Turning it on WIDENS the actor's conditioning leg from obs_dim to measure_density_dim
 # (critic.cvec_dim), so a checkpoint trained with it off cannot be restored with it on.
-measure_density_z: true    # diag screen Exp B: reward-sample index ON (spec-30 centered dual
+measure_density_z: true
+# 2026-09-06: the actor's z-reward is built from the SLOW index tower, centered -- the same
+# object the encoder fit to the reward samples that produced z. The old default ('latent':
+# fast target tower, uncentered) trained the actor against a drifting, gauge-dependent reward
+# and gave .43@500k / .25@1M on cube-single vs the bridge's .82 (see memory
+# density-fb-z-port-gap-20260906). Override to 'latent' for the control arm.
+measure_density_z_actor_reward: latent_centered    # diag screen Exp B: reward-sample index ON (spec-30 centered dual
   # encoder — the only implemented variant). Every companion knob below stays at the shipped
   # spec-30 round-1 default.
 measure_density_z_rand_frac: 0.5            # fraction of training rows whose index is a

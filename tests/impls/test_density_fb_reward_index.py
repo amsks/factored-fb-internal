@@ -1010,3 +1010,82 @@ def test_the_covariance_eigenvalue_floor_is_exercised_and_load_bearing():
     assert np.allclose(got, floored, rtol=0, atol=1e-8), "the spectrum is not floored"
     assert not np.allclose(floored, unfloored, atol=1e-6), \
         "floored and unfloored solves agree -- the assertion above cannot discriminate"
+
+
+# ==========================================================================================
+# 7. the actor's z-reward basis (2026-09-06): 'latent' vs 'latent_centered'
+# ==========================================================================================
+def _built_full(**over):
+    ex_obs, ex_act = _ex()
+    over.setdefault("measure_density_z_eval_pool_m", 8)
+    return DensityFBCritic.build(ex_obs, ex_act, _cfg(True, **over))
+
+
+def test_z_actor_reward_code_default_is_latent():
+    critic, _p, _t = _built_full()
+    assert critic.z_actor_reward == "latent"
+
+
+def test_z_actor_reward_rejects_unknown_values():
+    with pytest.raises(ValueError):
+        _built_full(measure_density_z_actor_reward="kernel")
+
+
+def _perturbed(params, seed=3):
+    """At build time density_b_zenc == target density_b and mu_hat == 0, so the two bases
+    coincide exactly. Move the slow tower and the stored mean the way training would, so the
+    tests exercise the distinction rather than the initial coincidence."""
+    rng = np.random.default_rng(seed)
+    p = dict(params)
+    p["density_b_zenc"] = jax.tree_util.tree_map(
+        lambda x: x * 1.5 + 0.1 * jnp.asarray(rng.standard_normal(x.shape)), params["density_b_zenc"])
+    st = dict(params["density_zstats"])
+    st["mu"] = jnp.asarray(rng.standard_normal(np.asarray(st["mu"]).shape))
+    p["density_zstats"] = st
+    return p
+
+
+def test_bases_coincide_at_init_by_construction():
+    critic, params, targets = _built_full()
+    cond = critic.sample_cond(_net_from(params), _batch(), jax.random.PRNGKey(0), target=targets)
+    np.testing.assert_allclose(np.asarray(cond["_density_zenc_u"]), np.asarray(cond["_density_tb_u"]),
+                               rtol=1e-6, atol=1e-6)
+
+
+def test_sample_cond_publishes_the_centered_slow_basis():
+    critic, params, targets = _built_full()
+    params = _perturbed(params)
+    cond = critic.sample_cond(_net_from(params), _batch(), jax.random.PRNGKey(0), target=targets)
+    assert "_density_zenc_u" in cond and "_density_tb_u" in cond
+    u_sc = cond["_density_u_sc"]
+    expect = np.asarray(critic._B(params["density_b_zenc"], u_sc)) \
+        - np.asarray(params["density_zstats"]["mu"])[None]
+    np.testing.assert_allclose(np.asarray(cond["_density_zenc_u"]), expect, rtol=1e-5, atol=1e-6)
+    assert not np.allclose(np.asarray(cond["_density_zenc_u"]), np.asarray(cond["_density_tb_u"]))
+
+
+def test_latent_centered_reads_the_slow_basis_and_latent_is_unchanged():
+    """Under 'latent' the q readout reads _density_tb_u only (the pre-2026-09-06 path);
+    under 'latent_centered' it reads _density_zenc_u, and swapping that leaf for
+    _density_tb_u reproduces the 'latent' value exactly -- the basis choice is the ONLY
+    thing the knob changes."""
+    obs, act = _ex()
+    critic_l, params, targets = _built_full(measure_density_z_actor_reward="latent")
+    critic_c, _p2, _t2 = _built_full(measure_density_z_actor_reward="latent_centered")
+    params = _perturbed(params)
+    cond = critic_l.sample_cond(_net_from(params), _batch(), jax.random.PRNGKey(0), target=targets)
+    q_l, _ = critic_l.q_fn(params, obs, cond, act)
+    q_c, _ = critic_c.q_fn(params, obs, cond, act)
+    assert np.isfinite(np.asarray(q_l)).all() and np.isfinite(np.asarray(q_c)).all()
+    assert not np.allclose(np.asarray(q_l), np.asarray(q_c)), "the two rewards must differ"
+    swapped = {**cond, "_density_zenc_u": cond["_density_tb_u"]}
+    q_c_swapped, _ = critic_c.q_fn(params, obs, swapped, act)
+    np.testing.assert_array_equal(np.asarray(q_c_swapped), np.asarray(q_l))
+
+
+def test_shipped_z_config_defaults_to_latent_centered():
+    import yaml
+    cfg = yaml.safe_load(open("impls/configs/critic/density_fb_z.yaml"))
+    assert cfg["measure_density_z_actor_reward"] == "latent_centered"
+    base = yaml.safe_load(open("impls/configs/critic/density_fb.yaml"))
+    assert "measure_density_z_actor_reward" not in base, "the goal-conditioned config is untouched"

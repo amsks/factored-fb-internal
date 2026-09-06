@@ -443,6 +443,16 @@ class DensityFBCritic:
     z_enc_tau: float = 0.0005       # tau_z, the index tower's EMA rate; must be > 0
     z_sigma_tau: float = 0.005      # EMA rate of mu_hat / C_hat
     z_eval_pool_m: int = 256        # M for the frozen eval pool
+    # measure_density_z_actor_reward: the reward the ACTOR ascends for a z-indexed row.
+    #   'latent'          r_z(u) = B~(u)^T z / sqrt(d), B~ = the fast TARGET backward tower,
+    #                     uncentered (the spec-24 port; drifts with B and ignores the
+    #                     row-constant gauge the softmax cancels).
+    #   'latent_centered' r_z(u) = (B_xi(u) - mu_hat)^T z / sqrt(d), B_xi = the SLOW index
+    #                     tower and mu_hat its stored feature mean -- the exact object the
+    #                     centered encoder fit to the reward samples that produced z, so the
+    #                     reward the actor optimizes and the index it is conditioned on move
+    #                     on the same clock with the constant removed (2026-09-06).
+    z_actor_reward: str = "latent"
     # The index-state modules; None with the index off, so no group is registered.
     density_b_zenc: Any = None
     density_zstats: Any = None
@@ -945,9 +955,12 @@ class DensityFBCritic:
             # cond["_density_tb_u"] -- indexed, since falling back to the online tower would
             # substitute towers silently.
             g = cond["z"]
+            # 'latent_centered' reads the slow index tower's CENTERED embedding of the support
+            # (the encoder's own basis); 'latent' keeps the fast target tower, uncentered.
+            basis = (cond["_density_zenc_u"] if self.z_actor_reward == "latent_centered"
+                     else cond["_density_tb_u"])
             kg = jax.lax.stop_gradient(
-                jnp.einsum('md,bd->bm', cond["_density_tb_u"], g)
-                / jnp.sqrt(float(self.z_dim)))
+                jnp.einsum('md,bd->bm', basis, g) / jnp.sqrt(float(self.z_dim)))
         else:
             # F takes the goal the tower understands (an IMAGE on pixels); kg is the hit
             # kernel, which only means anything in object coordinates.
@@ -1023,6 +1036,12 @@ class DensityFBCritic:
                     # params), for its reward vector r_z = B~(u)^T z / sqrt(d).
                     "_density_tb_u": jax.lax.stop_gradient(
                         self._B(target["density_b"], u_sc)),
+                    # CENTERED slow-index-tower embedding of the same support: the basis the
+                    # encoder solved z against. Read by q_fn under
+                    # z_actor_reward='latent_centered'; published in both modes so the two
+                    # rewards can be compared on identical rows.
+                    "_density_zenc_u": jax.lax.stop_gradient(
+                        self._B(zenc_p, u_sc) - st["mu"][None]),
                     "_density_u_raw": u_raw, "_density_u_sc": u_sc},
                 batch["observations"], nobs)
         cond = {"value_goal": batch["value_goals"], "goal": batch["actor_goals"],
@@ -1106,6 +1125,11 @@ class DensityFBCritic:
         # config say "state" about image data, the disagreement the kernel guard forbids.
         pixel = int(jnp.ndim(ex_obs)) > 2
         z_on = bool(config.get("measure_density_z", False))
+        z_actor_reward = str(config.get("measure_density_z_actor_reward", "latent"))
+        if z_actor_reward not in ("latent", "latent_centered"):
+            raise ValueError(
+                "measure_density_z_actor_reward must be 'latent' or 'latent_centered' "
+                f"(the bridge's 'kernel' cell is not ported), got {z_actor_reward!r}")
         backward_input = str(config.get("backward_input", "hit_spec"))
         if backward_input not in ("hit_spec", "state"):
             raise ValueError(
@@ -1293,7 +1317,7 @@ class DensityFBCritic:
                   pixel=pixel, qpos_dim=qpos_dim, enc_dim=enc_dim,
                   bootstrap=str(config.get("measure_density_bootstrap", "actor")),
                   actor_temp=config.get("measure_density_actor_temp", None),
-                  z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac,
+                  z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac, z_actor_reward=z_actor_reward,
                   z_ridge_lambda_mult=z_lam, z_cov_eig_floor=z_floor, z_const_eps=z_eps,
                   z_enc_tau=z_enc_tau, z_sigma_tau=z_sigma_tau, z_eval_pool_m=z_pool_m,
                   archi=archi, b_norm=b_norm,
