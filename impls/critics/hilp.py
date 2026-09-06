@@ -186,8 +186,22 @@ class HILPCritic:
     # is a change to the representation's meaning, not just to a tower's input width.
     backward_input: str = "state"
     blocks: tuple = ()
+    # td_jepa's LEFT ENCODER (OGBench BASE_CFG: BackwardArchi 512x4, norm, -> L_dim 50).
+    # Their SF net is built on `self._left_encoder.output_space`
+    # (metamotivo/agents/sf/model.py:82), so it ALWAYS consumes the encoded observation --
+    # `actor_encode_obs` gates only the ACTOR (:84, :117), and is False on OGBench. The
+    # encoder is trained by the SF optimizer at lr_sf (sf/agent.py:91-92) and its target is
+    # polyaked at sf_target_tau (:266-267), which is why it rides `sf_tau` below.
+    # Official HILP has no such tower, so this is OFF by default and every pre-existing arm
+    # (hilp, hilp_cube, hilp_oc, hilp_tdj, hilp_density_*) is bit-identical without it.
+    hilp_le: Any = None
+    le_on: bool = False
 
-    GROUPS = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats")
+    # A DATACLASS FIELD, not a class constant (the density_fb.py:452 pattern): `hilp_le`
+    # exists only when the td_jepa left encoder is on, so every HILP checkpoint written
+    # before this knob keeps exactly the param keys it was saved with and stays restorable
+    # under the strict `restore_agent` path.
+    GROUPS: tuple = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats")
     STAGES = ("phi", "sf")
     PROVIDES_V = False
     PROVIDES_COND = frozenset({"z"})
@@ -200,8 +214,13 @@ class HILPCritic:
     def TARGETS(self):
         # `hilp_stats` is a params-only slot (the running mean), never polyaked -- it is
         # written by update_stats. Giving it tau 0 keeps it present without drifting.
-        return {"hilp_phi1": self.phi_tau, "hilp_phi2": self.phi_tau,
-                "hilp_sf": self.sf_tau, "hilp_stats": 0.0}
+        t = {"hilp_phi1": self.phi_tau, "hilp_phi2": self.phi_tau,
+             "hilp_sf": self.sf_tau, "hilp_stats": 0.0}
+        if self.le_on:
+            # sf_target_tau, not phi_tau: _soft_update_params(left_encoder, target, tau)
+            # is called with cfg.train.sf_target_tau (sf/agent.py:266-267).
+            t["hilp_le"] = self.sf_tau
+        return t
 
     @property
     def cvec_dim(self):
@@ -214,7 +233,9 @@ class HILPCritic:
         if stage == "phi":
             return ("hilp_phi1", "hilp_phi2")
         assert stage == "sf", stage
-        return ("hilp_sf",)
+        # sf_optimizer = Adam(sf.parameters() + left_encoder.parameters() + ...) at lr_sf
+        # (sf/agent.py:91-92), so the encoder is stepped by THIS stage, not the phi stage.
+        return ("hilp_sf", "hilp_le") if self.le_on else ("hilp_sf",)
 
     # --- towers -------------------------------------------------------------
     def _phi_in(self, x):
@@ -232,6 +253,14 @@ class HILPCritic:
 
     def _phi2(self, p, x):
         return self.hilp_phi2.apply({"params": p}, self._phi_in(x))
+
+    def _le(self, container, x):
+        """The SF net's view of an observation. Identity unless the td_jepa left encoder is
+        on; `container` is the params/target dict, indexed only when the tower exists so an
+        arm without it never looks up a missing key."""
+        if not self.le_on:
+            return x
+        return self.hilp_le.apply({"params": container["hilp_le"]}, x)
 
     def _sf(self, p, obs, z, action):
         return self.hilp_sf.apply({"params": p}, obs, z, action)
@@ -269,7 +298,9 @@ class HILPCritic:
         nobs, z = batch["next_observations"], cond["z"]
         P = self.num_parallel
 
-        tF = self._sf(target["hilp_sf"], nobs, z, boot["next_action"])        # [P, B, d]
+        # TARGET encoder on next_obs (sf/agent.py:282), online encoder on obs (:278).
+        tF = self._sf(target["hilp_sf"], self._le(target, nobs), z,
+                      boot["next_action"])                                    # [P, B, d]
         # TRAP 4: the SF target reads the ONLINE feature net, detached -- NOT a target phi.
         # The target phi towers exist only inside the phi value loss. (The RLDP run-1
         # divergence was the mirror image of this: reading the target tower where official
@@ -296,7 +327,7 @@ class HILPCritic:
                              f"got {self.head_reduce!r}")
         target_F = jax.lax.stop_gradient(target_phi + self.discount * next_F)
 
-        F = self._sf(params["hilp_sf"], obs, z, action)                       # [P, B, d]
+        F = self._sf(params["hilp_sf"], self._le(params, obs), z, action)     # [P, B, d]
         if self.q_loss:
             # TRAP 5a: with q_loss (the shipped default) the regression is on the SCALAR
             # Q = <F, z>, not on the vector F.
@@ -317,7 +348,10 @@ class HILPCritic:
     # --- control ------------------------------------------------------------
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         z = cond["z"]
-        Qs = jnp.einsum("pbd,bd->pb", self._sf(params["hilp_sf"], obs, z, actions), z)
+        # The actor's Q still goes through the encoder even though the POLICY net reads raw
+        # obs under actor_encode_obs=False -- sf/agent.py:321 encodes before calling _sf.
+        Qs = jnp.einsum("pbd,bd->pb",
+                        self._sf(params["hilp_sf"], self._le(params, obs), z, actions), z)
         # Official HILP's update_actor: Q = min(Q1, Q2), then actor_loss = -Q.mean() -- a
         # pure TD3 objective with no BC term.
         #
@@ -467,9 +501,36 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
     if int(config.get("num_parallel", 2)) != 2:
         raise ValueError("HILP's successor net is F1/F2 by construction; num_parallel "
                          "must be 2.")
-    sf = HILPForwardMap(z_dim=z_dim, hidden_dim=config["sf"]["hidden_dim"],
-                        feature_dim=int(config["sf"].get("feature_dim",
-                                                         config["sf"]["hidden_dim"] // 2)))
+    # SF TOWER FAMILY. "hilp" (default) is official HILP's ForwardMap -- shared embedding
+    # branches, one trunk layer per head, `feature_dim` its own knob. "tdjepa" is the
+    # generic ForwardArchi td_jepa's OGBench BASE_CFG names for `successor_features`:
+    # per-head parallel embeddings and a `hidden_layers`-deep trunk, i.e. the seam's own
+    # ForwardMap, which FB already uses and whose equivalence to ForwardArchi the
+    # 2026-09-03 delta audit verified for rldp_tdj (its predictor block, item U4).
+    sf_archi = str(config.get("hilp_sf_archi", "hilp"))
+    if sf_archi == "hilp":
+        sf = HILPForwardMap(z_dim=z_dim, hidden_dim=config["sf"]["hidden_dim"],
+                            feature_dim=int(config["sf"].get("feature_dim",
+                                                             config["sf"]["hidden_dim"] // 2)))
+    elif sf_archi == "tdjepa":
+        sf = ForwardMap(z_dim=z_dim, hidden_dim=config["sf"]["hidden_dim"],
+                        num_parallel=P, hidden_layers=config["sf"]["hidden_layers"],
+                        embedding_layers=int(config["sf"].get("embedding_layers", 2)))
+    else:
+        raise ValueError(f"hilp_sf_archi must be 'hilp' or 'tdjepa', got {sf_archi!r}")
+
+    # The left encoder, and the observation the SF tower is INITIALISED on -- it must be the
+    # encoder's output, not the raw row, or the tower is built at the wrong input width.
+    le_cfg = config.get("hilp_left_encoder") or {}
+    le_on = bool(le_cfg) and not bool(le_cfg.get("identity", False))
+    le = None
+    ex_sf_in = ex_obs
+    if le_on:
+        L_dim = int(config.get("L_dim", z_dim))
+        le = PhiMap(z_dim=L_dim, hidden_dim=int(le_cfg["hidden_dim"]),
+                    hidden_layers=int(le_cfg["hidden_layers"]),
+                    norm=bool(le_cfg.get("norm", True)))
+        ex_sf_in = jnp.zeros((ex_obs.shape[0], L_dim), ex_obs.dtype)
     stats_mod = _HILPStats(dim=feature_dim, dtype=jnp.zeros((), ex_obs.dtype).dtype)
 
     r1, r2, rs, rst = jr.split(jr.PRNGKey(config["seed"]), 4)
@@ -477,9 +538,14 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
     params = {
         "hilp_phi1": phi1.init(r1, ex_phi_in)["params"],
         "hilp_phi2": phi2.init(r2, ex_phi_in)["params"],
-        "hilp_sf": sf.init(rs, ex_obs, ex_z, ex_actions)["params"],
+        "hilp_sf": sf.init(rs, ex_sf_in, ex_z, ex_actions)["params"],
         "hilp_stats": stats_mod.init(rst)["params"],
     }
+    groups = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats")
+    if le_on:
+        rle = jr.PRNGKey(config["seed"] + 913)
+        params["hilp_le"] = le.init(rle, ex_obs)["params"]
+        groups = groups + ("hilp_le",)
     critic = cls(
         hilp_phi1=phi1, hilp_phi2=phi2, hilp_sf=sf, hilp_stats=stats_mod, z_dim=z_dim, num_parallel=P,
         discount=float(config["discount"]),
@@ -495,6 +561,7 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
         actor_head_reduce=str(config.get("hilp_actor_head_reduce", "min")),
         sf_loss_scale=float(config.get("hilp_sf_loss_scale", 1.0)),
         backward_input=backward_input, blocks=blocks,
+        hilp_le=le, le_on=le_on, GROUPS=groups,
     )
     targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
     if bool(config.get("hilp_independent_target_init", False)):

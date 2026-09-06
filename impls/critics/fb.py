@@ -13,6 +13,7 @@ import jax.numpy as jnp
 import flax.linen as nn
 
 from impls.utils.networks import ForwardMap, PhiMap
+from impls.critics._measure_common import parse_hit_spec, scaled_hit_cols
 from impls.utils.fb_math import project_z, targets_uncertainty
 
 
@@ -51,6 +52,18 @@ class FBCritic:
     #   mean-of-heads every earlier cell ran.
     q_loss_coef: float = 0.0
     actor_pessimism_penalty: float = 0.0
+    # `backward_input` ("state" | "hit_spec"): what the backward tower B consumes as its
+    # RAW input, the same knob rldp.py / psm.py / hilp.py carry. "state" (default) is the
+    # identity and keeps every prior FB cell bit-identical; "hit_spec" feeds the
+    # eps-scaled object-coordinate block slice instead.
+    #
+    # This is NOT the `fixed_b=cube_xyz` arm from feat/goal-conditioned-fb. That one
+    # REPLACED B with a fixed non-learned map and collapsed z_dim to 3 (cube-single 0.06
+    # against plain FB's 0.50). Here B stays a learned PhiMap emitting the full z_dim, and
+    # only its input narrows -- so the two are not the same experiment, and the latent-width
+    # confound that sinks `-d5` arms (9.6 vs 90.7 on the GCIQL morph) is absent.
+    backward_input: str = "state"
+    blocks: tuple = ()
 
     GROUPS = ("forward", "backward", "left_encoder")
     STAGES = ("fb",)
@@ -90,8 +103,17 @@ class FBCritic:
     def _F(self, p, obs_feat, z, action):
         return self.forward.apply({"params": p}, obs_feat, z, action)
 
+    def _b_in(self, x):
+        """B's raw input under `backward_input`. THE choke point: every `_B` call routes
+        through here -- the loss, the frozen target, sample_cond's mix and map_eval_cond's
+        z = project_z(B(goal)) alike -- so no caller can hand B the wrong view. In "state"
+        mode this is the identity; in "hit_spec" mode the eps-scaled block slice."""
+        if self.backward_input == "state":
+            return x
+        return scaled_hit_cols(x, self.blocks)
+
     def _B(self, p, x):
-        return self.backward.apply({"params": p}, x)
+        return self.backward.apply({"params": p}, self._b_in(x))
 
     def _le(self, p, x):
         return self.left_encoder.apply({"params": p}, x)
@@ -189,6 +211,23 @@ class FBCritic:
         forward = ForwardMap(z_dim=z_dim, hidden_dim=config["forward"]["hidden_dim"],
                              num_parallel=P, hidden_layers=config["forward"]["hidden_layers"],
                              embedding_layers=config["forward"]["embedding_layers"])
+        backward_input = str(config.get("backward_input", "state"))
+        assert backward_input in ("state", "hit_spec"), (
+            f"backward_input must be 'state' or 'hit_spec', got {backward_input!r}")
+        blocks = ()
+        ex_b_in = ex_obs
+        if backward_input == "hit_spec":
+            # B's input becomes a literal column slice, so the spec must fit inside the
+            # observation -- jax would otherwise clip short rows into a silently narrower
+            # input at trace time. Same check as rldp.py / psm.py / hilp.py.
+            blocks = parse_hit_spec(config.get("measure_hit_spec", "19:22:0.4"))
+            need = max(b for (_a, b, _e) in blocks)
+            obs_dim = int(ex_obs.shape[-1])
+            assert obs_dim >= need, (
+                f"backward_input='hit_spec' needs observations wide enough for every "
+                f"measure_hit_spec block: the spec reaches column {need} but the "
+                f"observations are only {obs_dim} wide.")
+            ex_b_in = scaled_hit_cols(ex_obs, blocks)
         backward = PhiMap(z_dim=z_dim, hidden_dim=config["backward"]["hidden_dim"],
                           hidden_layers=config["backward"]["hidden_layers"], norm=config["backward"]["norm"])
         if config["left_encoder"].get("identity", False):
@@ -208,7 +247,7 @@ class FBCritic:
         params = {
             # .get: _IdentityMap creates no variables, so init() has no "params" collection.
             "left_encoder": left_encoder.init(rle, ex_obs).get("params", {}),
-            "backward": backward.init(rb, ex_obs)["params"],
+            "backward": backward.init(rb, ex_b_in)["params"],
             "forward": forward.init(rf, ex_feat, ex_z, ex_actions)["params"],
         }
         targets = {g: copy.deepcopy(params[g]) for g in cls.GROUPS}
@@ -220,5 +259,6 @@ class FBCritic:
             f_tau=config["f_target_tau"], b_tau=config["b_target_tau"],
             q_loss_coef=float(config.get("q_loss_coef", 0.0)),
             actor_pessimism_penalty=float(config.get("actor_pessimism_penalty", 0.0)),
+            backward_input=backward_input, blocks=blocks,
         )
         return critic, params, targets

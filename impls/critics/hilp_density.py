@@ -85,7 +85,10 @@ class HILPDensityCritic(HILPCritic):
 
         # Online logits. phi is DETACHED, exactly as the parent's SF loss detaches it, so
         # the CE trains hilp_sf only and phi's gradient path is unchanged.
-        psi = self._sf(params["hilp_sf"], obs, z, action)                     # [P, B, d]
+        # Through `_le`, like the parent: with td_jepa's left encoder on, the SF tower is
+        # built on the ENCODED observation (sf/model.py:82) and applying it to a raw row
+        # would be a shape error at best and a silently different tower at worst.
+        psi = self._sf(params["hilp_sf"], self._le(params, obs), z, action)   # [P, B, d]
         phi_pool = jax.lax.stop_gradient(
             self._feature_net(params["hilp_phi1"], params["hilp_stats"], nobs))  # [B, d]
         logits = jnp.einsum("pbd,cd->pbc", psi, phi_pool) / self.temp         # [P, B, B]
@@ -96,7 +99,8 @@ class HILPDensityCritic(HILPCritic):
         # but here the pool defines the OUTCOME SPACE of a distribution, and mixing an
         # online pool into a target softmax makes the target move with the online net
         # within a step. Both nets are stop_gradded either way.
-        t_psi = self._sf(target["hilp_sf"], nobs, z, boot["next_action"])     # [P, B, d]
+        t_psi = self._sf(target["hilp_sf"], self._le(target, nobs), z,
+                         boot["next_action"])                                 # [P, B, d]
         t_phi = jax.lax.stop_gradient(
             self._feature_net(target["hilp_phi1"], target["hilp_stats"], nobs))
         w_bar = jax.nn.softmax(jnp.einsum("pbd,cd->pbc", t_psi, t_phi) / self.temp, -1)
@@ -133,7 +137,8 @@ class HILPDensityCritic(HILPCritic):
         -Q.mean() term. Gradients flow through `actions` only."""
         del stop_encoder_grad
         pool, z = cond["_pool_phi"], cond["z"]                                # [C, d], [B, d]
-        psi = self._sf(jax.lax.stop_gradient(params["hilp_sf"]), obs, z, actions)
+        psi = self._sf(jax.lax.stop_gradient(params["hilp_sf"]),
+                       self._le(jax.lax.stop_gradient(params), obs), z, actions)
         a_tau = self.temp if self.actor_temp is None else float(self.actor_temp)
         w = jax.nn.softmax(jnp.einsum("pbd,cd->pbc", psi, pool) / a_tau, -1)  # [P, B, C]
         # r(u) = phi(u)^T z is HILP's own reward convention, the one infer_cond inverts.

@@ -1,0 +1,83 @@
+# hilp_cube — the HILP substrate for the OGBench cube arms: critic/hilp.yaml's official
+# values, plus the td_jepa fixes that are about the objective being DEGENERATE (not about
+# DMC tuning), plus the object-coordinate phi input from the cube HP study.
+#
+# THE SPLIT, and it is the whole design of this file:
+#   * SUBSTRATE HPs come from the reference side (official HILP / td_jepa). Anything that
+#     defines HILP-the-method is untouched from critic/hilp.yaml.
+#   * DENSITY / ENV HPs come from our own cube study (critic/density_fb.yaml and the oc
+#     screen): discount 0.99 and the hit-spec phi input.
+#
+# --- what td_jepa buys us (carried) -------------------------------------------------
+# hilp_q_loss, both head reductions and the SF loss scale are carried from
+# critic/hilp_tdj.yaml. These are NOT DMC tuning: hilp_q_loss=true constrains only psi's
+# component ALONG z and leaves the other 49 directions free, which we MEASURED collapsing
+# psi to 2.5-2.8 effective dimensions of 50 with a seed-arbitrary surviving subspace
+# (principal cosines 0.29/0.18/0.02) and walker/spin landing at 218/409/953 across three
+# seeds. That failure is a property of the loss, not of walker, so it transfers.
+#
+# --- what td_jepa does NOT buy us (deliberately NOT carried) ------------------------
+# td_jepa's DMC LAUNCHER values -- discount 0.98, L_dim 256, taus 0.001, 1024x1 towers --
+# are walker/cheetah tuning read out of scripts/train/proprio/launch_rldp_dmc.py. Carrying
+# them onto cube would (a) contradict the discount our own cube SOTA was obtained at and
+# (b) forfeit comparability with the rldp_density_oc cell that scored 1.0 here. The
+# reference side gives us the OBJECTIVE; the cube side gives us the operating point.
+
+batch_size: 1024
+z_dim: 50
+num_parallel: 2
+
+# discount 0.99: OUR cube number, not td_jepa's 0.98. critic/density_fb.yaml runs 0.99 and
+# every cube cell in the table was obtained there; cube-double is longer-horizon than
+# cube-single, never shorter, so 0.98 is the wrong direction to move.
+discount: 0.99
+hilp_discount: 0.99        # the Hilbert metric's own horizon, matched to the SF discount
+norm_z: true
+
+phi:
+  hidden_dim: 512
+  hidden_layers: 2
+hilp_expectile: 0.5        # HILP's published value; at 0.5 the IQL weight is CONSTANT
+phi_target_tau: 0.005      # official HILP (td_jepa's 0.001 is a DMC launcher value)
+hilp_stats_momentum: 0.005
+feature_type: state
+
+sf:
+  hidden_dim: 1024
+  feature_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+sf_target_tau: 0.01        # official HILP
+
+# --- td_jepa parity: the four knobs that are about degeneracy, not about DMC ---------
+hilp_q_loss: false         # regress the SF VECTOR, not the scalar <psi,z>. See the header.
+hilp_head_reduce: mean
+hilp_actor_head_reduce: mean
+hilp_sf_loss_scale: 0.5
+
+lr_f: 1.0e-4
+lr_b: 1.0e-4
+lr_actor: 1.0e-4
+group_lr: {hilp_phi1: 5.0e-4, hilp_phi2: 5.0e-4, actor: 1.0e-4}   # phi's 5x lr (sf.py:37,490)
+
+dataset_class: HILPFutureDataset
+hilp_future: 0.99
+hilp_p_randomgoal: 0.375
+hilp_p_currgoal: 0.0
+hilp_mix_ratio: 0.5
+stages_from_pre_step_params: true
+hilp_independent_target_init: true
+
+# ── object-coordinate phi input (the cube HP study's transferable ingredient) ────────
+# phi consumes the eps-scaled hit-spec block slice instead of the full state, through the
+# `_phi_in` choke point in impls/critics/hilp.py. This is the ONE change that separated
+# rldp_density_oc (1.00 on cube-single) from rldp_density (0.15-0.25) and psm_density_oc
+# (0.90) from psm_density (0.15-0.20) on the 500k seed-0 oc screen.
+#
+# For HILP it reaches further than it does for RLDP: phi is also the Hilbert metric, so
+# the value loss now fits temporal distance between OBJECT configurations with the arm
+# marginalized out, and r(u) = phi(u)^T z becomes a purely object-defined reward. On cube
+# manipulation that is the intended reading of the task -- but it IS a change to what the
+# representation means, and the hilp_oc-vs-hilp comparison is the control for it.
+backward_input: state   # the CONTROL: same substrate, full-state phi input
+measure_hit_spec: "19:22:0.4"     # cube-single; cube-double overrides to "19:22:0.4,28:31:0.4"

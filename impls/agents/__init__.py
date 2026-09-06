@@ -82,6 +82,12 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # cube substrate, backward_input: state); `fb_oc` is plain FB with
                   # the same object-coordinate B input (impls/critics/fb.py::_b_in).
                   "hilp_cube": "hilp", "fb_oc": "fb",
+                  # `hilp_tdjc` / `hilp_density_tdjc`: HILP and Density-HILP matched EXACTLY
+                  # to td_jepa's OGBench (cube) configuration -- the left encoder, the
+                  # generic ForwardArchi successor tower, batch 256, sf tau 0.005, phi lr
+                  # 1e-4, copied (not re-initialised) target phis. Same classes as every
+                  # other HILP arm; the whole delta is in the yamls.
+                  "hilp_tdjc": "hilp", "hilp_density_tdjc": "hilp_density",
                   # `density_fb_state` is Density-FB with backward_input: state --
                   # the matched no-privileged-coordinates control the method never
                   # had (impls/critics/density_fb.py::_b_query). Config-only.
@@ -165,6 +171,9 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            # caught by test_boot_contract's recorded baseline, which is exactly what it
            # is for. phi towers ride lr_b, the successor net lr_f; hilp_stats never steps.
            "hilp_phi1": "lr_b", "hilp_phi2": "lr_b", "hilp_sf": "lr_f", "hilp_stats": "lr_b",
+           # td_jepa's left encoder sits in the SF optimizer's param list (sf/agent.py:91-92),
+           # so it rides lr_sf -- our lr_f -- not the phi lr.
+           "hilp_le": "lr_f",
            "goal_rep": "lr", "high_actor": "lr",                             # hiql's high-level policy, which
                                                            # the CRITIC owns (see critics/hiql.py)
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf

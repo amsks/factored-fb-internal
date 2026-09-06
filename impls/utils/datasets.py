@@ -536,6 +536,22 @@ class WindowedDataset:
         # Default False keeps the shipped clamping behavior bit-identical; the official
         # parity arm turns it on (see the branch in sample()).
         self.no_clamp_windows = bool(self.config.get('rldp_no_clamp_windows', False))
+        # `rldp_sp_port_alignment`: reinstate the TORCH PORT's off-by-one in the
+        # self-predictive observation window (agents/rldp/agent.py:67 slices
+        # `batch["observation"][:, 1:]` where td_jepa reads the NEXT-observation
+        # sequence). Default False = the corrected, reference-faithful alignment.
+        #
+        # This exists to test one thing: the paper `Is Manipulation Hard for Successor
+        # Measures?` reports RLDP at 0.227 on cube-single using the mis-aligned rollout,
+        # while our corrected port gets 0.163. Turning this on reproduces the paper's
+        # algorithm exactly, so the two numbers can be compared like for like instead of
+        # across an implementation difference.
+        #
+        # Under the bug, obs_win uses the SAME offsets as act_win, so future_observations
+        # column 0 duplicates next_observations (s_{t+1}): rollout step 2 is matched
+        # against s_{t+1} again -- training the predictor that a_{t+1} does not move the
+        # embedding -- and the rollout never reaches s_{t+h}.
+        self.sp_port_alignment = bool(self.config.get('rldp_sp_port_alignment', False))
         # obs_mask_dims|goal_mask_dims are unioned exactly as make_dataset does for
         # FBDataset: FB's goal IS next_observations, so both knobs blank the same frames.
         dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
@@ -598,13 +614,15 @@ class WindowedDataset:
                 start = np.maximum(start, self.initial_locs[
                     np.searchsorted(self.initial_locs, idxs, side='right') - 1])
                 act_win = start[:, None] + np.arange(1, h)[None, :]
-                obs_win = start[:, None] + np.arange(2, h + 1)[None, :]
+                obs_off = np.arange(1, h) if self.sp_port_alignment else np.arange(2, h + 1)
+                obs_win = start[:, None] + obs_off[None, :]
                 act_win = np.minimum(act_win, final_idxs[:, None])
                 obs_win = np.minimum(obs_win, final_idxs[:, None])
             else:
                 act_win = np.minimum(idxs[:, None] + np.arange(1, h)[None, :],      # [B, h-1]
                                      final_idxs[:, None])
-                obs_win = np.minimum(idxs[:, None] + np.arange(2, h + 1)[None, :],  # [B, h-1]
+                _obs_off = np.arange(1, h) if self.sp_port_alignment else np.arange(2, h + 1)
+                obs_win = np.minimum(idxs[:, None] + _obs_off[None, :],             # [B, h-1]
                                      final_idxs[:, None])
             batch['future_observations'] = np.asarray(all_obs[obs_win], np.float32)
             batch['future_actions'] = np.asarray(all_acts[act_win], np.float32)

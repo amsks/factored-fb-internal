@@ -1,0 +1,58 @@
+# hilp_density_tdjc — Density-HILP on the td_jepa-exact cube substrate.
+#
+# `hilp_tdjc.yaml` VERBATIM plus exactly the three density knobs (temp, actor_temp,
+# actor_q_center), matching how every other density pair in this repo is formed. The
+# estimator swap lives in impls/critics/hilp_density.py: only the "sf" stage changes
+# (vector/scalar SF regression -> per-head categorical CE); the phi stage is the
+# parent's verbatim, so phi's training signal is bit-identical across the pair.
+#
+# NOTE hilp_sf_loss_scale 0.5 multiplies the CE here (hilp_density.py:107) while
+# rldp_density's CE carries no such factor — flagged in the 2026-09-03 delta audit as
+# something to state if cross-density comparisons are ever quoted.
+
+batch_size: 256
+z_dim: 50
+L_dim: 50                  # archi.L_dim — the left encoder's output width
+num_parallel: 2
+discount: 0.99
+hilp_discount: 0.99        # td_jepa uses ONE train.discount for the phi loss and the SF target
+norm_z: true
+phi:
+  hidden_dim: 512
+  hidden_layers: 4         # archi.features = BackwardArchi(512, 4)
+hilp_expectile: 0.5
+phi_target_tau: 0.005      # train.features_target_tau
+hilp_stats_momentum: 0.005 # center_features EMA
+feature_type: state
+sf:
+  hidden_dim: 512          # archi.successor_features = ForwardArchi(512, 2)
+  hidden_layers: 2
+  embedding_layers: 2      # ForwardArchiConfig.embedding_layers default
+hilp_sf_archi: tdjepa      # generic ForwardArchi, per-head embeddings + hidden_layers trunk
+hilp_left_encoder:         # archi.left_encoder = BackwardArchi(512, 4, norm=True) -> L_dim
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+sf_target_tau: 0.005       # train.sf_target_tau (also the left encoder's target tau)
+hilp_q_loss: false
+hilp_head_reduce: mean
+hilp_actor_head_reduce: mean
+hilp_sf_loss_scale: 0.5
+lr_f: 1.0e-4               # train.lr_sf — the SF tower AND the left encoder ride this
+lr_b: 1.0e-4
+lr_actor: 1.0e-4           # train.lr_actor
+group_lr: {hilp_phi1: 1.0e-4, hilp_phi2: 1.0e-4, actor: 1.0e-4}   # train.lr_features
+dataset_class: HILPFutureDataset
+hilp_future: 0.99          # data.future
+hilp_p_randomgoal: 0.375   # train.prob_random_goal
+hilp_p_currgoal: 0.0
+hilp_mix_ratio: 0.5        # train.train_goal_ratio
+stages_from_pre_step_params: true
+hilp_independent_target_init: false   # td_jepa deepcopies its targets AFTER weight_init
+backward_input: state
+measure_hit_spec: "19:22:0.4"     # cube-single; cube-double overrides to add 28:31:0.4
+
+# --- the three density knobs ---
+measure_density_temp: 1.0
+measure_density_actor_temp: null
+actor_q_center: true

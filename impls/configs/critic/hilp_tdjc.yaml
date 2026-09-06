@@ -1,0 +1,78 @@
+# hilp_tdjc — HILP matched EXACTLY to td_jepa's OGBench (cube) configuration.
+#
+# Reference: ~/git/baselines/td_jepa/scripts/train/proprio/launch_sf_ogbench.py
+#   BASE_CFG                      (num_train_steps, archi, train block)
+#   BASE_AGENT_CFG["hilp"]        (expectile, prob_random_goal, features.norm,
+#                                  center_features, data.future)
+#   sweep_hilp_cube()             (bc_coeff 3.0, lr_features {1e-4, 1e-5},
+#                                  prob_random_goal {0.375, 0.5}, 10 seeds)
+#
+# WHY THIS FILE EXISTS. `hilp_cube.yaml` was calibrated to OFFICIAL HILP's ExoRL settings —
+# its own comments say so (`# official HILP`, `# phi's 5x lr (sf.py:37,490)`). Several of
+# those values are the SFAgentTrainConfig DEFAULTS that td_jepa's OGBench launcher then
+# OVERRIDES, so the cube HILP column has been measuring our calibration rather than the
+# method as td_jepa runs it. Every delta below is against `hilp_cube.yaml`.
+#
+#   batch_size          1024 -> 256      (BASE_CFG train.batch_size; 1024 is the dataclass default)
+#   sf_target_tau       0.01 -> 0.005    (BASE_CFG train.sf_target_tau; 0.01 is the default)
+#   phi lr              5e-4 -> 1e-4     (train.lr_features; the sweep is {1e-4, 1e-5})
+#   phi hidden_layers   2    -> 4        (archi.features = BackwardArchi 512x4)
+#   sf hidden_dim       1024 -> 512      (archi.successor_features = ForwardArchi 512x2)
+#   hilp_sf_archi       hilp -> tdjepa   (generic ForwardArchi, not official HILP's ForwardMap)
+#   hilp_left_encoder   absent -> 512x4  (archi.left_encoder; their SF net is built on the
+#                                         encoder's output space, sf/model.py:82)
+#   independent_target_init true -> false (td_jepa weight_inits BEFORE deepcopying targets,
+#                                         sf/agent.py:78-82 — only OFFICIAL HILP has that bug)
+#
+# UNCHANGED because they already matched: discount 0.99, hilp_discount 0.99,
+# features_target_tau 0.005, lr_sf/lr_actor 1e-4, expectile 0.5, prob_random_goal 0.375,
+# mix_ratio 0.5, q_loss false, head reduces mean, sf_loss_scale 0.5, z_dim 50,
+# data.future 0.99, center_features (hilp_stats_momentum 0.005).
+#
+# The ACTOR already matches: td_jepa's OGBench agent is `HilpFlowBCAgent` with
+# noise_conditioned_actor 512x2, actor_vf 512x4 and bc_coeff 3.0 — which is our
+# `actor/flowbc.yaml` verbatim. Run this with `--actor flowbc`.
+#
+# PROTOCOL: td_jepa trains OGBench for 1,000,000 steps over 10 seeds and reports the best
+# cell of its sweep. Launch at --train_steps 1000000.
+batch_size: 256
+z_dim: 50
+L_dim: 50                  # archi.L_dim — the left encoder's output width
+num_parallel: 2
+discount: 0.99
+hilp_discount: 0.99        # td_jepa uses ONE train.discount for the phi loss and the SF target
+norm_z: true
+phi:
+  hidden_dim: 512
+  hidden_layers: 4         # archi.features = BackwardArchi(512, 4)
+hilp_expectile: 0.5
+phi_target_tau: 0.005      # train.features_target_tau
+hilp_stats_momentum: 0.005 # center_features EMA
+feature_type: state
+sf:
+  hidden_dim: 512          # archi.successor_features = ForwardArchi(512, 2)
+  hidden_layers: 2
+  embedding_layers: 2      # ForwardArchiConfig.embedding_layers default
+hilp_sf_archi: tdjepa      # generic ForwardArchi, per-head embeddings + hidden_layers trunk
+hilp_left_encoder:         # archi.left_encoder = BackwardArchi(512, 4, norm=True) -> L_dim
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+sf_target_tau: 0.005       # train.sf_target_tau (also the left encoder's target tau)
+hilp_q_loss: false
+hilp_head_reduce: mean
+hilp_actor_head_reduce: mean
+hilp_sf_loss_scale: 0.5
+lr_f: 1.0e-4               # train.lr_sf — the SF tower AND the left encoder ride this
+lr_b: 1.0e-4
+lr_actor: 1.0e-4           # train.lr_actor
+group_lr: {hilp_phi1: 1.0e-4, hilp_phi2: 1.0e-4, actor: 1.0e-4}   # train.lr_features
+dataset_class: HILPFutureDataset
+hilp_future: 0.99          # data.future
+hilp_p_randomgoal: 0.375   # train.prob_random_goal
+hilp_p_currgoal: 0.0
+hilp_mix_ratio: 0.5        # train.train_goal_ratio
+stages_from_pre_step_params: true
+hilp_independent_target_init: false   # td_jepa deepcopies its targets AFTER weight_init
+backward_input: state
+measure_hit_spec: "19:22:0.4"     # cube-single; cube-double overrides to add 28:31:0.4

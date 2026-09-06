@@ -415,3 +415,50 @@ def test_unsupported_adapter_raises_a_named_error(tmp_path, monkeypatch):
     cfg = _fb_cfg(eval_relabel_size=10)
     with pytest.raises(NotImplementedError, match="relabel_infer_batch"):
         _run_main(tmp_path, monkeypatch, cfg, adapter)
+
+
+def test_relabel_unwraps_a_per_critic_dataset_wrapper():
+    """REGRESSION: eval_relabel_size crashed every HILP arm at launch.
+
+    `impls/main.py` hands the eval the dataset AFTER `make_dataset` wraps it in the critic's
+    sampler. Those wrappers implement `sample` but not column access, so
+
+        assert "qpos" in train_ds
+        TypeError: argument of type 'HILPFutureDataset' is not iterable
+
+    killed all 12 hilp_tdjc runs seconds after launch, while fb_tdj was fine because its
+    dataset_class leaves the base unwrapped. `_column_backed` walks `.dataset` down to the
+    real columns.
+    """
+    import numpy as np
+
+    from env.ogbench import OGBenchAdapter
+
+    class _Base:
+        def __init__(self):
+            self._cols = {"observations": np.zeros((4, 3)), "qpos": np.zeros((4, 2))}
+        def __contains__(self, k):
+            return k in self._cols
+        def __getitem__(self, k):
+            return self._cols[k]
+
+    class _Wrapper:                      # no __contains__, exactly like HILPFutureDataset
+        def __init__(self, base):
+            self.dataset = base
+
+    base = _Base()
+    assert OGBenchAdapter._column_backed(base) is base
+    assert OGBenchAdapter._column_backed(_Wrapper(base)) is base
+    assert OGBenchAdapter._column_backed(_Wrapper(_Wrapper(base))) is base
+
+
+def test_column_backed_terminates_on_a_self_referential_wrapper():
+    """It must not spin if a wrapper points at itself."""
+    from env.ogbench import OGBenchAdapter
+
+    class _Loop:
+        pass
+
+    a = _Loop()
+    a.dataset = a
+    assert OGBenchAdapter._column_backed(a) is a

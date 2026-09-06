@@ -157,6 +157,31 @@ class OGBenchAdapter:
             renders += list(r)
         return {"success": float(np.mean(succ))}, renders
 
+    @staticmethod
+    def _column_backed(ds):
+        """The raw column-backed dataset under any per-critic sampler wrapper.
+
+        `impls/main.py` hands the eval the dataset AFTER `make_dataset` has wrapped it, and
+        the wrappers (HILPFutureDataset, GCDataset, WindowedDataset, ...) implement `sample`
+        but NOT the `"col" in ds` / `ds["col"]` column access this relabel needs -- each keeps
+        its base in `.dataset` and reaches through it the same way (datasets.py:33 does
+        `self.dataset['terminals']`). Without this, `eval_relabel_size` crashed every HILP
+        arm with `TypeError: argument of type 'HILPFutureDataset' is not iterable`, while
+        fb_tdj worked only because its dataset_class leaves the base unwrapped.
+        """
+        cur = ds
+        for _ in range(8):
+            try:
+                if "observations" in cur:
+                    return cur
+            except TypeError:
+                pass
+            nxt = getattr(cur, "dataset", None)
+            if nxt is None or nxt is cur:
+                break
+            cur = nxt
+        return cur
+
     def relabel_infer_batch(self, train_ds, env, task_id, num_samples, shift_reward=1.0,
                             threshold=0.04):
         """(next_observations, rewards) ready for `agent.infer_eval_cond` -- td_jepa's OGBench
@@ -166,6 +191,7 @@ class OGBenchAdapter:
         dataset's own 'rewards' column, which FBDataset zeroes for unlabelled play data
         (impls/utils/datasets.py:125-128).
         """
+        train_ds = self._column_backed(train_ds)
         assert "qpos" in train_ds, (
             "eval_relabel_size requires the dataset to carry 'qpos' -- "
             "OGBenchAdapter.make_env_and_datasets forces add_info=True whenever "

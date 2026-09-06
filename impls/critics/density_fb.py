@@ -422,6 +422,18 @@ class DensityFBCritic:
     # --- spec 30 P1 reward-sample index (measure_density_z, DEFAULT OFF) ------------------
     # Read ONLY when z_on is True, so the goal-conditioned arm traces no extra op and stays
     # byte-identical (tests/impls/test_boot_contract.py).
+    # `backward_input` ("hit_spec" | "state"): what the B tower consumes on the STATE
+    # path. "hit_spec" (default) is every published cell -- the eps-scaled object-coordinate
+    # block slice. "state" feeds B the full observation row instead.
+    #
+    # This is the missing control for the with/without-privileged-coordinates table: it is
+    # the ONLY way to ask what Density-FB's cube number owes to the object-coordinate
+    # outcome space rather than to the categorical estimator. It is separable because
+    # `u_raw` (the kernel reward's operand) and `u_sc` (B's input) are already two distinct
+    # variables everywhere -- and the PIXEL path already runs a non-block B input
+    # (`u_sc = nobs`, the image) with the object-coordinate kernel intact, so the rest of
+    # the method is known to work in this configuration.
+    backward_input: str = "hit_spec"
     z_on: bool = False              # measure_density_z
     z_dim: int = 0                  # measure_density_dim, echoed here so cvec_dim can read it
     z_rand_frac: float = 0.5        # fraction of rows replaced by a fresh sqrt(d)-sphere draw
@@ -595,6 +607,20 @@ class DensityFBCritic:
         """B's input built from raw block columns: standardize first when `obs_norm`, then
         the usual per-block eps scaling."""
         return _scale_block_cols(self._scols(c, raw_cols), self.blocks)
+
+    def _b_query(self, c, nobs, nobs_q):
+        """THE B-tower query rows, for both `stage_loss` and `sample_cond`.
+
+        pixels      -> the query IMAGE (the encoder consumes it);
+        "state"     -> the raw full observation row;
+        "hit_spec"  -> the eps-scaled object-coordinate slice (every published cell).
+
+        `u_raw` is built separately by the callers and is NOT affected by this knob, so the
+        kernel reward, the hard immediate target and the goal semantics are identical across
+        both settings -- which is what makes this a single-knob control."""
+        if self.pixel or self.backward_input == "state":
+            return nobs
+        return self._q_in(c, nobs_q)
 
     def _q_in(self, c, rows):
         """B's input built from full observation rows (state path only)."""
@@ -828,7 +854,7 @@ class DensityFBCritic:
         nobs_q = self._kernel_rows(batch, "next_observations", nobs)
         u_raw = _raw_block_cols(nobs_q, blocks)                           # [M, d_c] RAW
         # The B tower's input: eps-scaled query rows on state, the query IMAGE on pixels.
-        u_sc = nobs if self.pixel else self._q_in(params, nobs_q)
+        u_sc = self._b_query(params, nobs, nobs_q)
 
         b_emb = self._B(params["density_b"], u_sc)                        # [M, d]
         f_emb = self._F(params["density_f"], self._sobs(params, obs), acts, g)   # [2,B,d]
@@ -960,7 +986,7 @@ class DensityFBCritic:
         u_raw = _raw_block_cols(nobs_q, self.blocks)
         # The B tower's query rows: eps-scaled object coords on state, the query IMAGE on
         # pixels. `_density_u_raw` keeps its meaning on both.
-        u_sc = nobs if self.pixel else self._q_in(net, nobs_q)
+        u_sc = self._b_query(net, nobs, nobs_q)
         # `_cvec_vgoal` is THIS critic's conditioning vector at the value goal, published so
         # the actors' TD bootstrap draw is correct rather than inferred (impls/actors/ddpgbc).
         if self.z_on:
@@ -1080,6 +1106,10 @@ class DensityFBCritic:
         # config say "state" about image data, the disagreement the kernel guard forbids.
         pixel = int(jnp.ndim(ex_obs)) > 2
         z_on = bool(config.get("measure_density_z", False))
+        backward_input = str(config.get("backward_input", "hit_spec"))
+        if backward_input not in ("hit_spec", "state"):
+            raise ValueError(
+                f"backward_input must be 'hit_spec' or 'state', got {backward_input!r}")
         if pixel and z_on:
             # Before the z_on assertions, being the more fundamental refusal: the FROZEN EVAL
             # POOL stores RAW object-coordinate columns, which the image-consuming pixel B
@@ -1206,7 +1236,10 @@ class DensityFBCritic:
             ex_f = jnp.concatenate(
                 [ex_obs, ex_actions,
                  jnp.zeros((ex_obs.shape[0], d), ex_obs.dtype) if z_on else ex_obs], -1)
-            ex_u = _density_queries(ex_obs, blocks)
+            # B's example input must match `backward_input`, or the tower is created at
+            # the block width and dies on the first full-state row.
+            ex_u = (ex_obs if backward_input == "state"
+                    else _density_queries(ex_obs, blocks))
             params = {
                 "density_f": density_f.init(rf, ex_f)["params"],
                 "density_b": density_b.init(rb, ex_u)["params"],
@@ -1239,7 +1272,18 @@ class DensityFBCritic:
             # tests/impls/test_boot_contract.py caught.
             params["density_obsnorm"] = obsnorm_mod.init(rz)["params"]
             groups = groups + ("density_obsnorm",)
+        if backward_input == "state" and z_on:
+            # The reward-sample index paths (`_z_index`, `z_from_reward_samples`,
+            # `map_eval_cond`) build their pool as PRE-SLICED eps-scaled block columns
+            # (`_q_cols(pool_raw)`), which is a different object from a full-state row.
+            # Refused rather than served half-correctly.
+            raise ValueError(
+                "backward_input='state' with measure_density_z=true is not implemented: the "
+                "index encoder's pool is built from pre-sliced block columns, so B would be "
+                "fed two different row shapes. Run the state control with the goal interface "
+                "(measure_density_z=false).")
         obj = cls(density_f=density_f, density_b=density_b, obs_dim=obs_dim, blocks=blocks,
+                  backward_input=backward_input,
                   discount=float(config["discount"]),
                   temp=float(config["measure_density_temp"]), tau=float(config["tau"]),
                   actor_q_center=bool(config.get("actor_q_center", True)),
