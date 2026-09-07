@@ -1,0 +1,11 @@
+# puzzle-3x3-play (state-based) domain. Obs dim 55 = 19 proprio + 9 buttons x [one-hot 2,
+# pos, vel]; button i's one-hot state sits at 19+4i:21+4i (verified against
+# ogbench/manipspace/envs/puzzle_env.py::compute_observation, 2026-09-07). Per-task eval
+# (5 task_infos), as cube_single.
+#
+# Density-variant measure hit spec: the goal is the 9 binary button states; each one-hot
+# block gets radius 0.5 (a mismatch has norm sqrt(2)), so the conjunction of nine blocks is
+# exactly "all buttons match" -- the env's success rule. The button pos/vel columns in
+# between are NOT part of the goal and are excluded:
+#   measure_hit_spec="19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5"
+env_name: puzzle-3x3-play-v0

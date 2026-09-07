@@ -14,3 +14,9 @@ FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "fb_reference.npz"
 def fb_fixture():
     assert os.path.exists(FIXTURE), f"missing {FIXTURE}; copy it in Task 2"
     return dict(np.load(FIXTURE))
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "ogbench_dataset: needs a real OGBench npz under ~/.ogbench/data (skipped when absent)")

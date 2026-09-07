@@ -67,7 +67,9 @@ def truncate_whole_trajectories(dataset, num_transitions, seed=_SUBSET_SEED):
 # docs/notes/2026-09-03-fb-vs-tdjepa.md #5/#7: td_jepa's OGBench FB numbers are a zero-shot
 # reward-inference readout, not the env's goal-Dirac z. This is the missing half: relabel a
 # sample of TRAIN transitions by their next observation's simulator state, feed
-# (next_observations, rewards) to `agent.infer_eval_cond`, and roll the result. Cube-only.
+# (next_observations, rewards) to `agent.infer_eval_cond`, and roll the result. Four OGBench
+# families: cube, antmaze, scene, puzzle -- one reward function each, dispatched on the
+# task_info's goal key by `relabel_reward_for_task`.
 #
 # Offsets transcribed from td_jepa's cube_reward_fn
 # (~/git/baselines/td_jepa/metamotivo/envs/ogbench.py:30-39): the free joint
@@ -103,6 +105,117 @@ def cube_relabel_reward(qpos, goal_xyzs, threshold=0.04):
         dist = np.linalg.norm(qpos[:, off:off + 3] - goal_xyzs[i], axis=-1)
         successes += (dist < threshold).astype(np.float64)
     return successes - num_cubes
+
+
+def antmaze_relabel_reward(qpos, goal_xy, threshold=0.5):
+    """td_jepa's `ant_reward_fn`, transcribed: 1[||qpos[:, :2] - goal_xy|| <= threshold] - 1,
+    i.e. 0 at the goal and -1 elsewhere. `threshold` 0.5 is ogbench's own ant goal tolerance
+    (locomaze/maze.py: `_goal_tol = 0.5` for the ant body); note the INCLUSIVE `<=`, unlike
+    the cube's strict `<`.
+
+    goal_xy comes from `task_infos[t]['goal_xy']`, the maze cell CENTRE. td_jepa instead
+    calls `env.reset()` and reads `get_oracle_rep()`, and ogbench's maze reset adds noise to
+    the goal by default (`add_noise_to_goal=True`), so td_jepa relabels against one random
+    jitter of the same cell; the cell centre is the deterministic version of that.
+
+    qpos: [N, D] rows (antmaze's npz qpos is 15 wide; only the first 2 columns are read).
+    Returns: [N] float64, UNSHIFTED.
+    """
+    qpos = np.asarray(qpos, np.float64)
+    goal_xy = np.asarray(goal_xy, np.float64).reshape(2)
+    assert qpos.ndim == 2 and qpos.shape[-1] >= 2, f"qpos is {qpos.shape}, need >= 2 columns"
+    dist = np.linalg.norm(qpos[:, :2] - goal_xy, axis=-1)
+    return (dist <= threshold).astype(np.float64) - 1.0
+
+
+def puzzle_relabel_reward(physics, goal_button_states):
+    """td_jepa's `puzzle_reward_fn`, transcribed: (physics[:, -k:] == goal).sum(-1) - k for
+    k = number of buttons -- 0 when every button matches, down to -k.
+
+    physics: [N, D] td_jepa "physics" rows = qpos ++ button_states (see `_physics_rows`);
+        the LAST k columns are the discrete button states. It is NOT the raw qpos: the
+        buttons' physical joint positions (qpos[-9:] on puzzle-3x3) are never equal to the
+        integer goal states, so a raw-qpos row scores -k everywhere.
+    goal_button_states: [k] ints, `task_infos[t]['goal_button_states']`.
+    Returns: [N] float64, UNSHIFTED. With the fb_tdj shift of 1.0 the shifted reward is
+        (#matched - k + 1): 1 only when ALL buttons match, 0 for one miss, negative below --
+        a graded count, not a 0/1 success indicator.
+    """
+    physics = np.asarray(physics)
+    goal = np.asarray(goal_button_states).reshape(-1)
+    k = goal.shape[0]
+    assert physics.ndim == 2 and physics.shape[-1] >= k, (
+        f"physics is {physics.shape}, need >= {k} columns for {k} buttons")
+    return (physics[:, -k:] == goal).sum(-1).astype(np.float64) - k
+
+
+# ogbench scene_env.py:72-77 -- td_jepa flattens `task_info['goal'].values()` in this order
+# into its 7-vector target (cube xyz, button 1, button 2, drawer, window).
+SCENE_GOAL_KEYS = ("block_xyzs", "button_states", "drawer_pos", "window_pos")
+
+
+def scene_relabel_reward(physics, goal, threshold=0.04):
+    """td_jepa's `scene_reward_fn`, transcribed: five conditions on the physics row --
+    cube `physics[14:17]` within `threshold` of the goal cube xyz (inclusive), buttons
+    `physics[-2]`, `physics[-1]` EQUAL to the goal button states, drawer `physics[-4]` and
+    window `physics[-3]` within `threshold` of their goal positions (inclusive) -- minus 5.
+
+    physics: [N, D] td_jepa "physics" rows = qpos ++ button_states (see `_physics_rows`).
+        On scene-play-v0 that is qpos (25: arm 0:14, cube 14:21, fingers 21:23, drawer 23,
+        window 24) ++ button_states (2), so -4/-3 are drawer/window and -2/-1 the buttons.
+    goal: either `task_infos[t]['goal']` (dict in SCENE_GOAL_KEYS order) or the flattened
+        7-vector td_jepa builds from it.
+    Returns: [N] float64, UNSHIFTED. With the fb_tdj shift of 1.0 the shifted reward is
+        (#satisfied - 4): 1 only when all five hold, 0 for one miss, negative below -- a
+        graded count, not a 0/1 success indicator.
+    """
+    physics = np.asarray(physics, np.float64)
+    if isinstance(goal, dict):
+        assert tuple(goal.keys()) == SCENE_GOAL_KEYS, (
+            f"scene goal dict must be ordered {SCENE_GOAL_KEYS} (ogbench scene_env.py); "
+            f"got {tuple(goal.keys())}")
+        target = np.concatenate([np.array([v]).ravel() for v in goal.values()])
+    else:
+        target = np.asarray(goal).reshape(-1)
+    target = target.astype(np.float64)
+    assert target.shape == (7,), f"scene target must flatten to 7 values, got {target.shape}"
+    assert physics.ndim == 2 and physics.shape[-1] >= 17 + 4, (
+        f"physics is {physics.shape}, need cube at 14:17 and 4 trailing object columns")
+    cube = (np.linalg.norm(physics[:, 14:17] - target[:3], axis=-1) <= threshold).astype(np.float64)
+    button1 = (physics[:, -2] == target[3]).astype(np.float64)
+    button2 = (physics[:, -1] == target[4]).astype(np.float64)
+    drawer = (np.abs(physics[:, -4] - target[5]) <= threshold).astype(np.float64)
+    window = (np.abs(physics[:, -3] - target[6]) <= threshold).astype(np.float64)
+    return cube + button1 + button2 + drawer + window - 5.0
+
+
+# Family dispatch: (task_info goal key, needs button_states, reward fn). Mirrors td_jepa's
+# get_relabel_fn (envs/ogbench.py:113-127), keyed on what ogbench's task_infos actually carry
+# instead of on the env name: cube -> 'goal_xyzs', antmaze -> 'goal_xy',
+# puzzle -> 'goal_button_states', scene -> 'goal' (a dict).
+_RELABEL_FAMILIES = (
+    ("goal_xyzs", False, lambda info, phys, thr: cube_relabel_reward(phys, info["goal_xyzs"], threshold=thr)),
+    ("goal_xy", False, lambda info, phys, thr: antmaze_relabel_reward(phys, info["goal_xy"])),
+    ("goal_button_states", True, lambda info, phys, thr: puzzle_relabel_reward(phys, info["goal_button_states"])),
+    ("goal", True, lambda info, phys, thr: scene_relabel_reward(phys, info["goal"], threshold=thr)),
+)
+
+
+def _relabel_family(task_info):
+    for key, needs_buttons, fn in _RELABEL_FAMILIES:
+        if key in task_info:
+            return key, needs_buttons, fn
+    raise AssertionError(
+        f"relabel_infer_batch: task_info has none of the supported goal keys "
+        f"{[k for k, _, _ in _RELABEL_FAMILIES]} (cube goal_xyzs / antmaze goal_xy / puzzle "
+        f"goal_button_states / scene goal); keys: {sorted(task_info)} -- this domain is unsupported")
+
+
+def relabel_reward_for_task(task_info, physics, threshold=0.04):
+    """UNSHIFTED relabel reward of `physics` rows under `task_info`'s family. `threshold` is
+    the cube/scene distance tolerance (antmaze uses its own 0.5, puzzle is exact-match)."""
+    _, _, fn = _relabel_family(task_info)
+    return fn(task_info, physics, threshold)
 
 
 class OGBenchAdapter:
@@ -182,14 +295,38 @@ class OGBenchAdapter:
             cur = nxt
         return cur
 
+    @staticmethod
+    def _physics_rows(train_ds, idxs, needs_buttons):
+        """td_jepa's "physics" row for dataset rows `idxs`: the npz `qpos`, CONCATENATED with
+        `button_states` when the family needs it (scene, puzzle) -- exactly how td_jepa
+        builds the array its reward functions index from the end
+        (scripts/data_processing/ogbench/extract_all.py:56-58). Cube and antmaze read plain
+        qpos, so their rows are byte-identical to before."""
+        qpos = np.asarray(train_ds["qpos"][idxs], np.float64)
+        if not needs_buttons:
+            return qpos
+        assert "button_states" in train_ds, (
+            "this family's relabel reward reads discrete 'button_states', which ogbench's "
+            "loader ships alongside 'qpos' under add_info=True for scene/puzzle npz files -- "
+            "a dataset without it here means the add_info wiring did not run")
+        buttons = np.asarray(train_ds["button_states"][idxs], np.float64)
+        return np.concatenate([qpos, buttons], axis=-1)
+
     def relabel_infer_batch(self, train_ds, env, task_id, num_samples, shift_reward=1.0,
                             threshold=0.04):
         """(next_observations, rewards) ready for `agent.infer_eval_cond` -- td_jepa's OGBench
         reward-relabel protocol (docs/notes/2026-09-03-fb-vs-tdjepa.md #7). Draws
         `num_samples` random transitions from the TRAIN dataset and relabels each by its NEXT
-        observation's stored simulator qpos against task `task_id`'s goal_xyzs -- never the
+        observation's stored simulator state against task `task_id`'s goal -- never the
         dataset's own 'rewards' column, which FBDataset zeroes for unlabelled play data
         (impls/utils/datasets.py:125-128).
+
+        The family is picked from the task_info's goal key (`relabel_reward_for_task`):
+        cube 'goal_xyzs', antmaze 'goal_xy', puzzle 'goal_button_states', scene 'goal'.
+        `shift_reward` is added verbatim, as td_jepa does (`rewards += shift_reward`): with
+        the fb_tdj value 1.0 the shifted reward is (#conditions satisfied - k + 1), a 0/1
+        success indicator ONLY for the single-condition families (cube-single, antmaze); on
+        scene (k=5) and puzzle (k=9) it is a graded count that goes negative.
         """
         train_ds = self._column_backed(train_ds)
         assert "qpos" in train_ds, (
@@ -198,13 +335,11 @@ class OGBenchAdapter:
             "cfg['eval_relabel_size'] is set, so a dataset without 'qpos' here means that "
             "wiring did not run (e.g. a hand-built cfg in a test)")
         task_info = env.unwrapped.task_infos[task_id - 1]
-        assert "goal_xyzs" in task_info, (
-            f"relabel_infer_batch is a CUBE-only reward relabel; task_infos[{task_id - 1}] "
-            f"has no 'goal_xyzs' (keys: {sorted(task_info)}) -- this domain is unsupported")
+        _, needs_buttons, reward_fn = _relabel_family(task_info)
         idxs = train_ds.get_random_idxs(int(num_samples))
         next_idxs = np.minimum(idxs + 1, train_ds.size - 1)
         next_obs = np.asarray(train_ds["observations"][next_idxs], np.float32)
-        next_qpos = np.asarray(train_ds["qpos"][next_idxs], np.float64)
-        rewards = cube_relabel_reward(next_qpos, task_info["goal_xyzs"], threshold=threshold)
+        next_physics = self._physics_rows(train_ds, next_idxs, needs_buttons)
+        rewards = reward_fn(task_info, next_physics, threshold)
         rewards = (rewards + float(shift_reward)).astype(np.float32)
         return next_obs, rewards

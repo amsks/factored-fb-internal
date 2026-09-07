@@ -168,7 +168,9 @@ def test_relabel_infer_batch_requires_qpos():
 
 def test_relabel_infer_batch_requires_goal_xyzs_on_the_task():
     ds = _fake_train_ds()
-    env = _fake_env([{"goal_button_states": np.zeros(2)}])  # e.g. a puzzle task_info
+    # A task_info from no supported family (cube/antmaze/puzzle/scene keys all absent) must
+    # fail loudly, naming the cube key among the supported ones.
+    env = _fake_env([{"goal_foo": np.zeros(2)}])
     with pytest.raises(AssertionError, match="goal_xyzs"):
         OGBenchAdapter().relabel_infer_batch(ds, env, 1, 4)
 
