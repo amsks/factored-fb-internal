@@ -16,7 +16,9 @@ export REPO="${REPO:-$HOME/git/Factored-FB-seam}"
 export PY="${PY:-$REPO/.venv-jax/bin/python}"
 export XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_FLAGS=--xla_gpu_enable_command_buffer= WANDB_MODE=offline MUJOCO_GL=egl
 cd "$REPO"; mkdir -p logs
-mapfile -t CMDS < <(JOBS_ONLY=1 bash scripts/launch_partb_tier1.sh)
+# Frozen list (see scripts/ablation_matrix.slurm header): JOBS_ONLY=1 bash scripts/launch_partb_tier1.sh > jobs_partb.cmds
+: "${JOBS_FILE:?set JOBS_FILE to a frozen command list}"
+mapfile -t CMDS < "$JOBS_FILE"
 [ "${SLURM_ARRAY_TASK_ID}" -lt "${#CMDS[@]}" ] || { echo "index ${SLURM_ARRAY_TASK_ID} beyond ${#CMDS[@]} pending jobs (already done)"; exit 0; }
 echo ">>> ${CMDS[$SLURM_ARRAY_TASK_ID]}"
 eval "${CMDS[$SLURM_ARRAY_TASK_ID]}"
