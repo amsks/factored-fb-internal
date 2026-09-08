@@ -169,6 +169,29 @@ def infer_cond_noop_reason(pre_cond, post_cond, rewards, agent=None):
     return None
 
 
+def route_b_invalid_reason(pre_cond, relabel_agent, rewards):
+    """Why a Route B (eval_relabel) row must NOT be scored, or None if inference is live.
+
+    Route B rolls whatever `infer_eval_cond` returned. For a critic whose `infer_cond` is a
+    placeholder (goal-conditioned density_fb with measure_density_z off returns the zero
+    goal; gciql likewise) that means the policy is rolled on goal=0 and the resulting success
+    rate looks exactly like a zero-shot number in eval_relabel.csv. So the row is checked
+    twice: `infer_cond_noop_reason` (bit-identical cond, all-zero rewards, goal override) and
+    then the witness itself -- a rolled conditioning vector of zero or undefined norm is
+    not a task specification whatever the detector said. The reason names the critic so a
+    hub row is self-explaining."""
+    reason = infer_cond_noop_reason(pre_cond, relabel_agent.cond_eval, rewards,
+                                    agent=relabel_agent)
+    if reason is None:
+        norm = relabel_agent.witness()["inferred_cond_norm"]
+        if not norm > 0.0:                       # also catches NaN
+            reason = (f"inferred_cond_norm={norm} (the conditioning vector that would be "
+                      f"rolled is zero or undefined)")
+    if reason is None:
+        return None
+    return f"{type(relabel_agent.critic).__name__}: {reason}"
+
+
 _FAMILY = {"b2d": "Box2D", "p2d": "Box2D", "mw": "Metaworld", "ms": "ManiSkill",
            "dmc": "ExoRL"}
 
@@ -526,21 +549,40 @@ def main(_):
                         relabel_obs, relabel_rewards = relabel_fn(
                             train_ds, env, tid, cfg["eval_relabel_size"],
                             shift_reward=cfg.get("eval_relabel_shift", 1.0))
+                        pre_cond = agent.cond_eval
                         relabel_agent = agent.infer_eval_cond(
                             jnp.asarray(relabel_obs), jnp.asarray(relabel_rewards))
                         # ROLLS_INFERRED_COND=True: the goal frame is never forwarded, so the
                         # inferred z from the relabelled rewards is what actually gets rolled.
                         relabel_agent = InferredCondAgent(relabel_agent)
-                        row, _frames = adapter.evaluate(
-                            relabel_agent, env, tid, cfg, n_relabel_eps, 0,
-                            any_step_success=True)
-                        row = {**row, **relabel_agent.witness()}
+                        # NO-OP GUARD. A critic whose infer_cond is a placeholder (density_fb
+                        # with the index off returns the zero goal) would otherwise be rolled
+                        # on goal=0 and SCORED here as a zero-shot result. Such a row is
+                        # written with success=NaN and an invalid_reason, is not rolled, and
+                        # never reaches the agg jsonl. Both columns are on EVERY row so the
+                        # frozen CSV header can carry them.
+                        invalid = route_b_invalid_reason(pre_cond, relabel_agent,
+                                                         relabel_rewards)
+                        if invalid is not None:
+                            warnings.warn(
+                                f"eval_relabel task {tid} at step {i}: reward inference had "
+                                f"no effect ({invalid}); the row is written with success=NaN "
+                                f"and invalid_reason set, and is NOT a zero-shot result.")
+                            row = {"success": float("nan"), **relabel_agent.witness()}
+                        else:
+                            row, _frames = adapter.evaluate(
+                                relabel_agent, env, tid, cfg, n_relabel_eps, 0,
+                                any_step_success=True)
+                            row = {**row, **relabel_agent.witness()}
+                        row = {**row, "route_b_valid": 0.0 if invalid else 1.0,
+                               "invalid_reason": invalid or ""}
                         scope = f"eval_relabel/task{tid}"
                         row = _drain_per_episode(run_dir, scope, i, row)
                         csv_eval_relabel.log({**row, "task_id": tid}, step=i)
                         if run is not None:
-                            run.log({f"{scope}/{k}": v for k, v in row.items()}, step=i)
-                        if FLAGS.agg_dir:
+                            run.log({f"{scope}/{k}": v for k, v in row.items()
+                                     if not isinstance(v, str)}, step=i)
+                        if FLAGS.agg_dir and invalid is None:
                             _append_agg(FLAGS.agg_dir, f"{agg_group}_relabel", FLAGS.seed, i,
                                         row, cfg.get("task", cfg.get("env_name")))
                         print("eval_relabel", i, "task", tid, row, flush=True)

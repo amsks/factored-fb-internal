@@ -31,28 +31,47 @@ ACTOR_TeX = {"flowbc": "Flow", "ddpgbc": "DDPG"}
 
 
 def score_run(eval_csv):
-    """Mean success over the last 3 eval points, or None if unreadable/empty."""
+    """Mean success over the last 3 eval points, or None if unreadable/empty.
+
+    OGBench eval.csv files carry one row per TASK per step (impls/main.py logs each task_id
+    separately; eval_aggregate is off by default), so rows are first grouped by step and
+    averaged across tasks; a csv with one row per step is unchanged by that."""
     try:
         rows = list(csv.DictReader(open(eval_csv)))
     except OSError:
         return None
-    pts = {}
+    pts = defaultdict(list)
     for r in rows:
         try:
-            pts[int(float(r["step"]))] = float(r["success"])
+            pts[int(float(r["step"]))].append(float(r["success"]))
         except (KeyError, ValueError):
             pass
     if not pts:
         return None
-    return st.mean(pts[s] for s in sorted(pts)[-3:])
+    return st.mean(st.mean(pts[s]) for s in sorted(pts)[-3:])
 
 
 # Critic/actor names can themselves contain underscores (iql_bilinear, sf_feature, bcflow),
 # so a positional split is wrong. Match the known names off the end instead. Longest first so
 # e.g. fb_forward_bilinear wins over fb.
+# Names are the --critic values a run dir is written under: the CRITICS keys and the
+# config-only CRITIC_ALIASES keys of impls/agents/__init__.py (kept in sync by hand; importing
+# that module would pull in jax and every critic class just to build a table).
 KNOWN_CRITICS = sorted(
     ["fb", "gciql", "iql_bilinear", "crl", "isfb", "simple_sf", "sf_feature",
-     "centered_bilinear", "fb_forward_bilinear"], key=len, reverse=True)
+     "centered_bilinear", "fb_forward_bilinear",
+     # impls/agents/__init__.py CRITICS
+     "gcivl", "hiql", "qrl", "density_fb", "psm", "rldp", "psm_density", "rldp_density",
+     "hilp_density", "hilp",
+     # impls/agents/__init__.py CRITIC_ALIASES
+     "density_fb_pixels", "density_fb_z", "rldp_density_gk", "rldp_density_gk_oc",
+     "density_fb_z_state", "hilp_density_gk", "hilp_density_gk_oc", "hilp_gc", "hilp_gc_oc",
+     "rldp_gc", "rldp_gc_oc", "psm_repair", "psm_density_repair", "rldp_oc", "rldp_density_oc",
+     "psm_oc", "psm_density_oc", "hilp_oc", "hilp_density_oc", "hilp_cube", "fb_oc",
+     "hilp_tdjc", "hilp_density_tdjc", "density_fb_state", "hilp_density_cube", "fb_ref",
+     "fb_tdj", "rldp_portalign", "rldp_official", "rldp_orthoa", "rldp_orthob",
+     "rldp_density_official", "rldp_tdj", "hilp_tdj", "rldp_density_tdj", "hilp_density_tdj"],
+    key=len, reverse=True)
 KNOWN_ACTORS = sorted(["flowbc", "ddpgbc", "bcflow", "awr", "fql"], key=len, reverse=True)
 
 

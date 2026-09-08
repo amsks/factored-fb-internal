@@ -65,6 +65,9 @@ measure_density_z: true
 # fast target tower, uncentered) trained the actor against a drifting, gauge-dependent reward
 # and gave .43@500k / .25@1M on cube-single vs the bridge's .82 (see memory
 # density-fb-z-port-gap-20260906). Override to 'latent' for the control arm.
+# 2026-09-08: 'kernel' (the bridge stack's cell) reads the EXACT goal kernel _delta_phi(goal, u)
+# on rows whose z kept the encoded index of their own actor goal, the latent_centered proxy
+# on sphere-draw rows; F and the actor still condition on z, eval is unchanged.
 measure_density_z_actor_reward: latent_centered    # diag screen Exp B: reward-sample index ON (spec-30 centered dual
   # encoder — the only implemented variant). Every companion knob below stays at the shipped
   # spec-30 round-1 default.

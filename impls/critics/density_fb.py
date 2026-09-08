@@ -452,6 +452,14 @@ class DensityFBCritic:
     #                     centered encoder fit to the reward samples that produced z, so the
     #                     reward the actor optimizes and the index it is conditioned on move
     #                     on the same clock with the constant removed (2026-09-06).
+    #   'kernel'          r(u) = _delta_phi(goal, u): the EXACT training-task reward on the
+    #                     candidate set -- the very estimator the goal branch integrates --
+    #                     for every row whose z kept the encoded index of its own actor goal
+    #                     (cond["_z_hindsight"] == 1). Sphere-draw rows (z_rand_frac) carry
+    #                     no goal and fall back to the 'latent_centered' proxy. Conditioning
+    #                     (F on z, the actor on z) is untouched, so eval / infer_cond, where
+    #                     the actor just rolls on z, is unchanged (2026-09-08; the bridge
+    #                     stack's 'kernel' cell, ported).
     z_actor_reward: str = "latent"
     # The index-state modules; None with the index off, so no group is registered.
     density_b_zenc: Any = None
@@ -938,7 +946,42 @@ class DensityFBCritic:
             info["density_sarsa_subst"] = jnp.linalg.norm(
                 jax.lax.stop_gradient(boot["next_action_vgoal"]) - batch["next_actions"],
                 axis=-1).mean()
+        if self.z_on and self.z_actor_reward == "kernel":
+            # The fraction of this batch's actor rows whose readout used the EXACT kernel
+            # reward (the rest fell back to the latent_centered proxy); = 1 - z_rand_frac in
+            # expectation. Logged from the critic stage because q_fn returns no info.
+            info["density_z_kernel_frac"] = jnp.mean(cond["_z_hindsight"])
         return ce, info
+
+    def z_actor_reward_rows(self, cond):
+        """The z-branch actor reward kg [B, M] on the batch's candidate set, one row per
+        actor row, stop-gradiented. This is the ONLY thing `measure_density_z_actor_reward`
+        chooses; F's conditioning on z and the softmax over candidates are shared.
+
+          'latent'          B~(u)^T z / sqrt(d)               (target tower, uncentered)
+          'latent_centered' (B_xi(u) - mu_hat)^T z / sqrt(d)  (slow index tower, centered)
+          'kernel'          _delta_phi(goal, u) on rows that kept the encoded index of their
+                            own actor goal (cond["_z_hindsight"] == 1), the latent_centered
+                            proxy on sphere-draw rows.
+
+        The goal rows are cond["goal"] (= batch["actor_goals"], the goal `sample_cond` built
+        cond["z"] from) and cond["_density_u_raw"] the RAW candidate columns -- exactly the
+        operands the goal branch of `q_fn` hands `_delta_phi`. Nothing here runs at eval or
+        infer_cond time: the actor rolls on z, and no goal is needed or read."""
+        g = cond["z"]
+        # 'latent_centered' reads the slow index tower's CENTERED embedding of the support
+        # (the encoder's own basis); 'latent' keeps the fast target tower, uncentered.
+        basis = (cond["_density_zenc_u"] if self.z_actor_reward in ("latent_centered", "kernel")
+                 else cond["_density_tb_u"])
+        kg = jax.lax.stop_gradient(
+            jnp.einsum('md,bd->bm', basis, g) / jnp.sqrt(float(self.z_dim)))
+        if self.z_actor_reward != "kernel":
+            return kg
+        g_rows = self._kernel_rows(cond, "goal", cond["goal"])
+        kg_exact = jax.lax.stop_gradient(
+            _delta_phi(g_rows, cond["_density_u_raw"], self.blocks))       # [B, M]
+        keep = jax.lax.stop_gradient(cond["_z_hindsight"]) > 0.5           # [B, 1]
+        return jnp.where(keep, kg_exact, kg)
 
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         """The actor's greedy readout: q_h = sum_j w_h(s,a,g,u_j) * kernel(goal, u_j), with
@@ -953,20 +996,16 @@ class DensityFBCritic:
         b_p = jax.lax.stop_gradient(params["density_b"])
         b_emb = self._B(b_p, u_sc)
         if self.z_on:
-            # Index mode at measure_density_z_actor_reward='latent' (the 'kernel' cell is
-            # deliberately not ported): F conditions on z and the actor ascends
-            # r_z(u) = B~(u)^T z / sqrt(d) on the query support the measure is trained
-            # against. B~ is the TARGET backward tower, matching the goal branch's frozen-
-            # params discipline; q_fn gets online params only, so sample_cond publishes it as
-            # cond["_density_tb_u"] -- indexed, since falling back to the online tower would
-            # substitute towers silently.
+            # Index mode: F conditions on z and the actor ascends the per-candidate reward
+            # `z_actor_reward_rows` selects on the query support the measure is trained
+            # against -- r_z(u) = B~(u)^T z / sqrt(d) under 'latent' (B~ the TARGET backward
+            # tower, matching the goal branch's frozen-params discipline; q_fn gets online
+            # params only, so sample_cond publishes it as cond["_density_tb_u"] -- indexed,
+            # since falling back to the online tower would substitute towers silently), the
+            # centered slow-tower basis under 'latent_centered', and the exact goal kernel
+            # under 'kernel'.
             g = cond["z"]
-            # 'latent_centered' reads the slow index tower's CENTERED embedding of the support
-            # (the encoder's own basis); 'latent' keeps the fast target tower, uncentered.
-            basis = (cond["_density_zenc_u"] if self.z_actor_reward == "latent_centered"
-                     else cond["_density_tb_u"])
-            kg = jax.lax.stop_gradient(
-                jnp.einsum('md,bd->bm', basis, g) / jnp.sqrt(float(self.z_dim)))
+            kg = self.z_actor_reward_rows(cond)
         else:
             # F takes the goal the tower understands (an IMAGE on pixels); kg is the hit
             # kernel, which only means anything in object coordinates.
@@ -1132,10 +1171,10 @@ class DensityFBCritic:
         pixel = int(jnp.ndim(ex_obs)) > 2
         z_on = bool(config.get("measure_density_z", False))
         z_actor_reward = str(config.get("measure_density_z_actor_reward", "latent"))
-        if z_actor_reward not in ("latent", "latent_centered"):
+        if z_actor_reward not in ("latent", "latent_centered", "kernel"):
             raise ValueError(
-                "measure_density_z_actor_reward must be 'latent' or 'latent_centered' "
-                f"(the bridge's 'kernel' cell is not ported), got {z_actor_reward!r}")
+                "measure_density_z_actor_reward must be 'latent', 'latent_centered' or "
+                f"'kernel', got {z_actor_reward!r}")
         backward_input = str(config.get("backward_input", "hit_spec"))
         if backward_input not in ("hit_spec", "state"):
             raise ValueError(

@@ -369,6 +369,32 @@ class HILPCritic:
     def eval_cond0(self, ex_obs, config):
         return {"z": jnp.zeros((self.z_dim,))}
 
+    def map_eval_cond(self, net, cond, observations=None):
+        """Eval-time hook: the env's goal frame -> the z the actor rolls on. Official HILP's
+        `get_goal_meta` (hilp_zsrl/url_benchmark/agent/sf.py:514-532):
+
+            z = sqrt(d) * normalize(feature_net(g) - feature_net(s))
+
+        feature_net = phi1 - running_mean (sf.py:120-122; the mean cancels in the
+        difference but is applied to both terms for fidelity), s = the CURRENT observation,
+        and the reference recomputes z EVERY STEP (train_offline.py:325-327), which is
+        exactly what a per-call hook does. td_jepa has no goal-conditioned HILP eval at
+        all (only `reward_inference`, sf/model.py:144), so official HILP is the reference.
+        `hilp_density` inherits this unchanged: its whitened-goal encoding lives in
+        sample_cond (training, goal_kernel only) and never touches the eval route.
+
+        Before this hook existed (2026-09-08) `Agent.sample_actions` found no
+        map_eval_cond on the HILP family and rolled eval_cond0's ZERO z for the whole
+        episode -- a goal-blind policy behind every goal-conditioned HILP cell."""
+        if "goal" not in cond:
+            return cond
+        if observations is None:
+            raise ValueError("HILP's goal->z map is joint in goal AND current observation "
+                             "(z = normalize(phi(g) - phi(s))); pass observations=.")
+        p, st = net["hilp_phi1"].params, net["hilp_stats"].params
+        z = self._feature_net(p, st, cond["goal"]) - self._feature_net(p, st, observations)
+        return {**cond, "z": project_z(z, self.norm_z)}
+
     def sample_cond(self, net, batch, rng):
         """z ~ sqrt(d)*normalize(gaussian) (sf.py::sample_z), then MIX_RATIO relabelling.
 

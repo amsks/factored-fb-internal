@@ -1028,7 +1028,7 @@ def test_z_actor_reward_code_default_is_latent():
 
 def test_z_actor_reward_rejects_unknown_values():
     with pytest.raises(ValueError):
-        _built_full(measure_density_z_actor_reward="kernel")
+        _built_full(measure_density_z_actor_reward="bogus")
 
 
 def _perturbed(params, seed=3):
