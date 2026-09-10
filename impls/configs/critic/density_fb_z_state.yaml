@@ -75,6 +75,14 @@ measure_density_z_actor_reward: latent_centered    # diag screen Exp B: reward-s
 measure_density_z_rand_frac: 0.5            # fraction of training rows whose index is a
   # fresh sqrt(d)-sphere draw instead of the encoded one -- FB's standard task-prior mix, so
   # the actor sees the whole conditioning sphere and not just the hindsight-reachable slice.
+measure_density_z_khot_frac: 0.0            # 2026-09-10: fraction of training rows given a
+  # k-hot OBJECT-SUBSET task: a non-empty subset S of the hit-spec blocks (size uniform on
+  # 1..n_blocks, then a uniform subset) around the row's own hindsight goal, with the EXACT
+  # reward prod_{b in S} exp(-0.5 ||(u_b - g_b)/eps_b||^2) normalized over the candidate set
+  # like _delta_phi, and z encoded from it through the same solve. Covers the conjunction
+  # rewards of scene / puzzle / cube-double, whose z lies far from every hindsight goal's.
+  # Taken from the sphere fraction first, then from the goal rows once it exceeds
+  # measure_density_z_rand_frac. 0.0 = no such rows (bit-identical); 1 block = the goal task.
 measure_density_z_ridge_lambda_mult: 0.01   # lam = mult * tr(C_hat)/d (the MEAN-EIGENVALUE
   # convention: dimensionless, comparable across checkpoints and towers).
 measure_density_z_cov_eig_floor: 1.0e-6     # eigenvalues of C_hat below this multiple of

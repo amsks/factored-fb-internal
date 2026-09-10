@@ -373,6 +373,38 @@ def _delta_phi(obs_rows, protos, blocks):
     return jax.nn.softmax(logits, axis=-1)             # query axis = last axis
 
 
+def _masked_block_logits(obs_rows, protos, blocks, mask):
+    """log of the k-hot reward: -0.5 * sum_b mask[:, b] * ||(x_b - proto_b)/eps_b||^2, an
+    [N, M] array. `mask` is [N, n_blocks] in {0, 1}, the per-row block subset S; blocks with
+    mask 0 are ignored. With every block on this is _delta_phi's logit (the same per-block
+    squared distances, summed block by block). Operands RAW on both sides, as _delta_phi."""
+    _check_rows(obs_rows, blocks, "_masked_block_logits(obs_rows)")
+    _check_cols(protos, blocks, "_masked_block_logits(protos)")
+    protos = jnp.asarray(protos, jnp.float32)
+    total, off = None, 0
+    for i, (a, b, e) in enumerate(blocks):
+        w = b - a
+        diff = obs_rows[:, None, a:b] / e - protos[None, :, off:off + w] / e   # [N, M, w]
+        term = mask[:, i:i + 1] * jnp.sum(diff ** 2, axis=-1)                # [N, M]
+        total = term if total is None else total + term
+        off += w
+    return -0.5 * total
+
+
+def _khot_bump(obs_rows, protos, blocks, mask):
+    """The UNNORMALIZED k-hot reward r_S(u) = prod_{b in S} exp(-0.5 ||(u_b - g_b)/eps_b||^2):
+    exactly 1 at the goal, whatever the mask. What the index and the actor actually consume
+    is its query-set normalization `_delta_phi_masked` (a per-row positive rescale, which
+    the centered encoder is exactly invariant to)."""
+    return jnp.exp(_masked_block_logits(obs_rows, protos, blocks, mask))
+
+
+def _delta_phi_masked(obs_rows, protos, blocks, mask):
+    """`_delta_phi` restricted to the block subset `mask` [N, n_blocks]: softmax over the
+    query axis of the masked logits. Equal to `_delta_phi` when every block is on."""
+    return jax.nn.softmax(_masked_block_logits(obs_rows, protos, blocks, mask), axis=-1)
+
+
 @dataclasses.dataclass(frozen=True)
 class DensityFBCritic:
     density_f: Any
@@ -461,6 +493,21 @@ class DensityFBCritic:
     #                     the actor just rolls on z, is unchanged (2026-09-08; the bridge
     #                     stack's 'kernel' cell, ported).
     z_actor_reward: str = "latent"
+    # measure_density_z_khot_frac (2026-09-10): the THIRD training-task family, k-hot
+    # OBJECT-SUBSET tasks. Eval rewards on scene / puzzle / cube-double are conjunctions
+    # over the hit-spec blocks and their inferred z lands far from every hindsight goal's z,
+    # so goal rows alone do not cover them. A k-hot row picks a non-empty subset S of the
+    # blocks (uniform over the size 1..n_blocks, then a uniform subset of that size), keeps
+    # the row's own hindsight goal g, and uses the EXACT reward
+    #     r_S(u) = prod_{b in S} exp(-0.5 ||(u_b - g_b)/eps_b||^2)
+    # normalized over the candidate set exactly as _delta_phi is for goal rows; z is encoded
+    # from it through the same solve. On a 1-block env this IS the goal task, bit for bit.
+    # ROW PRECEDENCE: k-hot rows are taken from the SPHERE fraction first, then from the
+    # goal rows once khot_frac exceeds rand_frac --
+    #     P(khot) = khot_frac, P(sphere) = max(rand_frac - khot_frac, 0), P(goal) = rest.
+    # Under 'kernel' the actor ascends r_S on these rows (cond["_z_khot_mask"]); under the
+    # proxies they use the proxy like sphere rows do. 0.0 (default) traces nothing new.
+    z_khot_frac: float = 0.0
     # The index-state modules; None with the index off, so no group is registered.
     density_b_zenc: Any = None
     density_zstats: Any = None
@@ -739,6 +786,45 @@ class DensityFBCritic:
         feeds a BC mask, ported as `_z_mix_masked` for the CPR actor.)"""
         return self._z_mix_masked(z_g, rng)[0]
 
+    # ── k-hot object-subset tasks (measure_density_z_khot_frac > 0 ONLY) ─────────────────
+    def _z_row_kinds(self, rng, n):
+        """Per-row task family under the k-hot mix -> (is_khot, is_sphere), both [n, 1]
+        bool; a row in neither is a goal row. One uniform per row, cut at khot_frac and then
+        at khot_frac + max(rand_frac - khot_frac, 0): the k-hot fraction is taken from the
+        sphere fraction first, then from the goal rows."""
+        p_k = float(self.z_khot_frac)
+        p_s = max(float(self.z_rand_frac) - p_k, 0.0)
+        u = jax.random.uniform(rng, (n, 1))
+        is_k = u < p_k
+        is_s = (~is_k) & (u < p_k + p_s)
+        return is_k, is_s
+
+    def _z_khot_masks(self, rng, n):
+        """[n, n_blocks] float block masks: size k uniform on 1..n_blocks, then a uniform
+        subset of that size (random scores, the k smallest ranks are in S)."""
+        nb = len(self.blocks)
+        rng_size, rng_subset = jax.random.split(rng)
+        k = jax.random.randint(rng_size, (n, 1), 1, nb + 1)
+        rank = jnp.argsort(jnp.argsort(jax.random.uniform(rng_subset, (n, nb)), axis=-1), axis=-1)
+        return (rank < k).astype(jnp.float32)
+
+    def _z_mix_khot(self, z_g, goals, u_raw, u_sc, zenc_p, st, rng):
+        """The three-family mix: -> (z, hindsight, khot, mask). `z_g` is the goal index of
+        every row; k-hot rows are re-encoded from the masked reward on the same candidate
+        set through the same solve; sphere rows are fresh sqrt(d) draws. `hindsight` keeps
+        its meaning (1.0 only on pure goal rows) so the CPR actor's BC mask is unchanged."""
+        d, n = int(self.z_dim), z_g.shape[0]
+        rng_sphere, rng_mix, rng_mask = jax.random.split(rng, 3)
+        z_rand = _sphere(jax.random.normal(rng_sphere, (n, d)), d)
+        is_k, is_s = self._z_row_kinds(rng_mix, n)
+        mask = self._z_khot_masks(rng_mask, n).astype(z_g.dtype)
+        r_k = jax.lax.stop_gradient(_delta_phi_masked(goals, u_raw, self.blocks, mask))
+        z_k = self._z_index(zenc_p, st, u_sc, r_k)
+        z = jnp.where(is_k, z_k, jnp.where(is_s, z_rand, z_g))
+        sg = jax.lax.stop_gradient
+        hindsight = (~is_k & ~is_s).astype(z.dtype)
+        return sg(z), sg(hindsight), sg(is_k.astype(z.dtype)), sg(mask)
+
     def _update_obs_norm(self, net, batch):
         """EMA the running observation statistics, Motivo's BatchNorm1d(momentum=0.01) rule:
         new = (1 - m) * old + m * batch. No-op with `obs_norm` off (a Python-level return, so
@@ -951,6 +1037,17 @@ class DensityFBCritic:
             # reward (the rest fell back to the latent_centered proxy); = 1 - z_rand_frac in
             # expectation. Logged from the critic stage because q_fn returns no info.
             info["density_z_kernel_frac"] = jnp.mean(cond["_z_hindsight"])
+            if self.z_khot_frac > 0.0:
+                # k-hot rows read the exact masked reward too, so they count here
+                info["density_z_kernel_frac"] = info["density_z_kernel_frac"] + jnp.mean(
+                    cond["_z_khot"])
+        if self.z_on and self.z_khot_frac > 0.0:
+            kh = cond["_z_khot"]                                              # [B, 1]
+            n_k = jnp.sum(kh)
+            info["density_z_khot_frac_effective"] = jnp.mean(kh)
+            # mean |S| over the batch's k-hot rows (0 when the batch drew none)
+            info["density_z_khot_mean_size"] = jnp.sum(
+                kh * jnp.sum(cond["_z_khot_mask"], axis=-1, keepdims=True)) / jnp.maximum(n_k, 1.0)
         return ce, info
 
     def z_actor_reward_rows(self, cond):
@@ -981,7 +1078,16 @@ class DensityFBCritic:
         kg_exact = jax.lax.stop_gradient(
             _delta_phi(g_rows, cond["_density_u_raw"], self.blocks))       # [B, M]
         keep = jax.lax.stop_gradient(cond["_z_hindsight"]) > 0.5           # [B, 1]
-        return jnp.where(keep, kg_exact, kg)
+        kg = jnp.where(keep, kg_exact, kg)
+        if self.z_khot_frac > 0.0:
+            # k-hot rows: the exact masked reward r_S on the same candidate set (indexed,
+            # never .get()-defaulted: a missing mask means a cond this critic did not build).
+            kg_khot = jax.lax.stop_gradient(
+                _delta_phi_masked(g_rows, cond["_density_u_raw"], self.blocks,
+                                  cond["_z_khot_mask"]))                     # [B, M]
+            is_k = jax.lax.stop_gradient(cond["_z_khot"]) > 0.5              # [B, 1]
+            kg = jnp.where(is_k, kg_khot, kg)
+        return kg
 
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         """The actor's greedy readout: q_h = sum_j w_h(s,a,g,u_j) * kernel(goal, u_j), with
@@ -1066,16 +1172,27 @@ class DensityFBCritic:
 
             def _z_at(goals, r_mix):
                 r = jax.lax.stop_gradient(_delta_phi(goals, u_raw, self.blocks))  # [B, M]
-                return self._z_mix_masked(self._z_index(zenc_p, st, u_sc, r), r_mix)
+                z_g = self._z_index(zenc_p, st, u_sc, r)
+                if self.z_khot_frac > 0.0:
+                    # the k-hot family, on BOTH legs like the sphere draw (F must be trained
+                    # at the z the actor is asked to ascend); the row draw is a different
+                    # key split, so this branch is only entered when the knob is on.
+                    return self._z_mix_khot(z_g, goals, u_raw, u_sc, zenc_p, st, r_mix)
+                z, hs = self._z_mix_masked(z_g, r_mix)
+                return z, hs, None, None
 
             # `_z_hindsight` marks the ACTOR-leg rows whose z kept the encoded index of
             # their own actor_goal (a same-trajectory future under actor_p_trajgoal=1).
             # Published for DDPGBCDensityCPRActor's hindsight-masked BC term; every other
             # actor ignores it, and the z values themselves are unchanged.
-            z_a, hs_a = _z_at(batch["actor_goals"], r_a)
+            z_a, hs_a, kh_a, mask_a = _z_at(batch["actor_goals"], r_a)
+            khot_cond = ({} if kh_a is None else
+                         # the ACTOR-leg k-hot indicator [B, 1] and block mask [B, n_blocks],
+                         # read by z_actor_reward_rows under 'kernel' and by stage_loss's info.
+                         {"_z_khot": kh_a, "_z_khot_mask": mask_a})
             return self._with_obs_feat(net, {
                     "value_goal": batch["value_goals"], "goal": batch["actor_goals"],
-                    "z": z_a, "_z_hindsight": hs_a,
+                    "z": z_a, "_z_hindsight": hs_a, **khot_cond,
                     "_cvec_vgoal": _z_at(batch["value_goals"], r_v)[0],
                     # TARGET backward embedding of the query support (q_fn sees only online
                     # params), for its reward vector r_z = B~(u)^T z / sqrt(d).
@@ -1188,6 +1305,7 @@ class DensityFBCritic:
                 "index's FROZEN EVAL POOL holds object-coordinate columns, which the pixel B "
                 "tower (which consumes images) cannot be fed.")
         z_rand_frac = float(config.get("measure_density_z_rand_frac", 0.5))
+        z_khot_frac = float(config.get("measure_density_z_khot_frac", 0.0))
         z_lam = float(config.get("measure_density_z_ridge_lambda_mult", 0.01))
         z_floor = float(config.get("measure_density_z_cov_eig_floor", 1e-6))
         z_eps = float(config.get("measure_density_z_const_eps", 1e-6))
@@ -1207,6 +1325,8 @@ class DensityFBCritic:
         if z_on:
             assert 0.0 <= z_rand_frac <= 1.0, \
                 f"measure_density_z_rand_frac must be in [0,1], got {z_rand_frac}"
+            assert 0.0 <= z_khot_frac <= 1.0, \
+                f"measure_density_z_khot_frac must be in [0,1], got {z_khot_frac}"
             assert z_lam > 0.0, \
                 "measure_density_z_ridge_lambda_mult must be > 0 (lam = mult * tr(C)/d; " \
                 "at 0 the floored solve is an unregularized inverse)"
@@ -1357,6 +1477,7 @@ class DensityFBCritic:
                   bootstrap=str(config.get("measure_density_bootstrap", "actor")),
                   actor_temp=config.get("measure_density_actor_temp", None),
                   z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac, z_actor_reward=z_actor_reward,
+                  z_khot_frac=z_khot_frac,
                   z_ridge_lambda_mult=z_lam, z_cov_eig_floor=z_floor, z_const_eps=z_eps,
                   z_enc_tau=z_enc_tau, z_sigma_tau=z_sigma_tau, z_eval_pool_m=z_pool_m,
                   archi=archi, b_norm=b_norm,
