@@ -32,7 +32,7 @@ import numpy as np
 
 from impls.utils.datasets import FBDataset
 from env import registry
-from env.base import episode_horizon, needs_goal_frame
+from env.base import column_backed_dataset, episode_horizon, needs_goal_frame
 
 # newt's env backends (rlmini / metaworld / maniskill). Its envs/__init__ imports dm_control
 # for dmcontrol tasks we don't use, so bind the namespace directly instead of importing it.
@@ -83,9 +83,16 @@ def load_packed(npz_path):
         a = np.asarray(a, np.float32)
         return a.reshape(n_ep * T, a.shape[-1]) if a.ndim == 3 else a.reshape(n_ep * T)
 
-    return dict(observations=flat(obs), actions=np.clip(flat(act), -1.0, 1.0),
-                next_observations=flat(nobs), rewards=flat(z["reward"]),
-                terminals=flat(term))
+    out = dict(observations=flat(obs), actions=np.clip(flat(act), -1.0, 1.0),
+               next_observations=flat(nobs), rewards=flat(z["reward"]),
+               terminals=flat(term))
+    # The env's own per-step success flag, when the pack carries it (every HF pack does:
+    # hf_dataset/pack_and_manifest.py's 8 unified fields). It is the 0/1 task signal the
+    # reward-inference eval route relabels with (`relabel_infer_batch`, eval_relabel_reward=
+    # success); no training code reads it -- FBDataset.sample emits a fixed key set.
+    if "success" in z.files:
+        out["success"] = flat(np.asarray(z["success"], np.float32))
+    return out
 
 
 def load_unified(data_dir):
@@ -303,10 +310,17 @@ def _flag(x):
     return bool(x.any()) if hasattr(x, "any") else bool(x)
 
 
+def cfg_get(adapter, key, default=None):
+    """A run-config value stashed by make_env_and_datasets, or `default` when the adapter is
+    used without it (eval-only harnesses build the adapter and call evaluate directly)."""
+    return (getattr(adapter, "_cfg", None) or {}).get(key, default)
+
+
 class UnifiedAdapter:
     name = "unified"
 
     def make_env_and_datasets(self, cfg):
+        self._cfg = dict(cfg)              # read by relabel_infer_batch (masks, reward mode)
         data = load_domain_data(cfg)
         env, horizon = make_task_env(cfg["task"], render=bool(cfg.get("render", True)),
                                      reward_task=cfg.get("exorl_task"))
@@ -331,7 +345,52 @@ class UnifiedAdapter:
     def eval_tasks(self, env, cfg):
         return [None]                      # single task per domain
 
-    def evaluate(self, agent, env, task, cfg, num_episodes, num_video):
+    def relabel_infer_batch(self, train_ds, env, task_id, num_samples, shift_reward=1.0):
+        """(next_observations, rewards) for `agent.infer_eval_cond` -- the reward-inference
+        eval route (Route B, eval_relabel.csv) on the unified families, mirroring
+        env/ogbench.py::OGBenchAdapter.relabel_infer_batch: `num_samples` random transitions
+        from the TRAIN dataset, each labelled with the task reward of its next state.
+
+        The unified npz packs carry two candidate task signals and `eval_relabel_reward`
+        picks one (default `success`):
+          success -- the env's own per-step success flag of the transition, mapped to the
+                     OGBench convention (success - 1) + shift_reward, so at the fb_tdj value
+                     shift_reward=1.0 the reward is a 0/1 reached-the-goal indicator, exactly
+                     what the OGBench cube relabel produces for a single-condition task;
+          dense   -- the stored per-step env reward + shift_reward (MetaWorld's shaped
+                     reward in [0, 10] per raw step, summed over action repeat 2; ManiSkill's
+                     normalized dense reward), a different, shaped task specification.
+        Observations are blanked with obs_mask_dims | goal_mask_dims, the same union
+        FBDataset.sample / WindowedDataset / HILPFutureDataset apply in training, so the
+        rows handed to B / phi live in the space those nets were fitted on. `task_id` is
+        ignored: a unified domain is one task (`eval_tasks` returns [None])."""
+        ds = column_backed_dataset(train_ds)
+        mode = str(cfg_get(self, "eval_relabel_reward", "success"))
+        idxs = ds.get_random_idxs(int(num_samples))
+        next_obs = np.array(ds["next_observations"][idxs], np.float32, copy=True)
+        if mode == "success":
+            if "success" not in ds:
+                raise ValueError(
+                    "eval_relabel_reward=success needs the dataset's per-step `success` "
+                    "column; this pack has none (load_packed keeps it when the npz carries "
+                    "it; the per-episode `load_unified` layout never does). Pass "
+                    "--override eval_relabel_reward=dense to relabel with the stored reward.")
+            rewards = np.asarray(ds["success"][idxs], np.float32) - 1.0 + float(shift_reward)
+        elif mode == "dense":
+            rewards = np.asarray(ds["rewards"][idxs], np.float32) + float(shift_reward)
+        else:
+            raise ValueError(f"eval_relabel_reward must be 'success' or 'dense', got {mode!r}")
+        dims = sorted(set(cfg_get(self, "obs_mask_dims") or ()) |
+                      set(cfg_get(self, "goal_mask_dims") or ()))
+        if dims:
+            next_obs[:, dims] = 0.0
+        return next_obs, rewards.astype(np.float32)
+
+    def evaluate(self, agent, env, task, cfg, num_episodes, num_video, any_step_success=None):
+        # `any_step_success` is accepted for signature parity with OGBenchAdapter.evaluate
+        # (impls/main.py's Route B passes it): this evaluator ALWAYS reports any-step
+        # `success` and, since 2026-09-13, `success_final` (the flag on the episode's last
+        # step -- the paper's MetaWorld/ManiSkill table protocol) alongside it.
         import jax
         slug = cfg["task"]
         horizon = episode_horizon(self)
@@ -396,6 +455,7 @@ class UnifiedAdapter:
             goal = _prep_goal(goal)
 
         successes, ticks, frames = [], [], []
+        finals = []                                 # success flag on the LAST step
         returns = []                                # dmc: undiscounted episode return
         # Did the ENV ever report a success flag? Domains with no binary success rule
         # (ExoRL walker/cheetah) emit no `success` key at all, on purpose -- see
@@ -432,7 +492,8 @@ class UnifiedAdapter:
             saw_success = saw_success or ("success" in info)
             ep_success = _flag(info.get("success", 0))
             ep_return = 0.0
-            at_goal = int(_flag(info.get("success", 0)))
+            now = _flag(info.get("success", 0))
+            at_goal = int(now)
             d = goal_distance(slug, obs)
             d_min, d_last = d, d
             ff = [env.render()] if record else None
@@ -458,6 +519,7 @@ class UnifiedAdapter:
                 frames.append(np.array(ff))
             else:
                 successes.append(float(ep_success))
+                finals.append(float(now))
                 returns.append(ep_return)
                 ticks.append(at_goal)                   # integer steps spent at goal
                 if d_last is not None:
@@ -466,6 +528,7 @@ class UnifiedAdapter:
         out = {}
         if saw_success:                             # never fabricated -- see `saw_success`
             out["success"] = float(np.mean(successes))
+            out["success_final"] = float(np.mean(finals))
         if is_dmc:                                  # the benchmark metric for ExoRL
             out["episode_return"] = float(np.mean(returns))
         if is_box2d:                                    # at-goal ticks: Box2D only, integer scale

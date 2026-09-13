@@ -14,6 +14,28 @@ Implementations:
 from typing import Any, Protocol
 
 
+def column_backed_dataset(ds):
+    """The raw column-backed Dataset under any per-critic sampler wrapper.
+
+    impls/main.py hands eval-time code the dataset AFTER `make_dataset` wrapped it, and the
+    wrappers (HILPFutureDataset, GCDataset, WindowedDataset, ...) implement `sample` but not
+    the `"col" in ds` / `ds["col"]` column access a reward relabel needs; each keeps its base
+    in `.dataset`. Same walk as env/ogbench.py::OGBenchAdapter._column_backed, shared so the
+    unified adapter's relabel path does not carry a second copy."""
+    cur = ds
+    for _ in range(8):
+        try:
+            if "observations" in cur:
+                return cur
+        except TypeError:
+            pass
+        nxt = getattr(cur, "dataset", None)
+        if nxt is None:
+            break
+        cur = nxt
+    raise TypeError(f"no column-backed dataset under {type(ds).__name__}")
+
+
 class DomainAdapter(Protocol):
     """What the training loop needs from a domain, and nothing more."""
 

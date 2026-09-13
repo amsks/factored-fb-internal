@@ -103,6 +103,11 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # 1e-4, copied (not re-initialised) target phis. Same classes as every
                   # other HILP arm; the whole delta is in the yamls.
                   "hilp_tdjc": "hilp", "hilp_density_tdjc": "hilp_density",
+                  # 2026-09-13 the Density-RLDP regression-index lever ported to Density-HILP
+                  # (impls/critics/hilp_density.py module docstring): `reg` = hilp_density_tdjc
+                  # + hilp_density_task_index: regression + hilp_goal_sampling; `reg_oc` =
+                  # the same + backward_input: hit_spec. Config-only.
+                  "hilp_density_reg": "hilp_density", "hilp_density_reg_oc": "hilp_density",
                   # `density_fb_state` is Density-FB with backward_input: state --
                   # the matched no-privileged-coordinates control the method never
                   # had (impls/critics/density_fb.py::_b_query). Config-only.
@@ -193,6 +198,11 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            # td_jepa's left encoder sits in the SF optimizer's param list (sf/agent.py:91-92),
            # so it rides lr_sf -- our lr_f -- not the phi lr.
            "hilp_le": "lr_f",
+           # hilp_density's regression task index state (hilp_density_task_index=
+           # 'regression'): the slow EMA copy of phi1 and the running moments / frozen
+           # pool. Never in any stage_groups, written by update_stats only; they ride lr_b
+           # (phi's key) for the lookup.
+           "hilp_phi_zenc": "lr_b", "hilp_zstats": "lr_b",
            "goal_rep": "lr", "high_actor": "lr",                             # hiql's high-level policy, which
                                                            # the CRITIC owns (see critics/hiql.py)
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf

@@ -114,11 +114,17 @@ def test_hilp_density_hook_is_the_parents_not_a_second_application():
     at eval it must inherit the parent's map exactly once."""
     from impls.critics.hilp import HILPCritic
     from impls.critics.hilp_density import HILPDensityCritic
-    assert HILPDensityCritic.map_eval_cond is HILPCritic.map_eval_cond
+    # hilp_density overrides the hook ONLY for its regression task index (2026-09-13,
+    # tests/impls/test_hilp_density_levers.py); under 'feature' -- every pre-existing arm --
+    # the override delegates to the parent's map, and the result is the parent's bit for bit.
+    assert "super().map_eval_cond" in inspect.getsource(HILPDensityCritic.map_eval_cond)
     ag, obs, _, _ = _built("hilp_density_oc")
     cr = ag.critic
+    assert cr.task_index == "feature"
     cond = {"z": jnp.zeros((cr.z_dim,)), "goal": obs[0] + 1.0}
     once = cr.map_eval_cond(ag.net, cond, observations=obs[1])
+    parent = HILPCritic.map_eval_cond(cr, ag.net, cond, observations=obs[1])
+    np.testing.assert_array_equal(np.asarray(once["z"]), np.asarray(parent["z"]))
     twice = cr.map_eval_cond(ag.net, once, observations=obs[1])
     np.testing.assert_allclose(np.asarray(once["z"]), np.asarray(twice["z"]))
     np.testing.assert_allclose(np.asarray(once["z"]), _reference_z(ag, obs[0] + 1.0, obs[1]),

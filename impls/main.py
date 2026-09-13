@@ -540,10 +540,15 @@ def main(_):
                     if relabel_fn is None:
                         raise NotImplementedError(
                             f"eval_relabel_size={cfg['eval_relabel_size']} is set but adapter "
-                            f"{type(adapter).__name__} has no relabel_infer_batch -- only "
-                            f"OGBenchAdapter implements the td_jepa reward-relabel protocol "
-                            f"(docs/notes/2026-09-03-fb-vs-tdjepa.md #7)")
-                    n_relabel_tasks = len(env.unwrapped.task_infos)
+                            f"{type(adapter).__name__} has no relabel_infer_batch -- "
+                            f"OGBenchAdapter and UnifiedAdapter implement the td_jepa "
+                            f"reward-relabel protocol (docs/notes/2026-09-03-fb-vs-tdjepa.md #7)")
+                    # OGBench: one relabel task per task_info. Single-task adapters (unified:
+                    # MetaWorld / ManiSkill / Box2D) expose no task_infos and evaluate one
+                    # task, so the loop runs once with tid=1 (their evaluate ignores it).
+                    _task_infos = getattr(getattr(env, "unwrapped", env), "task_infos", None)
+                    n_relabel_tasks = (len(_task_infos) if _task_infos is not None
+                                       else len(adapter.eval_tasks(env, cfg)))
                     n_relabel_eps = int(cfg.get("eval_relabel_episodes", 10))
                     for tid in range(1, n_relabel_tasks + 1):
                         relabel_obs, relabel_rewards = relabel_fn(

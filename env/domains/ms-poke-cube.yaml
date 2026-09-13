@@ -1,0 +1,11 @@
+# ms-poke-cube via the unified adapter (added 2026-09-13 for the MetaWorld/ManiSkill baseline table,
+# scripts/launch_mwms_baselines.sh). Same plumbing as ms-push-cube.yaml: FB_DATA_ROOT points at
+# the data root holding data/<family>/<task>.npz; the env is built by env/maniskill_env.py
+# (ManiSkill3 state obs, newt's control mode, horizon 25). No goal-in-obs layout is registered
+# for this task in env/unified.py::_GOAL_LAYOUT, so eval_goal_mode=synth is NOT available:
+# goal-conditioned eval uses the default 'fixed' goal (highest-reward next_obs in the data).
+adapter: unified
+env_name: ms-poke-cube          # run naming only
+task: ms-poke-cube
+data_path: ${oc.env:FB_DATA_ROOT}/data/maniskill/ms-poke-cube.npz
+render: false

@@ -702,6 +702,23 @@ class HILPFutureDataset:
         # default and 0.375 is the setting the numbers were produced at.
         self.p_randomgoal = float(self.config.get('hilp_p_randomgoal', 0.0))
         self.p_currgoal = float(self.config.get('hilp_p_currgoal', 0.0))
+        # obs_mask_dims | goal_mask_dims, unioned exactly as make_dataset does for FBDataset
+        # and WindowedDataset does for itself. Before 2026-09-13 this class applied NO mask:
+        # make_dataset returns it before reaching the FBDataset.mask_dims branch, so under
+        # the MetaWorld/ManiSkill goal-mask protocol HILP trained with the target visible in
+        # every frame while eval blanked it (the 2026-08-17 FB-zero bug, HILP edition).
+        dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
+                      set(self.config.get('goal_mask_dims') or ()))
+        self.mask_dims = list(dims) or None
+        # `hilp_goal_sampling` (2026-09-13, hilp_density's regression task index; the twin
+        # of WindowedDataset's `windowed_goal_sampling`): ALSO emit GCDataset's
+        # `value_goals` / `actor_goals`, drawn by GCDataset's own `sample_goals` from the
+        # same GC keys (value_p_*/actor_p_*), AFTER the geometric future draw and its two
+        # replacements. Default off = no extra np.random draws, no extra keys: bit-identical
+        # batches, and the phi-loss goal `hilp_future_observations` is untouched either way.
+        self.goal_sampler = None
+        if bool(self.config.get('hilp_goal_sampling', False)):
+            self.goal_sampler = GCDataset(self.dataset, self.config)
 
     def sample(self, batch_size, idxs=None):
         batch = self.dataset.sample(batch_size, idxs)
@@ -735,6 +752,26 @@ class HILPFutureDataset:
             goals = np.where((np.random.rand(n) < self.p_randomgoal)[:, None], rnd, goals)
 
         batch['hilp_future_observations'] = goals
+
+        if self.goal_sampler is not None:
+            # Same draw order as GCDataset.sample: value goals, then actor goals.
+            c = self.config
+            vg = self.goal_sampler.sample_goals(
+                idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'],
+                c['value_geom_sample'])
+            ag = self.goal_sampler.sample_goals(
+                idxs, c['actor_p_curgoal'], c['actor_p_trajgoal'], c['actor_p_randomgoal'],
+                c['actor_geom_sample'])
+            all_obs = self.dataset['observations']
+            batch['value_goals'] = np.asarray(all_obs[vg], np.float32)
+            batch['actor_goals'] = np.asarray(all_obs[ag], np.float32)
+
+        if self.mask_dims:
+            for k in ('observations', 'next_observations', 'hilp_future_observations',
+                      'value_goals', 'actor_goals'):
+                if k in batch:
+                    batch[k] = np.array(batch[k], np.float32, copy=True)
+                    batch[k][:, self.mask_dims] = 0.0
         return batch
 
 

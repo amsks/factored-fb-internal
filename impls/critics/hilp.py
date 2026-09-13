@@ -92,19 +92,22 @@ def expectile_loss(adv, diff, expectile):
 
 
 def hilp_phi_loss(phi1_p, phi2_p, tphi1_p, tphi2_p, apply_phi,
-                  obs, goals, next_obs, discount, expectile):
+                  obs, goals, next_obs, discount, expectile, *, goal_input=None):
     """The official HILP feature loss, sf.py:154-198, as a pure function.
 
     Split out of the critic so an independent numpy reconstruction can call exactly this
     with exactly these arrays (tests/impls/test_hilp_seam.py). `apply_phi(params, x)`
-    applies one phi tower.
+    applies one phi tower. `goal_input` selects the observed coordinates used to
+    recognize a reached goal; it must match the feature map's input projection.
+    The default retains the original full-state comparison.
 
     The upstream `forward()` also soft-updates the target phis and the running mean as
     SIDE EFFECTS after computing the loss. Those are not side effects here -- the seam
     polyaks targets in Agent.apply_update and the running mean in `update_stats`, both
     strictly after the gradient step, which preserves the upstream ordering.
     """
-    same = (jnp.linalg.norm(obs - goals, axis=-1) < 1e-6).astype(obs.dtype)
+    goal_obs, goal_rows = (obs, goals) if goal_input is None else (goal_input(obs), goal_input(goals))
+    same = (jnp.linalg.norm(goal_obs - goal_rows, axis=-1) < 1e-6).astype(obs.dtype)
     masks = 1.0 - same
     rewards = same - 1.0
 
@@ -291,7 +294,7 @@ class HILPCritic:
                 # coordinates -- two different representations under one name.
                 lambda p, x: self._phi(p, x),
                 batch["observations"], batch["hilp_future_observations"], batch["next_observations"],
-                self.hilp_discount, self.hilp_expectile)
+                self.hilp_discount, self.hilp_expectile, goal_input=self._phi_in)
 
         assert stage == "sf", stage
         obs, action = batch["observations"], batch["actions"]
