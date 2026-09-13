@@ -557,6 +557,13 @@ class WindowedDataset:
         dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
                       set(self.config.get('goal_mask_dims') or ()))
         self.mask_dims = list(dims) or None
+        # `windowed_goal_sampling` (2026-09-12, rldp_density's LEVER 3): ALSO emit GCDataset's
+        # `value_goals` / `actor_goals`, drawn by GCDataset's own `sample_goals` from the
+        # same GC keys (value_p_*/actor_p_*), on top of the window. Default off = no extra
+        # np.random draws, no extra keys: bit-identical batches.
+        self.goal_sampler = None
+        if bool(self.config.get('windowed_goal_sampling', False)):
+            self.goal_sampler = GCDataset(self.dataset, self.config)
 
     @property
     def horizon(self):
@@ -627,11 +634,27 @@ class WindowedDataset:
             batch['future_observations'] = np.asarray(all_obs[obs_win], np.float32)
             batch['future_actions'] = np.asarray(all_acts[act_win], np.float32)
 
+        if self.goal_sampler is not None:
+            # Same draw order as GCDataset.sample: value goals, then actor goals.
+            c = self.config
+            vg = self.goal_sampler.sample_goals(
+                idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'],
+                c['value_geom_sample'])
+            ag = self.goal_sampler.sample_goals(
+                idxs, c['actor_p_curgoal'], c['actor_p_trajgoal'], c['actor_p_randomgoal'],
+                c['actor_geom_sample'])
+            all_obs = self.dataset['observations']
+            batch['value_goals'] = np.asarray(all_obs[vg], np.float32)
+            batch['actor_goals'] = np.asarray(all_obs[ag], np.float32)
+
         if self.mask_dims:
             batch['observations'][:, self.mask_dims] = 0.0
             batch['next_observations'][:, self.mask_dims] = 0.0
             if h > 1:
                 batch['future_observations'][:, :, self.mask_dims] = 0.0
+            if self.goal_sampler is not None:
+                batch['value_goals'][:, self.mask_dims] = 0.0
+                batch['actor_goals'][:, self.mask_dims] = 0.0
         return batch
 
 

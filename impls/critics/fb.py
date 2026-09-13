@@ -52,6 +52,7 @@ class FBCritic:
     #   mean-of-heads every earlier cell ran.
     q_loss_coef: float = 0.0
     actor_pessimism_penalty: float = 0.0
+    target_scale: float = 1.0     # scales the implicit immediate term: F^T B represents target_scale * M (ablation; 1-gamma = normalized measure under the squared loss)
     # `backward_input` ("state" | "hit_spec"): what the backward tower B consumes as its
     # RAW input, the same knob rldp.py / psm.py / hilp.py carry. "state" (default) is the
     # identity and keeps every prior FB cell bit-identical; "hit_spec" feeds the
@@ -143,7 +144,7 @@ class FBCritic:
         M = jnp.einsum("pbz,cz->pbc", Fs, Bm)
         diff = M - disc * target_M
         fb_off = 0.5 * jnp.sum((diff * off) ** 2) / off_sum
-        fb_diag = -jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2)) * P
+        fb_diag = -self.target_scale * jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2)) * P
         cov = Bm @ Bm.T
         orth_off = 0.5 * jnp.sum((cov * off) ** 2) / off_sum
         orth_diag = -jnp.mean(jnp.diagonal(cov))
@@ -259,6 +260,7 @@ class FBCritic:
             f_tau=config["f_target_tau"], b_tau=config["b_target_tau"],
             q_loss_coef=float(config.get("q_loss_coef", 0.0)),
             actor_pessimism_penalty=float(config.get("actor_pessimism_penalty", 0.0)),
+            target_scale=float(config.get("fb_target_scale", 1.0)),
             backward_input=backward_input, blocks=blocks,
         )
         return critic, params, targets

@@ -131,7 +131,7 @@ adding it on resume only adds Route-B rows from 600k on — final-step gate stil
     for s in 0 1 2; do $RUN --critic density_fb --domain cube_double --seed $s $HARD $CD_HIT; done            # resumes exp/cube-double-play-v0_density_fb_flowbc_seed_$s (hard) → 1M
     scene_play ×3, puzzle_3x3 ×3, 5 antmaze ×3 (with $NAV, always $HARD, the per-env $*_HIT, --save_dir exp/tdjtab) — hit specs derived, unblocked (§5 item 3)
     optional density_fb_state: same loops with --critic density_fb_state $HARD (cube resumes are hard, verified)
-Route B does not exist for this variant (no `infer_cond` path) — never pass $RELABEL; it is the Route-A column only.
+**CORRECTED 2026-09-08 02:15 — the sentence that stood here was FALSE and it propagated into the manifest.** It read: *"Route B does not exist for this variant (no `infer_cond` path) — never pass $RELABEL; it is the Route-A column only."* `density_fb` **does** implement `infer_cond` (`impls/critics/density_fb.py:1088`), and Route B runs for it: the six finished cube `density_fb` runs at 1M all carry `eval_relabel.csv`, with Route-B success 0.06/0.16/0.06 (cube-single) and 0.08/0.16/0.04 (cube-double) against Route-A 0.91/0.91/0.92 and 0.72/0.69/0.77. **Pass `$RELABEL` on every `density_fb` line.** Its Route-B values are low by nature — it is a goal-conditioned critic — but that is a caption, not a reason to omit the column: the project's binding requirement is a general reward interface, and a 14x Route-A/Route-B gap reproducing across envs is evidence that the goal-conditioned readout does not survive reward inference. Caught by luis 2026-09-08 02:12 when 4 of 28 family smokes wrote no `eval_relabel.csv` — exactly the 4 `density_fb` cells. The 12 non-cube `density_fb` runs were cancelled ~30 min in and resubmitted with the overrides. Route B is gated at `impls/main.py:517` on `cfg.get("eval_relabel_size")`, so an absent key silently skips the whole block.
 The six cube resumes are allowed only because their `config.json` records `measure_density_hard: true` (checked
 2026-09-07); `$HARD` on resume is a no-op that re-states the cell.
 
@@ -300,3 +300,276 @@ script's `eval` stripped the inner quotes (`measure_hit_spec=0:2:0.5` → 120.5,
 with the manifest's quoting (`--override 'measure_hit_spec="0:2:0.5"'`) passes, and that quoting was checked to
 reach python as the string `0:2:0.5`. `config.json` of each density smoke records the per-env spec and
 `measure_density_hard: true`; antmaze smokes record `actor.bc_coeff: 0.3`.
+
+## 7. Compute capacity — evalbox (added 2026-09-07 23:25 UTC)
+
+Posted so the cluster agent can partition the 167-run manifest by run-id regex between the two sites.
+
+### 7.1 The machine
+
+| | |
+|---|---|
+| role / mailbox sender | `evalbox` (AWS EC2, `ip-172-31-37-188.ec2.internal`; up 147 d) |
+| GPUs | **8 × NVIDIA L4, 23 034 MiB each** (184 GB total), driver 580.126.16 / CUDA 13.0, no MIG, persistence on |
+| GPU state at posting | **all 8 idle — 0 MiB used, 0 % util, no compute processes** |
+| CPU | 2 × AMD EPYC 7R13, 96 physical cores / **192 threads**, 2 NUMA nodes, 384 MiB L3 |
+| RAM | **728 GiB** (494 GiB available; 217 GiB of the used figure is the `/dev/shm` tmpfs) |
+| disk | `/` 1.0 TB NVMe, **287 GB free** (73 % used; `exp/` is already 69 GB) |
+| `/dev/shm` | 365 GB tmpfs, 149 GB free — holds the jax venv and a dataset mirror, **wiped on reboot** |
+| scheduler | none. tmux only (`scripts/launch_tdjtab.sh` → session `tdjtab`, one window per GPU, jobs sequential inside a window) |
+| interpreter | `/dev/shm/.venv-jax/bin/python` — python 3.11.15, jax 0.10.0 / jaxlib 0.10.0 (CUDA), all 8 devices visible |
+| datasets | `~/.ogbench/data/` 12 GB / 34 npz — **all 9 table envs + val splits present**; `/dev/shm/ogbench_data/` mirrors them (volatile). No download needed for any manifest line |
+
+Local inventory (each with its `-val.npz`): the 9 table envs — antmaze-{medium,large}-{navigate,stitch},
+antmaze-medium-explore, cube-single-play, cube-double-play, scene-play, puzzle-3x3-play — plus
+antmaze-giant-navigate, antmaze-large-explore, cube-triple/quadruple-play, puzzle-4x4/4x5/4x6-play,
+visual-cube-single-play. All carry `qpos`; scene and puzzle also carry `button_states`, which the non-cube
+relabel rewards read (`add_info=True` when `eval_relabel_size` is set).
+
+**Backup mirror** if a site's own download path is blocked:
+`https://huggingface.co/datasets/zhouzypaul/ogbench_datasets` — flat layout, 44 npz (22 envs + val splits) at
+the repo root, e.g. `hf_hub_download('zhouzypaul/ogbench_datasets', 'scene-play-v0.npz', repo_type='dataset')`.
+⚠ **It covers only 6 of our 9 table envs.** Present: antmaze-{medium,large,giant}-navigate, cube-single-play,
+cube-double-play, scene-play, puzzle-3x3-play (+ cube-triple/quadruple, puzzle-4x4/4x5/4x6, the `-noisy`
+variants, antsoccer, humanoidmaze, visual-scene-play). **Missing: antmaze-medium-stitch, antmaze-large-stitch,
+antmaze-medium-explore** — i.e. 15 of the 167 manifest runs per method row cannot be staged from it. Those three
+exist on evalbox and can be pushed to the checkpoint repo on request, or pulled from OGBench upstream.
+
+Standing env for every launch (already in the manifest lines):
+`XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_FLAGS=--xla_gpu_enable_command_buffer= WANDB_MODE=offline MUJOCO_GL=egl`.
+`PREALLOCATE=false` is mandatory here — without it a second run on a GPU OOMs immediately.
+
+### 7.2 Throughput
+
+Measured on this box (§4), one run per GPU, L4 24 GB: cube-single 1M ≈ 3.4–3.6 h (fb_tdj, hilp_tdjc,
+rldp_density), density_fb_z (batch 1024) ≈ 6 h/1M, cube-double 1M ≈ 7.3–13 h; scene/puzzle/antmaze budget
+5–8 h, antmaze-large ~10 h (eval episodes are 3.75–5× longer than cube's 200 steps, so eval, not training,
+sets the cost).
+
+At **1 run/GPU × 8 GPUs = 8 concurrent runs**, ~5.5 h average:
+
+- 8 runs per ~5.5 h ⇒ **≈ 35 runs/day**, ≈ 190 GPU-h/day.
+- **all of tier 1 (167 runs, ≈ 900 GPU-h) ≈ 4.7 days** of exclusive use of this box.
+- one full method row (21–27 runs) ≈ **15–19 h**.
+- the 12 resumes (500k→1M, ~4 h each) ≈ **6 h** on 8 GPUs.
+
+Packing 2 runs/GPU is untested and not assumed. Per-run peak GPU memory has not been logged; the state-input
+runs are small enough that it is plausible, and if it holds the box doubles to ~70 runs/day. Someone should
+measure one cell before we plan on it.
+
+### 7.3 Delivery status — three items in the earlier handoff are now stale
+
+1. **The code is committed *and* pushed.** `density-fb` @ `6cc2952` ("updated impls for large run deployment"),
+   `origin/density-fb` at the same commit, working tree clean, 0 ahead. It carries the campaign doc, the 7 domain
+   yamls, `scripts/tdjtab_manifest.sh` (181 lines, 167 run ids, 13 `## RESUME` notes), `scripts/launch_tdjtab.sh`,
+   the non-cube relabel rewards in `env/ogbench.py`, and `hf_manifest.json`. **The cluster can `git fetch` now.**
+2. **Blocker §5 item 1 (Route-B relabel reward is cube-only) is RESOLVED.** `env/ogbench.py` now dispatches on the
+   task-info key — cube `goal_xyzs`, antmaze `goal_xy`, puzzle `goal_button_states`, scene `goal` — with
+   `ant_relabel_reward` / `puzzle_relabel_reward` / `scene_relabel_reward` transcribed from td_jepa.
+   `tests/impls/test_ogbench_relabel_families.py` + `test_ogbench_relabel.py`: **40 passed** (verified 2026-09-07
+   23:22 UTC, 73 s). So `$RELABEL` no longer has to be dropped on scene/puzzle/antmaze, and the "Route-A now,
+   rescore later" decoupling in §2 is optional rather than forced. The one thing still worth doing before a
+   large launch is a 300-step in-run smoke of `$RELABEL` on one non-cube env — the unit tests cover the reward
+   functions, not the in-run eval path.
+3. **The 12 resume checkpoints are all on Hugging Face**, contrary to the earlier note. Verified on
+   `amsks/factored-fb-checkpoints` 2026-09-07: `exp/cube-double-play-v0_rldp_flowbc_seed_{0,1,2}` and
+   `..._rldp_density_flowbc_seed_{0,1,2}` each carry `params_500000.pkl` + `config.json` + `eval.csv`.
+   No resume needs to be converted into a fresh run.
+   Further: `density_fb` and `density_fb_state` on **both** cube envs already carry **`params_1000000.pkl`** on the
+   hub (the cluster's 24/24 Part B tier-1 handback) — i.e. **6 of the 12 resumes, and the 6 optional
+   `density_fb_state` ones, look already DONE**. Before anyone spends GPU-h on them, check each `config.json`
+   for `measure_density_hard: true` and confirm the eval route; if they pass, the resume list drops from 12 to 6
+   and the density_fb non-cube rows are all that is left of that method.
+
+### 7.4 What the cluster still has to change
+
+The manifest is written for *this* box and hardcodes three things:
+
+- interpreter `/dev/shm/.venv-jax/bin/python` → the cluster's own venv path;
+- dataset dir (OGBench default `~/.ogbench/data/`) → the cluster's scratch mirror;
+- `scripts/launch_tdjtab.sh` uses tmux + `CUDA_VISIBLE_DEVICES` round-robin → replace with a slurm array,
+  reusing the Part B tier-1 wrapper (and its "freeze the job list at submit time" fix, `04ff78d` — regenerating
+  the pending list per array task shifts indices and silently skips the tail).
+
+Everything else is portable: run ids are stable (`<domain>/<critic>/s<seed>`), `--save_dir exp/tdjtab` keeps new
+runs off the contaminated dirs, `--auto_resume` reads only its own dir, and the launcher skips any run whose
+`params_1000000.pkl` already exists, so the two sites can work the same manifest without colliding as long as
+the id partition is disjoint.
+
+### 7.5 Proposed split (evalbox's offer, not a decision)
+
+The cluster is out of SUs (89 SU, ~260 needed) and tiers 2–3 are held for allocation, so the near-term
+constraint is that **this box is the only site that can actually run right now**. Suggested partition — cluster
+to confirm or counter on the mailbox before either side launches, so no run id is claimed twice:
+
+- **evalbox takes the 63 Route-A/B runs of the three non-density methods on the non-cube envs** —
+  `(scene_play|puzzle_3x3|antmaze_.*)/(fb_tdj|hilp_tdjc|rldp)/s[0-2]` — ≈ 2 days at 8 concurrent.
+  These need no per-env hit spec and are the least likely to need a re-run.
+- **evalbox also takes the cube re-runs and remaining resumes**: `cube_single/fb_tdj/*` (contamination re-run,
+  3), `cube_double/(fb_tdj|rldp|rldp_density|density_fb_z)/*` (11) — ≈ 1 day.
+- **cluster takes the 81 density-variant runs on scene/puzzle/antmaze** the moment SUs land; they are the
+  largest block and the one whose hit specs are already derived and smoke-tested (§6).
+- If SUs do not arrive within a few days, evalbox continues into the density block in env order
+  (scene → puzzle → antmaze-medium → antmaze-large), posting the exact id regex here before each launch.
+
+## 8. SCOPE DECISION 2026-09-07 23:40 UTC — antmaze navigate only
+
+**The three antmaze `stitch` / `explore` envs are dropped from the table.** The backup dataset mirror
+(`zhouzypaul/ogbench_datasets`, §7.1) carries only the *navigate* antmaze variants, and rather than ship
+`antmaze-medium-stitch` / `antmaze-large-stitch` / `antmaze-medium-explore` to the cluster we run navigate
+only for now. Those three envs exist on evalbox and can be added back later without any code change — the
+domain yamls (`impls/configs/domain/antmaze_{medium,large}_stitch.yaml`, `antmaze_medium_explore.yaml`) stay
+in the repo, they simply go unused, and their manifest lines are skipped by the id filter.
+
+**Table shape: 6 envs**, not 9 — cube-single-play, cube-double-play, scene-play, puzzle-3x3-play,
+antmaze-medium-navigate, antmaze-large-navigate.
+
+**Tier-1 count: 167 → 104 runs** (63 dropped = 3 envs × 3 seeds × 7 methods). Counted from the manifest ids,
+not by hand:
+
+| domain | runs | | critic | runs |
+|---|---|---|---|---|
+| antmaze_large_navigate | 21 | | fb_tdj | 18 |
+| antmaze_medium_navigate | 21 | | density_fb | 18 |
+| scene_play | 21 | | rldp | 15 |
+| puzzle_3x3 | 21 | | rldp_density | 15 |
+| cube_double | 14 | | density_fb_z | 14 |
+| cube_single | 6 | | hilp_tdjc | 12 |
+| **total** | **104** | | hilp_density_tdjc | 12 |
+
+The exclusion regex for every launcher call on both sites:
+`^(antmaze_medium_stitch|antmaze_large_stitch|antmaze_medium_explore)/` — filter these out, or equivalently
+select with `(cube_single|cube_double|scene_play|puzzle_3x3|antmaze_medium_navigate|antmaze_large_navigate)/`.
+
+Wall time: ≈ 550–600 GPU-h ⇒ **≈ 3 days on evalbox's 8 GPUs** if this box ran the whole thing (was 4.7 days).
+
+### 8.1 Revised partition — three disjoint blocks, 36 + 20 + 48 = 104
+
+**A — evalbox, 36 runs** (non-density methods on the 4 non-cube envs), ≈ 1.2 days at 8 concurrent:
+
+    (scene_play|puzzle_3x3|antmaze_(medium|large)_navigate)/(fb_tdj|hilp_tdjc|rldp)/s[0-2]
+
+**B — evalbox, 20 runs** (every cube cell: the contamination re-run, the cube-double fresh runs, and the
+12 resumes), ≈ 0.5–1 day. 12 of the 20 are 500k→1M resumes, and 6 of *those* (`cube_{single,double}/density_fb/s[0-2]`)
+may already be finished at 1M on the hub — check `measure_density_hard: true` in their `config.json` before running:
+
+    cube_single/fb_tdj/s[0-2]                          (contaminated dirs, fresh into exp/tdjtab)
+    cube_double/fb_tdj/s[0-2]                          (fresh)
+    cube_double/density_fb_z/s[12]                     (fresh; s0 is the cluster's 1M)
+    cube_double/rldp/s[0-2]                            RESUME 500k→1M
+    cube_double/rldp_density/s[0-2]                    RESUME 500k→1M
+    cube_single/density_fb/s[0-2]                      RESUME — verify against hub 1M first
+    cube_double/density_fb/s[0-2]                      RESUME — verify against hub 1M first
+
+**C — cluster, 48 runs** (the four density-family critics on the 4 non-cube envs), when SUs land:
+
+    (scene_play|puzzle_3x3|antmaze_(medium|large)_navigate)/(density_fb|density_fb_z|hilp_density_tdjc|rldp_density)/s[0-2]
+
+These are the runs needing the per-env `measure_hit_spec` (§5 item 3, derived and smoke-tested) — note the spec
+is inert on `hilp_density_tdjc` and `rldp_density` and is passed only so `config.json` self-evidences the cell.
+If the allocation does not arrive, evalbox takes block C in env order (scene → puzzle → antmaze-medium →
+antmaze-large) and posts the exact id regex to the mailbox before each launch.
+
+## 9. Three-site topology 2026-09-07 23:53 UTC — vista, luis, evalbox
+
+**Site names.** `vista` = the TACC cluster (this is the agent previously called `cluster`; `mailbox/cluster/`
+keeps the pre-rename history). `luis` = the LUIS cluster, new, **shared with another project** so its share
+here is partial. `evalbox` = this AWS box — now the **coordinator** as well as a compute site.
+
+**Allocation policy — vista first, luis second, evalbox last.** TACC's allocation is consumed before LUIS's,
+because LUIS also serves another project; evalbox is always-on with no SU accounting, so it absorbs whatever
+the two clusters cannot take. Fill vista to its SU limit, then luis to whatever share it offers, then keep the
+remainder here. When vista's SUs top up, the next assignment moves work back to vista.
+
+**Coordination is now file-based, not prose.** Sites no longer self-select run ids; evalbox reads every site's
+resources, writes the assignment, and owns disjointness. `scripts/mailbox.py` grew three subcommands:
+
+| file | written by | meaning |
+|---|---|---|
+| `resources/<site>.json` | each site | what that site has **right now** — overwritten each report, not a log |
+| `assignments/<site>.json` | evalbox only | the run ids that site owns. A site launches these and nothing else |
+| `mailbox/<sender>/*.md` | anyone | prose: reasoning, exceptions, anything not computed against |
+
+    python scripts/mailbox.py resources post --site vista --file res.json
+    python scripts/mailbox.py resources show            # coordinator: every site, one table
+    python scripts/mailbox.py assign --site luis --file assign_luis.json    # coordinator only
+    python scripts/mailbox.py assignment --site luis    # a site reads its own
+    python scripts/mailbox.py assignment                # all sites + overlap check on run ids
+
+`assignment` with no `--site` cross-checks every assignment file and prints `!! OVERLAP` if one run id is
+assigned twice — run it before publishing an assignment and before any launch.
+
+**Resource schema** (required keys; `resources/evalbox.json` is the worked example): `role`, `host`,
+`gpus{model,count,mem_mib_each,driver,cuda,mig}`, `gpus_free_now`, `cpu{model,cores,threads}`, `ram_gib`,
+`disk{scratch_path,scratch_free_gb}`, `scheduler` (partition/queue names), `max_walltime_h`, `max_array_size`,
+`concurrent_runs` (how many 1M runs the site can genuinely hold at once), `runs_per_day`, `python`, `jax`,
+`interpreter`, `datasets_staged` (which of the 6 table env npz are on scratch), `allocation` (SU balance, SU per
+1M run, runs it buys, expected top-up date), `priority` (for luis: the share this project actually gets, and
+whether the other project preempts). Unknown numbers go in as `null` with a note — the assignment is computed
+against these figures, so a guess propagates into a bad partition.
+
+**evalbox's own report is posted** (`resources/evalbox.json`, 2026-09-07 23:53): 8 × L4 free, 8 concurrent,
+~35 runs/day, no allocation, priority `lowest — absorbs the remainder`.
+
+**State: nothing is launched anywhere.** The §8.1 partition (36 / 20 / 48) was written for two sites and is
+now a starting point, not the plan: block C's 48 density runs get split between vista and luis by the priority
+order once both have reported. Assignments are published only after `resources/vista.json` and
+`resources/luis.json` both exist.
+
+## 10. Eval is 85% of a non-cube run 2026-09-08 00:47 UTC — the campaign's dominant cost
+
+**Measured by luis** (RTX 3090, scene-play-v0, at this campaign's protocol settings: `eval_episodes=20`,
+`eval_relabel_episodes=10`, `eval_interval=100000`, 5 tasks): Route-A pass **61 min**, Route-B pass **30 min**,
+so a full eval pass is **91 min**, and 11 passes per 1M run = **16.7 h of eval per non-cube run**. Training is
+~3 h on top. **Eval is 85% of the run, and 9 of the 11 passes are never read** — the table quotes the final
+step, and Route B is final-step-only by the spec's own gate 2.
+
+This was missing from every earlier estimate in this doc. §4's "budget 5–8 h/run" for scene/puzzle/antmaze was
+built from cube runs (200-step episodes) and is wrong by ~3× for the non-cube envs (scene 750, puzzle 500,
+antmaze 1000 steps per episode).
+
+| eval schedule | non-cube run | 98-run campaign | makespan @44 slots |
+|---|---|---|---|
+| current, `eval_interval=100000` | 19.7 h | 1753 h | 40 h |
+| eval at 500k + 1M | 7.5 h | 734 h | 17 h |
+| **final step only** | **6.0 h** | **607 h** | **14 h** |
+
+**Proposal (open for challenge on the mailbox, not yet committed):** train the non-cube block with
+`--eval_interval 1000000`, keeping `--save_interval 250000`. Every table cell is still produced in-run at the
+final step on both routes — the protocol at the step we quote is unchanged. Learning curves become a post-hoc
+rescore from checkpoints we already keep (`scripts/relabel_rescore.py --exp-root exp/tdjtab`). Open questions:
+(a) does any table or figure read a non-final eval row; (b) is one health-check pass at 500k worth +1.5 h/run;
+(c) does the step-1 eval fire regardless of `eval_interval` (the 300-step smokes logged evals at step 1 *and*
+step 300 — the table above assumes 2 passes, not 1).
+
+**Corollary — eval is physics-bound, not GPU-bound.** vista measured **32.8 s/episode on a GH200**; luis
+measured **36 s/episode on an RTX 3090**. Same number. A GH200's ~1.4× training advantage (cube-single
+density_fb_z: 3.1 h vs 6.0 h on an L4) applies only to the ~15% of a non-cube run that is training. So
+"give the biggest block to the fastest GPU" is the wrong rule for this campaign:
+
+- **luis** → the 84 non-cube runs. 36 concurrent (QOS TRES: `ai` 24 GPUs + `tnt` 12), no SU accounting,
+  **no preemption** (`PreemptMode=OFF` site-wide — the other project cannot evict us), 200 h walltime,
+  305 TB scratch, all 6 table envs staged. The critical path, and the only site that can absorb it.
+- **evalbox** → the 20 cube cells (eval-light, 200-step episodes) + coordination + all post-hoc rescoring.
+  192 threads, and eval is CPU-bound.
+- **vista** → cube only. 17 SU (not 89 — see below) buys ~3 cube-single runs. When the supplement lands it
+  gets *more cube*, not non-cube.
+
+This inverts the user's 23:53 priority order (vista > luis > evalbox), which was set before the measurement.
+Flagged to the user, not overridden; moot short-term since 17 SU cannot take work under any ordering.
+
+**Vista SU accounting** (`ASC26008`, partition `gh`, 1 GPU/node): Vista *encumbers* rather than spends — it
+refuses any submission whose requested walltime × nodes, summed over everything already queued on the project,
+exceeds the balance. A 3 h run submitted at `-t 12:00:00` locks 12 SU, not 3; hence tier 2+3's "~260 SU of
+compute, ~960 SU of encumbrance at a 12 h wall". **Balance is 17 SU as of 2026-09-08 00:10Z**, down from 89,
+with only ~7.6 node-hours run in between — vista could not reconcile the 72 SU drop (either TACC posted the
+112-node-hour tier-1 array on a lag, or the rate is not 1 SU/node-hour) and flagged it rather than guessing.
+Expiry 2027-01-07; supplement request is with the user and the PI, no date.
+
+**Count, confirmed independently by both sites:** 98 to launch + 6 already at 1M = 104. The 6 cube
+`density_fb` resumes are DONE (hub carries `params_1000000.pkl`), closing §7.3 item 3's open question.
+
+**Soft arms reprice too:** the 32 soft-capable runs (§ soft analysis: `density_fb` 18 + `density_fb_z` 14;
+`hilp_density_tdjc` and `rldp_density` hardcode `k = jnp.eye` and cannot do soft) cost ~184 h under the cut
+eval schedule — about 4 h of extra makespan at 44 slots, versus ~600 h under the current schedule. If the eval
+cut lands, running 136 rather than 104 is close to free.

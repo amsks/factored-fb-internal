@@ -84,7 +84,10 @@ class FlowBCActor:
                 # be ~0 early in training, and 0/0 is nan.
                 loss = self.bc_coeff * distill
             else:
-                loss = loss / jax.lax.stop_gradient(jnp.abs(Qs).mean()) + self.bc_coeff * distill
+                # Centered critic values can have zero spread, even when Q is nonzero.
+                # Keep the existing scale above the floor and avoid an undefined update.
+                q_scale = jax.lax.stop_gradient(jnp.maximum(jnp.abs(Qs).mean(), 1e-6))
+                loss = loss / q_scale + self.bc_coeff * distill
             info["bc_error"] = distill
         loss = loss + bc_flow
         info["actor_loss"] = loss

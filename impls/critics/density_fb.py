@@ -416,6 +416,7 @@ class DensityFBCritic:
     tau: float
     actor_q_center: bool
     hard: bool
+    loss_kind: str = "ce"     # 'ce' cross-entropy (the method) | 'sq' squared error on the same softmax probabilities (ablation)
     # W1: 'actor' (default, bit-identical) bootstraps the TD target at the actor's action,
     # putting the actor inside the critic's fixed point; 'sarsa' bootstraps at the DATASET's
     # next action instead. See docs/density-fb-design.md.
@@ -739,7 +740,8 @@ class DensityFBCritic:
         cov = 0.5 * (cov + cov.T)
         tr = jnp.trace(cov)
         ev, vec = jnp.linalg.eigh(cov)                                  # ascending
-        ev = jnp.maximum(ev, self.z_cov_eig_floor * tr / d)
+        # absolute floor: a degenerate covariance (tr = 0) must yield c = 0, not a singular solve
+        ev = jnp.maximum(ev, jnp.maximum(self.z_cov_eig_floor * tr / d, 1e-12))
         lam = self.z_ridge_lambda_mult * tr / d
         return ((m_c @ vec) / (ev + lam)[None, :]) @ vec.T              # [B, d]
 
@@ -1011,6 +1013,9 @@ class DensityFBCritic:
             k = _delta_phi(nobs_q, u_raw, blocks)                          # [B, M]
         t = jax.lax.stop_gradient((1.0 - gamma) * k[None] + gamma * w_bar)
         ce = -jnp.mean(jnp.sum(t * logp, axis=-1))
+        # Ablation: the SAME softmax model fitted with squared error on probabilities (Brier).
+        # Holds the model family fixed and changes only the objective.
+        sq = 0.5 * jnp.mean(jnp.sum((w - t) ** 2, axis=-1))
 
         ess_rows = 1.0 / jnp.sum(w ** 2, axis=-1)                          # [2, B]
         ess = jnp.mean(ess_rows)
@@ -1020,6 +1025,7 @@ class DensityFBCritic:
         k_self = jnp.mean(jnp.diagonal(k))
         info = {
             "density_ce": ce,
+            "density_sq": sq,
             "density_ess": ess,
             "density_ess_median": ess_median,
             "density_ess_h0": ess_h0,
@@ -1048,7 +1054,7 @@ class DensityFBCritic:
             # mean |S| over the batch's k-hot rows (0 when the batch drew none)
             info["density_z_khot_mean_size"] = jnp.sum(
                 kh * jnp.sum(cond["_z_khot_mask"], axis=-1, keepdims=True)) / jnp.maximum(n_k, 1.0)
-        return ce, info
+        return (ce if self.loss_kind == "ce" else sq), info
 
     def z_actor_reward_rows(self, cond):
         """The z-branch actor reward kg [B, M] on the batch's candidate set, one row per
@@ -1288,6 +1294,8 @@ class DensityFBCritic:
         pixel = int(jnp.ndim(ex_obs)) > 2
         z_on = bool(config.get("measure_density_z", False))
         z_actor_reward = str(config.get("measure_density_z_actor_reward", "latent"))
+        if str(config.get("measure_density_loss", "ce")) not in ("ce", "sq"):
+            raise ValueError("measure_density_loss must be 'ce' or 'sq'")
         if z_actor_reward not in ("latent", "latent_centered", "kernel"):
             raise ValueError(
                 "measure_density_z_actor_reward must be 'latent', 'latent_centered' or "
@@ -1473,6 +1481,7 @@ class DensityFBCritic:
                   # DEFAULT TRUE, matching the yaml: a False fallback would silently give any
                   # path building from a partial config the losing variant.
                   hard=bool(config.get("measure_density_hard", True)),
+                  loss_kind=str(config.get("measure_density_loss", "ce")),
                   pixel=pixel, qpos_dim=qpos_dim, enc_dim=enc_dim,
                   bootstrap=str(config.get("measure_density_bootstrap", "actor")),
                   actor_temp=config.get("measure_density_actor_temp", None),

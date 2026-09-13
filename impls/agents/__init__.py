@@ -78,6 +78,14 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # instead of the full state (impls/critics/{rldp,psm}.py::build);
                   # same classes, config-only.
                   "rldp_oc": "rldp", "rldp_density_oc": "rldp_density",
+                  # 2026-09-12 Density-RLDP levers (impls/critics/rldp_density.py module
+                  # docstring): `trainb` = the CE also trains B (rldp_density_train_b);
+                  # `reg` = density_fb's regression task index on hindsight goals
+                  # (rldp_density_task_index: regression + windowed_goal_sampling);
+                  # `full` = both plus backward_input: hit_spec. Config-only.
+                  "rldp_density_trainb": "rldp_density",
+                  "rldp_density_reg": "rldp_density",
+                  "rldp_density_full": "rldp_density",
                   "psm_oc": "psm", "psm_density_oc": "psm_density",
                   # ... and the HILP family, whose `_phi_in` choke point takes the same
                   # knob (impls/critics/hilp.py). These two yamls are also where the cube
@@ -172,6 +180,10 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            # and because `net` is what save_agent serializes.
            # Same story for the running observation statistics under `norm_obs`.
            "density_b_zenc": "lr", "density_zstats": "lr", "density_obsnorm": "lr",
+           # rldp_density's LEVER 3 state (rldp_density_task_index='regression'): the slow
+           # EMA index tower and the running moments / frozen pool. Same story: never in
+           # any stage_groups, written by update_stats only; they ride lr_b for the lookup.
+           "backward_zenc": "lr_b", "rldp_zstats": "lr_b",
            # hilp: groups are namespaced `hilp_*` ON PURPOSE. _LR_KEY is keyed by GROUP
            # NAME across every critic, so an unprefixed "sf_psi" here silently re-keyed
            # PSM's own sf_psi group from lr_sf to lr_f and broke all 8 PSM pairs --

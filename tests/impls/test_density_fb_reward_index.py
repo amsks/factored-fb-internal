@@ -724,11 +724,13 @@ def test_the_index_state_takes_no_gradient_and_no_optimizer_step():
 
 
 def test_update_stats_is_a_noop_for_every_other_critic():
-    """The Agent hook is additive. Only density_fb defines update_stats, and with the index
-    off it returns the net unchanged."""
+    """The Agent hook is additive. The critics that define update_stats are density_fb
+    (index moments / slow tower / pool), hilp and hilp_density (phi running mean,
+    2026-09-11) and rldp_density (the LEVER 3 regression index's state, 2026-09-12); each
+    is a Python-level no-op with its knob off, and density_fb's returns the net unchanged."""
     from impls.agents import CRITICS
     defining = {n for n, c in CRITICS.items() if hasattr(c, "update_stats")}
-    assert defining == {"density_fb"}
+    assert defining == {"density_fb", "hilp", "hilp_density", "rldp_density"}
     off, _c = _agent(z=False)
     same = off.critic.update_stats(off.net, off.net, _batch())
     assert same is off.net

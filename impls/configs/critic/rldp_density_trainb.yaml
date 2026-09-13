@@ -1,0 +1,58 @@
+# rldp_density_trainb -- rldp_density + LEVER 1 (2026-09-12): the density cross-entropy ALSO
+# trains the backward tower. impls/critics/rldp_density.py module docstring, "levers".
+# Everything above the appended block is critic/rldp_density.yaml verbatim.
+#
+# Config-only alias: --critic rldp_density_trainb builds the SAME RLDPDensityCritic class
+# (impls/agents/__init__.py::CRITIC_ALIASES).
+# Density-RLDP — RLDP's representation learner (SP + ortho, B out of the successor loss)
+# with Density-FB's categorical successor estimator and reward-integrating q_fn. See
+# impls/critics/rldp_density.py for the objective and the two lattice refusals
+# (fb_pessimism_penalty must stay 0; temp must be > 0).
+#
+# Everything except the four density knobs at the bottom is critic/rldp.yaml verbatim —
+# the whole point of the arm is that ONLY the successor estimator changes.
+batch_size: 256
+z_dim: 50
+L_dim: 50
+num_parallel: 2
+discount: 0.99
+f_target_tau: 0.005
+b_target_tau: 0.005
+ortho_coef: 0.01
+train_goal_ratio: 0.5
+fb_pessimism_penalty: 0.0   # lattice-refused if nonzero (distribution targets are headwise)
+norm_z: true
+lr_f: 1.0e-4
+lr_b: 1.0e-4              # the `predictor` group rides this (impls/agents/__init__.py::_LR_KEY)
+lr_actor: 1.0e-4
+horizon: 5
+forward:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+backward:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+left_encoder:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+predictor:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+
+# ── density knobs (impls/critics/rldp_density.py) ──────────────────────────── #
+temp: 1.0                 # softmax temperature of the successor density (density_fb default)
+actor_temp: null          # null => temp; the actor readout may flatten its own softmax (W2)
+actor_q_center: true      # spec-19a lattice: FlowBC/FQL normalizer sees the CENTERED spread
+
+dataset_class: WindowedDataset
+
+# ── LEVER 1: the CE trains B ───────────────────────────────────────────────── #
+# Drops the stop_gradient on the ONLINE B of the candidate pool inside stage_loss, so
+# params["backward"] receives the categorical successor gradient on top of the parent's
+# SP + orthonormality gradients (both unchanged). The two-phase schedule is refused with
+# this on (B would be frozen in phase 2).
+rldp_density_train_b: true
