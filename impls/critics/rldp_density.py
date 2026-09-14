@@ -148,6 +148,7 @@ class RLDPDensityCritic(RLDPCritic):
     # ---- the three levers (module docstring). All default-off. ----
     train_b: bool = False                # LEVER 1: the CE trains B
     task_index: str = "feature"          # LEVER 3: 'feature' | 'regression'
+    loss_kind: str = "ce"                # 'ce' | 'sq' (squared error on the softmax probabilities; ablation)
     # LEVER 3 knobs, density_fb's names and round-1 values (read only under 'regression').
     z_ridge_lambda_mult: float = 0.01    # lam = mult * tr(C_hat)/d
     z_cov_eig_floor: float = 1e-6        # eigenvalue floor, a multiple of tr(C_hat)/d
@@ -252,18 +253,21 @@ class RLDPDensityCritic(RLDPCritic):
         k = jnp.eye(B)
         t = jax.lax.stop_gradient((1.0 - d) * k + d * w_bar)               # [P, B, B]
         ce = -(t * logp).sum(-1).mean()
+        sq = 0.5 * ((jnp.exp(logp) - t) ** 2).sum(-1).mean()
+        fit = ce if self.loss_kind == "ce" else sq
 
         # --- SP head + orthonormality, verbatim from the parent ---
         sp, B_pred = self._sp_loss(params, target, batch)
         orth, _, _ = self._ortho(B_pred, off, off_sum)
 
-        loss = ce + sp + self.ortho_coef * orth
+        loss = fit + sp + self.ortho_coef * orth
 
         w = jnp.exp(logp)
         ess_rows = 1.0 / jnp.sum(w ** 2, axis=-1)                          # [P, B]
         return loss, {
             "fb_loss": loss, "sp_loss": sp, "ortho_loss": orth,
             "density_ce": ce,
+            "density_sq": sq,
             "density_ess": ess_rows.mean(),
             "density_ess_median": jnp.median(ess_rows),
             "density_w_entropy": -jnp.mean(jnp.sum(w * logp, axis=-1)),
@@ -373,6 +377,11 @@ class RLDPDensityCritic(RLDPCritic):
         LEVER 3 the reward samples go through the training index's own solve."""
         if self.regression:
             r = jnp.asarray(rewards)
+            if r.ndim == 2 and r.shape[-1] == 1:
+                # Dataset.sample hands rewards as [M, 1] (impls/utils/datasets.py, reshape(B, -1)):
+                # ONE task with M samples, not M tasks of one sample -- the centered moment
+                # refuses M=1. Flatten so the solve sees [M]. (2026-09-14, walker block)
+                r = r.reshape(-1)
             z = self._z_index(net["backward_zenc"].params, net["rldp_zstats"].params,
                               jnp.asarray(obs), r)
             return {"z": z[0] if r.ndim == 1 else z}
@@ -526,6 +535,7 @@ class RLDPDensityCritic(RLDPCritic):
             actor_temp=(None if at is None else float(at)),
             actor_q_center=bool(config.get("actor_q_center", True)),
             goal_kernel=goal_kernel, train_b=train_b, task_index=task_index,
+            loss_kind=str(config.get("rldp_density_loss", "ce")),
             # goal_kernel / regression and the parent's backward_input="hit_spec" parse
             # the SAME measure_hit_spec key, so the values agree when both are on; when
             # neither lever is on, KEEP the parent's parse — overwriting with () here

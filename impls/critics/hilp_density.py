@@ -127,6 +127,7 @@ class HILPDensityCritic(HILPCritic):
     kernel_blocks: tuple = ()
     # ---- the regression task index (module docstring). Default 'feature' = bit-identical.
     task_index: str = "feature"          # 'feature' | 'regression'
+    loss_kind: str = "ce"                # 'ce' | 'sq' (squared error on the softmax probabilities; ablation)
     # knobs, density_fb's names and round-1 values (read only under 'regression')
     z_ridge_lambda_mult: float = 0.01    # lam = mult * tr(C_hat)/d
     z_cov_eig_floor: float = 1e-6        # eigenvalue floor, a multiple of tr(C_hat)/d
@@ -234,12 +235,13 @@ class HILPDensityCritic(HILPCritic):
         k = jnp.eye(Bn)
         t = jax.lax.stop_gradient((1.0 - d) * k + d * w_bar)                  # [P, B, B]
         ce = -(t * logp).sum(-1).mean()
-        sf_loss = self.sf_loss_scale * ce
+        sq = 0.5 * ((jnp.exp(logp) - t) ** 2).sum(-1).mean()
+        sf_loss = self.sf_loss_scale * (ce if self.loss_kind == "ce" else sq)
 
         w = jnp.exp(logp)
         ess_rows = 1.0 / jnp.sum(w ** 2, axis=-1)
         return sf_loss, {
-            "sf_loss": sf_loss, "density_ce": ce,
+            "sf_loss": sf_loss, "density_ce": ce, "density_sq": sq,
             "density_ess": ess_rows.mean(),
             "density_ess_median": jnp.median(ess_rows),
             "density_w_entropy": -jnp.mean(jnp.sum(w * logp, axis=-1)),
@@ -336,6 +338,11 @@ class HILPDensityCritic(HILPCritic):
         if not self.regression:
             return super().infer_cond(net, obs, rewards)
         r = jnp.asarray(rewards)
+        if r.ndim == 2 and r.shape[-1] == 1:
+            # Dataset.sample hands rewards as [M, 1] (impls/utils/datasets.py, reshape(B, -1)):
+            # ONE task with M samples, not M tasks of one sample -- the centered moment
+            # refuses M=1. Flatten so the solve sees [M]. (2026-09-14, walker block)
+            r = r.reshape(-1)
         z = self._z_index(net["hilp_phi_zenc"].params, net["hilp_zstats"].params,
                           jnp.asarray(obs), r)
         return {"z": z[0] if r.ndim == 1 else z}
@@ -472,7 +479,7 @@ def _hilp_density_build(cls, ex_obs, ex_actions, config):
         actor_temp=actor_temp,
         actor_q_center=bool(config.get("actor_q_center", True)),
         goal_kernel=goal_kernel, kernel_blocks=kernel_blocks,
-        task_index=task_index, **extra,
+        task_index=task_index, loss_kind=str(config.get("hilp_density_loss", "ce")), **extra,
     )
     return critic, params, targets
 

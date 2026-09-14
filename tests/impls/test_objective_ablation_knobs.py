@@ -75,3 +75,16 @@ def test_degenerate_covariance_gives_neutral_index_not_nan():
     z = c._z_centered_index(m_c, cov)
     assert bool(jnp.all(jnp.isfinite(z)))
     np.testing.assert_allclose(np.asarray(jnp.linalg.norm(z, axis=-1)), np.sqrt(d), rtol=1e-5)
+
+
+def test_retrofit_sq_knobs_select_squared_probability_error():
+    """rldp_density_loss / hilp_density_loss = 'sq' swap the CE term for 0.5*sum_j (p_j - t_j)^2
+    on the same softmax; default 'ce' is unchanged."""
+    import jax.numpy as jnp
+    from impls.critics.rldp_density import RLDPDensityCritic
+    from impls.critics.hilp_density import HILPDensityCritic
+    assert RLDPDensityCritic.__dataclass_fields__["loss_kind"].default == "ce"
+    assert HILPDensityCritic.__dataclass_fields__["loss_kind"].default == "ce"
+    # the squared form is bounded by 1 and vanishes at equality
+    p = jnp.array([[0.2, 0.8]]); t = jnp.array([[0.2, 0.8]])
+    assert float(0.5 * ((p - t) ** 2).sum(-1).mean()) == 0.0

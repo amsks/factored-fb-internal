@@ -150,7 +150,12 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # The density ablation on the HILP substrate. hilp_density_tdj.yaml
                   # extends hilp_tdj.yaml, so the four td_jepa parity fixes are inherited
                   # rather than re-decided. Config-only; same HILPDensityCritic.
-                  "hilp_density_tdj": "hilp_density"}
+                  "hilp_density_tdj": "hilp_density",
+                  # 2026-09-14 walker block: the regression task index on the td_jepa DMC
+                  # substrates -- `<x>_density_tdj_reg` = `<x>_density_tdj.yaml` + the
+                  # regression block + the walker hit spec (0:24:15.9). Config-only.
+                  "rldp_density_tdj_reg": "rldp_density",
+                  "hilp_density_tdj_reg": "hilp_density"}
 
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor, "awr": AWRActor, "fql": FQLActor,
           # bridge spec 22 (see impls/actors/ddpgbc_density.py): the ddpgbc extraction
