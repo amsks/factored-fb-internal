@@ -23,6 +23,7 @@ from impls.critics.psm_density import PSMDensityCritic
 from impls.critics.hilp import HILPCritic
 from impls.critics.hilp_density import HILPDensityCritic
 from impls.critics.rldp import RLDPCritic
+from impls.critics.td_jepa import TDJEPACritic
 from impls.critics.rldp_density import RLDPDensityCritic
 from impls.actors.flowbc import FlowBCActor
 from impls.actors.ddpgbc import DDPGBCActor
@@ -33,6 +34,9 @@ from impls.actors.fql import FQLActor
 
 CRITICS = {"fb": FBCritic, "gciql": GCIQLCritic, "gcivl": GCIVLCritic, "hiql": HIQLCritic, "iql_bilinear": IqlBilinearCritic, "crl": CRLCritic,
            "qrl": QRLCritic, "density_fb": DensityFBCritic, "psm": PSMCritic, "rldp": RLDPCritic,
+           # TD-JEPA (arXiv:2510.00739), transcribed in impls/critics/td_jepa.py. The
+           # fourth method from that paper's codebase in this tree, after fb, hilp, rldp.
+           "td_jepa": TDJEPACritic,
            # Density-FB's categorical successor estimator under PSM's / RLDP's own
            # representation learners (impls/critics/{psm,rldp}_density.py).
            "psm_density": PSMDensityCritic, "rldp_density": RLDPDensityCritic,
@@ -154,6 +158,11 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   # 2026-09-14 walker block: the regression task index on the td_jepa DMC
                   # substrates -- `<x>_density_tdj_reg` = `<x>_density_tdj.yaml` + the
                   # regression block + the walker hit spec (0:24:15.9). Config-only.
+                  # TD-JEPA at the reference's own DMC settings. td_jepa_tdj.yaml is
+                  # critic/td_jepa.yaml with the four values their DMC launcher sets
+                  # differently (batch, discount, and the two network widths).
+                  # Config-only; same TDJEPACritic.
+                  "td_jepa_tdj": "td_jepa",
                   "rldp_density_tdj_reg": "rldp_density",
                   "hilp_density_tdj_reg": "hilp_density"}
 
@@ -208,6 +217,13 @@ _LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
            # pool. Never in any stage_groups, written by update_stats only; they ride lr_b
            # (phi's key) for the lookup.
            "hilp_phi_zenc": "lr_b", "hilp_zstats": "lr_b",
+           # TD-JEPA: the reference gives phi, psi, the two predictors and the actor
+           # their own learning rates (lr_phi / lr_psi / lr_predictor / lr_actor), all
+           # 1e-4 by default. The encoders ride lr_b and the predictors lr_f, which is
+           # the same split FB uses; set them separately with `group_lr` if a sweep
+           # ever pulls them apart.
+           "phi_enc": "lr_b", "psi_enc": "lr_b",
+           "phi_pred": "lr_f", "psi_pred": "lr_f",
            "goal_rep": "lr", "high_actor": "lr",                             # hiql's high-level policy, which
                                                            # the CRITIC owns (see critics/hiql.py)
            "actor": "lr_actor", "actor_vf": None,          # actor_vf uses actor.lr_actor_vf

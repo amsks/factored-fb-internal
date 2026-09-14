@@ -1,0 +1,32 @@
+# TD-JEPA at the reference's own DMC settings -- the arm the walker replication screen
+# compares against their runner. critic/td_jepa.yaml verbatim with the four values their
+# DMC launcher sets differently; everything else is inherited by being identical.
+#
+# Same relationship to critic/td_jepa.yaml that critic/rldp_tdj.yaml has to critic/rldp.yaml.
+
+batch_size: 1024          # TDJEPAAgentTrainConfig.batch_size
+z_dim: 50
+tdjepa_phi_dim: 50
+num_parallel: 2
+discount: 0.98            # TDJEPAAgentTrainConfig.discount
+norm_z: true
+train_goal_ratio: 0.5
+ortho_coef: 1.0
+b_target_tau: 0.005
+f_target_tau: 0.005
+lr_f: 1.0e-4
+lr_b: 1.0e-4
+lr_actor: 1.0e-4
+tdjepa_predictor_pessimism: 0.0
+tdjepa_actor_pessimism: 0.0
+
+# DMC widths, matching critic/rldp_tdj.yaml's forward block (the reference's DMC launcher
+# archi): 1024-wide predictors with one trunk layer, 256-wide encoders.
+backward:
+  hidden_dim: 256
+  hidden_layers: 2
+  norm: true
+forward:
+  hidden_dim: 1024
+  hidden_layers: 1
+  embedding_layers: 2
