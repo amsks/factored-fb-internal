@@ -72,6 +72,8 @@ CRITIC_ALIASES = {"density_fb_pixels": "density_fb",
                   "hilp_density_gk": "hilp_density", "hilp_density_gk_oc": "hilp_density",
                   "hilp_gc": "hilp", "hilp_gc_oc": "hilp",
                   "rldp_gc": "rldp", "rldp_gc_oc": "rldp",
+                  "fb_gc": "fb",   # goal-conditioned FB (train_goal_ratio 1.0); route-3 comparison
+
                   # Diag-screen repair arms: psm / psm_density at the torch sweep-winning
                   # cube config (batch 1024, discount 0.98, ortho_coef 1000); config-only.
                   "psm_repair": "psm",
