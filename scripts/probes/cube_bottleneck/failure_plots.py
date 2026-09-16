@@ -165,7 +165,31 @@ def draw_b(axes, tab, legend=False):
 
 # ── B, action-conditioned probe (ranking panel) ────────────────────────────────────────
 
-ACTION_METRICS = ["tv_action", "gap_error", "rank_spearman", "regret"]
+ACTION_METRICS = ["tv_action", "gap_error", "rank_spearman", "regret", "sign_bestworst"]
+
+
+def load_sign(epoch=1000000):
+    """Per-state sign agreement of the widest control-critical action gap (true-best vs
+    true-worst): 1[ sign(q_pred gap) == sign(return_true gap) ], from the cached per-candidate
+    long CSVs. This is the tight tie to Eq. action-gap / Lemma rare-bottleneck: it is 0.5 (coin
+    flip) exactly when the reconstructed gap has lost the sign of the true gap."""
+    rows = []
+    for env in ENVS:
+        for f in sorted((ROOT / env / "actions").glob(f"actions_long_seed*_{epoch}_*.csv")):
+            if f.stem.endswith("_smoke"):
+                continue
+            rows.append(pd.read_csv(f))
+    if not rows:
+        return None
+    L = pd.concat(rows, ignore_index=True)
+
+    def _sb(g):
+        q = g.q_pred.to_numpy(float); r = g.return_true.to_numpy(float)
+        ib, iw = int(np.argmax(r)), int(np.argmin(r))
+        return np.nan if r[ib] == r[iw] else float(np.sign(q[ib] - q[iw]) == np.sign(r[ib] - r[iw]))
+
+    key = ["env", "seed", "epoch", "bank", "state", "task", "critic"]
+    return L.groupby(key).apply(_sb).reset_index(name="sign_bestworst")
 
 
 def load_actions(epoch=1000000):
@@ -177,7 +201,14 @@ def load_actions(epoch=1000000):
             dfs.append(pd.read_csv(f))
     if not dfs:
         return None
-    return pd.concat(dfs, ignore_index=True)
+    act = pd.concat(dfs, ignore_index=True)
+    sign = load_sign(epoch)
+    if sign is not None:
+        act = act.merge(sign, on=["env", "seed", "epoch", "bank", "state", "task", "critic"],
+                        how="left")
+    else:
+        act["sign_bestworst"] = np.nan
+    return act
 
 
 def action_table(act):
@@ -194,8 +225,8 @@ def action_table(act):
     return st, out
 
 
-def draw_rank(axes, tab, metric="rank_spearman", ylabel="ranking accuracy (Spearman)",
-              ylim=(-0.2, 1.0), legend=False):
+def draw_rank(axes, tab, metric="sign_bestworst", ylabel="action-gap sign agreement",
+              ylim=(0.4, 1.0), ref=0.5, legend=False):
     w = 0.34
     x = np.arange(len(BANKS))
     for ax, env in zip(axes, ENVS):
@@ -206,7 +237,8 @@ def draw_rank(axes, tab, metric="rank_spearman", ylabel="ranking accuracy (Spear
                    label=METHOD_LABEL[m] if (legend and ax is axes[0]) else None)
             ax.errorbar(x + (j - 0.5) * w, r[f"{metric}_mean"].values, yerr=r[f"{metric}_sem"].values,
                         fmt="none", ecolor="#333333", elinewidth=0.6, capsize=1.5, capthick=0.6)
-        ax.axhline(0, color="#999999", linewidth=0.5, zorder=0)
+        # reference line: 0.5 for the sign metric = coin flip / gap lost (Lemma floor)
+        ax.axhline(ref, color="#999999", linewidth=0.5, ls="--", zorder=0)
         ax.set_xticks(x)
         ax.set_xticklabels([BANK_LABEL[b] for b in BANKS])
         ax.set_ylim(*ylim)

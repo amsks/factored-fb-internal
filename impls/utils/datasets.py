@@ -85,9 +85,47 @@ class Dataset(FrozenDict):
             (self.valid_idxs,) = np.nonzero(self['valids'] > 0)
 
     def get_random_idxs(self, num_idxs):
+        if getattr(self, '_oversample', False):
+            # Two-bucket weighted draw: a persistent (quasi-static) row is worth `lam` times a
+            # transient one, so persistent transitions are increasingly overrepresented while
+            # the state-action SUPPORT is unchanged (every original row keeps nonzero mass).
+            # O(num_idxs), no per-step cumsum over the whole dataset.
+            m = np.random.random(num_idxs) < self._persist_mass
+            out = np.empty(num_idxs, dtype=np.int64)
+            npst, ntr = len(self._persist_pool), len(self._transient_pool)
+            if m.any():
+                out[m] = self._persist_pool[np.random.randint(npst, size=int(m.sum()))]
+            if (~m).any():
+                out[~m] = self._transient_pool[np.random.randint(ntr, size=int((~m).sum()))]
+            return out
         if 'valids' in self._dict:
             return self.valid_idxs[np.random.randint(len(self.valid_idxs), size=num_idxs)]
         return np.random.randint(self.size, size=num_idxs)
+
+    def enable_persist_oversample(self, block, thresh, lam):
+        """Overrepresent persistent (quasi-static) transitions by factor `lam`. A transition is
+        persistent when the object block moves less than `thresh` between t and t+1 -- the
+        OGBench analogue of adding ordinary-state mass in the toy MDP. Support is preserved:
+        transient rows keep weight 1, so no state-action pair is dropped. Returns the split."""
+        pool = self.valid_idxs if 'valids' in self._dict else np.arange(self.size)
+        a, b = block
+        obs = np.asarray(self._dict['observations'])
+        blk = obs[:, a:b].astype(np.float64)
+        nxt = np.minimum(pool + 1, self.size - 1)
+        moved = np.linalg.norm(blk[nxt] - blk[pool], axis=-1)
+        persist = moved < float(thresh)
+        self._persist_pool = np.ascontiguousarray(pool[persist])
+        self._transient_pool = np.ascontiguousarray(pool[~persist])
+        npst, ntr = len(self._persist_pool), len(self._transient_pool)
+        if npst == 0 or ntr == 0:
+            self._oversample = False   # nothing to reweight; fall back to uniform
+            return dict(frac_persist=float(persist.mean()), enabled=False,
+                        npersist=int(npst), ntransient=int(ntr))
+        self._persist_mass = (lam * npst) / (lam * npst + ntr)
+        self._oversample = True
+        return dict(frac_persist=float(persist.mean()), enabled=True, lam=float(lam),
+                    thresh=float(thresh), persist_mass=float(self._persist_mass),
+                    npersist=int(npst), ntransient=int(ntr))
 
     def sample(self, batch_size, idxs=None):
         if idxs is None:
@@ -781,6 +819,17 @@ def make_dataset(base, config):
     Goal-conditioned critics (gciql and the PR4+ family) need GCDataset's trajectory goal
     sampling; FB carries no goal machinery and uses the base dataset unchanged.
     """
+    # Persistence oversampling (the OGBench density lever). Enabled on the BASE dataset, whose
+    # get_random_idxs both FB (uses base directly) and the GCDataset-family wrappers (which call
+    # base.get_random_idxs) route through, so one hook reweights every critic identically.
+    lam = float(config.get('persist_oversample_lambda', 1.0) or 1.0)
+    if lam > 1.0:
+        blk = str(config.get('persist_block', '19:22'))
+        a, b = (int(x) for x in blk.split(':'))
+        thr = float(config.get('persist_vel_thresh', 0.005))
+        stats = base.enable_persist_oversample((a, b), thr, lam)
+        print(f"[persist-oversample] lambda={lam} block={blk} thresh={thr} -> {stats}", flush=True)
+
     if config.get('dataset_class') == 'GCDataset':
         return GCDataset(base, config)
     if config.get('dataset_class') == 'HGCDataset':
