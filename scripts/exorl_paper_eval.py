@@ -61,19 +61,23 @@ from env import exorl_env  # noqa: E402
 TDJEPA_TASKS = {
     "dmc-walker": ("stand", "walk", "run", "spin"),
     "dmc-cheetah": ("walk", "walk_backward", "run", "run_backward"),
+    "dmc-quadruped": ("stand", "walk", "run", "jump"),
 }
 
 PAPER_TASKS = {
     "dmc-walker": ("stand", "walk", "run", "flip"),
     "dmc-cheetah": ("run", "run_backward", "walk", "walk_backward"),
+    "dmc-quadruped": ("stand", "walk", "run", "jump"),
     "dmc-point-mass-maze": ("reach_top_left", "reach_top_right",
                             "reach_bottom_left", "reach_bottom_right"),
 }
 # Per-domain hit-spec radii (calibrated; see env/domains/*.yaml). Unused by rldp/fb, read
-# by the density arms -- kept in one table so the two cannot drift.
+# by the density arms -- kept in one table so the two cannot drift. Quadruped hit-spec
+# calibrated 2026-09-16 (random-pair hit rate matched to cube-single 0.0133).
 HIT = {"dmc-walker": "0:24:15.9", "dmc-cheetah": "0:17:7.5",
-       "dmc-point-mass-maze": "0:2:0.03"}
-DISCOUNT = {"dmc-walker": 0.98, "dmc-cheetah": 0.98, "dmc-point-mass-maze": 0.99}
+       "dmc-quadruped": "0:78:21.087", "dmc-point-mass-maze": "0:2:0.03"}
+DISCOUNT = {"dmc-walker": 0.98, "dmc-cheetah": 0.98, "dmc-quadruped": 0.98,
+            "dmc-point-mass-maze": 0.99}
 
 
 # Each method infers z under its own published protocol, so a single default would score

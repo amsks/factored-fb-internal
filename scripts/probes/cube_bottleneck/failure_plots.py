@@ -20,7 +20,7 @@ import pandas as pd
 
 ROOT = Path("analysis/failure_figs")
 FIG = Path("PAPER/ICLR/figures/failure")
-ENVS = ["cube-single-play-v0", "cube-double-play-v0"]
+ENVS = ["cube-single-play-v0"]
 ENV_LABEL = {"cube-single-play-v0": "cube-single", "cube-double-play-v0": "cube-double"}
 METHODS = ["fb_tdj", "density_fb_z"]
 METHOD_LABEL = {"fb_tdj": "FB", "density_fb_z": "Density-FB"}
@@ -51,11 +51,18 @@ plt.rcParams.update({
 })
 
 
-def save(fig, name):
+def save(fig, name, tight=True):
+    # tight=False keeps the exact figsize (no content crop), so two figures built at the same
+    # figsize produce byte-for-byte equal-dimension PDFs that align in side-by-side minipages.
     FIG.mkdir(parents=True, exist_ok=True)
-    fig.savefig(FIG / f"{name}.pdf", bbox_inches="tight")
-    fig.savefig(FIG / f"{name}.png", dpi=200, bbox_inches="tight")
+    bbox = "tight" if tight else None
+    fig.savefig(FIG / f"{name}.pdf", bbox_inches=bbox)
+    fig.savefig(FIG / f"{name}.png", dpi=200, bbox_inches=bbox)
     print(f"[fig] {FIG / name}.pdf/.png")
+
+
+# Shared canvas for the two fig:failure panels so they align in a minipage layout.
+FAILURE_FIGSIZE = (3.3, 3.7)
 
 
 # ── A ───────────────────────────────────────────────────────────────────────────────────
@@ -78,26 +85,28 @@ def outcome_table(ep):
 
 
 def draw_a(ax, mean, legend=True):
+    # Vertical stacked columns (one per env x method) so the panel is tall rather than wide and
+    # fills the height next to the 2x2 "why" panel instead of leaving white space beside it.
     rows = [(env, m) for env in ENVS for m in METHODS]
-    y = np.arange(len(rows))[::-1]
-    for yi, (env, m) in zip(y, rows):
+    x = np.arange(len(rows))
+    for xi, (env, m) in zip(x, rows):
         r = mean[(mean.env == env) & (mean.critic == m)]
         if r.empty:
             continue
-        left = 0.0
+        bottom = 0.0
         for o in OUTCOMES:
             v = float(r[o].iloc[0])
-            ax.barh(yi, v, left=left, height=0.62, color=OUTCOME_COLOR[o],
-                    edgecolor="white", linewidth=0.8, label=OUTCOME_LABEL[o] if yi == y[0] else None)
-            left += v
-    ax.set_yticks(y)
-    ax.set_yticklabels([f"{ENV_LABEL[e]}\n{METHOD_LABEL[m]}" for e, m in rows])
-    ax.set_xlim(0, 1)
-    ax.set_xlabel("fraction of episodes")
-    ax.tick_params(axis="y", length=0)
-    ax.spines["left"].set_visible(False)
+            ax.bar(xi, v, bottom=bottom, width=0.68, color=OUTCOME_COLOR[o],
+                   edgecolor="white", linewidth=0.8, label=OUTCOME_LABEL[o] if xi == x[0] else None)
+            bottom += v
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{ENV_LABEL[e]}\n{METHOD_LABEL[m]}" for e, m in rows], fontsize=6)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("fraction of episodes")
+    ax.tick_params(axis="x", length=0)
+    ax.spines["bottom"].set_visible(False)
     if legend:
-        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=3, frameon=False,
+        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.16), ncol=2, frameon=False,
                   handlelength=1.0, columnspacing=1.0)
 
 
@@ -156,7 +165,7 @@ def draw_b(axes, tab, legend=False):
         ax.set_ylim(0, 1)
         ax.set_xlabel(f"state type ({ENV_LABEL[env]})")
         ax.tick_params(axis="x", length=0)
-    axes[0].set_ylabel("prediction error (TV distance)")
+    axes[0].set_ylabel("TV distance")
     if legend:
         axes[0].legend(loc="upper right", frameon=False, handlelength=1.0,
                        bbox_to_anchor=(1.0, 1.02))
@@ -225,7 +234,7 @@ def action_table(act):
     return st, out
 
 
-def draw_rank(axes, tab, metric="sign_bestworst", ylabel="action-gap sign agreement",
+def draw_rank(axes, tab, metric="sign_bestworst", ylabel="sign agreement",
               ylim=(0.4, 1.0), ref=0.5, legend=False):
     w = 0.34
     x = np.arange(len(BANKS))
@@ -342,9 +351,10 @@ def main():
         per_seed.to_csv(FIG / "figA_outcomes_per_seed.csv", index=False)
         mean.to_csv(FIG / "figA_outcomes_mean.csv", index=False)
         print(mean.round(3).to_string())
-        fig, ax = plt.subplots(figsize=(5.5, 2.3))
-        draw_a(ax, mean)
-        save(fig, "fig_failure_where")
+        fig, ax = plt.subplots(figsize=FAILURE_FIGSIZE)
+        draw_a(ax, mean, legend=False)   # colours are keyed in the caption instead
+        fig.tight_layout(rect=[0, 0.06, 1, 1])   # match the why panel's reserved bottom strip
+        save(fig, "fig_failure_where", tight=False)
         plt.close(fig)
 
     if any(w in args.which for w in ("b", "ab")):
@@ -360,17 +370,20 @@ def main():
             ast.to_csv(FIG / "figB_actions_per_state.csv", index=False)
             atab.to_csv(FIG / "figB_actions_summary.csv", index=False)
             print(atab.round(3).to_string())
+        ne = len(ENVS)
         if atab is None:
-            fig, axes = plt.subplots(1, 2, figsize=(5.5, 2.3), sharey=True)
-            draw_b(axes, tab, legend=True)
+            fig, axes = plt.subplots(1, ne, figsize=FAILURE_FIGSIZE, sharey=True, squeeze=False)
+            draw_b(axes[0], tab, legend=True)
+            fig.tight_layout(rect=[0, 0.06, 1, 1])
         else:
-            fig, axes = plt.subplots(2, 2, figsize=(5.5, 4.2), sharey="row")
+            fig, axes = plt.subplots(2, ne, figsize=FAILURE_FIGSIZE, sharey="row", squeeze=False)
             draw_b(axes[0], tab)
             draw_rank(axes[1], atab)
             for ax in axes[0]:
                 ax.set_xlabel("")
-            method_legend(fig, y=-0.04)
-        save(fig, "fig_failure_why")
+            fig.tight_layout(rect=[0, 0.06, 1, 1])   # reserve a bottom strip for the legend
+            method_legend(fig, y=0.01)               # placed inside that strip, not below the canvas
+        save(fig, "fig_failure_why", tight=False)
         plt.close(fig)
 
     if "ab" in args.which:
