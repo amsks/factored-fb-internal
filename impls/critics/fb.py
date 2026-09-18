@@ -143,8 +143,20 @@ class FBCritic:
         Bm = self._B(params["backward"], goal)
         M = jnp.einsum("pbz,cz->pbc", Fs, Bm)
         diff = M - disc * target_M
-        fb_off = 0.5 * jnp.sum((diff * off) ** 2) / off_sum
-        fb_diag = -self.target_scale * jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2)) * P
+        # Per-row critic loss weight (persist_mode="loss": the rebalance lever applied to the
+        # CRITIC objective only). Weighted mean over the ROW (state-action) axis b; candidate
+        # columns c and the ortho term are untouched. Absent key = plain mean, and all-ones
+        # weights reproduce the plain mean exactly (x*1.0 and /1.0 are exact).
+        rw = batch.get("row_weight")
+        if rw is None:
+            fb_off = 0.5 * jnp.sum((diff * off) ** 2) / off_sum
+            fb_diag = -self.target_scale * jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2)) * P
+        else:
+            rw = jnp.asarray(rw, diff.dtype).reshape(-1)
+            rw_mean = jnp.mean(rw)
+            fb_off = 0.5 * jnp.sum((diff * off) ** 2 * rw[None, :, None]) / (off_sum * rw_mean)
+            fb_diag = (-self.target_scale
+                       * jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2) * rw[None, :]) / rw_mean * P)
         cov = Bm @ Bm.T
         orth_off = 0.5 * jnp.sum((cov * off) ** 2) / off_sum
         orth_diag = -jnp.mean(jnp.diagonal(cov))

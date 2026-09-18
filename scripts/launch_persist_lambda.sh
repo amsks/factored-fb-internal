@@ -47,7 +47,7 @@ emit() { # critic lambda seed -> full command
   echo "$PY -m impls.main --critic $critic --actor flowbc --domain cube_single --seed $seed" \
        "--auto_resume --train_steps $STEPS --eval_interval $EVAL_EVERY --save_interval $SAVE_EVERY" \
        "--save_dir $sd --override persist_oversample_lambda=$lam --override persist_vel_thresh=$THRESH" \
-       "--override 'persist_block=$BLOCK' $ov $RELABEL"
+       "--override 'persist_block=\"$BLOCK\"' $ov $RELABEL"
 }
 
 JOBS=""

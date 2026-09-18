@@ -1012,10 +1012,20 @@ class DensityFBCritic:
             # Counted at the NEXT state, in OBJECT COORDINATES -- `nobs_q`, never the image.
             k = _delta_phi(nobs_q, u_raw, blocks)                          # [B, M]
         t = jax.lax.stop_gradient((1.0 - gamma) * k[None] + gamma * w_bar)
-        ce = -jnp.mean(jnp.sum(t * logp, axis=-1))
-        # Ablation: the SAME softmax model fitted with squared error on probabilities (Brier).
-        # Holds the model family fixed and changes only the objective.
-        sq = 0.5 * jnp.mean(jnp.sum((w - t) ** 2, axis=-1))
+        # Per-row critic loss weight (persist_mode="loss"): weighted mean over the row axis b
+        # of the per-row CE; the candidate axis m is untouched. Absent key = plain mean;
+        # all-ones weights reproduce the plain mean exactly.
+        rw = batch.get("row_weight")
+        if rw is None:
+            ce = -jnp.mean(jnp.sum(t * logp, axis=-1))
+            # Ablation: the SAME softmax model fitted with squared error on probabilities
+            # (Brier). Holds the model family fixed and changes only the objective.
+            sq = 0.5 * jnp.mean(jnp.sum((w - t) ** 2, axis=-1))
+        else:
+            rw = jnp.asarray(rw, logp.dtype).reshape(-1)
+            rw_mean = jnp.mean(rw)
+            ce = -jnp.mean(jnp.sum(t * logp, axis=-1) * rw[None, :]) / rw_mean
+            sq = 0.5 * jnp.mean(jnp.sum((w - t) ** 2, axis=-1) * rw[None, :]) / rw_mean
 
         ess_rows = 1.0 / jnp.sum(w ** 2, axis=-1)                          # [2, B]
         ess = jnp.mean(ess_rows)

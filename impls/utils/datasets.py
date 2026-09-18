@@ -102,30 +102,104 @@ class Dataset(FrozenDict):
             return self.valid_idxs[np.random.randint(len(self.valid_idxs), size=num_idxs)]
         return np.random.randint(self.size, size=num_idxs)
 
-    def enable_persist_oversample(self, block, thresh, lam):
-        """Overrepresent persistent (quasi-static) transitions by factor `lam`. A transition is
-        persistent when the object block moves less than `thresh` between t and t+1 -- the
-        OGBench analogue of adding ordinary-state mass in the toy MDP. Support is preserved:
-        transient rows keep weight 1, so no state-action pair is dropped. Returns the split."""
-        pool = self.valid_idxs if 'valids' in self._dict else np.arange(self.size)
+    # Per-row CRITIC loss weight (persist_mode="loss"), full dataset length, dataset-mean 1
+    # over the valid pool; None = every row weighs 1 (the batch key is still emitted, all ones).
+    _row_weight = None
+
+    def row_weights(self, idxs):
+        """float32 [n] loss weight of each drawn row; all ones unless persist_mode='loss'."""
+        idxs = np.asarray(idxs).reshape(-1)
+        if self._row_weight is None:
+            return np.ones(idxs.shape[0], np.float32)
+        return np.asarray(self._row_weight[idxs], np.float32)
+
+    def enable_persist_oversample(self, block, thresh, lam=1.0, pool="motion", window=0,
+                                  transient_mass=None, mode="sample"):
+        """Split the rows into two buckets, persistent vs transient, and give a persistent row
+        `lam` times a transient one's weight. mode="sample": the weight is SAMPLING mass in
+        get_random_idxs -- lam > 1 makes the rare transient rows rarer (the density lever),
+        lam < 1 upweights them (rebalancing by resampling). mode="loss": sampling stays
+        uniform (the actor's training distribution and every candidate/next-state set are
+        untouched) and the weight becomes a per-row CRITIC loss weight instead
+        (`row_weights`, batch["row_weight"]): transient rows weigh W = 1/lam, persistent rows 1,
+        normalised so the dataset-mean weight is 1. Support is preserved either way: every
+        original row keeps nonzero mass.
+
+        pool="motion": a row is transient when the object block (obs[:, a:b]) moves >= `thresh`
+            between t and t+1 (the OGBench analogue of adding ordinary-state mass in the toy MDP).
+        pool="onset":  a row is transient when it lies within +-`window` rows of a MOTION ONSET
+            (block displacement < thresh at t-1->t and >= thresh at t->t+1), computed within the
+            valid pool; everything else is persistent. This isolates the bottleneck rows (the
+            grasp/first-move decision) from the long transport segments that follow them.
+        transient_mass (float in (0,1)) overrides `lam`: lam is chosen so the transient bucket
+            receives exactly that sampling mass, i.e. persist_mass = 1 - transient_mass.
+        Returns the split as a dict."""
+        pool_idx = self.valid_idxs if 'valids' in self._dict else np.arange(self.size)
         a, b = block
         obs = np.asarray(self._dict['observations'])
         blk = obs[:, a:b].astype(np.float64)
-        nxt = np.minimum(pool + 1, self.size - 1)
-        moved = np.linalg.norm(blk[nxt] - blk[pool], axis=-1)
-        persist = moved < float(thresh)
-        self._persist_pool = np.ascontiguousarray(pool[persist])
-        self._transient_pool = np.ascontiguousarray(pool[~persist])
+        nxt = np.minimum(pool_idx + 1, self.size - 1)
+        moved = np.linalg.norm(blk[nxt] - blk[pool_idx], axis=-1)
+        moving = moved >= float(thresh)
+        pool = str(pool)
+        window = int(window)
+        if pool == "motion":
+            transient = moving
+        elif pool == "onset":
+            # onset at pool position i: not moving at i-1, moving at i (first pool row never an
+            # onset: it has no predecessor within the pool).
+            # A trajectory's last row compares against the NEXT trajectory's first row (a
+            # jump); that is not a cube onset, so mask boundary rows for onset detection.
+            mv = moving.copy()
+            if 'terminals' in self._dict:
+                mv &= np.asarray(self._dict['terminals'])[pool_idx] <= 0
+            onset = np.zeros_like(mv)
+            onset[1:] = (~mv[:-1]) & mv[1:]
+            transient = np.zeros_like(moving)
+            for d in range(-window, window + 1):
+                if d < 0:
+                    transient[:d] |= onset[-d:]
+                elif d > 0:
+                    transient[d:] |= onset[:-d]
+                else:
+                    transient |= onset
+        else:
+            raise ValueError(f"persist pool must be 'motion' or 'onset', got {pool!r}")
+        persist = ~transient
+        self._persist_pool = np.ascontiguousarray(pool_idx[persist])
+        self._transient_pool = np.ascontiguousarray(pool_idx[transient])
         npst, ntr = len(self._persist_pool), len(self._transient_pool)
-        if npst == 0 or ntr == 0:
-            self._oversample = False   # nothing to reweight; fall back to uniform
-            return dict(frac_persist=float(persist.mean()), enabled=False,
-                        npersist=int(npst), ntransient=int(ntr))
+        mode = str(mode)
+        if mode not in ("sample", "loss"):
+            raise ValueError(f"persist mode must be 'sample' or 'loss', got {mode!r}")
+        base = dict(mode=mode, pool=pool, window=window, thresh=float(thresh),
+                    npersist=int(npst), ntransient=int(ntr), frac_persist=float(persist.mean()))
+        self._oversample = False
+        self._row_weight = None
+        if npst == 0 or ntr == 0:   # nothing to reweight; uniform sampling, unit weights
+            return dict(enabled=False, lam=float(lam), persist_mass=float(npst > 0), **base)
+        if transient_mass is not None:
+            tm = float(transient_mass)
+            assert 0.0 < tm < 1.0, f"transient_mass must be in (0,1), got {tm}"
+            lam = (1.0 - tm) / tm * ntr / npst
+        lam = float(lam)
+        assert lam > 0.0, f"lam must be positive (support preservation), got {lam}"
+        # Persistent share of the total weight (sampling mass in 'sample', loss mass in 'loss').
         self._persist_mass = (lam * npst) / (lam * npst + ntr)
-        self._oversample = True
-        return dict(frac_persist=float(persist.mean()), enabled=True, lam=float(lam),
-                    thresh=float(thresh), persist_mass=float(self._persist_mass),
-                    npersist=int(npst), ntransient=int(ntr))
+        if mode == "sample":
+            self._oversample = True
+            return dict(enabled=True, lam=lam, persist_mass=float(self._persist_mass), **base)
+        # mode == "loss": transient rows weigh W = 1/lam relative to persistent rows, so the
+        # transient share of TOTAL weight is W*ntr/(W*ntr+npst) = 1 - persist_mass; then
+        # normalise to dataset-mean 1 over the valid pool.
+        W = 1.0 / lam
+        w = np.ones(self.size, np.float64)
+        w[self._transient_pool] = W
+        w /= w[pool_idx].mean()
+        self._row_weight = w.astype(np.float32)
+        return dict(enabled=True, lam=lam, persist_mass=float(self._persist_mass), W=float(W),
+                    w_transient=float(w[self._transient_pool[0]]),
+                    w_persist=float(w[self._persist_pool[0]]), **base)
 
     def sample(self, batch_size, idxs=None):
         if idxs is None:
@@ -140,6 +214,9 @@ class Dataset(FrozenDict):
         # policy to converge to (reference: batch["index"], enabled via with_index=True for
         # psm only). Cheap, and every other critic ignores it.
         result['index'] = np.asarray(idxs).reshape(-1)
+        # Per-row critic loss weight: all ones unless persist_mode='loss'. Always present so
+        # the batch key set does not depend on the mode.
+        result['row_weight'] = self.row_weights(idxs)
         if 'next_observations' not in result:
             result['next_observations'] = self._dict['observations'][np.minimum(idxs + 1, self.size - 1)]
         return result
@@ -176,6 +253,7 @@ class FBDataset(Dataset):
             'rewards': rewards,
             'terminals': np.zeros((B,), np.float32),  # always-gamma
             'index': np.asarray(sub['index']).reshape(-1),
+            'row_weight': np.asarray(sub['row_weight'], np.float32),
         }
 
 
@@ -635,6 +713,7 @@ class WindowedDataset:
             'next_observations': nobs,
             'rewards': rewards,
             'terminals': np.zeros((B,), np.float32),  # always-gamma, as FBDataset
+            'row_weight': np.asarray(sub['row_weight'], np.float32),
         }
 
         if h > 1:
@@ -822,13 +901,27 @@ def make_dataset(base, config):
     # Persistence oversampling (the OGBench density lever). Enabled on the BASE dataset, whose
     # get_random_idxs both FB (uses base directly) and the GCDataset-family wrappers (which call
     # base.get_random_idxs) route through, so one hook reweights every critic identically.
+    # lam > 1 = the lever (transient rows rarer); lam < 1 or persist_transient_mass = REBALANCE
+    # (transient / onset rows upweighted so their rarity is undone without changing the data).
     lam = float(config.get('persist_oversample_lambda', 1.0) or 1.0)
-    if lam > 1.0:
-        blk = str(config.get('persist_block', '19:22'))
+    tm = config.get('persist_transient_mass', None)
+    tm = None if tm in (None, '', 'None', 'none', 'null') else float(tm)
+    if lam != 1.0 or tm is not None:
+        blk = config.get('persist_block', '19:22')
+        if not isinstance(blk, str) or blk.count(':') != 1:
+            # YAML 1.1 reads an unquoted 19:22 as the sexagesimal integer 1162; the override
+            # must be passed as --override 'persist_block="19:22"' (same as measure_hit_spec).
+            raise ValueError(f"persist_block must be the string 'a:b', got {blk!r} "
+                             f"({type(blk).__name__}); quote it on the command line")
         a, b = (int(x) for x in blk.split(':'))
         thr = float(config.get('persist_vel_thresh', 0.005))
-        stats = base.enable_persist_oversample((a, b), thr, lam)
-        print(f"[persist-oversample] lambda={lam} block={blk} thresh={thr} -> {stats}", flush=True)
+        pool = str(config.get('persist_pool', 'motion') or 'motion')
+        window = int(config.get('persist_window', 0) or 0)
+        mode = str(config.get('persist_mode', 'sample') or 'sample')
+        stats = base.enable_persist_oversample((a, b), thr, lam, pool=pool, window=window,
+                                               transient_mass=tm, mode=mode)
+        print(f"[persist-oversample] mode={mode} lambda={lam} block={blk} thresh={thr} "
+              f"pool={pool} window={window} target_transient_mass={tm} -> {stats}", flush=True)
 
     if config.get('dataset_class') == 'GCDataset':
         return GCDataset(base, config)
