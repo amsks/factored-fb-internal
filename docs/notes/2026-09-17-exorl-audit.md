@@ -197,3 +197,31 @@ the same pipeline = 366), the kernel readout is not (238 vs 232). Maze at five s
 published method (RLDP 671). Table: point-mass cell -> 692.2 (pop std); cheetah cell held at 232 until the
 20-job 1M-recipe + lr 1e-4 batch (tmux `exorl_1mrecipe`, exp/exorl_dfb_1mrecipe/) is scored -- that batch
 supersedes walker/cheetah/quadruped/maze cells with one recipe, one actor lr policy, five seeds.
+
+## 1M-recipe + reference actor lr batch RESULT (2026-09-19 00:50Z) -- THE TABLE CELLS
+exp/exorl_dfb_1mrecipe (tau 0.005, value [512,512,512], B [256,256] motivo norm, lr 1e-4, lr_actor 1e-4 / maze 1e-6,
+1M, 5 seeds), paper protocol, exp/paper_eval_exorl_1mrecipe.jsonl, mean (pop std) over per-seed domain means:
+| domain | this batch | previous best cell | published FB / best published |
+|---|---|---|---|
+| walker (stand/walk/run/spin) | **724.6** (41.2): 843/744/327/985 | 681 (3 seeds, lr 3e-4) | 811.5 / 811.5 FB |
+| cheetah | **301.4** (45.4): run 102 / run_b 126 / walk 401 / walk_b 577 | 232 (2M) | 672.7 / 688.7 TD-JEPA |
+| quadruped | **655.9** (15.9): jump 733 / run 460 / stand 904 / walk 527 | 569 (2M) | 595.6 / 694.8 HILP |
+| point-mass (4 reach) | **751.5** (74.1): BL 739 / BR 521 / TL 944 / TR 801 | 692 (lr 1e-6, 2M recipe) | 513.0 / 513.0 FB |
+One recipe, one budget, five seeds on every domain; tab:manipulation ExoRL row updated to these cells.
+Levers that got here: actor lr (references' per-domain values), the 1M recipe (tau .005 + 3-layer value tower).
+Not levers: hit-radius sharpness (sup86), exact-reward actor readout, backward-norm removal (exp/exorl_dfb_bnorm0,
+score at 1M pending, not expected to matter). Remaining gap to FB is walker/cheetah only.
+
+## Single-lever sweep RESULT (2026-09-19 16:40Z; 1 seed, 1M, exp/paper_eval_exorl_levers.jsonl; base = 1M-recipe batch seed 0: walker 744 / cheetah 274)
+| lever | walker | cheetah |
+|---|---|---|
+| sphere (measure_density_z_rand_frac=1.0) | 763 (+19) | 340 (+66) |
+| qnorm (actor.q_normalize=true) | 778 (+35) | 293 (+18) |
+| tower1024 (value_hidden_dims=[1024]) | 618 (-125) | 381 (+106) |
+| tau001 | 707 (-36) | 340 (+66) |
+| headmean (measure_density_actor_head_reduce=mean, new knob) | 702 (-42) | 339 (+65) |
+| disc099 | 684 (-60) | 336 (+62) |
+| temp2 (actor_temp 2) | 633 (-111) | 211 (-63) |
+| zdim100 | 749 (+6) | 269 (-5) |
+Shared levers: sphere + qnorm. Cheetah-only levers: tower1024, tau001, headmean, disc099. Round 2 = sphere+qnorm at
+5 seeds (walker, cheetah) + 1-seed cheetah stacks (scripts/launch_exorl_combo.sh, exp/exorl_combo/).

@@ -1,0 +1,19 @@
+Restored from exp/walker_arch/dmc-walker_density_fb_z_ddpgbc_seed_0/params_250000.pkl (params only)
+DFB epoch 250000 task walk: zenc tower {'mu2': 43.714229583740234, 'trC': 6.285851648726549, 'effrank': 26.01663335739095, 'mean_pair_cos': 0.8742766976356506, 'rms_pair_cos': 0.8767407536506653}
+   online tower {'mu2': 43.69654083251953, 'trC': 6.303366072046139, 'effrank': 25.897347780466564, 'mean_pair_cos': 0.8739264011383057, 'rms_pair_cos': 0.8764190673828125}
+   INIT tower {'mu2': 19.0011043548584, 'trC': 30.99890273463979, 'effrank': 13.4245672357418, 'mean_pair_cos': 0.37999090552330017, 'rms_pair_cos': 0.44199129939079285}
+   eval z: z^T C z = 11.343 vs sphere-z median 5.857 [p5 3.994, p95 10.282]; energy of z in top-5 / bottom-25 eigdirs = 0.27 / 0.41; proxy reward std 0.479, corr(proxy, r) 0.781; r mean 0.187 std 0.250
+   R2(r ~ linear in zenc B) = 0.613
+Restored from exp/walker_arch/dmc-walker_density_fb_z_ddpgbc_seed_0/params_1000000.pkl (params only)
+DFB epoch 1000000 task walk: zenc tower {'mu2': 47.41543960571289, 'trC': 2.584568721586311, 'effrank': 26.26526812998348, 'mean_pair_cos': 0.9483060836791992, 'rms_pair_cos': 0.9487428069114685}
+   online tower {'mu2': 47.421905517578125, 'trC': 2.57805710783406, 'effrank': 26.211756973013447, 'mean_pair_cos': 0.9484363198280334, 'rms_pair_cos': 0.9488723874092102}
+   INIT tower {'mu2': 19.0011043548584, 'trC': 30.99890273463979, 'effrank': 13.4245672357418, 'mean_pair_cos': 0.37999090552330017, 'rms_pair_cos': 0.44199129939079285}
+   eval z: z^T C z = 3.174 vs sphere-z median 2.424 [p5 1.659, p95 4.131]; energy of z in top-5 / bottom-25 eigdirs = 0.17 / 0.53; proxy reward std 0.252, corr(proxy, r) 0.824; r mean 0.187 std 0.250
+   R2(r ~ linear in zenc B) = 0.680
+Restored from exp/walker_fbref/dmc-walker_fb_ddpgbc_seed_0/params_1000000.pkl (params only)
+FB ref 1M: {'mu2': 1.309109091758728, 'trC': 48.69089413168786, 'effrank': 45.32658898687331, 'mean_pair_cos': 0.026133423671126366, 'rms_pair_cos': 0.1521248072385788}
+   INIT: {'mu2': 17.833707809448242, 'trC': 32.16633067232832, 'effrank': 14.01448388993911, 'mean_pair_cos': 0.3566412031650543, 'rms_pair_cos': 0.42078718543052673}
+   FB eval z: z^T C z = 40.445 vs sphere median 48.721 [p5 42.349, p95 55.167]; proxy (B.z/sqrt d) std 0.899, corr(proxy,r) 0.606; R2(r ~ linear in B) = 0.607
+DONE
+
+[exited with code 0]

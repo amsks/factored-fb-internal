@@ -41,6 +41,10 @@ measure_density_bootstrap: actor    # actor | sarsa
 # (bit-identical). stage_loss's CE target always uses measure_density_temp, so raising this
 # smooths what the actor ascends without changing what the measure is trained to be.
 measure_density_actor_temp: null
+# 2026-09-19: how the actor's readout combines the two F heads. 'min' (default, what every
+# published cell ran) is the TD3 pessimistic min; 'mean' matches the FB reference actor
+# (critic/fb.yaml actor_pessimism_penalty 0 = mean over heads). stage_loss is untouched.
+measure_density_actor_head_reduce: min    # min | mean
 
 # --- spec 30 P1: the REWARD-SAMPLE INDEX (impls/critics/density_fb.py) --------------------
 # DEFAULT OFF. With it off nothing below is read and the critic is byte-identical to the

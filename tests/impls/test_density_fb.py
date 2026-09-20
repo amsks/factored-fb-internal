@@ -738,6 +738,35 @@ def test_w2_actor_temp_moves_only_the_actor_readout():
     np.testing.assert_array_equal(np.asarray(q0), np.asarray(qN))
 
 
+def test_actor_head_reduce_mean_moves_only_the_actor_readout():
+    """'mean' must make q_fn's first return the head average (q1+q2)/2 instead of min(q1,q2),
+    leave the second return (per-head stack) and stage_loss bit-identical, and reject any
+    other value. Default 'min' is exactly the old behaviour."""
+    ex_obs, ex_act = _ex()
+    b = _batch_with_next_actions()
+    c0, p0, t0 = DensityFBCritic.build(ex_obs, ex_act, _cfg())
+    cM, pM, tM = DensityFBCritic.build(ex_obs, ex_act, _cfg(measure_density_actor_head_reduce="mean"))
+    assert c0.actor_head_reduce == "min" and cM.actor_head_reduce == "mean"
+    cond = _cond_for(c0, b)
+    acts = b["actions"]
+    c0u = DensityFBCritic.build(ex_obs, ex_act, _cfg(actor_q_center=False))[0]
+    cMu = DensityFBCritic.build(ex_obs, ex_act, _cfg(actor_q_center=False,
+                                                    measure_density_actor_head_reduce="mean"))[0]
+    q0, heads0 = c0u.q_fn(p0, b["observations"], cond, acts)
+    qM, headsM = cMu.q_fn(pM, b["observations"], cond, acts)
+    np.testing.assert_array_equal(np.asarray(heads0), np.asarray(headsM))
+    np.testing.assert_allclose(np.asarray(q0), np.asarray(jnp.minimum(heads0[0], heads0[1])), rtol=1e-12)
+    np.testing.assert_allclose(np.asarray(qM), np.asarray(0.5 * (heads0[0] + heads0[1])), rtol=1e-12)
+    assert not np.allclose(np.asarray(q0), np.asarray(qM), atol=1e-9), "head reduce did not reach q_fn"
+    l0, i0 = c0.stage_loss("density", p0, t0, b, cond, _boot())
+    lM, iM = cM.stage_loss("density", pM, tM, b, cond, _boot())
+    np.testing.assert_array_equal(np.asarray(l0), np.asarray(lM))
+    for k in i0:
+        np.testing.assert_array_equal(np.asarray(i0[k]), np.asarray(iM[k]), err_msg=k)
+    with pytest.raises(ValueError, match="actor_head_reduce"):
+        DensityFBCritic.build(ex_obs, ex_act, _cfg(measure_density_actor_head_reduce="max"))
+
+
 def test_w1_logs_the_substitution_size():
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())

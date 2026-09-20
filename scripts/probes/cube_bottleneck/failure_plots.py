@@ -342,7 +342,11 @@ def draw_c(ax, g):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--which", nargs="+", default=["a", "b", "ab", "c"])
+    ap.add_argument("--figsize", nargs=2, type=float, default=None, help="override FAILURE_FIGSIZE for panel a")
     args = ap.parse_args()
+    global FAILURE_FIGSIZE
+    if args.figsize:
+        FAILURE_FIGSIZE = tuple(args.figsize)
     FIG.mkdir(parents=True, exist_ok=True)
 
     if any(w in args.which for w in ("a", "ab")):
@@ -353,7 +357,7 @@ def main():
         print(mean.round(3).to_string())
         fig, ax = plt.subplots(figsize=FAILURE_FIGSIZE)
         draw_a(ax, mean, legend=False)   # colours are keyed in the caption instead
-        fig.tight_layout(rect=[0, 0.06, 1, 1])   # match the why panel's reserved bottom strip
+        fig.tight_layout(pad=0.3)
         save(fig, "fig_failure_where", tight=False)
         plt.close(fig)
 

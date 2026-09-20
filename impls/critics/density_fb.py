@@ -424,6 +424,11 @@ class DensityFBCritic:
     # W2: temperature for the ACTOR READOUT ONLY (q_fn's softmax). None -> `temp`, i.e.
     # bit-identical; the CE training target in stage_loss always keeps `temp`.
     actor_temp: Any = None
+    # measure_density_actor_head_reduce (2026-09-19): how q_fn combines the two F heads for
+    # the ACTOR's greedy target. 'min' (default, bit-identical: every published cell) is the
+    # TD3 pessimistic min; 'mean' is what the FB reference actor ascends (impls/critics/fb.py
+    # actor_pessimism_penalty=0 => mean over heads). stage_loss is untouched either way.
+    actor_head_reduce: str = "min"
 
     # --- PIXEL path (docs/specs/2026-08-21-density-fb-pixels-drq.md), DEFAULT OFF ---------
     # `pixel` is set by `build` from the observation's rank, so it cannot be configured into
@@ -1141,7 +1146,7 @@ class DensityFBCritic:
         a_tau = self.temp if self.actor_temp is None else float(self.actor_temp)
         w = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb, b_emb) / a_tau, -1)
         q1, q2 = (w * kg[None]).sum(-1)                                    # [2, B] -> [B],[B]
-        q = jnp.minimum(q1, q2)
+        q = jnp.minimum(q1, q2) if self.actor_head_reduce == "min" else 0.5 * (q1 + q2)
         if self.actor_q_center:
             # actor_q_center touches ONLY the normalizer, q_scale = |q - q.mean()|.mean(),
             # so the centering goes into the SECOND return (FlowBC divides its q-term by
@@ -1310,6 +1315,11 @@ class DensityFBCritic:
             raise ValueError(
                 "measure_density_z_actor_reward must be 'latent', 'latent_centered' or "
                 f"'kernel', got {z_actor_reward!r}")
+        actor_head_reduce = str(config.get("measure_density_actor_head_reduce", "min"))
+        if actor_head_reduce not in ("min", "mean"):
+            raise ValueError(
+                "measure_density_actor_head_reduce must be 'min' or 'mean', "
+                f"got {actor_head_reduce!r}")
         backward_input = str(config.get("backward_input", "hit_spec"))
         if backward_input not in ("hit_spec", "state"):
             raise ValueError(
@@ -1495,6 +1505,7 @@ class DensityFBCritic:
                   pixel=pixel, qpos_dim=qpos_dim, enc_dim=enc_dim,
                   bootstrap=str(config.get("measure_density_bootstrap", "actor")),
                   actor_temp=config.get("measure_density_actor_temp", None),
+                  actor_head_reduce=actor_head_reduce,
                   z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac, z_actor_reward=z_actor_reward,
                   z_khot_frac=z_khot_frac,
                   z_ridge_lambda_mult=z_lam, z_cov_eig_floor=z_floor, z_const_eps=z_eps,

@@ -170,7 +170,8 @@ def run_cell(args, domain, task, seed):
            "--override", "actor.alpha=0.0",
            "--override", "actor.q_normalize=false",
            "--override", "actor.q_noise_std=0.2",
-           "--override", "actor.boot_noise_std=0.2"] + legacy
+           "--override", "actor.boot_noise_std=0.2"] + legacy + \
+          [x for o in (args.override or []) for x in ("--override", o)]
     if legacy and not args.dry_run:
         print(f"LEGACY-ARCH {domain}/{task}/s{seed}: {' '.join(legacy[1::2])} "
               f"(from {os.path.basename(run_dir)}/config.json)", flush=True)
@@ -269,6 +270,9 @@ def main():
     ap.add_argument("--python", default="/dev/shm/.venv-jax/bin/python")
     ap.add_argument("--jobs", type=int, default=1,
                     help="cells to evaluate concurrently (one subprocess each)")
+    ap.add_argument("--override", action="append", default=[],
+                    help="extra dotlist overrides appended LAST (eval-time knobs, e.g. the z readout's "
+                         "ridge multiplier); repeatable")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--report-only", action="store_true")
     args = ap.parse_args()
