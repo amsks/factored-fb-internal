@@ -429,6 +429,12 @@ class DensityFBCritic:
     # TD3 pessimistic min; 'mean' is what the FB reference actor ascends (impls/critics/fb.py
     # actor_pessimism_penalty=0 => mean over heads). stage_loss is untouched either way.
     actor_head_reduce: str = "min"
+    # measure_density_value_reg_coef: scalar-value TD auxiliary. 0.0 (default) => the stage
+    # loss is exactly the shipped CE/sq. >0 adds coef * 0.5 * mean((<w,kg> - <t,kg>)^2), i.e.
+    # regresses the reward-weighted successor value toward the SAME Bellman target t the CE
+    # fits, kg the actor's per-candidate reward. Supervises value accuracy across task vectors
+    # (the walker/cheetah-run failure), which the distribution-only CE does not directly train.
+    value_reg_coef: float = 0.0
 
     # --- PIXEL path (docs/specs/2026-08-21-density-fb-pixels-drq.md), DEFAULT OFF ---------
     # `pixel` is set by `build` from the observation's rank, so it cannot be configured into
@@ -1069,7 +1075,23 @@ class DensityFBCritic:
             # mean |S| over the batch's k-hot rows (0 when the batch drew none)
             info["density_z_khot_mean_size"] = jnp.sum(
                 kh * jnp.sum(cond["_z_khot_mask"], axis=-1, keepdims=True)) / jnp.maximum(n_k, 1.0)
-        return (ce if self.loss_kind == "ce" else sq), info
+        base = ce if self.loss_kind == "ce" else sq
+        if self.value_reg_coef > 0.0:
+            # Scalar-value TD auxiliary: regress the reward-weighted successor value <w, kg>
+            # toward its Bellman target <t, kg>. t and kg are already stop-gradiented, so the
+            # gradient flows only through w (F, B); kg is the actor's per-candidate reward on
+            # THIS batch's candidate support (aligned with w's candidate axis).
+            if self.z_on:
+                kg_r = self.z_actor_reward_rows(cond)                       # [B, M]
+            else:
+                g_rows = self._kernel_rows(cond, "goal", cond["goal"])
+                kg_r = jax.lax.stop_gradient(_delta_phi(g_rows, u_raw, blocks))  # [B, M]
+            q_pred = jnp.einsum('hbm,bm->hb', w, kg_r)                      # grad through w
+            q_tgt = jnp.einsum('hbm,bm->hb', t, kg_r)                       # t already sg
+            vr = 0.5 * jnp.mean((q_pred - q_tgt) ** 2)
+            info["density_value_reg"] = vr
+            base = base + self.value_reg_coef * vr
+        return base, info
 
     def z_actor_reward_rows(self, cond):
         """The z-branch actor reward kg [B, M] on the batch's candidate set, one row per
@@ -1316,6 +1338,7 @@ class DensityFBCritic:
                 "measure_density_z_actor_reward must be 'latent', 'latent_centered' or "
                 f"'kernel', got {z_actor_reward!r}")
         actor_head_reduce = str(config.get("measure_density_actor_head_reduce", "min"))
+        value_reg_coef = float(config.get("measure_density_value_reg_coef", 0.0))
         if actor_head_reduce not in ("min", "mean"):
             raise ValueError(
                 "measure_density_actor_head_reduce must be 'min' or 'mean', "
@@ -1506,6 +1529,7 @@ class DensityFBCritic:
                   bootstrap=str(config.get("measure_density_bootstrap", "actor")),
                   actor_temp=config.get("measure_density_actor_temp", None),
                   actor_head_reduce=actor_head_reduce,
+                  value_reg_coef=value_reg_coef,
                   z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac, z_actor_reward=z_actor_reward,
                   z_khot_frac=z_khot_frac,
                   z_ridge_lambda_mult=z_lam, z_cov_eig_floor=z_floor, z_const_eps=z_eps,
