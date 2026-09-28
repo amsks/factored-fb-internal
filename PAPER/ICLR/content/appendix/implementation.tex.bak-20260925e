@@ -1,0 +1,262 @@
+\section{Implementation Details}
+\label{app:implementation}
+
+This appendix gives the implementation details omitted from \cref{sec:method}.
+We first describe the successor networks and the two-head implementation, then the policy extractor and zero-shot evaluation procedure.
+Environment-specific outcome coordinates and all hyperparameters are given last.
+
+\subsection{Inferring a task index from reward samples}
+\label{app:task-index}
+
+Given $N_r$ states $s_j^+\sim\rho$ and rewards $r_j=r(s_j^+)$, write $b_j=B_\theta(s_j^+)$ and $\bar r=N_r^{-1}\sum_jr_j$.
+Let $\widehat b$ and $\widehat C$ be the running feature mean and covariance maintained during pretraining.
+Set $v=\operatorname{tr}(\widehat C)/d$ and $\lambda=0.01v$.
+Form $\widetilde C$ by replacing eigenvalues of $\widehat C$ below $10^{-6}v$ by that threshold.
+The encoder solves
+\begin{equation}
+    (\widetilde C+\lambda I)c_r =\frac1{N_r}\sum_{j=1}^{N_r} (b_j-\widehat b)(r_j-\bar r), \qquad z_r=\sqrt d\,\frac{c_r}{\|c_r\|}.
+    \label{eq:app-task-index}
+\end{equation}
+If $\|c_r\|<10^{-6}$, we return a fixed task vector of norm $\sqrt d$ instead.
+
+\subsection{Successor networks}
+\label{app:networks}
+
+The forward and backward networks are MLPs.
+Each hidden layer uses \textsc{Linear}$\rightarrow$\textsc{GELU}$\rightarrow$\textsc{LayerNorm}, followed by a linear output layer.
+
+The backward network $B_\theta$ has one output head and no output normalization or orthogonality regularizer.
+The forward network receives $[s,a,z]$ and has two heads,
+\begin{equation}
+    F_\theta(s,a,z) \in \mathbb R^{2\times d}.
+\end{equation}
+
+Each forward head defines its own normalized successor distribution using Equation~\eqref{eq:density-model}.
+The representation loss in Equation~\eqref{eq:density-loss} is computed independently for the two heads and then averaged.
+
+Target networks $\bar F$ and $\bar B$ are updated after every gradient step using an exponential moving average with rate $\eta$.
+The bootstrap action is produced by the current actor and treated as a stop-gradient when constructing the successor target.
+
+\paragraph{Combining the two heads.}
+Each forward head $h\in\{1,2\}$ defines its own normalized distribution $p^{(h)}(s,a,z)$ over the candidate next states, and each head is trained against its own target.
+The two heads are combined only after a reward has been integrated: for a reward $r$ the per-head values are $q^{(h)}(s,a,z)=\sum_j p^{(h)}_j(s,a,z)\,r(s'_j)$ and the value used by the actor is
+\begin{equation}
+    q(s,a,z) := \min\left\{ q^{(1)}(s,a,z),\, q^{(2)}(s,a,z) \right\}. \label{eq:app-double-q}
+\end{equation}
+Because each head remains a probability distribution, adding a constant to the reward adds the same constant to both heads' values and hence to $q$, so action rankings are invariant to reward shifts; taking the minimum of the two probability vectors instead would not have this property, since its total mass depends on the action.
+The normalization and fixed-point results of \cref{sec:method} apply to each head.
+
+\subsection{Policy extraction}
+\label{app:actor}
+
+The learned successor distribution provides the action value used for policy improvement.
+For each forward head $h$, we compute
+\begin{equation}
+    q^{(h)}(s,a,z) := \sum_{j=1}^{n} p_j^{(h)}(s,a,z) r_z(s'_j). \label{eq:app-head-value}
+\end{equation}
+
+The value used by the actor is the minimum of the two heads' values, $q:=\min_h q^{(h)}$, as in \cref{eq:app-double-q}.
+We normalize its scale using
+\begin{equation}
+    s_q := \sg\left[ \E\left| q-\E[q] \right| + \varepsilon \right], \qquad \varepsilon=10^{-6}. \label{eq:app-value-scale}
+\end{equation}
+
+This normalization controls the scale of the value term relative to the behavior-regularization term.
+
+
+\paragraph{Flow-based actor.}
+
+For the main experiments, we use the flow-based policy extractor used in TD-JEPA~\citep{bagatella-iclr26a}, based on Flow Q-Learning~\citep{park-icml25a}.
+
+A goal-agnostic velocity field $v_\psi(s,a,t)$ models the behavior policy.
+Given
+\begin{equation}
+    x_0\sim\mathcal N(0,I), \qquad x_1=a, \qquad t\sim\mathcal U[0,1],
+\end{equation}
+we define
+\begin{equation}
+    x_t := (1-t)x_0+t x_1,
+\end{equation}
+and train the velocity field with
+\begin{equation}
+    \mathcal L_{\mathrm{flow}} := \E \left[ \left\| v_\psi(s,x_t,t) - (x_1-x_0) \right\|^2 \right]. \label{eq:app-flow-loss}
+\end{equation}
+
+Let
+\begin{equation}
+    a_{\mathrm{BC}} := \mathrm{ODE}_\psi(s,\eta), \qquad \eta\sim\mathcal N(0,I),
+\end{equation}
+denote the action obtained by integrating the learned velocity field for $K$ Euler steps.
+
+The one-step actor $\pi_\omega(s,z;\eta)$ is trained using
+\begin{equation}
+    \mathcal L_{\pi} := - \frac{ \E\left[ q\left( s, \pi_\omega(s,z;\eta), z \right) \right] }{ s_q } + \lambda_{\mathrm{BC}} \E \left[ \left\| \pi_\omega(s,z;\eta) - a_{\mathrm{BC}} \right\|^2 \right]. \label{eq:app-flow-actor}
+\end{equation}
+
+The velocity field and the actor are optimized separately using Equations~\eqref{eq:app-flow-loss} and~\eqref{eq:app-flow-actor}.
+Removing the value term from Equation~\eqref{eq:app-flow-actor} gives the corresponding behavior-cloning policy.
+
+During the actor update, the successor networks are fixed.
+Gradients pass through the action input of $F_\theta$ to the actor, but the parameters of $F_\theta$ and $B_\theta$ are not updated.
+
+
+\paragraph{DDPG+BC actor.}
+
+For the alternative extractor, we use a Gaussian policy
+\begin{equation}
+    \pi_\omega(\cdot\mid s,z) = \mathcal N \left( \mu_\omega(s,z), \sigma^2 I \right),
+\end{equation}
+with fixed standard deviation $\sigma$.
+
+Its objective is
+\begin{equation}
+    \mathcal L_{\pi} = - \frac{ \E\left[ q(s,\mu_\omega(s,z),z) \right] }{ s_q } - \alpha \E \left[ \log \pi_\omega(a\mid s,z) \right]. \label{eq:app-ddpgbc}
+\end{equation}
+
+
+\subsection{Ablation: the actor's value readout}
+\label{app:fz-ablation}
+The actor ascends the reward averaged under the predicted successor distribution, \eqref{eq:app-head-value}.
+A simpler alternative, used by FB, is the linear readout $F(s,a,z)^\top z$.
+To test whether the distribution is needed for control, we keep \name{}'s critic and its cross-entropy training unchanged and train the actor on the linear readout instead.
+For the goal-conditioned model of the OGBench cells of \cref{tab:benchmarks}, the task vector is the backward embedding of the goal, $z=B(g)$, so the actor ascends $F(s,a,g)^\top B(g)$; everything else, including evaluation, is unchanged.
+\Cref{tab:fz-ablation} reports success after $5\times10^5$ steps.
+The linear readout fails on all three environments.
+The cross-entropy objective fixes the scores $F^\top B$ only up to a constant per state--action pair, since the softmax is unchanged when such a constant is added, so their absolute size carries no information about the goal; the actor ascends that free size instead, and its linear value grows from about $1$ to about $100$ during training while the distribution-weighted value stays near $0.03$.
+
+\begin{table}[htb]
+    \centering
+    \small
+    \caption{
+    \textbf{The actor needs the distribution-weighted value.}
+    Goal-conditioned success (\%) of \name{} with the actor trained on the reward averaged under the predicted successor distribution (as in \cref{tab:benchmarks}) or on the linear readout $F(s,a,g)^\top B(g)$, with the same critic.
+    Mean $\pm$ standard error over seeds of the mean over the evaluations at $3$, $4$ and $5\times10^5$ steps; number of seeds in parentheses.
+    }
+    \label{tab:fz-ablation}
+    \begin{tabular}{lcc}
+        \toprule
+        Environment & distribution-weighted reward & $F(s,a,g)^\top B(g)$ \\
+        \midrule
+        \texttt{cube-single} & 93.6\pmse{1.6} (3) & 0.3\pmse{0.2} (3) \\
+        \texttt{cube-double} & 61.5\pmse{2.8} (5) & 0.0\pmse{0.0} (3) \\
+        \texttt{scene}       & 62.2\pmse{1.4} (5) & 0.1\pmse{0.1} (3) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Reward inference and zero-shot evaluation}
+\label{app:zeroshot-protocol}
+\label{app:reward-inference}
+
+All zero-shot evaluations use frozen successor and policy networks.
+A downstream reward is introduced only after pretraining, and no gradient updates or additional environment interaction are performed.
+
+For reward inference, we evaluate the downstream reward on $10^4$ states sampled from the offline dataset and infer the corresponding task vector $z_r$ with the ridge regression of \cref{eq:app-task-index} (\cref{app:task-index}), the same encoder that produces the goal-derived task vectors during training (\cref{app:z-sampling}).
+
+To evaluate an action value, we sample a fixed pool
+\begin{equation}
+    U_P = \{u_1,\ldots,u_P\}
+\end{equation}
+from the dataset next-state marginal $\rho$ and precompute $B_\theta(u_j)$.
+For a reward $r$, the finite-pool estimate is
+\begin{equation}
+    \hat q_{\theta,r}(s,a,z) = \sum_{j=1}^{P} p_j(s,a,z) r(u_j). \label{eq:app-zs-readout}
+\end{equation}
+
+The pool is sampled once using a fixed seed and reused throughout evaluation, with $P=4096$; $p_j$ is the combination of \cref{eq:app-double-q} applied to the pool.
+These pool values are used only for the diagnostics of \cref{sec:exp-failure}: at deployment the agent executes the frozen actor $\pi_\omega(\cdot\mid s,z_r)$ on the inferred task vector, as in Algorithm~1, and no value is computed.
+Direct goal conditioning is likewise a diagnostic: it uses the goal supplied by the environment to specify the task and therefore removes reward-to-task inference from the evaluation.
+All network parameters remain frozen in both evaluation modes.
+
+\subsection{Hyperparameters}
+\label{app:hparams}
+
+\begin{table}[t]
+\centering
+\caption{\name{} hyperparameters for OGBench, MetaWorld, and ManiSkill, read from the configurations of the reported runs. ExoRL departs from these values as listed in the last block and in \cref{app:exorl-hparams}.}
+\label{tab:hparams}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+& Symbol & Value \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Successor model}}\\
+Latent dimension                & $d$      & $50$ \\
+Score temperature               & $\tau$   & $1.0$ \\
+Tower hidden sizes              & --       & $(512,512,512)$ \\
+Hidden activation               & --       & \textsc{GELU} + \textsc{LayerNorm} \\
+Forward heads                   & --       & $2$ \\
+Backward output normalization   & --       & none \\
+Orthogonality regularization    & --       & none \\
+Immediate Bellman target        & --       & one-hot \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Optimization}}\\
+Discount                        & $\gamma$ & $0.99$ \\
+Batch size (candidate next states) & $n$  & $1024$ \\
+Gradient steps                  & --       & $10^6$ \\
+Optimizer                       & --       & Adam \\
+Learning rate (successor networks) & --    & $3\times10^{-4}$ \\
+Target EMA rate                 & $\eta$   & $0.005$ \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Policy extraction}}\\
+Main extractor                  & --       & flow-based actor \\
+Actor MLP                       & --       & $2\times512$ \\
+Velocity-field MLP              & --       & $4\times512$ \\
+Actor learning rate             & --       & $10^{-4}$ \\
+Velocity-field learning rate    & --       & $3\times10^{-4}$ \\
+Euler steps                     & $K$      & $10$ \\
+Distillation weight             & $\lambda_{\mathrm{BC}}$ & $3.0$ \\
+
+\midrule
+\multicolumn{3}{@{}l}{\emph{Zero-shot evaluation}}\\
+Reward-inference states         & --       & $10^4$ \\
+Default value pool              & $P$      & $4096$ \\
+Pool sweep                      & $P$      & $256,1024,4096,16384$ \\
+Episodes per task and evaluation & --      & $20$ (OGBench), $50$ (MetaWorld, ManiSkill) \\
+Reward-inference episodes per task & --    & $10$ \\
+Reported score                  & --       & mean over the last three evaluations \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{ExoRL (reward inference, \cref{app:exorl-hparams})}}\\
+Policy extractor                & --       & DDPG+BC, $\alpha=0$ (no BC term) \\
+Actor MLP                       & --       & $1\times1024$ \\
+Target-policy noise (std., clip) & --      & $0.2$, $0.3$ \\
+Backward MLP                    & --       & $(256,256)$ \\
+Backward output normalization   & --       & projected onto the sphere of radius $\sqrt d$ \\
+Learning rate (successor, actor) & --      & $10^{-4}$, $10^{-4}$ (\texttt{point-mass} actor $10^{-6}$) \\
+Discount                        & $\gamma$ & $0.98$ (\texttt{point-mass} $0.99$) \\
+Reward-inference states         & --       & $5\times10^{4}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Sampling task vectors for critic and actor training}
+\label{app:z-sampling}
+
+Every training row of the critic and of the actor carries a task vector $z\in\mathbb R^d$ with $\|z\|=\sqrt d$; the forward network conditions on it, and for the actor it defines the reward the policy ascends.
+How $z$ is drawn is a design decision, since the policy family is only trained on the task vectors it sees.
+We use FB's standard task-prior mix with one change in how the goal-derived half is produced.
+For each row, with probability $1-p_{\mathrm{rand}}$ the task vector is the encoding of a hindsight goal: a future state of the row's own trajectory is drawn as the goal, the goal-reaching reward it defines is evaluated on the batch's candidate next states, and $z$ is the ridge regression of that reward on the centered backward features of \cref{app:task-index}, computed with a slowly updated copy of the backward network and the running mean and covariance of its features.
+With probability $p_{\mathrm{rand}}$ the task vector is instead a fresh draw from the uniform distribution on the sphere of radius $\sqrt d$, so that the actor is trained across the whole conditioning space and not only on the slice reachable by hindsight goals.
+Both branches are treated as constants: no gradient flows into the backward network through $z$.
+The same encoding is used at test time on the reward samples of the downstream task, so the goal-derived task vectors seen in training and the inferred task vectors seen at evaluation come from one map.
+
+The actor's reward for a task vector is the centered latent reward $r_z(s^+)=(B_\xi(s^+)-\hat\mu)^\top z/\sqrt d$, read with the same slow copy $B_\xi$ and running mean $\hat\mu$ that produced $z$, so that the reward the actor ascends is the one the encoder fitted; reading it from the fast target network instead trains the actor against a drifting reward and lost most of the cube-single success in our ablations.
+For rows that kept a hindsight goal the exact goal kernel can be used in place of the latent reward; on \texttt{cube-single} this made no difference to success and we keep the latent reward throughout.
+
+\paragraph{Goal-conditioned model.}
+The OGBench cells of \cref{tab:benchmarks} use \name{} conditioned directly on the goal state $g$ in place of $z$.
+The actor is trained on hindsight goals only, future states of the row's own trajectory, and ascends the goal's success indicator averaged under the predicted successor distribution; the goals that condition the critic's bootstrap policy are the current state, a future state of the same trajectory, or a random dataset state with probabilities $0.2$, $0.5$, and $0.3$.
+At evaluation the policy is conditioned on the goal supplied by the environment.
+
+\paragraph{Task-prior fraction.}
+The fraction $p_{\mathrm{rand}}$ is the one knob of this mix.
+The manipulation results use $p_{\mathrm{rand}}=1/2$, FB's default.
+On ExoRL the tasks are dense velocity rewards whose task vectors lie far from every hindsight goal's, and drawing every training task vector from the sphere ($p_{\mathrm{rand}}=1$) raised \texttt{walker} and \texttt{cheetah} while lowering \texttt{quadruped} and \texttt{point-mass}; the per-domain choice is recorded in \cref{app:exorl-hparams}.
+
+\paragraph{ExoRL $p_{\mathrm{rand}}$ settings.}
+\label{app:exorl-hparams}
+We use $p_{\mathrm{rand}}=1$ for \texttt{walker} and \texttt{cheetah}, and $p_{\mathrm{rand}}=1/2$ for \texttt{quadruped} and \texttt{point-mass}.
+The ExoRL cells of \cref{tab:benchmarks} use, for every domain, the RND datasets, state observations, $10^6$ gradient steps, five seeds, and task inference from $5\times10^4$ reward-labelled transitions, and the settings of \cref{tab:hparams} except as listed here.
+Shared across domains: successor towers $(512,512,512)$, backward towers $(256,256)$ with the output projected onto the sphere, target rate $0.005$, learning rate $10^{-4}$, actor learning rate $10^{-4}$, discount $0.98$, and a hit kernel over the full observation with the radius calibrated to the hit rate of the manipulation kernel (\texttt{walker} $0:24$ at $15.9$, \texttt{quadruped} $0:78$ at $21.1$).
+Per domain: \texttt{point-mass} uses discount $0.99$, actor learning rate $10^{-6}$ and a kernel over the two position coordinates at radius $0.03$, as every reference implementation does on this domain; \texttt{walker} uses task vectors drawn only from the sphere during training, the actor's value normalizer, a single successor tower of width $1024$ and target rate $0.001$, which raised its return from $724.6$ to $750.2$ and lowered \texttt{quadruped} and \texttt{point-mass}, so those two keep the shared base recipe; \texttt{quadruped} additionally restricts the hit kernel to the three torso-velocity coordinates (columns $44$--$46$, radius $0.11$) and the torso-upright coordinate (column $47$, radius $0.001$), which raised its return from $655.9$ to $760.5$; \texttt{cheetah} uses the \texttt{walker} settings with the hit kernel restricted to the nine velocity coordinates of the observation (columns $8$--$16$, radius $7.26$ at the same hit rate), which raised its return from $431$ to $540$, against $532$ for a kernel over the forward-speed coordinate alone.
+The selection was made on the reported seeds.

@@ -1,0 +1,690 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bm}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[margin=1in]{geometry}
+
+\definecolor{changeblue}{HTML}{1F5FBF}
+\newcommand{\changed}[1]{\textcolor{changeblue}{#1}}
+\newcommand{\DensityFB}{Density-FB}
+\newcommand{\sg}{\operatorname{sg}}
+\newcommand{\normalize}{\operatorname{normalize}}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{\baselineskip}
+
+\title{Density-FB Derivation}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+
+% ================================================================
+\section{Preliminaries: Forward-Backward Representations}
+\label{sec:preliminaries}
+% ================================================================
+
+\paragraph{Notation.}
+The offline dataset induces a distribution $\mathcal D$ over transitions $(s,a,s')$, with state-action marginal $\mathcal D_{SA}$ and next-state marginal $\rho$. We assume $0<\gamma<1$ and use $\rho$ as the reference distribution over future states. Let $p_{\mathcal T}$ denote a training-task distribution over pairs $(z,r_z)$, where $z$ indexes a policy and $r_z:\mathcal S\rightarrow\mathbb R$ is its associated task reward. We write $p_Z$ for the $z$-marginal of $p_{\mathcal T}$ and $\pi_z(a\mid s)=\pi(a\mid s,z)$.
+
+For a policy $\pi$, define the discounted successor measure
+\begin{equation}
+    M^\pi(s,a,ds^+) = \mathbb E_\pi\left[\sum_{t=0}^{\infty}\gamma^t\delta_{s_{t+1}}(ds^+) \,\middle|\, s_0=s,\ a_0=a\right].
+    \label{eq:M-definition}
+\end{equation}
+It has total mass $1/(1-\gamma)$ and satisfies
+\begin{equation}
+    M^\pi(s,a,ds^+) = P(ds^+\mid s,a) + \gamma\mathbb E_{\substack{s'\sim P(\cdot\mid s,a)\\a'\sim\pi(\cdot\mid s')}}\left[M^\pi(s',a',ds^+)\right].
+    \label{eq:M-bellman}
+\end{equation}
+
+Assuming $M^\pi(s,a,\cdot)\ll\rho$, define
+\[
+    m^\pi(s,a,s^+) = \frac{dM^\pi(s,a,\cdot)}{d\rho}(s^+),
+    \qquad
+    q(s,a,s^+) = \frac{dP(\cdot\mid s,a)}{d\rho}(s^+).
+\]
+Equation~\eqref{eq:M-bellman} then becomes
+\begin{equation}
+    m^\pi(s,a,s^+) = q(s,a,s^+) + \gamma\mathbb E_{\substack{s'\sim P(\cdot\mid s,a)\\a'\sim\pi(\cdot\mid s')}}\left[m^\pi(s',a',s^+)\right].
+    \label{eq:m-bellman}
+\end{equation}
+
+Standard FB models this unnormalized successor density with the bilinear factorization
+\[
+    m_z(s,a,s^+) \approx F(s,a,z)^\top B(s^+),
+\]
+and learns it through a squared Bellman objective. Density-FB retains the bilinear representation but changes the object being represented: rather than fitting the unnormalized successor measure, we model its normalized distribution over future states.
+
+
+% ================================================================
+\section{Density-FB}
+\label{sec:density-fb}
+% ================================================================
+
+\subsection{Normalized successor density}
+
+For a policy $\pi_z$, define
+\begin{equation}
+    \nu^{\pi_z} := (1-\gamma)M^{\pi_z}.
+    \label{eq:nu-definition}
+\end{equation}
+Since $M^{\pi_z}$ has mass $1/(1-\gamma)$, $\nu^{\pi_z}(s,a,\cdot)$ is a probability distribution over future states. Its Bellman recursion is
+\begin{equation}
+    \nu^{\pi_z}(s,a,ds^+) = (1-\gamma)P(ds^+\mid s,a) + \gamma\mathbb E_{\substack{s'\sim P(\cdot\mid s,a)\\a'\sim\pi_z(\cdot\mid s')}}\left[\nu^{\pi_z}(s',a',ds^+)\right].
+    \label{eq:nu-bellman}
+\end{equation}
+
+Assuming $\nu^{\pi_z}(s,a,\cdot)\ll\rho$, define its density ratio
+\begin{equation}
+    h_z^\pi(s,a,s^+) := \frac{d\nu^{\pi_z}(s,a,\cdot)}{d\rho}(s^+),
+    \qquad
+    \mathbb E_{s^+\sim\rho}\left[h_z^\pi(s,a,s^+)\right]=1.
+    \label{eq:true-density-ratio}
+\end{equation}
+
+We estimate this density ratio through conditional density estimation. For a real-valued score $f(s,a,z,s^+)$, define
+\begin{equation}
+    h_f(s,a,z,s^+) =
+    \frac{\exp f(s,a,z,s^+)}
+    {\mathbb E_{\tilde s^+\sim\rho}\left[\exp f(s,a,z,\tilde s^+)\right]}.
+    \label{eq:generic-density}
+\end{equation}
+For fixed $(s,a,z)$, consider
+\begin{equation}
+    \mathcal J_{\mathrm{ratio}}(f)
+    =
+    \mathbb E_{s^+\sim\nu^{\pi_z}(\cdot\mid s,a)}
+    \left[f(s,a,z,s^+)\right]
+    -
+    \log\mathbb E_{s^+\sim\rho}
+    \left[e^{f(s,a,z,s^+)}\right].
+    \label{eq:ratio-objective}
+\end{equation}
+This objective is equal, up to an $f$-independent constant, to $-\operatorname{KL}\left( \nu^{\pi_z}(\cdot\mid s,a) \,\middle\|\, h_f(s,a,z,\cdot)\rho\right).$
+
+Thus the normalized model recovers the successor density ratio at the population optimum. The corresponding score is the log density ratio up to an additive $(s,a,z)$-dependent constant, which is removed by normalization.
+
+
+\subsection{Bilinear parameterization and learning objective}
+
+We parameterize the log density ratio using the FB bilinear form
+\begin{equation}
+    f_\theta(s,a,z,s^+) =
+    \frac{F_\theta(s,a,z)^\top B_\theta(s^+)}{\tau},
+    \qquad
+    h_\theta(s,a,z,s^+) =
+    \frac{\exp f_\theta(s,a,z,s^+)}
+    {\mathbb E_{\tilde s^+\sim\rho}
+    \left[\exp f_\theta(s,a,z,\tilde s^+)\right]}.
+    \label{eq:dfb-density}
+\end{equation}
+Unlike standard FB, the bilinear product therefore parameterizes a log-density score rather than the successor density directly.
+
+Let $\bar F$ and $\bar B$ denote fixed target representations during a representation update, and let $\bar\pi=\sg(\pi)$. We define the target density ratio analogously as
+\[
+    \bar h(s',a',z,s^+)
+    =
+    \frac{
+        \exp\left(\bar F(s',a',z)^\top\bar B(s^+)/\tau\right)
+    }{
+        \mathbb E_{\tilde s^+\sim\rho}
+        \left[
+            \exp\left(\bar F(s',a',z)^\top\bar B(\tilde s^+)/\tau\right)
+        \right]
+    }.
+\]
+
+Applying Equation~\eqref{eq:ratio-objective} to the normalized Bellman target in Equation~\eqref{eq:nu-bellman} gives the Density-FB population objective
+\begin{equation}
+\begin{aligned}
+    \max_\theta\quad
+    \mathcal J_{\mathrm{DFB}}
+    ={}&
+    (1-\gamma)
+    \mathbb E_{\substack{
+        z\sim p_Z\\
+        (s,a,s')\sim\mathcal D
+    }}
+    \left[
+        f_\theta(s,a,z,s')
+    \right]
+    \\
+    &+
+    \gamma
+    \mathbb E_{\substack{
+        z\sim p_Z\\
+        (s,a,s')\sim\mathcal D\\
+        a'\sim\bar\pi(\cdot\mid s',z)\\
+        s^+\sim\rho
+    }}
+    \left[
+        \sg\left[\bar h(s',a',z,s^+)\right]
+        f_\theta(s,a,z,s^+)
+    \right]
+    \\
+    &-
+    \mathbb E_{\substack{
+        z\sim p_Z\\
+        (s,a)\sim\mathcal D_{SA}
+    }}
+    \left[
+        \log
+        \mathbb E_{s^+\sim\rho}
+        \exp f_\theta(s,a,z,s^+)
+    \right].
+\end{aligned}
+\label{eq:dfb-final}
+\end{equation}
+
+The first term anchors the density on the observed one-step successor. The second bootstraps the remaining discounted successor distribution from the target model. The final log-partition term normalizes the resulting score into a conditional density ratio.
+
+
+\subsection{Finite-batch approximation}
+
+For a minibatch $\{(s_i,a_i,s_i')\}_{i=1}^{n}$, we use the batch next states $\{s_j'\}_{j=1}^{n}$ as candidate future states. Define
+\begin{equation}
+    f_{ij}
+    =
+    \frac{F_\theta(s_i,a_i,z_i)^\top B_\theta(s_j')}{\tau},
+    \qquad
+    p_{ij}
+    =
+    \frac{\exp f_{ij}}
+    {\sum_{k=1}^{n}\exp f_{ik}}.
+    \label{eq:batch-density}
+\end{equation}
+
+For $a_i'\sim\pi(\cdot\mid s_i',z_i)$, treated as stop-gradient, the target network gives
+\begin{equation}
+    \bar p_{ij}'
+    =
+    \frac{
+        \exp\left(
+            \bar F(s_i',a_i',z_i)^\top\bar B(s_j')/\tau
+        \right)
+    }{
+        \sum_{k=1}^{n}
+        \exp\left(
+            \bar F(s_i',a_i',z_i)^\top\bar B(s_k')/\tau
+        \right)
+    }.
+    \label{eq:batch-target-density}
+\end{equation}
+
+The normalized Bellman recursion becomes the categorical target
+\begin{equation}
+    p_{ij}^{\mathrm{tgt}}
+    =
+    (1-\gamma)\mathbf 1[j=i]
+    +
+    \gamma\,\sg\left[\bar p_{ij}'\right],
+    \qquad
+    \mathcal L_{\mathrm{DFB}}
+    =
+    -\frac{1}{n}
+    \sum_{i=1}^{n}
+    \sum_{j=1}^{n}
+    p_{ij}^{\mathrm{tgt}}\log p_{ij}.
+    \label{eq:dfb-finite-pool}
+\end{equation}
+
+The batch softmax is therefore the finite-pool approximation of the normalized successor density in Equation~\eqref{eq:dfb-density}. For stability, we use two forward score heads with a shared backward representation and average their representation losses.
+
+
+\subsection{Policy extraction}
+\label{sec:policy-extraction}
+
+The density parameterization changes how values are read from the representation. In standard FB, the linear successor factorization gives the reward embedding
+\[
+    z_r=\mathbb E_{s^+\sim\rho}\left[r(s^+)B(s^+)\right]
+\]
+and, under an exact factorization,
+\begin{equation}
+    \mathbb E_{\pi_{z_r}}
+    \left[
+        \sum_{t=0}^{\infty}\gamma^t r(s_{t+1})
+        \,\middle|\,
+        s_0=s,\ a_0=a
+    \right]
+    =
+    F(s,a,z_r)^\top z_r.
+    \label{eq:standard-fb-value}
+\end{equation}
+
+Density-FB no longer has this linear value readout because $F^\top B$ parameterizes a log density. Instead, we evaluate a reward directly under the predicted successor distribution. For any state reward $r$,
+\begin{equation}
+    q_r^{\pi_z}(s,a)
+    :=
+    \mathbb E_{s^+\sim\rho}
+    \left[
+        h_z^\pi(s,a,s^+)r(s^+)
+    \right]
+    =
+    (1-\gamma)
+    \mathbb E_{\pi_z}
+    \left[
+        \sum_{t=0}^{\infty}\gamma^t r(s_{t+1})
+        \,\middle|\,
+        s_0=s,\ a_0=a
+    \right].
+    \label{eq:true-normalized-value}
+\end{equation}
+Density-FB estimates this quantity as
+\begin{equation}
+    q_{\theta,r}(s,a;z)
+    :=
+    \mathbb E_{s^+\sim\rho}
+    \left[
+        h_\theta(s,a,z,s^+)r(s^+)
+    \right]
+    =
+    \frac{
+        \mathbb E_{s^+\sim\rho}
+        \left[
+            \exp f_\theta(s,a,z,s^+)r(s^+)
+        \right]
+    }{
+        \mathbb E_{s^+\sim\rho}
+        \left[
+            \exp f_\theta(s,a,z,s^+)
+        \right]
+    }.
+    \label{eq:model-reward-value}
+\end{equation}
+
+With a finite candidate pool $\{s_j^+\}_{j=1}^{M}$,
+\begin{equation}
+    q_{\theta,r}(s,a;z)
+    \approx
+    \sum_{j=1}^{M}
+    p_j(s,a,z)r(s_j^+),
+    \qquad
+    p_j(s,a,z)
+    =
+    \frac{
+        \exp f_\theta(s,a,z,s_j^+)
+    }{
+        \sum_k\exp f_\theta(s,a,z,s_k^+)
+    }.
+    \label{eq:finite-reward-value}
+\end{equation}
+
+\paragraph{Policy improvement.}
+During training, the actor uses the reward $r_z$ associated with the sampled task index and optimizes $q_{\theta,z}:=q_{\theta,r_z}$. The representation parameters are frozen during the actor update, but gradients pass through the action input to $F$. Let
+\begin{equation}
+    s_q
+    =
+    \sg\left(
+        \mathbb E
+        \left|
+            q_{\theta,z}
+            -
+            \mathbb E[q_{\theta,z}]
+        \right|
+        +
+        \varepsilon
+    \right).
+    \label{eq:q-scale}
+\end{equation}
+We use the behavior-regularized actor objective
+\begin{equation}
+    \mathcal L_{\mathrm{actor}}
+    =
+    -
+    \frac{
+        \mathbb E_{s,z}
+        \left[
+            q_{\theta,z}(s,\pi(s,z))
+        \right]
+    }{
+        s_q
+    }
+    +
+    \beta\mathcal L_{\mathrm{BC}}(\pi).
+    \label{eq:actor-centered}
+\end{equation}
+With two forward heads, the actor uses the minimum reward estimate across heads.
+
+\paragraph{Goal-conditioned training.}
+For the goal-conditioned experiments, $z$ is a goal $g$ sampled from $p_G$ and
+\[
+    r_z(\cdot)=r_g(\cdot)=\kappa(g,\cdot).
+\]
+The representation update conditions on $g$, while the corresponding reward is used only for policy improvement.
+
+\paragraph{Downstream reward selection.}
+For an unseen downstream reward $r$, we retain the learned policy family and evaluate candidate task indices using Equation~\eqref{eq:model-reward-value}. For a finite set $\mathcal Z_{\mathrm{cand}}$,
+\begin{equation}
+    J_{\theta,r}(z)
+    :=
+    \mathbb E_{s\sim\mu_{\mathrm{sel}}}
+    \left[
+        q_{\theta,r}(s,\pi(s,z);z)
+    \right],
+    \qquad
+    \hat z_r
+    \in
+    \arg\max_{z\in\mathcal Z_{\mathrm{cand}}}
+    J_{\theta,r}(z).
+    \label{eq:policy-search}
+\end{equation}
+The selected policy $\pi_{\hat z_r}$ is then executed without updating $F$, $B$, or $\pi$. This selects the best estimated policy within the family covered during training; it does not imply optimality over policies outside that family.
+
+
+% ================================================================
+\section{Implementation}
+\label{sec:implementation}
+% ================================================================
+
+Algorithm~\ref{alg:dfb} summarizes the complete training procedure.
+
+\begin{algorithm}[h]
+\caption{Density-FB}
+\label{alg:dfb}
+\begin{algorithmic}[1]
+\Require dataset $\mathcal D$, task distribution $p_{\mathcal T}$, forward heads $F_\theta^{(1)},F_\theta^{(2)}$, shared backward representation $B_\theta$, targets $\bar F^{(1)},\bar F^{(2)},\bar B$, actor $\pi$, temperature $\tau$, coefficients $\beta,\varepsilon$, rates $\eta,\zeta$
+\For{each training step}
+    \State sample minibatch $\{(s_i,a_i,s_i')\}_{i=1}^{n}$
+    \State sample $(z_i,r_{z_i})\sim p_{\mathcal T}$
+    \For{$h\in\{1,2\}$}
+        \State $p_{ij}^{(h)}
+        \gets
+        \mathrm{softmax}_j
+        \left(
+            F_\theta^{(h)}(s_i,a_i,z_i)^\top
+            B_\theta(s_j')/\tau
+        \right)$
+    \EndFor
+    \State $a_i'\gets\pi(s_i',z_i)$, stop-gradient
+    \For{$h\in\{1,2\}$}
+        \State $\bar p_{ij}'^{(h)}
+        \gets
+        \mathrm{softmax}_j
+        \left(
+            \bar F^{(h)}(s_i',a_i',z_i)^\top
+            \bar B(s_j')/\tau
+        \right)$
+        \State $p_{ij}^{\mathrm{tgt},(h)}
+        \gets
+        \sg\left[
+            (1-\gamma)\mathbf 1[j=i]
+            +
+            \gamma\bar p_{ij}'^{(h)}
+        \right]$
+    \EndFor
+    \State update $F_\theta^{(1)},F_\theta^{(2)},B_\theta$ by minimizing
+    \[
+        -\frac{1}{2n}
+        \sum_{h=1}^{2}
+        \sum_{i,j}
+        p_{ij}^{\mathrm{tgt},(h)}
+        \log p_{ij}^{(h)}
+    \]
+    \State $a_i^\pi\gets\pi(s_i,z_i)$
+    \For{$h\in\{1,2\}$}
+        \State $p_{ij}^{\pi,(h)}
+        \gets
+        \mathrm{softmax}_j
+        \left(
+            F_\theta^{(h)}(s_i,a_i^\pi,z_i)^\top
+            B_\theta(s_j')/\tau
+        \right)$ with $F,B$ frozen
+        \State $q_i^{(h)}
+        \gets
+        \sum_j
+        p_{ij}^{\pi,(h)}
+        r_{z_i}(s_j')$
+    \EndFor
+    \State $q_i\gets\min_h q_i^{(h)}$
+    \State update $\pi$ using Equation~\eqref{eq:actor-centered}
+    \State update target networks with rate $\zeta$
+\EndFor
+\Statex
+\Statex \textbf{Deployment} (frozen $F,B,\pi$)
+\State goal-conditioned task $g$: execute $\pi(s,g)$
+\State downstream reward $r$: select $\hat z_r$ using Equation~\eqref{eq:policy-search}, then execute $\pi_{\hat z_r}$
+\end{algorithmic}
+\end{algorithm}
+
+
+% ================================================================
+\section{Evaluation}
+\label{sec:evaluation}
+% ================================================================
+
+We evaluate three questions: whether the learned representation supports goal-conditioned control, whether the same frozen representation can evaluate rewards not used during training, and how the resulting zero-shot performance compares with published unsupervised RL methods. The successor representation is trained without downstream reward labels, while the policy family is co-trained using the task rewards sampled from $p_{\mathcal T}$. Unless stated otherwise, every model is trained for $500$k gradient steps, and intervals are $95\%$ $t$-based confidence intervals over three seeds.
+
+
+\subsection{Goal-conditioned control}
+
+We evaluate five goals per environment with $50$ episodes per goal. BC uses the same actor architecture with the value term removed, and GCIQL is our matched goal-conditioned control baseline.
+
+\begin{table}[h]
+    \centering
+    \setlength{\tabcolsep}{5pt}
+    \begin{tabular}{l cccc}
+    \toprule
+    Dataset & BC & FB & GCIQL & Density-FB \\
+    \midrule
+    \multicolumn{5}{l}{\emph{OGBench}}\\
+    \texttt{cube-single} & $0.086\pm0.011$ & $0.420$ & $0.732\pm0.018$ & $\mathbf{0.915\pm0.098}$ \\
+    \texttt{cube-double} & $0.023\pm0.014$ & $0.005\pm0.016$ & $0.377\pm0.111$ & $\mathbf{0.674\pm0.051}$ \\
+    \texttt{scene} & $0.048\pm0.019$ & $0.076\pm0.057$ & $0.589\pm0.020$ & $\mathbf{0.641\pm0.123}$ \\
+    \texttt{antmaze-medium} & $0.160\pm0.024$ & $0.593\pm0.250$ & $0.253\pm0.044$ & $\mathbf{0.676\pm0.188}$ \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Metaworld} \texttt{play-resample}}\\
+    \texttt{mw-pick-place} & $0.440\pm0.081$ & $0.627\pm0.052$ & $\mathbf{0.993\pm0.014}$ & $0.760\pm0.201$ \\
+    \texttt{mw-push} & $0.540\pm0.000$ & $0.627\pm0.079$ & $0.733\pm0.198$ & $\mathbf{0.820\pm0.045}$ \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Metaworld} \texttt{play-noise-hard-1m}}\\
+    \texttt{mw-pick-place} & $0.340\pm0.023$ & $0.427\pm0.114$ & $\mathbf{0.520\pm0.060}$ & $0.460\pm0.045$ \\
+    \texttt{mw-push} & $0.327\pm0.079$ & $0.340\pm0.060$ & $\mathbf{0.527\pm0.057}$ & $0.500\pm0.099$ \\
+    \midrule
+    \multicolumn{5}{l}{\emph{Metaworld} \texttt{play-resample-hard}}\\
+    \texttt{mw-pick-place} & $0.367\pm0.124$ & $0.553\pm0.035$ & $\mathbf{0.967\pm0.035}$ & $0.573\pm0.372$ \\
+    \texttt{mw-push} & $0.613\pm0.035$ & $0.607\pm0.111$ & $0.813\pm0.072$ & $\mathbf{0.827\pm0.094}$ \\
+    \bottomrule
+    \end{tabular}
+    \caption{Native goal-conditioned success. All methods see the same datasets and evaluation goals.}
+    \label{tab:main}
+\end{table}
+
+
+\subsection{Zero-shot reward transfer}
+
+For zero-shot transfer, both the successor representation and policy family are frozen. The downstream task is specified by a reward $r$ that was not sampled from the training-task distribution. Density-FB evaluates each candidate policy through $q_{\theta,r}$ and selects its task index using Equation~\eqref{eq:policy-search}. We construct $\mathcal Z_{\mathrm{cand}}$ from $16{,}384$ dataset configurations and execute the selected policy without additional learning.
+
+We consider three reward families defined from object coordinates and not used to train the representation: \emph{sparse}, the benchmark tolerance indicator around the five task goals; \emph{dense}, the same centers with distance shaping; and \emph{held-out regions}, the sparse reward centered at reachable dataset configurations that are not benchmark goals. Comparing sparse and dense rewards changes reward shaping while holding the target location fixed; comparing sparse and held-out regions changes the target location while holding the reward form fixed.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{llcc}
+\toprule
+Environment & Reward family & Plain FB & \DensityFB{} \\
+\midrule
+\texttt{cube-single} & sparse & $0.413 \pm 0.308$ & $\mathbf{0.888 \pm 0.091}$ \\
+& dense & $0.488 \pm 0.397$ & $\mathbf{0.912 \pm 0.087}$ \\
+& held-out regions & $0.090 \pm 0.114$ & $\mathbf{0.647 \pm 0.301}$ \\
+\midrule
+\texttt{cube-double} & sparse & $0.013 \pm 0.023$ & $\mathbf{0.573 \pm 0.126}$ \\
+& dense & $0.037 \pm 0.011$ & $\mathbf{0.520 \pm 0.121}$ \\
+& held-out regions & $0.000 \pm 0.000$ & $\mathbf{0.167 \pm 0.014}$ \\
+\midrule
+\texttt{scene} & sparse & $0.472 \pm 0.124$ & $\mathbf{0.640 \pm 0.111}$ \\
+& dense & $0.413 \pm 0.030$ & $\mathbf{0.627 \pm 0.094}$ \\
+& held-out regions & $0.053 \pm 0.080$ & $\mathbf{0.347 \pm 0.038}$ \\
+\bottomrule
+\end{tabular}
+\caption{Zero-shot reward transfer (mean $\pm$ $95\%$ CI, three seeds). Plain FB uses its standard reward interface $z_r\propto\mathbb E_\rho[r(x)B(x)]$. Density-FB evaluates each covered candidate policy under the new reward and selects the highest-valued candidate according to Equation~\eqref{eq:policy-search}. Reward families, candidate pool, episode count, and success criterion are shared.}
+\label{tab:zeroshot}
+\end{table}
+
+
+\subsection{Comparison with published zero-shot results}
+
+Table~\ref{tab:published} places the sparse-reward results next to published state-based OGBench numbers. The comparison is not controlled: the published results use $1$M gradient steps, $10$ seeds, and $10$ episodes per task, whereas Density-FB uses $500$k steps, three seeds, and $25$ episodes. The published methods infer a task index by linear regression, whereas Density-FB selects among the learned goal-conditioned policy family using Equation~\eqref{eq:policy-search}.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+Method & \texttt{cube-single} & \texttt{cube-double} & \texttt{scene} \\
+\midrule
+Laplacian (Wu et al., 2019) & $15.1 \pm 1.5$ & $2.0 \pm 0.4$ & $7.8 \pm 1.3$ \\
+RLDP (Jajoo et al., 2026) & $19.8 \pm 2.4$ & $3.8 \pm 0.8$ & $11.6 \pm 1.6$ \\
+ICVF (Ghosh et al., 2023) & $20.4 \pm 1.9$ & $5.0 \pm 0.8$ & $45.4 \pm 2.3$ \\
+BYOL & $22.0 \pm 3.2$ & $4.4 \pm 0.7$ & $15.4 \pm 1.4$ \\
+TD-JEPA (Bagatella et al., 2026) & $34.2 \pm 2.9$ & $3.6 \pm 0.8$ & $38.4 \pm 1.4$ \\
+FB (Touati \& Ollivier, 2021) & $49.6 \pm 3.8$ & $2.6 \pm 0.4$ & $12.8 \pm 1.6$ \\
+HILP (Park et al., 2024) & $74.2 \pm 3.5$ & $20.0 \pm 2.7$ & $43.8 \pm 1.9$ \\
+BYOL-$\gamma$ & $79.4 \pm 2.8$ & $2.6 \pm 0.7$ & $14.4 \pm 2.3$ \\
+\midrule
+\DensityFB{} & $\mathbf{88.8 \pm 9.1}$ & $\mathbf{57.3 \pm 12.6}$ & $\mathbf{64.0 \pm 11.1}$ \\
+\bottomrule
+\end{tabular}
+\caption{Zero-shot success rate (\%) on state-based OGBench. Published rows use $1$M gradient steps, $10$ seeds, and $10$ episodes per task. Density-FB uses $500$k steps, three seeds, and $25$ episodes per task. Density-FB confidence intervals are $t$-based over three seeds.}
+\label{tab:published}
+\end{table}
+
+
+% ================================================================
+\appendix
+\section{Standard FB Bellman Objective}
+\label{app:standard-fb}
+% ================================================================
+
+For completeness, standard FB can be obtained by fitting the unnormalized density in Equation~\eqref{eq:m-bellman} with a squared $L_2(\rho)$ Bellman residual. For a fixed target density $\bar m$,
+\begin{equation}
+    \mathcal L_M
+    =
+    \frac12
+    \mathbb E_{\substack{
+        (s,a,s')\sim\mathcal D\\
+        a'\sim\pi(\cdot\mid s')\\
+        s^+\sim\rho
+    }}
+    \left[
+        m(s,a,s^+)
+        -
+        q(s,a,s^+)
+        -
+        \gamma\bar m(s',a',s^+)
+    \right]^2.
+    \label{eq:standard-fb-square}
+\end{equation}
+
+Using
+\[
+    \mathbb E_{s^+\sim\rho}
+    \left[
+        m(s,a,s^+)q(s,a,s^+)
+    \right]
+    =
+    \mathbb E_{s'\sim P(\cdot\mid s,a)}
+    \left[
+        m(s,a,s')
+    \right],
+\]
+and dropping terms independent of $m$ gives
+\begin{equation}
+\begin{aligned}
+    \max_m\quad
+    \mathcal J_M
+    ={}&
+    \mathbb E_{(s,a,s')\sim\mathcal D}
+    \left[
+        m(s,a,s')
+    \right]
+    \\
+    &+
+    \gamma
+    \mathbb E_{\substack{
+        (s,a,s')\sim\mathcal D\\
+        a'\sim\pi(\cdot\mid s')\\
+        s^+\sim\rho
+    }}
+    \left[
+        m(s,a,s^+)\bar m(s',a',s^+)
+    \right]
+    \\
+    &-
+    \frac12
+    \mathbb E_{\substack{
+        (s,a,s')\sim\mathcal D\\
+        s^+\sim\rho
+    }}
+    \left[
+        m(s,a,s^+)^2
+    \right].
+\end{aligned}
+\label{eq:standard-fb-objective}
+\end{equation}
+
+Substituting $m_z(s,a,s^+)=F(s,a,z)^\top B(s^+)$ yields the usual FB representation objective. The difference introduced by Density-FB is therefore not the bilinear score itself, but the decision to model the normalized successor density through an exponential normalization rather than regress the unnormalized successor measure directly.
+
+
+% ================================================================
+\section{Optional Reward-Dependent Policy Index}
+\label{app:reward-index}
+% ================================================================
+
+Density normalization removes the standard FB identity
+\[
+    \int
+    r(s^+)
+    F(s,a,z)^\top B(s^+)
+    \,d\rho(s^+)
+    =
+    F(s,a,z)^\top
+    \mathbb E_\rho[rB],
+\]
+because $F^\top B$ now appears inside a normalized exponential. In particular, the density is invariant to additive shifts $B(s^+)\mapsto B(s^+)+b$, whereas the raw moment $\mathbb E_\rho[rB]$ is not.
+
+If a reward-dependent index is required, one possible centered construction uses reward evaluations $\{(s_j^+,r_j)\}_{j=1}^{M}$ with $s_j^+\sim\rho$. Let
+\[
+    \bar r
+    =
+    \frac1M\sum_j r_j,
+    \qquad
+    \mu_B
+    =
+    \mathbb E_\rho[B],
+    \qquad
+    C_B
+    =
+    \mathbb E_\rho
+    \left[
+        (B-\mu_B)(B-\mu_B)^\top
+    \right].
+\]
+Then, for $\lambda>0$,
+\begin{equation}
+    z_r
+    =
+    \sqrt d\,
+    \normalize
+    \left[
+        (C_B+\lambda I)^{-1}
+        \frac1M
+        \sum_{j=1}^{M}
+        (B(s_j^+)-\mu_B)(r_j-\bar r)
+    \right].
+    \label{eq:centered-dual}
+\end{equation}
+
+This estimator is invariant to additive shifts of $B$ and reward shifts, and after normalization to positive reward scaling. It requires an actor trained on the corresponding latent index space and is not used for the goal-search results reported in Section~\ref{sec:evaluation}.
+
+
+\end{document}

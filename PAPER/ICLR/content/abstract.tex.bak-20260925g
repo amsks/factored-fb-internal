@@ -1,0 +1,15 @@
+%%AZ.8.29: I highly recommend having an example visualization of this phenomenon as a teaser figure on the first page.
+%%AZ.9.17: Right now this reads like a list of modifications and it's not clear what they have to do with each other or control bottlenecks. Can you provide a more intuitive, high level explanation for how you address the control bottlenecks problem? These modifications are a bit too low-level for the abstract.
+
+
+\begin{abstract} 
+Behavior foundation models (BFMs) offer the promise of zero-shot control: pretrain on offline data, then reuse the learned representation for downstream tasks without task-specific training. 
+Successor-measure methods such as Forward–Backward representations (FB) realize this promise for diverse locomotion behaviors, but can struggle when success depends on precise interactions: in pick-and-place tasks, FB policies reach an object yet fail to maintain a grasp or carry it to a specified goal.
+For example, in pick-and-place tasks, FB policies can reach an object but fail to maintain a grasp or carry it to a specified goal. 
+We attribute these failures to \emph{control bottlenecks}, states where the choice of action determines which futures remain reachable.
+We show that the low-rank squared approximation used by FB can suppress the difference between action values at these states, even at its global optimum, causing the agent to choose incorrect actions.
+To preserve these differences with limited capacity, we introduce Density-FB, which treats the bilinear output as a score, normalizes the scores into a distribution over future states with a softmax, and learns this distribution with a categorical Bellman objective.
+Across OGBench, MetaWorld, and ManiSkill, Density-FB improves manipulation success over FB by a median of $64.4\%$, $30.0\%$, and $8.5\%$ percentage points, respectively. 
+% \ben{I think it'd be more fair to report median improvement, not max improvement.}
+Additionally, \name{} preserves correct action rankings with smaller embeddings than vanilla FB. 
+\end{abstract}

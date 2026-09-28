@@ -1,0 +1,140 @@
+\section{Density-FB}
+\label{sec:method}
+
+Density-FB models the normalized successor measure as a conditional density over future states. We first derive its categorical Bellman update, then use the learned successor distribution to construct the value signal for policy learning and downstream reward transfer.
+
+\subsection{Learning normalized successor distributions}
+\label{sec:method-density}
+
+Since $M^\pi(s,a,\mathcal S)=1/(1-\gamma)$, we define the normalized successor measure as $\nu^\pi(s,a,\cdot):=(1-\gamma)M^\pi(s,a,\cdot)$. 
+It is a probability measure over future states, and Equation~\eqref{eq:sm-bellman} gives the Bellman recursion
+\begin{equation}
+    \nu^\pi(s,a,\cdot) = (1-\gamma)P(\cdot\mid s,a) + \gamma\E_{\substack{s'\sim P(\cdot\mid s,a)\\a'\sim\pi(\cdot\mid s')}}\left[\nu^\pi(s',a',\cdot)\right].
+    \label{eq:normalized-bellman}
+\end{equation}
+Thus, $1-\gamma$ of the successor probability comes from the immediate transition, while the remaining $\gamma$ is propagated from subsequent states.
+
+For the policy indexed by $z$, let
+\[
+    h_z(s,a,s^+) := \frac{d\nu^{\pi_z}(s,a,\cdot)}{d\rho}(s^+)
+\]
+denote its normalized successor-density ratio. 
+Whereas standard FB directly approximates the density of the unnormalized successor measure with a bilinear factorization, Density-FB uses the same factorization as a log-density score,
+\begin{equation}
+    f_\theta(s,a,z,s^+) := \frac{F_\theta(s,a,z)^\top B_\theta(s^+)}{\tau}, \qquad h_\theta(s,a,z,s^+) := \frac{\exp f_\theta(s,a,z,s^+)}{\E_{\tilde s^+\sim\rho}\left[\exp f_\theta(s,a,z,\tilde s^+)\right]}.
+    \label{eq:density-model}
+\end{equation}
+Hence $F_\theta^\top B_\theta/\tau$ is a log-density score, while its normalized exponential models the successor-density ratio $h_z$.
+
+We approximate the normalization in Equation~\eqref{eq:density-model} using the next states in a minibatch as samples from $\rho$. 
+For $\{(s_i,a_i,s_i')\}_{i=1}^{n}$, define
+\begin{equation}
+    p_{ij} := \operatorname{softmax}_{j}\left(f_\theta(s_i,a_i,z_i,s_j')\right).
+    \label{eq:density-softmax}
+\end{equation}
+Each row $p_i$ is a categorical distribution over the empirical candidate states $\{s_j'\}_{j=1}^{n}$.
+
+To construct its Bellman target, let $a_i'=\sg[\pi_\omega(s_i',z_i)]$ and define the target-network prediction
+\begin{equation}
+    \bar p_{ij}' := \operatorname{softmax}_{j}\left(\frac{\bar F(s_i',a_i',z_i)^\top\bar B(s_j')}{\tau}\right).
+    \label{eq:target-density-softmax}
+\end{equation}
+Equation~\eqref{eq:normalized-bellman} then yields the categorical Bellman target
+\begin{equation}
+    p_{ij}^{\mathrm{tgt}} := \sg\left[(1-\gamma)\mathbf 1[j=i]+\gamma\bar p_{ij}'\right].
+    \label{eq:bellman-target}
+\end{equation}
+We fit the predicted distribution with cross-entropy,
+\begin{equation}
+    \mathcal L_{\mathrm{occ}} := -\frac{1}{n}\sum_{i=1}^{n}\sum_{j=1}^{n}p_{ij}^{\mathrm{tgt}}\log p_{ij}.
+    \label{eq:occupancy-loss}
+\end{equation}
+This update parallels the categorical Bellman update in TD-InfoNCE~\citep{zheng-iclr24a}; here, we use it to learn the $z$-conditioned family of successor distributions required for FB-style control.
+
+\subsection{Policy learning from successor distributions}
+\label{sec:method-control}
+
+A normalized successor density determines the value of any state-based reward by integration. 
+For a policy $\pi_z$, define
+\begin{equation}
+    q_r^{\pi_z}(s,a) := \E_{s^+\sim\rho}\left[h_z(s,a,s^+)r(s^+)\right] = (1-\gamma)Q_r^{\pi_z}(s,a).
+    \label{eq:normalized-value}
+\end{equation}
+Density-FB estimates this quantity by replacing the true density ratio with the learned model,
+\begin{equation}
+    q_{\theta,r}(s,a,z) := \E_{s^+\sim\rho}\left[h_\theta(s,a,z,s^+)r(s^+)\right].
+    \label{eq:reward-readout-population}
+\end{equation}
+For a finite candidate pool $\{s_j^+\}_{j=1}^{P}$, we use
+\begin{equation}
+    q_{\theta,r}(s,a,z) \approx \sum_{j=1}^{P}p_j(s,a,z)r(s_j^+), \qquad p_j(s,a,z):=\operatorname{softmax}_{j}\left(f_\theta(s,a,z,s_j^+)\right).
+    \label{eq:reward-readout}
+\end{equation}
+Thus, rather than reading value directly from $F(s,a,z)^\top z$ as in standard FB, Density-FB evaluates an action by integrating the requested reward under its predicted successor distribution.
+
+During pretraining, each task index $z$ is paired with a reward $r_z$. 
+In the goal-conditioned setting, for example, $z=g$ and $r_g$ rewards reaching the sampled goal. 
+Let $\hat q_{s,z}:=q_{\theta,r_z}(s,\pi_\omega(s,z),z)$. We train a behavior-regularized actor with
+\begin{equation}
+    \mathcal L_{\pi} := -\frac{\E_{s,z}\left[\hat q_{s,z}\right]}{\sg\left[\E_{s,z}\left|\hat q_{s,z}-\E[\hat q_{s,z}]\right|+\varepsilon\right]}+\beta\mathcal L_{\mathrm{BC}}(\pi_\omega).
+    \label{eq:actor-loss}
+\end{equation}
+The normalization controls the scale of the value term relative to behavior cloning. 
+During the actor update, gradients are propagated through the action input to $F_\theta$.
+
+\subsection{Zero-shot reward specification}
+\label{sec:method-task-interface}
+
+Standard FB obtains a downstream task vector from the linear identity
+\begin{equation}
+    \int_{\mathcal S} r(s^+)F(s,a,z)^\top B(s^+)\,d\rho(s^+) = F(s,a,z)^\top\E_\rho\left[r(s^+)B(s^+)\right],
+    \label{eq:fb-linear-identity}
+\end{equation}
+which motivates the reward embedding $z_r\propto\E_\rho[rB]$. 
+Density-FB does not preserve this identity because $F^\top B$ now parameterizes a log-density score rather than the successor density itself.
+
+Moreover, the normalized model is invariant to additive shifts of the backward representation, whereas the standard FB reward moment is not:
+\begin{equation}
+    \operatorname{softmax}_{s^+}\left(\frac{F^\top(B(s^+)+b)}{\tau}\right)=\operatorname{softmax}_{s^+}\left(\frac{F^\top B(s^+)}{\tau}\right), \qquad \E_\rho[r(B+b)]=\E_\rho[rB]+b\,\E_\rho[r].
+    \label{eq:task-gauge}
+\end{equation}
+Thus two backward representations that define the same Density-FB successor distribution can induce different values of $\E_\rho[rB]$; the standard FB reward embedding is therefore not an identifiable task interface for the normalized model. 
+We provide the corresponding derivation in Appendix~\ref{app:fb-task-map}.
+
+Instead, we keep $z$ in the task space used during pretraining and evaluate candidate policies directly under the downstream reward. 
+For an unseen reward $r$, define
+\begin{equation}
+    J_{\theta,r}(z) := \E_{s\sim\mu_{\mathrm{sel}}}\left[q_{\theta,r}(s,\pi_\omega(s,z),z)\right], \qquad \hat z_r\in\arg\max_{z\in\mathcal Z_{\mathrm{cand}}}J_{\theta,r}(z).
+    \label{eq:policy-search}
+\end{equation}
+Here $\mathcal Z_{\mathrm{cand}}$ contains task indices covered during pretraining and $\mu_{\mathrm{sel}}$ denotes the state distribution used for policy selection. 
+During inference, all learned parameters remain frozen and we execute $\pi_\omega(\cdot,\hat z_r)$. 
+This selects the highest-valued policy within the learned candidate family; 
+unlike standard FB, it does not assume that an arbitrary reward can be mapped linearly to an optimal policy index.
+
+\paragraph{Algorithm.}
+Algorithm~\ref{alg:dfb} summarizes Density-FB training and zero-shot deployment.
+
+\begin{algorithm}[t]
+\caption{Density-FB}
+\label{alg:dfb}
+\begin{algorithmic}[1]
+\Require Offline dataset $\mathcal D$, successor model $F_\theta,B_\theta$, target models $\bar F,\bar B$, actor $\pi_\omega$, discount $\gamma$, temperature $\tau$, BC coefficient $\beta$
+\For{each training iteration}
+    \State Sample transitions $\{(s_i,a_i,s_i')\}_{i=1}^{n}\sim\mathcal D$
+    \State Sample task/reward pairs $\{(z_i,r_{z_i})\}_{i=1}^{n}$
+    \State Compute successor probabilities $p_{ij}$ using Equation~\eqref{eq:density-softmax}
+    \State $a_i'\gets\sg[\pi_\omega(s_i',z_i)]$
+    \State Compute target probabilities $\bar p_{ij}'$ using Equation~\eqref{eq:target-density-softmax}
+    \State $p_{ij}^{\mathrm{tgt}}\gets\sg[(1-\gamma)\mathbf 1[j=i]+\gamma\bar p_{ij}']$
+    \State Update $F_\theta,B_\theta$ by minimizing $\mathcal L_{\mathrm{occ}}$ in Equation~\eqref{eq:occupancy-loss}
+    \State Estimate $q_{\theta,r_{z_i}}(s_i,\pi_\omega(s_i,z_i),z_i)$ using Equation~\eqref{eq:reward-readout}
+    \State Update $\pi_\omega$ by minimizing $\mathcal L_\pi$ in Equation~\eqref{eq:actor-loss}
+    \State Update $\bar F,\bar B$ by exponential moving average
+\EndFor
+\Statex
+\Statex \textbf{Zero-shot deployment}
+\State Given downstream reward $r$, select $\hat z_r$ from $\mathcal Z_{\mathrm{cand}}$ using Equation~\eqref{eq:policy-search}
+\State Execute the frozen policy $\pi_\omega(\cdot,\hat z_r)$
+\end{algorithmic}
+\end{algorithm}

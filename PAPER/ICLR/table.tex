@@ -1,0 +1,41 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.7in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{multirow}
+\pagestyle{empty}
+\begin{document}
+
+% ---- THE single results table. Rows = datasets, columns = algorithms. ----
+\begin{table}[h]\centering
+\label{tab:main}
+\setlength{\tabcolsep}{5pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l cccc}
+\toprule
+Dataset & BC & FB & GCIQL & Density-FB \\
+\midrule
+\multicolumn{5}{l}{\emph{OGBench}}\\
+\texttt{cube-single}   & $0.086\pm0.011$ & $0.420$ & $0.732\pm0.018$          & $\mathbf{0.915\pm0.098}$ \\
+\texttt{cube-double}   & $0.023\pm0.014$ & $0.005\pm0.016$ & $0.377\pm0.111$          & $\mathbf{0.674\pm0.051}$ \\
+\texttt{scene}         & $0.048\pm0.019$ & $0.076\pm0.057$ & $0.589\pm0.020$          & $\mathbf{0.641\pm0.123}$ \\
+\midrule
+\multicolumn{5}{l}{\emph{Metaworld} \texttt{play-resample} v3}\\
+\texttt{mw-pick-place} & $0.440\pm0.081$ & $0.627\pm0.052$ & $\mathbf{0.993\pm0.014}$ & $0.760\pm0.201$ \\
+\texttt{mw-push}       & $0.540\pm0.000$ & $0.627\pm0.079$ & $0.733\pm0.198$          & $\mathbf{0.820\pm0.045}$ \\
+\midrule
+\multicolumn{5}{l}{\emph{Metaworld} \texttt{play-noise-hard-1m} }\\
+\texttt{mw-pick-place} & $0.340\pm0.023$ & $0.427\pm0.114$ & $\mathbf{0.520\pm0.060}$ & $0.460\pm0.045$ \\
+\texttt{mw-push}       & $0.327\pm0.079$ & $0.340\pm0.060$ & $\mathbf{0.527\pm0.057}$ & $0.500\pm0.099$ \\
+\midrule
+\multicolumn{5}{l}{\emph{Metaworld} \texttt{play-resample-hard} v3}\\
+\texttt{mw-pick-place} & $0.367\pm0.124$ & $0.553\pm0.035$ & $\mathbf{0.967\pm0.035}$ & $0.573\pm0.372$ \\
+\texttt{mw-push}       & $0.613\pm0.035$ & $0.607\pm0.111$ & $0.813\pm0.072$          & $\mathbf{0.827\pm0.094}$ \\
+% \midrule
+% \multicolumn{5}{l}{\emph{ManiSkill} \texttt{ms-play-resample}}\\
+% \texttt{ms-pick-cube}  & $0.020\pm0.000$ & $0.033\pm0.013$ & $0.040\pm0.023$    & $\mathbf{0.100\pm0.023}$ \\
+\bottomrule
+\end{tabular}}
+\end{table}
+\end{document}

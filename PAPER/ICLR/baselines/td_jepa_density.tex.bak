@@ -1,0 +1,34 @@
+% Proprio (state) block of the published TD-JEPA OGBench table (Table 1), FB/HILP/RLDP columns only,
+% plus Density-FB. The RGB block is dropped: we have no pixel-input Density-FB numbers.
+\InputIfFileExists{baselines/colors.tex}{}{\input{colors}}
+\begin{table}[t]
+\centering
+\caption{OGBench (proprioceptive input), success rate (\%). Baseline columns are the published numbers from Table~1 of \citet{tdjepa}; the two right-hand columns are Density-FB. Superscripts mark the evaluation route: $^{\mathrm{G}}$ goal-conditioned, $^{\mathrm{R}}$ reward-inference.}
+\label{tab:tdjepa_density}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrr}
+\toprule
+ & \multicolumn{3}{c}{published} & \multicolumn{2}{c}{Density-FB (ours)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-6}
+ & FB & HILP & RLDP & goal$^{\mathrm{G}}$ & $z^{\mathrm{R}}$ \\
+\midrule
+\textbf{avg} & \paperc{39.0\pmse{0.7}} & \paperc{38.0\pmse{1.1}} & \paperc{27.1\pmse{0.8}} & --- & --- \\
+antmaze-mn & \paperc{73.0\pmse{2.7}} & \paperc{83.6\pmse{2.6}} & \paperc{74.6\pmse{4.2}} & \ckptK{66.9\pmse{24.0}} & --- \\
+antmaze-ln & \paperc{36.8\pmse{4.3}} & \paperc{52.6\pmse{3.9}} & \paperc{36.4\pmse{4.7}} & --- & --- \\
+antmaze-ms & \paperc{70.4\pmse{4.0}} & \paperc{50.6\pmse{2.5}} & \paperc{58.4\pmse{3.3}} & --- & --- \\
+antmaze-ls & \paperc{49.8\pmse{5.6}} & \paperc{12.2\pmse{1.8}} & \paperc{19.6\pmse{2.7}} & --- & --- \\
+antmaze-me & \paperc{51.6\pmse{2.6}} & \paperc{2.0\pmse{0.8}} & \paperc{4.8\pmse{2.4}} & --- & --- \\
+cube-single & \paperc{49.6\pmse{3.8}} & \paperc{74.2\pmse{3.5}} & \paperc{19.8\pmse{2.4}} & \ckptK{91.5\pmse{9.8}} & \ckptM{92.0} \\
+cube-double & \paperc{2.6\pmse{0.4}} & \paperc{20.0\pmse{2.7}} & \paperc{3.8\pmse{0.8}} & \ckptK{68.0\pmse{7.0}} & \ckptM{20.0} \\
+scene & \paperc{12.8\pmse{1.6}} & \paperc{43.8\pmse{1.9}} & \paperc{11.6\pmse{1.6}} & \ckptK{64.1\pmse{10.9}} & --- \\
+puzzle-3x3 & \paperc{4.8\pmse{0.7}} & \paperc{2.8\pmse{0.7}} & \paperc{14.6\pmse{0.9}} & --- & --- \\
+\bottomrule
+\end{tabular}}
+\par\vspace{2pt}
+\begin{minipage}{\linewidth}\scriptsize\raggedright
+Baselines (FB, HILP, RLDP): published numbers, 1M steps, 10 seeds, best cell of the hyperparameter grid, reward-inference eval ($z$ inferred from 10k relabelled samples); mean $\pm$ s.e.\ 
+Density-FB$^{\mathrm{G}}$: goal-conditioned eval ($z$ from the goal observation), state input, 500k steps, 3 seeds; mean $\pm$ std over seeds. 
+Density-FB$^{\mathrm{R}}$: reward-inference eval ($z$ from 10k relabelled samples), state input, 1M steps; cube-single 3 seeds, cube-double 1 seed. 
+``---'': not run.
+\end{minipage}
+\end{table}

@@ -1,0 +1,227 @@
+{
+  "objective": "E + 40 delta^2; E=||N-N Pi_B||_F^2, C=B^T B/4 has eigenvalues 1+delta and 1-delta",
+  "matching_fb_settings": {
+    "discount": 0.8,
+    "dimension": 2,
+    "backward_norm": "sqrt(2)",
+    "two_head_ortho_coefficient": 1000,
+    "equivalent_one_head_ortho_coefficient": 500
+  },
+  "candidate_U_with_B_sqrt2_U": [
+    [
+      "1",
+      "0"
+    ],
+    [
+      "255/257",
+      "32/257"
+    ],
+    [
+      "0",
+      "1"
+    ],
+    [
+      "-32/257",
+      "255/257"
+    ]
+  ],
+  "candidate_error_and_objective": {
+    "exact": "149734/1856825",
+    "decimal": 0.08063980181223325
+  },
+  "candidate_goal_gap": {
+    "exact": "-1168/21845",
+    "decimal": -0.05346761272602426
+  },
+  "candidate_normalized_successor_prediction": [
+    [
+      0.3754863813229572,
+      0.3891737239642939,
+      0.13339436942092012,
+      0.08560311284046693
+    ],
+    [
+      0.3132295719844358,
+      0.3357061112382696,
+      0.2000915541313802,
+      0.15953307392996108
+    ],
+    [
+      0.15953307392996108,
+      0.2000915541313802,
+      0.3357061112382696,
+      0.3132295719844358
+    ],
+    [
+      0.08560311284046693,
+      0.13339436942092012,
+      0.3891737239642939,
+      0.3754863813229572
+    ]
+  ],
+  "candidate_row_masses": [
+    0.9836575875486381,
+    1.0085603112840467,
+    1.0085603112840467,
+    0.9836575875486381
+  ],
+  "objective_upper_used": {
+    "exact": "81/1000",
+    "decimal": 0.081
+  },
+  "dual_mu": {
+    "exact": "43/50",
+    "decimal": 0.86
+  },
+  "dual_z": [
+    {
+      "exact": "-1/10",
+      "decimal": -0.1
+    },
+    {
+      "exact": "-1/20",
+      "decimal": -0.05
+    },
+    {
+      "exact": "17/100",
+      "decimal": 0.17
+    },
+    {
+      "exact": "0",
+      "decimal": 0.0
+    }
+  ],
+  "dual_beta": {
+    "exact": "13/100",
+    "decimal": 0.13
+  },
+  "dual_vector": [
+    {
+      "exact": "357/1000",
+      "decimal": 0.357
+    },
+    {
+      "exact": "469/1000",
+      "decimal": 0.469
+    },
+    {
+      "exact": "573/1000",
+      "decimal": 0.573
+    },
+    {
+      "exact": "239/500",
+      "decimal": 0.478
+    }
+  ],
+  "positive_principal_minors_of_dual_residual": {
+    "0": {
+      "exact": "1662761/289000000",
+      "decimal": 0.005753498269896194
+    },
+    "1": {
+      "exact": "1784729/289000000",
+      "decimal": 0.006175532871972318
+    },
+    "2": {
+      "exact": "1687081/289000000",
+      "decimal": 0.005837650519031142
+    },
+    "3": {
+      "exact": "490469/72250000",
+      "decimal": 0.0067884982698961935
+    },
+    "0,1": {
+      "exact": "5008221/144500000000",
+      "decimal": 3.4658968858131485e-05
+    },
+    "0,2": {
+      "exact": "55907/1700000000",
+      "decimal": 3.2886470588235294e-05
+    },
+    "0,3": {
+      "exact": "970317/28900000000",
+      "decimal": 3.357498269896194e-05
+    },
+    "1,2": {
+      "exact": "318661/9031250000",
+      "decimal": 3.5284262975778546e-05
+    },
+    "1,3": {
+      "exact": "5753493/144500000000",
+      "decimal": 3.981656055363322e-05
+    },
+    "2,3": {
+      "exact": "226157/5780000000",
+      "decimal": 3.912750865051903e-05
+    },
+    "0,1,2": {
+      "exact": "2817179/14450000000000",
+      "decimal": 1.9496048442906573e-07
+    },
+    "0,1,3": {
+      "exact": "14135941/72250000000000",
+      "decimal": 1.956531626297578e-07
+    },
+    "0,2,3": {
+      "exact": "552379/2890000000000",
+      "decimal": 1.9113460207612455e-07
+    },
+    "1,2,3": {
+      "exact": "1020241/4515625000000",
+      "decimal": 2.25935723183391e-07
+    },
+    "0,1,2,3": {
+      "exact": "7937679/7225000000000000",
+      "decimal": 1.0986406920415225e-09
+    }
+  },
+  "dual_residual_minimum_eigenvalue_numerical_check": 0.0038133059954207184,
+  "global_minimizer_delta_strict_upper": {
+    "exact": "1/20",
+    "decimal": 0.05
+  },
+  "leverage_deviation_strict_upper": {
+    "exact": "1/38",
+    "decimal": 0.02631578947368421
+  },
+  "error_lower_intercept": {
+    "exact": "580561507/5491000000",
+    "decimal": 0.10572964979056639
+  },
+  "every_global_minimizer_normalized_goal_gap_upper": {
+    "exact": "-135790507/4722260000",
+    "decimal": -0.028755406733216724
+  },
+  "spherical_control_witness_error": {
+    "exact": "1228/7225",
+    "decimal": 0.16996539792387544
+  },
+  "spherical_control_witness_probabilities": [
+    [
+      0.25882352941176473,
+      0.25882352941176473,
+      0.2411764705882353,
+      0.2411764705882353
+    ],
+    [
+      0.38823529411764707,
+      0.38823529411764707,
+      0.11176470588235295,
+      0.11176470588235295
+    ],
+    [
+      0.21176470588235294,
+      0.21176470588235294,
+      0.28823529411764703,
+      0.28823529411764703
+    ],
+    [
+      0.1411764705882353,
+      0.1411764705882353,
+      0.3588235294117647,
+      0.3588235294117647
+    ]
+  ],
+  "scope": "Global exact-target approximation theorem, actual soft orthogonality weight, spherical FB, fixed continuation and exact reward integration. Not a global TD theorem or a lambda=1 result.",
+  "all_assertions_passed": true
+}

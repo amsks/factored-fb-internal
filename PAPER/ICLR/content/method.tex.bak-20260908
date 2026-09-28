@@ -1,0 +1,237 @@
+\section{\name{}}
+\label{sec:method}
+
+%%AZ.8.29: start with a reminder of the high-level modification, what problem are we fixing before you get to how we're doing it.
+%%AZ.8.29: after going through this section, it is way too low-level with no explanation of the design choices made in the algorithm. You could either include the high-level justification/intuition here interspersed with the method details, or separate it into a prior section.
+%%AZ.8.29: why is the normalization important?
+%%AZ.8.29: why this parameterization design choice?
+%%AZ.9.5: This section should be divided up into two main parts. One defines the problem and explains the high level solution, the second provides the technical instantiation of the method. My comments from last week are still not satisfactorily addressed. There needs to be a roadmap for 2.1, 2.2, and 2.3 and why I should read them.
+Standard SM methods fit successor occupancies with a pointwise squared loss.
+As discussed in Section~\ref{sec:prelim}, this can favor persistent states with large targets over short-lived states that distinguish downstream rewards.
+\name{} instead represents the SM as a normalized distribution and fits it with a cross-entropy Bellman loss.
+Because the total mass of an SM is known, normalization loses no information; it only changes how the approximation is learned.
+We derive the objective below and then describe its use with FB, HILP, and RLDP.
+
+\subsection{Learning normalized successor distributions}
+\label{sec:method-density}
+
+\paragraph{From occupancies to probabilities.}
+Equation~\eqref{eq:sm-mass} shows that every successor measure has the same known total mass.
+We therefore define
+\begin{equation}
+    \nu^\pi(s,a,\cdot) := (1-\gamma)M^\pi(s,a,\cdot), \qquad \nu^\pi(s,a,\mathcal S)=1.
+    \label{eq:normalized-sm}
+\end{equation}
+This normalization loses no information since multiplying by $1/(1-\gamma)$ recovers the original successor measure.
+In particular, for any two rewards,
+\begin{equation}
+    \begin{aligned}
+        &\int_{\mathcal S} \bigl(r_1(s^+)-r_2(s^+)\bigr) \nu^\pi(s,a,ds^+)\\
+        &\hspace{2cm} =(1-\gamma) \Delta^\pi(s,a;r_1,r_2).
+    \end{aligned}
+    \label{eq:normalized-reward-gap}
+\end{equation}
+Thus, the normalized distribution preserves exactly the reward differences introduced in Equation~\eqref{eq:reward-gap}.
+
+
+Its Bellman recursion is a mixture of probability measures:
+\begin{equation}
+    \nu^\pi(s,a,\cdot) = (1-\gamma)P(\cdot\mid s,a) + \gamma \E_{\substack{ s'\sim P(\cdot\mid s,a)\\ a'\sim\pi(\cdot\mid s') }} \left[\nu^\pi(s',a',\cdot)\right].
+    \label{eq:normalized-bellman}
+\end{equation}
+Simply rescaling the original squared loss would not change the relative sizes of its targets.
+We instead constrain the prediction to be a distribution and fit the Bellman mixture with cross-entropy.
+The prediction must instead divide one unit of mass among the possible future states.
+
+
+\paragraph{Parameterizing the distribution.}
+Let $\pi_z$ denote the policy associated with task index $z$.
+This continuation policy determines the successor distribution while the dataset supplies training transitions and the reference
+distribution $\rho$.
+Assuming $\nu^{\pi_z}(s,a,\cdot)$ is absolutely continuous with respect to $\rho$, write
+\[
+       h_z(s,a,s^+):=  \frac{d\nu^{\pi_z}(s,a,\cdot)}{d\rho}(s^+).
+\]
+We parameterize this density using an exponential transformation of a bilinear score:
+\begin{equation}
+    \begin{aligned}
+        f_\theta(s,a,z,s^+)
+            &:=
+            \frac{F_\theta(s,a,z)^\top B_\theta(s^+)}{\tau},\\
+        h_\theta(s,a,z,s^+)
+            &:=
+            \frac{\exp f_\theta(s,a,z,s^+)}
+            {\E_{\tilde s^+\sim\rho}
+            \left[\exp f_\theta(s,a,z,\tilde s^+)\right]},
+    \end{aligned}
+    \label{eq:density-model}
+\end{equation}
+where $\tau>0$ controls the sharpness of the distribution.
+The bilinear score retains the factorization used by FB, HILP, and RLDP.
+The exponential and its normalizer produce a valid density, while choosing $\rho$ as the reference measure restricts prediction to the offline support.
+In practice, the minibatch next states are used to estimate the normalizer.
+
+\paragraph{A sampled Bellman target.}
+For a minibatch $\{(s_i,a_i,s_i')\}_{i=1}^{n}$, we use its next states as candidates sampled from $\rho$ and define
+\begin{equation}
+    p_{ij}:=\operatorname{softmax}_{j} \left(f_\theta(s_i,a_i,z_i,s_j')\right). 
+    \label{eq:density-softmax}
+\end{equation}
+Each row is a categorical distribution over the candidate indices and its density ratio relative to their uniform empirical measure is
+$n p_{ij}$.
+Using a sampled support avoids computing a partition function over the full state space.
+We use the same candidates to construct the bootstrap distribution.
+Let $a_i'\sim\pi_\omega(\cdot\mid s_i',z_i)$, with gradients stopped through this action, and set
+\begin{equation}
+    \bar p_{ij}' := \operatorname{softmax}_{j} \left( \frac{\bar F(s_i',a_i',z_i)^\top\bar B(s_j')}{\tau} \right),
+    \label{eq:target-density-softmax}
+\end{equation}
+where bars denote target networks updated by exponential moving averages.
+Using the same next states for both distributions gives a common categorical support.
+With $d_i=\gamma(1-\mathrm{terminal}_i)$, the sampled Bellman target is
+\begin{equation}
+    p_{ij}^{\mathrm{tgt}} := \sg\left[ (1-d_i)\ind{j=i}+d_i\bar p_{ij}' \right].
+    \label{eq:bellman-target}
+\end{equation}
+The observed next state supplies the immediate term and the target critic supplies the distribution over later states.
+
+\paragraph{Fitting probability errors.}
+We minimize the cross-entropy
+\begin{equation}
+    \mathcal L_{\mathrm{occ}} :=-\frac{1}{n}\sum_{i=1}^{n}\sum_{j=1}^{n} p_{ij}^{\mathrm{tgt}}\log p_{ij}.
+    \label{eq:occupancy-loss}
+\end{equation}
+For a fixed target row, the derivative with respect to each score is
+\begin{equation}
+    \frac{\partial\ell_i}{\partial f_{ij}} =p_{ij}-p_{ij}^{\mathrm{tgt}}.
+    \label{eq:occupancy-gradient}
+\end{equation}
+The score gradient is the probability error $p_{ij}-p_{ij}^{\mathrm{tgt}}$ and therefore lies in $[-1,1]$.
+It cannot grow with the effective horizon as an unnormalized squared-error gradient can.
+If the model assigns too little mass to states reached while carrying the cube, their scores increase relative to the other states.
+Persistent states may still receive most of the probability when that is what the policy produces; they no longer dominate merely through the scale of an unnormalized regression target.
+We use the categorical successor-learning construction of TD-InfoNCE~\citep{zheng-icml24a} to make this change in FB, HILP, and RLDP.
+Further architectural details are given in Appendix~\ref{app:backbones}.
+
+\subsection{Policy learning from successor distributions}
+\label{sec:method-control}
+
+\paragraph{Reward integration.}
+To use the learned distribution for control, we integrate the requested reward against it.
+For an exact successor density,
+\begin{equation}
+    q_r^{\pi_z}(s,a) :=\E_{s^+\sim\rho}[h_z(s,a,s^+)r(s^+)] =(1-\gamma)Q_r^{\pi_z}(s,a).
+    \label{eq:normalized-value}
+\end{equation}
+This positive scaling preserves action rankings and, by Equation~\eqref{eq:normalized-reward-gap}, all reward differences.
+
+Replacing the true density with the model gives
+\begin{equation}
+    q_{\theta,r}(s,a,z) :=\E_{s^+\sim\rho} [h_\theta(s,a,z,s^+)r(s^+)].
+    \label{eq:reward-readout-population}
+\end{equation}
+On a batch of $S'=\{s_j\}_{j=1}^{K}$ sampled from $\rho$, we estimate it by
+\begin{equation}
+    \begin{aligned}
+        \hat q_{\theta,r}(s,a,z) &:=\sum_{j=1}^{K}p_j(s,a,z)r(s_j),\\
+        p_j(s,a,z) &:=\operatorname{softmax}_{j} \left(f_\theta(s,a,z,s_j)\right).
+    \end{aligned}
+    \label{eq:reward-readout}
+\end{equation}
+This readout is necessary because $F^\top B$ now parameterizes a score: the usual linear value readout $F(s,a,z)^\top z$ no longer follows
+from the model.
+
+\paragraph{Pretraining tasks.}
+We retain each backbone's original task sampler and latent reward:
+\begin{equation}
+    r_z(s)=
+    \begin{cases}
+        \bar B(s)^\top z/\sqrt d, & \text{FB},\\
+        \phi(s)^\top z, & \text{HILP},\\
+        B(s)^\top z, & \text{RLDP},
+    \end{cases}
+    \label{eq:latent-reward}
+\end{equation}
+where $d$ is the feature dimension.
+Reward values are detached during the actor update.
+For FB, we also sample task indices obtained by encoding goal rewards.
+
+\paragraph{Actor objective.}
+We evaluate the task reward under the successor distribution predicted for the actor's action.
+When a method uses multiple forward heads, we integrate the reward separately under each head.
+We denote the resulting scalar by $\hat q_{s,z}$ and train the actor with
+\begin{equation}
+    \mathcal L_\pi =-\frac{\E_{s,z}[\hat q_{s,z}]} {\sg\left[ \E_{s,z}\left|\hat q_{s,z}-\E[\hat q_{s,z}]\right| +\varepsilon \right]} +\beta\mathcal L_{\mathrm{BC}}(\pi_\omega).
+    \label{eq:actor-loss}
+\end{equation}
+The behavior-cloning term regularizes action selection using the offline data.
+The denominator controls the value scale relative to this term and excludes the batch-wide value offset.
+Centering is used only in the denominator, so the numerator retains the policy-improvement signal.
+Critic parameters, reward samples, and task indices are held fixed during this update; gradients pass through the action input to the forward predictor.
+
+
+\subsection{Zero-shot reward specification}
+\label{sec:method-task-interface}
+
+% Why do we not  have this identity anymore ? 
+% No longer a linear function, reward centering
+% Why did we apply reward centering ? 
+
+Standard FB uses the linear identity
+\begin{equation}
+    \E_\rho\left[ r(s^+)F(s,a,z)^\top B(s^+) \right] = F(s,a,z)^\top \E_\rho\left[r(s^+)B(s^+)\right].
+    \label{eq:fb-linear-identity}
+\end{equation}
+so the same reward embedding acts as both a task index and a value readout.
+The exponential model breaks this identity: we compute values using Equation~\eqref{eq:reward-readout} and construct the task index separately.
+
+\paragraph{Centered reward encoding for FB.}
+The softmax distribution is unchanged by translating $B(u)\mapsto B(u)+b$, because this adds the same constant to every
+score in a row.
+The usual reward moment $\E_\rho[r(u)B(u)]$ is not invariant to this translation and therefore does not define a stable task index.
+We instead regress the centered reward on the centered features.
+
+Let $B_\xi$ be a slowly updated copy of the backward map, with running mean $\hat\mu$ and covariance $\widetilde C$.
+For reward-labeled states $\{(u_j,r_j)\}_{j=1}^{m}$, define
+\begin{equation}
+    \begin{aligned}
+        \bar r &:=\frac1m\sum_{j=1}^{m}r_j,\\
+        v_r &:=\frac1m\sum_{j=1}^{m} \bigl(B_\xi(u_j)-\hat\mu\bigr)(r_j-\bar r),\\
+        c_r &:=(\widetilde C+\lambda I)^{-1}v_r,
+        \qquad
+        z_r:=\sqrt d\,\frac{c_r}{\|c_r\|_2}.
+    \end{aligned}
+    \label{eq:reward-index}
+\end{equation}
+Centering makes the index invariant to feature translations, the covariance solve accounts for correlated feature directions, and the final normalization matches the task-index scale used during pretraining.
+Numerical safeguards and other reward encoder are described in Appendix \aditya{Add appendix}
+% ~\ref{app:reward-encoder}.
+
+During inference, all networks and encoder statistics are frozen.
+We evaluate the new reward on a state sample, compute $z_r$, and execute $\pi_\omega(\cdot\mid s,z_r)$ without further training or environment interaction.
+When the successor model uses a state projection, the identity in Equation~\eqref{eq:normalized-value} applies to rewards defined on that projection.
+
+\begin{algorithm}[t]
+\caption{\name{} training and zero-shot deployment}
+\label{alg:dfb}
+    \begin{algorithmic}[1]
+    \Require Dataset $\mathcal D$; successor model $(F,B)$; actor $\pi_\omega$; target networks; task encoder
+    \For{each training iteration}
+        \State Sample $\{(s_i,a_i,s_i',\mathrm{terminal}_i)\}_{i=1}^{n}$ and task indices $z_i$
+        \State Set $d_i=\gamma(1-\mathrm{terminal}_i)$ and sample $a_i'\sim\pi_\omega(\cdot\mid s_i',z_i)$
+        \For{each forward head $h$}
+            \State $p_{ij}^{(h)} \gets \softmax_{j} f_\theta^{(h)}(s_i,a_i,z_i,s_j')$
+            \State $\bar p_{ij}^{\prime(h)} \gets \softmax_{j} \bar f^{(h)}(s_i',a_i',z_i,s_j')$
+            \State $t_{ij}^{(h)} \gets\sg[(1-d_i)\ind{j=i} +d_i\bar p_{ij}^{\prime(h)}]$
+        \EndFor
+        \State Update the critic using $-\sum_{h,i,j}t_{ij}^{(h)}\log p_{ij}^{(h)}$ and the backbone-specific representation losses
+        \State Sample actor tasks and evaluate their rewards on $\{s_j'\}_{j=1}^{n}$
+        \State Integrate these rewards under each predicted distribution and update $\pi_\omega$ using Equation~\eqref{eq:actor-loss}
+        \State Update target networks and encoder statistics
+    \EndFor
+    \Statex
+    \Statex \textbf{Zero-shot deployment}
+    \State Evaluate $r$ on sampled states and compute its task index $z_r$
+    \State Execute the frozen policy $\pi_\omega(\cdot\mid s,z_r)$
+    \end{algorithmic}
+\end{algorithm}

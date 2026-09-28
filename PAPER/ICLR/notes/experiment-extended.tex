@@ -1,0 +1,90 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.7in]{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{multirow}
+\pagestyle{empty}
+\begin{document}
+
+%%Tongle: Added table here. No modification to the algorithm codebase.
+
+\section{Maniskill3 and Metaworld data collection protocol}
+
+\paragraph{Common protocol.}
+Each dataset consists of $N$ fixed-length trajectories of $T$ environment steps recorded through the identical environment wrapper later used for evaluation, giving $N \times T \geq 10^6$ transitions per task. Every trajectory pursues a single fixed goal drawn once at reset from the environment's own goal distribution; the goal is never re-drawn. The behavior policy completes the task early and then parks---the remainder records the object held at the goal, yielding an at-goal (dwell) fraction of 0.76--0.95. Data are one packed \texttt{.npz} per task, arrays $[N,T,\cdot]$ \texttt{float32} with fields \texttt{observation}, \texttt{action}, \texttt{next\_observation}, \texttt{reward}, \texttt{terminal} (all zero; fixed horizon), \texttt{timeout} ($t=T-1$), \texttt{success}, and (Metaworld) \texttt{achieved\_goal}, \texttt{goal\_switch}; actions clipped to $[-1,1]$.
+
+\paragraph{Metaworld (\texttt{mw-push}, \texttt{mw-bin-picking}, \texttt{mw-box-close}).}
+Goal-observable V2 envs behind a replica of the \texttt{newt} collection wrapper: action-repeat 2 with summed rewards, reset = \texttt{env.reset()} + one zero-action step (fills the previous-frame half of the 39-dim state), 4-dim actions; \texttt{max\_path\_length} truncation defeated by zeroing \texttt{curr\_path\_length} per wrapper step. $N=2010$, $T=500$ wrapper steps (1000 simulator steps) = 1,005,000 transitions, 30 shards $\times$ 67 episodes; per-episode global-RNG seeding (Metaworld draws its reset randomization from it). Behavior: scripted oracles---\texttt{SawyerPushV2Policy} (follows the goal channel); for the fixture tasks the transport policies (\texttt{SawyerPickPlaceV2Policy} / \texttt{SawyerBoxCloseV2Policy}) are augmented with a deterministic grasp primitive repairing the scripted grasp under action-repeat 2 (align 1.5--2 cm with hysteresis $\rightarrow$ descend open to grasp depth: the mocap floor $z \approx 0.065$ for the cube, lid $+5$ cm for the handle $\rightarrow$ close $\rightarrow$ hand back to the policy once finger separation enters the measured carry band, 0.35--0.60 cube / 0.25--0.40 lid). Per-episode Gaussian action noise $\sigma \sim U[0,\sigma_{\max}]$, $\sigma_{\max}=0.02$ (push, bin) / $0.01$ (box). Goal protocol: push---one target per episode from the env's own reset distribution (goal-space $xy$, empirical reset-$z$ pool); bin---one placement into the goal bin, then a gripped park; box---one placement onto the box, then released onto the box with the hand hovering (a gripped hold is an underdamped oscillator of the scripted controller). Fixtures restored to canonical pose per reset and clamped wall-safe (box $y \in [0.68,0.78]$). The true target is re-spliced into obs dims \texttt{36:39} on every stored frame (the env clips those dims to its goal-space box, degenerate for fixture tasks). $\mathrm{success} = \|\mathrm{obj}-\mathrm{target}\| < r$, $r=0.06/0.06/0.08$. Trajectories whose object leaves the workspace (push $|x|>0.30$; bin $|x|>0.45$; box $|x|>0.38 \lor y \notin [0.35,0.90]$) are rejected at the first offending step and re-rolled ($\leq 8$ retries). Measured dwell 0.921/0.895/0.812, zero escapes released.
+
+\paragraph{ManiSkill (\texttt{ms-push-cube}, \texttt{ms-pick-cube}, \texttt{ms-stack-cube}, \texttt{ms-poke-cube}, \texttt{ms-lift-peg}).}
+\texttt{mani\_skill} 3.0.1 state-obs envs with \texttt{newt}'s per-task control modes (\texttt{pd\_ee\_delta\_pos} pick; \texttt{pd\_ee\_delta\_pose} otherwise), \texttt{CPUGymWrapper(ignore\_terminations=True)}, horizon overridden to $T=125$ ($5\times$ the 25-step eval horizon); $N=8000$ (8 shards $\times$ 1000, \texttt{env.reset(seed)}) = 1,000,000 transitions. Behavior: the released \texttt{newt} TD-MPC2 multitask checkpoints (\texttt{model\_size=B}; obs zero-padded to 128, 16-dim action truncated to the task dim), stochastic policy head (\texttt{eval\_mode=False}), no planning (\texttt{mpc=False}), no exploration noise or $\epsilon$-mixing. The env's own goal untouched; tasks complete in $\sim$10--20 steps and hold. Measured ep-success 0.997/0.990/0.940/0.948/0.921 and dwell 0.949/0.906/0.756/0.858/0.783.
+
+\section{Results}
+
+\begin{table}[h]\centering
+\caption{Success rate on the \texttt{expert-fixed} datasets at the final gradient step
+(mean$\pm$std over 3 seeds; 50 evaluation episodes). The two Density-FB columns are the two
+variants, each under its own uniform config for every cell: \emph{goal} = goal-indexed
+critic (hard hit targets, \texttt{flowbc} actor); \emph{z} = reward-sample-indexed critic
+(\texttt{measure\_density\_z=true}, hard, \texttt{ddpgbc\_density} actor).}
+\label{tab:main}
+\setlength{\tabcolsep}{5pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l ccccc}
+\toprule
+Dataset & BC & FB & GCIQL & Density-FB (goal) & Density-FB (z) \\
+\midrule
+\multicolumn{6}{l}{\emph{Metaworld} \texttt{expert-fixed} (1M, scripted oracle, dwell 0.81--0.92)}\\
+\texttt{mw-push} & $0.407\pm0.081$ & $0.300\pm0.086$ & $0.000\pm0.000$ & $0.727\pm0.116$ & $\mathbf{0.807\pm0.066}$ \\
+\texttt{mw-bin-picking} & $\mathbf{0.893\pm0.068}$ & $0.133\pm0.189$ & $0.000\pm0.000$ & $0.667\pm0.034$ & $0.880\pm0.065$ \\
+\texttt{mw-box-close} & $0.513\pm0.066$ & $0.667\pm0.143$ & $0.433\pm0.057$ & $0.540\pm0.177$ & $\mathbf{0.720\pm0.173}$ \\
+\midrule
+\multicolumn{6}{l}{\emph{ManiSkill} \texttt{expert-fixed} (1M, TD-MPC2, dwell 0.76--0.95)}\\
+\texttt{ms-push-cube} & $0.887\pm0.009$ & $0.587\pm0.160$ & $0.593\pm0.090$ & $0.693\pm0.090$ & $\mathbf{0.973\pm0.038}$ \\
+\texttt{ms-pick-cube} & $0.027\pm0.009$ & $0.040\pm0.016$ & $0.020\pm0.000$ & $0.107\pm0.019$ & $\mathbf{0.493\pm0.034}$ \\
+\texttt{ms-stack-cube} & $0.640\pm0.043$ & $0.640\pm0.057$ & $0.320\pm0.166$ & $0.613\pm0.052$ & $\mathbf{0.713\pm0.025}$ \\
+\texttt{ms-poke-cube} & $0.873\pm0.019$ & $0.880\pm0.033$ & $0.780\pm0.086$ & $0.920\pm0.043$ & $\mathbf{0.927\pm0.062}$ \\
+\texttt{ms-lift-peg} & $0.507\pm0.152$ & $0.340\pm0.075$ & $0.173\pm0.038$ & $0.527\pm0.139$ & $\mathbf{0.867\pm0.047}$ \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+
+\begin{table}[h]\centering
+\caption{Success rate on the \texttt{expert-fixed} datasets at the final gradient step
+(mean$\pm$std over 3 seeds; 50 evaluation episodes). Each method is run in an original and a
+density-retrofitted version where one exists; all arms use the \texttt{flowbc} actor and one
+uniform per-family config across every cell. HILP/RLDP are the goal-conditioned,
+object-coordinate variants (\texttt{hilp\_mix\_ratio}/\texttt{train\_goal\_ratio}$=1$;
+density versions set \texttt{goal\_kernel}).}
+\label{tab:main}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l ccccccccc}
+\toprule
+Dataset & BC & FB & GCIQL & HILP & HILP-dens. & RLDP & RLDP-dens. & Density-FB (goal) & Density-FB (z) \\
+\midrule
+\multicolumn{10}{l}{\emph{Metaworld} \texttt{expert-fixed} (1M, scripted oracle, dwell 0.81--0.92)}\\
+\texttt{mw-push} & $0.407\pm0.081$ & $0.300\pm0.086$ & $0.000\pm0.000$ & $0.000\pm0.000$ & $0.000\pm0.000$ & $0.600\pm0.130$ & $0.600\pm0.156$ & $0.727\pm0.116$ & $\mathbf{0.807\pm0.066}$ \\
+\texttt{mw-bin-picking} & $0.893\pm0.068$ & $0.133\pm0.189$ & $0.000\pm0.000$ & $0.000\pm0.000$ & $0.013\pm0.019$ & $0.000\pm0.000$ & $\mathbf{0.940\pm0.028}$ & $0.667\pm0.034$ & $0.880\pm0.065$ \\
+\texttt{mw-box-close} & $0.513\pm0.066$ & $0.667\pm0.143$ & $0.433\pm0.057$ & $0.000\pm0.000$ & $0.000\pm0.000$ & $0.473\pm0.127$ & $0.627\pm0.098$ & $0.540\pm0.177$ & $\mathbf{0.720\pm0.173}$ \\
+\midrule
+\multicolumn{10}{l}{\emph{ManiSkill} \texttt{expert-fixed} (1M, TD-MPC2, dwell 0.76--0.95)}\\
+\texttt{ms-push-cube} & $0.887\pm0.009$ & $0.587\pm0.160$ & $0.593\pm0.090$ & $0.000\pm0.000$ & $0.027\pm0.009$ & $0.220\pm0.016$ & $0.807\pm0.052$ & $0.693\pm0.090$ & $\mathbf{0.973\pm0.038}$ \\
+\texttt{ms-pick-cube} & $0.027\pm0.009$ & $0.040\pm0.016$ & $0.020\pm0.000$ & $0.053\pm0.025$ & $0.033\pm0.009$ & $0.460\pm0.075$ & $0.087\pm0.009$ & $0.107\pm0.019$ & $\mathbf{0.493\pm0.034}$ \\
+\texttt{ms-stack-cube} & $0.640\pm0.043$ & $0.640\pm0.057$ & $0.320\pm0.166$ & $0.660\pm0.043$ & $0.673\pm0.009$ & $0.327\pm0.038$ & $0.620\pm0.091$ & $0.613\pm0.052$ & $\mathbf{0.713\pm0.025}$ \\
+\texttt{ms-poke-cube} & $0.873\pm0.019$ & $0.880\pm0.033$ & $0.780\pm0.086$ & $0.107\pm0.047$ & $0.033\pm0.019$ & $0.647\pm0.068$ & $0.267\pm0.127$ & $0.920\pm0.043$ & $\mathbf{0.927\pm0.062}$ \\
+\texttt{ms-lift-peg} & $0.507\pm0.152$ & $0.340\pm0.075$ & $0.173\pm0.038$ & $0.373\pm0.264$ & $0.373\pm0.062$ & $0.660\pm0.057$ & $0.640\pm0.028$ & $0.527\pm0.139$ & $\mathbf{0.867\pm0.047}$ \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+
+
+
+
+
+
+
+\end{document}

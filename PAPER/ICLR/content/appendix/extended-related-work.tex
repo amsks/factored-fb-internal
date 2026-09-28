@@ -1,0 +1,34 @@
+\section{Extended related Work}
+\label{app:related}
+
+\paragraph{Successor representations for zero-shot control.}
+Successor features separate discounted feature occupancies from reward weights, enabling transfer across tasks with shared dynamics~\citep{dayan-nc93a,barreto-neurips17}.
+Forward-Backward representations (FB) learn a low-rank factorization of SMs and a family of task-conditioned policies~\citep{touati-neurips21a,touati-iclr23b}, while Proto-Successor Measures learn a collection of SMs spanning different behaviors~\citep{agarwal-icml25a}.
+Subsequent work improves offline learning~\citep{jeen-neurips24a}, representation and policy parameterizations~\citep{cetin-rlj24a}, temporal abstraction~\citep{azad-arxiv26a}, or the successor quantity~\citep{dubail-neurips25a}.
+These methods improve convergence, stability, or expressiveness, but do not address the failure we study: a difference between actions that matter for control can receive little weight under an objective that fits the entire SM using least squares.
+\name{} changes how the SM is estimated and learns it as a distribution in order to mitigate this failure.
+
+\paragraph{Normalized and alternative models of future occupancy.}
+Several methods avoid direct regression of future occupancy.
+C-learning estimates discounted future-state occupancy through recursive classification~\citep{eysenbach-iclr21a}.
+Contrastive RL learns goal-conditioned values through contrastive estimation~\citep{eysenbach-neurips22a}.
+TD-InfoNCE represents future occupancy using normalized exponentiated scores trained with a categorical temporal-difference objective~\citep{zheng-iclr24a}, and is closest to our construction.
+However, our setting is reward-free pretraining of a family of policies and their corresponding SM approximations for rewards specified after training, which requires both a successor representation and a corresponding downstream value-extraction procedure.
+Other approaches instead change the predictive object by learning geometric or latent predictive representations~\citep{park-iclr24a,jajoo-iclr26a,bagatella-iclr26a} or by directly generating discounted future states~\citep{janner-neurips20a,farebrother-iclr25a,zheng-iclr26a}.
+
+\paragraph{Categorical prediction and downstream task inference.}
+Categorical objectives improve value learning by replacing scalar regression with prediction over a discrete support~\citep{bellemare-icml17a,farebrother-icml24a}.
+In \name{}, the categories are instead future states sampled from the offline distribution, so their probabilities define a normalized SM.
+This normalization breaks the standard FB identity that maps rewards directly to task vectors.
+Methods such as Soft FB~\citep{bagatella-arxiv26a} and optimistic task inference~\citep{rupf-iclr26a} modify how downstream tasks are selected from a pretrained FB representation.
+\name{} changes the successor representation, evaluates rewards under the learned future-state distribution, and infer the policy-conditioning vector separately.
+
+\paragraph{Control-relevant interactions and bottlenecks.}
+Work on RL for environemtns with interaction-rich structure~\citep{mohan-jair24a} highlights the importance of decisions through which an agent can influence its environment.
+HyPE, COInS, and SkiLD use object or factor interactions to discover reusable skills~\citep{chuck2020hypothesis,chuck2024granger,wang2024skild}.
+Causal influence detection and ELDEN use state-dependent influence and uncertainty about local dependencies to guide learning and exploration~\citep{seitzer2021causal,wang2023elden}.
+HInt uses inferred interactions to guide hindsight relabeling, addressing the dominance of trajectories in which objects remain unchanged~\citep{chuck2025null}.
+These approaches motivate attention to consequential interactions, such as establishing contact with an object before manipulating it.
+Our control-bottleneck analysis examines whether an SM approximation preserves the differences in long-term outcomes between actions at such decisions.
+Even when relevant transitions are present in the offline data, a low-rank least-squares fit can erase the occupancy distinction needed to rank the actions.
+\name{} addresses this approximation problem by learning normalized future-state distributions, without requiring explicit interaction detection or a skill hierarchy.

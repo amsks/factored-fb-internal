@@ -1,0 +1,60 @@
+\section{A failure mode at control bottlenecks}
+\label{sec:failure}
+
+%  When changing the action changes the future, does the learned successor representation capture the correct change?
+
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=\textwidth]{ICLR/figures/didactic/fig_lemma_mdp.pdf}
+    \caption{
+    \textbf{A bottleneck MDP and the two successor densities the lemma compares.}
+    (Left) States $0$--$3$ and $5$--$8$ form two groups joined only through the cut state $4$ (orange); once the process enters the second group it cannot return.
+    Solid arrows are the first action of each state, dashed arrows the second, and the continuation policy takes each with probability one half.
+    The goal is state $8$.
+    State $7$ is the \emph{control bottleneck}: action $a_+$ enters the goal on the next step, action $a_-$ returns into the group.
+    (Right) The successor densities $m_+=m(s_7,a_+,\cdot)$ and $m_-=m(s_7,a_-,\cdot)$ relative to the uniform reference $\rho=1/9$ (discount $0.8$), and their difference $\Delta m$.
+    Every downstream reward reads the action gap through $\langle\Delta m,r\rangle_\rho$; for the goal reward it is $1.40$.
+    }
+    \label{fig:didactic-mdp}
+\end{figure}
+
+Prior work has observed that methods that approximate SMs struggle on robotic manipulation tasks that require precise interactions~\citep{cetin-rlj24a,shen-arxiv26a,mohan-rlbrew26a}.
+In particular, \citet{shen-arxiv26a} argue that interactions can change the active dynamics of an object and, consequently, its future reachability.
+Building on this observation, we call states where the choice of action substantially changes the distribution of future states \emph{control bottlenecks}.
+
+At such states, an SM approximation must capture how those futures change when the action changes.
+Under a fixed continuation policy $\pi$, each action produces a distribution over future states, and for any downstream reward $r$, the preference between two actions $a_+, a_-$ at a state $s$ depends on the pairwise action-value difference:
+\begin{equation}
+    Q^\pi_r(s,a_+)-Q^\pi_r(s,a_-) =\int r(s^+)\, \big[M^\pi(s,a_+,ds^+)-M^\pi(s,a_-,ds^+)\big].
+    \label{eq:gap-identity}
+\end{equation}
+
+FB approximates successor densities as linear combinations of shared backward features.
+To isolate the effect of this representation, we consider least-squares fits of exact successor densities with the features held fixed.
+Let $m_+,m_-$ denote the densities of $M^\pi(s,a_+,\cdot)$ and $M^\pi(s,a_-,\cdot)$ relative to the reference distribution $\rho$.
+Write $\Delta m=m_+-m_-$ and $\langle f,g\rangle_\rho=\mathbb E_{x\sim\rho}[f(x)g(x)]$.
+
+\begin{lemma}[What linear successor approximation retains]
+    \label{lem:linear-action-difference}
+    Fix square-integrable backward features $B:\mathcal S\to\mathbb R^d$.
+    Let $\Pi_B$ denote least-squares projection onto functions of the form $c^\top B(s^+)$, where $c\in\mathbb R^d$.
+    Suppose $m_+,m_-\in L^2(\rho)$, and let $\widehat m_+,\widehat m_-$ be their least-squares fits using these features.
+    Then the fitted difference is the projection of the true one,
+    \begin{equation}
+        \widehat m_+(s^+)-\widehat m_-(s^+) =(\Pi_B\Delta m)(s^+).
+        \label{eq:projected-action-difference}
+    \end{equation}
+    For any bounded state reward $r$, let $G_r$ denote the true action-value difference in \eqref{eq:gap-identity} and let
+    $\widehat G_r =\langle\widehat m_+-\widehat m_-,r\rangle_\rho$ denote the fitted action-value difference, so that $G_r=\langle\Delta m,r\rangle_\rho$.
+    Then
+    \begin{equation}
+        G_r-\widehat G_r =\langle\Delta m-\Pi_B\Delta m,\,r\rangle_\rho.
+        \label{eq:discarded-gap}
+    \end{equation}
+\end{lemma}
+
+The lemma says nothing about how the features are chosen; that is the role of the training objective.
+FB selects $B$ by minimizing the squared reconstruction error of every state-action row at once, and a decision that lives in a few rows contributes to that objective in proportion to its weight while the gap it carries does not change with that weight.
+\Cref{app:bottleneck-proof} makes this precise: as the weight of the bottleneck rows goes to zero, the selected span converges to the one the remaining rows would choose on their own, and the retained gap to the projection of $\Delta m$ onto that span, which can be zero.
+\Cref{sec:exp-didactic} measures both statements.

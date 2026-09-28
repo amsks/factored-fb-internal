@@ -1,0 +1,131 @@
+\section{Bottleneck experiment details}
+\label{app:bottleneck-family}
+
+\paragraph{Process and policies.}
+\label{app:bottleneck-family-gen}
+All experiments use the eleven-state transition graph in \cref{fig:didactic-mdp}, with two deterministic actions per state, $\gamma=0.8$, and a uniform reference distribution
+$\rho(s^+)=1/11$.
+Reward is $1$ on states $3,4$ in cluster A and $0$ elsewhere. 
+The main example, P11, uses a continuation policy that chooses each action with probability $1/2$.
+For five additional settings, R1--R5, we keep the transitions fixed and independently draw the probability of the first action at each state from $\mathcal U(0.25,0.75)$.
+The sampling procedure retains a draw only if the true action-value difference is at least $0.5$ and the best rank-$2$ linear fit retains less than half of it.
+All five initial draws passed these conditions. 
+\Cref{fig:family-graphs} shows the six policy settings.
+
+\begin{figure}[t]
+    \centering
+    \begin{subfigure}{0.32\textwidth}
+        \includegraphics[width=\linewidth]{ICLR/figures/single_bottleneck/fig_sb_graph_P11.pdf}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.32\textwidth}
+        \includegraphics[width=\linewidth]{ICLR/figures/single_bottleneck/fig_sb_graph_R1.pdf}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.32\textwidth}
+        \includegraphics[width=\linewidth]{ICLR/figures/single_bottleneck/fig_sb_graph_R2.pdf}
+    \end{subfigure}
+    \par\medskip
+    \begin{subfigure}{0.32\textwidth}
+        \includegraphics[width=\linewidth]{ICLR/figures/single_bottleneck/fig_sb_graph_R3.pdf}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.32\textwidth}
+        \includegraphics[width=\linewidth]{ICLR/figures/single_bottleneck/fig_sb_graph_R4.pdf}
+    \end{subfigure}\hfill
+    \begin{subfigure}{0.32\textwidth}
+        \includegraphics[width=\linewidth]{ICLR/figures/single_bottleneck/fig_sb_graph_R5.pdf}
+    \end{subfigure}
+    \caption{
+    \textbf{One transition graph, six continuation policies.}
+    P11 chooses each action with equal probability; R1--R5 use
+    sampled probabilities. Numbers next to states give the probability
+    of the first action (solid arrows); dashed arrows show the second.
+    The bottleneck is orange, cluster A is green, and cluster B is blue.
+    Reward is $1$ in cluster A and $0$ elsewhere.
+    }
+    \label{fig:family-graphs}
+\end{figure}
+
+\paragraph{Training and the fixed-feature check.}
+We use exact population expectations and bootstrapped target networks, with ten training runs per setting and feature dimensions $d=2,\ldots,11$.
+For the check of \cref{lem:bottleneck-loss}, we freeze the trained backward features and refit the two bottleneck forward vectors to the exact successor densities by $\rho$-weighted least squares.
+We evaluate the fitted action-value difference using \eqref{eq:sm-value}.
+
+\paragraph{Objectives of the ablation arms.}
+Let $M$ be the exact successor matrix (one row per state-action pair, mass $1/(1-\gamma)$), $\bar M=(1-\gamma)M$ its normalized rows, $\rho=1/n$, and $X=nM$ the density ratios FB fits.
+All rows carry equal weight in every objective.
+FB fits $F_iB^\top$ to $X_i$ by squared error; its population optimum is the rank-$d$ truncated singular value decomposition of $X$, and the value is read as $F_i^\top z$ with $z=\rho\,B^\top r$.
+\emph{FB, normalized target} fits $F_iB^\top$ to $\bar M_i$ with the same squared error and readout rescaled by $n/(1-\gamma)$, so its optimum coincides with FB's.
+\emph{Softmax + squared error} predicts $p_i=\operatorname{softmax}(F_iB^\top)$ and minimizes $\tfrac12\sum_j(p_{ij}-\bar M_{ij})^2$; \name{} minimizes the cross-entropy $-\sum_j\bar M_{ij}\log p_{ij}$; both read the value as $\sum_j p_{ij}r_j/(1-\gamma)$.
+\emph{\name{}, linear readout} keeps \name{}'s trained $F$ and $B$ but reads $F_i^\top z$ as FB does.
+\emph{\name{}, soft immediate target} replaces the one-hot immediate term by a kernel over graph distance, $\exp(-\mathrm{dist}^2/(2\cdot0.5^2))$ row-normalized, so its fixed point is $\bar M$ smoothed by that kernel.
+TD-trained arms use the bootstrapped targets of these objectives, $(1-\gamma)P_i+\gamma\,P_i\,\bar p^{\,\pi}_{\mathrm{target}}$ for the softmax arms and the corresponding squared TD error for the linear arms (with FB's orthogonality penalty at coefficient $1$), a target network with rate $0.005$, Adam, $5\times10^4$ steps, five seeds and two learning rates ($10^{-3}$, $10^{-2}$), reported as the mean over the ten runs.
+The policy draws also change how long the two futures stay apart before they merge: on the three settings whose policies keep the process longer inside the clusters (R1, R3, R4), the difference between the futures carries $40$--$68\%$ of its squared mass inside the top three singular directions of $X$, against none on the other three, which is why FB recovers part of the difference at rank $3$ on those settings only.
+
+\paragraph{Results across policies.}
+\label{app:bottleneck-family-result}
+\Cref{tab:family-rank} summarizes the feature dimension needed to reach $90\%$ of the true action-value difference in each setting.
+Both softmax variants reach this threshold with two or three features, while FB requires five to ten.
+
+\begin{table}[htb]
+    \centering
+    \small
+    \setlength{\tabcolsep}{5pt}
+    \caption{
+    \textbf{Features needed to retain the action-value difference.}
+    Smallest tested feature dimension for which the TD-trained
+    model reaches $\widehat G_r/G_r\geq0.9$.
+    P11 uses the uniform policy; R1--R5 use sampled policies.
+    A dash indicates that the threshold was not reached by $d=11$.
+    }
+    \label{tab:family-rank}
+    \begin{tabular}{lrrrrrr}
+        \toprule
+        Method & P11 & R1 & R2 & R3 & R4 & R5 \\
+        \midrule
+        FB                            & 5 & 9  & 5 & 5 & 10 & 10 \\
+        FB, normalized target         & 5 & 10 & 5 & 5 & 9  & 10 \\
+        Softmax + squared error       & 3 & 3  & 3 & 3 & 3  & 3  \\
+        \name{}                       & 3 & 2  & 3 & 2 & 3  & 3  \\
+        \name{}, soft immediate target & -- & -- & -- & -- & -- & -- \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+% Reproducibility details absent from the supplied source:
+% add the policy-generator seed or full sampled policy vectors, the
+% tabular optimizer/update settings, and the soft-target definition.
+% State how the ten runs are aggregated before applying the 0.9 threshold.
+
+
+\paragraph{Features learned by FB.}
+\Cref{fig:fb-features} shows the features of a trained FB critic with two features, where they can be drawn in the plane.
+FB gives the rewarded states $3,4$ exactly the same features as the unrewarded states $5,6$ (to numerical precision, in all ten runs).
+The average feature vector of the future after $a_+$ therefore equals that after $a_-$, which is the condition of \cref{lem:bottleneck-loss}, and FB predicts the same future and the same value ($0.62$) for both actions.
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=\textwidth]{ICLR/figures/single_bottleneck/fig_sb_fb_failure_visual.pdf}
+    \caption{
+    \textbf{FB's features cannot separate the two branches.}
+    (a) Backward features $B(s)$ of one trained FB critic with two features; half-green, half-pink markers are states $3,4$ of cluster A lying exactly on states $5,6$ of cluster B.
+    The star is the average feature vector of the true future after $a_+$ and after $a_-$, which coincide.
+    (b) Distribution over future states predicted from state $2$ for $a_+$ (solid) and $a_-$ (hatched), averaged over ten runs.
+    }
+    \label{fig:fb-features}
+\end{figure}
+
+\subsection{Ablation of \name{}'s components}
+\label{app:bottleneck-ablation}
+\Cref{fig:ablation-full} adds three variants to the comparison of \cref{fig:ablation}, on the same process and with the same training.
+Normalizing FB's target (\emph{FB, normalized target}) leaves its optimum unchanged and gives the same curve as FB.
+Applying a softmax to the bilinear scores and fitting it by squared error (\emph{softmax + squared error}) recovers the full difference from three features, like \name{}; the softmax parameterization, not the cross-entropy loss, is what keeps the difference with few features.
+Replacing the one-hot immediate target with a kernel over graph distance (\emph{\name{}, soft immediate target}) caps recovery at $83\%$, because its fixed point is a smoothed successor measure that spreads mass from cluster A onto neighbouring states.
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=0.8\textwidth]{ICLR/figures/single_bottleneck/fig_61_ablation.pdf}
+    \caption{
+    \textbf{Ablation of \name{}'s components on the process of \cref{fig:didactic-mdp}.}
+    Predicted value difference at state $2$ divided by the exact one, against the feature dimension; mean and $95\%$ interval over ten TD runs.
+    }
+    \label{fig:ablation-full}
+\end{figure}

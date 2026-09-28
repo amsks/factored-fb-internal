@@ -1,0 +1,250 @@
+\providecommand{\pmse}[1]{\,{\scriptsize$\pm$#1}}
+\section{Experiments}
+\label{sec:experiments}
+
+% - FB's manipulation failures are associated with systematic errors in predicted future-state occupancy that obscure the relative value of actions needed for task success.
+% - Control bottlenecks amplify FB's successor-estimation errors: these errors are larger around interactions where a restricted set of actions determines subsequent task progress.
+% - The normalized parameterization and categorical Bellman objective used by \name{} reduce task-relevant successor-estimation errors and improve action rankings, particularly around the interactions identified in Section~\ref{sec:exp-bottlenecks}.
+% - The improvements in successor estimation translate into higher task performance, with larger gains on tasks requiring the interactions for which prediction accuracy improves.
+% - The learned successor representation supports useful policy selection for reward functions withheld during pretraining, including objectives that require different preferences over future states.
+%%AZ.9.12: be more specific, what argument are you testing? Do you just mean the 3 components you modify? just say that.
+%%AZ.9.12: looks like we're actually missing this ablation in the experiments. I think it's important to have something that tests each of the 3 modifications to FB (I guess you might only be able to show this as two modifications, since the 3rd is meant to address the first)
+% First, we isolate the proposed failure in the controlled bottleneck MDP, where the exact successor measure and action gap are known (\cref{sec:exp-didactic}). %%AZ.9.12: what proposed failure
+% \Cref{sec:reward-transfer} tests whether the same frozen representation remains useful when the downstream reward is specified only after pretraining.
+% \Cref{sec:exp-failure} examines the OGBench policies more closely to determine where FB fails and whether its successor predictions and action rankings explain those failures.
+
+
+%%AZ.9.12: please include a baselines section that explains these baselines and why they were chosen.
+
+Our experiments test whether FB's squared successor approximation can discard rare but control-critical action distinctions, and whether the \name{} preserves those discintions through normalization and the subsequent policy extraction process introduce in \cref{sec:method}.
+In \cref{sec:exp-didactic}, we vary the the rarity of the bottleneck and the representation capacity for FB and \name{} for a set of didactic bottleneck MDPs with known action gaps and a closed form SM solutions to test whether FB loses the correct action-order, and which of \name{}'s design decisions help it preserve this ordering.
+We then examine trained FB and \name{} policies in \cref{sec:exp-failure} to isolate the failure of FB in pick-and-place problems, testing whether errors in the learned critic's predictions coincide with these failures.
+Finally, we evaluate whether these improvements demonstrated by \name{} translate to downstream manipulation performance across OGBench~\citep{park-iclr25a}, and offline datasets collected in MetaWorld~\citep{mclean2025metaworld}, and ManiSkill~\citep{taomaniskill3} (\cref{sec:exp-manipulation}).
+
+\paragraph{Experimental protocol.}
+All methods use states, are trained for $10^6$ gradient steps on the same fixed offline dataset.
+We report results over $5$ independent training seeds.
+For offline policy learning, we use the actor from \citet{bagatella-iclr26a}, based on Flow Q-Learning~\citep{park-icml25a}.
+Success rates are averaged over the final three evaluations, with $10$ episodes per task.
+Full implementation details are given in \cref{app:implementation}.
+
+\paragraph{Baselines.}
+We compare against two groups of methods.
+\begin{inparaenum}
+    \item we consider methods that learn reusable representations from the offline dataset: \textbf{FB}~\citep{touati-neurips21a,touati-iclr23a}, our primary baseline, together with \textbf{HILP}~\citep{park-iclr24a} and \textbf{RLDP}~\citep{jajoo-iclr26a}. These comparisons test whether the manipulation failure is specific to FB's successor approximation or is shared by alternative geometric and predictive representations. They are all trained using a task-independent representation through their backward embedding, and during inference, we specify the downstream goal reward on $10^4$ offline transitions and use these reward-labeled transitions only to infer the corresponding task vector and extract a policy. 
+    \item We compare against goal-conditioned offline RL methods: \textbf{GCIQL}, \textbf{CRL}, and \textbf{QRL}. These methods train directly for goal reaching using hindsight goals sampled from the offline data, and help us exmaine how well the zero-shot policies compare with methods trained explicitly for goal-reaching control. 
+\end{inparaenum}
+
+
+\subsection{Identifying the bottleneck pathology}
+\label{sec:exp-didactic}
+%%AZ.9.12: this is the env where you should also conduct the ablations on Density-FB.
+At a control bottleneck, it is important for the critic to distinguish values between the competing actions.
+We test the predictions from \cref{sec:failure} on five randomly generated bottleneck processes (\cref{app:bottleneck-family} shows the graphs).
+First, at a fixed rank, FB should lose the action gap as the bottleneck becomes rarer in the training objective.
+Second, increasing the representation rank should eventually recover the missing distinction, and \name{} should require less rank to do so.
+
+\begin{figure*}[t]
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{ICLR/figures/rare_bottleneck/fig_rare_bottleneck_lemma.pdf}
+        \label{fig:rare-lemma}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{ICLR/figures/bottleneck_family/fig_family_values.pdf}
+        \label{fig:family-values}
+    \end{subfigure}
+    \captionsetup{skip=2pt}
+    \caption{
+    \textbf{Control bottlenecks are lost when they are rare and capacity is limited.}
+    (Left) At fixed rank, reducing the bottleneck's weight causes FB to lose the decision even though its true action gap is unchanged.
+    (Right) Increasing rank eventually lets FB recover the decision, while \name{} requires substantially less capacity.
+    }
+    \label{fig:bottleneck-main}
+\end{figure*}
+
+\paragraph{Does FB lose a decision when the bottleneck becomes rare?}
+\Cref{lem:rare-bottleneck} predicts that the consequence of choosing the wrong action at the bottleneck can stay exactly the same even as that decision contributes less and less to FB's global squared objective.
+We first reduce the weight of the bottleneck in the objectives of FB and \name{}.
+FB preserves almost the full gap when the bottleneck has enough weight, but it quickly disappears once the bottleneck becomes rare.
+At the same rank, the normalized model preserves essentially the full gap at the population optimum throughout these experiments.
+Therefore linear squared approximation chooses not to spend its limited capacity on bottlenecks.
+
+\paragraph{How much capacity is needed to keep the decision?}
+We therefore vary the representation rank and repeat the experiment across the five generated bottleneck processes (\cref{fig:family-values}).
+Giving FB more rank eventually fixes the problem.
+Therefore, the exact SM contains the information needed to choose the right action.
+The failure comes from which parts of that SM are kept when capacity is limited.
+
+\paragraph{Which change in \name{} preserves the decision?}
+We next ablate the three design decisions of \name{} on the bottleneck processes (\Cref{fig:ablation}).
+Merely normalizing FB's target only rescales the same squared regression problem.
+Only once the bilinear score is placed inside a softmax, the gap starts being preserved for both squared loss and cross-entropy.
+Thus, the main gain comes from representing the SM as a normalized distribution.
+We use the categorical objective because it gives the Bellman update derived in \cref{sec:method}, while providing more stable results.
+
+\begin{figure}[htb]
+    \centering
+    \begin{minipage}[c]{0.62\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{ICLR/figures/bottleneck_family/fig_family_ablation_trained.pdf}
+    \end{minipage}\hfill
+    \begin{minipage}[c]{0.34\textwidth}
+        \captionsetup{justification=raggedright,singlelinecheck=false}
+        \caption{\textbf{Normalized parameterization captures bottleneck actions.} 
+        Since the didactic MDPs have a rank of 9, at the maximum possible rank, all representations can capture the action gap. 
+        However, as we decrease this rank, the squared objective(FB) quickly degrades, adn >
+        }
+        \label{fig:ablation}
+    \end{minipage}
+\end{figure}
+
+\subsection{Isolating the Failure of FB}
+\label{sec:exp-failure}
+
+We next analyze whether the predictions of \cref{lem:rare-bottleneck} hold beyond the didactic MDPs by investigating where FB fails in the task of picking and placing the cube at a desired position. 
+Following \citet{mohan-rlbrew26a}, we categorize each rollout episode by its first failed interaction phase: approach, acquisition, maintain, transport, or success.
+In \cref{fig:failure-where}, the left panel shows that FB's failures occur predominantly after acquisition, during maintain and transport and \name{} mitigates the failures that occur once the cube securely held.
+We then test whether this reflects critic error by restoring the simulator states from the approach, in-hand, and carrying stages and compare each critic's predicted future cube-position distribution with rollouts of its own policy. 
+We additionally compare its ranking of candidate actions against their Monte-Carlo values.
+The right panels of \Cref{fig:failure-why} show that FB's predicted futures remain close to the dataset distribution rather than those induced by its current policy, and its action rankings are also near chance, including at carrying states where action choice determines whether the object remains secured.
+
+\begin{figure}[htb]
+    \centering
+    \begin{minipage}[b]{0.46\linewidth}
+        \centering
+        % Trim order: left bottom right top
+        \includegraphics[width=\linewidth,trim=0cm 0cm 0cm 0cm,clip]{ICLR/figures/failure/fig_failure_where.pdf}
+        \phantomsubcaption\label{fig:failure-where}
+    \end{minipage}\hfill
+    \begin{minipage}[b]{0.53\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{ICLR/figures/failure/fig_failure_why.pdf}
+        \phantomsubcaption\label{fig:failure-why}
+    \end{minipage}
+    \vspace{-3em}
+    \caption{
+    \textbf{Diagnosing FB's manipulation failure.}
+    (a) The stacked bands represent failures in 
+    \textcolor[HTML]{CC78BC}{approach}, \textcolor[HTML]{DE8F05}{acquisition},
+    \textcolor[HTML]{0173B2}{maintain}, \textcolor[HTML]{D55E00}{transport}, and
+    \textcolor[HTML]{029E73}{success}.
+    (b) Total-variation distance between predicted and policy-induced future cube-position distributions (top), and the fraction of states at which the critic ranks the truly best action above the truly worst one, agreeing with their Monte-Carlo returns (bottom). The dashed line represents $0.5$, when the predicted action-gap loses the sign of the true gap (\cref{lem:rare-bottleneck}).
+    }
+    \label{fig:failure}
+\end{figure}
+
+
+\subsection{Manipulation control across benchmarks}
+\label{sec:exp-manipulation}
+
+\begin{table}[htb]
+    \centering
+    \caption{\textbf{Manipulation performance across benchmarks} (success rate, \%). All comparisons use the same offline datasets, architectures, actors, training budgets, and evaluation procedures.
+    Results are mean $\pm$ standard deviation over five seeds.
+    % \aditya{Add non manipulation (Box2D/ExoRL)}
+    }
+    \label{tab:manipulation}
+    % Tighten + scale to fit \textwidth
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.05}
+    \scriptsize
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lrrrrrrr}
+    \toprule
+    Task                 & FB   & HILP & RLDP & GCIQL & CRL & QRL & \name{}       \\
+    \midrule
+    \multicolumn{8}{l}{\textit{OGBench}}                    \\
+    \texttt{cube-single} & 45.6\pmse{5.9} & 71.1\pmse{5.7} & 27.6\pmse{3.7} & 68.0\pmse{6.0} & 19.0\pmse{2.0} &  5.0\pmse{1.0} & \textbf{81.3}\pmse{3.8} \\
+    \texttt{cube-double} &  2.2\pmse{2.7} & 11.1\pmse{3.3} &  2.7\pmse{1.3} & \textbf{40.0}\pmse{5.0} & 10.0\pmse{2.0} &  1.0\pmse{0.0} & 30.4\pmse{2.6} \\
+    \texttt{scene}       & 10.2\pmse{4.1} & 39.3\pmse{5.7} & 10.2\pmse{3.2} & 51.0\pmse{4.0} & 19.0\pmse{2.0} &  5.0\pmse{1.0} & \textbf{52.7}\pmse{3.3} \\
+    \midrule
+    \multicolumn{8}{l}{\textit{MetaWorld}}                  \\
+    \texttt{push}        & 30.0\pmse{8.6} & 34.7\pmse{4.1} & 60.0\pmse{13.0} &  4.0\pmse{3.3} & 18.4\pmse{5.9} & 80.8\pmse{2.4} & \textbf{80.7}\pmse{6.6} \\
+    \texttt{bin-picking} & 13.3\pmse{18.9} & 10.0\pmse{12.8} &  0.0\pmse{0.0} &  0.0\pmse{0.0} &  0.0\pmse{0.0} & \textbf{98.0}\pmse{2.2} & 88.0\pmse{6.5} \\
+    \texttt{box-close}   & 66.7\pmse{14.3} & 42.0\pmse{8.2} & 47.3\pmse{12.7} & 26.0\pmse{21.8} & 32.4\pmse{17.5} & \textbf{84.4}\pmse{4.1} & 72.0\pmse{17.3} \\
+    \midrule
+    \multicolumn{8}{l}{\textit{ManiSkill}}                  \\
+    \texttt{push-cube}   & 58.7\pmse{16.0} & 50.7\pmse{12.7} & 22.0\pmse{1.6} & 68.4\pmse{4.3} & 29.6\pmse{15.5} & 96.4\pmse{0.8} & \textbf{97.3}\pmse{3.8} \\
+    \texttt{pick-cube}   &  4.0\pmse{1.6} &  6.0\pmse{1.6} & 46.0\pmse{7.5} &  2.8\pmse{1.0} &  4.4\pmse{1.5} &  7.2\pmse{3.0} & \textbf{49.3}\pmse{3.4} \\
+    \texttt{stack-cube}  & 64.0\pmse{5.7} & 66.0\pmse{4.3} & 32.7\pmse{3.8} & 28.0\pmse{7.7} &  2.4\pmse{2.3} & 67.6\pmse{3.4} & \textbf{71.3}\pmse{2.5} \\
+    \texttt{poke-cube}   & 88.0\pmse{3.3} & 42.0\pmse{4.9} & 64.7\pmse{6.8} & 73.6\pmse{3.9} & 10.8\pmse{2.7} & 92.0\pmse{5.1} & \textbf{92.7}\pmse{6.2} \\
+    \texttt{lift-peg}    & 34.0\pmse{7.5} & 37.3\pmse{26.4} & 66.0\pmse{5.7} &  9.6\pmse{5.9} & 20.0\pmse{11.9} & 66.0\pmse{7.5} & \textbf{86.7}\pmse{4.7} \\
+    \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\begin{table}[htb]
+    \centering
+    \caption{\textbf{Locomotion on ExoRL} (episode return, RND datasets, state observations).
+    Tasks are dense rewards, so goal-conditioned baselines do not apply.
+    \name{} is mean $\pm$ standard deviation over five seeds; FB, HILP and RLDP are as reported.}
+    \label{tab:exorl}
+    \setlength{\tabcolsep}{5pt}
+    \scriptsize
+    \begin{tabular}{lrrrr}
+    \toprule
+    Domain                & FB   & HILP & RLDP & \name{} \\
+    \midrule
+    \texttt{walker}       & \textbf{811.5}\pmse{5.9} & 796.4\pmse{7.7} & 723.9\pmse{18.3} & 724.6\pmse{41.2} \\
+    \texttt{quadruped}    & 595.6\pmse{9.1} & \textbf{694.8}\pmse{11.0} & 665.0\pmse{13.9} & 655.9\pmse{15.9} \\
+    \texttt{point-mass}   & 513.0\pmse{20.0} & 371.0\pmse{37.1} & 476.3\pmse{39.4} & \textbf{751.5}\pmse{74.1} \\
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+If the bottleneck pathology identified in \cref{lem:rare-bottleneck} is relevant to manipulation, then \name{}'s representation should produce improvements in performance on tasks requiring precise object interactions.
+We test this across 11 tasks from OGBench, MetaWorld, and ManiSkill (\cref{tab:manipulation}); dataset details are provided in \cref{app:data-mw-ms}.
+Across all three benchmarks, \name{} consistently improves over FB, with average gains of $36.9$, $43.6$, and $29.7$ percentage points on OGBench, MetaWorld, and ManiSkill, respectively, and outperforms both HILP and RLDP on every task.
+On OGBench, where goal-conditioned baselines are also available, \name{} exceeds GCIQL on \texttt{cube-single} and \texttt{scene}, while GCIQL performs better on \texttt{cube-double}.
+\cref{tab:exorl} reports ExoRL locomotion, which has no object variable and lies outside the regime \cref{lem:rare-bottleneck} describes. \name{} is the best method on \texttt{point-mass}, where reaching a region of state space is the task, and is above FB on \texttt{quadruped}, while it matches RLDP and trails FB and HILP on \texttt{walker}: the density objective helps where reaching a state is the bottleneck and is not expected to help on dense velocity rewards.
+This comparison is particularly stringent because GCIQL, CRL, and QRL are trained explicitly for goal reaching, whereas \name{} learns a task-independent successor representation and receives the downstream reward only through $10^4$ reward-labeled offline transitions used for post-hoc task inference.
+
+
+% \subsection{Transfer to rewards specified after pretraining}
+% \label{sec:reward-transfer}
+
+
+% The main benefit of a successor representation is that the same learned model can be reused when the downstream reward changes.
+% Our change to the successor-learning objective should therefore improve its approximation without sacrificing this property.
+
+% We test this by specifying rewards only after pretraining.
+% All representation and policy parameters remain frozen.
+% For each reward, we evaluate it on $10^4$ states from the offline dataset, infer the corresponding task index from these reward-labelled states, and execute the resulting policy without additional gradient updates or environment interaction.
+
+% The evaluation rewards are the OGBench task rewards, which measure completion of object conditions such as cube positions, button states, and drawer or window positions.
+% These rewards are not used during pretraining, which instead uses goal-reaching tasks sampled from future dataset states and random task indices.
+% Moreover, on \texttt{scene}, \texttt{cube-double}, and \texttt{puzzle-3x3}, the inferred evaluation-task indices are no closer to the pretraining goal indices than random task vectors.
+% This makes the reward-inference evaluation a test of whether the frozen representation can be reused for objectives that were not part of its pretraining tasks.
+
+% \cref{tab:reward-transfer} compares reward inference with direct goal conditioning on the same frozen checkpoints.
+% The latter removes reward-to-task inference from the evaluation and therefore helps separate limitations of task inference from limitations of the learned successor representation.
+% Reward inference reaches $81.3$, $30.4$, and $52.7$ on \texttt{cube-single}, \texttt{cube-double}, and \texttt{scene}, compared with $74.9$, $33.9$, and $59.7$ under direct goal conditioning.
+% The two routes therefore give comparable performance despite using different ways of specifying the downstream task.
+% The same frozen successor representation can thus be reused when the reward is introduced only after pretraining.
+
+% \begin{table}[t]
+%     \centering
+%     \caption{
+%     \textbf{Using \name{} for rewards specified after pretraining} (success rate, \%).
+%     Reward inference uses $10^4$ reward-labeled dataset states.
+%     Goal conditioning removes task inference and serves as a diagnostic upper comparison using the same frozen checkpoints.
+%     Mean $\pm$ standard deviation over five seeds.
+%     }
+%     \label{tab:reward-transfer}
+%     \begin{tabular}{lrr}
+%     \toprule
+%     Task & Reward inference & Goal conditioning \\
+%     \midrule
+%     \texttt{cube-single} & \textbf{81.3}\pmse{3.8} & 74.9\pmse{5.8} \\
+%     \texttt{cube-double} & 30.4\pmse{2.6} & \textbf{33.9}\pmse{7.6} \\
+%     \texttt{scene} & 52.7\pmse{3.3} & \textbf{59.7}\pmse{7.4} \\
+%     \texttt{puzzle-3x3} & 4.7\pmse{0.9} & \textbf{7.2}\pmse{1.3} \\
+%     \bottomrule
+%     \end{tabular}
+%     \end{table}
+    
+
