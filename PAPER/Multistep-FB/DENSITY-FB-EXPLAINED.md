@@ -1233,6 +1233,68 @@ name outcome imbalance plus the unconstrained scale direction as *candidate*
 factors — no unique causal channel. The missing control is plain FB given the
 same φ(s′), now a standing open item.
 
+## 7.1 The cube bottleneck probe (2026-09-04) — the bottleneck story is refuted, not merely unestablished
+
+Part 7 above says the mechanism is *not yet established*, on the strength of two null
+synthetics. Two analysis-only tests on the real cube checkpoints now go further: on
+cube-single the bottleneck account is **contradicted in the measured direction**, and the
+remaining candidate factor named above (unconstrained scale) is **ruled out**.
+
+Spec `docs/specs/2026-09-04-cube-bottleneck-mechanism-probe.md`; code
+`[seam] scripts/probes/cube_bottleneck/`; results
+`[seam] analysis/cube_bottleneck/cube-single-play-v0/RESULTS.md`. Deciding pair `fb_ref`
+vs `density_fb_state` — both towers read the full observation, so the only difference is the
+estimator. 500k, 3 seeds, 50 episodes per cell. Gates: G1 reproduces `table_privcoord`
+within 0.024 on all 10 arms; G2 kept 64/64 bank rows; G4 passed 44/64.
+
+**Test 1 — removing the bottleneck does not rescue FB (R-HELD2, 3/3 seeds).** Starting the
+episode from a *recorded, in-distribution* held state (qpos/qvel restore, not the old S2
+clamp) moves plain FB by Δ = +0.020 / +0.100 / +0.032, from 0.21 to 0.26, while Density-FB
+sits at 0.99. FB's failures from that start are failures of retention: **49–56% end with the
+cube back on the table**, and FB holds it for 70–75% of the first 50 steps against
+Density-FB's 81–86%. Density-FB itself *gains* from the held start (0.90 → 0.99), so the
+floor clause does not fire.
+
+**Test 2 — at the bottleneck, plain FB is the BETTER discriminator.** Within-state AUC of
+successor mass on held futures against a rollout ground truth (`p_secure`, 8 continuations
+× 25 steps per action, 12 actions per state, goal-marginal):
+
+| arm | P2 `auc_heldmass` | P2 `auc_Q` | cube-single success |
+|---|---|---|---|
+| `fb_ref` (plain FB) | 0.55 / 0.78 / 0.75 | **0.95 / 0.95 / 0.91** | 0.21 |
+| `density_fb_state` | 0.44 / 0.55 / 0.64 | 0.55 / 0.50 / 0.50 | **0.90** |
+| `density_fb` (obj. coords) | 0.78 / 0.82 / 0.73 | 0.55 / 0.85 / 0.70 | 0.94 |
+| `fb` (`ortho_coef` 1.0) | **0.91** | 0.91 | **0.096** |
+
+None of R-MEAS1–3 fires, because all three presuppose FB is the weaker discriminator. The
+ordering is reversed, and the arm with the **best** bottleneck discrimination (`fb`, 0.91)
+is the **worst** controller (0.096). Bottleneck discrimination and control performance are
+anti-correlated across these four arms, so it cannot be the channel the win runs through.
+
+**R-MEAS4 negative — the unconstrained-scale route is dead.** Part 7 kept "the unconstrained
+scale direction" as a candidate factor. FB's mean predicted row mass is **87–105 against the
+true 1/(1−γ) = 100**, varying less than ±8% across pre-contact / at-contact / held (ratio
+0.94–0.98; the gate wanted > 3). FB's measure is well calibrated in total mass and
+phase-invariant in it. That candidate should be dropped from the paper's wording.
+
+**What survives.** The empirical contrast is untouched — Density-FB still wins by 4× at
+state input. What does not survive is the *location*: the difference is not at acquisition.
+Both the phase diagnostic and this probe put it after control is established, in retention
+and transport. A proposed rewrite of `introduction.tex:10-27` on that basis is in
+`[seam] analysis/cube_bottleneck/PROPOSED-INTRO-PARAGRAPH.md`, left unapplied.
+
+**Two implementation facts recorded here because they will bite the next probe.**
+(i) `[torch] scripts/value/counterfactual_value_probe.py:165` sets raw `ctrl = 0.0` to
+"establish the grasp"; that is the gripper's **open** extreme. It passes a purely geometric
+`held` test while contact collapses to 0.01 — a latent drop. 255 (action channel +1) closes.
+(ii) `obs[18]` is `||cfrc_ext||/50`, which depends on `data.ctrl` — state no dataset records
+— so a qpos/qvel restore reads contact 0.00 after `mj_forward`, 0.16 after
+`mj_rnePostConstraint`, and only reaches the recorded 0.963 after two settle steps with the
+gripper commanded closed. Any future restore-based probe must rebuild it or it will silently
+evaluate held states that read as untouched.
+
+---
+
 ---
 
 # Part 8 — Honest summary
