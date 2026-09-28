@@ -13,15 +13,18 @@ def _spearman(y: np.ndarray, x: np.ndarray) -> float:
     """Spearman rho (Pearson on average ranks) of y vs x; nan if either
     side is constant or fewer than 2 points. Outlier-robust and
     scale-free, unlike an OLS slope on the unnormalised value V."""
-    import pandas as pd
-
     y = np.asarray(y, np.float64)
     x = np.asarray(x, np.float64)
     if len(x) < 2 or np.ptp(x) < 1e-12 or np.ptp(y) < 1e-12:
         return float("nan")
-    rx = pd.Series(x).rank().to_numpy()
-    ry = pd.Series(y).rank().to_numpy()
-    return float(np.corrcoef(rx, ry)[0, 1])
+
+    def _avg_rank(a):  # average ranks for ties (matches pandas .rank() default)
+        uniq, inv, counts = np.unique(a, return_inverse=True, return_counts=True)
+        csum = np.cumsum(counts)
+        avg = (csum - counts + csum - 1) / 2.0 + 1.0  # 1-based average rank per group
+        return avg[inv]
+
+    return float(np.corrcoef(_avg_rank(x), _avg_rank(y))[0, 1])
 
 
 def transport_mask(ep: Dict[str, Any], thr) -> np.ndarray:

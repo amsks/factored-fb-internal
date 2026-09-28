@@ -126,15 +126,21 @@ def main():
         loss.backward(); opt.step()
     opt_all, opt_near = spear(z.detach())
 
-    # forward-featurizer ceiling (ridge linear of left_enc -> d) for reference
-    from evals.factorization_probe import fit_eval_readout
-    L = left.cpu().numpy()
-    le = fit_eval_readout(L[trn], d[tr][trn], L[tst], d[tr][tst], kind="linear", task="regression")
+    # forward-featurizer ceiling (ridge linear of left_enc -> d) for reference.
+    # Optional: needs pandas (via evals.factorization_probe); skip if unavailable.
+    le_score = None
+    try:
+        from evals.factorization_probe import fit_eval_readout
+        L = left.cpu().numpy()
+        le_score = fit_eval_readout(L[trn], d[tr][trn], L[tst], d[tr][tst], kind="linear", task="regression")["score"]
+    except Exception as _e:
+        print(f"  (ridge reference skipped: {type(_e).__name__}: {_e})")
 
     print(f"[privileged-z] task{args.task}  transport states n={N}")
     print(f"  Spearman(V, -d)   z=B(g) (actual):  all={base_all:+.3f}  near-goal={base_near:+.3f}")
     print(f"  Spearman(V, -d)   z* (best free z):  all={opt_all:+.3f}  near-goal={opt_near:+.3f}")
-    print(f"  reference: ridge left_enc->d  R^2={le['score']:.3f}  (forward featurizer geometry)")
+    if le_score is not None:
+        print(f"  reference: ridge left_enc->d  R^2={le_score:.3f}  (forward featurizer geometry)")
     verdict = ("goal-encoding (z=B(g)) is the bottleneck"
                if (opt_near - base_near) > 0.1 else
                "forward path F also can't resolve terminal (deeper than z)")
