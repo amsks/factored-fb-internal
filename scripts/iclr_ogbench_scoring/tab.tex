@@ -1,0 +1,45 @@
+\documentclass{article}\usepackage[margin=1in]{geometry}\usepackage{booktabs,graphicx,xcolor,amsmath}
+\newcommand{\pmse}[1]{{\scriptsize$\pm$#1}}\newcommand{\name}{Density-FB}\newcommand{\cref}[1]{}
+\begin{document}\begin{table}[htb]
+    \centering
+    \caption{\textbf{Performance across benchmarks.} Results are mean $\pm$ SE over five seeds. Benchmark rows average tasks, with propagated SEs. \textbf{Bold} marks the best mean and others within its SE. $\Delta$ reports \name{}'s relative improvement over the best baseline (\%), colored from red ($\le -25\%$) through gray to green ($\ge +25\%$); ``--'' denotes inapplicable goal-conditioned baselines. $^\dagger$Two seeds.}
+    \label{tab:benchmarks}
+    % Tighten + scale to fit \textwidth
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.05}
+    \scriptsize
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lrrrrrrrr}
+    \toprule
+    Task/Domain                             & FB                        & HILP              & RLDP                      & GCIQL                     & CRL               & QRL                       & \name{}                   & \shortstack[r]{$\Delta$ next best} \\
+    \midrule
+    \textit{OGBench (success rate, \%)}    & 18.7\pmse{1.3} & 38.3\pmse{2.0} & 14.0\pmse{0.7} & 53.0\pmse{1.0} & 16.0\pmse{0.4} & 3.7\pmse{0.2} & \textbf{78.8}\pmse{2.0} & \textcolor[RGB]{0,150,40}{($+$48.7\%)} \\
+    \midrule
+    \texttt{cube-single}                   & 45.1\pmse{2.9} & 64.4\pmse{4.8} & 27.5\pmse{1.2} & 68.0\pmse{2.1} & 19.0\pmse{0.7} & 5.0\pmse{0.4} & \textbf{93.1}\pmse{0.6} & \textcolor[RGB]{0,150,40}{($+$36.9\%)} \\
+    \texttt{cube-double}                   & 1.7\pmse{1.1} & 9.2\pmse{1.7} & 2.8\pmse{0.4} & 40.0\pmse{1.8} & 10.0\pmse{0.7} & 1.0\pmse{0.0} & \textbf{69.5}\pmse{1.2} & \textcolor[RGB]{0,150,40}{($+$73.8\%)} \\
+    \texttt{scene}                         & 9.3\pmse{2.2} & 41.3\pmse{3.1} & 11.6\pmse{1.7} & 51.0\pmse{1.4} & 19.0\pmse{0.7} & 5.0\pmse{0.4} & \textbf{73.7}\pmse{6.0}$^\dagger$ & \textcolor[RGB]{0,150,40}{($+$44.5\%)} \\
+    \midrule
+    \textit{MetaWorld (success rate, \%)}  & 52.5\pmse{5.9} & 33.1\pmse{3.5} & 39.7\pmse{5.3} & 10.0\pmse{3.3} & 16.9\pmse{2.7} & \textbf{87.7}\pmse{0.8} & 85.2\pmse{2.8} & \textcolor[RGB]{113,91,91}{($-$2.9\%)} \\
+    \midrule
+    \texttt{push}                          & 29.6\pmse{3.4} & 17.2\pmse{3.8} & 57.6\pmse{1.7} & 4.0\pmse{1.5} & 18.4\pmse{2.6} & 80.8\pmse{1.1} & \textbf{91.2}\pmse{1.9} & \textcolor[RGB]{49,126,69}{($+$12.9\%)} \\
+    \texttt{bin-picking}                   & 62.4\pmse{17.4} & 49.2\pmse{9.1} & 19.6\pmse{15.4} & 0.0\pmse{0.0} & 0.0\pmse{0.0} & \textbf{98.0}\pmse{1.0} & 92.4\pmse{2.4} & \textcolor[RGB]{125,82,82}{($-$5.7\%)} \\
+    \texttt{box-close}                     & 65.6\pmse{1.8} & 32.8\pmse{3.4} & 42.0\pmse{3.8} & 26.0\pmse{9.7} & 32.4\pmse{7.8} & \textbf{84.4}\pmse{1.8} & 72.0\pmse{7.7} & \textcolor[RGB]{165,53,53}{($-$14.7\%)} \\
+    \midrule
+    \textit{ManiSkill (success rate, \%)}  & 63.3\pmse{1.7} & 44.4\pmse{2.4} & 56.0\pmse{1.6} & 36.5\pmse{1.0} & 13.4\pmse{1.8} & 65.8\pmse{0.9} & \textbf{77.3}\pmse{1.0} & \textcolor[RGB]{30,135,58}{($+$17.5\%)} \\
+    \midrule
+    \texttt{push-cube}                     & 88.7\pmse{3.4} & 49.2\pmse{6.3} & 40.8\pmse{3.5} & 68.4\pmse{1.9} & 29.6\pmse{6.9} & \textbf{96.4}\pmse{0.4} & \textbf{97.2}\pmse{1.2} & \textcolor[RGB]{97,102,98}{($+$0.8\%)} \\
+    \texttt{pick-cube}                     & 4.4\pmse{0.4} & 6.4\pmse{1.3} & \textbf{39.6}\pmse{2.9} & 2.8\pmse{0.4} & 4.4\pmse{0.7} & 7.2\pmse{1.3} & \textbf{40.8}\pmse{3.2} & \textcolor[RGB]{88,106,93}{($+$3.0\%)} \\
+    \texttt{stack-cube}                    & \textbf{70.4}\pmse{3.0} & 56.8\pmse{5.7} & 57.2\pmse{3.7} & 28.0\pmse{3.4} & 2.4\pmse{1.0} & \textbf{67.6}\pmse{1.5} & \textbf{70.8}\pmse{3.3} & \textcolor[RGB]{98,101,99}{($+$0.6\%)} \\
+    \texttt{poke-cube}                     & 90.0\pmse{1.9} & 51.2\pmse{5.9} & 58.4\pmse{5.3} & 73.6\pmse{1.7} & 10.8\pmse{1.2} & \textbf{92.0}\pmse{2.3} & \textbf{92.8}\pmse{1.6} & \textcolor[RGB]{97,102,98}{($+$0.9\%)} \\
+    \texttt{lift-peg}                      & 63.2\pmse{6.8} & 58.4\pmse{6.0} & \textbf{84.0}\pmse{1.7} & 9.6\pmse{2.6} & 20.0\pmse{5.3} & 66.0\pmse{3.4} & \textbf{84.7}\pmse{1.1} & \textcolor[RGB]{97,102,98}{($+$0.8\%)} \\
+    \midrule
+    \textit{ExoRL (DMC returns)}           & 648.2\pmse{2.6} & 620.1\pmse{4.5} & 610.2\pmse{7.2} & -- & -- & -- & \textbf{700.5}\pmse{10.3} & \textcolor[RGB]{68,116,81}{($+$8.1\%)} \\
+    \midrule
+    \texttt{walker}                        & \textbf{811.5}\pmse{2.6} & 796.4\pmse{3.4} & 723.9\pmse{8.2} & -- & -- & -- & 750.2\pmse{13.3} & \textcolor[RGB]{133,76,76}{($-$7.6\%)} \\
+    \texttt{quadruped}                     & 595.6\pmse{4.1} & 694.8\pmse{4.9} & 665.0\pmse{6.2} & -- & -- & -- & \textbf{760.5}\pmse{9.1} & \textcolor[RGB]{62,119,77}{($+$9.5\%)} \\
+    \texttt{point-mass}                    & 513.0\pmse{8.9} & 371.0\pmse{16.6} & 476.3\pmse{17.6} & -- & -- & -- & \textbf{751.5}\pmse{33.1} & \textcolor[RGB]{0,150,40}{($+$46.5\%)} \\
+    \texttt{cheetah}                       & \textbf{672.7}\pmse{2.2} & 618.3\pmse{2.6} & 575.6\pmse{20.1} & -- & -- & -- & 539.9\pmse{18.8} & \textcolor[RGB]{187,37,37}{($-$19.7\%)} \\
+    \bottomrule
+    \end{tabular}%
+    }
+\end{table}\end{document}
