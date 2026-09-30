@@ -1,30 +1,17 @@
-"""The goal-conditioned eval route must reach every z-conditioned critic.
+"""The goal-conditioned evaluation route must reach every z-conditioned critic.
 
-`Agent.sample_actions` (impls/agents/__init__.py) merges the env's goal frame into cond and
-then calls `critic.map_eval_cond` ONLY IF the critic has one. A z-conditioned critic without
-the hook rolls its actor on `eval_cond0`'s zero z for the whole episode and the policy is
-goal-blind, silently. That is the 2026-09-08 HILP bug: hilp / hilp_density had no hook, so
-every goal-conditioned HILP cell (the privcoord table, the 'HILP 0.14' cube number) was a
-z = 0 rollout.
-
-The reference goal->z map is official HILP's `get_goal_meta`
-(~/git/baselines/HILP/hilp_zsrl/url_benchmark/agent/sf.py:514-532):
-
-    z = sqrt(d) * normalize(feature_net(g) - feature_net(s))
-
-with feature_net = phi1 - running_mean (sf.py:120-122) and s the CURRENT observation,
-recomputed every step (train_offline.py:325-327). td_jepa has no goal-conditioned HILP
-eval at all (only `reward_inference`, sf/model.py:144), so official HILP is the reference.
+`Agent.sample_actions` merges the env's goal into cond and calls `critic.map_eval_cond`.
+A z-conditioned critic without that hook would act on the zero z of `eval_cond0` and be
+goal-blind. HILP's map is z = sqrt(d) * normalize(phi(g) - phi(s)), with phi the centred
+feature and s the current observation, recomputed every step.
 """
 import inspect
 
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from env import make_config
 from impls.agents import Agent, CRITICS
-from impls.critics._measure_common import scaled_hit_cols
 
 OBS_DIM, ACT_DIM, B = 37, 5, 6
 
@@ -52,24 +39,18 @@ def _built(critic, overrides=()):
 
 
 def _reference_z(ag, goal, obs):
-    """Official HILP get_goal_meta, reconstructed WITHOUT the critic's helpers: the raw
-    flax phi1 tower on the critic's phi input view, centered by the stats slot."""
+    """The goal->z map rebuilt without the critic's helpers: the raw flax phi1 tower,
+    centred by the stats slot."""
     cr = ag.critic
     p = ag.net["hilp_phi1"].params
     mean = ag.net["hilp_stats"].params["mean"]
-    view = (lambda x: x) if cr.backward_input == "state" else \
-        (lambda x: scaled_hit_cols(x, cr.blocks))
-    phi = lambda x: cr.hilp_phi1.apply({"params": p}, view(x)) - mean
+    phi = lambda x: cr.hilp_phi1.apply({"params": p}, x) - mean
     diff = np.asarray(phi(goal) - phi(obs))
     return np.sqrt(diff.shape[-1]) * diff / np.linalg.norm(diff, axis=-1, keepdims=True)
 
 
-HILP_ARMS = ["hilp_oc", "hilp_density_oc", "hilp_tdjc", "hilp_density_tdjc"]
-
-
-@pytest.mark.parametrize("critic", HILP_ARMS)
-def test_hilp_goal_maps_to_the_reference_z(critic):
-    ag, obs, _, _ = _built(critic)
+def test_hilp_goal_maps_to_the_reference_z():
+    ag, obs, _, _ = _built("hilp_tdjc")
     cr = ag.critic
     # A stats mean that is NOT zero, so a hook that forgets the centering is caught
     # (it cancels in the difference only if applied to BOTH terms).
@@ -95,11 +76,10 @@ def test_hilp_goal_maps_to_the_reference_z(critic):
     assert cr.map_eval_cond(ag.net, cond0, observations=s) is cond0
 
 
-@pytest.mark.parametrize("critic", ["hilp_oc", "hilp_density_oc"])
-def test_hilp_actor_is_not_goal_blind_on_the_goal_route(critic):
+def test_hilp_actor_is_not_goal_blind_on_the_goal_route():
     """Through Agent.sample_actions -- the path the evaluator drives -- two different goals
-    must give two different actions. Before the hook both rolled on z = 0."""
-    ag, obs, _, _ = _built(critic)
+    must give two different actions."""
+    ag, obs, _, _ = _built("hilp_tdjc")
     s = obs[0]
     g1, g2 = obs[1].at[19:22].add(0.5), obs[2].at[19:22].add(-0.5)
     a1 = ag.sample_actions(s, goals=g1, seed=ag.rng)
@@ -108,24 +88,3 @@ def test_hilp_actor_is_not_goal_blind_on_the_goal_route(critic):
     np.testing.assert_allclose(a1, a1b)   # deterministic given (s, g, seed)
     assert not np.allclose(a1, a2), "same action for two goals: the actor never saw the goal"
 
-
-def test_hilp_density_hook_is_the_parents_not_a_second_application():
-    """hilp_density's whitened-goal hook lives in sample_cond (TRAINING, goal_kernel only);
-    at eval it must inherit the parent's map exactly once."""
-    from impls.critics.hilp import HILPCritic
-    from impls.critics.hilp_density import HILPDensityCritic
-    # hilp_density overrides the hook ONLY for its regression task index (2026-09-13,
-    # tests/impls/test_hilp_density_levers.py); under 'feature' -- every pre-existing arm --
-    # the override delegates to the parent's map, and the result is the parent's bit for bit.
-    assert "super().map_eval_cond" in inspect.getsource(HILPDensityCritic.map_eval_cond)
-    ag, obs, _, _ = _built("hilp_density_oc")
-    cr = ag.critic
-    assert cr.task_index == "feature"
-    cond = {"z": jnp.zeros((cr.z_dim,)), "goal": obs[0] + 1.0}
-    once = cr.map_eval_cond(ag.net, cond, observations=obs[1])
-    parent = HILPCritic.map_eval_cond(cr, ag.net, cond, observations=obs[1])
-    np.testing.assert_array_equal(np.asarray(once["z"]), np.asarray(parent["z"]))
-    twice = cr.map_eval_cond(ag.net, once, observations=obs[1])
-    np.testing.assert_allclose(np.asarray(once["z"]), np.asarray(twice["z"]))
-    np.testing.assert_allclose(np.asarray(once["z"]), _reference_z(ag, obs[0] + 1.0, obs[1]),
-                               rtol=1e-5, atol=1e-6)

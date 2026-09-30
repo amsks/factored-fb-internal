@@ -42,8 +42,8 @@ class _ActionDependentSpreadValue:
         return q, (q - q.mean())[None]
 
 
-def _loss(parameter, offsets, scale=1., q_coeff=1., value_model=None):
-    actor = _ScalarPolicy(None, None, 1, 3., 0., q_coeff=q_coeff)
+def _loss(parameter, offsets, scale=1., value_model=None):
+    actor = _ScalarPolicy(None, None, 1, 3.)
     batch = {"observations": jnp.zeros((2, 2)), "actions": jnp.zeros((2, 1))}
     boot = {key: jnp.zeros((2, 1)) for key in ("flow_x0", "flow_t", "actor_noise")}
     if value_model is None:
@@ -82,8 +82,3 @@ def test_positive_value_rescaling_still_cancels_above_the_floor():
     np.testing.assert_allclose(value, -11.07, atol=1e-12, rtol=0)
     np.testing.assert_allclose(gradient, -.4, atol=1e-12, rtol=0)
 
-
-def test_pure_behavior_cloning_remains_finite_with_zero_value_scale():
-    value, gradient = jax.value_and_grad(lambda p: _loss(p, [0., 0.], q_coeff=0.))(jnp.array(.1))
-    np.testing.assert_allclose(value, .03, atol=1e-12, rtol=0)
-    np.testing.assert_allclose(gradient, .6, atol=1e-12, rtol=0)

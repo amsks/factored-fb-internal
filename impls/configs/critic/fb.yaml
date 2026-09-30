@@ -1,19 +1,14 @@
-# FB (Forward-Backward) critic defaults at cube-single launch values.
-# Mirrors impls/main.py:get_config() (PR1's flat config) exactly.
+# Forward-Backward critic at the TD-JEPA reference settings (impls/critics/fb.py).
+# critic/fb_tdj.yaml and critic/fb_ref.yaml inherit it unchanged.
 batch_size: 256
 z_dim: 50
-L_dim: 50
-num_parallel: 2
+L_dim: 50                # width of the left encoder that F reads
+num_parallel: 2          # F heads; the TD target and Q average over them
 discount: 0.99
 f_target_tau: 0.005
 b_target_tau: 0.005
-ortho_coef: 1.0
-train_goal_ratio: 0.5
-fb_pessimism_penalty: 0.0
-# Touati parity knobs (impls/critics/fb.py field comments). Defaults keep every prior cell
-# bit-identical; the paper arm passes q_loss_coef=1/z_dim and both pessimism knobs 0.5.
-q_loss_coef: 0.0
-actor_pessimism_penalty: 0.0
+ortho_coef: 1000.0       # weight of the orthonormality term on Cov(B)
+train_goal_ratio: 0.5    # fraction of training z that are B(s') rather than random
 norm_z: true
 lr_f: 1.0e-4
 lr_b: 1.0e-4
@@ -30,4 +25,3 @@ left_encoder:
   hidden_dim: 512
   hidden_layers: 4
   norm: true
-  identity: false   # true = no encoder, F reads raw obs (Touati parity)

@@ -16,12 +16,11 @@ eval_relabel.csv as if it were a zero-shot number (hub rows carried inferred_con
 Pinned here:
   1. A no-op inference is REFUSED as a score: the row is written with success=NaN,
      route_b_valid=0 and an `invalid_reason` naming the critic; a loud warning fires; no
-     rollout is scored; and the agg jsonl (the campaign daemon's input) gets nothing.
+     rollout is scored.
   2. A live inference (fb, whose z genuinely changes) passes through unchanged: success is
      whatever evaluate() returned, route_b_valid=1, invalid_reason empty.
 """
 import csv
-import glob
 import math
 import os
 import types
@@ -126,9 +125,8 @@ def _run_main(tmp_path, monkeypatch, cfg, adapter, critic, actor="flowbc", steps
     m.FLAGS(["test"], known_only=True)
     defaults = dict(critic=critic, actor=actor, domain="tiny", override=[], seed=0,
                     train_steps=steps, log_interval=10 ** 9, eval_interval=10 ** 9,
-                    save_interval=10 ** 9, eval_episodes=1, num_video=0,
-                    save_dir=str(tmp_path), restore_path="", warm_start_path="",
-                    agg_dir=str(tmp_path / "agg"), infer_cond_episodes=0, online=False,
+                    save_interval=10 ** 9, eval_episodes=1, auto_resume=False,
+                    save_dir=str(tmp_path), infer_cond_episodes=0,
                     eval_on_inferred_cond=False)
     for k, v in {**defaults, **over}.items():
         monkeypatch.setattr(m.FLAGS, k, v)
@@ -167,9 +165,6 @@ def test_route_b_refuses_to_score_a_noop_inference(tmp_path, monkeypatch):
     # (any_step_success=False) reached the evaluator.
     assert all(not c["any_step_success"] for c in adapter.evaluate_calls), \
         "Route B still rolled the policy on a no-op conditioning"
-    # ... and nothing reached the campaign aggregator for the relabel group.
-    assert glob.glob(os.path.join(tmp_path, "agg", "*_relabel__s0.jsonl")) == [], \
-        "a refused Route B row was still appended to the agg jsonl (counted as scored)"
 
 
 # ======================================================================================
@@ -187,9 +182,6 @@ def test_route_b_passes_a_live_inference_through_unchanged(tmp_path, monkeypatch
         assert float(r["success"]) == SUCCESS_FROM_EVALUATE
         assert float(r["inferred_cond_norm"]) > 0.0
     assert {c["task"] for c in adapter.evaluate_calls if c["any_step_success"]} == {1, 2}
-    agg = glob.glob(os.path.join(tmp_path, "agg", "*_relabel__s0.jsonl"))
-    assert len(agg) == 1, "a live Route B row must still be aggregated"
-    assert len(open(agg[0]).read().strip().split("\n")) == 2
 
 
 # ======================================================================================

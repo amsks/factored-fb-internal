@@ -4,7 +4,6 @@ from typing import Any
 
 import flax
 import jax
-import jax.numpy as jnp
 import optax
 
 from impls.utils.flax_utils import TrainState, soft_update, nonpytree_field

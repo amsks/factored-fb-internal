@@ -1,17 +1,11 @@
-"""HILP phi learner — pinned against an INDEPENDENT numpy reconstruction.
+"""HILP critic, checked against independent numpy reconstructions of its two losses.
 
-PARITY METHOD, and its limits. Nothing here runs PyTorch, so agreement with the official
-tensors is argued from transcription, not measured -- the same standing caveat as
-test_rldp_seam.py. What the reconstruction DOES establish is that the jax expression
-computes the arithmetic written down in `sf.py:154-198`, independently re-derived in
-numpy from the reference source rather than by calling the implementation under test.
-
-The reconstruction is written to make the three documented traps FAIL LOUDLY if the
-implementation drifts:
-  * `adv` must use min(next_v1,next_v2) for q but the MEAN of the target heads for its
-    baseline, while q1/q2 use the heads SEPARATELY (test_reductions_are_not_interchangeable)
-  * the clamp is inside the sqrt, so v floors at -1e-3 rather than 0 (test_clamp_inside_sqrt)
-  * at the shipped expectile 0.5 the weight is constant (test_shipped_expectile_is_inert)
+The phi value loss is re-derived in numpy from the tower outputs and must agree at 1e-10
+under x64. Three details are pinned so a drift fails loudly: the advantage uses the min
+of the target heads for Q but their mean for the baseline while each head regresses its
+own target (test_reductions_are_not_interchangeable); the distance clamp sits inside the
+sqrt, so V floors at -1e-3 (test_clamp_is_inside_the_sqrt...); at expectile 0.5 the
+weight is constant (test_shipped_expectile_is_inert).
 """
 import jax
 jax.config.update("jax_enable_x64", True)
@@ -48,7 +42,7 @@ def _fixture(seed=0):
 
 
 def _np_reference(obs, goals, nobs, ps, discount=DISC, expectile=EXP):
-    """sf.py:154-198 re-derived in numpy, reading only the parameter arrays."""
+    """The phi value loss re-derived in numpy, reading only the parameter arrays."""
     v = lambda p, a, b: -np.sqrt(np.clip(((_np_apply(p, a) - _np_apply(p, b)) ** 2).sum(-1), 1e-6, None))
     same = (np.linalg.norm(obs - goals, axis=-1) < 1e-6).astype(np.float64)
     masks = 1.0 - same
@@ -88,7 +82,7 @@ def test_phi_loss_matches_across_expectiles(expectile):
 
 
 def test_clamp_is_inside_the_sqrt_so_identical_inputs_floor_at_1e_3():
-    """Trap: `-sqrt(clamp(sq, min=1e-6))`, not `-clamp(sqrt(sq), ...)`. At phi(a)==phi(b)
+    """`-sqrt(clamp(sq, min=1e-6))`, not `-clamp(sqrt(sq), ...)`. At phi(a)==phi(b)
     the value is -1e-3, not 0, and the gradient stays finite -- which matters because
     hindsight relabelling makes obs == goal a common row."""
     x = jnp.zeros((3, D))
@@ -96,8 +90,8 @@ def test_clamp_is_inside_the_sqrt_so_identical_inputs_floor_at_1e_3():
 
 
 def test_shipped_expectile_is_inert():
-    """Trap 2: at the SHIPPED 0.5 the weight does not depend on adv at all, so the loss is
-    plain 0.5*diff^2. Pinned so that a later 'fix' to 0.7 cannot pass silently."""
+    """At expectile 0.5 the weight does not depend on adv at all, so the loss is
+    plain 0.5*diff^2."""
     adv = jnp.asarray([-3.0, -1e-9, 0.0, 1e-9, 5.0])
     diff = jnp.ones_like(adv)
     w = np.asarray(expectile_loss(adv, diff, 0.5))
@@ -107,7 +101,7 @@ def test_shipped_expectile_is_inert():
 
 
 def test_reductions_are_not_interchangeable():
-    """Trap 1: three reductions in one loss. The robust invariant is that swapping the
+    """Three reductions in one loss. The robust invariant is that swapping the
     adv baseline (MEAN of target heads -> min) or the per-head q1/q2 (-> the shared
     min-based q) changes the computation.
 
@@ -153,18 +147,20 @@ def test_advantage_is_almost_always_negative():
         assert float(info["hilp_accept_prob"]) <= 0.35, (seed, info["hilp_accept_prob"])
 
 
-# ── SF stage: build + an independent numpy reconstruction of update_sf ──────────
+# ── SF stage: build + an independent numpy reconstruction of the successor-feature loss ──
 from impls.critics.hilp import HILPCritic  # noqa: E402
 
-SB, SOBS, SACT, SZ, SH = 6, 5, 3, 4, 8
+SB, SOBS, SACT, SZ, SH, SL = 6, 5, 3, 4, 8, 3
 
 
 def _sf_cfg(**over):
-    cfg = dict(seed=0, z_dim=SZ, num_parallel=2, discount=0.98, norm_z=True,
+    cfg = dict(seed=0, z_dim=SZ, L_dim=SL, num_parallel=2, discount=0.98, norm_z=True,
                hilp_discount=0.98, hilp_expectile=0.5, phi_target_tau=0.005,
-               sf_target_tau=0.01, hilp_stats_momentum=0.005, hilp_q_loss=True,
+               sf_target_tau=0.01, hilp_stats_momentum=0.005, hilp_mix_ratio=0.5,
+               hilp_sf_loss_scale=0.5,
                phi=dict(hidden_dim=SH, hidden_layers=2),
-               sf=dict(hidden_dim=SH, hidden_layers=2, embedding_layers=2))
+               sf=dict(hidden_dim=SH, hidden_layers=2, embedding_layers=2),
+               hilp_left_encoder=dict(hidden_dim=SH, hidden_layers=2, norm=True))
     cfg.update(over)
     return cfg
 
@@ -191,14 +187,15 @@ def test_build_produces_the_declared_groups_and_targets():
     assert critic.TARGETS["hilp_stats"] == 0.0
     # phi is trained ONLY by the phi stage and sf ONLY by the sf stage
     assert set(critic.stage_groups("phi")) == {"hilp_phi1", "hilp_phi2"}
-    assert set(critic.stage_groups("sf")) == {"hilp_sf"}
+    assert set(critic.stage_groups("sf")) == {"hilp_sf", "hilp_le"}
     # init reads the raw tower: mean 0, std 1
     assert np.allclose(np.asarray(params["hilp_stats"]["mean"]), 0.0)
     assert np.allclose(np.asarray(params["hilp_stats"]["std"]), 1.0)
 
 
 def test_sf_loss_matches_numpy_reconstruction():
-    """update_sf (sf.py:600-637) re-derived in numpy, reading only the flax arrays."""
+    """The successor-feature loss re-derived in numpy from the tower outputs: vector TD
+    onto phi(s') - mean + gamma * mean_heads F_target, scaled by 0.5."""
     critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
     batch = _sf_batch()
     rng = np.random.default_rng(9)
@@ -206,24 +203,20 @@ def test_sf_loss_matches_numpy_reconstruction():
     boot = {"next_action": jnp.asarray(np.tanh(rng.standard_normal((SB, SACT))))}
     got, _ = critic.stage_loss("sf", params, targets, batch, {"z": z}, boot)
 
-    tF = np.asarray(critic._sf(targets["hilp_sf"], batch["next_observations"], z,
-                               boot["next_action"]))                    # [P,B,d]
+    nle = critic._le(targets, batch["next_observations"])
+    tF = np.asarray(critic._sf(targets["hilp_sf"], nle, z, boot["next_action"]))   # [P,B,d]
     phi = np.asarray(critic._phi(params["hilp_phi1"], batch["next_observations"]))
     target_phi = phi - np.asarray(params["hilp_stats"]["mean"])          # feature_net
-    zz = np.asarray(z)
-    tQ = np.einsum("pbd,bd->pb", tF, zz)
-    next_F = np.where((tQ[0] < tQ[1])[:, None], tF[0], tF[1])            # per-sample pick
-    target_F = target_phi + 0.98 * next_F
-    F = np.asarray(critic._sf(params["hilp_sf"], batch["observations"], zz, batch["actions"]))
-    Q = np.einsum("pbd,bd->pb", F, zz)
-    tQs = np.einsum("bd,bd->b", target_F, zz)
-    want = float(((Q - tQs[None]) ** 2).mean(axis=-1).sum())
+    target_F = target_phi + 0.98 * tF.mean(axis=0)
+    le = critic._le(params, batch["observations"])
+    F = np.asarray(critic._sf(params["hilp_sf"], le, z, batch["actions"]))
+    want = 0.5 * float(((F - target_F[None]) ** 2).mean(axis=(-1, -2)).sum())
     assert abs(float(got) - want) < 1e-10, f"{float(got)} vs {want}"
 
 
 def test_sf_target_reads_the_ONLINE_phi_not_the_target_phi():
-    """Trap 4, and the mirror of the RLDP run-1 bug. Perturbing the TARGET phi must leave
-    the SF loss untouched; perturbing the ONLINE phi must change it."""
+    """The SF target's immediate term is the ONLINE phi: perturbing the target phi must
+    leave the SF loss untouched; perturbing the online phi must change it."""
     critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
     batch = _sf_batch()
     rng = np.random.default_rng(9)
@@ -241,27 +234,8 @@ def test_sf_target_reads_the_ONLINE_phi_not_the_target_phi():
     assert abs(float(diff) - float(base)) > 1e-8, "SF loss must read the ONLINE phi"
 
 
-def test_next_F_selection_is_per_sample_not_elementwise():
-    """Trap 5b. The reference picks the WHOLE vector of the head with the smaller Q; an
-    elementwise minimum over the two F vectors is a different object. The two agree only
-    by coincidence, so this pins the difference on a constructed case."""
-    critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
-    rng = np.random.default_rng(4)
-    tF = rng.standard_normal((2, SB, SZ))
-    zz = rng.standard_normal((SB, SZ))
-    tQ = np.einsum("pbd,bd->pb", tF, zz)
-    per_sample = np.where((tQ[0] < tQ[1])[:, None], tF[0], tF[1])
-    elementwise = np.minimum(tF[0], tF[1])
-    assert not np.allclose(per_sample, elementwise)
-
-
 def test_running_mean_arithmetic():
-    """The EMA rule `update_stats` applies. Deliberately tests the ARITHMETIC only: a full
-    update_stats call needs Agent-level TrainState fixtures, and once this critic is
-    registered test_boot_contract.py exercises that path for every critic x actor pair.
-    A skipped placeholder here would read as coverage without being any.
-
-    The rule itself: new = (1-m)*old + m*batch_stat, m = 0.005 (sf.py:185-187)."""
+    """The EMA rule `update_stats` applies: new = (1-m)*old + m*batch_stat, m = 0.005."""
     m = 0.005
     old_mean, old_std = np.zeros(SZ), np.ones(SZ)
     phi = np.random.default_rng(2).standard_normal((SB, SZ))

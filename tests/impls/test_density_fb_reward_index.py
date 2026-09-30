@@ -57,7 +57,7 @@ def _cfg(z=True, **over):
         lr=3e-4, lr_actor=3e-4, batch_size=B, discount=0.99, tau=0.005, seed=0,
         value_hidden_dims=[32, 32], layer_norm=True,
         measure_hit_spec="19:22:0.4", measure_density_dim=D, measure_density_temp=1.0,
-        actor_q_center=True, measure_density_z=z,
+        measure_density_z=z,
     )
     cfg.update(over)
     return cfg
@@ -147,7 +147,7 @@ def test_infer_cond_off_is_still_the_placeholder():
 def test_sample_cond_off_publishes_the_raw_value_goal():
     critic, _params = _built(z=False)
     batch = _batch()
-    cond = critic.sample_cond(None, batch, jax.random.PRNGKey(0), target=None)
+    cond = critic.sample_cond(None, batch, jax.random.PRNGKey(0))
     assert "z" not in cond
     assert np.array_equal(np.asarray(cond["_cvec_vgoal"]), np.asarray(batch["value_goals"]))
 
@@ -464,8 +464,7 @@ def test_cvec_vgoal_is_z_shaped_and_matches_the_actor_width():
     hands a goal-shaped vector to a z-shaped net. Asserted three ways."""
     agent, _cfg = _agent()
     batch = _batch()
-    cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0),
-                                    target=agent.target)
+    cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0))
 
     # (a) structural: the published vector has the ACTOR's conditioning width
     assert agent.critic.cvec_dim == D
@@ -501,8 +500,7 @@ def test_stage_loss_conditions_f_on_the_value_goal_index():
     the index path no longer reads) does not."""
     agent, _cfg = _agent()
     batch = _batch()
-    cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0),
-                                    target=agent.target)
+    cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0))
     boot = agent.actor.sample_bootstrap(agent.net, batch, cond, jax.random.PRNGKey(1))
 
     def ce(c):
@@ -513,7 +511,7 @@ def test_stage_loss_conditions_f_on_the_value_goal_index():
     assert ce({**cond, "value_goal": jnp.zeros_like(cond["value_goal"])}) == base
 
 
-@pytest.mark.parametrize("actor", ["flowbc", "ddpgbc", "fql"])
+@pytest.mark.parametrize("actor", ["flowbc", "ddpgbc"])
 def test_a_real_update_runs_with_the_index_on(actor):
     """Everything above is static; this takes a gradient step through the whole composed
     agent, which is the only thing that exercises every width at once."""
@@ -548,8 +546,8 @@ def test_the_training_index_mixes_in_sphere_draws():
     batch = _batch()
     a0, _ = _agent(z=True, measure_density_z_rand_frac=0.0)
     a1, _ = _agent(z=True, measure_density_z_rand_frac=1.0)
-    c0 = a0.critic.sample_cond(a0.net, batch, jax.random.PRNGKey(5), target=a0.target)
-    c1 = a1.critic.sample_cond(a1.net, batch, jax.random.PRNGKey(5), target=a1.target)
+    c0 = a0.critic.sample_cond(a0.net, batch, jax.random.PRNGKey(5))
+    c1 = a1.critic.sample_cond(a1.net, batch, jax.random.PRNGKey(5))
     assert not np.allclose(np.asarray(c0["z"]), np.asarray(c1["z"]))
     # both branches carry ||z|| = sqrt(d)
     for c in (c0, c1):
@@ -724,13 +722,12 @@ def test_the_index_state_takes_no_gradient_and_no_optimizer_step():
 
 
 def test_update_stats_is_a_noop_for_every_other_critic():
-    """The Agent hook is additive. The critics that define update_stats are density_fb
-    (index moments / slow tower / pool), hilp and hilp_density (phi running mean,
-    2026-09-11) and rldp_density (the LEVER 3 regression index's state, 2026-09-12); each
-    is a Python-level no-op with its knob off, and density_fb's returns the net unchanged."""
+    """The Agent hook is additive: only density_fb (slow tower, feature moments, pool) and
+    hilp (running mean of phi) define update_stats, and density_fb's returns the net
+    unchanged on the goal-conditioned arm."""
     from impls.agents import CRITICS
     defining = {n for n, c in CRITICS.items() if hasattr(c, "update_stats")}
-    assert defining == {"density_fb", "hilp", "hilp_density", "rldp_density"}
+    assert defining == {"density_fb", "hilp"}
     off, _c = _agent(z=False)
     same = off.critic.update_stats(off.net, off.net, _batch())
     assert same is off.net
@@ -842,42 +839,6 @@ def test_the_centered_encoder_refuses_a_fast_index_tower():
     with pytest.raises(AssertionError, match="enc_tau"):
         DensityFBCritic.build(*_ex(), _cfg(z=True, measure_density_z_enc_tau=0.0,
                                            measure_density_z_eval_pool_m=8))
-
-
-def test_q_fn_reads_the_target_backward_tower_for_the_reward_vector():
-    """The actor's Q term integrates r_z(u) = B~(u)^T z / sqrt(d) with B~ the TARGET backward
-    tower (frozen-params discipline, matching the goal-indexed branch's kg). q_fn gets online
-    params only, so sample_cond publishes that embedding; perturbing it must move Q."""
-    fresh, _c = _agent()
-    agent = fresh.update(_batch(seed=3))[0]   # targets init EQUAL to online; step them apart
-    batch = _batch()
-    cond = agent.critic.sample_cond(agent.net, batch, jax.random.PRNGKey(0),
-                                    target=agent.target)
-    assert "_density_tb_u" in cond
-    u_sc = _density_queries(batch["next_observations"], agent.critic.blocks)
-    assert np.allclose(np.asarray(cond["_density_tb_u"]),
-                       np.asarray(agent.critic._B(agent.target["density_b"], u_sc)), atol=0)
-    # and it is NOT the online tower (which is what a silent substitution would use)
-    assert not np.allclose(np.asarray(cond["_density_tb_u"]),
-                           np.asarray(agent.critic._B(agent.net["density_b"].params, u_sc)),
-                           atol=1e-9)
-
-    params = {g: agent.net[g].params for g in agent.net}
-    q0 = np.asarray(agent.critic.q_fn(params, batch["observations"], cond,
-                                      batch["actions"])[0])
-    q1 = np.asarray(agent.critic.q_fn(
-        params, batch["observations"],
-        {**cond, "_density_tb_u": jnp.zeros_like(cond["_density_tb_u"])},
-        batch["actions"])[0])
-    assert not np.allclose(q0, q1), "q_fn does not read the target backward embedding"
-
-
-def test_sample_cond_refuses_to_guess_the_target_tower():
-    """A direct caller that forgets the target gets a named error, not a silent fallback to
-    the online tower."""
-    agent, _c = _agent()
-    with pytest.raises(ValueError, match="TARGET params"):
-        agent.critic.sample_cond(agent.net, _batch(), jax.random.PRNGKey(0))
 
 
 # ==========================================================================================
@@ -1015,7 +976,7 @@ def test_the_covariance_eigenvalue_floor_is_exercised_and_load_bearing():
 
 
 # ==========================================================================================
-# 7. the actor's z-reward basis (2026-09-06): 'latent' vs 'latent_centered'
+# 10. the actor's reward on the reward-inference arm: (B_slow(u) - mu)^T z / sqrt(d)
 # ==========================================================================================
 def _built_full(**over):
     ex_obs, ex_act = _ex()
@@ -1023,20 +984,9 @@ def _built_full(**over):
     return DensityFBCritic.build(ex_obs, ex_act, _cfg(True, **over))
 
 
-def test_z_actor_reward_code_default_is_latent():
-    critic, _p, _t = _built_full()
-    assert critic.z_actor_reward == "latent"
-
-
-def test_z_actor_reward_rejects_unknown_values():
-    with pytest.raises(ValueError):
-        _built_full(measure_density_z_actor_reward="bogus")
-
-
 def _perturbed(params, seed=3):
-    """At build time density_b_zenc == target density_b and mu_hat == 0, so the two bases
-    coincide exactly. Move the slow tower and the stored mean the way training would, so the
-    tests exercise the distinction rather than the initial coincidence."""
+    """At build time B_slow equals B and mu is 0. Move both the way training would, so the
+    tests below see a centered slow basis distinct from the online tower."""
     rng = np.random.default_rng(seed)
     p = dict(params)
     p["density_b_zenc"] = jax.tree_util.tree_map(
@@ -1047,80 +997,38 @@ def _perturbed(params, seed=3):
     return p
 
 
-def test_bases_coincide_at_init_by_construction():
-    critic, params, targets = _built_full()
-    cond = critic.sample_cond(_net_from(params), _batch(), jax.random.PRNGKey(0), target=targets)
-    np.testing.assert_allclose(np.asarray(cond["_density_zenc_u"]), np.asarray(cond["_density_tb_u"]),
-                               rtol=1e-6, atol=1e-6)
-
-
 def test_sample_cond_publishes_the_centered_slow_basis():
-    critic, params, targets = _built_full()
+    critic, params, _t = _built_full()
     params = _perturbed(params)
-    cond = critic.sample_cond(_net_from(params), _batch(), jax.random.PRNGKey(0), target=targets)
-    assert "_density_zenc_u" in cond and "_density_tb_u" in cond
-    u_sc = cond["_density_u_sc"]
-    expect = np.asarray(critic._B(params["density_b_zenc"], u_sc)) \
+    cond = critic.sample_cond(_net_from(params), _batch(), jax.random.PRNGKey(0))
+    expect = np.asarray(critic._B(params["density_b_zenc"], cond["_density_u_sc"])) \
         - np.asarray(params["density_zstats"]["mu"])[None]
     np.testing.assert_allclose(np.asarray(cond["_density_zenc_u"]), expect, rtol=1e-5, atol=1e-6)
-    assert not np.allclose(np.asarray(cond["_density_zenc_u"]), np.asarray(cond["_density_tb_u"]))
 
 
-def test_latent_centered_reads_the_slow_basis_and_latent_is_unchanged():
-    """Under 'latent' the q readout reads _density_tb_u only (the pre-2026-09-06 path);
-    under 'latent_centered' it reads _density_zenc_u, and swapping that leaf for
-    _density_tb_u reproduces the 'latent' value exactly -- the basis choice is the ONLY
-    thing the knob changes."""
+def test_q_fn_averages_the_linear_z_reward_under_the_predicted_distribution():
+    """q = min over heads of sum_j w(s,a,z,u_j) (B_slow(u_j) - mu)^T z / sqrt(d)."""
     obs, act = _ex()
-    critic_l, params, targets = _built_full(measure_density_z_actor_reward="latent")
-    critic_c, _p2, _t2 = _built_full(measure_density_z_actor_reward="latent_centered")
+    critic, params, _t = _built_full()
     params = _perturbed(params)
-    cond = critic_l.sample_cond(_net_from(params), _batch(), jax.random.PRNGKey(0), target=targets)
-    q_l, _ = critic_l.q_fn(params, obs, cond, act)
-    q_c, _ = critic_c.q_fn(params, obs, cond, act)
-    assert np.isfinite(np.asarray(q_l)).all() and np.isfinite(np.asarray(q_c)).all()
-    assert not np.allclose(np.asarray(q_l), np.asarray(q_c)), "the two rewards must differ"
-    swapped = {**cond, "_density_zenc_u": cond["_density_tb_u"]}
-    q_c_swapped, _ = critic_c.q_fn(params, obs, swapped, act)
-    np.testing.assert_array_equal(np.asarray(q_c_swapped), np.asarray(q_l))
+    cond = critic.sample_cond(_net_from(params), _batch(), jax.random.PRNGKey(0))
+    q, qs = critic.q_fn(params, obs, cond, act)
+    z = cond["z"]
+    f = critic._F(params["density_f"], obs, act, z)
+    b = critic._B(params["density_b"], cond["_density_u_sc"])
+    w = np.asarray(jax.nn.softmax(jnp.einsum('hbd,md->hbm', f, b) / critic.temp, -1))
+    r = np.asarray(cond["_density_zenc_u"]) @ np.asarray(z).T / np.sqrt(D)    # [M, B]
+    heads = (w * r.T[None]).sum(-1)
+    np.testing.assert_allclose(np.asarray(q), heads.min(0), rtol=1e-6, atol=1e-8)
+    np.testing.assert_allclose(np.asarray(qs[0]), heads.min(0) - heads.min(0).mean(),
+                               rtol=1e-6, atol=1e-8)
 
 
-def test_shipped_z_config_defaults_to_latent_centered():
-    import yaml
-    cfg = yaml.safe_load(open("impls/configs/critic/density_fb_z.yaml"))
-    assert cfg["measure_density_z_actor_reward"] == "latent_centered"
-    base = yaml.safe_load(open("impls/configs/critic/density_fb.yaml"))
-    assert "measure_density_z_actor_reward" not in base, "the goal-conditioned config is untouched"
+def test_the_index_requires_hit_spec_backward_input():
+    with pytest.raises(ValueError, match="backward_input"):
+        _built_full(backward_input="state")
 
 
-# ==========================================================================================
-# 8. the index with the backward map on the FULL observation (2026-09-06)
-# ==========================================================================================
-def test_state_input_with_index_builds_and_pool_is_full_width():
-    critic, params, _t = _built_full(backward_input="state")
-    assert critic.backward_input == "state" and critic.z_on
-    assert params["density_zstats"]["pool"].shape == (8, OBS), "pool stores full observation rows"
-
-
-def test_state_input_index_paths_run_on_full_rows():
-    critic, params, targets = _built_full(backward_input="state")
-    rng = np.random.default_rng(5)
-    st = dict(params["density_zstats"])
-    st["pool"] = jnp.asarray(rng.standard_normal((8, OBS))); st["filled"] = jnp.ones_like(st["filled"])
-    params = {**params, "density_zstats": st}
-    net = _net_from(params)
-    goal = jnp.asarray(rng.standard_normal((OBS,)))
-    z = critic.map_eval_cond(net, {"goal": goal})["z"]
-    assert z.shape == (D,) and np.isfinite(np.asarray(z)).all()
-    assert abs(float(jnp.linalg.norm(z)) - np.sqrt(D)) < 1e-3
-    obs = jnp.asarray(rng.standard_normal((32, OBS))); r = jnp.asarray(rng.standard_normal((32,)))
-    zr = critic.infer_cond(net, obs, r)["z"]
-    assert zr.shape == (D,) and np.isfinite(np.asarray(zr)).all()
-    cond = critic.sample_cond(net, _batch(), jax.random.PRNGKey(0), target=targets)
-    assert cond["_density_u_sc"].shape[-1] == OBS, "B's query rows are full observations on 'state'"
-    assert cond["_density_zenc_u"].shape == (B, D)
-
-
-def test_hit_spec_pool_width_is_unchanged():
+def test_hit_spec_pool_width_is_the_hit_spec_width():
     _c, params, _t = _built_full()
-    assert params["density_zstats"]["pool"].shape[-1] == 3, "object-coordinate pool on hit_spec"
+    assert params["density_zstats"]["pool"].shape[-1] == 3

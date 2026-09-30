@@ -1,4 +1,4 @@
-"""Critic protocol + combo validation for the factored critic×actor seam."""
+"""Critic protocol and critic x actor combo validation."""
 from typing import Protocol, runtime_checkable
 
 
@@ -11,8 +11,7 @@ class Critic(Protocol):
     GROUPS: tuple           # module groups this critic owns
     STAGES: tuple           # ordered; run sequentially by the generic update
     TARGETS: dict           # group -> polyak tau  (FB: forward/left_encoder=f_tau, backward=b_tau)
-    PROVIDES_V: bool        # whether v_fn is available (AWR requires it)
-    PROVIDES_COND: frozenset  # cond keys sample_cond() produces (FB: {"z"}, GCIQL: {"value_goal","goal"})
+    PROVIDES_COND: frozenset  # cond keys sample_cond() produces (FB: {"z"}, density_fb: {"value_goal","goal"})
     BOOT_COND: str          # which cond the TD bootstrap action must be drawn at:
                             # "actor_goal" (default) -> boot["next_action"]
                             # "value_goal"           -> boot["next_action_vgoal"]
@@ -21,7 +20,7 @@ class Critic(Protocol):
                             # does not declare it is rejected by infer_cond_rows().
     cvec_dim: int           # width of cond_vec(cond) — the actor's conditioning input
 
-    def eval_cond0(self, ex_obs, config): ...   # initial eval-time cond (FB: {"z":..}, GC: {"goal":..})
+    def eval_cond0(self, ex_obs, config): ...   # initial eval-time cond (FB: {"z":..}, density_fb: {"goal":..})
 
     @classmethod
     def build(cls, ex_obs, ex_actions, config): ...
@@ -33,17 +32,13 @@ class Critic(Protocol):
     def infer_cond(self, net, obs, rewards): ...
 
 
-# ── which marginal `infer_cond` is solved against ──────────────────────────────────────
-# The base measure a zero-shot reward->conditioning readout integrates against belongs to
-# the critic's math, not the caller's, and picking the wrong column is a different marginal
-# that nothing downstream complains about. So each critic declares its own:
-#   "next_observations" -- the successor / query marginal (the whole FB family, whose
-#                          backward/index tower is built on successor states)
-#   "observations"      -- the current-state marginal
-#   "unused"            -- infer_cond ignores `obs` entirely (every goal-conditioned critic
-#                          here); `infer_cond_rows` then hands it _UNUSED_ROWS.
-INFER_COND_MARGINALS = ("observations", "next_observations", "unused")
-_UNUSED_ROWS = "next_observations"
+# ── which state distribution `infer_cond` is solved against ────────────────────────────
+# The reward-weighted task inference averages over dataset states, and which states (current
+# or next) belongs to the critic's math, not the caller's. Each critic declares its own:
+#   "next_observations" -- the next-state distribution (the FB family, whose backward net is
+#                          trained on next states)
+#   "observations"      -- the current-state distribution
+INFER_COND_MARGINALS = ("observations", "next_observations")
 
 
 def infer_cond_marginal(critic):
@@ -61,9 +56,8 @@ def infer_cond_marginal(critic):
 
 
 def infer_cond_rows(critic):
-    """-> the BATCH KEY whose rows feed `critic.infer_cond(net, obs, rewards)`."""
-    m = infer_cond_marginal(critic)
-    return _UNUSED_ROWS if m == "unused" else m
+    """-> the batch key whose rows feed `critic.infer_cond(net, obs, rewards)`."""
+    return infer_cond_marginal(critic)
 
 
 def _name(obj):
@@ -88,9 +82,9 @@ def boot_key(critic):
 
 
 def check_combo(critic, actor):
-    """Validate a critic×actor pair. Raises ComboError with a named reason if the actor
-    needs a V function the critic does not provide, or a cond key its sample_cond does not
-    produce.
+    """Validate a critic×actor pair. Raises ComboError with a named reason if the critic's
+    bootstrap declaration is inconsistent, or the actor needs a cond key the critic's
+    sample_cond does not produce.
 
     Both arguments may be a class or an instance -- every attribute consulted here is a
     class attribute -- so Agent.create can validate BEFORE building the actor, and an
@@ -107,10 +101,6 @@ def check_combo(critic, actor):
             f"produce 'value_goal', so it cannot publish cond['_cvec_vgoal'] and no actor "
             f"will emit boot['next_action_vgoal'] (every actor guards that draw on "
             f"'_cvec_vgoal' in cond)"
-        )
-    if getattr(actor, "NEEDS_V", False) and not getattr(critic, "PROVIDES_V", False):
-        raise ComboError(
-            f"{_name(actor)} requires a V function but {_name(critic)}.PROVIDES_V is False"
         )
     missing = set(getattr(actor, "REQUIRES_COND", ())) - set(getattr(critic, "PROVIDES_COND", ()))
     if missing:

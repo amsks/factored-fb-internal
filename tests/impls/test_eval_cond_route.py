@@ -23,7 +23,6 @@ neither of them (it tests `infer_eval_cond` in isolation, which always worked):
   integrates -- silently, since nothing downstream can tell.
 """
 import os
-import types
 
 import numpy as np
 import pytest
@@ -231,9 +230,8 @@ def _run_main(tmp_path, monkeypatch, cfg, adapter, critic, actor, steps, **over)
     m.FLAGS(["test"], known_only=True)
     defaults = dict(critic=critic, actor=actor, domain="tiny", override=[], seed=SEED,
                     train_steps=steps, log_interval=10 ** 9, eval_interval=10 ** 9,
-                    save_interval=10 ** 9, eval_episodes=1, num_video=0,
-                    save_dir=str(tmp_path), restore_path="", warm_start_path="",
-                    agg_dir=None, infer_cond_episodes=0, online=False,
+                    save_interval=10 ** 9, eval_episodes=1, auto_resume=False,
+                    save_dir=str(tmp_path), infer_cond_episodes=0,
                     eval_on_inferred_cond=False)
     for k, v in {**defaults, **over}.items():
         monkeypatch.setattr(m.FLAGS, k, v)
@@ -312,20 +310,13 @@ def test_every_registered_critic_declares_a_valid_marginal():
         assert m in INFER_COND_MARGINALS, f"{name} declares {m!r}"
 
 
-@pytest.mark.parametrize("name", ["fb", "rldp", "psm", "density_fb"])
+@pytest.mark.parametrize("name", ["fb", "rldp", "density_fb"])
 def test_the_fb_family_is_solved_against_the_next_state_marginal(name):
     """Each of these builds its backward/index tower on next_observations -- `goal =
     next_obs` in stage_loss, `B(next_observations)` in sample_cond, density_fb's pinned
     rho_phi. Asserted PER CRITIC rather than as one global rule."""
     assert infer_cond_marginal(CRITICS[name]) == "next_observations"
     assert infer_cond_rows(CRITICS[name]) == "next_observations"
-
-
-@pytest.mark.parametrize("name", ["gciql", "gcivl", "hiql", "iql_bilinear", "crl", "qrl"])
-def test_the_goal_conditioned_placeholders_declare_that_they_ignore_the_rows(name):
-    """Their infer_cond returns a fixed zero placeholder. Declaring "unused" is the honest
-    statement; it is not the same claim as "next_observations is the right marginal"."""
-    assert infer_cond_marginal(CRITICS[name]) == "unused"
 
 
 def test_an_undeclared_marginal_is_refused_by_name():

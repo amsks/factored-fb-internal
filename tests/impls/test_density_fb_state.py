@@ -1,13 +1,6 @@
-"""`backward_input: state` on Density-FB — the missing no-privileged-coordinates control.
-
-Density-FB's B tower reads the eps-scaled object-coordinate slice by construction, so its
-cube-single number (0.92 at 500k, 3 seeds) could never be attributed between the categorical
-estimator and the object-coordinate outcome space. This knob is the matched pair every other
-method already has.
-
-The property that makes it a SINGLE-knob control, and what this file pins: `u_raw` (the
-kernel reward's operand) and `u_sc` (B's input) are two distinct variables at every call
-site, so flipping the knob must move B's input and leave the kernel reward alone.
+"""`backward_input: state` on goal-conditioned Density-FB: B reads the full observation
+instead of the hit-spec columns. Flipping it must change B's input and leave the hit-kernel
+reward's operand (the raw hit-spec columns) alone.
 """
 import jax.numpy as jnp
 import numpy as np
@@ -52,7 +45,7 @@ def test_the_knob_moves_only_b_not_the_kernel_reward():
         cr = ag.critic
         out[critic] = (
             np.asarray(_raw_block_cols(nobs, cr.blocks)),          # kernel operand
-            np.asarray(cr._b_query(ag.net, nobs, nobs)),           # B's input
+            np.asarray(cr._b_query(nobs)),                         # B's input
         )
     # kernel operand identical
     assert np.array_equal(out["density_fb"][0], out["density_fb_state"][0])
@@ -62,14 +55,13 @@ def test_the_knob_moves_only_b_not_the_kernel_reward():
     assert np.allclose(out["density_fb_state"][1], np.asarray(nobs))
 
 
-def test_state_plus_reward_index_builds_with_a_full_width_pool():
-    """2026-09-06: the index pool now stores B's own input rows, so the full-observation
-    backward map and the reward-sample index coexist (the pool is [M, obs_dim] here)."""
+def test_state_plus_reward_index_is_refused():
+    """Reward inference stores its evaluation pool as hit-spec columns, so it runs only with
+    B on the hit-spec columns."""
     cfg = make_config("density_fb_state", "flowbc", "cube_single",
                       ["measure_density_z=true", "measure_density_z_eval_pool_m=4"])
     rng = np.random.default_rng(0)
-    agent = Agent.create("density_fb_state", "flowbc", 0,
-                         jnp.asarray(rng.standard_normal((B, OBS_DIM))),
-                         jnp.asarray(rng.standard_normal((B, ACT_DIM))), cfg)
-    assert agent.critic.backward_input == "state" and agent.critic.z_on
-    assert agent.net["density_zstats"].params["pool"].shape == (4, OBS_DIM)
+    with pytest.raises(ValueError, match="backward_input"):
+        Agent.create("density_fb_state", "flowbc", 0,
+                     jnp.asarray(rng.standard_normal((B, OBS_DIM))),
+                     jnp.asarray(rng.standard_normal((B, ACT_DIM))), cfg)
