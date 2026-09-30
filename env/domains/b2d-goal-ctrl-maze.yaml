@@ -1,5 +1,0 @@
-# b2d-goal-ctrl-maze via the unified adapter. Env + offline data are resolved from env/registry by `task`.
-adapter: unified
-env_name: b2d-goal-ctrl-maze          # run naming only
-task: b2d-goal-ctrl-maze
-render: true

@@ -1,5 +1,0 @@
-# pointmaze (OGBench pointmaze-medium-navigate-v0) via the ogbench adapter — Arm A rank-scaling matrix.
-# Same protocol as cube-single: aggregate mean success over the fixed task_infos.
-adapter: ogbench
-env_name: pointmaze-medium-navigate-v0
-eval_aggregate: true

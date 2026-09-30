@@ -1,6 +1,0 @@
-lr_actor: 3.0e-4
-actor:
-  hidden_dims: [512, 512, 512]
-  alpha: 3.0          # AWR temperature
-  const_std: true
-  layer_norm: false
