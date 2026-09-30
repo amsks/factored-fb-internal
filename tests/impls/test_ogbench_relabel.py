@@ -1,22 +1,14 @@
-"""The fb_tdj parity arm's missing piece: OGBench reward-relabel + reward-inference eval
-(docs/notes/2026-09-03-fb-vs-tdjepa.md #7), transcribed from td_jepa's protocol
-(~/git/baselines/td_jepa/metamotivo/evaluations/ogbench.py:90-110,
-~/git/baselines/td_jepa/metamotivo/envs/ogbench.py:30-39).
+"""OGBench reward-relabel + reward-inference eval (TD-JEPA's OGBench protocol).
 
-Four things are pinned here:
+Pinned here:
   1. `cube_relabel_reward` against a hand-computed case, single and double cube.
   2. `OGBenchAdapter.relabel_infer_batch` reads the NEXT observation's stored qpos (never the
      dataset's own zeroed 'rewards' column) against the requested task's goal_xyzs.
   3. `evaluate(..., any_step_success=True)` scores a flickering success trajectory correctly,
-     and is a no-op (bit-identical) when left at its default False.
-  4. End to end through impls/main.py: the new eval_relabel/task<N> route runs ALONGSIDE the
-     existing goal-conditioned route (not instead of it), infers a genuinely PER-TASK z, and
-     is entirely absent -- not merely inert -- when cfg['eval_relabel_size'] is unset.
-
-Run standalone on CPU (running all of tests/impls in one process core-dumps):
-
-    PYTHONPATH=$PWD JAX_PLATFORMS=cpu python -m pytest tests/impls/test_ogbench_relabel.py -q \
-        -p no:cacheprovider
+     and is a no-op when left at its default False.
+  4. End to end through impls/main.py: the eval_relabel/task<N> route runs alongside the
+     goal-conditioned route, infers a per-task z, and is absent when
+     cfg['eval_relabel_size'] is unset.
 """
 import csv
 import os
@@ -25,7 +17,6 @@ import types
 import numpy as np
 import pytest
 
-import jax.numpy as jnp
 
 from env.ogbench import CUBE_QPOS_OFFSETS, OGBenchAdapter, cube_relabel_reward
 from impls.utils.datasets import FBDataset
@@ -46,7 +37,7 @@ def test_single_cube_hand_computed():
 
     r = cube_relabel_reward(qpos, goal)
     np.testing.assert_allclose(r, [0.0, -1.0, 0.0])
-    # shift_reward = 1.0 (the fb_tdj protocol) turns this into a 0/1 cube-at-goal indicator.
+    # shift_reward = 1.0 turns this into a 0/1 cube-at-goal indicator.
     np.testing.assert_allclose(r + 1.0, [1.0, 0.0, 1.0])
 
 
@@ -71,7 +62,7 @@ def test_threshold_is_strict_less_than():
     np.testing.assert_allclose(r, [-1.0, 0.0])
 
 
-def test_offsets_match_td_jepa():
+def test_cube_qpos_offsets():
     assert CUBE_QPOS_OFFSETS[:2] == (14, 21)
 
 
@@ -168,8 +159,7 @@ def test_relabel_infer_batch_requires_qpos():
 
 def test_relabel_infer_batch_requires_goal_xyzs_on_the_task():
     ds = _fake_train_ds()
-    # A task_info from no supported family (cube/antmaze/puzzle/scene keys all absent) must
-    # fail loudly, naming the cube key among the supported ones.
+    # A task_info from no supported family must fail loudly, naming the cube key.
     env = _fake_env([{"goal_foo": np.zeros(2)}])
     with pytest.raises(AssertionError, match="goal_xyzs"):
         OGBenchAdapter().relabel_infer_batch(ds, env, 1, 4)
@@ -201,18 +191,16 @@ class _FlickerEnv:
         done = self.t >= 4
         return np.zeros(OBS_DIM, np.float32), 0.0, done, False, {"success": succ}
 
-    def render(self):
-        return np.zeros((2, 2, 3), np.uint8)
 
 
 def test_any_step_success_catches_a_mid_episode_flicker():
-    stats, _, _ = ogbench_evaluate(_ZeroActionAgent(), _FlickerEnv(), config={},
+    stats, _ = ogbench_evaluate(_ZeroActionAgent(), _FlickerEnv(), config={},
                                    num_eval_episodes=1, any_step_success=True)
     assert stats["success"] == 1.0
 
 
 def test_final_step_success_is_the_default_and_misses_the_flicker():
-    stats, _, _ = ogbench_evaluate(_ZeroActionAgent(), _FlickerEnv(), config={},
+    stats, _ = ogbench_evaluate(_ZeroActionAgent(), _FlickerEnv(), config={},
                                    num_eval_episodes=1)  # any_step_success defaults False
     assert stats["success"] == 0.0
 
@@ -234,7 +222,7 @@ def test_make_env_and_datasets_forces_add_info_when_eval_relabel_size_is_set(mon
 
     calls = []
 
-    def fake_make(dataset_name, frame_stack, add_info=False):
+    def fake_make(dataset_name, add_info=False):
         calls.append(add_info)
         ds = FBDataset.create(observations=np.zeros((2, OBS_DIM), np.float32))
         return types.SimpleNamespace(_max_episode_steps=None, spec=None), ds, ds
@@ -247,11 +235,6 @@ def test_make_env_and_datasets_forces_add_info_when_eval_relabel_size_is_set(mon
 
     ogb.OGBenchAdapter().make_env_and_datasets({"env_name": "x", "eval_relabel_size": 10_000})
     assert calls == [True]
-    calls.clear()
-
-    # measure_qpos_slices already forced it; eval_relabel_size must not turn that OFF.
-    ogb.OGBenchAdapter().make_env_and_datasets({"env_name": "x", "measure_qpos_slices": "14:17"})
-    assert calls == [True]
 
 
 # ======================================================================================
@@ -259,10 +242,10 @@ def test_make_env_and_datasets_forces_add_info_when_eval_relabel_size_is_set(mon
 # ======================================================================================
 def _fb_cfg(**extra):
     cfg = dict(
-        env_name="tiny", task="b2d-tiny", adapter="unified", horizon=8, batch_size=16,
+        env_name="tiny", task="ms-tiny", adapter="unified", batch_size=16,
         z_dim=8, L_dim=8, num_parallel=2, discount=0.99,
         f_target_tau=0.005, b_target_tau=0.005, ortho_coef=1.0, train_goal_ratio=0.5,
-        fb_pessimism_penalty=0.0, norm_z=True, lr_f=1e-4, lr_b=1e-4, lr_actor=1e-4,
+        norm_z=True, lr_f=1e-4, lr_b=1e-4, lr_actor=1e-4,
         forward=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
         backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
         left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
@@ -312,7 +295,7 @@ class _RelabelWiringAdapter:
     def eval_tasks(self, env, cfg):
         return list(range(1, len(self.task_infos) + 1))
 
-    def evaluate(self, agent, env, task, cfg, num_episodes, num_video, any_step_success=False):
+    def evaluate(self, agent, env, task, cfg, num_episodes, num_video=0, any_step_success=False):
         cond = dict(getattr(agent, "cond_eval", {}))
         z = np.asarray(cond["z"]) if "z" in cond else None
         self.evaluate_calls.append(dict(task=task, any_step_success=any_step_success, z=z))
@@ -335,10 +318,8 @@ def _run_main(tmp_path, monkeypatch, cfg, adapter, steps=2, **over):
     m.FLAGS(["test"], known_only=True)
     defaults = dict(critic="fb", actor="flowbc", domain="tiny", override=[], seed=0,
                     train_steps=steps, log_interval=10 ** 9, eval_interval=10 ** 9,
-                    save_interval=10 ** 9, eval_episodes=1, num_video=0,
-                    save_dir=str(tmp_path), restore_path="", warm_start_path="",
-                    agg_dir=None, infer_cond_episodes=0, online=False,
-                    eval_on_inferred_cond=False)
+                    save_interval=10 ** 9, eval_episodes=1, save_dir=str(tmp_path),
+                    auto_resume=False, infer_cond_episodes=0, eval_on_inferred_cond=False)
     for k, v in {**defaults, **over}.items():
         monkeypatch.setattr(m.FLAGS, k, v)
     m.main(None)
@@ -362,13 +343,13 @@ def test_eval_relabel_route_runs_alongside_the_goal_conditioned_route(tmp_path, 
     # since --infer_cond_episodes is off.
     z1 = next(c["z"] for c in relabel if c["task"] == 1)
     z2 = next(c["z"] for c in relabel if c["task"] == 2)
-    assert not np.allclose(z1, z2), "relabel z must differ by task -- the whole point of #7"
+    assert not np.allclose(z1, z2), "relabel z must differ by task"
     for c in normal:
         assert np.allclose(c["z"], 0.0), "the goal-conditioned route's z must be untouched (eval_cond0)"
 
     # The two routes land in SEPARATE files (CsvLogger freezes its header on the first row,
     # so a shared file would silently drop the relabel route's extra witness columns -- see
-    # the comment at csv_eval_relabel's construction in impls/main.py).
+    # impls/main.py).
     with open(os.path.join(run_dir, "eval.csv")) as f:
         normal_rows = list(csv.DictReader(f))
     with open(os.path.join(run_dir, "eval_relabel.csv")) as f:
@@ -408,8 +389,8 @@ def test_eval_relabel_size_zero_is_also_off(tmp_path, monkeypatch):
 
 
 def test_unsupported_adapter_raises_a_named_error(tmp_path, monkeypatch):
-    """An adapter without relabel_infer_batch (every non-cube domain) must fail loudly, not
-    silently skip the requested relabel eval."""
+    """An adapter without relabel_infer_batch must fail loudly, not silently skip the
+    requested relabel eval."""
     class _NoRelabelAdapter(_RelabelWiringAdapter):
         relabel_infer_batch = None
 
@@ -420,18 +401,9 @@ def test_unsupported_adapter_raises_a_named_error(tmp_path, monkeypatch):
 
 
 def test_relabel_unwraps_a_per_critic_dataset_wrapper():
-    """REGRESSION: eval_relabel_size crashed every HILP arm at launch.
-
-    `impls/main.py` hands the eval the dataset AFTER `make_dataset` wraps it in the critic's
-    sampler. Those wrappers implement `sample` but not column access, so
-
-        assert "qpos" in train_ds
-        TypeError: argument of type 'HILPFutureDataset' is not iterable
-
-    killed all 12 hilp_tdjc runs seconds after launch, while fb_tdj was fine because its
-    dataset_class leaves the base unwrapped. `_column_backed` walks `.dataset` down to the
-    real columns.
-    """
+    """`impls/main.py` hands the eval the dataset after `make_dataset` wraps it in the
+    critic's sampler, which implements `sample` but not column access. `_column_backed` walks
+    `.dataset` down to the real columns."""
     import numpy as np
 
     from env.ogbench import OGBenchAdapter

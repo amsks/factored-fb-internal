@@ -1,4 +1,3 @@
-import os
 
 import pytest
 
@@ -6,8 +5,8 @@ from impls.utils.log_utils import get_exp_name, setup_wandb, CsvLogger
 
 
 def test_exp_name_includes_pair_and_env():
-    name = get_exp_name(3, critic="gciql", actor="fql", env_name="cube-single-play-v0")
-    assert "gciql" in name and "fql" in name and "3" in name
+    name = get_exp_name(3, critic="density_fb", actor="ddpgbc", env_name="cube-single-play-v0")
+    assert "density_fb" in name and "ddpgbc" in name and "3" in name
 
 
 def test_exp_name_backward_compatible():

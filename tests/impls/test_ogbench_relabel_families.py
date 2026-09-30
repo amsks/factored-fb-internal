@@ -1,26 +1,15 @@
-"""Reward-inference (relabel) eval for the NON-cube OGBench families: antmaze, scene, puzzle.
+"""Reward-inference (relabel) eval for scene, and the family dispatch in env/ogbench.py.
 
-Transcribed from td_jepa's per-env reward functions
-(~/git/baselines/td_jepa/metamotivo/envs/ogbench.py:42-56, get_relabel_fn :113-127). One
-thing that file does NOT show and that matters for scene/puzzle: td_jepa's "physics" row is
-the npz `qpos` CONCATENATED with `button_states` when the npz has it
-(scripts/data_processing/ogbench/extract_all.py:56-58), which is why scene's reward reads
-button states at `physics[-2:]` and puzzle's at `physics[-9:]`. `env/ogbench.py` rebuilds
-that row the same way.
+The scene reward follows TD-JEPA's per-env reward function. Its "physics" row is the npz
+`qpos` concatenated with `button_states`, which is why the buttons are read at
+`physics[-2:]`; `env/ogbench.py` rebuilds that row the same way.
 
 Pinned here:
-  1. Each family's reward against hand-computed synthetic physics rows (positives/negatives,
-     thresholds, shapes), and the shift semantics (satisfied - k + 1; NOT a 0/1 indicator for
-     scene/puzzle).
+  1. The scene reward against hand-computed synthetic physics rows, and the shift semantics
+     (satisfied - k + 1; not a 0/1 indicator for scene).
   2. `OGBenchAdapter.relabel_infer_batch` dispatches on the task_info's goal key, reads the
      NEXT row's physics, and stays byte-identical for cube.
-  3. Integration on the real datasets (skipped when ~/.ogbench/data lacks them): batch
-     produced, rewards in the expected integer range, positive counts per task reported.
-
-Run standalone on CPU:
-
-    PYTHONPATH=$PWD JAX_PLATFORMS=cpu /dev/shm/.venv-jax/bin/python -m pytest \
-        tests/impls/test_ogbench_relabel_families.py -q -p no:cacheprovider
+  3. Integration on the real datasets (skipped when ~/.ogbench/data lacks them).
 """
 import os
 import types
@@ -30,9 +19,7 @@ import pytest
 
 from env.ogbench import (
     OGBenchAdapter,
-    antmaze_relabel_reward,
     cube_relabel_reward,
-    puzzle_relabel_reward,
     relabel_reward_for_task,
     scene_relabel_reward,
 )
@@ -47,48 +34,11 @@ def _dataset_present(name):
 
 
 # ======================================================================================
-# 1. Per-family rewards, hand computed.
+# 1. Scene reward, hand computed.
 # ======================================================================================
-def test_antmaze_reward_hand_computed():
-    goal_xy = np.array([4.0, 8.0])
-    qpos = np.zeros((4, 15))
-    qpos[0, :2] = [4.0, 8.0]         # exact -> success
-    qpos[1, :2] = [4.5, 8.0]         # exactly 0.5 away -> success (<=, td_jepa ant_reward_fn)
-    qpos[2, :2] = [4.51, 8.0]        # just outside -> failure
-    qpos[3, :2] = [0.0, 0.0]         # far -> failure
-    qpos[:, 2:] = 7.0                # the other 13 joints must be ignored
-    r = antmaze_relabel_reward(qpos, goal_xy)
-    assert r.shape == (4,)
-    np.testing.assert_allclose(r, [0.0, 0.0, -1.0, -1.0])
-    np.testing.assert_allclose(r + 1.0, [1.0, 1.0, 0.0, 0.0])   # shift 1 -> 0/1 indicator
-
-
-def test_puzzle_reward_hand_computed():
-    goal = np.array([1, 0, 1, 1, 0, 0, 1, 0, 1])
-    qpos = np.zeros((3, 23))
-    bs = np.zeros((3, 9), np.int64)
-    bs[0] = goal                                  # all 9 match
-    bs[1] = goal; bs[1, 0] = 0                    # one wrong
-    bs[2] = 1 - goal                              # all wrong
-    physics = np.concatenate([qpos, bs], axis=-1)   # td_jepa's physics row
-    r = puzzle_relabel_reward(physics, goal)
-    assert r.shape == (3,)
-    np.testing.assert_allclose(r, [0.0, -1.0, -9.0])
-    # Shifted reward is (#matched buttons - 8): 1 only when ALL match, 0 for one miss, and
-    # NEGATIVE below that -- not a 0/1 indicator.
-    np.testing.assert_allclose(r + 1.0, [1.0, 0.0, -8.0])
-
-
-def test_puzzle_reward_reads_the_last_k_columns_only():
-    goal = np.array([1, 1, 0])
-    physics = np.array([[9.0, 9.0, 1.0, 1.0, 0.0],
-                        [9.0, 9.0, 0.0, 0.0, 1.0]])
-    np.testing.assert_allclose(puzzle_relabel_reward(physics, goal), [0.0, -3.0])
-
-
 def _scene_goal(cube=(0.35, 0.05, 0.02), buttons=(1, 1), drawer=-0.16, window=0.2):
-    # Same key ORDER as ogbench's scene task_infos[...]['goal'] (scene_env.py:72-77); td_jepa
-    # flattens `.values()` in that order.
+    # Same key order as ogbench's scene task_infos[...]['goal'] (scene_env.py), which
+    # `.values()` flattens in.
     return dict(block_xyzs=np.array([list(cube)]), button_states=np.array(buttons),
                 drawer_pos=float(drawer), window_pos=float(window))
 
@@ -120,7 +70,7 @@ def test_scene_reward_hand_computed():
 
 
 def test_scene_thresholds_are_inclusive():
-    """td_jepa's scene_reward_fn uses <= for cube, drawer and window (cube_reward_fn uses <)."""
+    """The scene reward uses <= for cube, drawer and window (the cube reward uses <)."""
     goal = _scene_goal(cube=(0.0, 0.0, 0.0), drawer=0.0, window=0.0)
     rows = np.stack([
         _scene_physics([0.04, 0.0, 0.0], [1, 1], 0.0, 0.0),     # cube exactly at 0.04 -> ok
@@ -133,7 +83,7 @@ def test_scene_thresholds_are_inclusive():
 
 def test_scene_reward_accepts_the_flattened_7_vector_too():
     goal = _scene_goal()
-    flat = np.concatenate([np.array([v]).ravel() for v in goal.values()])   # td_jepa's form
+    flat = np.concatenate([np.array([v]).ravel() for v in goal.values()])
     assert flat.shape == (7,)
     rows = np.stack([_scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.2),
                      _scene_physics([0.35, 0.05, 0.02], [0, 0], -0.16, 0.2)])
@@ -152,14 +102,6 @@ def test_scene_reward_rejects_a_goal_dict_in_the_wrong_order():
 # 2. Dispatch on the task_info's goal key.
 # ======================================================================================
 def test_dispatch_picks_the_family_from_the_task_info():
-    ant = relabel_reward_for_task({"goal_xy": np.array([1.0, 1.0])},
-                                  np.array([[1.0, 1.0, 0.0], [5.0, 5.0, 0.0]]))
-    np.testing.assert_allclose(ant, [0.0, -1.0])
-
-    puz = relabel_reward_for_task({"goal_button_states": np.array([1, 0])},
-                                  np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 0.0]]))
-    np.testing.assert_allclose(puz, [0.0, -1.0])
-
     scn = relabel_reward_for_task({"goal": _scene_goal()},
                                   np.stack([_scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.2)]))
     np.testing.assert_allclose(scn, [0.0])
@@ -197,41 +139,6 @@ def _ds(n, qpos, button_states=None, seed=0):
     return ds
 
 
-def test_antmaze_batch_reads_next_row_xy():
-    n = 6
-    qpos = np.zeros((n, 15))
-    qpos[2, :2] = [3.0, 4.0]                        # reachable via idx=1
-    qpos[4, :2] = [3.3, 4.0]                        # 0.3 away, reachable via idx=3
-    ds = _ds(n, qpos)
-    env = _fake_env([{"goal_xy": np.array([3.0, 4.0])}])
-    obs, r = OGBenchAdapter().relabel_infer_batch(ds, env, 1, 5, shift_reward=1.0)
-    assert obs.shape == (5, OBS_DIM) and r.shape == (5,) and r.dtype == np.float32
-    np.testing.assert_allclose(r, [0.0, 1.0, 0.0, 1.0, 0.0])
-    np.testing.assert_array_equal(obs, np.asarray(ds["observations"])[1:6])
-
-
-def test_puzzle_batch_uses_button_states_not_qpos():
-    n = 5
-    goal = np.array([1, 0, 1, 1, 0, 0, 1, 0, 1])
-    qpos = np.zeros((n, 23))
-    qpos[:, -9:] = goal                             # decoy: qpos's last 9 cols spell the goal
-    bs = np.zeros((n, 9), np.int64)
-    bs[1] = goal                                    # reachable via idx=0 -> reward 0 (+1)
-    bs[2] = goal; bs[2, 4] = 1                      # one wrong -> -1 (+1 = 0)
-    ds = _ds(n, qpos, bs)
-    env = _fake_env([{"goal_button_states": goal}])
-    _, r = OGBenchAdapter().relabel_infer_batch(ds, env, 1, 4, shift_reward=1.0)
-    # rows 3,4: button_states all zero vs a goal with four 0s -> 4 matched -> -5 + 1 = -4.
-    np.testing.assert_allclose(r, [1.0, 0.0, -4.0, -4.0])
-
-
-def test_puzzle_batch_requires_button_states():
-    ds = _ds(4, np.zeros((4, 23)))                  # no button_states column
-    env = _fake_env([{"goal_button_states": np.zeros(9, np.int64)}])
-    with pytest.raises(AssertionError, match="button_states"):
-        OGBenchAdapter().relabel_infer_batch(ds, env, 1, 3)
-
-
 def test_scene_batch_reads_next_row_physics():
     n = 5
     qpos = np.zeros((n, 25))
@@ -267,10 +174,11 @@ def test_cube_batch_is_unchanged_by_the_dispatch():
     np.testing.assert_allclose(r, [0.0, 0.0, 1.0, 0.0, 0.0])
 
 
-def test_shift_is_applied_verbatim_for_every_family():
-    qpos = np.zeros((3, 15)); qpos[1, :2] = [1.0, 1.0]
+def test_shift_is_applied_verbatim():
+    goal = np.array([[0.1, 0.2, 0.3]])
+    qpos = np.zeros((3, 21)); qpos[1, 14:17] = goal[0]
     ds = _ds(3, qpos)
-    env = _fake_env([{"goal_xy": np.array([1.0, 1.0])}])
+    env = _fake_env([{"goal_xyzs": goal}])
     _, r0 = OGBenchAdapter().relabel_infer_batch(ds, env, 1, 2, shift_reward=0.0)
     _, r5 = OGBenchAdapter().relabel_infer_batch(ds, env, 1, 2, shift_reward=0.5)
     np.testing.assert_allclose(r0, [0.0, -1.0])
@@ -281,8 +189,7 @@ def test_shift_is_applied_verbatim_for_every_family():
 # 4. Integration on the real datasets. Skipped when ~/.ogbench/data lacks them.
 # ======================================================================================
 # (env_name, number of conditions k -> unshifted reward in [-k, 0])
-REAL_ENVS = [("antmaze-medium-navigate-v0", 1), ("scene-play-v0", 5),
-             ("puzzle-3x3-play-v0", 9), ("cube-single-play-v0", 1)]
+REAL_ENVS = [("scene-play-v0", 5), ("cube-single-play-v0", 1), ("cube-double-play-v0", 2)]
 
 
 def _positive_counts(adapter, train_ds, env, num_samples, shift):
@@ -305,8 +212,8 @@ def test_relabel_on_the_real_dataset(env_name, k):
         {"env_name": env_name, "eval_relabel_size": 2000})
     base = adapter._column_backed(train_ds)
     assert "qpos" in base
-    if env_name.startswith(("scene", "puzzle")):
-        assert "button_states" in base, "loader must carry button_states for scene/puzzle"
+    if env_name.startswith("scene"):
+        assert "button_states" in base, "loader must carry button_states for scene"
 
     n = 2000
     res = _positive_counts(adapter, train_ds, env, n, shift=1.0)

@@ -1,38 +1,17 @@
-# ExoRL walker (RND exploration buffer) via the unified adapter.
+# ExoRL walker (RND exploration buffer). Reward-specified: no binary success rule; eval
+# reports undiscounted `episode_return`.
 #
-# REWARD-SPECIFIED domain -- see env/domains/dmc-point-mass-maze.yaml for why
-# `keep_dataset_rewards` matters and which critics can run this at all. `walker` has NO
-# binary success rule; the benchmark metric is episode return, which env/unified.py's
-# evaluate() reports as `episode_return` for dmc- tasks.
-#
-# density_fb / td_fb additionally need `measure_hit_spec` for THIS observation layout. It
-# cannot live in this file: env/config.py merges domain BEFORE critic, so the critic yaml's
-# cube-single default ("19:22:0.4") would win. Pass it as an override, as the launcher
-# scripts do (note the escaped quotes -- OmegaConf yaml-parses a bare `a:b:c` dotlist value
-# as a sexagesimal number):
+# Hit spec for this layout, passed as an override (quote it):
 #     --override 'measure_hit_spec="0:24:15.9"'
-# DECIDED 2026-08-24: the FULL observation block. walker's measured layout is orientations
-# 0:14, height 14:15, velocity 15:24 (dm_control observation_spec, not inferred) -- so a
-# task-aligned block was available, but taking the whole observation makes no modelling
-# claim about which dims the successor measure should resolve, which is the point of the
-# choice. The cost is a 24-dim kernel where the method was tuned on 3.
-# The RADIUS is calibrated, not picked: 15.9 is the value at which the fraction of random
-# observation pairs inside the block's L2 ball matches cube-single's own hit rate under its
-# published spec (19:22:0.4 -> 0.0133; walker 0:24:15.9 -> 0.0131, measured over 400k pairs
-# from 200 RND episodes). The same procedure run on point_mass_maze returns 0.021 for the
-# independently human-decided 0:2:0.03, which is what certifies it.
-# NOTE the radius is dominated by the velocity dims, which dm_control leaves unnormalised
-# (pairwise distance median 50.8 over the full block). That is inherent to the full-block
-# choice, not a calibration artifact.
+# The block is the full observation (orientations 0:14, height 14:15, velocities 15:24). The
+# radius is calibrated so the fraction of random observation pairs inside the ball matches
+# cube-single's hit rate under 19:22:0.4 (scripts/calibrate_hit_spec.py); it is dominated by
+# the unnormalised velocity dims.
 adapter: unified
 env_name: dmc-walker          # run naming only
 task: dmc-walker
 exorl_task: walk              # one of stand / walk / run / flip
 exorl_algo: rnd
 data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/walker/rnd
-# 5000 = 5M transitions, matching MetaMotivo's ExoRL/DMC setting
-# (`examples/fb_train_dmc.py`: `load_n_episodes: 5_000`, RND buffer). See
-# env/domains/dmc-point-mass-maze.yaml for the full note.
-exorl_max_episodes: 5000
-keep_dataset_rewards: true
-render: false
+exorl_max_episodes: 5000      # 5M transitions, as in MetaMotivo's ExoRL setting
+keep_dataset_rewards: true    # keep the task reward instead of the goal-reaching reward

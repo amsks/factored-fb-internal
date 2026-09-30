@@ -1,8 +1,6 @@
-"""Config composition for the impls/ tree.
-
-Composes a run config from three sibling groups — critic/, actor/, domain/ — under
-impls/configs/. Replaces PR1's hardcoded main.py:get_config(). Returns a plain dict so
-downstream code (Agent.create, the critics/actors) never sees a DictConfig.
+"""Config composition: a run config from three groups -- critic/, actor/, domain/ -- under
+impls/configs/. Returns a plain dict so the critics and actors never see a DictConfig.
+env/config.py::make_config is the entry point main.py uses (it also reads env/domains/).
 """
 import os
 
@@ -10,136 +8,26 @@ from omegaconf import OmegaConf
 
 CONFIG_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs")
 
-# Keys each critic needs — checked up front so a missing key is a named error here rather
-# than a bare KeyError inside Agent.create's optimizer construction, or (for gciql's
-# GCDataset keys) inside make_dataset(), which runs *before* Agent.create. Dotted keys
-# (e.g. "forward.hidden_dim") reach into nested group dicts.
+# Keys each critic needs, checked up front so a missing key is a named error here rather
+# than a bare KeyError inside make_dataset() or Agent.create. Dotted keys reach into nested
+# group dicts. Keyed by the --critic name as given (aliases have their own yamls).
+_FB_KEYS = (
+    "lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount",
+    "L_dim", "num_parallel", "ortho_coef",
+    "train_goal_ratio", "norm_z", "f_target_tau", "b_target_tau",
+    "forward.hidden_dim", "forward.hidden_layers", "forward.embedding_layers",
+    "backward.hidden_dim", "backward.hidden_layers", "backward.norm",
+    "left_encoder.hidden_dim", "left_encoder.hidden_layers", "left_encoder.norm",
+)
 REQUIRED_KEYS = {
-    # fb.py:build() reads z_dim/L_dim/num_parallel plus the forward/backward/left_encoder
-    # sub-dicts (fb.py:130-154); the FBCritic dataclass reads the remaining scalars.
-    "fb": (
-        "lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount",
-        "L_dim", "num_parallel", "ortho_coef", "fb_pessimism_penalty",
-        "train_goal_ratio", "norm_z", "f_target_tau", "b_target_tau",
-        "forward.hidden_dim", "forward.hidden_layers", "forward.embedding_layers",
-        "backward.hidden_dim", "backward.hidden_layers", "backward.norm",
-        "left_encoder.hidden_dim", "left_encoder.hidden_layers", "left_encoder.norm",
-    ),
-    # psm.py:build() bare-indexes z_dim/max_log_seed/num_parallel plus the phi/sf sub-dicts;
-    # the PSMCritic dataclass reads the remaining scalars, and Agent.create reads lr_phi/lr_sf
-    # (_LR_KEY: phi -> lr_phi, sf_psi/psm_psi -> lr_sf) and lr_actor. proto_seed is required
-    # rather than defaulted on purpose: it selects the proto behaviour-policy family, so a
-    # sweep must not be able to leave it unset. PSM needs no dataset_class -- its goal IS
-    # next_observations, like fb.
-    "psm": (
-        "lr_phi", "lr_sf", "lr_actor", "z_dim", "max_log_seed", "batch_size", "discount",
-        "num_parallel", "ortho_coef", "pessimism_penalty", "actor_pessimism_penalty",
-        "mix_ratio", "norm_z", "target_tau", "proto_seed",
-        "phi.hidden_dim", "phi.hidden_layers", "phi.norm",
-        "sf.hidden_dim", "sf.hidden_layers", "sf.embedding_layers",
-    ),
-    # rldp.py:build() reads every fb key (it builds the same forward/backward/left_encoder
-    # modules) PLUS `horizon` and the `predictor` sub-dict for its fourth module group.
-    # dataset_class is required because make_dataset() -- which is what turns `horizon`
-    # into the future_observations/future_actions columns rldp.py::_sp_pairs consumes --
-    # runs *before* Agent.create; without it rldp silently gets an unwindowed FB batch and
-    # the h-step self-predictive loss collapses to its one-step term.
-    "rldp": (
-        "lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount",
-        "L_dim", "num_parallel", "ortho_coef", "fb_pessimism_penalty",
-        "train_goal_ratio", "norm_z", "f_target_tau", "b_target_tau",
-        "forward.hidden_dim", "forward.hidden_layers", "forward.embedding_layers",
-        "backward.hidden_dim", "backward.hidden_layers", "backward.norm",
-        "left_encoder.hidden_dim", "left_encoder.hidden_layers", "left_encoder.norm",
+    "fb": _FB_KEYS,
+    # rldp builds the same forward/backward/left_encoder modules plus the predictor, and
+    # needs `horizon` + dataset_class so make_dataset() emits the h-step window.
+    "rldp": _FB_KEYS + (
         "horizon",
         "predictor.hidden_dim", "predictor.hidden_layers", "predictor.embedding_layers",
         "dataset_class",
     ),
-    # gciql.py:build() reads lr/batch_size/discount/expectile/tau/value_hidden_dims/
-    # layer_norm; datasets.py:GCDataset (built *before* Agent.create, datasets.py:96-116)
-    # reads the goal-sampling and dataset_class keys.
-    # gcivl.py:build() reads lr/batch_size/discount/expectile/tau/value_hidden_dims/
-    # layer_norm (no q_bound -- GCIVL has no Q); GCDataset reads the goal-sampling keys.
-    # hiql.py:build() reads value_hidden_dims/layer_norm/discount/expectile/tau/
-    # high_alpha/rep_dim plus actor.*; HGCDataset reads subgoal_steps and the goal keys.
-    "hiql": (
-        "lr", "lr_actor", "batch_size", "discount", "expectile", "tau", "high_alpha",
-        "rep_dim", "subgoal_steps", "high_actor_hidden_dims", "value_hidden_dims", "layer_norm", "gc_negative",
-        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
-        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
-        "dataset_class",
-    ),
-    "gcivl": (
-        "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
-        "value_hidden_dims", "layer_norm", "gc_negative",
-        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
-        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
-        "dataset_class",
-    ),
-    "gciql": (
-        "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
-        "value_hidden_dims", "layer_norm", "gc_negative", "q_bound",
-        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
-        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
-        "dataset_class",
-    ),
-    # crl.py:build() reads value_hidden_dims/latent_dim/layer_norm; the contrastive loss is
-    # not bootstrapped so there are no target/tau keys. GCDataset (built before Agent.create)
-    # reads the goal-sampling + dataset_class keys, same as gciql. Ported from tl-jax-unify.
-    "crl": (
-        "lr", "batch_size", "discount", "value_hidden_dims", "latent_dim", "layer_norm",
-        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
-        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
-        "gc_negative", "dataset_class",
-    ),
-    # qrl.py:build() reads the IQE-head knobs; stage_loss reads the qrl_* scalars. GCDataset
-    # (built before Agent.create) reads the goal-sampling + dataset_class keys.
-    "qrl": (
-        "lr", "lr_actor", "batch_size", "discount", "value_hidden_dims", "layer_norm",
-        "qrl_components", "qrl_dim_per_component", "qrl_step_cost", "qrl_eps",
-        "qrl_transform_t",
-        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
-        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
-        "gc_negative", "dataset_class",
-    ),
-    # vip.py:build() reads the encoder knobs; the loss reads discount. VIPDataset (built
-    # before Agent.create) needs only dataset_class — it has no goal-sampling knobs.
-    # isfb.py:build() bare-indexes every FB key (it builds the same forward/backward/
-    # left_encoder modules) PLUS the ISFB terms; stage_loss reads batch['masks'], which only
-    # GCDataset produces, so the GCDataset keys are required too (they are consumed by
-    # make_dataset(), which runs *before* Agent.create).
-    # iql_bilinear.py:build() bare-indexes every gciql key (same expectile-V + twin-Q
-    # objective) PLUS the bilinear-head and actor-conditioning knobs that _validate() and
-    # the head constructor read. Every one of these is indexed without .get(), on purpose:
-    # a knob that silently defaults is a knob a sweep can silently fail to set.
-    "iql_bilinear": (
-        "lr", "lr_actor", "batch_size", "discount", "expectile", "tau",
-        "value_hidden_dims", "layer_norm", "gc_negative",
-        "value_latent_dim", "psi_base", "project_z", "double_q", "iql_ortho_coef",
-        "psi_layer_norm", "actor_cond", "actor_z_from_critic", "actor_z_infer",
-        "value_p_curgoal", "value_p_trajgoal", "value_p_randomgoal", "value_geom_sample",
-        "actor_p_curgoal", "actor_p_trajgoal", "actor_p_randomgoal", "actor_geom_sample",
-        "dataset_class",
-    ),
-    # simple_sf.py:build() bare-indexes the gciql objective keys (same expectile-V + twin-Q
-    # TD) PLUS the SF-head knobs that _validate() and GCSimpleSFValue read. actor_cond and
-    # ground_fade are indexed because _validate() refuses them off their pinned value — a
-    # sweep must not be able to leave them unset and slip past the pin.
-    # sf_feature.py:build()/_validate() bare-index every key below (all via [] on purpose:
-    # a knob that silently defaults is a knob a sweep can silently fail to set). actor_cond is
-    # read to PIN it to 'goal' by RAISING (audit S4). The GCDataset keys are consumed by
-    # make_dataset(), which runs *before* Agent.create.
-    # centered_bilinear.py:build()/_validate() bare-index the IQL scalars + every mode knob
-    # (mode, the dueling/centered coefs, centered_split_bootstrap, centered_scale_anchors,
-    # use_next_actions, center_b_samples). Each is indexed without .get() so a sweep that
-    # forgets one is a named ConfigError here rather than a silent default. GCDataset keys are
-    # required because make_dataset() (which reads them) runs before Agent.create.
-    # fb_forward_bilinear.py:build() bare-indexes the gciql objective keys PLUS the z-indexed
-    # forward knobs (phi_module/objective), the full measure_* family, and the isfb-objective
-    # terms. Every one is indexed without .get() on purpose: a knob a sweep can silently fail
-    # to set is a silent no-op (audit S10/S11), the exact failure mode this critic exists to
-    # remove. GCDataset keys are required because stage_loss reads batch['masks'/'value_goals']
-    # and make_dataset() (which consumes them) runs before Agent.create.
 }
 
 
@@ -155,14 +43,20 @@ def _get_dotted(d, dotted_key):
 
 
 class ConfigError(ValueError):
-    """Raised when a composed config is missing a key the seam requires."""
+    """Raised when a composed config is missing a required key."""
 
 
 def _load_group(group, name):
+    """Load <group>/<name>.yaml. A top-level `base: <other>` key loads <group>/<other>.yaml
+    first and merges this file over it."""
     path = os.path.join(CONFIG_ROOT, group, f"{name}.yaml")
     if not os.path.exists(path):
         raise ConfigError(f"no {group} config named {name!r} (looked for {path})")
-    return OmegaConf.load(path)
+    cfg = OmegaConf.load(path)
+    if "base" in cfg:
+        base = cfg.pop("base")
+        cfg = OmegaConf.merge(_load_group(group, base), cfg)
+    return cfg
 
 
 def load_config(critic, actor, domain, overrides=None):

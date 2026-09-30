@@ -3,18 +3,17 @@
 The whole point of this class is TRAJECTORY BOUNDARIES. A window that silently spans
 two episodes trains the predictor to roll a dynamics model into an unrelated
 trajectory, and nothing fails loudly — the shapes are right and the loss is finite.
-So the boundary behaviour is pinned here first, in the same way
-tests/impls/test_hgcdataset.py pins HGCDataset's `low_actor_goals` clamp.
+So the boundary behaviour is pinned here first.
 
-Contract (td_jepa's parallel.py layout; clamping per HGCDataset's convention):
+Contract (TD-JEPA's replay-buffer layout; windows clamp to the trajectory's own end):
   * future_observations / future_actions have shape [B, h-1, ...];
   * future_actions      column k (0-based) is dataset row `min(idx + 1 + k, traj_final_idx)` (a_{t+1+k});
   * future_observations column k (0-based) is dataset row `min(idx + 2 + k, traj_final_idx)` (s_{t+2+k})
     -- the observation column LEADS the action column by one step, so column k is the
     aligned rollout pair (a_{t+1+k} -> the state it reaches, s_{t+2+k}); prepending the
     batch's own (action, next_observations) gives RLDP's h-step rollout, step k -> s_{t+k}
-    (the 2026-08-25 off-by-one fix: both windows used to sit at rows t+1..t+h-1, so the
-    SP target sequence duplicated s_{t+1} and never reached s_{t+h});
+    (if both windows sat at rows t+1..t+h-1, the target sequence would duplicate s_{t+1}
+    and never reach s_{t+h});
   * a window starting near the end of a trajectory REPEATS that trajectory's last row
     rather than reading the first rows of the next episode.
 """
@@ -60,7 +59,7 @@ def test_make_dataset_dispatches_windowed():
 
 def test_horizon_is_required():
     """A missing horizon must be a named error, not a silent h=1 that quietly turns the
-    self-predictive loss into a one-step loss (exactly HGCDataset's `subgoal_steps` rule)."""
+    self-predictive loss into a one-step loss."""
     with pytest.raises(KeyError, match="horizon"):
         make_dataset(_base(), _cfg(horizon=None)).sample(4)
 
@@ -118,9 +117,8 @@ def test_window_contents_are_the_actual_next_h_rows():
 def test_future_column_zero_starts_one_step_past_the_transition():
     """Column 0 of the observation window is s_{t+2} -- the row AFTER the one
     `next_observations` carries -- paired with action column 0 = a_{t+1}, the action
-    taken AT s_{t+1}. The pre-fix window duplicated `next_observations` in column 0
-    (2026-08-25 off-by-one), which taught the predictor that a_{t+1} does not move the
-    embedding; this is the regression pin."""
+    taken AT s_{t+1}. A window that duplicated `next_observations` in column 0 would teach
+    the predictor that a_{t+1} does not move the embedding."""
     base = _base()
     obs = np.asarray(base["observations"])
     acts = np.asarray(base["actions"])
@@ -130,7 +128,7 @@ def test_future_column_zero_starts_one_step_past_the_transition():
     np.testing.assert_allclose(b["future_observations"][:, 0], obs[idxs + 2])
     np.testing.assert_allclose(b["future_actions"][:, 0], acts[idxs + 1])
     assert not np.allclose(b["future_observations"][:, 0], b["next_observations"]), \
-        "column 0 duplicates next_observations -- the pre-fix off-by-one is back"
+        "column 0 duplicates next_observations (off-by-one)"
 
 
 # --------------------------------------------------------------------------
@@ -153,11 +151,10 @@ def test_window_near_a_trajectory_end_is_clamped_not_bled():
     np.testing.assert_allclose(b["future_observations"][0], obs[[T - 1, T - 1, T - 1]])
 
 
-def test_clamping_matches_the_hgc_convention_over_every_start_row():
+def test_clamping_to_the_trajectory_end_over_every_start_row():
     """Exhaustive: for EVERY dataset row and a horizon long enough to overrun, the action
     window must equal `min(idx + 1 + k, final_state_idx)` and the observation window
-    `min(idx + 2 + k, final_state_idx)` -- HGCDataset's clamp, applied to all h-1
-    columns. A version that clamped to `size - 1` instead of the trajectory end would
+    `min(idx + 2 + k, final_state_idx)`, for all h-1 columns. A version that clamped to `size - 1` instead of the trajectory end would
     pass every interior row and fail here."""
     base = _base()
     obs = np.asarray(base["observations"])

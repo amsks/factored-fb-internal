@@ -59,7 +59,7 @@ def test_load_packed_marks_every_episode_end_and_keeps_success(packed):
 def test_hilp_future_never_leaves_the_anchor_episode(packed):
     np.random.seed(0)
     ds = make_dataset(_base(packed), dict(dataset_class="HILPFutureDataset", hilp_future=0.99,
-                                           hilp_p_randomgoal=0.0, hilp_p_currgoal=0.0))
+                                           hilp_p_randomgoal=0.0))
     assert isinstance(ds, HILPFutureDataset)
     # p = 0.01 => the geometric offset is > T for most draws: every one must clamp.
     for _ in range(20):
@@ -90,7 +90,7 @@ def test_rldp_window_never_leaves_the_anchor_episode(packed, h):
 def test_hilp_future_dataset_applies_the_goal_mask_union(packed):
     np.random.seed(0)
     ds = make_dataset(_base(packed), dict(dataset_class="HILPFutureDataset", hilp_future=0.99,
-                                           hilp_p_randomgoal=0.375, hilp_p_currgoal=0.0,
+                                           hilp_p_randomgoal=0.375,
                                            obs_mask_dims=[5, 6], goal_mask_dims=[6, 7]))
     b = ds.sample(128)
     for k in ("observations", "next_observations", "hilp_future_observations"):

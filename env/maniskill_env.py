@@ -8,7 +8,7 @@ what makes the eval env's 42/35/48-dim state match the dataset — verified per 
 parity probe (env obs/act == dataset obs/act on all of pick/push/stack/lift/poke).
 
 CPUGymWrapper(ignore_terminations=True) runs the full fixed horizon and returns single-env
-numpy, so the unified eval loop consumes it exactly like the Metaworld/Box2D envs.
+numpy, so the unified eval loop consumes it exactly like the Metaworld envs.
 """
 import os
 

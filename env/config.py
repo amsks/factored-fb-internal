@@ -1,10 +1,7 @@
-"""env/config.py — compose a run config with the DOMAIN group owned by env/.
+"""env/config.py — compose a run config whose domain group lives in env/domains/.
 
-impls/utils/config_utils.load_config reads all three groups (critic/actor/domain) from
-impls/configs/. To keep every environment config inside env/ (and impls/ untouched), this
-composer loads the domain from env/domains/ and reuses config_utils' critic/actor loaders +
-override/required-key logic read-only. Domains not found under env/domains/ fall back to
-impls/configs/domain/ (so the collaborator's OGBench domains, e.g. cube_single, still work).
+Critic and actor groups come from impls/configs/ via config_utils. Domains not found under
+env/domains/ (the OGBench ones, e.g. cube_single) fall back to impls/configs/domain/.
 """
 import os
 
@@ -16,9 +13,8 @@ from impls.utils.config_utils import (
 
 DOMAINS_ROOT = os.path.join(os.path.dirname(__file__), "domains")
 
-# Override spellings that are valid dotlist but name nothing this tree reads. Upstream's
-# bridge config is flat with a single `lr`, so specs transcribed from it reach for `actor.lr`
-# / `critic.lr`; both merge cleanly and change nothing. Mapped to the key that is read.
+# Override spellings that are valid dotlist but name nothing this tree reads; both merge
+# cleanly and change nothing. Mapped to the key that is read.
 _INERT_ALIASES = {"actor.lr": "lr_actor", "critic.lr": "lr"}
 
 
@@ -50,11 +46,9 @@ def make_config(critic, actor, domain, overrides=None):
             del node[leaf]
     out = OmegaConf.to_container(cfg, resolve=True)
 
-    # Overrides that name a key this tree does not read are SILENT: OmegaConf happily creates
-    # `actor.lr` next to the real `lr_actor` and the run trains at the default, producing a
-    # wrong table cell with no error anywhere. The bridge specs are written against upstream's
-    # flat single-`lr` config, so its spellings are exactly the ones that land here inert.
-    # Fail loudly on the known aliases rather than let a silently-mistuned run reach a table.
+    # An override naming a key this tree does not read is silent: OmegaConf creates
+    # `actor.lr` next to the real `lr_actor` and the run trains at the default. Fail loudly
+    # on the known aliases.
     for alias, real in _INERT_ALIASES.items():
         value, present = _get_dotted(out, alias)
         if present:

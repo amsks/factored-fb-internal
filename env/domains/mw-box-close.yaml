@@ -1,8 +1,6 @@
-# mw-box-close via the unified adapter — grasp a lid and close a box; grasp-transport with a articulated target.
-# Same plumbing as mw-bin-picking.yaml: packed HuggingFace export under ${FB_HF_EXPORT},
-# env built by env/metaworld_env.py (newt-parity wrapper, action repeat 2, horizon 100).
+# mw-box-close: MetaWorld goal-observable env built by env/metaworld_env.py (action repeat 2,
+# horizon 100). FB_HF_EXPORT points at the packed data root holding data/<family>/<task>.npz.
 adapter: unified
 env_name: mw-box-close          # run naming only
 task: mw-box-close
 data_path: ${oc.env:FB_HF_EXPORT}/data/metaworld/mw-box-close.npz
-render: false

@@ -1,62 +1,22 @@
-"""Dataset utilities for the impls/ tree.
+"""Dataset utilities.
 
 `Dataset` is ported from OGBench upstream impls/utils/datasets.py (the compact-dataset
-FrozenDict with idx+1 next-observation inference). `FBDataset` adds the FB training batch:
-observations/actions/next_observations plus reward=0 (play data is unlabeled) and
-terminals=0 (always-gamma bootstrap, matching the PyTorch reference).
+FrozenDict with idx+1 next-observation inference). The samplers on top of it produce the
+training batch each critic needs:
+
+  FBDataset          -- observations/actions/next_observations, reward 0 for unlabeled play
+                        data, terminals 0 (always bootstrap). fb.
+  GCDataset          -- adds hindsight value/actor goals and the goal-reaching reward.
+                        density_fb.
+  WindowedDataset    -- the FB batch plus an h-step window of future actions/states. rldp.
+  HILPFutureDataset  -- the FB batch plus one geometrically-sampled future state. hilp.
 """
 import dataclasses
-from functools import partial
 from typing import Any
 
 import jax
 import numpy as np
 from flax.core.frozen_dict import FrozenDict
-
-from impls.utils.encoders import random_shifts_batch
-
-
-def parse_qpos_slices(spec):
-    """Parse `measure_qpos_slices` -- "a:b" or "a:b,c:d" -- into a tuple of (a, b) pairs.
-
-    This is the PRIVILEGED MEASURE CHANNEL for pixel runs: which columns of the dataset's
-    `qpos` field make up the object-coordinate row `impls/critics/density_fb.py`'s hit kernel
-    slices. On `visual-cube-single-play-v0` that is `"14:17"` -- MuJoCo's
-    `object_joint_0` free joint starts at qpos index 14, so qpos[14:17] IS
-    `info['privileged/block_0_pos']` (verified, and pinned by
-    tests/impls/test_density_fb_pixels.py).
-
-    None (the default, and every state config) -> no channel, and `GCDataset` emits nothing
-    extra. The state path never reads this key.
-    """
-    if spec is None:
-        return None
-    out = []
-    for part in str(spec).split(","):
-        part = part.strip()
-        if not part:
-            continue
-        a, b = part.split(":")
-        a, b = int(a), int(b)
-        assert b > a, f"measure_qpos_slices block {part!r} is empty or reversed"
-        out.append((a, b))
-    assert out, f"measure_qpos_slices={spec!r} parsed to no blocks"
-    return tuple(out)
-
-
-def _qpos_rows(qpos, idxs, slices):
-    """[N, sum(b-a)] object-coordinate rows gathered at `idxs` -- the measure channel."""
-    return np.concatenate([np.asarray(qpos[idxs][:, a:b], np.float32) for (a, b) in slices],
-                          axis=-1)
-
-
-def _batch_array(arr):
-    """float32 for state rows (what this seam has always emitted); the RAW dtype for image
-    tensors. `DrQEncoder` normalizes uint8 internally (`x/255 - 0.5`), so a float32 copy
-    would quadruple the host->device transfer for a bit-identical result -- and would also
-    make a 1024x64x64x3 batch 50MB instead of 12MB."""
-    a = np.asarray(arr)
-    return a if a.ndim > 2 else np.asarray(a, np.float32)
 
 
 def get_size(data):
@@ -85,121 +45,9 @@ class Dataset(FrozenDict):
             (self.valid_idxs,) = np.nonzero(self['valids'] > 0)
 
     def get_random_idxs(self, num_idxs):
-        if getattr(self, '_oversample', False):
-            # Two-bucket weighted draw: a persistent (quasi-static) row is worth `lam` times a
-            # transient one, so persistent transitions are increasingly overrepresented while
-            # the state-action SUPPORT is unchanged (every original row keeps nonzero mass).
-            # O(num_idxs), no per-step cumsum over the whole dataset.
-            m = np.random.random(num_idxs) < self._persist_mass
-            out = np.empty(num_idxs, dtype=np.int64)
-            npst, ntr = len(self._persist_pool), len(self._transient_pool)
-            if m.any():
-                out[m] = self._persist_pool[np.random.randint(npst, size=int(m.sum()))]
-            if (~m).any():
-                out[~m] = self._transient_pool[np.random.randint(ntr, size=int((~m).sum()))]
-            return out
         if 'valids' in self._dict:
             return self.valid_idxs[np.random.randint(len(self.valid_idxs), size=num_idxs)]
         return np.random.randint(self.size, size=num_idxs)
-
-    # Per-row CRITIC loss weight (persist_mode="loss"), full dataset length, dataset-mean 1
-    # over the valid pool; None = every row weighs 1 (the batch key is still emitted, all ones).
-    _row_weight = None
-
-    def row_weights(self, idxs):
-        """float32 [n] loss weight of each drawn row; all ones unless persist_mode='loss'."""
-        idxs = np.asarray(idxs).reshape(-1)
-        if self._row_weight is None:
-            return np.ones(idxs.shape[0], np.float32)
-        return np.asarray(self._row_weight[idxs], np.float32)
-
-    def enable_persist_oversample(self, block, thresh, lam=1.0, pool="motion", window=0,
-                                  transient_mass=None, mode="sample"):
-        """Split the rows into two buckets, persistent vs transient, and give a persistent row
-        `lam` times a transient one's weight. mode="sample": the weight is SAMPLING mass in
-        get_random_idxs -- lam > 1 makes the rare transient rows rarer (the density lever),
-        lam < 1 upweights them (rebalancing by resampling). mode="loss": sampling stays
-        uniform (the actor's training distribution and every candidate/next-state set are
-        untouched) and the weight becomes a per-row CRITIC loss weight instead
-        (`row_weights`, batch["row_weight"]): transient rows weigh W = 1/lam, persistent rows 1,
-        normalised so the dataset-mean weight is 1. Support is preserved either way: every
-        original row keeps nonzero mass.
-
-        pool="motion": a row is transient when the object block (obs[:, a:b]) moves >= `thresh`
-            between t and t+1 (the OGBench analogue of adding ordinary-state mass in the toy MDP).
-        pool="onset":  a row is transient when it lies within +-`window` rows of a MOTION ONSET
-            (block displacement < thresh at t-1->t and >= thresh at t->t+1), computed within the
-            valid pool; everything else is persistent. This isolates the bottleneck rows (the
-            grasp/first-move decision) from the long transport segments that follow them.
-        transient_mass (float in (0,1)) overrides `lam`: lam is chosen so the transient bucket
-            receives exactly that sampling mass, i.e. persist_mass = 1 - transient_mass.
-        Returns the split as a dict."""
-        pool_idx = self.valid_idxs if 'valids' in self._dict else np.arange(self.size)
-        a, b = block
-        obs = np.asarray(self._dict['observations'])
-        blk = obs[:, a:b].astype(np.float64)
-        nxt = np.minimum(pool_idx + 1, self.size - 1)
-        moved = np.linalg.norm(blk[nxt] - blk[pool_idx], axis=-1)
-        moving = moved >= float(thresh)
-        pool = str(pool)
-        window = int(window)
-        if pool == "motion":
-            transient = moving
-        elif pool == "onset":
-            # onset at pool position i: not moving at i-1, moving at i (first pool row never an
-            # onset: it has no predecessor within the pool).
-            # A trajectory's last row compares against the NEXT trajectory's first row (a
-            # jump); that is not a cube onset, so mask boundary rows for onset detection.
-            mv = moving.copy()
-            if 'terminals' in self._dict:
-                mv &= np.asarray(self._dict['terminals'])[pool_idx] <= 0
-            onset = np.zeros_like(mv)
-            onset[1:] = (~mv[:-1]) & mv[1:]
-            transient = np.zeros_like(moving)
-            for d in range(-window, window + 1):
-                if d < 0:
-                    transient[:d] |= onset[-d:]
-                elif d > 0:
-                    transient[d:] |= onset[:-d]
-                else:
-                    transient |= onset
-        else:
-            raise ValueError(f"persist pool must be 'motion' or 'onset', got {pool!r}")
-        persist = ~transient
-        self._persist_pool = np.ascontiguousarray(pool_idx[persist])
-        self._transient_pool = np.ascontiguousarray(pool_idx[transient])
-        npst, ntr = len(self._persist_pool), len(self._transient_pool)
-        mode = str(mode)
-        if mode not in ("sample", "loss"):
-            raise ValueError(f"persist mode must be 'sample' or 'loss', got {mode!r}")
-        base = dict(mode=mode, pool=pool, window=window, thresh=float(thresh),
-                    npersist=int(npst), ntransient=int(ntr), frac_persist=float(persist.mean()))
-        self._oversample = False
-        self._row_weight = None
-        if npst == 0 or ntr == 0:   # nothing to reweight; uniform sampling, unit weights
-            return dict(enabled=False, lam=float(lam), persist_mass=float(npst > 0), **base)
-        if transient_mass is not None:
-            tm = float(transient_mass)
-            assert 0.0 < tm < 1.0, f"transient_mass must be in (0,1), got {tm}"
-            lam = (1.0 - tm) / tm * ntr / npst
-        lam = float(lam)
-        assert lam > 0.0, f"lam must be positive (support preservation), got {lam}"
-        # Persistent share of the total weight (sampling mass in 'sample', loss mass in 'loss').
-        self._persist_mass = (lam * npst) / (lam * npst + ntr)
-        if mode == "sample":
-            self._oversample = True
-            return dict(enabled=True, lam=lam, persist_mass=float(self._persist_mass), **base)
-        # mode == "loss": transient rows weigh W = 1/lam relative to persistent rows, so the
-        # transient share of TOTAL weight is W*ntr/(W*ntr+npst) = 1 - persist_mass; then
-        # normalise to dataset-mean 1 over the valid pool.
-        W = 1.0 / lam
-        w = np.ones(self.size, np.float64)
-        w[self._transient_pool] = W
-        w /= w[pool_idx].mean()
-        self._row_weight = w.astype(np.float32)
-        return dict(enabled=True, lam=lam, persist_mass=float(self._persist_mass), W=float(W),
-                    w_transient=float(w[self._transient_pool[0]]),
-                    w_persist=float(w[self._persist_pool[0]]), **base)
 
     def sample(self, batch_size, idxs=None):
         if idxs is None:
@@ -208,15 +56,8 @@ class Dataset(FrozenDict):
 
     def get_subset(self, idxs):
         result = jax.tree_util.tree_map(lambda arr: arr[idxs], self._dict)
-        # The row's identity in the dataset, not its position in the batch. PSM's proto
-        # behaviour sampler keys its policy assignment on this: without it the same
-        # transition draws a different proto policy every resample, so psm_psi has no fixed
-        # policy to converge to (reference: batch["index"], enabled via with_index=True for
-        # psm only). Cheap, and every other critic ignores it.
+        # The row's identity in the dataset (HILPFutureDataset draws its future from it).
         result['index'] = np.asarray(idxs).reshape(-1)
-        # Per-row critic loss weight: all ones unless persist_mode='loss'. Always present so
-        # the batch key set does not depend on the mode.
-        result['row_weight'] = self.row_weights(idxs)
         if 'next_observations' not in result:
             result['next_observations'] = self._dict['observations'][np.minimum(idxs + 1, self.size - 1)]
         return result
@@ -226,10 +67,9 @@ class FBDataset(Dataset):
     """Dataset yielding the FB training batch. goal=next_obs is handled inside the critic,
     so no goal machinery is needed here."""
 
-    # Set by make_dataset from obs_mask_dims|goal_mask_dims. FB's goal IS next_observations
-    # (B() reads it inside stage_loss), so blanking both frames is the whole repaired
-    # protocol for this dataset; without it the mask overrides are silently inert and FB
-    # trains with the target visible in obs while eval blanks it (2026-08-17 FB-zero bug).
+    # Set by make_dataset from obs_mask_dims|goal_mask_dims. FB's goal is next_observations,
+    # so blanking both frames is the whole mask protocol for this dataset; eval blanks the
+    # same dims (env/unified.py::evaluate).
     mask_dims = None
 
     def sample(self, batch_size, idxs=None):
@@ -251,117 +91,26 @@ class FBDataset(Dataset):
             'actions': np.asarray(sub['actions'], np.float32),
             'next_observations': nobs,
             'rewards': rewards,
-            'terminals': np.zeros((B,), np.float32),  # always-gamma
+            'terminals': np.zeros((B,), np.float32),  # always bootstrap
             'index': np.asarray(sub['index']).reshape(-1),
-            'row_weight': np.asarray(sub['row_weight'], np.float32),
         }
 
 
 @dataclasses.dataclass
 class GCDataset:
-    """Goal-conditioned dataset — faithful port of OGBench utils/datasets.py:GCDataset.
-    Produces value_goals, actor_goals, rewards, masks. np.random call order matches the
-    vendored source for seeded determinism.
-
-    Three PIXEL features, each gated on a config key that no state config sets, so the
-    state batch is byte-for-byte what it always was:
-
-    * ``frame_stack`` (int|None) — stack the last k frames on the channel axis, clamped to
-      the trajectory's own first row so a stack never crosses an episode boundary. Computed
-      ON THE FLY, unlike vendored OGBench's `preprocess_frame_stack=True` default: the
-      preprocessed form of `visual-cube-single-play-v0` at k=3 is 1,001,000x64x64x9 uint8
-      = 36 GB of RAM.
-    * ``p_aug`` (float|None) — probability of applying `random_shifts_batch` (replicate-pad
-      by `aug_pad`, default 2, then integer-crop) to the image keys. HOST-SIDE NUMPY on
-      purpose; see impls/utils/encoders.py::random_shifts_batch.
-    * ``measure_qpos_slices`` (str|None) — emit the PRIVILEGED object-coordinate channel
-      alongside every image key: `observations_qpos`, `next_observations_qpos`,
-      `value_goals_qpos`, `actor_goals_qpos`. density_fb's hit kernel and query support are
-      literal column slices, which an image has no analogue of; this is the channel they
-      slice. Sourced from the dataset's own `qpos` field, gathered at exactly the same row
-      indices as the image it accompanies -- that index-sharing is what makes the two
-      channels describe the same state.
-
-    FRAME STACK x QPOS CHANNEL (spec section 9): the image key carries k stacked frames, the
-    qpos channel carries ONE row -- the LATEST frame (index `idxs`, the same row the
-    unstacked observation would be). The measure therefore always refers to the current
-    state, never to a frame in the stack's history.
-    """
+    """Goal-conditioned dataset, ported from OGBench utils/datasets.py:GCDataset.
+    Produces value_goals, actor_goals, the goal-reaching reward and masks. The np.random
+    call order matches the OGBench source for seeded determinism."""
     dataset: Dataset
     config: Any
 
     def __post_init__(self):
         self.size = self.dataset.size
         (self.terminal_locs,) = np.nonzero(np.asarray(self.dataset['terminals']) > 0)
-        self.initial_locs = np.concatenate([[0], self.terminal_locs[:-1] + 1])
         assert self.terminal_locs[-1] == self.size - 1
         c = self.config
         assert np.isclose(c['value_p_curgoal'] + c['value_p_trajgoal'] + c['value_p_randomgoal'], 1.0)
         assert np.isclose(c['actor_p_curgoal'] + c['actor_p_trajgoal'] + c['actor_p_randomgoal'], 1.0)
-        # Optional OOD-goal split (Arm D): restrict every training goal to one side of a
-        # hyperplane in observation space (e.g. cube block-x = dim 19, threshold 0).
-        # Goals sampled on the held-out side are replaced by uniform draws from the
-        # allowed pool, so eval goals on that side are never trained on.
-        self.goal_ok = None
-        if c.get('goal_filter_dim') is not None:
-            col = np.asarray(self.dataset['observations'][:, int(c['goal_filter_dim'])])
-            thresh = float(c.get('goal_filter_thresh', 0.0))
-            side = c.get('goal_filter_side', 'below')
-            self.goal_ok = col < thresh if side == 'below' else col >= thresh
-            self.goal_pool = np.nonzero(self.goal_ok)[0]
-            assert len(self.goal_pool) > 0, "goal_filter excludes every state"
-
-        # --- pixel plumbing. All three are None on every state config, and each `if` below
-        # is a plain python branch on a None, so the state batch is unchanged. ---
-        self.frame_stack = c.get('frame_stack')
-        if self.frame_stack is not None:
-            self.frame_stack = int(self.frame_stack)
-            assert self.frame_stack >= 1, f"frame_stack must be >= 1, got {self.frame_stack}"
-            assert 'next_observations' not in self.dataset, (
-                "frame_stack needs the COMPACT layout (observations only): a stack is built "
-                "by walking backwards from a row's index, which a stored next_observations "
-                "column cannot be reindexed against")
-        self.qpos_slices = parse_qpos_slices(c.get('measure_qpos_slices'))
-        if self.qpos_slices is not None and 'qpos' not in self.dataset:
-            raise KeyError(
-                "measure_qpos_slices is set but the dataset has no 'qpos' field. That field "
-                "is the ONLY source of the privileged measure channel on pixels; without it "
-                "density_fb's hit kernel would fall back to slicing the image tensor and "
-                "return plausible-looking numbers computed from pixel values.")
-        self.aug_pad = int(c.get('aug_pad', 2) or 2)
-
-    def get_observations(self, idxs):
-        """Observations at `idxs`, frame-stacked when `frame_stack` is set."""
-        if self.frame_stack is None:
-            return self.dataset['observations'][idxs]
-        return self.get_stacked_observations(idxs)
-
-    def get_stacked_observations(self, idxs):
-        """The last `frame_stack` frames at `idxs`, concatenated on the CHANNEL axis.
-
-        Each earlier frame is clamped to the row's own trajectory start (`initial_locs`), so
-        the opening frames of an episode repeat rather than reading the tail of the previous
-        one. Vendored OGBench does exactly this (`get_stacked_observations`); the only
-        deviation is that we never preprocess the whole dataset (see the class docstring)."""
-        obs = self.dataset['observations']
-        initial = self.initial_locs[np.searchsorted(self.initial_locs, idxs, side='right') - 1]
-        rets = [obs[np.maximum(idxs - i, initial)] for i in reversed(range(self.frame_stack))]
-        return np.concatenate(rets, axis=-1)
-
-    def augment(self, batch, keys):
-        """FB-faithful random shifts on the 4-D keys of `batch`, in place. pad defaults to 2
-        (FB's `Augmentator`), not vendored OGBench's 3."""
-        random_shifts_batch(batch, keys, pad=self.aug_pad)
-
-    def _add_qpos_channel(self, batch, idxs, next_idxs, value_goal_idxs, actor_goal_idxs):
-        """The privileged object-coordinate twin of each image key, gathered at the SAME row
-        indices. Emitted under `<key>_qpos` names so nothing that reads the image keys can
-        pick one up by accident."""
-        qp, sl = self.dataset['qpos'], self.qpos_slices
-        batch['observations_qpos'] = _qpos_rows(qp, idxs, sl)
-        batch['next_observations_qpos'] = _qpos_rows(qp, next_idxs, sl)
-        batch['value_goals_qpos'] = _qpos_rows(qp, value_goal_idxs, sl)
-        batch['actor_goals_qpos'] = _qpos_rows(qp, actor_goal_idxs, sl)
 
     def sample(self, batch_size, idxs=None):
         if idxs is None:
@@ -372,114 +121,54 @@ class GCDataset:
             idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'], c['value_geom_sample'])
         actor_goal_idxs = self.sample_goals(
             idxs, c['actor_p_curgoal'], c['actor_p_trajgoal'], c['actor_p_randomgoal'], c['actor_geom_sample'])
-        if self.goal_ok is not None:
-            value_goal_idxs = self._filter_goals(value_goal_idxs)
-            actor_goal_idxs = self._filter_goals(actor_goal_idxs)
-        # SARSA bootstrap support (density_fb's `measure_density_bootstrap=sarsa`): the action
-        # the BEHAVIOUR policy actually took at s'. Emitted unconditionally — it is one gather,
-        # and every critic that ignores the key is bit-identical with it present.
-        #
-        # Trajectory-boundary-safe by clamping to the row's OWN final index rather than to
-        # size-1: at a trajectory's last row, idx+1 belongs to the NEXT trajectory, and
-        # bootstrapping a target on an action from an unrelated episode is exactly the kind of
-        # silent cross-trajectory leak `valids` exists to prevent. Clamping repeats that
-        # trajectory's last action instead, which is the standard convention and the only
-        # locally-available choice (these datasets are fixed-horizon, so `terminals` never
-        # fires as a true absorbing state and the target bootstraps regardless).
+        # The action the behaviour policy took at s' (density_fb's SARSA bootstrap). Clamped
+        # to the row's own trajectory end, so a trajectory's last row never reads the next
+        # episode's first action.
         final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
         batch['next_actions'] = np.asarray(
             self.dataset['actions'][np.minimum(idxs + 1, final_idxs)], np.float32)
-        # The row `next_observations` refers to, spelled once: Dataset.get_subset infers it
-        # as observations[min(idx+1, size-1)], and the frame-stack and qpos channels below
-        # MUST index the same row or the three channels describe different states.
-        next_idxs = np.minimum(idxs + 1, self.dataset.size - 1)
-        if self.frame_stack is not None:
-            batch['observations'] = self.get_stacked_observations(idxs)
-            batch['next_observations'] = self.get_stacked_observations(next_idxs)
-        batch['observations'] = _batch_array(batch['observations'])
-        batch['next_observations'] = _batch_array(batch['next_observations'])
+        batch['observations'] = np.asarray(batch['observations'], np.float32)
+        batch['next_observations'] = np.asarray(batch['next_observations'], np.float32)
         batch['actions'] = np.asarray(batch['actions'], np.float32)
-        batch['value_goals'] = _batch_array(self.get_observations(value_goal_idxs))
-        batch['actor_goals'] = _batch_array(self.get_observations(actor_goal_idxs))
-        if self.qpos_slices is not None:
-            self._add_qpos_channel(batch, idxs, next_idxs, value_goal_idxs, actor_goal_idxs)
+        batch['value_goals'] = np.asarray(self.dataset['observations'][value_goal_idxs], np.float32)
+        batch['actor_goals'] = np.asarray(self.dataset['observations'][actor_goal_idxs], np.float32)
         successes = (idxs == value_goal_idxs).astype(np.float32)
         batch['masks'] = 1.0 - successes
         batch['rewards'] = successes - (1.0 if c['gc_negative'] else 0.0)
         self._maybe_keep_dataset_rewards(batch, idxs)
-        # Optional goal-context masking (Arm C): zero the listed obs dims in the emitted
-        # goals only (e.g. the embedded target coords on goal-observable envs). Applied
-        # after the reward/mask computation, which is index-based and unaffected.
+        # Goal masking: zero the listed dims in the emitted goals only (e.g. the target
+        # coordinates embedded in goal-observable MetaWorld/ManiSkill observations).
         mask_dims = c.get('goal_mask_dims')
         if mask_dims:
             batch['value_goals'][:, list(mask_dims)] = 0.0
             batch['actor_goals'][:, list(mask_dims)] = 0.0
-        # Optional OBSERVATION masking. goal_mask_dims above only blanks the emitted goals,
-        # which stops the goal channel of g being a nuisance feature for the critic but does
-        # NOT close the behaviour-cloning shortcut: on goal-observable envs (Metaworld
-        # obs[36:39], ManiSkill ms-push-cube obs[25:28], Box2D b2d-goal-ctrl obs[5:7]) the
-        # target is inside the agent's own observation, so an unconditional BC actor reads
-        # "go here" off its input and no critic is ever on the causal path. Blanking the same
-        # dims in observations/next_observations forces every bit of goal information through
-        # the conditioning vector, which is the only way the critic comparison measures a
-        # critic. Eval must blank the same dims -- see env/unified.py::evaluate.
+        # Observation masking: on goal-observable envs the target is inside the agent's own
+        # observation, so an unconditioned actor could read "go here" off its input. Blanking
+        # the same dims in observations forces all goal information through the conditioning
+        # vector. Eval blanks the same dims (env/unified.py::evaluate).
         obs_mask_dims = c.get('obs_mask_dims')
         if obs_mask_dims:
             batch['observations'][:, list(obs_mask_dims)] = 0.0
             batch['next_observations'][:, list(obs_mask_dims)] = 0.0
-        # Image augmentation, LAST -- after the goals exist and after any masking, so every
-        # image key the agent will actually see is shifted, and none of the index-derived
-        # scalars (rewards/masks) can be affected by it. One coin per batch (vendored
-        # OGBench's convention), then INDEPENDENT shifts per key inside `augment`. The
-        # `_qpos` channels are 2-D and pass through untouched -- the measure must not be
-        # perturbed by a nuisance transformation the encoder is meant to be invariant to.
-        if c.get('p_aug') is not None and np.random.rand() < float(c['p_aug']):
-            self.augment(batch, ['observations', 'next_observations',
-                                 'value_goals', 'actor_goals'])
         return batch
 
     def _maybe_keep_dataset_rewards(self, batch, idxs):
-        """REWARD-SPECIFIED domains (ExoRL / dm_control -- see env/exorl_env.py): put the
-        dataset's OWN task reward back into `batch['rewards']`, replacing the goal-reaching
-        reward synthesised just above.
+        """Reward-specified domains (ExoRL): put the dataset's own task reward back into
+        `batch['rewards']`, replacing the goal-reaching reward. The critic's reward-weighted
+        task inference (`infer_cond(net, obs, rewards)`) reads these rewards, so without this
+        it would infer the goal-reaching task instead of the one asked for.
 
-        Why this needs to exist. The synthesised column is the right reward for a
-        goal-reaching task and the WRONG one for a task defined by a reward function, and
-        overwriting is silent: `impls/main.py::infer_cond_noop_reason` only flags an
-        ALL-ZERO reward vector, and the goal-reaching column is not all zero. Everything the
-        successor-measure family claims zero-shot runs through
-        `Critic.infer_cond(net, obs, rewards)`, which `impls/main.py` feeds straight from
-        `train_ds.sample(...)['rewards']` -- the "WHICH REWARDS" paragraph in
-        `impls/critics/density_fb.py::infer_cond` names exactly this failure mode. Without
-        this knob, `density_fb` / `td_fb` (the two GCDataset critics in that family) cannot
-        be evaluated on a reward-specified domain at all, and would report a number for a
-        task nobody asked about.
-
-        `masks` goes to 1.0 with it: dm_control episodes end on a time limit, never on an
-        absorbing state, so the value target must always bootstrap. The goal-reaching mask
-        (0 at the "goal reached" row) encodes a termination that does not exist here.
-
-        Default OFF. Off, this is a no-op on the batch and draws no randomness, so every
-        existing goal-conditioned run is bit-identical.
-        """
+        `masks` goes to 1: dm_control episodes end on a time limit, never on an absorbing
+        state, so the TD target always bootstraps. Off by default (no-op, no randomness)."""
         if not self.config.get('keep_dataset_rewards'):
             return
         if 'rewards' not in self.dataset:
             raise KeyError(
-                "keep_dataset_rewards=true but the base dataset carries no 'rewards' field. "
-                "The config is asking for the environment's real task reward and there is "
-                "none to pass through (an unlabeled play dataset cannot supply one) -- "
-                "failing rather than silently handing back the goal-reaching reward.")
+                "keep_dataset_rewards=true but the base dataset carries no 'rewards' field "
+                "(an unlabeled play dataset cannot supply a task reward).")
         n = len(idxs)
         batch['rewards'] = np.asarray(self.dataset['rewards'][idxs], np.float32).reshape(n)
         batch['masks'] = np.ones(n, np.float32)
-
-    def _filter_goals(self, goal_idxs):
-        bad = ~self.goal_ok[goal_idxs]
-        if bad.any():
-            goal_idxs = goal_idxs.copy()
-            goal_idxs[bad] = self.goal_pool[np.random.randint(len(self.goal_pool), size=int(bad.sum()))]
-        return goal_idxs
 
     def sample_goals(self, idxs, p_curgoal, p_trajgoal, p_randomgoal, geom_sample):
         batch_size = len(idxs)
@@ -503,143 +192,21 @@ class GCDataset:
 
 
 @dataclasses.dataclass
-class HGCDataset(GCDataset):
-    """Hierarchical goal-conditioned dataset — faithful port of OGBench
-    utils/datasets.py:HGCDataset, state-only (frame-stack / image augmentation dropped),
-    matching GCDataset's conventions above. Reads one extra config key, `subgoal_steps`.
-
-    Adds the three keys HIQL needs and nothing else in the seam produces:
-      * low_actor_goals    — the state `subgoal_steps` ahead, clamped to the trajectory's
-        own final index so a subgoal never crosses into the next episode;
-      * high_actor_goals   — a future-or-random goal for the high-level policy;
-      * high_actor_targets — the subgoal the high policy is trained to predict for that
-        goal, clamped to the goal itself so the target never overshoots it.
-
-    `value_goals`/`rewards`/`masks` are produced exactly as GCDataset does. `actor_goals`
-    is NOT emitted: vendored HGCDataset replaces it with the two high-level keys, and a
-    flat critic paired with this dataset would silently read a goal that isn't there.
-    np.random call order follows the vendored source so a seed reproduces its batches.
-    """
-
-    def __post_init__(self):
-        super().__post_init__()
-        # HGCDataset's `sample` is its own -- it does NOT go through GCDataset.sample -- so
-        # the pixel features added there (frame stacking, augmentation, the qpos measure
-        # channel) are simply absent here. Refuse rather than silently ignore them: a config
-        # that asks for a frame stack and gets unstacked frames is exactly the class of
-        # quiet mismatch this tree keeps paying for.
-        for key in ('frame_stack', 'p_aug', 'measure_qpos_slices'):
-            if self.config.get(key) is not None:
-                raise NotImplementedError(
-                    f"HGCDataset does not implement {key!r} (it overrides GCDataset.sample "
-                    f"entirely). Only GCDataset carries the pixel path.")
-
-    def sample(self, batch_size, idxs=None):
-        c = self.config
-        if c.get('subgoal_steps') is None:
-            raise KeyError(
-                "HGCDataset requires config key 'subgoal_steps' (vendored default 25); "
-                "without it the low-level goal horizon is undefined")
-        if idxs is None:
-            idxs = self.dataset.get_random_idxs(batch_size)
-        batch = self.dataset.get_subset(idxs)
-        obs = self.dataset['observations']
-
-        value_goal_idxs = self.sample_goals(
-            idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'],
-            c['value_geom_sample'])
-        if self.goal_ok is not None:
-            value_goal_idxs = self._filter_goals(value_goal_idxs)
-
-        final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
-        batch['next_actions'] = np.asarray(
-            self.dataset['actions'][np.minimum(idxs + 1, final_idxs)], np.float32)
-        batch['observations'] = np.asarray(batch['observations'], np.float32)
-        batch['next_observations'] = np.asarray(batch['next_observations'], np.float32)
-        batch['actions'] = np.asarray(batch['actions'], np.float32)
-        batch['value_goals'] = np.asarray(obs[value_goal_idxs], np.float32)
-        successes = (idxs == value_goal_idxs).astype(np.float32)
-        batch['masks'] = 1.0 - successes
-        batch['rewards'] = successes - (1.0 if c['gc_negative'] else 0.0)
-        self._maybe_keep_dataset_rewards(batch, idxs)
-
-        # low-level goals: subgoal_steps ahead, clamped to this trajectory's end
-        sg = int(c['subgoal_steps'])
-        low_goal_idxs = np.minimum(idxs + sg, final_idxs)
-        batch['low_actor_goals'] = np.asarray(obs[low_goal_idxs], np.float32)
-
-        # high-level goals + the subgoal targets the high policy predicts for them
-        if c['actor_geom_sample']:
-            offsets = np.random.geometric(p=1 - c['discount'], size=len(idxs))   # in [1, inf)
-            high_traj_goal_idxs = np.minimum(idxs + offsets, final_idxs)
-        else:
-            distances = np.random.rand(len(idxs))                                # in [0, 1)
-            high_traj_goal_idxs = np.round(
-                np.minimum(idxs + 1, final_idxs) * distances + final_idxs * (1 - distances)
-            ).astype(int)
-        high_traj_target_idxs = np.minimum(idxs + sg, high_traj_goal_idxs)
-
-        high_random_goal_idxs = self.dataset.get_random_idxs(len(idxs))
-        high_random_target_idxs = np.minimum(idxs + sg, final_idxs)
-
-        pick_random = np.random.rand(len(idxs)) < c['actor_p_randomgoal']
-        high_goal_idxs = np.where(pick_random, high_random_goal_idxs, high_traj_goal_idxs)
-        high_target_idxs = np.where(pick_random, high_random_target_idxs, high_traj_target_idxs)
-        batch['high_actor_goals'] = np.asarray(obs[high_goal_idxs], np.float32)
-        batch['high_actor_targets'] = np.asarray(obs[high_target_idxs], np.float32)
-
-        mask_dims = c.get('goal_mask_dims')
-        if mask_dims:
-            for k in ('value_goals', 'low_actor_goals', 'high_actor_goals', 'high_actor_targets'):
-                batch[k][:, list(mask_dims)] = 0.0
-        obs_mask_dims = c.get('obs_mask_dims')
-        if obs_mask_dims:
-            batch['observations'][:, list(obs_mask_dims)] = 0.0
-            batch['next_observations'][:, list(obs_mask_dims)] = 0.0
-        return batch
-
-
-@dataclasses.dataclass
 class WindowedDataset:
-    """h-step WINDOWED batches: the FB training batch plus, for every sampled index, the
-    rest of the h-step self-predictive rollout's (action, target-state) columns.
+    """h-step windowed batches for RLDP: the FB batch plus, for every sampled index, the
+    rest of the h-step self-predictive rollout's (action, next-state) columns.
 
-    Added for RLDP (impls/critics/rldp.py), whose self-predictive head rolls a learned
-    predictor forward h steps from B(obs) and matches step k against the target backward
-    map at s_{t+k}, k = 1..h. The true reference sampler is td_jepa's
-    `metamotivo/buffers/parallel.py::_sample` (H > 1 branch): `traj_observation` holds
-    s_{t+2}..s_{t+H} while `traj_action` holds a_{t+1}..a_{t+H-1} -- the observation
-    column leads the action column by ONE STEP, so that after the agent prepends the
-    one-step pair (a_t -> s_{t+1}), zipping actions with targets gives the aligned
-    rollout (a_{t+k-1} -> s_{t+k}). This class emits the same layout:
+    RLDP's self-predictive head rolls a learned predictor forward h steps from B(obs) and
+    matches step k against the target backward map at s_{t+k}. After the critic prepends
+    the one-step pair (a_t -> s_{t+1}), zipping actions with states gives the rollout
+    (a_{t+k-1} -> s_{t+k}); this class emits the rest of it:
 
-      * future_observations -- [B, h-1, obs_dim],    column k = row `min(idx + 2 + k, traj_final_idx)`  (s_{t+2+k})
-      * future_actions      -- [B, h-1, action_dim], column k = row `min(idx + 1 + k, traj_final_idx)`  (a_{t+1+k})
+      * future_observations -- [B, h-1, obs_dim],    column k = row min(idx + 2 + k, traj_end)
+      * future_actions      -- [B, h-1, action_dim], column k = row min(idx + 1 + k, traj_end)
 
-    on top of everything `FBDataset.sample` emits. Column k of future_observations is the
-    next state REACHED BY column k of future_actions.
-
-    HISTORY (2026-08-25 off-by-one fix). This class originally sliced BOTH windows at
-    rows t+1..t+h-1 (copying the torch port agents/rldp/agent.py, which slices
-    `batch["observation"][:, 1:]` where td_jepa reads the NEXT-observation sequence), so
-    future_observations column 0 duplicated `next_observations` (s_{t+1}): rollout step 2
-    was matched against s_{t+1} again -- training the predictor that a_{t+1} does not
-    move the embedding -- and the rollout never reached s_{t+h}. The off-by-one was the
-    port's, not td_jepa's. The observation window now extends one row further (to
-    s_{t+h}) and drops the duplicated s_{t+1} column, reproducing the reference exactly.
-
-    TRAJECTORY BOUNDARIES. The window is clamped to the anchor row's OWN final index,
-    exactly as `HGCDataset.sample` clamps `low_actor_goals`
-    (`np.minimum(idxs + subgoal_steps, final_state_idxs)`) and as `GCDataset.sample`
-    clamps `next_actions`. Clamping to `size - 1` instead -- the shape-correct, silently
-    wrong version -- would let a window that starts near the end of an episode read the
-    opening rows of the NEXT episode, and the predictor would be trained to roll a
-    dynamics model into an unrelated trajectory with nothing failing loudly. Clamping
-    repeats the trajectory's own last row instead, which is the standard convention and
-    the only locally-available choice.
-
-    h == 1 is the degenerate no-window case (the reference's `if self.horizon > 1` guard):
-    no future keys are emitted at all, and the batch is exactly an FB batch.
+    Column k of future_observations is the state reached by column k of future_actions.
+    Windows are clamped to the anchor row's own trajectory end, so a window never reads
+    into the next episode. h == 1 emits no future keys: the batch is exactly an FB batch.
     """
     dataset: Dataset
     config: Any
@@ -647,39 +214,11 @@ class WindowedDataset:
     def __post_init__(self):
         self.size = self.dataset.size
         (self.terminal_locs,) = np.nonzero(np.asarray(self.dataset['terminals']) > 0)
-        self.initial_locs = np.concatenate([[0], self.terminal_locs[:-1] + 1])
         assert self.terminal_locs[-1] == self.size - 1
-        # Default False keeps the shipped clamping behavior bit-identical; the official
-        # parity arm turns it on (see the branch in sample()).
-        self.no_clamp_windows = bool(self.config.get('rldp_no_clamp_windows', False))
-        # `rldp_sp_port_alignment`: reinstate the TORCH PORT's off-by-one in the
-        # self-predictive observation window (agents/rldp/agent.py:67 slices
-        # `batch["observation"][:, 1:]` where td_jepa reads the NEXT-observation
-        # sequence). Default False = the corrected, reference-faithful alignment.
-        #
-        # This exists to test one thing: the paper `Is Manipulation Hard for Successor
-        # Measures?` reports RLDP at 0.227 on cube-single using the mis-aligned rollout,
-        # while our corrected port gets 0.163. Turning this on reproduces the paper's
-        # algorithm exactly, so the two numbers can be compared like for like instead of
-        # across an implementation difference.
-        #
-        # Under the bug, obs_win uses the SAME offsets as act_win, so future_observations
-        # column 0 duplicates next_observations (s_{t+1}): rollout step 2 is matched
-        # against s_{t+1} again -- training the predictor that a_{t+1} does not move the
-        # embedding -- and the rollout never reaches s_{t+h}.
-        self.sp_port_alignment = bool(self.config.get('rldp_sp_port_alignment', False))
-        # obs_mask_dims|goal_mask_dims are unioned exactly as make_dataset does for
-        # FBDataset: FB's goal IS next_observations, so both knobs blank the same frames.
+        # obs_mask_dims | goal_mask_dims, unioned as for FBDataset: the goal is the next state.
         dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
                       set(self.config.get('goal_mask_dims') or ()))
         self.mask_dims = list(dims) or None
-        # `windowed_goal_sampling` (2026-09-12, rldp_density's LEVER 3): ALSO emit GCDataset's
-        # `value_goals` / `actor_goals`, drawn by GCDataset's own `sample_goals` from the
-        # same GC keys (value_p_*/actor_p_*), on top of the window. Default off = no extra
-        # np.random draws, no extra keys: bit-identical batches.
-        self.goal_sampler = None
-        if bool(self.config.get('windowed_goal_sampling', False)):
-            self.goal_sampler = GCDataset(self.dataset, self.config)
 
     @property
     def horizon(self):
@@ -687,8 +226,7 @@ class WindowedDataset:
         if h is None:
             raise KeyError(
                 "WindowedDataset requires config key 'horizon' (the number of steps in a "
-                "window; RLDP's default is 5); without it the self-predictive rollout "
-                "length is undefined and would silently degrade to a one-step loss")
+                "window; RLDP's default is 5)")
         h = int(h)
         assert h >= 1, f"horizon must be >= 1, got {h}"
         return h
@@ -712,97 +250,36 @@ class WindowedDataset:
             'actions': np.asarray(sub['actions'], np.float32),
             'next_observations': nobs,
             'rewards': rewards,
-            'terminals': np.zeros((B,), np.float32),  # always-gamma, as FBDataset
-            'row_weight': np.asarray(sub['row_weight'], np.float32),
+            'terminals': np.zeros((B,), np.float32),  # always bootstrap, as FBDataset
         }
 
         if h > 1:
             all_obs, all_acts = self.dataset['observations'], self.dataset['actions']
             final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
-            # The observation window LEADS the action window by one row (see the class
-            # docstring): column k pairs action row t+1+k with the state it reaches,
-            # row t+2+k. Both windows clamp to the anchor's own trajectory end.
-            if self.no_clamp_windows:
-                # OFFICIAL RLDP draws segment starts from [0, L-H] (agent.py::sample_segments
-                # step 2), so a window NEVER reaches a trajectory end and never clamps. The
-                # clamping below instead REPEATS the terminal state, which feeds the SP head
-                # "nothing moved" targets and biases the predictor toward the identity --
-                # exactly the degenerate solution the phase-1 predictiveness gate exists to
-                # detect. Here the anchors are already drawn, so rather than resample we
-                # SHIFT any window that would overrun back so it ends at the trajectory end,
-                # which preserves the batch size and the contiguity of the segment.
-                span = h                       # the obs window reaches idx + h
-                start = np.minimum(idxs, final_idxs - span)
-                # floor at the anchor's own trajectory START, using the same
-                # searchsorted convention GCDataset uses at line ~231.
-                start = np.maximum(start, self.initial_locs[
-                    np.searchsorted(self.initial_locs, idxs, side='right') - 1])
-                act_win = start[:, None] + np.arange(1, h)[None, :]
-                obs_off = np.arange(1, h) if self.sp_port_alignment else np.arange(2, h + 1)
-                obs_win = start[:, None] + obs_off[None, :]
-                act_win = np.minimum(act_win, final_idxs[:, None])
-                obs_win = np.minimum(obs_win, final_idxs[:, None])
-            else:
-                act_win = np.minimum(idxs[:, None] + np.arange(1, h)[None, :],      # [B, h-1]
-                                     final_idxs[:, None])
-                _obs_off = np.arange(1, h) if self.sp_port_alignment else np.arange(2, h + 1)
-                obs_win = np.minimum(idxs[:, None] + _obs_off[None, :],             # [B, h-1]
-                                     final_idxs[:, None])
+            act_win = np.minimum(idxs[:, None] + np.arange(1, h)[None, :],      # [B, h-1]
+                                 final_idxs[:, None])
+            obs_win = np.minimum(idxs[:, None] + np.arange(2, h + 1)[None, :],  # [B, h-1]
+                                 final_idxs[:, None])
             batch['future_observations'] = np.asarray(all_obs[obs_win], np.float32)
             batch['future_actions'] = np.asarray(all_acts[act_win], np.float32)
-
-        if self.goal_sampler is not None:
-            # Same draw order as GCDataset.sample: value goals, then actor goals.
-            c = self.config
-            vg = self.goal_sampler.sample_goals(
-                idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'],
-                c['value_geom_sample'])
-            ag = self.goal_sampler.sample_goals(
-                idxs, c['actor_p_curgoal'], c['actor_p_trajgoal'], c['actor_p_randomgoal'],
-                c['actor_geom_sample'])
-            all_obs = self.dataset['observations']
-            batch['value_goals'] = np.asarray(all_obs[vg], np.float32)
-            batch['actor_goals'] = np.asarray(all_obs[ag], np.float32)
 
         if self.mask_dims:
             batch['observations'][:, self.mask_dims] = 0.0
             batch['next_observations'][:, self.mask_dims] = 0.0
             if h > 1:
                 batch['future_observations'][:, :, self.mask_dims] = 0.0
-            if self.goal_sampler is not None:
-                batch['value_goals'][:, self.mask_dims] = 0.0
-                batch['actor_goals'][:, self.mask_dims] = 0.0
         return batch
-
 
 
 @dataclasses.dataclass
 class HILPFutureDataset:
-    """The FB batch plus ONE geometrically-sampled hindsight future observation.
+    """The FB batch plus one geometrically-sampled hindsight future state, for HILP.
 
-    Added for HILP (impls/critics/hilp.py), whose phi objective takes `future_obs` as the
-    goal and asks whether the current state IS that goal:
-    `rewards = 1[||obs - goals|| < 1e-6] - 1`.
-
-    WHY A NEW CLASS RATHER THAN AN EXISTING ONE. Neither existing option is HILP's
-    sampler. `FBDataset` emits no goal at all (FB's goal IS next_obs, resolved inside the
-    critic). `WindowedDataset` emits FIXED offsets 1..h, which is RLDP's rollout window,
-    not a hindsight draw. HILP's buffer samples a GEOMETRIC offset
-    (`in_memory_replay_buffer.py:231-233`):
-
-        future_idx = step_idx + np.random.geometric(p=(1 - future))
-        future_idx = np.clip(future_idx, 0, eps_lengths)
-
-    with `future = 0.99` (train_offline.py:69), i.e. p = 0.01 and a mean offset of 100
-    steps. Using a fixed offset instead would change WHICH states become goals and so what
-    the Hilbert metric is fitted to -- it would be a different representation, silently.
-
-    The clip is to the anchor row's OWN trajectory end, the same discipline
-    WindowedDataset and HGCDataset use: a future drawn past the episode boundary would
-    otherwise be a state from the NEXT episode, which is not a reachable future at all.
-    numpy's `geometric` returns >= 1, so the future is always strictly ahead of the anchor;
-    obs == goal still occurs, via the clip at the trajectory end, and that is exactly the
-    row HILP's indicator reward is written for.
+    HILP's phi objective takes `hilp_future_observations` as the goal. Following the HILP
+    reference buffer, the future is `step + Geometric(1 - hilp_future)` clipped to the
+    anchor's own trajectory end (mean offset 100 steps at 0.99), then replaced by a uniformly
+    random dataset state with probability `hilp_p_randomgoal`. The clip can make obs == goal,
+    which is the row HILP's indicator reward is written for.
     """
     dataset: Any
     config: Any
@@ -813,29 +290,11 @@ class HILPFutureDataset:
         self.p = 1.0 - float(self.config.get('hilp_future', 0.99))
         assert 0.0 < self.p <= 1.0, (
             f"hilp_future must be in [0, 1); got {self.config.get('hilp_future')}")
-        # The two goal REPLACEMENT probabilities (in_memory_replay_buffer.py:247-249).
-        # Both default to 0 in train_offline.py's Config, but every published HILP-zsrl
-        # command in the repo README passes p_randomgoal=0.375 -- so 0 is the source
-        # default and 0.375 is the setting the numbers were produced at.
         self.p_randomgoal = float(self.config.get('hilp_p_randomgoal', 0.0))
-        self.p_currgoal = float(self.config.get('hilp_p_currgoal', 0.0))
-        # obs_mask_dims | goal_mask_dims, unioned exactly as make_dataset does for FBDataset
-        # and WindowedDataset does for itself. Before 2026-09-13 this class applied NO mask:
-        # make_dataset returns it before reaching the FBDataset.mask_dims branch, so under
-        # the MetaWorld/ManiSkill goal-mask protocol HILP trained with the target visible in
-        # every frame while eval blanked it (the 2026-08-17 FB-zero bug, HILP edition).
+        # obs_mask_dims | goal_mask_dims, unioned as for FBDataset.
         dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
                       set(self.config.get('goal_mask_dims') or ()))
         self.mask_dims = list(dims) or None
-        # `hilp_goal_sampling` (2026-09-13, hilp_density's regression task index; the twin
-        # of WindowedDataset's `windowed_goal_sampling`): ALSO emit GCDataset's
-        # `value_goals` / `actor_goals`, drawn by GCDataset's own `sample_goals` from the
-        # same GC keys (value_p_*/actor_p_*), AFTER the geometric future draw and its two
-        # replacements. Default off = no extra np.random draws, no extra keys: bit-identical
-        # batches, and the phi-loss goal `hilp_future_observations` is untouched either way.
-        self.goal_sampler = None
-        if bool(self.config.get('hilp_goal_sampling', False)):
-            self.goal_sampler = GCDataset(self.dataset, self.config)
 
     def sample(self, batch_size, idxs=None):
         batch = self.dataset.sample(batch_size, idxs)
@@ -843,94 +302,31 @@ class HILPFutureDataset:
         final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
         offs = np.random.geometric(p=self.p, size=idxs.shape[0])
         fut = np.minimum(idxs + offs, final_idxs)
-        # `hilp_future_observations`, NOT `future_observations`: WindowedDataset already
-        # owns that name for rldp's [B, h-1, obs] rollout window, and this is a single
-        # [B, obs] draw. Same-name-different-shape is how a batch key silently becomes the
-        # wrong tensor for one of its two consumers.
         goals = np.asarray(self.dataset['observations'][fut], np.float32)
-
-        # Upstream applies TWO replacements, in this order, AFTER the geometric draw:
-        #   future_obs = where(rand < p_currgoal/(1-p_randomgoal), curr_obs,   future_obs)
-        #   future_obs = where(rand < p_randomgoal,                random_obs, future_obs)
-        # (in_memory_replay_buffer.py:247-249). The odd first threshold is upstream's own:
-        # dividing by (1-p_randomgoal) makes p_currgoal the MARGINAL current-goal rate
-        # after the second replacement overwrites part of the first. Order and threshold
-        # are reproduced rather than simplified.
         n = goals.shape[0]
-        if self.p_currgoal > 0.0:
-            thr = self.p_currgoal / max(1.0 - self.p_randomgoal, 1e-12)
-            cur = np.asarray(batch['observations'], np.float32)
-            goals = np.where((np.random.rand(n) < thr)[:, None], cur, goals)
         if self.p_randomgoal > 0.0:
-            # A uniformly random row IS upstream's "random episode, random step within it"
-            # on ExoRL, where every episode is exactly 1000 steps.
             rnd = np.asarray(
                 self.dataset['observations'][np.random.randint(0, self.size, n)], np.float32)
             goals = np.where((np.random.rand(n) < self.p_randomgoal)[:, None], rnd, goals)
-
         batch['hilp_future_observations'] = goals
 
-        if self.goal_sampler is not None:
-            # Same draw order as GCDataset.sample: value goals, then actor goals.
-            c = self.config
-            vg = self.goal_sampler.sample_goals(
-                idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'],
-                c['value_geom_sample'])
-            ag = self.goal_sampler.sample_goals(
-                idxs, c['actor_p_curgoal'], c['actor_p_trajgoal'], c['actor_p_randomgoal'],
-                c['actor_geom_sample'])
-            all_obs = self.dataset['observations']
-            batch['value_goals'] = np.asarray(all_obs[vg], np.float32)
-            batch['actor_goals'] = np.asarray(all_obs[ag], np.float32)
-
         if self.mask_dims:
-            for k in ('observations', 'next_observations', 'hilp_future_observations',
-                      'value_goals', 'actor_goals'):
-                if k in batch:
-                    batch[k] = np.array(batch[k], np.float32, copy=True)
-                    batch[k][:, self.mask_dims] = 0.0
+            for k in ('observations', 'next_observations', 'hilp_future_observations'):
+                batch[k] = np.array(batch[k], np.float32, copy=True)
+                batch[k][:, self.mask_dims] = 0.0
         return batch
 
 
+_DATASET_CLASSES = {'GCDataset': GCDataset, 'WindowedDataset': WindowedDataset,
+                    'HILPFutureDataset': HILPFutureDataset}
+
+
 def make_dataset(base, config):
-    """Wrap a base Dataset per the critic's dataset_class.
-
-    Goal-conditioned critics (gciql and the PR4+ family) need GCDataset's trajectory goal
-    sampling; FB carries no goal machinery and uses the base dataset unchanged.
-    """
-    # Persistence oversampling (the OGBench density lever). Enabled on the BASE dataset, whose
-    # get_random_idxs both FB (uses base directly) and the GCDataset-family wrappers (which call
-    # base.get_random_idxs) route through, so one hook reweights every critic identically.
-    # lam > 1 = the lever (transient rows rarer); lam < 1 or persist_transient_mass = REBALANCE
-    # (transient / onset rows upweighted so their rarity is undone without changing the data).
-    lam = float(config.get('persist_oversample_lambda', 1.0) or 1.0)
-    tm = config.get('persist_transient_mass', None)
-    tm = None if tm in (None, '', 'None', 'none', 'null') else float(tm)
-    if lam != 1.0 or tm is not None:
-        blk = config.get('persist_block', '19:22')
-        if not isinstance(blk, str) or blk.count(':') != 1:
-            # YAML 1.1 reads an unquoted 19:22 as the sexagesimal integer 1162; the override
-            # must be passed as --override 'persist_block="19:22"' (same as measure_hit_spec).
-            raise ValueError(f"persist_block must be the string 'a:b', got {blk!r} "
-                             f"({type(blk).__name__}); quote it on the command line")
-        a, b = (int(x) for x in blk.split(':'))
-        thr = float(config.get('persist_vel_thresh', 0.005))
-        pool = str(config.get('persist_pool', 'motion') or 'motion')
-        window = int(config.get('persist_window', 0) or 0)
-        mode = str(config.get('persist_mode', 'sample') or 'sample')
-        stats = base.enable_persist_oversample((a, b), thr, lam, pool=pool, window=window,
-                                               transient_mass=tm, mode=mode)
-        print(f"[persist-oversample] mode={mode} lambda={lam} block={blk} thresh={thr} "
-              f"pool={pool} window={window} target_transient_mass={tm} -> {stats}", flush=True)
-
-    if config.get('dataset_class') == 'GCDataset':
-        return GCDataset(base, config)
-    if config.get('dataset_class') == 'HGCDataset':
-        return HGCDataset(base, config)
-    if config.get('dataset_class') == 'WindowedDataset':
-        return WindowedDataset(base, config)
-    if config.get('dataset_class') == 'HILPFutureDataset':
-        return HILPFutureDataset(base, config)
+    """Wrap a base Dataset per the critic's `dataset_class`. With none set (fb), the base
+    FBDataset is used directly, with the obs/goal mask dims attached."""
+    cls = _DATASET_CLASSES.get(config.get('dataset_class'))
+    if cls is not None:
+        return cls(base, config)
     if isinstance(base, FBDataset):
         dims = sorted(set(config.get('obs_mask_dims') or ()) |
                       set(config.get('goal_mask_dims') or ()))

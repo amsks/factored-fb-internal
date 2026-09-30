@@ -1,8 +1,4 @@
-# cube-double (state-based) domain. Two freely-moving blocks; obs dim 37 = 19 proprio
-# + 2 x 9 block columns, block0 pos at 19:22 and block1 pos at 28:31 (verified in
-# scripts/goal_coverage_all1m.py:93 and scripts/workspace_coverage.py:100).
-#
-# The measure hit spec is therefore a CONJUNCTION of the two block slices,
-# "19:22:0.4,28:31:0.4" (scripts/launch_table_fill_ogb_ms.sh:85). It is passed as an
-# override rather than set here, because it lives in the critic config group.
+# cube-double (state-based). obs dim 37 = 19 proprio + 2 x 9 block columns; block 0 position
+# at 19:22, block 1 at 28:31. The density critics' hit spec is the conjunction of the two
+# block slices, "19:22:0.4,28:31:0.4", passed as an override (it lives in the critic group).
 env_name: cube-double-play-v0

@@ -1,10 +1,9 @@
 """ExoRL (dm_control) family: registry resolution, domain configs, and the loader.
 
 The load-bearing assertion in this file is REWARDS. ExoRL is the only reward-specified
-family in the tree -- its tasks are dense reward functions, not goals -- and it exists
-precisely so `Critic.infer_cond(net, obs, rewards)` (density_fb / fb / td_fb / psm / rldp)
-can be tested on something that was never a goal-reaching problem. Two ways that silently
-dies, both covered here:
+family in the tree -- its tasks are dense reward functions, not goals -- and it is where
+`Critic.infer_cond(net, obs, rewards)` is tested on something that was never a
+goal-reaching problem. Two ways that silently dies, both covered here:
 
   * the ExoRL episode files' own `reward` column is the reward of the task the data was
     COLLECTED under, not the one you asked for (on point_mass_maze/rnd: four identical
@@ -64,10 +63,9 @@ def test_data_dir_uses_the_exorl_family_folder():
 
 
 def test_other_families_are_untouched():
-    """The prefix table is shared; adding one must not move the existing four."""
+    """The prefix table is shared; the other families keep their own entries."""
     assert (registry.family("mw-push"), registry.horizon("mw-push")) == ("metaworld", 100)
     assert (registry.family("ms-push-cube"), registry.horizon("ms-push-cube")) == ("maniskill", 25)
-    assert (registry.family("b2d-center-wall"), registry.horizon("b2d-center-wall")) == ("box2d", 200)
 
 
 def test_unknown_prefix_still_raises():
@@ -502,12 +500,8 @@ class _ZAgent:
 
 
 def test_evaluate_does_not_fabricate_a_success_metric():
-    """env/unified.py::evaluate used to emit `success: 0.0` unconditionally. On walker /
-    cheetah that reads as "the policy failed every episode" in eval.csv, and
-    impls/main.py::_append_agg shipped it to the campaign aggregator as the run's
-    success_rate while `episode_return` -- the domain's actual benchmark metric -- was never
-    aggregated at all. ExoRLWrapper's own docstring already refuses to fabricate it; this is
-    the adapter half of that contract."""
+    """On walker / cheetah (no binary success rule) a `success: 0.0` column would read as
+    "the policy failed every episode" in eval.csv; the row must carry episode_return only."""
     from env.unified import UnifiedAdapter
     ad = UnifiedAdapter()
     ad._horizon = 10
@@ -519,7 +513,7 @@ def test_evaluate_does_not_fabricate_a_success_metric():
 
 
 def test_evaluate_still_reports_success_when_the_env_has_a_success_rule():
-    """The guard must not cost the families that DO have one (Box2D / MW / MS / pmm)."""
+    """The guard must not cost the families that DO have one (MW / MS / point-mass maze)."""
     from env.unified import UnifiedAdapter
 
     class _WithSuccess(_NoSuccessEnv):
@@ -538,14 +532,3 @@ def test_evaluate_still_reports_success_when_the_env_has_a_success_rule():
                          {"task": "dmc-point-mass-maze", "exorl_task": "reach_top_left"},
                          num_episodes=3, num_video=0)
     assert row["success"] == pytest.approx(1.0)
-
-
-def test_append_agg_does_not_report_a_missing_success_as_zero():
-    """A row with no success metric must not become success_rate=0.0 in the agg jsonl."""
-    import json
-    import tempfile
-    from impls.main import _append_agg
-    d = tempfile.mkdtemp()
-    _append_agg(d, "g", 0, 100, {"episode_return": 8.3}, "dmc-walker")
-    rec = json.loads(open(os.path.join(d, "g__s0.jsonl")).read())
-    assert np.isnan(rec["success_rate"]), rec

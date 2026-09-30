@@ -1,8 +1,6 @@
-# ms-pick-cube via the unified adapter. Regime-selectable: FB_DATA_ROOT points at the data root for
-# a given data_type (expert / play-noise / play-resample), each holding data/<family>/<env>.npz.
-# The env is built by the maniskill backend; obs/action layout matches the packed dataset.
+# ms-pick-cube: ManiSkill3 state observations, horizon 25, env built by env/maniskill_env.py.
+# FB_DATA_ROOT points at the data root holding data/<family>/<task>.npz.
 adapter: unified
 env_name: ms-pick-cube          # run naming only
 task: ms-pick-cube
 data_path: ${oc.env:FB_DATA_ROOT}/data/maniskill/ms-pick-cube.npz
-render: false

@@ -60,8 +60,7 @@ class MetaWorldWrapper:
                 self._info(info, terminated, truncated))
 
     def render(self, *_args, **_kwargs):
-        # newt flips vertically and resizes to 224 with torchvision; the flip is the part
-        # that makes the frame right-side up, and eval only records when num_video > 0.
+        # The vertical flip makes the frame right-side up.
         return np.flipud(np.asarray(self.env.render()))
 
     @property

@@ -1,28 +1,14 @@
 """env/exorl_env.py — the ExoRL (dm_control) family behind the same backend surface as
 `env/metaworld_env.py` / `env/maniskill_env.py`.
 
-WHY THIS FAMILY EXISTS HERE. Every other domain in this tree is *goal-specified*: the task
-is "reach this observation", and `GCDataset` synthesises the reward from goal proximity.
-ExoRL tasks are *reward-specified* — `walker run`, `cheetah run_backward`,
-`point_mass_maze reach_top_left` are dense reward functions, not goals. That is precisely
-what the successor-measure family (`density_fb` with `measure_density_z=true`, `fb`,
-`td_fb`, `psm`, `rldp`) claims to handle zero-shot, via
-`Critic.infer_cond(net, obs, rewards)` -> a task vector z. No goal-conditioned critic in
-this repo (gciql / gcivl / hiql / iql_bilinear / ...) has a reward interface at all and
-none of them can run these domains. This backend is what makes the z-from-rewards claim
-testable on something that was never a goal-reaching problem.
+ExoRL tasks are reward-specified: `walker run`, `cheetah run_backward`,
+`point_mass_maze reach_top_left` are dense reward functions, not goals. The successor-measure
+critics handle them zero-shot via `Critic.infer_cond(net, obs, rewards)` -> a task vector z.
 
-THE REWARD TRAP (read before touching the loader). ExoRL's episode buffers DO carry a
-`reward` array, and it is the reward of the task the data was COLLECTED under — one task,
-fixed at collection time — not of the task you are asking about. On the downloaded
-`point_mass_maze/rnd` buffers it is shape `(T+1, 4)`: four identical copies of the
-`reach_top_left` reward (measured 2026-08-22; corr 0.9994 against this module's
-relabelling for that target, the residual being the `small_control` factor, and max 0.87
-over 30 episodes, so it is a real signal — just the wrong one for three of the four
-targets). Passing it through would therefore be silently right on exactly one task per
-domain and silently wrong on every other, with nothing failing anywhere:
-`impls/main.py::infer_cond_noop_reason` only flags an ALL-ZERO reward vector, and this
-column is not zero.
+THE STORED REWARD IS NOT THE TASK REWARD. ExoRL's episode buffers carry a `reward` array for
+the one task the data was collected under, not the task being asked about (on
+`point_mass_maze/rnd` it is four copies of the `reach_top_left` reward). Passing it through
+would be right on one task per domain and silently wrong on the others.
 
 ExoRL's own offline protocol never reads that column at all —
 `exorl/utils.py::relabel_episode` replays each stored `physics` state into the *target
@@ -42,14 +28,11 @@ so the T real transitions are `(observation[t], action[t+1], observation[t+1])` 
 t = 0..T-1 (the "dummy first transition" convention of `exorl/replay_buffer.py`). We emit
 `next_observations` explicitly rather than inferring them at sample time.
 
-MUJOCO OVERLAY. `/dev/shm/.venv-jax` -- the interpreter everything JAX in this repo runs
-under -- has a `mujoco` its own `dm_control` cannot drive (`MjModel has no attribute
-'B_colind'` on any `Physics.from_xml_string`). Upgrading a shared venv with live training
-on it was rejected, so `_mujoco_overlay()` finds a site-packages directory whose mujoco
-dm_control CAN drive, imports under it, and drops the path again. It probes by compiling a
-model rather than comparing versions -- there is a ceiling as well as a floor, and both
-neighbouring venvs sit on the wrong side of one of them. Override with
-`FB_MUJOCO_SITE_PACKAGES` (colon-separated). Nothing is installed; nothing on disk changes.
+MUJOCO OVERLAY. When the interpreter's `mujoco` is a version its `dm_control` cannot drive
+(`MjModel has no attribute 'B_colind'`), `_mujoco_overlay()` finds a site-packages directory
+whose mujoco dm_control can drive, imports under it, and drops the path again. It probes by
+compiling a model rather than comparing versions. Override with `FB_MUJOCO_SITE_PACKAGES`
+(colon-separated). Nothing is installed.
 """
 import glob
 import hashlib
@@ -68,7 +51,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # exorl_dmc_tasks lives under env/ now; the repo root is what must be importable.
 _TASKS_ROOT = str(_REPO_ROOT)
 
-# ExoRL exploration algorithms whose buffers are published. `rnd` is the T3 default.
+# ExoRL exploration algorithm whose buffers are used by default.
 DEFAULT_ALGO = "rnd"
 
 # Where the raw ExoRL `<domain>/<algo>/buffer` trees live. Overridable so a box that keeps
@@ -77,9 +60,7 @@ DATA_ROOT = os.environ.get("EXORL_DATA_ROOT", os.path.expanduser("~/exorl_data/e
 # Relabelled-reward cache (one .npy per domain x algo x task x episode-set).
 CACHE_ROOT = os.environ.get("EXORL_CACHE_ROOT", os.path.expanduser("~/exorl_data/relabel_cache"))
 
-EPISODE_LEN = 1000  # every T3 domain, action_repeat 1. Measured, not assumed: each
-                    # env truncates after exactly 1000 steps, and the point_mass_maze
-                    # RND buffers are `episode_<idx>_1000.npz`.
+EPISODE_LEN = 1000  # every domain, action_repeat 1
 
 # task slug -> (dm_control domain, default reward task, all scored reward tasks).
 # The task lists are ExoRL's own benchmark tasks for each domain (README table); the
@@ -88,11 +69,8 @@ TASKS = {
     "dmc-point-mass-maze": ("point_mass_maze", "reach_top_left",
                             ("reach_top_left", "reach_top_right",
                              "reach_bottom_left", "reach_bottom_right")),
-    # `spin` is td_jepa's fourth walker task; ExoRL's and RLDP Table 1's is `flip`, and
-    # they are different rewards (see env/exorl_dmc_tasks/walker.py::spin). Both are
-    # registered so a td_jepa comparison can score theirs without changing what the
-    # RLDP-paper comparison scores -- PAPER_TASKS in scripts/exorl_paper_eval.py still
-    # names flip.
+    # `spin` is TD-JEPA's fourth walker task; ExoRL's and RLDP's is `flip` (a different
+    # reward, see env/exorl_dmc_tasks/walker.py::spin). Both are registered.
     "dmc-walker":          ("walker", "walk", ("stand", "walk", "run", "flip", "spin")),
     # cheetah: `run` is the dm_control suite task; the others are additions in
     # env/exorl_dmc_tasks/cheetah.py. walk/walk_backward (speed threshold 2) come from
@@ -100,11 +78,8 @@ TASKS = {
     # paper's cheetah rows report alongside run/run_backward (its Table 2 has no cheetah flip).
     "dmc-cheetah":         ("cheetah", "run", ("run", "run_backward", "walk",
                                                "walk_backward", "flip", "flip_backward")),
-    # quadruped (spec phase 1b). RLDP Table 1 / Table 4 report stand, walk, run, jump.
-    # `walk` and `run` are dm_control suite tasks; `stand` and `jump` exist only in ExoRL's
-    # custom_dmc_tasks, now vendored (see env/exorl_dmc_tasks/PROVENANCE.md). The default is
-    # `walk`, the suite task, matching the other locomotion domains' convention of defaulting
-    # to a suite task rather than a custom one.
+    # quadruped: `walk` and `run` are dm_control suite tasks; `stand` and `jump` exist only
+    # in ExoRL's custom_dmc_tasks, vendored in env/exorl_dmc_tasks (see PROVENANCE.md).
     "dmc-quadruped":       ("quadruped", "walk", ("stand", "walk", "run", "jump")),
 }
 

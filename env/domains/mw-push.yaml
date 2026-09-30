@@ -1,8 +1,6 @@
-# mw-push via the unified adapter. Regime-selectable: FB_DATA_ROOT points at the data root for
-# a given data_type (expert / play-noise / play-resample), each holding data/<family>/<env>.npz.
-# The env is built by the metaworld backend; obs/action layout matches the packed dataset.
+# mw-push: MetaWorld goal-observable env built by env/metaworld_env.py (action repeat 2,
+# horizon 100). FB_DATA_ROOT points at the data root holding data/<family>/<task>.npz.
 adapter: unified
 env_name: mw-push          # run naming only
 task: mw-push
 data_path: ${oc.env:FB_DATA_ROOT}/data/metaworld/mw-push.npz
-render: false

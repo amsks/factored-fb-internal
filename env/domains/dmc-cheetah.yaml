@@ -1,38 +1,19 @@
-# ExoRL cheetah (RND exploration buffer) via the unified adapter.
+# ExoRL cheetah (RND exploration buffer). Reward-specified: no binary success rule; eval
+# reports undiscounted `episode_return`. `run` is the dm_control suite task; run_backward /
+# flip / flip_backward are ExoRL additions (env/exorl_dmc_tasks).
 #
-# REWARD-SPECIFIED domain -- see env/domains/dmc-point-mass-maze.yaml for why
-# `keep_dataset_rewards` matters and which critics can run this at all. `cheetah` has NO
-# binary success rule; the benchmark metric is episode return, which env/unified.py's
-# evaluate() reports as `episode_return` for dmc- tasks.
-#
-# `run` is the dm_control suite task; run_backward / flip / flip_backward are ExoRL
-# additions resolved through env/exorl_dmc_tasks (env/exorl_env.py::_load_dmc).
-#
-# density_fb / td_fb additionally need `measure_hit_spec` for THIS observation layout. It
-# cannot live in this file: env/config.py merges domain BEFORE critic, so the critic yaml's
-# cube-single default ("19:22:0.4") would win. Pass it as an override, as the launcher
-# scripts do (note the escaped quotes -- OmegaConf yaml-parses a bare `a:b:c` dotlist value
-# as a sexagesimal number):
-#     --override 'measure_hit_spec="0:17:7.5"'
-# DECIDED 2026-08-24: the FULL observation block (position 0:8 then velocity 8:17, measured
-# from dm_control's observation_spec). The velocity-only block was the task-aligned candidate
-# -- run / run_backward / flip are all velocity-specified -- and was NOT taken: the full
-# block makes no modelling claim about which dims matter. Cost: a 17-dim kernel against the
-# 3-dim block the method was tuned on.
-# RADIUS calibrated the same way as dmc-walker.yaml: 7.5 matches cube-single's hit rate
-# (0:17:7.5 -> 0.0132 vs cube-single 19:22:0.4 -> 0.0133, 400k pairs / 200 RND episodes),
-# and the procedure reproduces point_mass_maze's independently decided 0:2:0.03 to within
-# 1.6x. Pairwise distance median over the block is 25.1, dominated by the unnormalised
-# velocity dims -- inherent to the full-block choice.
+# The density critics need the hit spec (which observation columns count as reaching a state,
+# and within what radius) for this layout. It is passed as an override because the critic yaml
+# merges after the domain (quote it: a bare a:b:c parses as a sexagesimal number), e.g.
+#     --override 'measure_hit_spec="<a:b:radius>"'
+# with the value the ExoRL launchers pass (scripts/launch_exorl_*.sh). Radii are calibrated so
+# the fraction of random observation pairs inside the ball matches cube-single's hit rate
+# under 19:22:0.4 (scripts/calibrate_hit_spec.py).
 adapter: unified
 env_name: dmc-cheetah         # run naming only
 task: dmc-cheetah
 exorl_task: run               # one of run / run_backward / flip / flip_backward
 exorl_algo: rnd
 data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/cheetah/rnd
-# 5000 = 5M transitions, matching MetaMotivo's ExoRL/DMC setting
-# (`examples/fb_train_dmc.py`: `load_n_episodes: 5_000`, RND buffer). See
-# env/domains/dmc-point-mass-maze.yaml for the full note.
-exorl_max_episodes: 5000
-keep_dataset_rewards: true
-render: false
+exorl_max_episodes: 5000      # 5M transitions, as in MetaMotivo's ExoRL setting
+keep_dataset_rewards: true    # keep the task reward instead of the goal-reaching reward

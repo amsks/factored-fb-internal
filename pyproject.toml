@@ -5,19 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "factored-fb"
 version = "0.1.0"
-description = "Forward-Backward (FB) / GCIQL bridge representations for offline goal-conditioned RL on state-based OGBench (JAX)"
+description = "Density-FB and successor-measure baselines (FB, HILP, RLDP) for zero-shot offline RL on OGBench, ExoRL, MetaWorld and ManiSkill (JAX)"
 requires-python = ">=3.11"
-# Runtime deps are declared in requirements.txt (ogbench is installed editable
-# from the vendored source, which is awkward to express here). This list mirrors
-# the third-party packages impls/ imports, for tooling that reads pyproject.
+# Core runtime deps (mirrored in requirements.txt). mujoco / dm_control / gymnasium are the
+# runtime deps of the vendored ogbench/ package, which is installed with this project.
 dependencies = [
-    "ogbench",
     "jax",
     "flax",
     "optax",
+    "distrax",
     "numpy",
     "gymnasium",
-    "distrax",
+    "mujoco>=3.1.6",
+    "dm_control>=1.0.20",
     "absl-py",
     "omegaconf",
     "wandb",
@@ -26,9 +26,32 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["impls*"]
+include = ["impls*", "env*", "ogbench*"]
 
 [project.optional-dependencies]
+# ExoRL / dm_control domains (env/exorl_env.py, env/exorl_dmc_tasks).
+exorl = [
+    "dm_control>=1.0.20",
+    "mujoco>=3.1.6",
+    "lxml",
+    "scipy",
+]
+# MetaWorld domains (env/metaworld_env.py). This fork is the one the offline demonstrations
+# were collected with. huggingface_hub fetches the packed datasets (scripts/vista_setup.sh).
+metaworld = [
+    "metaworld @ git+https://github.com/nicklashansen/metaworld.git@22904d1f65afe920be4325d482808c385f4c0c38",
+    "huggingface_hub",
+]
+# ManiSkill3 domains (env/maniskill_env.py).
+maniskill = [
+    "mani_skill",
+    "huggingface_hub",
+]
+# Paper figures and analysis scripts (analysis/, scripts/).
+figures = [
+    "matplotlib",
+    "pandas",
+]
 dev = [
     "black>=24.0",
     "ruff>=0.4",

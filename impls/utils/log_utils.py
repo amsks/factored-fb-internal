@@ -15,7 +15,7 @@ class CsvLogger:
     """Append rows to a CSV, writing a header on first use.
 
     If `path` already contains a non-empty file when the first row is logged (e.g. a
-    --restore_path resume into the same --save_dir), rows are appended to it using the
+    --auto_resume into the same run directory), rows are appended to it using the
     existing file's header rather than truncating it: a resume must not destroy the
     pre-resume history. A fresh/missing/empty path still gets a freshly written header.
 

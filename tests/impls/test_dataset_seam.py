@@ -1,5 +1,5 @@
 import numpy as np
-from impls.utils.datasets import Dataset, FBDataset, GCDataset, make_dataset
+from impls.utils.datasets import FBDataset, GCDataset, make_dataset
 
 
 def _base(n=200):
@@ -10,7 +10,7 @@ def _base(n=200):
     return FBDataset.create(observations=obs, actions=act, terminals=term)
 
 
-def test_gciql_config_yields_goal_batches():
+def test_gcdataset_config_yields_goal_batches():
     cfg = dict(dataset_class="GCDataset", discount=0.99, gc_negative=True,
                value_p_curgoal=0.2, value_p_trajgoal=0.5, value_p_randomgoal=0.3,
                value_geom_sample=True, actor_p_curgoal=0.0, actor_p_trajgoal=1.0,

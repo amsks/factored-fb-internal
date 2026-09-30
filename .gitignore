@@ -1,90 +1,21 @@
-### Python ###
+# Python
 __pycache__/
 *.py[cod]
-*.pyo
-.pytest_cache/
 *.egg-info/
-dist/
+.pytest_cache/
 build/
-.venv/
-.venv-jax/
-venv/
-*.egg
-.eggs/
-wandb/
-workdir/
+dist/
+.venv*/
 
-### AL ###
-#Template for AL projects for Dynamics 365 Business Central
-#launch.json folder
-.vscode/
-#Cache folder
-.alcache/
-#Symbols folder
-.alpackages/
-#Snapshots folder
-.snapshots/
-#Testing Output folder
-.output/
-#Extension App-file
-*.app
-#Rapid Application Development File
-rad.json
-#Translation Base-file
-*.g.xlf
-#License-file
-*.flf
-#Test results file
-TestResults.xml
-
-# GCIQL/JAX track local artifacts (live on the NVMe, never committed)
-last_run_gciql.json
-/mnt/
-outputs/
-multirun/
-# tmpfs symlinks at repo root (point to /dev/shm/...)
-/outputs
-/wandb
-
-# Claude-generated planning/spec docs — kept local only, never committed
-docs/superpowers/
-# Per-repo agent orientation doc — local only, synced to remote out-of-band
-/CLAUDE.md
-
-# macOS Finder metadata
-.DS_Store
-
-# local LaTeX compile shim (self-referential symlink so RLBrew/ paths resolve locally)
-PAPER/rlbrew/RLBrew
-# LaTeX build artifacts
-PAPER/**/*.pdf
-PAPER/**/*.aux
-PAPER/**/*.log
-PAPER/**/*.out
-PAPER/**/*.fls
-PAPER/**/*.fdb_latexmk
-PAPER/**/*.bbl
-PAPER/**/*.blg
-PAPER/**/*.xdv
-
-# TD-MPC2 / RLDP local artifacts (live on the NVMe, never committed)
-analysis/
-checkpoints/
+# Run outputs: checkpoints and eval logs (exp/), job logs, wandb, generated figures
+exp/
 logs/
-
-# Local-only artifacts & docs (never committed; see CLAUDE.md conventions)
-CLAUDE.md
-results/
-datasets*/
-.ref-papers/
-# graphify knowledge graph — derived from the tree, rebuilt by .githooks/post-commit
+wandb/
+figures/
 graphify-out/
 
-# Research artifacts — kept on other branches + the main worktree, not on feat/jaxify
-PAPER/
-analysis/
-results/
-data/
-
-# run artifacts (default --save_dir)
-exp/
+# Outputs the analysis scripts regenerate (the small caches the figures read are kept)
+analysis/**/stdout.txt
+analysis/**/*_log.txt
+analysis/**/exact.json
+analysis/lemma_check/results.npz

@@ -1,31 +1,26 @@
-"""Unified adapter — our collected per-episode datasets (Box2D / Metaworld / ManiSkill)
-and their envs, plus the ExoRL/dm_control family, behind the DomainAdapter seam.
+"""Unified adapter — ExoRL (dm_control), MetaWorld and ManiSkill datasets and their envs
+behind the DomainAdapter interface.
 
-ExoRL (`dmc-` tasks) rides this adapter but differs in kind from the other three: its tasks
-are REWARD functions, not goals, so its data comes from env/exorl_env.py (which relabels
-rewards off the stored mujoco physics) and its eval metric is `episode_return` rather than
-`success` — walker/cheetah have no binary success rule at all.
+ExoRL (`dmc-` tasks) differs in kind from the other two: its tasks are reward functions, not
+goals, so its data comes from env/exorl_env.py (which relabels rewards from the stored
+mujoco physics) and its eval metric is `episode_return` -- walker/cheetah have no binary
+success rule.
 
-Data layout (written by data_collection/*):
+MetaWorld/ManiSkill data is a packed per-task npz (`data_path`) or a directory of
+per-episode files:
     <data_dir>/buffer/episode_XXXXXX_LLLLL.npz  with observation, action, next_observation,
                                                 reward, terminal, timeout, success
-We flatten those into one Dataset and mark each episode's LAST step in `terminals`, which is
-what GCDataset uses as trajectory boundaries for goal sampling. Real `rewards` are kept
-(unlike OGBench play data, which is unlabeled) so FB-style z-inference has a signal.
+Both are flattened into one Dataset with each episode's last step marked in `terminals`,
+which the goal samplers use as trajectory boundaries.
 
-Eval is our protocol, not OGBench's: a fixed seed per episode (so the same seed is the same
-initial state across algorithms/checkpoints) and TWO metrics --
-    success      -- did info['success'] ever fire  ("did it reach the goal")
-    at_goal_frac -- fraction of steps with info['success'] ("did it STAY there")
-The second one matters: a policy can score success 1.00 while holding the goal for 27% of
-the episode (gciql on b2d-goal-ctrl-maze) versus 84% for a flow actor.
+Eval uses a fixed seed per episode (the same seed is the same initial state across
+checkpoints and methods) and reports `success` (did the success flag ever fire) and
+`success_final` (the flag on the last step).
 """
 import contextlib
 import glob
 import os
 import re
-import sys
-import types
 from pathlib import Path
 
 import numpy as np
@@ -34,41 +29,16 @@ from impls.utils.datasets import FBDataset
 from env import registry
 from env.base import column_backed_dataset, episode_horizon, needs_goal_frame
 
-# newt's env backends (rlmini / metaworld / maniskill). Its envs/__init__ imports dm_control
-# for dmcontrol tasks we don't use, so bind the namespace directly instead of importing it.
-NEWT_TD = os.environ.get("NEWT_TDMPC2", "/raid/tongle/rl/newt/tdmpc2")
-if "envs" not in sys.modules:
-    _pkg = types.ModuleType("envs")
-    _pkg.__path__ = [os.path.join(NEWT_TD, "envs")]
-    sys.modules["envs"] = _pkg
-if NEWT_TD not in sys.path:
-    sys.path.insert(0, NEWT_TD)
-
-
-class _Cfg(dict):
-    """Attribute-style config; the ManiSkill backend reads cfg.task, cfg.obs, ..."""
-
-    def get(self, k, d=None):
-        return dict.get(self, k, d)
-
-    def __getattr__(self, k):
-        return dict.get(self, k, None)
-
-    def __setattr__(self, k, v):
-        self[k] = v
-
-
 def _ep_index(p):
     return int(re.findall(r"\d+", Path(p).stem)[-1])
 
 
 def load_packed(npz_path):
-    """Flatten a PACKED per-task npz -- the HuggingFace hosting layout written by
-    hf_dataset/pack_and_manifest.py, `data/<family>/<task>.npz` with the 8 unified fields
-    stacked as [N, T, ...] -- into the same flat dict `load_unified` returns.
+    """Flatten a packed per-task npz (`data/<family>/<task>.npz`, the unified fields
+    stacked as [N, T, ...]) into the same flat dict `load_unified` returns.
 
-    Same contract: `terminals` marks each episode's LAST step (the GCDataset trajectory
-    split), not the env's `terminal` flag, which for fixed-horizon collections never fires.
+    `terminals` marks each episode's last step (the trajectory split for goal sampling),
+    not the env's `terminal` flag, which for fixed-horizon collections never fires.
     """
     z = np.load(npz_path, allow_pickle=True)
     obs, act, nobs = z["observation"], z["action"], z["next_observation"]
@@ -86,10 +56,8 @@ def load_packed(npz_path):
     out = dict(observations=flat(obs), actions=np.clip(flat(act), -1.0, 1.0),
                next_observations=flat(nobs), rewards=flat(z["reward"]),
                terminals=flat(term))
-    # The env's own per-step success flag, when the pack carries it (every HF pack does:
-    # hf_dataset/pack_and_manifest.py's 8 unified fields). It is the 0/1 task signal the
-    # reward-inference eval route relabels with (`relabel_infer_batch`, eval_relabel_reward=
-    # success); no training code reads it -- FBDataset.sample emits a fixed key set.
+    # The env's own per-step success flag: the 0/1 task reward the reward-inference eval
+    # relabels with (`relabel_infer_batch`). No training code reads it.
     if "success" in z.files:
         out["success"] = flat(np.asarray(z["success"], np.float32))
     return out
@@ -120,9 +88,8 @@ def load_domain_data(cfg):
     one (`data_path`, the HuggingFace export), else the per-episode collected directory
     (`data_dir`, defaulting to the registry's path for the task).
 
-    ExoRL (`dmc-`) has a THIRD layout and, more importantly, a different reward story: its
-    episode files' `reward` column is not the task reward, so the loader relabels from the
-    stored mujoco `physics` states. See env/exorl_env.py."""
+    ExoRL (`dmc-`) has its own layout, and its episode files' `reward` column is not the
+    task reward, so env/exorl_env.py relabels from the stored mujoco `physics` states."""
     task = cfg.get("task") or ""
     if task.startswith("dmc-"):
         from env.exorl_env import load_domain_data as load_exorl_domain
@@ -133,44 +100,28 @@ def load_domain_data(cfg):
     return load_unified(cfg.get("data_dir") or registry.data_dir(cfg["task"]))
 
 
-def make_task_env(task, render=False, reward_task=None):
-    """-> (env, horizon). Obs is the RAW factored obs, identical to the collected data.
+def make_task_env(task, reward_task=None):
+    """-> (env, horizon). Obs is the raw observation, identical to the collected data.
 
     `reward_task` is ExoRL-only: which dm_control reward function the eval env scores. It
-    MUST be the same one the offline data was relabelled with (the domain yaml's
-    `exorl_task` feeds both), or training and eval are on two different tasks."""
-    if task.startswith(("b2d-", "p2d-")):
-        from envs.rlmini import RLMiniWrapper, _PREFIX_TO_ENV, episode_length_for
-        prefix = "b2d-" if task.startswith("b2d-") else "p2d-"
-        variant = task[len(prefix):]
-        env = RLMiniWrapper(_PREFIX_TO_ENV[prefix], variant, _Cfg(), seed=0)
-        if render:
-            import rlmini_envs
-            env._raw = rlmini_envs.make(_PREFIX_TO_ENV[prefix], variant=variant,
-                                        horizon=1_000_000_000, seed=0, render=True)
-            if hasattr(env._raw, "max_steps"):
-                env._raw.max_steps = 1_000_000_000
-        return env, episode_length_for(task)
+    must be the one the offline data was relabelled with (the domain yaml's `exorl_task`
+    feeds both)."""
     if task.startswith("mw-"):
         os.environ.setdefault("MUJOCO_GL", "egl")
-        from env.metaworld_env import make_metaworld_env    # newt's wrapper, torch-free
+        from env.metaworld_env import make_metaworld_env
         return make_metaworld_env(task)
     if task.startswith("ms-"):
-        from env.maniskill_env import make_maniskill_env   # self-contained, no newt backend
+        from env.maniskill_env import make_maniskill_env
         return make_maniskill_env(task)
     if task.startswith("dmc-"):
         os.environ.setdefault("MUJOCO_GL", "egl")
-        from env.exorl_env import make_exorl_env           # ExoRL / dm_control, reward-specified
+        from env.exorl_env import make_exorl_env
         return make_exorl_env(task, reward_task=reward_task)
-    if task.startswith("hum-"):
-        os.environ.setdefault("MUJOCO_GL", "egl")
-        from env.humenv_env import make_humenv_env         # HumEnv / Meta Motivo SMPL humanoid
-        return make_humenv_env(task)
     raise ValueError(f"no env builder for task {task!r}")
 
 
-# Raw-observation layout per task, used by synth eval goals (`eval_goal_mode=synth`) and by
-# per-episode goal-distance logging. Every slot indexes the RAW obs, before any
+# Raw-observation layout per task, used by synthesised eval goals (`eval_goal_mode=synth`)
+# and by per-episode goal-distance logging. Every slot indexes the RAW obs, before any
 # obs_mask_dims/goal_mask_dims blanking.
 #
 #   target -- the episode's goal, written into the obs by the env at reset (the dims the
@@ -178,7 +129,7 @@ def make_task_env(task, render=False, reward_task=None):
 #   object -- the achieved goal the env's success rule compares against `target`
 #   copy   -- slots overwritten with `target` when synthesising a goal FRAME: the end
 #             effector and the object, plus their prev-frame copies where the layout carries
-#             them. Metaworld's list is bon_probe.py's verified construction, unchanged.
+#             them.
 #   grasp_offset -- (pick-cube only) which `copy` slot must NOT collapse onto `target`: real
 #             success frames never have tcp == obj (grasp offset mean/median 0.021/0.018 --
 #             the same scale as the ~0.02-0.025 success radius), so this slot instead keeps
@@ -210,8 +161,8 @@ _GOAL_LAYOUT = {
 
 
 def goal_layout(task):
-    """-> the _GOAL_LAYOUT entry for a task slug, or None when the family has no goal-in-obs
-    layout (Box2D/rlmini, whose targets are not carried in the observation)."""
+    """-> the _GOAL_LAYOUT entry for a task slug, or None when the task has no goal-in-obs
+    layout."""
     if task in _GOAL_LAYOUT:
         return _GOAL_LAYOUT[task]
     return _GOAL_LAYOUT.get(task.split("-", 1)[0])
@@ -221,10 +172,9 @@ def synth_goal_frame(task, raw_obs):
     """Per-episode goal FRAME built from this episode's own raw reset observation: a copy of
     it with the end effector and object moved onto the episode's true target.
 
-    This is the repair for C4. The alternative -- one goal frame cached from the dataset and
-    reused for every episode (`eval_goal_mode=fixed`) -- conditions a goal-conditioned critic
-    on a (s, g) pair whose context dims disagree, while MW/MS redraw the target on every
-    reset. Synthesising per episode keeps the context dims the episode's own, so the pair is
+    The alternative -- one goal frame cached from the dataset and reused for every episode
+    (`eval_goal_mode=fixed`) -- conditions the critic on a (s, g) pair whose context dims
+    disagree, since MW/MS redraw the target on every reset. Synthesising per episode keeps the context dims the episode's own, so the pair is
     consistent, and the eval goal is in-support by construction (the env drew the target from
     the same goal space the collector sampled).
     """
@@ -260,8 +210,8 @@ def synth_goal_frame(task, raw_obs):
 
 
 def goal_distance(task, raw_obs):
-    """‖object - target‖ read straight off the RAW observation, under the env's own success
-    metric (E0.2). Returns None for families with no goal-in-obs layout."""
+    """‖object - target‖ read off the raw observation, under the env's own success metric.
+    Returns None for tasks with no goal-in-obs layout."""
     lay = goal_layout(task)
     if lay is None:
         return None
@@ -277,11 +227,9 @@ def _global_np_seed(seed):
     """Seed the global np.random for the duration of the block, then put the previous state
     back. Metaworld/ManiSkill draw their reset randomness from the global RNG and give us no
     way to inject a Generator, so seeding it is the only way to fix an eval initial state.
-    Restoring afterwards is what keeps eval from perturbing training: GCDataset draws every
-    batch index, goal index and relabel coin from that same global RNG (impls/utils/datasets.py),
-    so without the restore the post-eval state is a pure function of the last episode index --
-    every seed then replays one identical batch stream, periodic in eval_interval, and the
-    reported seed-to-seed sd stops being a seed estimate."""
+    Restoring afterwards keeps eval from perturbing training: the datasets draw every batch
+    index from the same global RNG, so without the restore every seed would replay one
+    identical batch stream after each eval."""
     state = np.random.get_state()
     np.random.seed(seed)
     try:
@@ -291,9 +239,8 @@ def _global_np_seed(seed):
 
 
 def seeded_reset(env, task, seed):
-    """A given seed => a fixed initial state wherever the backend allows it. rlmini honors
-    reset(seed=); Metaworld draws its rand_vec from the GLOBAL np.random; ManiSkill's wrapper
-    does not accept a seed, so it is best-effort."""
+    """A given seed => a fixed initial state wherever the backend allows it. Metaworld draws
+    its rand_vec from the global np.random; ManiSkill takes reset(seed=) where supported."""
     if task.startswith("mw-"):
         with _global_np_seed(seed):
             return env.reset()
@@ -322,8 +269,7 @@ class UnifiedAdapter:
     def make_env_and_datasets(self, cfg):
         self._cfg = dict(cfg)              # read by relabel_infer_batch (masks, reward mode)
         data = load_domain_data(cfg)
-        env, horizon = make_task_env(cfg["task"], render=bool(cfg.get("render", True)),
-                                     reward_task=cfg.get("exorl_task"))
+        env, horizon = make_task_env(cfg["task"], reward_task=cfg.get("exorl_task"))
         self._horizon = horizon
         # The eval goal for goal-conditioned critics (see `evaluate`), cached here so eval
         # never re-reads the dataset -- for a packed npz that reload costs tens of seconds.
@@ -336,7 +282,7 @@ class UnifiedAdapter:
             cut = n - n_val
             tr = {k: v[:cut] for k, v in data.items()}
             va = {k: v[cut:] for k, v in data.items()}
-            tr["terminals"][-1] = 1.0     # GCDataset asserts the last index is terminal
+            tr["terminals"][-1] = 1.0     # the goal samplers assert the last index is terminal
             va["terminals"][-1] = 1.0
         else:
             tr, va = data, data
@@ -347,23 +293,20 @@ class UnifiedAdapter:
 
     def relabel_infer_batch(self, train_ds, env, task_id, num_samples, shift_reward=1.0):
         """(next_observations, rewards) for `agent.infer_eval_cond` -- the reward-inference
-        eval route (Route B, eval_relabel.csv) on the unified families, mirroring
-        env/ogbench.py::OGBenchAdapter.relabel_infer_batch: `num_samples` random transitions
-        from the TRAIN dataset, each labelled with the task reward of its next state.
+        eval (eval_relabel.csv), mirroring env/ogbench.py::OGBenchAdapter.relabel_infer_batch:
+        `num_samples` random transitions from the train dataset, each labelled with the task
+        reward of its next state.
 
-        The unified npz packs carry two candidate task signals and `eval_relabel_reward`
-        picks one (default `success`):
-          success -- the env's own per-step success flag of the transition, mapped to the
-                     OGBench convention (success - 1) + shift_reward, so at the fb_tdj value
-                     shift_reward=1.0 the reward is a 0/1 reached-the-goal indicator, exactly
-                     what the OGBench cube relabel produces for a single-condition task;
+        `eval_relabel_reward` picks the task signal (default `success`):
+          success -- the env's per-step success flag, mapped to the OGBench convention
+                     (success - 1) + shift_reward, so at shift_reward=1.0 the reward is a 0/1
+                     reached-the-goal indicator, as the OGBench cube relabel produces;
           dense   -- the stored per-step env reward + shift_reward (MetaWorld's shaped
                      reward in [0, 10] per raw step, summed over action repeat 2; ManiSkill's
                      normalized dense reward), a different, shaped task specification.
-        Observations are blanked with obs_mask_dims | goal_mask_dims, the same union
-        FBDataset.sample / WindowedDataset / HILPFutureDataset apply in training, so the
-        rows handed to B / phi live in the space those nets were fitted on. `task_id` is
-        ignored: a unified domain is one task (`eval_tasks` returns [None])."""
+        Observations are blanked with obs_mask_dims | goal_mask_dims, the same union the
+        datasets apply in training, so the rows handed to B / phi live in the space those
+        nets were fitted on. `task_id` is ignored: a unified domain is one task."""
         ds = column_backed_dataset(train_ds)
         mode = str(cfg_get(self, "eval_relabel_reward", "success"))
         idxs = ds.get_random_idxs(int(num_samples))
@@ -386,31 +329,23 @@ class UnifiedAdapter:
             next_obs[:, dims] = 0.0
         return next_obs, rewards.astype(np.float32)
 
-    def evaluate(self, agent, env, task, cfg, num_episodes, num_video, any_step_success=None):
-        # `any_step_success` is accepted for signature parity with OGBenchAdapter.evaluate
-        # (impls/main.py's Route B passes it): this evaluator ALWAYS reports any-step
-        # `success` and, since 2026-09-13, `success_final` (the flag on the episode's last
-        # step -- the paper's MetaWorld/ManiSkill table protocol) alongside it.
+    def evaluate(self, agent, env, task, cfg, num_episodes, num_video=0, any_step_success=None):
+        # `any_step_success` is accepted for signature parity with OGBenchAdapter.evaluate:
+        # this evaluator always reports any-step `success` and last-step `success_final`.
+        if num_video:
+            raise ValueError("video rendering is not supported; pass num_video=0")
         import jax
         slug = cfg["task"]
         horizon = episode_horizon(self)
-        is_box2d = slug.startswith(("b2d-", "p2d-"))   # at-goal ticks are Box2D-only
-        # ExoRL/dm_control is REWARD-specified: undiscounted episode return is the
-        # benchmark's own metric, and for walker/cheetah it is the ONLY meaningful one
-        # (no binary success rule exists, so `success` would be a constant 0.0).
+        # ExoRL is reward-specified: undiscounted episode return is the benchmark metric.
         is_dmc = slug.startswith("dmc-")
-        # z-critics condition on agent.cond_eval (goals=None); goal-conditioned critics need
-        # an explicit goal, for which we use the highest-reward next_obs in the offline data.
-        # A z-critic exposing map_eval_cond (fb) also needs the goal frame: the hook embeds
-        # it into z at eval — without it the stored eval z is the zero vector (goal-blind).
-        # An agent rolling an INFERRED conditioning (--eval_on_inferred_cond) needs none, and
-        # must not be handed one. env/base.py::needs_goal_frame is the whole rule, and is the
-        # same function env/online.py's collector calls.
+        # Goal-conditioned critics, and z-critics with a map_eval_cond hook, need an explicit
+        # goal frame; an agent rolling an inferred task vector must not get one. The rule is
+        # env/base.py::needs_goal_frame.
         needs_goal = needs_goal_frame(agent)
 
-        # Observation masking must match training (GCDataset obs_mask_dims) or the policy sees
-        # a distribution it was never trained on -- and, on goal-observable envs, would get the
-        # target handed back to it at eval after being denied it during training.
+        # Observation masking must match training, or the policy sees inputs it never saw --
+        # and on goal-observable envs would get back the target it was denied in training.
         obs_mask = list(cfg.get("obs_mask_dims") or ())
         goal_mask = list(cfg.get("goal_mask_dims") or ())
 
@@ -422,9 +357,8 @@ class UnifiedAdapter:
             return o
 
         def _prep_goal(g):
-            """Put a raw goal frame into the space the critic's TRAINING goals live in:
-            goal_mask_dims (GCDataset blanks the emitted goals) then obs_mask_dims (the goal
-            frame is an observation too, and must be blanked the same way)."""
+            """Blank a raw goal frame the way training goals are blanked: goal_mask_dims,
+            then obs_mask_dims (the goal frame is an observation too)."""
             g = np.array(g, np.float32, copy=True)
             if goal_mask:
                 g[goal_mask] = 0.0
@@ -432,15 +366,12 @@ class UnifiedAdapter:
                 g[obs_mask] = 0.0
             return g
 
-        # `fixed` (default) reproduces the historical behaviour: ONE goal frame, the
-        # highest-reward next_obs in the offline data, reused for every episode. `synth`
-        # rebuilds the goal from each episode's own reset obs -- see synth_goal_frame.
+        # `fixed` (default): one goal frame, the highest-reward next_obs in the offline data,
+        # reused for every episode. `synth`: rebuilt from each episode's own reset obs.
         goal_mode = str(cfg.get("eval_goal_mode", "fixed"))
         if goal_mode not in ("fixed", "synth"):
             raise ValueError(f"eval_goal_mode must be 'fixed' or 'synth', got {goal_mode!r}")
-        # Only checked for goal-conditioned critics: a z-critic never reads a goal frame, so
-        # the knob is inert for it and must not turn into a hard error on a task with no
-        # goal-in-obs layout.
+        # Only checked when a goal frame is needed: for other agents the knob is inert.
         if needs_goal and goal_mode == "synth" and goal_layout(slug) is None:
             raise ValueError(
                 f"eval_goal_mode=synth is not available for task {slug!r}: no goal-in-obs "
@@ -449,54 +380,32 @@ class UnifiedAdapter:
         goal = None
         if needs_goal and goal_mode == "fixed":
             goal = getattr(self, "_goal", None)
-            if goal is None:                      # adapter used for eval only (campaign/eval)
+            if goal is None:                      # adapter used for eval only
                 d = load_domain_data(cfg)
                 goal = d["next_observations"][int(np.argmax(d["rewards"]))].astype(np.float32)
             goal = _prep_goal(goal)
 
-        successes, ticks, frames = [], [], []
-        finals = []                                 # success flag on the LAST step
-        returns = []                                # dmc: undiscounted episode return
-        # Did the ENV ever report a success flag? Domains with no binary success rule
-        # (ExoRL walker/cheetah) emit no `success` key at all, on purpose -- see
-        # env/exorl_env.py::ExoRLWrapper, "no `success` key is emitted rather than a
-        # fabricated 0.0 that would read as 'the policy failed' in eval.csv". This row used
-        # to fabricate exactly that 0.0, and impls/main.py::_append_agg then shipped it to
-        # the campaign aggregator as the run's success_rate while the domain's real metric
-        # (episode_return) was never aggregated at all.
+        successes, finals, returns = [], [], []
+        # Domains with no binary success rule (ExoRL walker/cheetah) emit no `success` key;
+        # the row then carries no success column rather than a fabricated 0.0.
         saw_success = False
-        # E0.2: per-episode goal distances, so E5's matched-radius re-scoring is an analysis
-        # pass over existing logs rather than a re-run. Costs one norm per step.
-        dist_min, dist_final = [], []
-        # Metric episodes first, then num_video EXTRA rendered ones. Rendering costs ~7 ms a
-        # frame and must not perturb the episodes we report, so the reported set is never
-        # rendered — the same split OGBench's evaluate() uses.
-        # Episode seeds are the loop index, so every checkpoint of every run is scored on the
-        # SAME initial states — that is what makes two checkpoints comparable. It also means a
-        # re-eval cannot draw a fresh sample: repeating it reproduces the number exactly, so a
-        # 50-episode fluke is indistinguishable from real behaviour. `eval_seed_offset` shifts
-        # the whole block to a disjoint set of initial states, which is the only way to ask
-        # "was that 0.02 real, or was it the episode draw?" (edge-attribution spec W4).
-        # Leave it 0 for anything that will be compared against existing numbers.
+        dist_min, dist_final = [], []           # per-episode goal distances
+        # Episode seeds are the loop index, so every checkpoint is scored on the same initial
+        # states. `eval_seed_offset` shifts the block to a disjoint set of initial states.
         seed_off = int(cfg.get("eval_seed_offset", 0) or 0)
-        for i in range(num_episodes + num_video):
-            record = i >= num_episodes
+        for i in range(num_episodes):
             obs, info = seeded_reset(env, slug, i + seed_off)
-            # The goal must be built from the RAW reset obs, before _mask_obs blanks the very
-            # target dims it is built from.
-            ep_goal = synth_goal_frame(slug, obs) if (needs_goal and goal_mode == "synth") \
-                else goal
+            # Build the goal from the raw reset obs, before _mask_obs blanks the target dims.
+            ep_goal = goal
             if needs_goal and goal_mode == "synth":
-                ep_goal = _prep_goal(ep_goal)
+                ep_goal = _prep_goal(synth_goal_frame(slug, obs))
             key = jax.random.PRNGKey(i + seed_off)      # action noise follows the same shift
             saw_success = saw_success or ("success" in info)
             ep_success = _flag(info.get("success", 0))
             ep_return = 0.0
             now = _flag(info.get("success", 0))
-            at_goal = int(now)
             d = goal_distance(slug, obs)
             d_min, d_last = d, d
-            ff = [env.render()] if record else None
             for _ in range(horizon):
                 key, sub = jax.random.split(key)
                 a = np.asarray(agent.sample_actions(
@@ -507,45 +416,28 @@ class UnifiedAdapter:
                 saw_success = saw_success or ("success" in info)
                 now = _flag(info.get("success", 0))
                 ep_success = ep_success or now
-                at_goal += int(now)
                 d = goal_distance(slug, obs)
                 if d is not None:
                     d_min, d_last = min(d_min, d), d
-                if record:
-                    ff.append(env.render())
                 if _flag(term) or _flag(trunc):
                     break
-            if record:
-                frames.append(np.array(ff))
-            else:
-                successes.append(float(ep_success))
-                finals.append(float(now))
-                returns.append(ep_return)
-                ticks.append(at_goal)                   # integer steps spent at goal
-                if d_last is not None:
-                    dist_min.append(d_min)
-                    dist_final.append(d_last)
+            successes.append(float(ep_success))
+            finals.append(float(now))
+            returns.append(ep_return)
+            if d_last is not None:
+                dist_min.append(d_min)
+                dist_final.append(d_last)
         out = {}
-        if saw_success:                             # never fabricated -- see `saw_success`
+        if saw_success:
             out["success"] = float(np.mean(successes))
             out["success_final"] = float(np.mean(finals))
-        if is_dmc:                                  # the benchmark metric for ExoRL
+        if is_dmc:
             out["episode_return"] = float(np.mean(returns))
-        if is_box2d:                                    # at-goal ticks: Box2D only, integer scale
-            out["at_goal_ticks"] = float(np.mean(ticks))
         if dist_min:
             out["goal_dist_min"] = float(np.mean(dist_min))
             out["goal_dist_final"] = float(np.mean(dist_final))
-        # The per-episode arrays are what E5 re-scores at a sweep of radii; the means above
-        # are only the at-a-glance summary that fits in eval.csv. impls/main.py pops this
-        # key out of the row before logging and writes it to its own file.
-        #
-        # episode_return is kept per-episode for DMC because the MEAN hides the shape of
-        # the distribution, and on some tasks the shape IS the finding. walker/spin is
-        # bimodal: nine episodes near 975 and one near 40, so a single catastrophic episode
-        # moves the seed mean by ~100 and the reported std says "high variance" when the
-        # truth is "rare total failure". Without the raw episodes there is no way to tell a
-        # policy that fails 10% of the time from one that is uniformly mediocre.
+        # Per-episode values; impls/main.py moves them to eval_episodes.jsonl. The DMC returns
+        # are kept because the mean hides bimodal outcomes (rare total failures).
         per_ep = {}
         if is_dmc:
             per_ep["episode_return"] = [float(x) for x in returns]
@@ -555,4 +447,4 @@ class UnifiedAdapter:
                            "success": [float(x) for x in successes]})
         if per_ep:
             out["_per_episode"] = per_ep
-        return out, frames
+        return out, []
