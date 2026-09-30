@@ -429,6 +429,14 @@ class DensityFBCritic:
     # TD3 pessimistic min; 'mean' is what the FB reference actor ascends (impls/critics/fb.py
     # actor_pessimism_penalty=0 => mean over heads). stage_loss is untouched either way.
     actor_head_reduce: str = "min"
+    # measure_density_actor_value (2026-09-24, Ben's readout ablation): what the ACTOR ascends.
+    # 'softmax' (default, bit-identical: every published cell) averages the actor reward under
+    # the predicted successor distribution. 'linear_fz' ascends FB's linear readout of the SAME
+    # cross-entropy-trained critic instead: F(s,a,z)^T z on the z branch, F(s,a,g)^T B(g) on
+    # the goal branch (FB's goal-conditioned readout, z = B(g) with B the frozen online tower
+    # q_fn already uses, on the query rows _b_query builds). stage_loss, the conditioning and
+    # the eval/infer_cond path are untouched.
+    actor_value: str = "softmax"
     # measure_density_value_reg_coef: scalar-value TD auxiliary. 0.0 (default) => the stage
     # loss is exactly the shipped CE/sq. >0 adds coef * 0.5 * mean((<w,kg> - <t,kg>)^2), i.e.
     # regresses the reward-weighted successor value toward the SAME Bellman target t the CE
@@ -1162,6 +1170,21 @@ class DensityFBCritic:
             g_rows = self._kernel_rows(cond, "goal", g)
             kg = jax.lax.stop_gradient(_delta_phi(g_rows, u_raw, self.blocks))  # [B, M]
         f_emb = self._F(f_p, self._sobs(params, obs), actions, g)
+        if self.actor_value == "linear_fz":
+            # FB's readout on Density-FB's forward map: q_h = F_h(s,a,z)^T z / sqrt(d), with
+            # z = B(g) on the goal branch. The 1/sqrt(d) only fixes a scale; FlowBC divides its
+            # q-term by sg[|Q|.mean()].
+            if self.z_on:
+                zvec = g
+            else:
+                g_q = (g if (self.pixel or self.backward_input == "state")
+                       else self._q_in(params, self._kernel_rows(cond, "goal", g)))
+                zvec = self._B(b_p, g_q)
+            q1, q2 = jnp.einsum('hbd,bd->hb', f_emb, zvec) / jnp.sqrt(float(f_emb.shape[-1]))
+            q = jnp.minimum(q1, q2) if self.actor_head_reduce == "min" else 0.5 * (q1 + q2)
+            if self.actor_q_center:
+                return q, (q - q.mean())[None]
+            return q, jnp.stack([q1, q2], 0)
         # W2: the ACTOR readout may use its own temperature, flattening the softmax the actor
         # ascends without touching what the measure is trained to be (stage_loss keeps
         # self.temp). Default None => self.temp => bit-identical.
@@ -1338,6 +1361,10 @@ class DensityFBCritic:
                 "measure_density_z_actor_reward must be 'latent', 'latent_centered' or "
                 f"'kernel', got {z_actor_reward!r}")
         actor_head_reduce = str(config.get("measure_density_actor_head_reduce", "min"))
+        actor_value = str(config.get("measure_density_actor_value", "softmax"))
+        if actor_value not in ("softmax", "linear_fz"):
+            raise ValueError(
+                f"measure_density_actor_value must be 'softmax' or 'linear_fz', got {actor_value!r}")
         value_reg_coef = float(config.get("measure_density_value_reg_coef", 0.0))
         if actor_head_reduce not in ("min", "mean"):
             raise ValueError(
@@ -1528,7 +1555,7 @@ class DensityFBCritic:
                   pixel=pixel, qpos_dim=qpos_dim, enc_dim=enc_dim,
                   bootstrap=str(config.get("measure_density_bootstrap", "actor")),
                   actor_temp=config.get("measure_density_actor_temp", None),
-                  actor_head_reduce=actor_head_reduce,
+                  actor_head_reduce=actor_head_reduce, actor_value=actor_value,
                   value_reg_coef=value_reg_coef,
                   z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac, z_actor_reward=z_actor_reward,
                   z_khot_frac=z_khot_frac,
