@@ -12,7 +12,7 @@
 # Selection: CRITICS="fb_tdj hilp_tdjc rldp"  TASKS="mw-push ... ms-lift-peg"  SEEDS="0 1 2"
 # Budget:    TRAIN_STEPS=1000000 EVAL_INTERVAL=100000 SAVE_INTERVAL=250000 EVAL_EPISODES=50
 #            RELABEL_SIZE=10000 RELABEL_SHIFT=1.0 RELABEL_EPISODES=10  (Route B, eval_relabel.csv)
-# Extras:    EXTRA_OV="k=v k2=v2" appended to every run; LOG_INTERVAL=5000; NUM_VIDEO=0
+# Extras:    EXTRA_OV="k=v k2=v2" appended to every run; LOG_INTERVAL=5000
 # Layout:    exp/mwms_baselines/<critic>/<task>_<critic>_flowbc_seed_<s>/{eval.csv,eval_relabel.csv,
 #            config.json,train.csv}; logs under logs/mwms_baselines/<task>/<critic>/s<seed>.log
 # A run whose params_<TRAIN_STEPS>.pkl already exists is skipped; partial runs resume (--auto_resume).
@@ -33,14 +33,13 @@ EVAL_INTERVAL="${EVAL_INTERVAL:-100000}"
 SAVE_INTERVAL="${SAVE_INTERVAL:-250000}"
 EVAL_EPISODES="${EVAL_EPISODES:-50}"
 LOG_INTERVAL="${LOG_INTERVAL:-5000}"
-NUM_VIDEO="${NUM_VIDEO:-0}"
 RELABEL_SIZE="${RELABEL_SIZE:-10000}"
 RELABEL_SHIFT="${RELABEL_SHIFT:-1.0}"
 RELABEL_EPISODES="${RELABEL_EPISODES:-10}"
 EXTRA_OV="${EXTRA_OV:-}"
 SAVE_ROOT="${SAVE_ROOT:-exp/mwms_baselines}"
 LOGROOT="${LOGROOT:-logs/mwms_baselines}"
-PY="${PY:-/dev/shm/.venv-jax/bin/python}"
+PY="${PY:-python}"
 SESSION="${SESSION:-mwms_baselines}"
 GPUS="${GPUS:-0}"
 ALLOC="${ALLOC:-ASC26008}"
@@ -87,11 +86,11 @@ for t in $TASKS; do for c in $CRITICS; do for s in $SEEDS; do
   ovflags=""; for kv in $ov; do ovflags+=" --override $(printf '%q' "$kv")"; done
   cmd="CUDA_VISIBLE_DEVICES=\$GPU $ENVBASE $PY -m impls.main --critic $c --actor $ACTOR --domain $t --seed $s"
   cmd+=" --train_steps $TRAIN_STEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL"
-  cmd+=" --eval_episodes $EVAL_EPISODES --num_video $NUM_VIDEO --log_interval $LOG_INTERVAL --auto_resume"
+  cmd+=" --eval_episodes $EVAL_EPISODES --log_interval $LOG_INTERVAL --auto_resume"
   cmd+=" --save_dir $SAVE_ROOT/$c$ovflags"
   IDS+=("$t/$c/s$s"); CMDS+=("$cmd")
   # slurm job line: the vista_train.slurm env-var contract, one run per line (read by mwms_array.slurm)
-  JOBLINES+=("CRITIC=$c ACTOR=$ACTOR DOMAIN=$t SEED=$s TRAIN_STEPS=$TRAIN_STEPS EVAL_INTERVAL=$EVAL_INTERVAL SAVE_INTERVAL=$SAVE_INTERVAL EVAL_EPISODES=$EVAL_EPISODES NUM_VIDEO=$NUM_VIDEO AUTO_RESUME=1 SAVE_DIR=$SAVE_ROOT/$c FB_DATA_ROOT=$FB_DATA_ROOT FB_HF_EXPORT=$FB_DATA_ROOT VENV=$VENV OVERRIDE=$(printf '%q' "$ov")")
+  JOBLINES+=("CRITIC=$c ACTOR=$ACTOR DOMAIN=$t SEED=$s TRAIN_STEPS=$TRAIN_STEPS EVAL_INTERVAL=$EVAL_INTERVAL SAVE_INTERVAL=$SAVE_INTERVAL EVAL_EPISODES=$EVAL_EPISODES AUTO_RESUME=1 SAVE_DIR=$SAVE_ROOT/$c FB_DATA_ROOT=$FB_DATA_ROOT FB_HF_EXPORT=$FB_DATA_ROOT VENV=$VENV OVERRIDE=$(printf '%q' "$ov")")
 done; done; done
 N=${#IDS[@]}
 echo "== $N runs to launch ($n_skip already done) | mode=$MODE steps=$TRAIN_STEPS eval@$EVAL_INTERVAL x$EVAL_EPISODES eps | data=$FB_DATA_ROOT"

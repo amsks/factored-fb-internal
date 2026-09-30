@@ -23,7 +23,7 @@ Structure, and why it is split in two passes:
       the same 1024-row pool, per arm and per goal. No rollouts, so it is cheap.
 
 Both estimators are driven through the SHIPPED critic methods (`_le/_F/_B` for FB,
-`_sobs/_b_query/_B/_F` for Density-FB); nothing here reimplements a tower.
+`_b_query/_B/_F` for Density-FB); nothing here reimplements a tower.
 """
 import os
 
@@ -304,10 +304,10 @@ def density_readout(critic, net, obs, acts, goal, pool_obs):
 
     f_p, b_p = net["density_f"].params, net["density_b"].params
     pool = jnp.asarray(pool_obs)
-    u_sc = critic._b_query(net, pool, pool)
+    u_sc = critic._b_query(pool)
     b_emb = critic._B(b_p, u_sc)                                                   # [M,d]
     g = jnp.broadcast_to(jnp.asarray(goal), (len(acts), len(goal)))
-    f_emb = critic._F(f_p, critic._sobs(net, jnp.asarray(obs)), jnp.asarray(acts), g)
+    f_emb = critic._F(f_p, jnp.asarray(obs), jnp.asarray(acts), g)
     w_heads = jax.nn.softmax(jnp.einsum("hbd,md->hbm", f_emb, b_emb) / critic.temp, -1)
     w = jnp.mean(w_heads, axis=0)                                                  # [B,M]
     # The actor's own readout, on the same pool: kg is the hit kernel in RAW coordinates.

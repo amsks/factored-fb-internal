@@ -30,9 +30,8 @@ TRAIN_STEPS="${TRAIN_STEPS:-1000000}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-100000}"
 SAVE_INTERVAL="${SAVE_INTERVAL:-250000}"
 EVAL_EPISODES="${EVAL_EPISODES:-50}"
-NUM_VIDEO="${NUM_VIDEO:-0}"
 SAVE_ROOT="${SAVE_ROOT:-exp/mwms_gc}"
-PY="${PY:-/dev/shm/.venv-jax/bin/python}"
+PY="${PY:-python}"
 SESSION="${SESSION:-mwms_gc}"
 GPUS="${GPUS:-0}"
 
@@ -64,7 +63,7 @@ for t in $TASKS; do
     ovflags=""; for kv in $ov; do ovflags+=" --override $kv"; done
     cmd="CUDA_VISIBLE_DEVICES=\$GPU $ENVBASE $PY -m impls.main --critic density_fb --actor $ACTOR --domain $t --seed $s"
     cmd+=" --train_steps $TRAIN_STEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL"
-    cmd+=" --eval_episodes $EVAL_EPISODES --num_video $NUM_VIDEO --auto_resume --save_dir $SAVE_ROOT"
+    cmd+=" --eval_episodes $EVAL_EPISODES --auto_resume --save_dir $SAVE_ROOT"
     cmd+="$ovflags"
     IDS+=("$t/s$s"); CMDS+=("$cmd")
   done

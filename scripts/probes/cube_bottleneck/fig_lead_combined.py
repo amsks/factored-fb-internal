@@ -10,7 +10,6 @@ Inputs: drop_strip_cache.npz (FB policy, bank row 21) and drop_strip_cache_densi
 (Density-FB policy, same row), both produced by fig_drop_strip.py.
 """
 import argparse
-from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt

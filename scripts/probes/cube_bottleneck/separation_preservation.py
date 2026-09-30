@@ -54,7 +54,7 @@ if _REPO not in sys.path:
 ENV = "cube-single-play-v0"
 EPOCH = 1000000
 ROOT = Path("analysis/failure_figs")
-FIG = Path("PAPER/ICLR/figures/gap_preservation")
+FIG = Path("figures/gap_preservation")
 METHODS = ["fb_tdj", "density_fb_z"]
 METHOD_LABEL = {"fb_tdj": "FB", "density_fb_z": "Density-FB"}
 BANKS = ["approach", "inhand", "carrying"]

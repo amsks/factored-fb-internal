@@ -40,7 +40,7 @@ from scripts.probes.cube_bottleneck.phases import PhaseThresholds
 ENV = "cube-single-play-v0"
 ROLL = Path("analysis/failure_figs") / ENV / "rollouts"
 LABEL = "density_fb_z_seed0_1000000"
-OUT = Path("PAPER/ICLR/figures/failure/fig_phase_strip")
+OUT = Path("figures/failure/fig_phase_strip")
 
 # colours match the caption of fig:failure (experiments.tex)
 STAGES = [("approach", "Approach", "#CC78BC"),

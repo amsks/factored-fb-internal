@@ -18,7 +18,7 @@ The two worktrees share one repo but not one branch, so an import across them is
 available; a copy under test is the honest alternative.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import numpy as np
 import pandas as pd

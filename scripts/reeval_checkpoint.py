@@ -1,42 +1,19 @@
-"""Eval-only re-scoring of an EXISTING checkpoint, no retraining.
+"""Evaluate an existing checkpoint without retraining.
 
-Built for the ms-pick-cube synth-goal-frame fix (env/unified.py::synth_goal_frame): the E2
-masked runs were trained and originally evaluated with a synth goal frame that forced
-tcp == obj == target, off-distribution at the success-radius scale. This script re-runs
-`evaluate()` against the SAME checkpoint with the fixed frame, so the number moves only
-because the eval-time goal construction changed -- nothing about the agent or data does.
+Uses impls.main's own path (adapter, Agent.create, restore_agent, adapter.evaluate), so an
+evaluation here and one inside a training run build and score the agent the same way.
 
-Reuses impls.main's own code path (adapter, Agent.create, restore_agent, adapter.evaluate)
-rather than reimplementing it, so this script and a real training run can never disagree
-about how a checkpoint is built or scored.
+The critic is trained without task rewards; rewards are only read when the task vector is
+inferred. One checkpoint per (domain, seed) therefore serves every reward task of that
+domain, and scoring another task is a re-evaluation: `--override exorl_task=<task>` relabels
+the dataset rewards and builds the env for that task together. With --infer_cond_episodes N
+and --eval_on_inferred_cond, z is inferred from N relabelled transitions and the policy is
+rolled on z with no goal given.
 
-ExoRL / T3 use (the reason this script grew the two --infer_cond_* flags): the successor
-measure is trained REWARD-FREE -- `rewards` is read only inside `infer_cond` for density_fb,
-fb, psm and rldp -- so ONE checkpoint per (method, domain, seed) already serves every reward
-task of that domain, and the tasks differ only in the eval-time relabelling. Scoring the
-other tasks is therefore a re-eval, not a retrain:
-
-  for t in stand walk run flip; do
-    python -m scripts.reeval_checkpoint --critic density_fb --actor flowbc \
-        --domain dmc-walker --seed 0 --restore_path <run dir> --restore_epoch 500000 \
-        --infer_cond_episodes 50000 --eval_on_inferred_cond \
-        --override "measure_density_z=true" --override 'measure_hit_spec="0:24:15.9"' \
-        --override "exorl_task=$t" --out_jsonl t3_zeroshot.jsonl
-  done
-
-`--override exorl_task=<task>` relabels the dataset AND builds the env for that task
-together (env/exorl_env.py::load_domain_data and env/unified.py), so the two cannot drift
-apart. Without --eval_on_inferred_cond the inferred index is computed and then discarded --
-see that flag's help in impls/main.py.
-
-Usage:
-  python -m scripts.reeval_checkpoint \
-      --critic gciql --actor bcflow --domain ms-pick-cube --seed 0 \
-      --restore_path "$SCRATCH/factored-fb-E2/ms-pick-cube/BC/ms-pick-cube_gciql_bcflow_seed_0" \
-      --restore_epoch 300000 --eval_episodes 50 \
-      --override obs_mask_dims=[26,27,28,39,40,41] --override goal_mask_dims=[26,27,28,39,40,41] \
-      --override value_p_randomgoal=0.0 --override value_p_trajgoal=0.8 \
-      --override eval_goal_mode=synth
+    python -m scripts.reeval_checkpoint --critic density_fb_z --actor ddpgbc \
+        --domain dmc-walker --seed 0 --restore_path <run dir> --restore_epoch 1000000 \
+        --eval_episodes 10 --infer_cond_episodes 50000 --eval_on_inferred_cond \
+        --override exorl_task=walk --out_jsonl walker.jsonl
 """
 import json
 import os
@@ -84,15 +61,9 @@ flags.DEFINE_integer("infer_cond_episodes", 0,
                      "infer_cond come from the critic's own INFER_COND_MARGINAL.")
 flags.DEFINE_bool("config_from_run", True,
                   "Rebuild the agent from the config.json the run recorded next to its "
-                  "checkpoints, instead of from today's yaml. An eval has to construct the "
-                  "SAME networks the checkpoint was written from, and the yaml describes "
-                  "what we train now -- every knob added or retuned since a run finished "
-                  "silently changes the tower the eval builds and the restore then fails "
-                  "on a key or shape mismatch. Three separate instances of this "
-                  "(rldp_official_nets, the optax chain, actor.motivo_archi) came from "
-                  "enumerating the keys that mattered; the run's own config is the "
-                  "authority and needs no enumeration. --override still wins over it, and "
-                  "false restores the old yaml-only behaviour.")
+                  "checkpoints rather than from the current yaml, so the evaluation builds "
+                  "the same networks the checkpoint was written from. --override still "
+                  "wins over it.")
 flags.DEFINE_bool("eval_on_inferred_cond", False,
                   "Evaluate on the inferred conditioning INSTEAD of the env's task goal. "
                   "Requires --infer_cond_episodes>0. Without it the evaluator hands a goal "

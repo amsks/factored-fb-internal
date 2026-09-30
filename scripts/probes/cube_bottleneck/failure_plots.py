@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 ROOT = Path("analysis/failure_figs")
-FIG = Path("PAPER/ICLR/figures/failure")
+FIG = Path("figures/failure")
 ENVS = ["cube-single-play-v0"]
 ENV_LABEL = {"cube-single-play-v0": "cube-single", "cube-double-play-v0": "cube-double"}
 METHODS = ["fb_tdj", "density_fb_z"]

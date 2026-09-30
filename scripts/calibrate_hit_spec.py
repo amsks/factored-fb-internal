@@ -15,7 +15,7 @@ in 17-78 dimensions the pairwise-distance distribution is so concentrated that i
 is only 1.5-3x below the median, so the bump is nearly flat and the encoded rows carry no task
 signal. Matching the SUPPORT instead matches what the actor actually sees.
 
-    PY=~/git/Factored-FB/.venv/bin/python
+    PY=python
     # cube-single's own support under its published spec (the target):
     $PY scripts/calibrate_hit_spec.py --ogbench_npz ~/.ogbench/data/cube-single-play-v0.npz \
         --block 19:22 --report_eps 0.4

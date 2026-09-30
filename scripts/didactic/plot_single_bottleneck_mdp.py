@@ -12,7 +12,7 @@ share the whole tail and differ only on the transient clusters, so Delta m is sm
 orthogonal to the leading directions of every other row: FB's rank-d optimum reads 0% of the gap for
 d <= 5 while the softmax fit reads ~100% at d = 2 (design script).
 
-    MPLCONFIGDIR=/tmp/mpl JAX_PLATFORMS=cpu /dev/shm/.venv-jax/bin/python scripts/didactic/plot_single_bottleneck_mdp.py
+    JAX_PLATFORMS=cpu python scripts/didactic/plot_single_bottleneck_mdp.py
 """
 import pathlib
 import sys
@@ -30,7 +30,7 @@ sys.path.insert(0, str(REPO / "analysis" / "lemma_check"))
 import design_single_bottleneck as ds     # noqa: E402
 
 import os
-OUT = pathlib.Path(os.environ.get("SB_GRAPH_OUT", REPO / "PAPER" / "ICLR" / "figures" / "didactic"))
+OUT = pathlib.Path(os.environ.get("SB_GRAPH_OUT", REPO / "figures" / "didactic"))
 INK, GREY, GREEN, ORANGE, BLUE = "#2a2a2a", "#9a9a9a", "#029E73", "#DE8F05", "#0173B2"
 ENTRY, TAIL = (int(sys.argv[1]) if len(sys.argv) > 1 else 2), (int(sys.argv[2]) if len(sys.argv) > 2 else 4)
 CLUSTER = int(sys.argv[3]) if len(sys.argv) > 3 else 2
@@ -117,8 +117,8 @@ def panel_graph(ax, edges, b, A, B, T):
 def panel_rows(ax, t, b, A, B, T):
     """t = (1-gamma) M: each row is the discounted probability of the next state."""
     n = t.shape[1]; x = np.arange(n); w = 0.38
-    ax.bar(x - w / 2, t[2 * b], w, color=GREEN, label=f"after $a_+$:  $m_+(s^+)$", zorder=2)
-    ax.bar(x + w / 2, t[2 * b + 1], w, color=BLUE, label=f"after $a_-$:  $m_-(s^+)$", zorder=2)
+    ax.bar(x - w / 2, t[2 * b], w, color=GREEN, label="after $a_+$:  $m_+(s^+)$", zorder=2)
+    ax.bar(x + w / 2, t[2 * b + 1], w, color=BLUE, label="after $a_-$:  $m_-(s^+)$", zorder=2)
     ax.plot(x, t[2 * b] - t[2 * b + 1], color=INK, marker="o", markersize=2.8, linewidth=0.9,
             label="difference $\\Delta m$", zorder=3)
     ax.axhline(0, color=GREY, linewidth=0.6, zorder=1)

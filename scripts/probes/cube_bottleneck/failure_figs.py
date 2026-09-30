@@ -496,9 +496,9 @@ def predict_density(arm, obs_rep, acts, z, pool_obs) -> np.ndarray:
     critic, net = arm.agent.critic, arm.agent.net
     f_p, b_p = net["density_f"].params, net["density_b"].params
     pool = jnp.asarray(pool_obs)
-    b_emb = critic._B(b_p, critic._b_query(net, pool, pool))                    # [M, d]
+    b_emb = critic._B(b_p, critic._b_query(pool))                    # [M, d]
     g = jnp.broadcast_to(jnp.asarray(z), (len(acts), jnp.asarray(z).shape[-1]))
-    f_emb = critic._F(f_p, critic._sobs(net, jnp.asarray(obs_rep)), jnp.asarray(acts), g)
+    f_emb = critic._F(f_p, jnp.asarray(obs_rep), jnp.asarray(acts), g)
     w = jax.nn.softmax(jnp.einsum("hbd,md->hbm", f_emb, b_emb) / critic.temp, -1)
     return np.asarray(jnp.mean(w, axis=0))                                      # [B, M]
 
@@ -686,16 +686,11 @@ def q_values(arm, obs_rep, acts, z, pool_obs) -> np.ndarray:
     if arm.critic.startswith("density_fb"):
         from impls.critics.density_fb import _raw_block_cols
         pool = jnp.asarray(pool_obs)
-        nobs_q = critic._kernel_rows({"next_observations": pool}, "next_observations", pool)
-        u_raw = _raw_block_cols(nobs_q, critic.blocks)
-        u_sc = critic._b_query(net, pool, nobs_q)
-        tgt = arm.agent.target["density_b"]
-        tgt = tgt.params if hasattr(tgt, "params") else tgt
+        u_raw = _raw_block_cols(pool, critic.blocks)
+        u_sc = critic._b_query(pool)
         st = critic._zstats(net)
         cond = {"z": zb, "_density_u_raw": u_raw, "_density_u_sc": u_sc,
-                "_density_tb_u": jax.lax.stop_gradient(critic._B(tgt, u_sc)),
                 "_density_zenc_u": jax.lax.stop_gradient(critic._B(critic._zenc(net), u_sc) - st["mu"][None])}
-        cond = critic._with_obs_feat(net, cond, jnp.asarray(obs_rep))
     else:
         cond = {"z": zb}
     q, _qs = critic.q_fn(params, jnp.asarray(obs_rep), cond, jnp.asarray(acts))

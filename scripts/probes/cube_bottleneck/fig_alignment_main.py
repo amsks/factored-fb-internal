@@ -1,9 +1,9 @@
 """Single-panel alignment figure for the cube subsection, phases matched to the failure-phase diagram.
-Data: PAPER/ICLR/figures/gap_preservation/alignment_by_phase_{cell5cm,per_seed}.csv (separation probe,
+Data: figures/gap_preservation/alignment_by_phase_{cell5cm,per_seed}.csv (separation probe,
 2026-09-19). Cosine between the critic's predicted difference of future cube-position distributions
 (a+ minus a-) and the rollout estimate, at restored states from the approach, maintain (in-hand) and
 transport (carrying) phases; mean +- s.e. over states pooled over three seeds, small markers = per seed.
-    MPLCONFIGDIR=/tmp/mpl /dev/shm/.venv-jax/bin/python scripts/probes/cube_bottleneck/fig_alignment_main.py
+    python scripts/probes/cube_bottleneck/fig_alignment_main.py
 """
 import pathlib
 import pandas as pd
@@ -11,7 +11,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 REPO = pathlib.Path(__file__).resolve().parents[3]
-D = REPO / "PAPER" / "ICLR" / "figures" / "gap_preservation"
+D = REPO / "figures" / "gap_preservation"
 INK = "#2a2a2a"
 PHASES = [("approach", "approach", "#CC78BC"), ("inhand", "maintain", "#0173B2"), ("carrying", "transport", "#D55E00")]
 STYLE = {"fb_tdj": dict(color="#8a8a8a", marker="o", label="FB"), "density_fb_z": dict(color="#029E73", marker="^", label="Density-FB")}

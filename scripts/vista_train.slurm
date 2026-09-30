@@ -46,7 +46,6 @@ TRAIN_STEPS="${TRAIN_STEPS:-300000}"
 EVAL_INTERVAL="${EVAL_INTERVAL:-25000}"     # 12 eval points over 300k (default 100k is for 1e6)
 SAVE_INTERVAL="${SAVE_INTERVAL:-50000}"     # 7 checkpoints: post-hoc video/probes need these
 EVAL_EPISODES="${EVAL_EPISODES:-20}"
-NUM_VIDEO="${NUM_VIDEO:-4}"                 # extra rendered episodes per eval (~7 ms/frame)
 SAVE_DIR="${SAVE_DIR:-$SCRATCH/factored-fb-exp}"
 # AUTO_RESUME=1 passes --auto_resume: continue from the latest params_*.pkl in this run's
 # own directory (fresh start if none). Safe to set unconditionally on resubmission -- the
@@ -105,7 +104,6 @@ for kv in $OVERRIDE; do ov_flags+=(--override "$kv"); done
 if [ "$AUTO_RESUME" = "1" ]; then ov_flags+=(--auto_resume); fi
 
 # EXTRA_FLAGS: verbatim additional impls.main flags that are NOT config overrides
-# (e.g. "--warm_start_path <p1 run dir> --warm_start_epoch 500000" for td_fb phase 2).
 # Intentionally unquoted at the callsite so it word-splits into separate flags.
 EXTRA_FLAGS="${EXTRA_FLAGS:-}"
 
@@ -114,7 +112,7 @@ srun $PY -m impls.main \
     --critic "$CRITIC" --actor "$ACTOR" --domain "$DOMAIN" \
     --seed "$SEED" --train_steps "$TRAIN_STEPS" \
     --eval_interval "$EVAL_INTERVAL" --save_interval "$SAVE_INTERVAL" \
-    --eval_episodes "$EVAL_EPISODES" --num_video "$NUM_VIDEO" \
+    --eval_episodes "$EVAL_EPISODES" \
     "${ov_flags[@]}" \
     $EXTRA_FLAGS \
     --save_dir "$SAVE_DIR"

@@ -62,7 +62,7 @@ def b_embed(arm, obs):
     c, net = arm.agent.critic, arm.agent.net
     x = jnp.asarray(obs)
     if arm.critic.startswith("density_fb"):
-        return np.asarray(c._B(net["density_b"].params, c._b_query(net, x, x)))
+        return np.asarray(c._B(net["density_b"].params, c._b_query(x)))
     return np.asarray(c._B(net["backward"].params, x))
 
 

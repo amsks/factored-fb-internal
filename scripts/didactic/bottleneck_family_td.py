@@ -186,7 +186,7 @@ def run_kernel(p, b, goal, near, d, method, gamma, seeds, rates, steps, tau, sph
     final = train((params, params, state))[0]
     pred = np.asarray(jax.vmap(lambda x: predict(x, method, sph))(final))
     if not np.all(np.isfinite(pred)):
-        raise FloatingPointError(f"nonfinite prediction: L={L} R={R} d={d} {method}")
+        raise FloatingPointError(f"nonfinite prediction: d={d} {method}")
     return [dict(c, d=d, n=n, method=method, gamma=gamma, sphere=sph,
                  rho_goal=1.0 / n,
                  **metrics(pred[i], method, gamma, P, goal, b, near))

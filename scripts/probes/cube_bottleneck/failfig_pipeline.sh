@@ -3,9 +3,9 @@
 # usage: failfig_pipeline.sh <env> <gpu>
 set -euo pipefail
 ENV=$1; GPU=$2
-cd /home/adityamohan/git/Factored-FB-seam
+cd "$(dirname "$0")/../../.."
 export CUDA_VISIBLE_DEVICES=$GPU XLA_PYTHON_CLIENT_PREALLOCATE=false MUJOCO_GL=egl WANDB_MODE=offline
-PY=/dev/shm/.venv-jax/bin/python
+PY=${PY:-python}
 S=scripts/probes/cube_bottleneck/failure_figs.py
 L=logs/failfig; mkdir -p $L
 $PY $S rollouts --env $ENV --episodes 20 2>&1 | grep -v "Warn\|gym.logger" > $L/${ENV}_rollouts.log
