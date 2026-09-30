@@ -272,7 +272,7 @@ def test_gcdataset_keep_dataset_rewards_restores_them(fake_data):
     ds = make_dataset(FBDataset.create(**data), _gc_cfg(keep_dataset_rewards=True))
     idxs = np.array([1, 4, 8, 12, 19])
     b = ds.sample(len(idxs), idxs=idxs)
-    for k in ("observations", "actions", "next_observations", "next_actions",
+    for k in ("observations", "actions", "next_observations",
               "rewards", "masks", "value_goals", "actor_goals"):
         assert k in b, k
         assert np.asarray(b[k]).dtype == np.float32, k

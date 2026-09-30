@@ -1,148 +1,267 @@
-# Density-FB
+# Density-FB (ICLR 2027)
 
-A JAX implementation of a critics annd actors on [OGBench](https://github.com/seohongpark/ogbench) 
-cube manipulation. All value representations can be  composed with flow, DDPG+BC, AWR and one-step actors 
-and run under a single training loop, so they can be compared on equal footing.
+This branch holds only the code behind the ICLR 2027 Density-FB paper: the four critics it
+compares, the two actors they are trained with, the environments, the scripts that train
+every reported run, the scorer that turns their evaluation logs into the table cells, and
+the figure scripts.
 
----
+Everything is offline RL in JAX. A run composes one **critic** (the value representation)
+with one **actor** (the policy) and trains both on a fixed dataset (`impls/main.py`).
 
-## The Methods
+- [Methods](#methods): what each critic learns and what its actor maximizes
+- [Two ways to specify a task](#two-ways-to-specify-a-task-at-evaluation)
+- [Code map](#code-map)
+- [Reproducing the paper](#reproducing-the-paper)
 
-`impls/agents/__init__.py` composes a critic (the value representation) with an actor (the
-policy) over per-group Flax `TrainState`s. `check_combo` in `impls/critics/base.py`
-validates the pair before building it, and `tests/impls/test_boot_contract.py` builds
-every registered pair.
+## Methods
 
-The `CRITICS` and `ACTORS` dicts in `impls/agents/__init__.py` are the authoritative
-lists. Critics are the OGBench family (`gciql`, `gcivl`, `hiql`, `crl`, `qrl`), bilinear
-GCIQL (`iql_bilinear`), and the successor-measure family (`fb`, `density_fb`, `psm`,
-`rldp`). Actors are `flowbc` (flow matching with a distilled one-step actor), `bcflow`
-(the same actor with the value term switched off, i.e. a pure-BC control), `ddpgbc`,
-`ddpgbc_density`, `awr` and `fql`.
+All four critics are forward-backward style: a forward network F reads the state, the
+action and the task; a backward network B embeds the states the agent may reach. The task
+is either a goal state g or a latent task vector z of width d = 50. In every method the
+actor is trained against the critic with the critic frozen, and the TD target's next
+action a' is drawn from the current actor at s'.
 
-Two composition rules are worth knowing before reading a result table:
+### Density-FB (ours)
 
-- `flowbc` conditions on whatever the critic publishes as `cond_vec`. For `fb` that is
-  the latent z; for goal critics it is the goal, which makes the pair a
-  goal-conditioned flow-BC actor. The flow field stays goal-agnostic — only the one-step
-  actor is conditioned.
-- `awr` uses a native `V(s)` when the critic provides one, and otherwise falls back to the
-  policy-baseline advantage `A = Q(s,a) − Q(s, π(s))`, so it composes with value-less
-  critics too.
+Critic: `impls/critics/density_fb.py`.
 
----
+**What the critic predicts.** For state s, action a and task g, it predicts a probability
+distribution over where the agent will be in the future. The candidates are the M = 1024
+next states u_1..u_M of the current batch:
 
-## Installation
+    w(s, a, g, u_j) = softmax_j( F(s, a, g)^T B(u_j) )
 
-Python 3.11. `ogbench` — and `jax`, `flax`, `optax`, `numpy` and `gymnasium` through its
-`[train]` extra — is installed editable from the vendored source in `ogbench`.
+There are two F heads and one B network. B reads only the task-relevant observation
+columns, each divided by its success radius (for example the cube position divided by
+0.04 m).
+
+**TD target.** The critic is trained by cross-entropy toward
+
+    t_j = (1 - gamma) * 1[u_j is this row's own next state]
+          + gamma * w_target(s', a', g, u_j)
+
+where w_target uses slowly updated target copies of F and B (rate 0.005). This is the
+discounted state-occupancy recursion written over the batch's next states. There is no
+orthonormality loss or other regularizer on F or B.
+
+**Actor.** The actor maximizes the reward averaged under the predicted distribution:
+
+    Q(s, a, g) = sum_j w(s, a, g, u_j) * r(u_j)
+
+It takes the smaller of the two heads. The reward depends on the task interface:
+
+- **Goal-conditioned** (`density_fb`, the table's Density-FB column). r(u_j) is a Gaussian
+  "has the goal been reached" kernel around g at the environment's success radius,
+  normalized over the candidates. It is exact at every candidate, so tasks that require
+  several objects to be placed at once are scored correctly.
+- **Reward inference** (`density_fb_z`: the ExoRL column and the in-text OGBench
+  numbers). The task is a latent z, and r(u) = (B_slow(u) - mu)^T z / sqrt(d) is the linear
+  reward z represents. B_slow is a slow copy of B (rate 5e-4), and mu is the running mean of
+  its features.
+
+**Inferring z from reward samples.** z is found by ridge regression of the rewards r_j on
+the centered slow features at the sampled states u_j:
+
+    m = mean_j (B_slow(u_j) - mu)(r_j - mean r),    c = (C + lam I)^-1 m,
+    z = sqrt(d) c / ||c||
+
+Here C is the running covariance of B_slow. This z does not change if a constant is added
+to the reward or the reward is rescaled by a positive factor.
+
+**Training z.** Each row's z is regressed from the goal-reaching reward of its hindsight
+goal (a future state of the same trajectory). With probability 0.5 it is instead a
+uniformly random direction; ExoRL walker and cheetah use probability 1. The TD target
+bootstraps at the same task as the row, so a' is drawn for the row's own z.
+
+**Ablation.** Replacing the averaged reward by FB's linear value F(s, a, z)^T z, with
+z = B(g) for the goal-conditioned model, gives the actor-readout ablation. The critic is
+unchanged.
+
+### FB (Forward-Backward, Touati & Ollivier)
+
+Critic: `impls/critics/fb.py`. Config `fb_tdj`, the TD-JEPA reference settings.
+
+**Critic.** The product F(s, a, z)^T B(s') regresses the discounted successor density from
+(s, a) to s' under the policy for z. It is fit on the batch matrix of all (row, next-state)
+pairs toward the TD target
+
+    1[s' = this row's next state] + gamma * F_target(s', a', z)^T B_target(s'')
+
+The indicator term is the diagonal of that matrix and the bootstrapped term fills the
+off-diagonal entries. An orthonormality penalty (coefficient 1000) keeps B's covariance
+near the identity.
+
+**Actor.** Maximizes Q(s, a, z) = F(s, a, z)^T z, averaged over the two F heads.
+
+**z.** In training, half of the rows use B at a shuffled batch next-state and the rest a
+random direction, all scaled to norm sqrt(d). From reward samples, z = sum_i r_i B(s_i),
+rescaled to norm sqrt(d). For a goal, z = B(g).
+
+### HILP (Hilbert representations, Park et al.)
+
+Critic: `impls/critics/hilp.py`. Config `hilp_tdjc`, TD-JEPA's OGBench configuration.
+
+Training has two stages, both computed from the same pre-step parameters.
+
+1. **Representation.** A goal-conditioned value V(s, g) = -||phi(s) - phi(g)|| is fit by
+   TD. The reward is -1 until the goal is reached and 0 at the goal, where the target
+   does not bootstrap. Goals are geometric-future states of the same trajectory, or random
+   states (probability 0.375). The regression is plain squared error.
+2. **Successor features.** F(s, a, z) regresses the discounted sum of the centered features
+   phi(s') - mean(phi). The TD target is phi(s') + gamma * F_target(s', a', z).
+
+**Actor.** Maximizes F(s, a, z)^T z, averaged over heads.
+
+**z.** In training, random directions, half replaced by whitened feature directions. From
+reward samples, z is the least-squares fit of r to phi(s')^T z, normalized. For a goal,
+z = normalize(phi(g) - phi(s)), recomputed at every step.
+
+### RLDP (FB with a self-predictive B)
+
+Critic: `impls/critics/rldp.py`.
+
+**Critic.** F is trained exactly as in FB, but B is stop-gradient inside that TD loss, so
+the TD error trains F only. B is trained instead by a 5-step latent prediction loss: a
+predictor rolls B(s_t) forward along the dataset actions and is matched at each step to
+the target B of the state actually reached. The orthonormality penalty (coefficient 1) is
+applied at B(s_t).
+
+**Actor and z.** Same as FB, except that z from reward samples is the mean (not the sum)
+of r_i B(s_i); the normalization makes the two identical.
+
+### Actors
+
+- **Flow actor** (`impls/actors/flowbc.py`), used on OGBench, MetaWorld and ManiSkill. A
+  flow-matching network models the dataset's actions. A one-step policy maps noise to an
+  action. It maximizes Q / mean|Q| plus 3 times the squared distance to the flow's action
+  for the same noise, which keeps it on the data.
+- **DDPG-style actor** (`impls/actors/ddpgbc.py`), used on ExoRL. It is a deterministic
+  Meta Motivo policy network that maximizes Q, optionally divided by mean|Q|. Clipped
+  Gaussian noise (std 0.2, clip 0.3) is added to the action in the actor loss and to a'
+  in the TD target. There is no behaviour-cloning term.
+
+## Two ways to specify a task at evaluation
+
+The two tables do not always use the same interface, so every number says which one it
+used.
+
+- **Goal-conditioned** (`eval.csv`). The environment's goal state is given to the agent.
+  Density-FB's goal-conditioned model reads it directly. For the FB-family and HILP it is
+  turned into z, and for Density-FB's reward-inference model it is regressed into z on a
+  pool of states frozen at the first update. The OGBench Density-FB column comes from this
+  file.
+- **Reward inference** (`eval_relabel.csv` on OGBench; ExoRL scoring). No goal is given.
+  Dataset transitions are relabelled with the task's reward. On OGBench the reward is
+  the number of goal conditions met at the next state, minus the number required, plus 1,
+  so it is 1 when the task is solved (10k transitions). On ExoRL it is the dm_control task
+  reward re-simulated from the stored physics state (50k transitions).
+  z is inferred from those samples and the policy is rolled on z. The FB, HILP and RLDP
+  OGBench cells, the in-text Density-FB reward-inference numbers and every ExoRL cell use
+  this route.
+
+## Code map
+
+| What | Where |
+|---|---|
+| Training loop, both evaluation routes | `impls/main.py` (reward-inference eval: the `eval_relabel_size` block) |
+| Composing critic and actor, update order (critic stages, actor, targets, statistics) | `impls/agents/__init__.py` |
+| Density-FB distribution, TD target, cross-entropy | `impls/critics/density_fb.py` `stage_loss` (TD target at lines 417-420) |
+| Density-FB actor value (averaged reward, min over heads) | `density_fb.py` `q_fn` |
+| Goal-reaching kernel reward | `density_fb.py` `_delta_phi` |
+| z from reward samples (ridge regression) | `density_fb.py` `_z_centered_moment`, `_z_centered_coef`, `_z_index` |
+| Training z (hindsight goals, random directions) | `density_fb.py` `sample_cond`, `_z_mix` |
+| Slow B copy, running mean and covariance, frozen evaluation pool | `density_fb.py` `update_stats` |
+| FB successor loss, orthonormality, z | `impls/critics/fb.py` `stage_loss`, `sample_cond`, `infer_cond` |
+| HILP value loss and successor features | `impls/critics/hilp.py` `hilp_phi_loss`, `stage_loss` |
+| RLDP multi-step prediction loss | `impls/critics/rldp.py` `_sp_loss` |
+| Flow actor / DDPG-style actor | `impls/actors/flowbc.py` / `impls/actors/ddpgbc.py` (+ `_motivo_nets.py`) |
+| Network definitions | `impls/utils/networks.py` (FB, HILP, RLDP, flow actor); Density-FB builds its own in `density_fb.py` |
+| Goal sampling (hindsight / random goals) | `impls/utils/datasets.py` `GCDataset`; RLDP windows `WindowedDataset`; HILP goals `HILPFutureDataset` |
+| Hit spec: task columns and success radii | `impls/critics/_measure_common.py` `parse_hit_spec` |
+| OGBench envs and reward relabelling | `env/ogbench.py` `relabel_infer_batch` |
+| ExoRL datasets and reward re-simulation | `env/exorl_env.py` `load_domain_data`, `relabel_rewards` |
+| MetaWorld / ManiSkill | `env/unified.py`, `env/metaworld_env.py`, `env/maniskill_env.py` |
+| Configs | `impls/configs/critic/*.yaml`, `impls/configs/actor/*.yaml`, `impls/configs/domain/`, `env/domains/` |
+
+Critic names on the command line: `density_fb`, `density_fb_z`, `density_fb_state` (the
+backward network reads the full state), `fb_tdj` and `fb_ref` (identical FB configs; both
+names appear in run directories), `hilp_tdjc` and `rldp`. A yaml may start with
+`base: <name>` to inherit another.
+
+## Reproducing the paper
+
+### Setup
 
 ```bash
-make install          # uv venv then requirements.txt
+uv venv --python 3.11 .venv && uv pip install -e '.[exorl,figures,dev]'   # see pyproject.toml extras
 ```
 
-Verify with `python -c 'import jax; print(jax.devices())'`. 
+- OGBench datasets download on first use.
+- ExoRL RND datasets are read from `$EXORL_DATA_ROOT` (default
+  `~/exorl_data/exorl/datasets`).
+- If the installed `mujoco` is too old for `dm_control`'s reward re-simulation, point
+  `FB_MUJOCO_SITE_PACKAGES` at a newer one (see `env/exorl_env.py`).
 
----
+Run directories, evaluation CSVs and checkpoints for every reported run are on the Hugging
+Face repo `amsks/factored-fb-checkpoints`, branch `iclr2027`. `paper_inventory.json` there
+maps every table and figure to its runs.
 
-## Running
+### Tables from the evaluation logs
 
 ```bash
-python -m impls.main \
-    --critic fb --actor flowbc --domain cube_single \
-    --seed 0 --train_steps 1000000 --save_dir exp/
+huggingface-cli download amsks/factored-fb-checkpoints --revision iclr2027 \
+    --include 'exp/**/eval*.csv' 'exp/paper_eval_*.jsonl' --local-dir hf
+python scripts/score_tables.py --exp hf/exp                           # every cell, per seed
+python scripts/score_tables.py --exp hf/exp --tex experiments.tex     # diff against the paper
+python scripts/score_tables.py --exp hf/exp --tex experiments.tex --write
 ```
 
-`impls/utils/config_utils.py:load_config` composes the config from the sibling groups
-under `impls/configs/{critic,actor,domain}/`. `--override key=value` is repeatable.
-Checkpointing and restore go through `--save_dir`, `--restore_path` (a glob over run
-dirs) and `--restore_epoch`.
+The last command rewrites the benchmark table body: cells, benchmark means and the Δ
+column.
 
-`make run` runs the default pair;
+- **OGBench cell:** per run, the task-mean success averaged over the last three
+  evaluations (800k, 900k, 1M steps); then mean ± SE (sample sd / √n) over 5 seeds.
+- **ExoRL cell:** per seed, the task-mean return at 1M steps (10 episodes, 50k reward
+  samples); then mean ± SE (population sd / √n) over 5 seeds.
+- **Published numbers:** GCIQL, CRL and QRL (OGBench) and FB, HILP and RLDP (ExoRL) are
+  published numbers read from the tex.
+- **Not re-derived here:** the MetaWorld and ManiSkill cells were produced on other
+  machines; their runs are not in this repository or on the HF branch.
 
-### Online
-
-`--online` collects from the environment during training instead of reading a fixed
-dataset. Default off; the offline path is bit-identical when it is not set.
+### Training
 
 ```bash
-MUJOCO_GL=egl python -m impls.main \
-    --critic density_fb --actor flowbc --domain cube_single \
-    --seed 0 --train_steps 1000000 --save_dir exp/ \
-    --online=True --online_start_steps 5000 --online_buffer_size 200000
+bash scripts/launch_ogbench.sh density_fb cube_double 0     # methods: fb hilp rldp density_fb density_fb_z ...
+bash scripts/launch_exorl.sh walker 0                       # walker quadruped point-mass cheetah
+python -m scripts.exorl_paper_eval --root exp/exorl --domains dmc-walker \
+    --out exp/paper_eval_exorl_sqt.jsonl                    # ExoRL table evaluation
+bash scripts/launch_mwms_baselines.sh / launch_mwms_gc.sh   # MetaWorld / ManiSkill
 ```
 
-`--online_env_steps_per_update` sets the env-step to gradient-step ratio (1.0 default;
-0.5 is one env step every other update). `--online_action_noise` scales the exploration
-noise, `--online_start_steps` is a uniform-random warmup, and `--online_seed_offline`
-prefills the buffer from the offline dataset.
+`DRY=1` prints a launcher's command. Each launcher reproduces the config recorded in the
+reported runs' `config.json`: `launch_ogbench.sh` and `launch_exorl.sh` were checked
+against 26 of them. The ExoRL jsonl names that `score_tables.py` reads are:
 
-The buffer stores whole episodes and is served through the same `make_dataset` the
-offline path uses, so goal-conditioned critics get real hindsight goals rather than
-placeholders. It is checkpointed alongside the agent; `--restore_path` restores both, and
-`--online_restore_buffer=false` opts back into starting with an empty buffer.
+- walker: `paper_eval_exorl_sqt.jsonl`
+- quadruped: `paper_eval_exorl_kernels_quadruped_vu.jsonl`
+- point-mass: `paper_eval_exorl_1mrecipe.jsonl`
+- cheetah: `paper_eval_exorl_cheetah3_velblock.jsonl`
 
-Collection is conditioned on the eval goal, so the buffer only covers what a
-goal-directed policy reaches; `--online_explore_goal_prob` (default 0) draws some episode
-goals from the buffer instead.
+### Figures
+
+| Figure | Script | Inputs |
+|---|---|---|
+| Lead figure (cube occupancy, FB vs Density-FB) | `scripts/probes/cube_bottleneck/fig_lead_combined.py` (+ `fig_drop_strip.py`, `fig_carry_strip_v2.py`) | `fb_ref` and `density_fb_state` cube-single seed 0, `params_500000.pkl` |
+| Cube-single failure analysis | `scripts/probes/cube_bottleneck/failfig_pipeline.sh`, `fig_phase_strip.py`, `fig_alignment_main.py` | `fb_tdj` and `density_fb_z` cube-single seeds 0-2 at 1M |
+| Nine-state MDP diagram | `scripts/didactic/plot_single_bottleneck_mdp.py` | none |
+| Bottleneck panels, feature-dimension ablation | `SB_PROCESS=p9 python analysis/single_bottleneck/paper_figs_61.py` | `analysis/single_bottleneck/paper_figs_61_p9_cache.npz` (`--recompute` retrains, CPU) |
+| Policy family table and graphs | `analysis/single_bottleneck/family9.py`, `fb_failure_visual9.py` | same cache |
+| Lemma check | `analysis/single_bottleneck/check_lemma.py` | none (CPU) |
+
+Figures are written under `figures/`.
 
 ### Tests
 
-Run the suite **one file at a time**. `pytest tests/impls` in a single process aborts
-partway through -- XLA retains a compiled executable per jitted `Agent.update`, and the
-suite builds enough critic x actor pairs to exhaust the process.
-
 ```bash
-for f in tests/impls/test_*.py; do
-    MUJOCO_GL=egl JAX_PLATFORMS=cpu PYTHONPATH=$PWD python -m pytest "$f" -q
-done
-```
-
-`JAX_PLATFORMS=cpu` is required by `tests/impls/test_boot_contract.py`: it compares 40
-critic x actor pairs against a byte-identical baseline, and GPU results differ in the last
-bits. That gate is also sensitive to intra-op thread count, so it can report differences on
-unmodified code under non-default `OMP_NUM_THREADS` or single-threaded XLA settings.
-`MUJOCO_GL=egl` is needed by the pixel and env tests; without it they fail with
-`gladLoadGL error`.
-
----
-
-## Data
-
-`ogbench.make_env_and_datasets(name, compact_dataset=True)` in `impls/utils/env_utils.py` loads
-the official OGBench datasets, which OGBench downloads and caches under `~/.ogbench` on first
-use. The other four families read from directories you point at with environment variables.
-
-`env/domains/` holds 23 domains in five families. `--domain <name>` takes any of them; the
-name is the yaml stem.
-
-| family | domains | needs |
-|---|---|---|
-| OGBench | `cube-single`, `cube-double`, `scene`, `antmaze`, `pointmaze`, `cube-single-pixels` | nothing |
-| MetaWorld / ManiSkill | `mw-pick-place`, `mw-push`, `ms-pick-cube`, `ms-push-cube` | `FB_DATA_ROOT` |
-| MetaWorld (HF export) | `mw-assembly`, `mw-basketball`, `mw-bin-picking`, `mw-box-close`, `mw-button-press` | `FB_HF_EXPORT` |
-| Box2D | the five `b2d-*` | `FB_COLLECTED` (no) |
-| ExoRL (dm_control) | `dmc-point-mass-maze`, `dmc-walker`, `dmc-cheetah` | `EXORL_DATA_ROOT`, plus `FB_MUJOCO_SITE_PACKAGES` |
-
-MetaWorld is split across two roots, which is easy to trip over: `mw-push` and
-`mw-pick-place` come from `FB_DATA_ROOT`, the other five from `FB_HF_EXPORT`. Setting only
-one silently leaves half the MetaWorld domains unresolvable.
-
-`FB_MUJOCO_SITE_PACKAGES` is colon-separated and must point at a site-packages directory
-whose `mujoco` matches the installed `dm_control`. Without it the ExoRL domains and their
-tests raise a `RuntimeError` that says so. 
-
-ExoRL is the only family with **reward-labelled** data. Its buffers carry the reward of the
-task the data was collected under, so the loader relabels from the stored physics instead of
-passing that column through -- a passthrough would be right for one task per domain and
-silently wrong for the others.
-
----
-
-## Layout
-
-```
-impls/            critics/, actors/, agents/, utils/, configs/, main.py
-tests/impls/      parity and seam suite, with frozen .npz fixtures
-docs/             coverage audit, specs, plans, notes
+JAX_PLATFORMS=cpu PYTHONPATH=. python -m pytest tests -q
 ```

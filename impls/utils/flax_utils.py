@@ -1,7 +1,7 @@
 """Flax train-state primitives for the factored impls/ tree.
 
 Ported from OGBench upstream impls/utils/flax_utils.py (pinned 1d41409), minus the
-unused `apply_loss_fn`, plus `soft_update` (Polyak, from PSMFlows agents/psm.py:_soft).
+unused `apply_loss_fn`, plus `soft_update` (Polyak averaging).
 """
 import functools
 import glob
@@ -122,7 +122,7 @@ class TrainState(flax.struct.PyTreeNode):
 
 
 def soft_update(online_params, target_params, tau):
-    """Polyak: target <- tau*online + (1-tau)*target. Matches PSMFlows agents/psm.py:_soft."""
+    """Polyak: target <- tau*online + (1-tau)*target. """
     return jax.tree_util.tree_map(lambda o, t: o * tau + t * (1 - tau), online_params, target_params)
 
 

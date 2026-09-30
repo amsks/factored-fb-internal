@@ -121,12 +121,6 @@ class GCDataset:
             idxs, c['value_p_curgoal'], c['value_p_trajgoal'], c['value_p_randomgoal'], c['value_geom_sample'])
         actor_goal_idxs = self.sample_goals(
             idxs, c['actor_p_curgoal'], c['actor_p_trajgoal'], c['actor_p_randomgoal'], c['actor_geom_sample'])
-        # The action the behaviour policy took at s' (density_fb's SARSA bootstrap). Clamped
-        # to the row's own trajectory end, so a trajectory's last row never reads the next
-        # episode's first action.
-        final_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
-        batch['next_actions'] = np.asarray(
-            self.dataset['actions'][np.minimum(idxs + 1, final_idxs)], np.float32)
         batch['observations'] = np.asarray(batch['observations'], np.float32)
         batch['next_observations'] = np.asarray(batch['next_observations'], np.float32)
         batch['actions'] = np.asarray(batch['actions'], np.float32)
