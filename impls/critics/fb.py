@@ -87,7 +87,7 @@ class FBCritic:
     def eval_cond0(self, ex_obs, config):
         return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
 
-    def map_eval_cond(self, net, cond):
+    def map_eval_cond(self, net, cond, observations=None):
         """Eval-time hook: embed the env's goal frame into the z the actor was TRAINED on,
         z = project_z(B(goal)) — the exact conditioning sample_cond mixes in via
         train_goal_ratio. Without this hook eval runs on eval_cond0's zero z, for which

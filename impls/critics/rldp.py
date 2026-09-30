@@ -214,7 +214,7 @@ class RLDPCritic:
     def eval_cond0(self, ex_obs, config):
         return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
 
-    def map_eval_cond(self, net, cond):
+    def map_eval_cond(self, net, cond, observations=None):
         """Eval-time hook, identical to FBCritic's: embed the env's goal frame into the z
         the actor was TRAINED on, z = project_z(B(goal)). Without it eval runs on
         eval_cond0's zero z, for which Q(s,a;0) = <F,0> == 0 and the policy is goal-blind
