@@ -1,0 +1,209 @@
+\providecommand{\pmse}[1]{\,{\scriptsize$\pm$#1}}
+\section{Experiments}
+\label{sec:experiments}
+
+%%AZ.9.12: be more specific, what argument are you testing? Do you just mean the 3 components you modify? just say that.
+%%AZ.9.12: looks like we're actually missing this ablation in the experiments. I think it's important to have something that tests each of the 3 modifications to FB (I guess you might only be able to show this as two modifications, since the 3rd is meant to address the first)
+%%AZ.9.12: please include a baselines section that explains these baselines and why they were chosen.
+
+%%AZ.9.20: maybe I missed something, what does squared successor approximation mean here?
+Our experiments test whether FB's least squares approximation can discard rare but control-critical action distinctions, and whether the \name{} preserves those distinctions through normalization and the subsequent policy extraction process introduced in \cref{sec:method}.
+%%AZ.9.20: rarity?
+In \cref{sec:exp-didactic}, we vary the rarity of the bottleneck and the representation capacity for FB and \name{} for a set of didactic bottleneck MDPs with known action gaps and closed form SM solutions to test whether FB loses the correct action-order, and which of \name{}'s design decisions help it preserve this ordering. 
+%%AZ.9.20: why which? it makes it sound like not all the design decisions were necessary. Shouldn't we know which help preserve ordering?
+We then examine trained FB and \name{} policies in \cref{sec:exp-failure} to isolate the failure of FB in pick-and-place problems, testing whether errors in the learned critic's predictions coincide with these failures.
+Finally, we evaluate whether these improvements demonstrated by \name{} translate to downstream manipulation performance across OGBench~\citep{park-iclr25a}, and offline datasets collected in MetaWorld~\citep{mclean-neurips25a}, and ManiSkill~\citep{tao-rss25a} (\cref{sec:exp-manipulation}).
+We additionally compare \name{} against zero-shot baselines on reward inference tasks in the Deepmind Control suite (DMC) using ExoRL offline datasets.
+
+\paragraph{Experimental protocol.}
+%%AZ.9.20: do you mean proprioceptive state here? As in not pixel?
+All methods operate on proprioceptive states and are trained for $10^6$ gradient steps on the same fixed offline dataset.
+We report results over $5$ independent training seeds.
+For offline policy learning, we use the actor from \citet{bagatella-iclr26a}, based on Flow Q-Learning~\citep{park-icml25a}.
+Success rates are averaged over the final three evaluations, with $10$ episodes per task.
+Full implementation details are given in \cref{app:implementation} of the appendix.
+
+\paragraph{Baselines.}
+We compare against two groups of methods.
+\begin{inparaenum}
+    \item We consider methods that learn reusable representations from the offline dataset: \textbf{FB}~\citep{touati-neurips21a,touati-iclr23a}, our primary baseline, together with \textbf{HILP}~\citep{park-iclr24a} and \textbf{RLDP}~\citep{jajoo-iclr26a}. These comparisons test whether the manipulation failure is specific to FB's successor approximation or is shared by alternative geometric and predictive representations. They are all trained using a task-independent representation through their backward embedding, and during inference, we specify the downstream goal reward on $10^4$ offline transitions and use these reward-labeled transitions only to infer the corresponding task vector and extract a policy. 
+    \item We compare against goal-conditioned offline RL methods: \textbf{GCIQL}, \textbf{CRL}, and \textbf{QRL}. These methods train directly for goal reaching using hindsight goals sampled from the offline data, and help us examine how well the zero-shot policies compare with methods trained explicitly for goal-reaching control. 
+\end{inparaenum}
+
+\subsection{Distinguishing actions at a control bottleneck}
+\label{sec:exp-didactic}
+%%AZ.9.12: this is the env where you should also conduct the ablations on Density-FB.
+
+We use the eleven-state process in \cref{fig:didactic-mdp} to examine whether learned successor representations preserve the difference between actions at the bottleneck.
+The continuation policy is fixed, and reward is $1$ in cluster A (states $3,4$) and $0$ elsewhere.
+We first compare action values, then examine the failure using \cref{lem:linear-action-difference}, and finally ablate the changes introduced by \name{}.
+
+\paragraph{Do the critics distinguish the two actions?}
+We train rank-3 models. 
+The true action values at state 2 are $1.67$ for $a^+$ and 0 for $a^-$. 
+FB assigns the two actions nearly identical values of $0.55$ and $0.58$, marginally preferring the wrong action, whereas \name{} predicts $1.54$ and $0.12$ (\cref{fig:bottleneck-main}, left). 
+FB thus treats the two actions as interchangeable, while \name{} preserves the preference for entering the rewarded cluster.
+
+\begin{figure}[htb]
+    \centering
+    \begin{subfigure}[c]{0.48\textwidth}
+        \centering
+        \includegraphics[width=0.78\linewidth,trim=0cm 0cm 0cm 0cm,clip]{ICLR/figures/single_bottleneck/fig_sb_values_rank2.pdf}
+        \label{fig:values-rank3}
+    \end{subfigure}\hfill
+    \begin{subfigure}[c]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\linewidth,trim=0cm 0.2cm 0cm 0cm,clip]{ICLR/figures/single_bottleneck/fig_sb_features_lose_rank2_dfb.pdf}
+        \label{fig:features-lose}
+    \end{subfigure}
+
+    \captionsetup{justification=raggedright,singlelinecheck=false}
+    \caption{ 
+    \aditya{TODO: Font}
+    \textbf{With three features, FB loses the action-value difference while \name{} preserves it.}
+        \emph{Left:} Predicted and exact action values at the bottleneck, $95\%$ CI over ten runs.
+        \emph{Right:} Differences ($a_+-a_-$) in discounted future visits. Black bars: the exact difference. Orange circles: the best least-squares fit with FB's learned features. Green circles: Density-FB at the same rank.}
+    \label{fig:bottleneck-main}
+\end{figure}
+
+\paragraph{Does refitting recover the missing difference?}
+We freeze the backward features of the trained rank-3 FB models and refit the two forward vectors to the exact successor densities by least squares, weighted by $\rho$.
+Across all ten runs, the fitted difference is zero at every future state (\cref{fig:bottleneck-main}, left).
+This illustrates \cref{lem:bottleneck-loss}: the projection onto these features removes the entire difference between the two futures, including the extra visits to rewarded states $3$ and $4$.
+The best least-squares fit with these features therefore predicts a value difference of $0$ instead of $1.67$.
+
+\paragraph{Which change in \name{} helps preserve the difference?}
+We vary the feature dimension and compare the components of \name{} in \cref{fig:ablation} the predicted action-value difference divided by the true difference.
+A value of $1$ indicates exact recovery.
+Normalizing FB's target has little effect at the smaller dimensions.
+Applying a softmax to the bilinear scores improves recovery under both squared error and cross-entropy.
+With four features, both softmax variants recover essentially the full difference, while FB retains approximately $63\%$.
+FB improves as the feature dimension increases.
+These ablations identify the softmax parameterization as the main contributor to preserving the action-value difference with fewer features in this process.
+
+\begin{figure}[htb]
+    \centering
+    \begin{minipage}[c]{0.50\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{ICLR/figures/single_bottleneck/fig_sb_ablation_trained.pdf}
+    \end{minipage}\hfill
+    \begin{minipage}[c]{0.47\textwidth}
+        \captionsetup{justification=raggedright,singlelinecheck=false}
+        \caption{
+        \aditya{Show FB vs DEnsity FB here, and moveteh ablation to appedix (reference it)}
+        \textbf{Softmax preserves the action-value difference with fewer features.} We vary the feature dimension and measure the predicted value difference divided by its true value. The dashed line indicates recovery 
+        of this difference. Softmax improves recovery under both squared error and cross-entropy, while normalizing FB's target alone gives little improvement at smaller dimensions.
+        }           
+        \label{fig:ablation}
+    \end{minipage}
+\end{figure}
+
+\paragraph{Does the phenomenon extend beyond the tabular setting?}
+We next examine where FB fails in manipulation tasks and whether the critic captures how changing an action changes the cube's future in the \texttt{cube-single} from OGBench.
+Following \citet{mohan-rlbrew26a}, we classify each evaluation episode as successful or by its first failed stage: reaching the cube (\emph{approach}), grasping it (\emph{acquisition}), keeping it
+held (\emph{maintain}), or carrying it to the goal (\emph{transport}). 
+Most FB failures occur after grasping, while holding or carrying the cube. \name{} has fewer failures at both stages (\cref{fig:failure-where}).
+We next examine the critic at states restored from the approach, holding, and carrying phases.
+For each state, we estimate two actions' future cube-position distributions through rollouts, taking each action and then following the policy represented by the critic.
+We compare the predicted difference between these distributions with the rollout estimate using cosine similarity. 
+Both methods have alignment near zero during approach, but \name{} has higher alignment during holding and carrying, with the largest separation during transport (\cref{fig:failure-align}).
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=\linewidth]{ICLR/figures/failure/fig_phase_strip.pdf}\\[4pt]
+    \begin{minipage}[b]{0.50\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{ICLR/figures/failure/fig_failure_where.pdf}
+        \phantomsubcaption\label{fig:failure-where}
+    \end{minipage}\hfill
+    \begin{minipage}[b]{0.46\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{ICLR/figures/gap_preservation/fig_alignment_by_phase_main.pdf}
+        \phantomsubcaption\label{fig:failure-align}
+    \end{minipage}
+    % \ben{It'd be great to illustrate the phases in a picture / video clip.}
+   \caption{
+        \textbf{Cube manipulation failures and critic alignment.}
+        Top: the stages in one successful \name{} episode on \texttt{cube-single} (translucent cube: goal).
+        (a) First failed stage:
+        \textcolor[HTML]{CC78BC}{approach} (reach),
+        \textcolor[HTML]{DE8F05}{acquisition} (grasp),
+        \textcolor[HTML]{0173B2}{maintain} (hold), or
+        \textcolor[HTML]{D55E00}{transport} (carry to goal);
+        \textcolor[HTML]{029E73}{success} denotes completion.
+        (b) Cosine similarity between predicted and rollout-estimated
+        action differences in discounted future cube visits;
+        zero indicates no directional alignment.
+        Large markers and error bars show mean $\pm$ SE over evaluated
+        states; small markers show the three seed means.
+    }
+    \label{fig:failure}
+\end{figure}
+
+
+
+\subsection{Performance across benchmarks}
+\label{sec:exp-manipulation}
+
+We next evaluate \name{} on 11 manipulation tasks from OGBench, MetaWorld, and ManiSkill, and locomotion tasks in DMC (\cref{tab:benchmarks}).
+Dataset details are provided in \cref{app:data-mw-ms}.
+\name{} achieves higher mean success than FB on every manipulation task, with average gains of $60.1$, $32.7$, and $14.0$ percentage points on OGBench, MetaWorld, and ManiSkill, respectively. It also exceeds HILP and RLDP on all 11 tasks.
+
+Against the goal-conditioned baselines, \name{} achieves the highest mean success on nine tasks, including all three OGBench and all five ManiSkill tasks.
+QRL has higher mean success on \texttt{bin-picking} and \texttt{box-close}, and on the MetaWorld average.
+On OGBench, \name{} is conditioned on the task's goal state, as are the goal-conditioned baselines.
+
+\begin{table}[htb]
+    \centering
+    \caption{\textbf{Performance across benchmarks.} Results are mean $\pm$ SE over five seeds. Benchmark rows average tasks, with propagated SEs. \textbf{Bold} marks the best mean and others within its SE. $\Delta$ reports \name{}'s relative improvement over the best baseline (\%), colored from red ($\le -25\%$) through gray to green ($\ge +25\%$); ``--'' denotes inapplicable goal-conditioned baselines.}
+    \label{tab:benchmarks}
+    % Tighten + scale to fit \textwidth
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.05}
+    \scriptsize
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular}{lrrrrrrrr}
+    \toprule
+    Task/Domain                             & FB                        & HILP              & RLDP                      & GCIQL                     & CRL               & QRL                       & \name{}                   & \shortstack[r]{$\Delta$ next best} \\
+    \midrule
+    \textit{OGBench (success rate, \%)}    & 18.7\pmse{1.3} & 38.3\pmse{2.0} & 14.0\pmse{0.7} & 53.0\pmse{1.0} & 16.0\pmse{0.4} & 3.7\pmse{0.2} & \textbf{78.8}\pmse{2.0} & \textcolor[RGB]{0,150,40}{($+$48.7\%)} \\
+    \midrule
+    \texttt{cube-single}                   & 45.1\pmse{2.9} & 64.4\pmse{4.8} & 27.5\pmse{1.2} & 68.0\pmse{2.1} & 19.0\pmse{0.7} & 5.0\pmse{0.4} & \textbf{93.1}\pmse{0.6} & \textcolor[RGB]{0,150,40}{($+$36.9\%)} \\
+    \texttt{cube-double}                   & 1.7\pmse{1.1} & 9.2\pmse{1.7} & 2.8\pmse{0.4} & 40.0\pmse{1.8} & 10.0\pmse{0.7} & 1.0\pmse{0.0} & \textbf{69.5}\pmse{1.2} & \textcolor[RGB]{0,150,40}{($+$73.8\%)} \\
+    \texttt{scene}                         & 9.3\pmse{2.2} & 41.3\pmse{3.1} & 11.6\pmse{1.7} & 51.0\pmse{1.4} & 19.0\pmse{0.7} & 5.0\pmse{0.4} & \textbf{73.7}\pmse{6.0} & \textcolor[RGB]{0,150,40}{($+$44.5\%)} \\
+    \midrule
+    \textit{MetaWorld (success rate, \%)}  & 52.5\pmse{5.9} & 33.1\pmse{3.5} & 39.7\pmse{5.3} & 10.0\pmse{3.3} & 16.9\pmse{2.7} & \textbf{87.7}\pmse{0.8} & 85.2\pmse{2.8} & \textcolor[RGB]{113,91,91}{($-$2.9\%)} \\
+    \midrule
+    \texttt{push}                          & 29.6\pmse{3.4} & 17.2\pmse{3.8} & 57.6\pmse{1.7} & 4.0\pmse{1.5} & 18.4\pmse{2.6} & 80.8\pmse{1.1} & \textbf{91.2}\pmse{1.9} & \textcolor[RGB]{49,126,69}{($+$12.9\%)} \\
+    \texttt{bin-picking}                   & 62.4\pmse{17.4} & 49.2\pmse{9.1} & 19.6\pmse{15.4} & 0.0\pmse{0.0} & 0.0\pmse{0.0} & \textbf{98.0}\pmse{1.0} & 92.4\pmse{2.4} & \textcolor[RGB]{125,82,82}{($-$5.7\%)} \\
+    \texttt{box-close}                     & 65.6\pmse{1.8} & 32.8\pmse{3.4} & 42.0\pmse{3.8} & 26.0\pmse{9.7} & 32.4\pmse{7.8} & \textbf{84.4}\pmse{1.8} & 72.0\pmse{7.7} & \textcolor[RGB]{165,53,53}{($-$14.7\%)} \\
+    \midrule
+    \textit{ManiSkill (success rate, \%)}  & 63.3\pmse{1.7} & 44.4\pmse{2.4} & 56.0\pmse{1.6} & 36.5\pmse{1.0} & 13.4\pmse{1.8} & 65.8\pmse{0.9} & \textbf{77.3}\pmse{1.0} & \textcolor[RGB]{30,135,58}{($+$17.5\%)} \\
+    \midrule
+    \texttt{push-cube}                     & 88.7\pmse{3.4} & 49.2\pmse{6.3} & 40.8\pmse{3.5} & 68.4\pmse{1.9} & 29.6\pmse{6.9} & \textbf{96.4}\pmse{0.4} & \textbf{97.2}\pmse{1.2} & \textcolor[RGB]{97,102,98}{($+$0.8\%)} \\
+    \texttt{pick-cube}                     & 4.4\pmse{0.4} & 6.4\pmse{1.3} & \textbf{39.6}\pmse{2.9} & 2.8\pmse{0.4} & 4.4\pmse{0.7} & 7.2\pmse{1.3} & \textbf{40.8}\pmse{3.2} & \textcolor[RGB]{88,106,93}{($+$3.0\%)} \\
+    \texttt{stack-cube}                    & \textbf{70.4}\pmse{3.0} & 56.8\pmse{5.7} & 57.2\pmse{3.7} & 28.0\pmse{3.4} & 2.4\pmse{1.0} & \textbf{67.6}\pmse{1.5} & \textbf{70.8}\pmse{3.3} & \textcolor[RGB]{98,101,99}{($+$0.6\%)} \\
+    \texttt{poke-cube}                     & 90.0\pmse{1.9} & 51.2\pmse{5.9} & 58.4\pmse{5.3} & 73.6\pmse{1.7} & 10.8\pmse{1.2} & \textbf{92.0}\pmse{2.3} & \textbf{92.8}\pmse{1.6} & \textcolor[RGB]{97,102,98}{($+$0.9\%)} \\
+    \texttt{lift-peg}                      & 63.2\pmse{6.8} & 58.4\pmse{6.0} & \textbf{84.0}\pmse{1.7} & 9.6\pmse{2.6} & 20.0\pmse{5.3} & 66.0\pmse{3.4} & \textbf{84.7}\pmse{1.1} & \textcolor[RGB]{97,102,98}{($+$0.8\%)} \\
+    \midrule
+    \textit{ExoRL (DMC returns)}           & 648.2\pmse{2.6} & 620.1\pmse{4.5} & 610.2\pmse{7.2} & -- & -- & -- & \textbf{700.5}\pmse{10.3} & \textcolor[RGB]{68,116,81}{($+$8.1\%)} \\
+    \midrule
+    \texttt{walker}                        & \textbf{811.5}\pmse{2.6} & 796.4\pmse{3.4} & 723.9\pmse{8.2} & -- & -- & -- & 750.2\pmse{13.3} & \textcolor[RGB]{133,76,76}{($-$7.6\%)} \\
+    \texttt{quadruped}                     & 595.6\pmse{4.1} & 694.8\pmse{4.9} & 665.0\pmse{6.2} & -- & -- & -- & \textbf{760.5}\pmse{9.1} & \textcolor[RGB]{62,119,77}{($+$9.5\%)} \\
+    \texttt{point-mass}                    & 513.0\pmse{8.9} & 371.0\pmse{16.6} & 476.3\pmse{17.6} & -- & -- & -- & \textbf{751.5}\pmse{33.1} & \textcolor[RGB]{0,150,40}{($+$46.5\%)} \\
+    \texttt{cheetah}                       & \textbf{672.7}\pmse{2.2} & 618.3\pmse{2.6} & 575.6\pmse{20.1} & -- & -- & -- & 539.9\pmse{18.8} & \textcolor[RGB]{187,37,37}{($-$19.7\%)} \\
+    \bottomrule
+    \end{tabular}%
+    }
+\end{table}
+
+\paragraph{Beyond manipulation.}
+We also evaluate \name{} on the ExoRL RND datasets (\cref{tab:benchmarks}).
+\name{} attains the highest mean return ($700.5$ vs. $648.2$ for FB), leading on quadruped and point-mass, while FB remains stronger on walker ($-7.6\%$) and cheetah ($-19.7\%$). 
+This split is consistent with our analysis: the DMC tasks are dense-reward locomotion problems without interaction bottlenecks, so the failure mode Density-FB targets is largely absent there, and changing the objective brings no systematic advantage.
+
+\section{Conclusion}
+\aditya{Update}
+% We studied a failure mode of SM approximations in which learned representations lose distinctions between actions at control bottlenecks. 
+We introduced \name{}, which treats FB's bilinear output as a score, normalizes it into a distribution over future states with a softmax, learns this distribution through a categorical Bellman objective, and evaluates actions by integrating rewards under it. We traced FB's manipulation failures to control bottlenecks, proved that rank-limited squared fitting can erase the corresponding action distinctions while softmax fitting preserves them on the same instance, and showed that the same distinction governs behavior across three levels of evidence: didactic MDPs with known solutions, critic diagnostics during cube manipulation, and downstream success on eleven manipulation tasks in OGBench, MetaWorld, and ManiSkill, where Density-FB outperforms FB on every task.
+

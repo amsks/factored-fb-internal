@@ -1,0 +1,6 @@
+- seed=5
+- train_steps=1000000
+- save_interval=100000
+- eval_interval=100000
+- wandb_mode=online
+- run_group=factored-fb-crl-flowbc

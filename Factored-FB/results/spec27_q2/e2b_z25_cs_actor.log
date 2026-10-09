@@ -1,0 +1,33 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec25_stage1/factored-fb/GCIQL-CubeSingle-Flow-Measure-DensityZ-C3Actor-d50/z25_cs_actor/params_500000.pkl
+[density-z2] restored z25_cs_actor step=500000 arm=e2b env=cube-single-play-v0 d=50 gamma=0.99 hit_spec='19:22:0.4' double_q=True temp=1.0 pool_size=16384 retrieval_k=1 H=200
+[density-z2] pool drawn: P=16384 (12s)
+[density-z2] e2b candidates: N=4096 (leading pool subset, z via agent._density_z_encode)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[density-z2][dirac] t1: succ=0.0 qr0=1.195 (58s)
+[density-z2][dirac] t2: succ=0.04 qr0=0.808 (96s)
+[density-z2][dirac] t3: succ=0.0 qr0=1.147 (134s)
+[density-z2][dirac] t4: succ=0.08 qr0=0.794 (172s)
+[density-z2][dirac] t5: succ=0.08 qr0=0.955 (209s)
+[density-z2][dense] t1: succ=0.0 qr0=10.801 (226s)
+[density-z2][dense] t2: succ=0.04 qr0=13.463 (243s)
+[density-z2][dense] t3: succ=0.08 qr0=13.604 (259s)
+[density-z2][dense] t4: succ=0.08 qr0=4.478 (275s)
+[density-z2][dense] t5: succ=0.08 qr0=4.667 (292s)
+[density-z2][region] 4/4 hindsight centers (0 rejected)
+[density-z2][region] c0: fin=0.0 any=0.12 (308s)
+[density-z2][region] c1: fin=0.0 any=0.0 (324s)
+[density-z2][region] c2: fin=0.0 any=0.0 (341s)
+[density-z2][region] c3: fin=0.0 any=0.04 (358s)
+
+[density-z2] DONE (358s) -> results/spec27_q2/e2b_z25_cs_actor.json
+[density-z2] family means: {'dirac': 0.04, 'dense': 0.05600000000000001, 'region_final': 0.0, 'region_any': 0.04}
+EXIT=0

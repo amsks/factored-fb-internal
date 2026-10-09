@@ -1,0 +1,174 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0
+rootdir: /home/adityamohan/git/Factored-FB-seam
+configfile: pyproject.toml
+plugins: hydra-core-1.3.2, anyio-4.14.2, typeguard-4.5.2
+collected 15 items
+
+tests/impls/test_rldp_density_inference.py FF..F.F.......F               [100%]
+
+=================================== FAILURES ===================================
+___ test_nonwhite_features_recover_reward_and_correct_action_ranking[False] ____
+
+inference_case = (RLDPDensityCritic(forward=<tests.impls.test_rldp_density_inference._ActionLogits object at 0x7fdae81ed050>, backward=...ial_nets=False, temp=1.0, actor_temp=None, actor_q_center=True, goal_kernel=False), {'backward': namespace(params={})})
+normalize = False
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    def test_nonwhite_features_recover_reward_and_correct_action_ranking(inference_case, normalize):
+        critic, net = inference_case
+        critic = dataclasses.replace(critic, norm_z=normalize)
+        # Uniform reference rows, spherical B, full column rank; C=diag(1.5,.5).
+        B = jnp.sqrt(2.) * jnp.array([[1., 0.], [1., 0.], [1., 0.], [0., 1.]])
+        rewards = B @ jnp.array([1., 2.])
+        old = RLDPCritic.infer_cond(critic, net, B, rewards)["z"]
+        assert _action_gap(critic, B, old) < 0.0
+        actual = critic.infer_cond(net, B, rewards)["z"]
+>       np.testing.assert_allclose(actual, _expected_z([1., 2.], normalize), rtol=1e-12, atol=1e-12)
+E       AssertionError: 
+E       Not equal to tolerance rtol=1e-12, atol=1e-12
+E       
+E       Mismatched elements: 2 / 2 (100%)
+E       Mismatch at indices:
+E        [0]: 1.5000000000000004 (ACTUAL), 1.0 (DESIRED)
+E        [1]: 1.0000000000000002 (ACTUAL), 2.0 (DESIRED)
+E       Max absolute difference among violations: 1.
+E       Max relative difference among violations: 0.5
+E        ACTUAL: array([1.5, 1. ])
+E        DESIRED: array([1., 2.])
+
+tests/impls/test_rldp_density_inference.py:59: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1789094155.114846       3 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+____ test_nonwhite_features_recover_reward_and_correct_action_ranking[True] ____
+
+inference_case = (RLDPDensityCritic(forward=<tests.impls.test_rldp_density_inference._ActionLogits object at 0x7fdae81ed050>, backward=...ial_nets=False, temp=1.0, actor_temp=None, actor_q_center=True, goal_kernel=False), {'backward': namespace(params={})})
+normalize = True
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    def test_nonwhite_features_recover_reward_and_correct_action_ranking(inference_case, normalize):
+        critic, net = inference_case
+        critic = dataclasses.replace(critic, norm_z=normalize)
+        # Uniform reference rows, spherical B, full column rank; C=diag(1.5,.5).
+        B = jnp.sqrt(2.) * jnp.array([[1., 0.], [1., 0.], [1., 0.], [0., 1.]])
+        rewards = B @ jnp.array([1., 2.])
+        old = RLDPCritic.infer_cond(critic, net, B, rewards)["z"]
+        assert _action_gap(critic, B, old) < 0.0
+        actual = critic.infer_cond(net, B, rewards)["z"]
+>       np.testing.assert_allclose(actual, _expected_z([1., 2.], normalize), rtol=1e-12, atol=1e-12)
+E       AssertionError: 
+E       Not equal to tolerance rtol=1e-12, atol=1e-12
+E       
+E       Mismatched elements: 2 / 2 (100%)
+E       Mismatch at indices:
+E        [0]: 1.1766968108284512 (ACTUAL), 0.632455532033393 (DESIRED)
+E        [1]: 0.7844645405523007 (ACTUAL), 1.264911064066786 (DESIRED)
+E       Max absolute difference among violations: 0.54424128
+E       Max relative difference among violations: 0.86052102
+E        ACTUAL: array([1.176697, 0.784465])
+E        DESIRED: array([0.632456, 1.264911])
+
+tests/impls/test_rldp_density_inference.py:59: AssertionError
+_ test_singular_and_zero_reward_problems_return_finite_minimum_norm_coefficients[features0-rewards0-coefficient0-False] _
+
+inference_case = (RLDPDensityCritic(forward=<tests.impls.test_rldp_density_inference._ActionLogits object at 0x7fdae81ed050>, backward=...ial_nets=False, temp=1.0, actor_temp=None, actor_q_center=True, goal_kernel=False), {'backward': namespace(params={})})
+normalize = False, features = [[1.0, 1.0], [-1.0, -1.0]], rewards = [4.0, -4.0]
+coefficient = [2.0, 2.0]
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    @pytest.mark.parametrize("features,rewards,coefficient", [
+        ([[1., 1.], [-1., -1.]], [4., -4.], [2., 2.]),
+        ([[1., 1.]], [1.], [.5, .5]),
+        ([[1., 0.], [0., 1.]], [0., 0.], [0., 0.]),
+        ([[0., 0.], [0., 0.]], [1., -1.], [0., 0.]),
+    ])
+    def test_singular_and_zero_reward_problems_return_finite_minimum_norm_coefficients(
+            inference_case, normalize, features, rewards, coefficient):
+        critic, net = inference_case
+        critic = dataclasses.replace(critic, norm_z=normalize)
+        actual = critic.infer_cond(net, jnp.array(features), jnp.array(rewards))["z"]
+        assert np.isfinite(actual).all()
+>       np.testing.assert_allclose(actual, _expected_z(coefficient, normalize), rtol=1e-12, atol=1e-12)
+E       AssertionError: 
+E       Not equal to tolerance rtol=1e-12, atol=1e-12
+E       
+E       Mismatched elements: 2 / 2 (100%)
+E       Mismatch at indices:
+E        [0]: 4.0 (ACTUAL), 2.0 (DESIRED)
+E        [1]: 4.0 (ACTUAL), 2.0 (DESIRED)
+E       Max absolute difference among violations: 2.
+E       Max relative difference among violations: 1.
+E        ACTUAL: array([4., 4.])
+E        DESIRED: array([2., 2.])
+
+tests/impls/test_rldp_density_inference.py:89: AssertionError
+_ test_singular_and_zero_reward_problems_return_finite_minimum_norm_coefficients[features1-rewards1-coefficient1-False] _
+
+inference_case = (RLDPDensityCritic(forward=<tests.impls.test_rldp_density_inference._ActionLogits object at 0x7fdae81ed050>, backward=...ial_nets=False, temp=1.0, actor_temp=None, actor_q_center=True, goal_kernel=False), {'backward': namespace(params={})})
+normalize = False, features = [[1.0, 1.0]], rewards = [1.0]
+coefficient = [0.5, 0.5]
+
+    @pytest.mark.parametrize("normalize", [False, True])
+    @pytest.mark.parametrize("features,rewards,coefficient", [
+        ([[1., 1.], [-1., -1.]], [4., -4.], [2., 2.]),
+        ([[1., 1.]], [1.], [.5, .5]),
+        ([[1., 0.], [0., 1.]], [0., 0.], [0., 0.]),
+        ([[0., 0.], [0., 0.]], [1., -1.], [0., 0.]),
+    ])
+    def test_singular_and_zero_reward_problems_return_finite_minimum_norm_coefficients(
+            inference_case, normalize, features, rewards, coefficient):
+        critic, net = inference_case
+        critic = dataclasses.replace(critic, norm_z=normalize)
+        actual = critic.infer_cond(net, jnp.array(features), jnp.array(rewards))["z"]
+        assert np.isfinite(actual).all()
+>       np.testing.assert_allclose(actual, _expected_z(coefficient, normalize), rtol=1e-12, atol=1e-12)
+E       AssertionError: 
+E       Not equal to tolerance rtol=1e-12, atol=1e-12
+E       
+E       Mismatched elements: 2 / 2 (100%)
+E       Mismatch at indices:
+E        [0]: 1.0 (ACTUAL), 0.5 (DESIRED)
+E        [1]: 1.0 (ACTUAL), 0.5 (DESIRED)
+E       Max absolute difference among violations: 0.5
+E       Max relative difference among violations: 1.
+E        ACTUAL: array([1., 1.])
+E        DESIRED: array([0.5, 0.5])
+
+tests/impls/test_rldp_density_inference.py:89: AssertionError
+____ test_real_backward_network_recovers_a_representable_reward_coefficient ____
+
+    def test_real_backward_network_recovers_a_representable_reward_coefficient():
+        critic, params, _ = _build(z_dim=2, norm_z=False)
+        obs = jnp.arange(72., dtype=jnp.float64).reshape(6, 12) / 17.
+        net = {"backward": SimpleNamespace(params=params["backward"])}
+        B = critic._B(params["backward"], obs)
+        assert np.linalg.matrix_rank(np.asarray(B)) == 2
+        rewards = B @ jnp.array([1., -2.])
+        actual = critic.infer_cond(net, obs, rewards)["z"]
+>       np.testing.assert_allclose(actual, [1., -2.], rtol=1e-10, atol=1e-10)
+E       AssertionError: 
+E       Not equal to tolerance rtol=1e-10, atol=1e-10
+E       
+E       Mismatched elements: 2 / 2 (100%)
+E       Mismatch at indices:
+E        [0]: -0.13849954479517063 (ACTUAL), 1.0 (DESIRED)
+E        [1]: -3.921698034951101 (ACTUAL), -2.0 (DESIRED)
+E       Max absolute difference among violations: 1.92169803
+E       Max relative difference among violations: 1.13849954
+E        ACTUAL: array([-0.1385  , -3.921698])
+E        DESIRED: array([ 1., -2.])
+
+tests/impls/test_rldp_density_inference.py:114: AssertionError
+=============================== warnings summary ===============================
+../../.cache/uv/archive-v0/bGJ2MXTEs_qs5ER4uuadh/tensorflow_probability/python/internal/backend/jax/ops.py:684
+  /home/adityamohan/.cache/uv/archive-v0/bGJ2MXTEs_qs5ER4uuadh/tensorflow_probability/python/internal/backend/jax/ops.py:684: DeprecationWarning: jax.core.pytype_aval_mappings is deprecated.
+    jax.core.pytype_aval_mappings[onp.ndarray])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/impls/test_rldp_density_inference.py::test_nonwhite_features_recover_reward_and_correct_action_ranking[False]
+FAILED tests/impls/test_rldp_density_inference.py::test_nonwhite_features_recover_reward_and_correct_action_ranking[True]
+FAILED tests/impls/test_rldp_density_inference.py::test_singular_and_zero_reward_problems_return_finite_minimum_norm_coefficients[features0-rewards0-coefficient0-False]
+FAILED tests/impls/test_rldp_density_inference.py::test_singular_and_zero_reward_problems_return_finite_minimum_norm_coefficients[features1-rewards1-coefficient1-False]
+FAILED tests/impls/test_rldp_density_inference.py::test_real_backward_network_recovers_a_representable_reward_coefficient
+=================== 5 failed, 10 passed, 1 warning in 12.74s ===================

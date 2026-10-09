@@ -1,0 +1,17 @@
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[probe] obs_space=(28,) action_dim=5 device=cuda
+Episode length: 200
+Discount factor: 0.975
+[probe] loaded checkpoint: /dev/shm/factored-fb/runs/20260529_002709__tdmpc2_state_10seeds__s0/checkpoints/step_1000000.pt
+[probe] 5 tasks, 3 episodes each
+
+[probe] horizon= 3  eval/success=0.000  eval/reward= -200.00  | t1:0.00  t2:0.00  t3:0.00  t4:0.00  t5:0.00
+[probe] horizon= 8  eval/success=0.000  eval/reward= -200.00  | t1:0.00  t2:0.00  t3:0.00  t4:0.00  t5:0.00
+[probe] horizon=16  eval/success=0.000  eval/reward= -200.00  | t1:0.00  t2:0.00  t3:0.00  t4:0.00  t5:0.00

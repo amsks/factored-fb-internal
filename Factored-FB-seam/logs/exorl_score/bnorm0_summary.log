@@ -1,0 +1,3 @@
+BNORM0 dmc-cheetah: n=2 mean=158.6 popstd=28.8 per-seed=[130, 187]
+BNORM0 dmc-walker: n=3 mean=518.7 popstd=14.8 per-seed=[515, 538, 502]
+SCORE_BNORM0_EXIT=0

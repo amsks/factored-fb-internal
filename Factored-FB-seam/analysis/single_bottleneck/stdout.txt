@@ -1,0 +1,310 @@
+=== processes ===
+P11  n=11 entry [0, 1] b=2 A [3, 4] B [5, 6] tail [7, 8, 9, 10] (shared tail); exact values at b 1.667 / 0.000, gap 1.667; p(a0) in [0.50, 0.50]; FB closed-form fraction at d=2..4: -0.000 -0.000 +1.043; 1 draw(s)
+R1   n= 6 entry [0] b=1 A [2, 3] B [4, 5] tail [] (mutual leak); exact values at b 2.487 / 1.338, gap 1.149; p(a0) in [0.42, 0.75]; FB closed-form fraction at d=2..4: +0.386 +1.018 +1.006; 1 draw(s)
+R2   n=10 entry [0, 1, 2] b=3 A [4, 5, 6] B [7, 8, 9] tail [] (mutual leak); exact values at b 2.850 / 1.935, gap 0.915; p(a0) in [0.27, 0.72]; FB closed-form fraction at d=2..4: +0.023 +1.053 +1.129; 1 draw(s)
+R3   n=12 entry [0, 1, 2] b=3 A [4, 5] B [6, 7] tail [8, 9, 10, 11] (shared tail); exact values at b 1.398 / 0.000, gap 1.398; p(a0) in [0.26, 0.75]; FB closed-form fraction at d=2..4: -0.007 -0.108 +0.804; 1 draw(s)
+R4   n=12 entry [0, 1, 2] b=3 A [4, 5, 6] B [7, 8, 9] tail [10, 11] (shared tail); exact values at b 1.698 / 0.000, gap 1.698; p(a0) in [0.28, 0.71]; FB closed-form fraction at d=2..4: -0.003 +0.423 +1.094; 1 draw(s)
+R5   n=11 entry [0, 1] b=2 A [3, 4, 5] B [6, 7, 8] tail [9, 10] (shared tail); exact values at b 1.571 / 0.000, gap 1.571; p(a0) in [0.33, 0.72]; FB closed-form fraction at d=2..4: +0.015 +1.280 +1.122; 2 draw(s)
+P6   n= 6 entry [0] b=1 A [2, 3] B [4, 5] tail [] (mutual leak); exact values at b 3.000 / 2.000, gap 1.000; p(a0) in [0.50, 0.50]; FB closed-form fraction at d=2..4: +0.000 +1.044 +1.044; 1 draw(s)
+
+R5: 1 draw(s) rejected before it: {'entry': 1, 'cluster': 3, 'tail': 2} gap 1.346 lin2 0.723
+--- closed form (six arms + lemma) ---
+  [closed] mdp 0 done (31s)
+  [closed] mdp 1 done (44s)
+  [closed] mdp 2 done (69s)
+  [closed] mdp 3 done (101s)
+  [closed] mdp 4 done (131s)
+  [closed] mdp 5 done (160s)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/single_bottleneck/sb_closed.csv (1232 rows)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/single_bottleneck/sb_construct.csv (56 rows)
+--- mitigation ---
+  [mitigation] P11 done (6s)
+  [mitigation] R1 done (10s)
+  [mitigation] R2 done (15s)
+  [mitigation] R3 done (20s)
+  [mitigation] R4 done (25s)
+  [mitigation] R5 done (31s)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/single_bottleneck/sb_mitigation.csv (144 rows)
+--- rarity sweep on P6 ---
+  [rarity closed] w=0.5000: d=2: A 1.029 C 1.015 D 0.976  d=3: A 1.029 C 0.998 D 0.983  (2s)
+  [rarity closed] w=0.2500: d=2: A 0.000 C 1.008 D 0.951  d=3: A 1.042 C 0.994 D 0.973  (4s)
+  [rarity closed] w=0.1667: d=2: A 0.000 C 1.006 D 0.938  d=3: A 1.044 C 0.992 D 0.967  (5s)
+  [rarity closed] w=0.1250: d=2: A -0.000 C 1.006 D 0.932  d=3: A 1.044 C 0.994 D 0.964  (6s)
+  [rarity closed] w=0.0625: d=2: A 0.000 C 1.002 D 0.918  d=3: A 1.041 C 0.993 D 0.960  (8s)
+  [rarity closed] w=0.0312: d=2: A 0.000 C 1.002 D 0.914  d=3: A 1.039 C 0.992 D 0.958  (9s)
+  [rarity closed] w=0.0156: d=2: A 0.000 C 1.001 D 0.913  d=3: A 1.037 C 0.991 D 0.957  (10s)
+  [rarity closed] w=0.0078: d=2: A 0.000 C 1.001 D 0.911  d=3: A 1.037 C 0.991 D 0.956  (12s)
+  [rarity closed] w=0.0000: d=2: A 0.000 C 0.426 D 0.381  d=3: A 1.036 C 0.961 D 0.881  (13s)
+  [rarity trained] w=0.5000: d=2: A 0.714 C 0.713 D 0.635  d=3: A 0.714 C 0.893 D 0.914  (19s)
+  [rarity trained] w=0.2500: d=2: A 0.714 C 0.831 D 0.399  d=3: A 0.714 C 0.992 D 0.958  (25s)
+  [rarity trained] w=0.1667: d=2: A 0.714 C 0.765 D 0.329  d=3: A 0.714 C 0.987 D 0.972  (30s)
+  [rarity trained] w=0.1250: d=2: A 0.714 C 0.705 D 0.611  d=3: A 0.714 C 0.995 D 0.979  (36s)
+  [rarity trained] w=0.0625: d=2: A 0.714 C 0.866 D 0.534  d=3: A 0.714 C 0.993 D 0.986  (42s)
+  [rarity trained] w=0.0312: d=2: A 0.714 C 0.926 D 0.561  d=3: A 0.714 C 0.982 D 0.992  (47s)
+  [rarity trained] w=0.0156: d=2: A 0.714 C 0.936 D 0.495  d=3: A 0.714 C 0.983 D 0.992  (53s)
+  [rarity trained] w=0.0078: d=2: A 0.714 C 0.941 D 0.640  d=3: A 0.714 C 0.916 D 0.994  (59s)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/single_bottleneck/sb_rare_closed.csv (216 rows)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/single_bottleneck/sb_rare_trained.csv (480 rows)
+--- TD-trained (six arms + lemma) ---
+  [trained] P11 d=2: A 0.000 C 0.649 D 0.679 (9s)
+  [trained] P11 d=3: A -0.000 C 1.006 D 0.995 (19s)
+  [trained] P11 d=4: A 0.412 C 1.001 D 1.000 (29s)
+  [trained] P11 d=5: A 0.964 C 0.999 D 1.001 (41s)
+  [trained] P11 d=6: A 0.963 C 1.000 D 1.000 (53s)
+  [trained] P11 d=7: A 0.962 C 1.000 D 1.000 (66s)
+  [trained] P11 d=8: A 0.962 C 1.000 D 1.000 (78s)
+  [trained] P11 d=9: A 0.968 C 1.000 D 0.999 (92s)
+  [trained] P11 d=10: A 0.986 C 0.999 D 0.999 (107s)
+  [trained] P11 d=11: A 1.000 C 1.000 D 0.999 (122s)
+  [trained] R1 d=2: A 0.662 C 0.871 D 0.618 (127s)
+  [trained] R1 d=3: A 0.696 C 0.978 D 0.877 (132s)
+  [trained] R1 d=4: A 0.721 C 1.011 D 1.000 (137s)
+  [trained] R1 d=5: A 0.881 C 1.000 D 1.000 (144s)
+  [trained] R1 d=6: A 1.000 C 1.000 D 1.000 (151s)
+  [trained] R2 d=2: A 0.035 C 0.489 D 0.233 (158s)
+  [trained] R2 d=3: A 0.617 C 0.989 D 0.868 (167s)
+  [trained] R2 d=4: A 0.621 C 1.006 D 0.995 (175s)
+  [trained] R2 d=5: A 0.636 C 0.996 D 0.997 (185s)
+  [trained] R2 d=6: A 0.652 C 0.998 D 1.000 (195s)
+  [trained] R2 d=7: A 0.873 C 1.000 D 1.000 (206s)
+  [trained] R2 d=8: A 0.982 C 1.000 D 1.000 (216s)
+  [trained] R2 d=9: A 1.007 C 1.000 D 1.000 (228s)
+  [trained] R2 d=10: A 1.000 C 1.000 D 1.000 (241s)
+  [trained] R3 d=2: A 0.011 C 0.762 D 0.855 (250s)
+  [trained] R3 d=3: A 0.010 C 0.999 D 0.996 (260s)
+  [trained] R3 d=4: A -0.019 C 0.998 D 1.000 (269s)
+  [trained] R3 d=5: A 1.022 C 1.001 D 1.000 (279s)
+  [trained] R3 d=6: A 1.031 C 1.008 D 1.000 (290s)
+  [trained] R3 d=7: A 1.031 C 0.994 D 0.999 (302s)
+  [trained] R3 d=8: A 1.037 C 1.000 D 1.000 (313s)
+  [trained] R3 d=9: A 0.999 C 1.000 D 1.001 (326s)
+  [trained] R3 d=10: A 1.021 C 1.000 D 1.000 (340s)
+  [trained] R3 d=11: A 0.987 C 0.999 D 1.000 (354s)
+  [trained] R3 d=12: A 1.000 C 1.001 D 1.000 (368s)
+  [trained] R4 d=2: A -0.001 C 0.957 D 0.915 (377s)
+  [trained] R4 d=3: A 0.039 C 0.979 D 0.987 (387s)
+  [trained] R4 d=4: A 0.975 C 0.996 D 1.001 (396s)
+  [trained] R4 d=5: A 0.923 C 0.996 D 1.001 (406s)
+  [trained] R4 d=6: A 0.945 C 1.000 D 1.001 (417s)
+  [trained] R4 d=7: A 0.953 C 0.997 D 1.000 (428s)
+  [trained] R4 d=8: A 0.935 C 1.000 D 1.000 (439s)
+  [trained] R4 d=9: A 0.962 C 0.999 D 0.999 (452s)
+  [trained] R4 d=10: A 1.017 C 1.000 D 1.000 (466s)
+  [trained] R4 d=11: A 0.994 C 0.999 D 1.000 (480s)
+  [trained] R4 d=12: A 1.000 C 0.999 D 1.002 (495s)
+  [trained] R5 d=2: A -0.019 C 0.971 D 0.892 (504s)
+  [trained] R5 d=3: A 0.945 C 0.982 D 0.923 (514s)
+  [trained] R5 d=4: A 1.081 C 0.997 D 1.000 (524s)
+  [trained] R5 d=5: A 1.081 C 0.997 D 1.000 (535s)
+  [trained] R5 d=6: A 1.080 C 0.998 D 1.000 (547s)
+  [trained] R5 d=7: A 1.007 C 0.999 D 1.000 (560s)
+  [trained] R5 d=8: A 1.064 C 0.999 D 1.000 (572s)
+  [trained] R5 d=9: A 1.008 C 0.999 D 0.999 (586s)
+  [trained] R5 d=10: A 1.004 C 0.998 D 0.998 (601s)
+  [trained] R5 d=11: A 1.000 C 0.998 D 0.998 (616s)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/single_bottleneck/sb_trained.csv (3360 rows)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/single_bottleneck/sb_lemma.csv (616 rows)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/single_bottleneck/sb_reward.csv (3620 rows)
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_graph_P11.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_graph_R1.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_graph_R2.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_graph_R3.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_graph_R4.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_graph_R5.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_graph_P6.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_ablation.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_ablation_closed.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_ablation_trained.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_gap_two_arm.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_per_mdp.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_values_d2.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_values_d3.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_rare_lemma_d2.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_rare_lemma_d3.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_lemma_check.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_lemma_check_a.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_lemma_check_b.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_lemma_check_c.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_readout_swap.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/single_bottleneck/fig_sb_margin.pdf / .png
+
+=== 1. rank sweep: fraction of the exact gap vs rank, mean over P11 + R1-R5 (ranks all six share) ===
+closed form:  arm | d=2 | d=3 | d=4 | d=5 | d=6
+  A | 0.069 | 0.611 | 1.033 | 1.039 | 1.030
+  B | 0.069 | 0.611 | 1.033 | 1.039 | 1.030
+  C | 0.887 | 0.965 | 1.003 | 0.998 | 0.999
+  D | 0.880 | 0.963 | 0.988 | 0.995 | 1.000
+  E | 26.524 | 2.240 | 3.713 | 2.964 | 1.696
+  F | 0.625 | 0.718 | 0.747 | 0.759 | 0.760
+TD-trained (mean [95% t-interval over processes x runs]):
+  A | 0.11 [0.05,0.18] | 0.38 [0.29,0.48] | 0.63 [0.53,0.74] | 0.92 [0.88,0.96] | 0.95 [0.91,0.98]
+  B | 0.11 [0.05,0.18] | 0.40 [0.30,0.50] | 0.74 [0.66,0.82] | 0.96 [0.93,1.00] | 0.98 [0.96,1.00]
+  C | 0.78 [0.71,0.85] | 0.99 [0.97,1.00] | 1.00 [0.99,1.01] | 1.00 [0.99,1.00] | 1.00 [1.00,1.00]
+  D | 0.70 [0.62,0.78] | 0.94 [0.91,0.97] | 1.00 [0.99,1.01] | 1.00 [1.00,1.00] | 1.00 [1.00,1.00]
+  E | 1.16 [-0.40,2.72] | 2.74 [1.55,3.93] | 1.79 [1.08,2.50] | 1.80 [1.30,2.31] | 1.29 [0.99,1.58]
+  F | 0.65 [0.58,0.71] | 0.74 [0.71,0.78] | 0.76 [0.73,0.79] | 0.76 [0.73,0.79] | 0.76 [0.73,0.79]
+
+per process, TD-trained (arm | ranks 2..n):
+-- P11 (n=11, gap 1.67) --
+   A | 0.000 | -0.000 | 0.412 | 0.964 | 0.963 | 0.962 | 0.962 | 0.968 | 0.986 | 1.000
+   B | 0.000 | 0.000 | 0.471 | 0.963 | 0.965 | 0.964 | 0.963 | 0.965 | 1.000 | 1.000
+   C | 0.649 | 1.006 | 1.001 | 0.999 | 1.000 | 1.000 | 1.000 | 1.000 | 0.999 | 1.000
+   D | 0.679 | 0.995 | 1.000 | 1.001 | 1.000 | 1.000 | 1.000 | 0.999 | 0.999 | 0.999
+   E | 2.279 | 3.797 | 0.984 | 1.574 | 1.486 | 1.571 | 1.564 | 1.570 | 1.530 | 1.593
+   F | 0.751 | 0.802 | 0.833 | 0.832 | 0.831 | 0.831 | 0.830 | 0.831 | 0.831 | 0.832
+-- R1 (n=6, gap 1.15) --
+   A | 0.662 | 0.696 | 0.721 | 0.881 | 1.000
+   B | 0.662 | 0.696 | 0.826 | 1.052 | 1.000
+   C | 0.871 | 0.978 | 1.011 | 1.000 | 1.000
+   D | 0.618 | 0.877 | 1.000 | 1.000 | 1.000
+   E | -1.222 | -2.096 | 0.000 | 0.152 | 0.138
+   F | 0.388 | 0.558 | 0.629 | 0.629 | 0.629
+-- R2 (n=10, gap 0.92) --
+   A | 0.035 | 0.617 | 0.621 | 0.636 | 0.652 | 0.873 | 0.982 | 1.007 | 1.000
+   B | 0.035 | 0.622 | 0.621 | 0.694 | 0.826 | 0.891 | 0.952 | 0.972 | 1.000
+   C | 0.489 | 0.989 | 1.006 | 0.996 | 0.998 | 1.000 | 1.000 | 1.000 | 1.000
+   D | 0.233 | 0.868 | 0.995 | 0.997 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000
+   E | -1.745 | 3.847 | 0.822 | 0.404 | -0.382 | 0.189 | 0.334 | 0.122 | 0.131
+   F | 0.280 | 0.543 | 0.575 | 0.581 | 0.581 | 0.581 | 0.581 | 0.581 | 0.581
+-- R3 (n=12, gap 1.40) --
+   A | 0.011 | 0.010 | -0.019 | 1.022 | 1.031 | 1.031 | 1.037 | 0.999 | 1.021 | 0.987 | 1.000
+   B | 0.011 | 0.082 | 0.474 | 1.044 | 1.045 | 1.045 | 1.040 | 1.016 | 0.966 | 0.991 | 1.000
+   C | 0.762 | 0.999 | 0.998 | 1.001 | 1.008 | 0.994 | 1.000 | 1.000 | 1.000 | 0.999 | 1.001
+   D | 0.855 | 0.996 | 1.000 | 1.000 | 1.000 | 0.999 | 1.000 | 1.001 | 1.000 | 1.000 | 1.000
+   E | 3.369 | 1.845 | 1.428 | 1.492 | 1.609 | 1.738 | 1.731 | 1.730 | 1.677 | 1.693 | 1.702
+   F | 0.814 | 0.826 | 0.836 | 0.835 | 0.832 | 0.830 | 0.830 | 0.830 | 0.831 | 0.831 | 0.829
+-- R4 (n=12, gap 1.70) --
+   A | -0.001 | 0.039 | 0.975 | 0.923 | 0.945 | 0.953 | 0.935 | 0.962 | 1.017 | 0.994 | 1.000
+   B | -0.001 | 0.040 | 0.975 | 0.941 | 0.941 | 0.922 | 1.003 | 1.000 | 1.053 | 1.008 | 1.000
+   C | 0.957 | 0.979 | 0.996 | 0.996 | 1.000 | 0.997 | 1.000 | 0.999 | 1.000 | 0.999 | 0.999
+   D | 0.915 | 0.987 | 1.001 | 1.001 | 1.001 | 1.000 | 1.000 | 0.999 | 1.000 | 1.000 | 1.002
+   E | 6.975 | 1.676 | 2.911 | 3.561 | 2.210 | 2.143 | 2.141 | 2.109 | 2.031 | 2.041 | 2.101
+   F | 0.878 | 0.871 | 0.857 | 0.856 | 0.853 | 0.853 | 0.853 | 0.853 | 0.853 | 0.852 | 0.853
+-- R5 (n=11, gap 1.57) --
+   A | -0.019 | 0.945 | 1.081 | 1.081 | 1.080 | 1.007 | 1.064 | 1.008 | 1.004 | 1.000
+   B | -0.019 | 0.945 | 1.083 | 1.085 | 1.096 | 1.087 | 1.093 | 1.060 | 1.044 | 0.999
+   C | 0.971 | 0.982 | 0.997 | 0.997 | 0.998 | 0.999 | 0.999 | 0.999 | 0.998 | 0.998
+   D | 0.892 | 0.923 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.999 | 0.998 | 0.998
+   E | -2.707 | 7.376 | 4.595 | 3.645 | 2.660 | 2.425 | 2.340 | 2.452 | 2.285 | 2.451
+   F | 0.766 | 0.859 | 0.841 | 0.846 | 0.834 | 0.835 | 0.835 | 0.835 | 0.835 | 0.835
+
+smallest rank reaching 90% of the exact gap (TD-trained; mean over runs at that rank):
+  arm | P11 | R1 | R2 | R3 | R4 | R5 | median
+  A | 5 | 6 | 8 | 5 | 4 | 3 | 5.0
+  B | 5 | 5 | 8 | 5 | 4 | 3 | 5.0
+  C | 3 | 3 | 3 | 3 | 2 | 2 | 3.0
+  D | 3 | 4 | 4 | 3 | 2 | 3 | 3.0
+  E | 2 | - | 3 | 2 | 2 | 3 | 2.0
+  F | - | - | - | - | - | - | nan
+
+smallest rank reaching 90% of the exact gap (closed form; mean over runs at that rank):
+  arm | P11 | R1 | R2 | R3 | R4 | R5 | median
+  A | 4 | 3 | 3 | 5 | 4 | 3 | 3.5
+  B | 4 | 3 | 3 | 5 | 4 | 3 | 3.5
+  C | 2 | 2 | 3 | 3 | 2 | 2 | 2.0
+  D | 2 | 2 | 4 | 2 | 3 | 3 | 2.5
+  E | 2 | - | 2 | 2 | 2 | 2 | 2.0
+  F | - | - | - | - | - | - | nan
+
+argmax stays on cluster A (fraction of TD-trained fits):
+  A | 0.53 | 0.85 | 0.82 | 1.00 | 1.00
+  B | 0.63 | 0.78 | 0.92 | 1.00 | 1.00
+  C | 1.00 | 1.00 | 1.00 | 1.00 | 1.00
+  D | 1.00 | 1.00 | 1.00 | 1.00 | 1.00
+  E | 0.58 | 0.72 | 0.88 | 0.90 | 0.88
+  F | 1.00 | 1.00 | 1.00 | 1.00 | 1.00
+values at b, TD-trained rank 2, exact pair mapped to (1, 0): FB 0.48 / 0.36, Density-FB 0.88 / 0.19
+values at b, TD-trained rank 3, exact pair mapped to (1, 0): FB 0.63 / 0.24, Density-FB 1.00 / 0.06
+
+=== 2. rarity sweep on P6 (gap 1.00): fraction of the exact gap vs bottleneck weight w ===
+rank 2: w | A FB | C softmax+sq | D Density-FB | bottleneck share of target mass | A share of objective | A cost of keeping the gap (abs; rel) | A limit || TD-trained A | C | D
+  1/2            | 1.029 | 1.015 | 0.976 | 0.5201 | 0.0221 | 0.0088; 0.005 | 0.000 || 0.714 [0.71,0.71] | 0.713 [0.71,0.72] | 0.635 [0.63,0.65]
+  1/4            | 0.000 | 1.008 | 0.951 | 0.2654 | 0.1953 | 0.1613; 0.068 | 0.000 || 0.714 [0.71,0.71] | 0.831 [0.68,0.98] | 0.399 [0.28,0.52]
+  1/6 (uniform)  | 0.000 | 1.006 | 0.938 | 0.1782 | 0.1288 | 0.3674; 0.151 | 0.000 || 0.714 [0.71,0.71] | 0.765 [0.58,0.95] | 0.329 [0.19,0.47]
+  1/8            | -0.000 | 1.006 | 0.932 | 0.1341 | 0.0962 | 0.4697; 0.191 | 0.000 || 0.714 [0.71,0.71] | 0.705 [0.50,0.91] | 0.611 [0.42,0.80]
+  1/16           | 0.000 | 1.002 | 0.918 | 0.0674 | 0.0479 | 0.6222; 0.249 | 0.000 || 0.714 [0.71,0.71] | 0.866 [0.68,1.05] | 0.534 [0.34,0.73]
+  1/32           | 0.000 | 1.002 | 0.914 | 0.0338 | 0.0239 | 0.6980; 0.277 | 0.000 || 0.714 [0.71,0.71] | 0.926 [0.78,1.07] | 0.561 [0.33,0.79]
+  1/64           | 0.000 | 1.001 | 0.913 | 0.0169 | 0.0120 | 0.7358; 0.291 | 0.000 || 0.714 [0.71,0.71] | 0.936 [0.78,1.09] | 0.495 [0.25,0.74]
+  1/128          | 0.000 | 1.001 | 0.911 | 0.0085 | 0.0060 | 0.7546; 0.298 | 0.000 || 0.714 [0.71,0.71] | 0.941 [0.79,1.10] | 0.640 [0.43,0.85]
+  0 (limit)      | 0.000 | 0.426 | 0.381 | 0.0000 | 0.0000 | 0.7735; 0.304 | 0.000
+  FB closed form at rank 2 reads < 0.5 of the gap for every w <= 1/4; w -> 0 limit 0.000 -> 0.000
+rank 3: w | A FB | C softmax+sq | D Density-FB | bottleneck share of target mass | A share of objective | A cost of keeping the gap (abs; rel) | A limit || TD-trained A | C | D
+  1/2            | 1.029 | 0.998 | 0.983 | 0.5201 | 0.0313 | 0.0088; 0.012 | 1.036 || 0.714 [0.71,0.71] | 0.893 [0.78,1.01] | 0.914 [0.91,0.92]
+  1/4            | 1.042 | 0.994 | 0.973 | 0.2654 | 0.0309 | 0.0255; 0.024 | 1.036 || 0.714 [0.71,0.71] | 0.992 [0.95,1.03] | 0.958 [0.95,0.96]
+  1/6 (uniform)  | 1.044 | 0.992 | 0.967 | 0.1782 | 0.0255 | 0.0347; 0.030 | 1.036 || 0.714 [0.71,0.71] | 0.987 [0.97,1.00] | 0.972 [0.97,0.98]
+  1/8            | 1.044 | 0.994 | 0.964 | 0.1341 | 0.0213 | 0.0403; 0.034 | 1.036 || 0.714 [0.71,0.71] | 0.995 [0.97,1.02] | 0.979 [0.98,0.98]
+  1/16           | 1.041 | 0.993 | 0.960 | 0.0674 | 0.0125 | 0.0500; 0.040 | 1.036 || 0.714 [0.71,0.71] | 0.993 [0.97,1.02] | 0.986 [0.98,0.99]
+  1/32           | 1.039 | 0.992 | 0.958 | 0.0338 | 0.0068 | 0.0556; 0.043 | 1.036 || 0.714 [0.71,0.71] | 0.982 [0.96,1.01] | 0.992 [0.99,1.00]
+  1/64           | 1.037 | 0.991 | 0.957 | 0.0169 | 0.0035 | 0.0586; 0.045 | 1.036 || 0.714 [0.71,0.71] | 0.983 [0.96,1.01] | 0.992 [0.99,0.99]
+  1/128          | 1.037 | 0.991 | 0.956 | 0.0085 | 0.0018 | 0.0602; 0.046 | 1.036 || 0.714 [0.71,0.71] | 0.916 [0.78,1.05] | 0.994 [0.99,1.00]
+  0 (limit)      | 1.036 | 0.961 | 0.881 | 0.0000 | 0.0000 | 0.0618; 0.046 | 1.036
+  FB closed form at rank 3 reads < 0.5 of the gap for every w <= never; w -> 0 limit 1.037 -> 1.036
+
+=== 3. lemma check on P11 + R1-R5 ===
+(a) trained features, 560 runs: corr(lemma, read) 0.9970, sign agreement 0.989, mean |diff| 0.0126, max |diff| 0.2186
+    per rank: d: mean lemma | mean read | max |diff| | corr
+    d= 2:  0.115 |  0.115 | 0.0004 | 1.0000  (n=60)
+    d= 3:  0.380 |  0.385 | 0.0412 | 0.9997  (n=60)
+    d= 4:  0.633 |  0.632 | 0.1041 | 0.9988  (n=60)
+    d= 5:  0.926 |  0.918 | 0.2186 | 0.9513  (n=60)
+    d= 6:  0.948 |  0.945 | 0.0730 | 0.9948  (n=60)
+    d= 7:  0.983 |  0.965 | 0.1610 | 0.9337  (n=50)
+    d= 8:  1.018 |  0.996 | 0.1841 | 0.7557  (n=50)
+    d= 9:  1.008 |  0.989 | 0.1373 | 0.6681  (n=50)
+    d=10:  1.015 |  1.005 | 0.0650 | 0.8148  (n=50)
+    d=11:  1.001 |  0.995 | 0.0718 | 0.1905  (n=40)
+    d=12:  1.000 |  1.000 | 0.0002 | 0.0902  (n=20)
+(b) reward sweep at rank 2: 3620 (reward, run) pairs, corr 1.0000, max |lemma - read| 0.0006; residual appended: max |gap - true| 1.3e-15
+    P11: s0(+0.00) --  s1(+0.00) --  s2(+0.00) --  s3(+1.19) +0.00|+0.00  s4(+0.48) -0.00|+0.00  s5(-1.19) +0.00|-0.00  s6(-0.48) +0.00|-0.00  s7(+0.00) --  s8(+0.00) --  s9(+0.00) --  s10(+0.00) --
+    R1: s0(+0.00) --  s1(+0.00) --  s2(+0.84) +0.93|+0.93  s3(+0.31) -0.06|-0.06  s4(-0.72) +1.01|+1.01  s5(-0.43) +0.10|+0.10
+    R2: s0(+0.00) --  s1(+0.00) --  s2(+0.00) --  s3(+0.00) --  s4(+0.65) +0.04|+0.04  s5(+0.21) +0.02|+0.02  s6(+0.06) +0.07|+0.07  s7(-0.60) -0.04|-0.04  s8(-0.20) -0.02|-0.02  s9(-0.12) -0.04|-0.04
+    R3: s0(+0.00) --  s1(+0.00) --  s2(+0.00) --  s3(+0.00) --  s4(+1.09) +0.01|+0.01  s5(+0.31) +0.02|+0.02  s6(-1.17) -0.01|-0.01  s7(-0.36) -0.01|-0.01  s8(+0.05) --  s9(+0.02) --  s10(+0.03) --  s11(+0.04) --
+    R4: s0(+0.00) --  s1(+0.00) --  s2(+0.00) --  s3(+0.00) --  s4(+1.05) -0.00|-0.00  s5(+0.45) -0.00|-0.00  s6(+0.19) -0.00|-0.00  s7(-1.09) +0.00|+0.00  s8(-0.42) +0.00|+0.00  s9(-0.19) +0.00|+0.00  s10(-0.00) --  s11(-0.00) --
+    R5: s0(+0.00) --  s1(+0.00) --  s2(+0.00) --  s3(+1.09) -0.01|-0.01  s4(+0.30) -0.02|-0.02  s5(+0.18) -0.04|-0.04  s6(-1.04) +0.02|+0.02  s7(-0.27) +0.03|+0.03  s8(-0.10) +0.08|+0.08  s9(-0.09) +0.93|+0.93  s10(-0.07) +0.25|+0.25
+(c) closed-form FB: d: gap fraction at rank d | with the residual appended | objective cost vs optimal d+1
+    d= 2:  0.069 |  1.000 | +0.072
+    d= 3:  0.611 |  1.000 | +0.081
+    d= 4:  1.033 |  1.000 | +0.137
+    d= 5:  1.039 |  1.000 | +0.105
+    d= 6:  1.030 |  1.000 | +0.113
+    d= 7:  1.039 |  1.000 | +0.058
+    d= 8:  1.024 |  1.000 | +0.026
+    d= 9:  1.009 |  1.000 | +0.029
+    d=10:  1.000 |  1.000 | +0.032
+    d=11:  1.000 |  1.000 | +0.000
+    d=12:  1.000 |  1.000 | +0.000
+
+=== 4. mitigation measurements, closed form on P11 + R1-R5, ranks 2..5 ===
+(i) readout swap: fraction of the exact gap (mean over processes [x seeds]); rows = features, columns = readout
+    d=2 fb       features: linear rows 0.069 [-0.09,0.23] | softmax rows 0.225 [-0.08,0.53]
+    d=2 density  features: linear rows 0.300 [0.21,0.39] | softmax rows 0.893 [0.86,0.93]  (joint Adam fit before the per-row polish: 0.880)
+      fb per process, linear|softmax: P11 +0.00|-0.00  R1 +0.39|+0.78  R2 +0.02|+0.31  R3 -0.01|+0.07  R4 -0.00|+0.17  R5 +0.01|+0.02
+      density per process, linear|softmax: P11 +0.38|+0.99  R1 -0.00|+0.93  R2 +0.11|+0.75  R3 +0.41|+0.97  R4 +0.54|+0.87  R5 +0.37|+0.86
+    d=3 fb       features: linear rows 0.611 [-0.01,1.23] | softmax rows 0.646 [0.15,1.14]
+    d=3 density  features: linear rows 0.197 [0.14,0.26] | softmax rows 0.965 [0.95,0.98]  (joint Adam fit before the per-row polish: 0.963)
+      fb per process, linear|softmax: P11 -0.00|-0.00  R1 +1.02|+0.99  R2 +1.05|+0.93  R3 -0.11|+0.08  R4 +0.42|+0.87  R5 +1.28|+1.01
+      density per process, linear|softmax: P11 +0.26|+1.00  R1 +0.05|+0.98  R2 +0.05|+0.88  R3 +0.26|+1.00  R4 +0.38|+0.98  R5 +0.17|+0.96
+    d=4 fb       features: linear rows 1.033 [0.91,1.16] | softmax rows 1.002 [0.99,1.01]
+    d=4 density  features: linear rows 0.562 [0.44,0.69] | softmax rows 0.989 [0.98,1.00]  (joint Adam fit before the per-row polish: 0.988)
+      fb per process, linear|softmax: P11 +1.04|+1.00  R1 +1.01|+1.00  R2 +1.13|+1.00  R3 +0.80|+1.01  R4 +1.09|+1.00  R5 +1.12|+0.99
+      density per process, linear|softmax: P11 +0.70|+1.00  R1 +0.89|+1.00  R2 +0.07|+0.93  R3 +0.39|+1.00  R4 +0.47|+1.00  R5 +0.84|+1.00
+    d=5 fb       features: linear rows 1.039 [0.97,1.10] | softmax rows 1.001 [0.99,1.01]
+    d=5 density  features: linear rows 0.815 [0.67,0.96] | softmax rows 0.997 [0.99,1.00]  (joint Adam fit before the per-row polish: 0.995)
+      fb per process, linear|softmax: P11 +1.04|+1.00  R1 +0.98|+1.00  R2 +1.09|+1.00  R3 +0.95|+1.02  R4 +1.09|+1.00  R5 +1.08|+0.99
+      density per process, linear|softmax: P11 +0.99|+1.00  R1 +1.03|+1.00  R2 +0.05|+0.98  R3 +0.66|+1.00  R4 +1.05|+1.00  R5 +1.12|+1.00
+(ii) separability margin of cluster A vs the retained gap, all fits:
+    softmax rows: Pearson 0.374, Spearman 0.693 (n=144)
+    linear rows: Pearson 0.881, Spearman 0.909 (n=144)
+    fb features: A separable in 18/24 fits; softmax-row gap when separable 0.900, when not 0.173
+      d=2: margin mean -0.028 [-0.093, +0.001], separable 1/6
+      d=3: margin mean +0.285 [-0.000, +0.575], separable 5/6
+      d=4: margin mean +0.484 [+0.370, +0.860], separable 6/6
+      d=5: margin mean +0.544 [+0.403, +0.862], separable 6/6
+    density features: A separable in 113/120 fits; softmax-row gap when separable 0.964, when not 0.913
+      d=2: margin mean +0.106 [-0.017, +0.302], separable 23/30
+      d=3: margin mean +0.094 [+0.004, +0.394], separable 30/30
+      d=4: margin mean +0.310 [+0.007, +0.843], separable 30/30
+      d=5: margin mean +0.470 [+0.014, +0.865], separable 30/30
+(iii) moment check B^T (row_fit - row_true): max |.| over all rows and fits: least squares 2.4e-14, maximum likelihood 5.4e-08
+
+total wall time 878s

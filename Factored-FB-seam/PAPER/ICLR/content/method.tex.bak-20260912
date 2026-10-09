@@ -1,0 +1,178 @@
+\section{\name{}: Learning Successor Measures as Distributions}
+\label{sec:method}
+
+
+%%AZ.8.29: start with a reminder of the high-level modification, what problem are we fixing before you get to how we're doing it.
+%%AZ.8.29: after going through this section, it is way too low-level with no explanation of the design choices made in the algorithm. You could either include the high-level justification/intuition here interspersed with the method details, or separate it into a prior section.
+%%AZ.8.29: why is the normalization important?
+%%AZ.8.29: why this parameterization design choice?
+%%AZ.9.5: This section should be divided up into two main parts. One defines the problem and explains the high level solution, the second provides the technical instantiation of the method. My comments from last week are still not satisfactorily addressed. There needs to be a roadmap for 2.1, 2.2, and 2.3 and why I should read them.
+
+Section~\ref{sec:failure} showed that standard successor learning can lose small differences that are important for choosing an action.
+At a control bottleneck, two actions may have similar SMs overall while differing on the states that determine downstream reward.
+Point-wise squared regression weights errors according to the absolute size of the successor targets.
+As a result, large and persistent occupancies can dominate smaller differences that are important for choosing the correct action.
+\name{} makes one central change.
+Instead of learning the unnormalized SM with squared error, we normalize it into a probability distribution and learn that distribution with cross-entropy.
+The goal is not to change what the SM represents, but to change how errors in its approximation are weighted.
+We outline mehtod in the following sections.
+First, Section~\ref{sec:method-normalization} explains why the SM can be normalized without losing information needed for control, and why this normalization is useful.
+Then, Sections~\ref{sec:method-learning} and~\ref{sec:method-control} give the technical implementation: we parameterize and learn the normalized successor distribution, and use the learned distribution to evaluate downstream rewards.
+
+\subsection{Normalizing the Successor Measure}
+\label{sec:method-normalization}
+
+Every discounted SM has the same total mass (\Cref{eq:sm-mass}),
+\begin{equation}
+    M^\pi(s,a,\mathcal S) = \frac{1}{1-\gamma}.
+\end{equation}
+We can therefore normalize it into a probability distribution,
+\begin{equation}
+    \nu^\pi(s,a,\cdot) := (1-\gamma)M^\pi(s,a,\cdot), \qquad \nu^\pi(s,a,\mathcal S) = 1. \label{eq:normalized-sm}
+\end{equation}
+
+This transformation does not remove information from the SM.
+\begin{proposition}[Control equivalence]
+\label{prop:control-equivalence}
+For every bounded state reward $r$,
+\begin{equation}
+    \int_{\mathcal S} r(s^+) \nu^\pi(s,a,ds^+) = (1-\gamma)Q_r^\pi(s,a). \label{eq:normalized-value-exact}
+\end{equation}
+Consequently, normalization preserves the action ordering induced by every state-based reward.
+\end{proposition}
+
+Proposition~\ref{prop:control-equivalence} shows that normalization changes the representation of the SM without changing the decisions that can be recovered from it.
+Its purpose is therefore not simply to reduce the numerical scale of the targets.
+After normalization, the predictions for all possible future states must sum to one.
+Assigning more probability to one state therefore necessarily assigns less probability to other states.
+
+Normalization alone would not address the problem in Section~\ref{sec:failure}.
+If we simply multiplied every successor target by $(1-\gamma)$ and continued to use squared error, the relative weighting of the targets would remain unchanged.
+We therefore learn the normalized SM directly as a probability distribution.
+
+
+\subsection{Learning the normalized Successor Measure}
+\label{sec:method-learning}
+
+The normalized SM satisfies the Bellman equation
+\begin{equation}
+    \nu^\pi(s,a,\cdot) = (1-\gamma)P(\cdot\mid s,a) + \gamma \E_{\substack{ s'\sim P(\cdot\mid s,a)\\ a'\sim\pi(\cdot\mid s')}} \left[ \nu^\pi(s',a',\cdot) \right]. \label{eq:normalized-bellman}
+\end{equation}
+
+Let $\rho$ denote the next-state marginal of the offline dataset.
+For a task-conditioned policy $\pi_z$, assume that $\nu^{\pi_z}(s,a,\cdot)$ is absolutely continuous with respect to $\rho$.
+We write its density ratio as
+\begin{equation}
+    h_z(s,a,s^+) := \frac{ d\nu^{\pi_z}(s,a,\cdot) }{ d\rho }(s^+). \label{eq:true-density}
+\end{equation}
+
+We retain the bilinear representation used by FB, but use its output as a score for this density.
+Specifically, we define
+\begin{equation}
+    f_\theta(s,a,z,s^+) := \frac{ F_\theta(s,a,z)^\top B_\theta(s^+) }{ \tau }, \label{eq:density-score}
+\end{equation}
+and
+\begin{equation}
+    h_\theta(s,a,z,s^+) := \frac{ \exp f_\theta(s,a,z,s^+) }{ \E_{\tilde s^+\sim\rho} \left[ \exp f_\theta(s,a,z,\tilde s^+) \right] }. \label{eq:density-model}
+\end{equation}
+
+This parameterization lets us keep the forward and backward factorization while ensuring that the predicted density is non-negative and integrates to one.
+Using $\rho$ as the reference distribution also allows the normalizer to be estimated from states already available in the offline dataset.
+
+In practice, we approximate the distribution using the next states in each minibatch.
+For transitions $\{(s_i,a_i,s_i')\}_{i=1}^{n}$, we define
+\begin{equation}
+    p_{ij} := \softmax_j \left( f_\theta(s_i,a_i,z_i,s_j') \right). \label{eq:density-probabilities}
+\end{equation}
+Each row $p_i$ is therefore a probability distribution over the candidate future states $\{s_j'\}_{j=1}^{n}$.
+
+We use the same candidate states to construct the Bellman target.
+Let $ a_i' \sim \pi_\omega(\cdot\mid s_i',z_i),$ and let
+\begin{equation}
+    \bar p_{ij}' := \softmax_j \left( \frac{ \bar F(s_i',a_i',z_i)^\top \bar B(s_j') }{ \tau }\right), \label{eq:target-density-probabilities}
+\end{equation}
+where bars denote target networks.
+
+With $ d_i := \gamma (1-\mathrm{terminal}_i),$ the sampled Bellman target is
+\begin{equation}
+    t_{ij} := \sg \left[ (1-d_i)\ind{j=i} + d_i\bar p_{ij}' \right]. \label{eq:density-target}
+\end{equation}
+The first term places probability on the observed next state.
+The second term gives the predicted distribution over later states.
+
+We fit this target using cross-entropy,
+\begin{equation}
+    \mathcal L_{\mathrm{DFB}} := - \frac{1}{n} \sum_{i=1}^{n} \sum_{j=1}^{n} t_{ij} \log p_{ij}. \label{eq:density-loss}
+\end{equation}
+
+The following proposition shows that this objective still performs Bellman evaluation of the SM, but in its normalized form.
+
+\begin{proposition}[Normalized successor Bellman update]
+\label{prop:density-bellman}
+Fix a continuation policy $\pi_z$ and a normalized target density $\bar h$.
+At the population level, minimizing the cross-entropy objective in Equation~\eqref{eq:density-loss} recovers the normalized Bellman update of $\bar h$.
+The corresponding Bellman operator is a $\gamma$-contraction and has the normalized successor density $h^{\pi_z}$ as its unique fixed point.
+\end{proposition}
+
+The proof is given in Appendix~\ref{app:theory}.
+Proposition~\ref{prop:density-bellman} shows that \name{} does not introduce a different prediction target.
+It changes how the same successor information is represented and fitted.
+
+The difference from squared successor regression can also be seen directly from the gradient.
+For a single row of Equation~\eqref{eq:density-loss},
+\begin{equation}
+    \frac{ \partial \ell_i }{ \partial f_{ij} } = p_{ij} - t_{ij}. \label{eq:density-gradient}
+\end{equation}
+
+The update therefore depends on the error in predicted probability and is bounded between $-1$ and $1$.
+Because both $p_i$ and $t_i$ sum to one, assigning more probability to one future state necessarily reduces the probability assigned elsewhere.
+
+This differs from point-wise squared regression.
+Consider a successor target $m$ and a prediction with relative error
+\begin{equation}
+    \hat m = (1+\epsilon)m.
+\end{equation}
+For the squared loss
+\begin{equation}
+    \ell_{\mathrm{sq}} = \frac{1}{2} (\hat m-m)^2,
+\end{equation}
+the gradient is
+\begin{equation}
+    \frac{ \partial \ell_{\mathrm{sq}} }{ \partial \hat m } = \epsilon m. \label{eq:squared-relative-gradient}
+\end{equation}
+
+Thus, for the same relative prediction error $\epsilon$, a larger successor target produces a larger squared-error update.
+This is the failure described in Section~\ref{sec:failure}: persistent states can receive much larger successor targets than short-lived states that distinguish two actions.
+In \name{}, the model instead learns how the total successor probability is distributed across states.
+Persistent states can still receive high probability when they are likely under the policy, but their larger unnormalized occupancy does not by itself produce a larger training signal.
+
+
+\subsection{Using the learned distribution for control}
+\label{sec:method-control}
+
+The final step is to recover action values from the learned successor distribution.
+For any state reward $r$, we evaluate an action by integrating the reward against its predicted successors,
+\begin{equation}
+    q_{\theta,r}(s,a,z) := \E_{s^+\sim\rho} \left[ h_\theta(s,a,z,s^+) r(s^+) \right]. \label{eq:density-value}
+\end{equation}
+
+Using a finite set of candidate states $\{s_j^+\}_{j=1}^{K}$ sampled from $\rho$, we estimate this quantity as
+\begin{equation}
+    \hat q_{\theta,r}(s,a,z) := \sum_{j=1}^{K} p_j(s,a,z) r(s_j^+). \label{eq:density-value-sampled}
+\end{equation}
+
+By Proposition~\ref{prop:control-equivalence}, an exact normalized successor density satisfies
+\begin{equation}
+    q_r^{\pi_z}(s,a) = (1-\gamma) Q_r^{\pi_z}(s,a).
+\end{equation}
+
+The factor $(1-\gamma)$ is independent of the action, so the normalized successor distribution preserves the action ordering of the original SM.
+The same learned distribution can therefore be used to evaluate any state-based reward specified after pretraining.
+
+This readout differs from standard FB.
+In standard FB, the bilinear product $F^\top B$ directly parameterizes the successor density, which allows the same linear reward embedding to be used both to specify a task and to evaluate its value.
+In \name{}, $F^\top B$ is instead a score inside a normalized exponential, so this linear identity no longer holds.
+
+We therefore separate reward evaluation from task specification.
+Equation~\eqref{eq:density-value} is used to evaluate a reward under the learned successor distribution, while the corresponding task index for the pretrained policy is inferred separately from reward samples.
+The task-inference procedure, the actor objectives, and the backbone-specific implementation details are given in \aditya{Add Appendix}.

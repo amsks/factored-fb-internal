@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-Bilinear-d50-Exp4-ActorZInfer",
+ "seed": "sd001_20260701_203811",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-Exp4-ActorZInfer/sd001_20260701_203811",
+ "step": 500000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "z",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.02,
+  "grasped": 0.35
+ },
+ "C2": {
+  "success": 0.06,
+  "grasped": 0.36
+ },
+ "C3": {
+  "success": 0.0,
+  "grasped": 0.27
+ },
+ "C4": {
+  "success": 0.01,
+  "grasped": 0.24
+ },
+ "secs": 43.4
+}

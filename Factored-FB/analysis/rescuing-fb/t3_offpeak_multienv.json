@@ -1,0 +1,133 @@
+{
+  "spec": "T3 off-support peak x domain (03-probes-spec.md)",
+  "config": {
+    "seed": 0,
+    "n_states": 512,
+    "k_nn": 64,
+    "n_uniform": 256,
+    "whitening": "per-dim standardized obs; departure = gates.whitened_dist (shrunk-cov, LOO-normalized) on the 65-action B_ref cloud"
+  },
+  "domains": {
+    "cube": {
+      "env": "cube-single-play-v0",
+      "ckpt": "/home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-ddpgbc/sd000_20260617_221451",
+      "step": 500000,
+      "n_states": 512,
+      "k_nn": 64,
+      "n_pairs": 2560,
+      "action_dim": 5,
+      "obs_dim": 28,
+      "peak_median": 1.637094497680664,
+      "peak_frac_positive": 0.639453125,
+      "peak_q25": -0.2341604232788086,
+      "peak_q75": 6.469544887542725,
+      "peak_per_goal_median": [
+        1.9021663665771484,
+        2.841958999633789,
+        1.3508720397949219,
+        1.935955286026001,
+        0.47254371643066406
+      ],
+      "peak_per_goal_frac": [
+        0.66015625,
+        0.697265625,
+        0.603515625,
+        0.666015625,
+        0.5703125
+      ],
+      "departure_whitened_median": 3.3386340141296387,
+      "departure_whitened_q75": 8.348200798034668,
+      "departure_raw_perdim_median": 0.23861058056354523,
+      "coverage_cond_nn_median": 1.1275553703308105,
+      "coverage_cond_nn_median_perdim": 0.5042580912909284,
+      "coverage_marg_nn_median": 0.7955865859985352,
+      "coverage_marg_nn_median_perdim": 0.3557971376559414,
+      "coverage_uniform_null_perdim": 0.2912873272707163,
+      "coverage_cond_narrowness_vs_uniform": 1.7311363869334468,
+      "coverage_marg_narrowness_vs_uniform": 1.221464527790016
+    },
+    "antmaze": {
+      "env": "antmaze-medium-navigate-v0",
+      "ckpt": "/home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/GCIQL-AntMaze-Medium-Bilinear-d50-DDPGBC/sd000_20260625_193818",
+      "step": 500000,
+      "n_states": 512,
+      "k_nn": 64,
+      "n_pairs": 2560,
+      "action_dim": 8,
+      "obs_dim": 29,
+      "peak_median": -0.7959442138671875,
+      "peak_frac_positive": 0.003125,
+      "peak_q25": -1.8976311683654785,
+      "peak_q75": -0.39006805419921875,
+      "peak_per_goal_median": [
+        -0.7567176818847656,
+        -0.8016719818115234,
+        -0.8810968399047852,
+        -0.8230218887329102,
+        -0.7353200912475586
+      ],
+      "peak_per_goal_frac": [
+        0.001953125,
+        0.0078125,
+        0.00390625,
+        0.0,
+        0.001953125
+      ],
+      "departure_whitened_median": 0.8192790746688843,
+      "departure_whitened_q75": 0.9468934535980225,
+      "departure_raw_perdim_median": 0.1410582959651947,
+      "coverage_cond_nn_median": 1.769081711769104,
+      "coverage_cond_nn_median_perdim": 0.6254648374325193,
+      "coverage_marg_nn_median": 1.338518500328064,
+      "coverage_marg_nn_median_perdim": 0.473237754162811,
+      "coverage_uniform_null_perdim": 0.4011565499160636,
+      "coverage_cond_narrowness_vs_uniform": 1.5591539950261042,
+      "coverage_marg_narrowness_vs_uniform": 1.1796834783373957
+    },
+    "scene": {
+      "env": "scene-play-v0",
+      "ckpt": "/home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/GCIQL-Scene-Bilinear-d50-DDPGBC/scene_state_gciql_bilinear_d50_ddpgbc_s0",
+      "step": 500000,
+      "n_states": 512,
+      "k_nn": 64,
+      "n_pairs": 2560,
+      "action_dim": 5,
+      "obs_dim": 40,
+      "peak_median": -1.0522327423095703,
+      "peak_frac_positive": 0.013671875,
+      "peak_q25": -2.3230133056640625,
+      "peak_q75": -0.4829568862915039,
+      "peak_per_goal_median": [
+        -0.9008426666259766,
+        -1.0199451446533203,
+        -1.1259822845458984,
+        -1.0044231414794922,
+        -1.2434310913085938
+      ],
+      "peak_per_goal_frac": [
+        0.025390625,
+        0.009765625,
+        0.009765625,
+        0.009765625,
+        0.013671875
+      ],
+      "departure_whitened_median": 0.8001911640167236,
+      "departure_whitened_q75": 1.0135397911071777,
+      "departure_raw_perdim_median": 0.05609395354986191,
+      "coverage_cond_nn_median": 1.06027090549469,
+      "coverage_cond_nn_median_perdim": 0.47416756385027636,
+      "coverage_marg_nn_median": 0.7466550469398499,
+      "coverage_marg_nn_median_perdim": 0.3339142881401601,
+      "coverage_uniform_null_perdim": 0.2912873272707163,
+      "coverage_cond_narrowness_vs_uniform": 1.627834510663744,
+      "coverage_marg_narrowness_vs_uniform": 1.146339908669721
+    }
+  },
+  "cube_sanity_gate": {
+    "frac": 0.639453125,
+    "passes": true,
+    "note": "expect qualitative replication of 79%/+2.14 (reference cloud differs: dataset-NN, not mu-flow)"
+  },
+  "coverage_ratio_cube_over_antmaze_perdim": 0.8062133330482102,
+  "coverage_narrowness_ratio_cube_over_antmaze": 1.1103049425880882
+}

@@ -1,0 +1,6 @@
+LAUNCHED gpu=3 rldp_tdj-walker-s0
+== 1 cells; manifest logs/exorl-official-20260831-184457.txt ==
+LAUNCHED gpu=4 rldp_tdj-walker-s1
+== 1 cells; manifest logs/exorl-official-20260831-184457.txt ==
+LAUNCHED gpu=5 rldp_tdj-walker-s2
+== 1 cells; manifest logs/exorl-official-20260831-184457.txt ==

@@ -1,0 +1,27 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/fb.py:88: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+/home/adityamohan/git/Factored-FB-seam/impls/critics/density_fb.py:1258: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_2/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_2/params_1000000.pkl (params only)
+  [rv seed2] inhand 8/64 (82s)
+  [rv seed2] inhand 16/64 (161s)
+  [rv seed2] inhand 24/64 (240s)
+  [rv seed2] inhand 32/64 (321s)
+  [rv seed2] inhand 40/64 (405s)
+  [rv seed2] inhand 48/64 (478s)
+  [rv seed2] inhand 56/64 (548s)
+  [rv seed2] inhand 64/64 (629s)
+[rv] seed 2: 1 bank files in 630s

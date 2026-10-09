@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-Anneal-Shared",
+ "seed": "cube_single_state_gciql_flow_anneal_shared_s2",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-Anneal-Shared/cube_single_state_gciql_flow_anneal_shared_s2",
+ "step": 400000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.23,
+  "grasped": 0.79
+ },
+ "C2": {
+  "success": 0.05,
+  "grasped": 0.14
+ },
+ "C3": {
+  "success": 0.01,
+  "grasped": 0.12
+ },
+ "C4": {
+  "success": 0.11,
+  "grasped": 0.71
+ },
+ "secs": 41.7
+}

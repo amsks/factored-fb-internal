@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "HIQL-State-Bilinear-d50",
+ "seed": "cube_single_state_hiql_bilinear_d50_s2",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/HIQL-State-Bilinear-d50/cube_single_state_hiql_bilinear_d50_s2",
+ "step": 500000,
+ "agent_name": "hiql",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.5,
+  "grasped": 0.88
+ },
+ "C2": {
+  "success": 0.28,
+  "grasped": 0.96
+ },
+ "C4": {
+  "success": 0.22,
+  "grasped": 0.95
+ },
+ "C3": {
+  "success": 0.17,
+  "grasped": 0.99
+ },
+ "secs": 500.1
+}

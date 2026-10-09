@@ -1,0 +1,17 @@
+{
+  "02": {
+    "dir": "/home/adityamohan/bridge_ckpt_backup/factored-fb_outputs/2026-05-14_21-36-10__cube-single-play-v0__fb_flowbc__s0",
+    "ckpt": "/home/adityamohan/bridge_ckpt_backup/factored-fb_outputs/2026-05-14_21-36-10__cube-single-play-v0__fb_flowbc__s0/checkpoints/final.pt",
+    "corr": 0.0689
+  },
+  "03": {
+    "dir": "/home/adityamohan/bridge_ckpt_backup/factored-fb_outputs/cube-single-play-v0__fb_flowbc__s0",
+    "ckpt": "/home/adityamohan/bridge_ckpt_backup/factored-fb_outputs/cube-single-play-v0__fb_flowbc__s0/checkpoints/final.pt",
+    "corr": 0.1018
+  },
+  "05": {
+    "dir": "/home/adityamohan/bridge_ckpt_backup/factored-fb_outputs/2026-05-14_21-34-52__cube-single-play-v0__fb_flowbc__s0",
+    "ckpt": "/home/adityamohan/bridge_ckpt_backup/factored-fb_outputs/2026-05-14_21-34-52__cube-single-play-v0__fb_flowbc__s0/checkpoints/final.pt",
+    "corr": 0.0485
+  }
+}

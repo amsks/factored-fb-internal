@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_cube_her_idnorm_r1",
+ "seed": "hernrm_s1",
+ "dir": "/dev/shm/phase2_out/hernrm_s1",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/phase2_out/hernrm_s1/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.47,
+  "grasped": 0.96
+ },
+ "C2_zB": {
+  "success": 0.16,
+  "grasped": 0.92
+ },
+ "C3_zB": {
+  "success": 0.11,
+  "grasped": 0.98
+ },
+ "C2_zR": {
+  "success": 0.28,
+  "grasped": 0.96
+ },
+ "C3_zR": {
+  "success": 0.16,
+  "grasped": 0.99
+ },
+ "C4_zB": {
+  "success": 0.42,
+  "grasped": 0.99
+ },
+ "secs": 35.3
+}

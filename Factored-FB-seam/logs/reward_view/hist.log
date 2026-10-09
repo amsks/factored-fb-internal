@@ -1,0 +1,32 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/fb.py:88: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+/home/adityamohan/git/Factored-FB-seam/impls/critics/density_fb.py:1258: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_0/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+[hist] seed 0: 20000 states x 5 tasks, positives per task [375, 448, 470, 446, 461] (117s)
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_1/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_1/params_1000000.pkl (params only)
+[hist] seed 1: 20000 states x 5 tasks, positives per task [375, 448, 470, 446, 461] (160s)
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_2/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_2/params_1000000.pkl (params only)
+[hist] seed 2: 20000 states x 5 tasks, positives per task [375, 448, 470, 446, 461] (201s)
+=== reward view on dataset states: separation of true-reward-1 from reward-0 states (task 0 = pooled) ===
+      critic     method  task  n_seeds  auc_pooled  dprime_pooled  auc_mean  auc_min  auc_max  dprime_mean   n1     n0
+density_fb_z Density-FB     0        3       0.998          8.846     0.998    0.998    0.998        8.799 6600 293400
+density_fb_z Density-FB     1        3       0.998          8.315     0.998    0.998    0.998        8.315 1125  58875
+density_fb_z Density-FB     2        3       0.998          9.612     0.998    0.998    0.998        9.612 1344  58656
+density_fb_z Density-FB     3        3       0.998          8.264     0.998    0.998    0.999        8.263 1410  58590
+density_fb_z Density-FB     4        3       0.999          8.833     0.999    0.999    0.999        8.833 1338  58662
+density_fb_z Density-FB     5        3       0.998          9.139     0.998    0.998    0.999        9.139 1383  58617
+      fb_tdj         FB     0        3       0.855          1.564     0.856    0.834    0.884        1.564 6600 293400
+      fb_tdj         FB     1        3       0.761          1.013     0.762    0.740    0.792        1.013 1125  58875
+      fb_tdj         FB     2        3       0.892          1.752     0.893    0.878    0.917        1.752 1344  58656
+      fb_tdj         FB     3        3       0.851          1.570     0.851    0.823    0.875        1.570 1410  58590
+      fb_tdj         FB     4        3       0.874          1.620     0.874    0.842    0.912        1.620 1338  58662
+      fb_tdj         FB     5        3       0.881          1.770     0.881    0.859    0.906        1.770 1383  58617
+[fig] PAPER/ICLR/figures/gap_preservation/fig_reward_view_hist.pdf/.png

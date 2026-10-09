@@ -1,0 +1,12 @@
+[select] 1152 (critic, seed, bank, state) rows, 12 candidates each -> PAPER/ICLR/figures/gap_preservation/intervention_selection.csv
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_2/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_2/params_1000000.pkl (params only)
+  [int seed2] approach 8/64 (194s) FB acto 0.62 crit 0.64 roll 0.68 | Density-FB acto 1.00 crit 0.99 roll 0.97
+  [int seed2] approach 16/64 (366s) FB acto 0.54 crit 0.53 roll 0.54 | Density-FB acto 0.91 crit 0.84 roll 0.93
+  [int seed2] approach 24/64 (549s) FB acto 0.45 crit 0.44 roll 0.45 | Density-FB acto 0.89 crit 0.81 roll 0.92
+  [int seed2] approach 32/64 (728s) FB acto 0.41 crit 0.43 roll 0.44 | Density-FB acto 0.85 crit 0.79 roll 0.93
+  [int seed2] approach 40/64 (911s) FB acto 0.46 crit 0.48 roll 0.48 | Density-FB acto 0.85 crit 0.78 roll 0.94
+  [int seed2] approach 48/64 (1091s) FB acto 0.46 crit 0.48 roll 0.48 | Density-FB acto 0.87 crit 0.80 roll 0.94
+  [int seed2] approach 56/64 (1258s) FB acto 0.45 crit 0.45 roll 0.46 | Density-FB acto 0.87 crit 0.80 roll 0.93
+  [int seed2] approach 64/64 (1435s) FB acto 0.47 crit 0.47 roll 0.48 | Density-FB acto 0.89 crit 0.83 roll 0.94
+[int] seed 2 approach: 3840 rollout rows in 1435s -> analysis/failure_figs/cube-single-play-v0/intervention/rollouts_seed2_approach.csv

@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.1.1, pluggy-1.6.0
+rootdir: /home/adityamohan/git/Factored-FB-seam
+configfile: pyproject.toml
+plugins: typeguard-4.5.2, anyio-4.14.2
+collected 54 items
+
+tests/impls/test_rldp_density_levers.py .................                [ 31%]
+tests/impls/test_rldp_density_inference.py ...............               [ 59%]
+tests/impls/test_hilp_density_levers.py ............                     [ 81%]
+tests/impls/test_hilp_density_contracts.py ..........                    [100%]
+
+=============================== warnings summary ===============================
+../../../../dev/shm/.venv-jax/lib/python3.11/site-packages/tensorflow_probability/python/internal/backend/jax/ops.py:684
+  /dev/shm/.venv-jax/lib/python3.11/site-packages/tensorflow_probability/python/internal/backend/jax/ops.py:684: DeprecationWarning: jax.core.pytype_aval_mappings is deprecated.
+    jax.core.pytype_aval_mappings[onp.ndarray])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 54 passed, 1 warning in 113.92s (0:01:53) ===================

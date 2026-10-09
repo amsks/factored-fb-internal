@@ -1,0 +1,111 @@
+{
+  "meta_renewal": {
+    "kind": "renewal",
+    "input": "psi",
+    "run_dir": "/home/adityamohan/exp_spec06/factored-fb/GCIQL-State-Flow-Measure-FirstPassage-NoOrtho-d50/m_firstpassage_noortho_s2",
+    "checkpoint_step": 500000,
+    "epsilon": 0.4,
+    "gamma": 0.99,
+    "obs_cube_slice": [
+      19,
+      22
+    ],
+    "n_goals": 2000,
+    "coverage": 1.0,
+    "entries_per_goal_mean": 509.676,
+    "target_mean": 24.726292614495875,
+    "target_var": 226.977470042939,
+    "flat_R_var_over_mean_sq": 0.3712485294490594,
+    "train_mse": 0.07449448570401329,
+    "n_transitions": 1000000,
+    "holdout": 100,
+    "seed": 0,
+    "created": "2026-07-22 19:14:50",
+    "spec": "specs/07-fp-capability-and-renewal-measure.md item 2a"
+  },
+  "meta_fp_mu": {
+    "kind": "fp_mu",
+    "input": "raw_s_a_cubeg",
+    "input_note": "raw [s, a, cube(g)] (37-dim): tower-free appendix object; documented choice per spec 07 2b",
+    "epsilon": 0.4,
+    "gamma": 0.99,
+    "n_pairs": 20000,
+    "censor_fraction": 0.7823,
+    "train_mse": 0.00236956680720531,
+    "seed": 1,
+    "created": "2026-07-22 19:14:58",
+    "spec": "specs/07-fp-capability-and-renewal-measure.md item 2b"
+  },
+  "fidelity_fp_x_R": {
+    "overall": {
+      "n": 13759,
+      "spearman": 0.5034835951279504,
+      "calib_slope": 0.5552470795858603
+    },
+    "K<=5": {
+      "n": 5990,
+      "spearman": 0.5983047358069311,
+      "calib_slope": 0.667259370016979
+    },
+    "5<K<=20": {
+      "n": 3962,
+      "spearman": 0.6121770645048198,
+      "calib_slope": 0.773122962957113
+    },
+    "K>20": {
+      "n": 3807,
+      "spearman": 0.6204793098788121,
+      "calib_slope": 0.670403546920203
+    }
+  },
+  "fidelity_fp_only": {
+    "overall": {
+      "n": 13759,
+      "spearman": 0.05984985817632526,
+      "calib_slope": 3.6827995174056922
+    },
+    "K<=5": {
+      "n": 5990,
+      "spearman": -0.1170399783740386,
+      "calib_slope": -23.024172896652676
+    },
+    "5<K<=20": {
+      "n": 3962,
+      "spearman": 0.33107518389235213,
+      "calib_slope": 26.5083326741375
+    },
+    "K>20": {
+      "n": 3807,
+      "spearman": 0.29403772636191045,
+      "calib_slope": 9.100171992396637
+    }
+  },
+  "R_pred_mean": 24.59279598073111,
+  "R_pred_var": 222.77718224577254,
+  "R_pred_var_over_mean_sq": 0.36834509639748547,
+  "fid_queries": 2000,
+  "fidelity_fpmu_x_R": {
+    "overall": {
+      "n": 13759,
+      "spearman": 0.5028836054363364,
+      "calib_slope": 0.6300683407535181
+    },
+    "K<=5": {
+      "n": 5990,
+      "spearman": 0.5162587058299732,
+      "calib_slope": 0.5519275076949038
+    },
+    "5<K<=20": {
+      "n": 3962,
+      "spearman": 0.5839134411325182,
+      "calib_slope": 0.7672983610674883
+    },
+    "K>20": {
+      "n": 3807,
+      "spearman": 0.5321861003656165,
+      "calib_slope": 0.962046052855361
+    }
+  },
+  "checkpoint_sha256": "a045c98a002d84062f30413f63cb24608d3cd5f6e02a0c0368b2b00434cc395d",
+  "checkpoint_unchanged": true
+}

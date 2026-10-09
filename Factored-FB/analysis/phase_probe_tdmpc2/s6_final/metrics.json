@@ -1,0 +1,23 @@
+{
+  "config": "/dev/shm/factored-fb/runs/20260529_002709__tdmpc2_state_10seeds__s6/.hydra/config.yaml",
+  "checkpoint": "/dev/shm/factored-fb/runs/20260529_002709__tdmpc2_state_10seeds__s6/checkpoints/final.pt",
+  "tasks": [
+    "cube-single-play-singletask-task1-v0",
+    "cube-single-play-singletask-task2-v0",
+    "cube-single-play-singletask-task3-v0",
+    "cube-single-play-singletask-task4-v0",
+    "cube-single-play-singletask-task5-v0"
+  ],
+  "scenarios": [
+    "S0",
+    "S1",
+    "S2"
+  ],
+  "thresholds": {
+    "eps_reach": 0.06,
+    "delta_lift": 0.03,
+    "k_steps": 5,
+    "tau_grip": 0.5
+  },
+  "n_episodes": 10
+}

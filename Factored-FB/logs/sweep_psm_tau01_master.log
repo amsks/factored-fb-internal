@@ -1,0 +1,15 @@
+[grid] AGENT=psm_flowbc  6 jobs  grid target_tau{0.01} x lr_phi{1e-4 1e-5} x seeds{0 1 2}
+[grid] 8 GPUs x 2/GPU = 16 parallel  steps=500000  logs -> /home/adityamohan/git/Factored-FB/logs/grid_20260608_205946
+[grid] 20:59:46 launch psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-4__s0 on GPU0 (slot 0)
+[grid] 20:59:46 launch psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-4__s1 on GPU1 (slot 1)
+[grid] 20:59:46 launch psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-4__s2 on GPU2 (slot 2)
+[grid] 20:59:46 launch psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-5__s0 on GPU3 (slot 3)
+[grid] 20:59:46 launch psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-5__s1 on GPU4 (slot 4)
+[grid] 20:59:46 launch psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-5__s2 on GPU5 (slot 5)
+[grid] 02:02:15 DONE psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-4__s1 rc=0
+[grid] 02:03:58 DONE psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-4__s0 rc=0
+[grid] 02:09:24 DONE psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-5__s0 rc=0
+[grid] 02:14:23 DONE psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-5__s2 rc=0
+[grid] 02:14:37 DONE psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-5__s1 rc=0
+[grid] 02:18:50 DONE psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-4__s2 rc=0
+[grid] all done -> /home/adityamohan/git/Factored-FB/logs/grid_20260608_205946 (0 job(s) exited nonzero)

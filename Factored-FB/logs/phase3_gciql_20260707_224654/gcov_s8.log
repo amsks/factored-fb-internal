@@ -1,0 +1,43 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Traceback (most recent call last):
+  File "/home/adityamohan/git/Factored-FB/scripts/profiles/gciql_profile.py", line 299, in <module>
+    main()
+  File "/home/adityamohan/git/Factored-FB/scripts/profiles/gciql_profile.py", line 277, in main
+    episodes, flags = _jax_rollout(
+                      ^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/scripts/profiles/gciql_profile.py", line 214, in _jax_rollout
+    agent = restore_agent(agent, str(run_dir), step)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/third_party/ogbench/impls/utils/flax_utils.py", line 198, in restore_agent
+    agent = flax.serialization.from_state_dict(agent, load_dict['agent'])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 177, in _restore_dict
+    return {
+           ^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 178, in <dictcomp>
+    key: from_state_dict(value, states[str(key)], name=str(key))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 171, in _restore_dict
+    raise ValueError(
+ValueError: The target dict keys and state dict keys do not match, target dict contains keys {'actor_net', 'mean_net'} which are not present in state dict at path ./network/params/modules_actor

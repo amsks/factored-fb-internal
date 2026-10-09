@@ -1,0 +1,573 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec18x/factored-fb/GCIQL-CubeDouble-Flow-Measure-Density-d50/d18x_cd_dens_s0",
+    "checkpoint_step": 500000,
+    "env": "cube-double-play-v0",
+    "d": 50,
+    "is_z_checkpoint": false,
+    "seed": 0,
+    "pool_size": 16384,
+    "e2b_candidate_size": 4096,
+    "relabel_size": 50000,
+    "temp": 1.0,
+    "double_q": true,
+    "regions": 4,
+    "regions_rejected": 0,
+    "hit_spec": "19:22:0.4,28:31:0.4",
+    "ridge_lambda": {
+      "0.001": 2.4980296207598314,
+      "0.01": 24.980296207598315,
+      "0.1": 249.80296207598315
+    },
+    "metric": "coordinate percentile = fraction of the 4096 candidates strictly closer (eps-scaled coords) to the true reward center than the selected candidate. 0 = best, 0.50 = chance, LOWER IS BETTER. Aggregate = mean of per-family means (the archived spec-27 convention, pinned by reproducing .35/.47).",
+    "readout_only": "the ridge index is used ONLY to rank candidates; it is never fed to F or the actor (not norm-preserving; ||z||=sqrt(d) is required wherever z conditions either). No rollouts anywhere in this script.",
+    "spec": "PAPER/Multistep-FB/specs/28-z-interface-canonicalization.md P0c"
+  },
+  "aggregate_family_mean": {
+    "readout": 0.0003173828125,
+    "moment": 0.00036214192708333335,
+    "moment_braw": 0.1298828125,
+    "ridge_0.001": 0.0003458658854166667,
+    "ridge_0.01": 0.0005045572916666667,
+    "ridge_0.1": 0.0015909830729166667,
+    "ridge_0.001_braw": 0.00030517578125,
+    "ridge_0.01_braw": 0.0005045572916666667,
+    "ridge_0.1_braw": 0.00029296875
+  },
+  "aggregate_flat_mean": {
+    "readout": 0.00033133370535714287,
+    "moment": 0.00038364955357142856,
+    "moment_braw": 0.129150390625,
+    "ridge_0.001": 0.00033133370535714287,
+    "ridge_0.01": 0.00047084263392857144,
+    "ridge_0.1": 0.00146484375,
+    "ridge_0.001_braw": 0.0002964564732142857,
+    "ridge_0.01_braw": 0.00047084263392857144,
+    "ridge_0.1_braw": 0.0002964564732142857
+  },
+  "per_family": {
+    "readout": {
+      "dirac": 0.00029296875,
+      "dense": 0.000537109375,
+      "region": 0.0001220703125
+    },
+    "moment": {
+      "dirac": 0.0001953125,
+      "dense": 0.000830078125,
+      "region": 6.103515625e-05
+    },
+    "moment_braw": {
+      "dirac": 0.124755859375,
+      "dense": 0.124755859375,
+      "region": 0.14013671875
+    },
+    "ridge_0.001": {
+      "dirac": 0.000439453125,
+      "dense": 4.8828125e-05,
+      "region": 0.00054931640625
+    },
+    "ridge_0.01": {
+      "dirac": 0.000439453125,
+      "dense": 9.765625e-05,
+      "region": 0.0009765625
+    },
+    "ridge_0.1": {
+      "dirac": 0.000537109375,
+      "dense": 0.00087890625,
+      "region": 0.00335693359375
+    },
+    "ridge_0.001_braw": {
+      "dirac": 0.000439453125,
+      "dense": 4.8828125e-05,
+      "region": 0.00042724609375
+    },
+    "ridge_0.01_braw": {
+      "dirac": 0.000439453125,
+      "dense": 9.765625e-05,
+      "region": 0.0009765625
+    },
+    "ridge_0.1_braw": {
+      "dirac": 0.000537109375,
+      "dense": 9.765625e-05,
+      "region": 0.000244140625
+    }
+  },
+  "cells": {
+    "dirac/t1": {
+      "family": "dirac",
+      "center_coord": [
+        0.0,
+        9.364412840780232e-20,
+        0.1995989978313446,
+        0.0,
+        1.0,
+        0.1995989978313446
+      ],
+      "n_hit_pool": 4,
+      "sel": {
+        "readout": 2606,
+        "moment": 2606,
+        "moment_braw": 2776,
+        "ridge_0.001": 2606,
+        "ridge_0.001_braw": 2606,
+        "ridge_0.01": 2606,
+        "ridge_0.01_braw": 2606,
+        "ridge_0.1": 2606,
+        "ridge_0.1_braw": 2606
+      },
+      "pct": {
+        "readout": 0.0,
+        "moment": 0.0,
+        "moment_braw": 0.092041015625,
+        "ridge_0.001": 0.0,
+        "ridge_0.001_braw": 0.0,
+        "ridge_0.01": 0.0,
+        "ridge_0.01_braw": 0.0,
+        "ridge_0.1": 0.0,
+        "ridge_0.1_braw": 0.0
+      }
+    },
+    "dirac/t2": {
+      "family": "dirac",
+      "center_coord": [
+        -0.75,
+        1.0,
+        0.1995989978313446,
+        0.75,
+        1.0,
+        0.1995989978313446
+      ],
+      "n_hit_pool": 6,
+      "sel": {
+        "readout": 367,
+        "moment": 2442,
+        "moment_braw": 2776,
+        "ridge_0.001": 2039,
+        "ridge_0.001_braw": 2039,
+        "ridge_0.01": 2039,
+        "ridge_0.01_braw": 2039,
+        "ridge_0.1": 2039,
+        "ridge_0.1_braw": 2039
+      },
+      "pct": {
+        "readout": 0.00048828125,
+        "moment": 0.0,
+        "moment_braw": 0.09716796875,
+        "ridge_0.001": 0.001220703125,
+        "ridge_0.001_braw": 0.001220703125,
+        "ridge_0.01": 0.001220703125,
+        "ridge_0.01_braw": 0.001220703125,
+        "ridge_0.1": 0.001220703125,
+        "ridge_0.1_braw": 0.001220703125
+      }
+    },
+    "dirac/t3": {
+      "family": "dirac",
+      "center_coord": [
+        0.0,
+        -2.0,
+        0.1995989978313446,
+        0.0,
+        2.0,
+        0.1995989978313446
+      ],
+      "n_hit_pool": 15,
+      "sel": {
+        "readout": 3274,
+        "moment": 3274,
+        "moment_braw": 3033,
+        "ridge_0.001": 3274,
+        "ridge_0.001_braw": 3274,
+        "ridge_0.01": 3274,
+        "ridge_0.01_braw": 3274,
+        "ridge_0.1": 3274,
+        "ridge_0.1_braw": 3274
+      },
+      "pct": {
+        "readout": 0.0,
+        "moment": 0.0,
+        "moment_braw": 0.127197265625,
+        "ridge_0.001": 0.0,
+        "ridge_0.001_braw": 0.0,
+        "ridge_0.01": 0.0,
+        "ridge_0.01_braw": 0.0,
+        "ridge_0.1": 0.0,
+        "ridge_0.1_braw": 0.0
+      }
+    },
+    "dirac/t4": {
+      "family": "dirac",
+      "center_coord": [
+        0.0,
+        1.0,
+        0.1995989978313446,
+        0.0,
+        -1.0,
+        0.1995989978313446
+      ],
+      "n_hit_pool": 8,
+      "sel": {
+        "readout": 3899,
+        "moment": 3899,
+        "moment_braw": 2776,
+        "ridge_0.001": 3899,
+        "ridge_0.001_braw": 3899,
+        "ridge_0.01": 3899,
+        "ridge_0.01_braw": 3899,
+        "ridge_0.1": 3899,
+        "ridge_0.1_braw": 3899
+      },
+      "pct": {
+        "readout": 0.00048828125,
+        "moment": 0.00048828125,
+        "moment_braw": 0.228515625,
+        "ridge_0.001": 0.00048828125,
+        "ridge_0.001_braw": 0.00048828125,
+        "ridge_0.01": 0.00048828125,
+        "ridge_0.01_braw": 0.00048828125,
+        "ridge_0.1": 0.00048828125,
+        "ridge_0.1_braw": 0.00048828125
+      }
+    },
+    "dirac/t5": {
+      "family": "dirac",
+      "center_coord": [
+        0.0,
+        1.2427448199252768e-17,
+        0.19921377301216125,
+        0.0,
+        1.7228861905389282e-17,
+        0.5990393161773682
+      ],
+      "n_hit_pool": 18,
+      "sel": {
+        "readout": 2305,
+        "moment": 2305,
+        "moment_braw": 2776,
+        "ridge_0.001": 2305,
+        "ridge_0.001_braw": 2305,
+        "ridge_0.01": 2305,
+        "ridge_0.01_braw": 2305,
+        "ridge_0.1": 1639,
+        "ridge_0.1_braw": 1639
+      },
+      "pct": {
+        "readout": 0.00048828125,
+        "moment": 0.00048828125,
+        "moment_braw": 0.078857421875,
+        "ridge_0.001": 0.00048828125,
+        "ridge_0.001_braw": 0.00048828125,
+        "ridge_0.01": 0.00048828125,
+        "ridge_0.01_braw": 0.00048828125,
+        "ridge_0.1": 0.0009765625,
+        "ridge_0.1_braw": 0.0009765625
+      }
+    },
+    "dense/t1": {
+      "family": "dense",
+      "center_coord": [
+        0.0,
+        9.364412840780232e-20,
+        0.1995989978313446,
+        0.0,
+        1.0,
+        0.1995989978313446
+      ],
+      "n_hit_pool": null,
+      "sel": {
+        "readout": 1497,
+        "moment": 1522,
+        "moment_braw": 2776,
+        "ridge_0.001": 2606,
+        "ridge_0.001_braw": 2606,
+        "ridge_0.01": 2606,
+        "ridge_0.01_braw": 2606,
+        "ridge_0.1": 2606,
+        "ridge_0.1_braw": 2606
+      },
+      "pct": {
+        "readout": 0.00048828125,
+        "moment": 0.000732421875,
+        "moment_braw": 0.092041015625,
+        "ridge_0.001": 0.0,
+        "ridge_0.001_braw": 0.0,
+        "ridge_0.01": 0.0,
+        "ridge_0.01_braw": 0.0,
+        "ridge_0.1": 0.0,
+        "ridge_0.1_braw": 0.0
+      }
+    },
+    "dense/t2": {
+      "family": "dense",
+      "center_coord": [
+        -0.75,
+        1.0,
+        0.1995989978313446,
+        0.75,
+        1.0,
+        0.1995989978313446
+      ],
+      "n_hit_pool": null,
+      "sel": {
+        "readout": 367,
+        "moment": 1424,
+        "moment_braw": 2776,
+        "ridge_0.001": 2442,
+        "ridge_0.001_braw": 2442,
+        "ridge_0.01": 2442,
+        "ridge_0.01_braw": 2442,
+        "ridge_0.1": 2442,
+        "ridge_0.1_braw": 2442
+      },
+      "pct": {
+        "readout": 0.00048828125,
+        "moment": 0.00341796875,
+        "moment_braw": 0.09716796875,
+        "ridge_0.001": 0.0,
+        "ridge_0.001_braw": 0.0,
+        "ridge_0.01": 0.0,
+        "ridge_0.01_braw": 0.0,
+        "ridge_0.1": 0.0,
+        "ridge_0.1_braw": 0.0
+      }
+    },
+    "dense/t3": {
+      "family": "dense",
+      "center_coord": [
+        0.0,
+        -2.0,
+        0.1995989978313446,
+        0.0,
+        2.0,
+        0.1995989978313446
+      ],
+      "n_hit_pool": null,
+      "sel": {
+        "readout": 3274,
+        "moment": 3274,
+        "moment_braw": 3033,
+        "ridge_0.001": 3274,
+        "ridge_0.001_braw": 3274,
+        "ridge_0.01": 3274,
+        "ridge_0.01_braw": 3274,
+        "ridge_0.1": 318,
+        "ridge_0.1_braw": 3274
+      },
+      "pct": {
+        "readout": 0.0,
+        "moment": 0.0,
+        "moment_braw": 0.127197265625,
+        "ridge_0.001": 0.0,
+        "ridge_0.001_braw": 0.0,
+        "ridge_0.01": 0.0,
+        "ridge_0.01_braw": 0.0,
+        "ridge_0.1": 0.00390625,
+        "ridge_0.1_braw": 0.0
+      }
+    },
+    "dense/t4": {
+      "family": "dense",
+      "center_coord": [
+        0.0,
+        1.0,
+        0.1995989978313446,
+        0.0,
+        -1.0,
+        0.1995989978313446
+      ],
+      "n_hit_pool": null,
+      "sel": {
+        "readout": 3568,
+        "moment": 3568,
+        "moment_braw": 2776,
+        "ridge_0.001": 3625,
+        "ridge_0.001_braw": 3625,
+        "ridge_0.01": 3899,
+        "ridge_0.01_braw": 3899,
+        "ridge_0.1": 3899,
+        "ridge_0.1_braw": 3899
+      },
+      "pct": {
+        "readout": 0.0,
+        "moment": 0.0,
+        "moment_braw": 0.228515625,
+        "ridge_0.001": 0.000244140625,
+        "ridge_0.001_braw": 0.000244140625,
+        "ridge_0.01": 0.00048828125,
+        "ridge_0.01_braw": 0.00048828125,
+        "ridge_0.1": 0.00048828125,
+        "ridge_0.1_braw": 0.00048828125
+      }
+    },
+    "dense/t5": {
+      "family": "dense",
+      "center_coord": [
+        0.0,
+        1.2427448199252768e-17,
+        0.19921377301216125,
+        0.0,
+        1.7228861905389282e-17,
+        0.5990393161773682
+      ],
+      "n_hit_pool": null,
+      "sel": {
+        "readout": 2739,
+        "moment": 2309,
+        "moment_braw": 2776,
+        "ridge_0.001": 2309,
+        "ridge_0.001_braw": 2309,
+        "ridge_0.01": 2309,
+        "ridge_0.01_braw": 2309,
+        "ridge_0.1": 2309,
+        "ridge_0.1_braw": 2309
+      },
+      "pct": {
+        "readout": 0.001708984375,
+        "moment": 0.0,
+        "moment_braw": 0.078857421875,
+        "ridge_0.001": 0.0,
+        "ridge_0.001_braw": 0.0,
+        "ridge_0.01": 0.0,
+        "ridge_0.01_braw": 0.0,
+        "ridge_0.1": 0.0,
+        "ridge_0.1_braw": 0.0
+      }
+    },
+    "region/c0": {
+      "family": "region",
+      "center_coord": [
+        -0.14507551491260529,
+        -0.7839939594268799,
+        0.199607253074646,
+        1.131671667098999,
+        1.2365483045578003,
+        0.535377562046051
+      ],
+      "n_hit_pool": 3,
+      "sel": {
+        "readout": 1913,
+        "moment": 1949,
+        "moment_braw": 2776,
+        "ridge_0.001": 1913,
+        "ridge_0.001_braw": 1913,
+        "ridge_0.01": 1913,
+        "ridge_0.01_braw": 1913,
+        "ridge_0.1": 1913,
+        "ridge_0.1_braw": 1913
+      },
+      "pct": {
+        "readout": 0.0,
+        "moment": 0.000244140625,
+        "moment_braw": 0.16162109375,
+        "ridge_0.001": 0.0,
+        "ridge_0.001_braw": 0.0,
+        "ridge_0.01": 0.0,
+        "ridge_0.01_braw": 0.0,
+        "ridge_0.1": 0.0,
+        "ridge_0.1_braw": 0.0
+      }
+    },
+    "region/c1": {
+      "family": "region",
+      "center_coord": [
+        -0.9081528186798096,
+        0.19804082810878754,
+        0.199607253074646,
+        -0.47518113255500793,
+        -0.32575294375419617,
+        0.19904091954231262
+      ],
+      "n_hit_pool": 14,
+      "sel": {
+        "readout": 975,
+        "moment": 975,
+        "moment_braw": 2776,
+        "ridge_0.001": 1320,
+        "ridge_0.001_braw": 1320,
+        "ridge_0.01": 1817,
+        "ridge_0.01_braw": 1817,
+        "ridge_0.1": 1817,
+        "ridge_0.1_braw": 975
+      },
+      "pct": {
+        "readout": 0.0,
+        "moment": 0.0,
+        "moment_braw": 0.1591796875,
+        "ridge_0.001": 0.001708984375,
+        "ridge_0.001_braw": 0.001708984375,
+        "ridge_0.01": 0.00146484375,
+        "ridge_0.01_braw": 0.00146484375,
+        "ridge_0.1": 0.00146484375,
+        "ridge_0.1_braw": 0.0
+      }
+    },
+    "region/c2": {
+      "family": "region",
+      "center_coord": [
+        -0.2127457857131958,
+        -0.4847254753112793,
+        0.199607253074646,
+        0.6542578935623169,
+        2.259143352508545,
+        0.199607253074646
+      ],
+      "n_hit_pool": 26,
+      "sel": {
+        "readout": 2466,
+        "moment": 2550,
+        "moment_braw": 2776,
+        "ridge_0.001": 2550,
+        "ridge_0.001_braw": 2550,
+        "ridge_0.01": 23,
+        "ridge_0.01_braw": 23,
+        "ridge_0.1": 2570,
+        "ridge_0.1_braw": 2466
+      },
+      "pct": {
+        "readout": 0.00048828125,
+        "moment": 0.0,
+        "moment_braw": 0.22705078125,
+        "ridge_0.001": 0.0,
+        "ridge_0.001_braw": 0.0,
+        "ridge_0.01": 0.001953125,
+        "ridge_0.01_braw": 0.001953125,
+        "ridge_0.1": 0.011474609375,
+        "ridge_0.1_braw": 0.00048828125
+      }
+    },
+    "region/c3": {
+      "family": "region",
+      "center_coord": [
+        -0.3395206928253174,
+        -1.1974105834960938,
+        0.199607253074646,
+        0.14022807776927948,
+        0.6516172885894775,
+        0.199607253074646
+      ],
+      "n_hit_pool": 11,
+      "sel": {
+        "readout": 859,
+        "moment": 859,
+        "moment_braw": 3033,
+        "ridge_0.001": 3209,
+        "ridge_0.001_braw": 859,
+        "ridge_0.01": 3209,
+        "ridge_0.01_braw": 3209,
+        "ridge_0.1": 3209,
+        "ridge_0.1_braw": 3209
+      },
+      "pct": {
+        "readout": 0.0,
+        "moment": 0.0,
+        "moment_braw": 0.0126953125,
+        "ridge_0.001": 0.00048828125,
+        "ridge_0.001_braw": 0.0,
+        "ridge_0.01": 0.00048828125,
+        "ridge_0.01_braw": 0.00048828125,
+        "ridge_0.1": 0.00048828125,
+        "ridge_0.1_braw": 0.00048828125
+      }
+    }
+  }
+}

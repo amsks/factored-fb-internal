@@ -1,0 +1,23 @@
+[grid] AGENT=rldp_flowbc  10 jobs  grid ortho_coef{0.001} x lr_b{1e-5} x seeds{0 1 2 3 4 5 6 7 8 9}
+[grid] 8 GPUs x 2/GPU = 16 parallel  steps=1000000  logs -> /home/adityamohan/git/Factored-FB/logs/grid_20260609_072020
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s0 on GPU0 (slot 0)
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s1 on GPU1 (slot 1)
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s2 on GPU2 (slot 2)
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s3 on GPU3 (slot 3)
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s4 on GPU4 (slot 4)
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s5 on GPU5 (slot 5)
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s6 on GPU6 (slot 6)
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s7 on GPU7 (slot 7)
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s8 on GPU0 (slot 8)
+[grid] 07:20:20 launch rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s9 on GPU1 (slot 9)
+[grid] 17:48:00 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s3 rc=0
+[grid] 17:56:04 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s7 rc=0
+[grid] 17:59:05 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s4 rc=0
+[grid] 18:02:30 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s6 rc=0
+[grid] 18:11:55 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s5 rc=0
+[grid] 18:11:57 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s2 rc=0
+[grid] 21:33:13 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s0 rc=0
+[grid] 21:34:27 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s8 rc=0
+[grid] 21:40:25 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s9 rc=0
+[grid] 21:40:55 DONE rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s1 rc=0
+[grid] all done -> /home/adityamohan/git/Factored-FB/logs/grid_20260609_072020 (0 job(s) exited nonzero)

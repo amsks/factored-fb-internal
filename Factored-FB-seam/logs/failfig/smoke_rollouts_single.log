@@ -1,0 +1,28 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/fb.py:87: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_0/params_1000000.pkl (params only)
+[rollouts] fb_tdj_seed0_1000000_smoke: 5 tasks x 2 episodes
+  [fb_tdj_seed0_1000000_smoke] task 1: success 0.50  (10s)
+  [fb_tdj_seed0_1000000_smoke] task 2: success 0.50  (16s)
+  [fb_tdj_seed0_1000000_smoke] task 3: success 0.50  (21s)
+  [fb_tdj_seed0_1000000_smoke] task 4: success 0.00  (27s)
+  [fb_tdj_seed0_1000000_smoke] task 5: success 0.00  (33s)
+[rollouts] fb_tdj_seed0_1000000_smoke: approach=0.00 acquisition=0.20 maintain=0.30 transport=0.20 success=0.30
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/density_fb.py:1237: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+[rollouts] density_fb_z_seed0_1000000_smoke: 5 tasks x 2 episodes
+  [density_fb_z_seed0_1000000_smoke] task 1: success 0.00  (6s)
+  [density_fb_z_seed0_1000000_smoke] task 2: success 0.50  (11s)
+  [density_fb_z_seed0_1000000_smoke] task 3: success 0.50  (17s)
+  [density_fb_z_seed0_1000000_smoke] task 4: success 1.00  (21s)
+  [density_fb_z_seed0_1000000_smoke] task 5: success 0.00  (27s)
+[rollouts] density_fb_z_seed0_1000000_smoke: approach=0.00 acquisition=0.60 maintain=0.00 transport=0.00 success=0.40

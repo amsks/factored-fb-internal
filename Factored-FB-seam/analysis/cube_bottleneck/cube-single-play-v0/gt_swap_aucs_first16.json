@@ -1,0 +1,22 @@
+{
+ "density_fb_state_s0 vs OLD(fb policy)": [
+  0.4,
+  0.65,
+  65.0
+ ],
+ "density_fb_state_s0 vs NEW(density policy)": [
+  0.55,
+  0.5,
+  40.0
+ ],
+ "fb_ref_s0 vs OLD(fb policy)": [
+  0.65,
+  0.9090909090909091,
+  65.0
+ ],
+ "fb_ref_s0 vs NEW(density policy)": [
+  0.475,
+  0.95,
+  40.0
+ ]
+}

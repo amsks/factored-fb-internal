@@ -1,0 +1,123 @@
+{
+  "resolved_configs": [
+    {
+      "path": "exp/tdjtab/cube-double-play-v0_fb_tdj_flowbc_seed_0/config.json",
+      "values": {
+        "discount": 0.99,
+        "z_dim": 50,
+        "num_parallel": 2,
+        "ortho_coef": 1000.0,
+        "backward": {
+          "hidden_dim": 512,
+          "hidden_layers": 4,
+          "norm": true
+        },
+        "f_target_tau": 0.005,
+        "b_target_tau": 0.005,
+        "lr_f": 0.0001,
+        "lr_b": 0.0001
+      },
+      "sha256": "536e1cd0164dc9b14eec37644e571394c03fcedf8ae4c8569060b340dfa63472"
+    },
+    {
+      "path": "exp/tdjtab/cube-double-play-v0_fb_tdj_flowbc_seed_1/config.json",
+      "values": {
+        "discount": 0.99,
+        "z_dim": 50,
+        "num_parallel": 2,
+        "ortho_coef": 1000.0,
+        "backward": {
+          "hidden_dim": 512,
+          "hidden_layers": 4,
+          "norm": true
+        },
+        "f_target_tau": 0.005,
+        "b_target_tau": 0.005,
+        "lr_f": 0.0001,
+        "lr_b": 0.0001
+      },
+      "sha256": "7d9c2b8953555aa844c47dafd5946809403e9f0bffb93d247a55e68c3ad590a8"
+    },
+    {
+      "path": "exp/tdjtab/cube-double-play-v0_fb_tdj_flowbc_seed_2/config.json",
+      "values": {
+        "discount": 0.99,
+        "z_dim": 50,
+        "num_parallel": 2,
+        "ortho_coef": 1000.0,
+        "backward": {
+          "hidden_dim": 512,
+          "hidden_layers": 4,
+          "norm": true
+        },
+        "f_target_tau": 0.005,
+        "b_target_tau": 0.005,
+        "lr_f": 0.0001,
+        "lr_b": 0.0001
+      },
+      "sha256": "6b200773de0918aa7f2818ad9c72404b07d2e3e9800b6199fcda4b9172e3d140"
+    },
+    {
+      "path": "exp/tdjtab/cube-single-play-v0_fb_tdj_flowbc_seed_2/config.json",
+      "values": {
+        "discount": 0.99,
+        "z_dim": 50,
+        "num_parallel": 2,
+        "ortho_coef": 1000.0,
+        "backward": {
+          "hidden_dim": 512,
+          "hidden_layers": 4,
+          "norm": true
+        },
+        "f_target_tau": 0.005,
+        "b_target_tau": 0.005,
+        "lr_f": 0.0001,
+        "lr_b": 0.0001
+      },
+      "sha256": "b75a1307a608de18db5dd78e44c0376f97da95b633ae08326e4aee4550232bfe"
+    },
+    {
+      "path": "exp/tdjtab/antmaze-large-navigate-v0_density_fb_z_flowbc_seed_0/config.json",
+      "values": {
+        "discount": 0.99,
+        "measure_density_dim": 50,
+        "measure_density_temp": 1.0,
+        "measure_density_hard": true,
+        "tau": 0.005
+      },
+      "sha256": "1dad1c04c412be357567ed4b833f34532a3baf0b24765bbdce06dfc0652c871b"
+    },
+    {
+      "path": "exp/tdjtab/antmaze-large-navigate-v0_density_fb_z_flowbc_seed_1/config.json",
+      "values": {
+        "discount": 0.99,
+        "measure_density_dim": 50,
+        "measure_density_temp": 1.0,
+        "measure_density_hard": true,
+        "tau": 0.005
+      },
+      "sha256": "b2d6ecac49305a6fb93b8333f1e24a643e51bf21e9dd05c899c09bb6e0b6660c"
+    },
+    {
+      "path": "exp/tdjtab/antmaze-large-navigate-v0_density_fb_z_flowbc_seed_2/config.json",
+      "values": {
+        "discount": 0.99,
+        "measure_density_dim": 50,
+        "measure_density_temp": 1.0,
+        "measure_density_hard": true,
+        "tau": 0.005
+      },
+      "sha256": "4fdd32ba44e158cf6daec8c67ea751531443130c76b4448af8316389d269a56e"
+    }
+  ],
+  "sources": {
+    "impls/configs/critic/fb_tdj.yaml": "387e7fe06a9d52416273584b27c854e8ee0201f368ac20e8f1d59eb3f15dbd78",
+    "impls/configs/critic/fb.yaml": "70e82a339fbe7a1ec78893e61d31925dfdac4baa60389022ff8dc36f353fbb6b",
+    "impls/configs/critic/density_fb_z.yaml": "d40dd2d30f82fae98e3ec621328fcec863403613864693bccf66419367f20637",
+    "impls/critics/fb.py": "c7a5c9dfbd593a51be482a1753d48a9673a90b3788939f4fe943e8b0dfd738ba",
+    "impls/critics/density_fb.py": "41f89a75564ab4a6a79dbc6401492f6a6c902829622b387f9b27480525a4def8",
+    "impls/utils/networks.py": "769496411a1233619c9b3b3e8c642c56561eb57b2beb45e0360a4d316ee61628"
+  },
+  "one_head_lambda500_correspondence": "Same relative exact-target objective weighting as two identical heads and lambda1000, not a full-algorithm training-parity claim.",
+  "orthogonality_penalty": "lambda/2 * ||C-I||F\u00b2 minus constant lambda*d/2"
+}

@@ -1,0 +1,14 @@
+{
+  "config": "/dev/shm/factored-fb/runs/20260528_055231__rldp_flowbc_state_10seeds__s3/.hydra/config.yaml",
+  "checkpoint": "/dev/shm/factored-fb/runs/20260528_055231__rldp_flowbc_state_10seeds__s3/checkpoints/step_1000000.pt",
+  "tasks": [
+    "cube-single-play-singletask-task1-v0",
+    "cube-single-play-singletask-task2-v0",
+    "cube-single-play-singletask-task3-v0",
+    "cube-single-play-singletask-task4-v0",
+    "cube-single-play-singletask-task5-v0"
+  ],
+  "buffer_sample": 20000,
+  "topk": 256,
+  "q_aggregation": "ensemble-mean over F heads"
+}

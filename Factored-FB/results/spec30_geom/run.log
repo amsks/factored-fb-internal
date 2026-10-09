@@ -1,0 +1,91 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec25_stage1/factored-fb/GCIQL-CubeSingle-Flow-Measure-DensityZ-C3Actor-d50/z25_cs_actor/params_500000.pkl
+[s30] z25_cs_actor: pool P=16384 d=50 (13s)
+[s30] target: ||mu||=1087.781 E||B-mu||=10.566 eff_rank uncentered=1.0002 CENTERED=20.83/50
+[s30] kernel rows done (15s)
+[s30]   point            cos_mean=0.9999 PR=1.00/50
+[s30]   point_centered   cos_mean=0.0013 PR=18.16/50
+[s30]   ridge            cos_mean=0.0057 PR=11.46/50
+[s30]   ridge_centered   cos_mean=0.0045 PR=28.72/50
+[s30] CONTROL GATE: PASS (eff_rank=1.0002, point cos=0.9999)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[s30] t1   AUC point=0.431020305993473 pointC=0.9975940392519492 ridge=0.9973048811242978 ridgeC=0.999670123304081 | out ridge=0.9966297494607599 ridgeC=0.9997271891871194
+[s30] t2   AUC point=0.6059616097795341 pointC=0.9938863546201645 ridge=0.9939191916828646 ridgeC=0.9975091035625545 | out ridge=0.9943344992674135 ridgeC=0.9978833643141812
+[s30] t3   AUC point=0.43963499256764754 pointC=0.9945975677133349 ridge=0.9945156802904537 ridgeC=0.9962445243952169 | out ridge=0.9950402111550329 ridgeC=0.9962366324241936
+[s30] t4   AUC point=0.2557576417000294 pointC=0.9950846495034945 ridge=0.9973616424286935 ridgeC=0.998229609975115 | out ridge=0.9980372887981583 ridgeC=0.9987539634278765
+[s30] t5   AUC point=0.6470389606006376 pointC=0.9984697981615399 ridge=0.997523004859327 ridgeC=0.9992108716493184 | out ridge=0.9965356417535913 ridgeC=0.9991254372813593
+[s30] c0   AUC point=0.6051218580800022 pointC=0.9919656860739468 ridge=0.980351322231769 ridgeC=0.990434788538385 | out ridge=0.9747599426675165 ridgeC=0.9891199942547825
+[s30] c1   AUC point=0.3232266378977891 pointC=0.9984654700245544 ridge=0.9996268019194439 ridgeC=0.9994315380447252 | out ridge=0.9996886079087641 ridgeC=0.999557704227098
+[s30] c2   AUC point=0.24832327377172514 pointC=0.9958499903258143 ridge=0.9990093906672641 ridgeC=0.9989664195486304 | out ridge=0.9988206138902364 ridgeC=0.9987621387409394
+[s30] c3   AUC point=0.28633262393818565 pointC=0.9983872743405287 ridge=0.9994114499147341 ridgeC=0.99912510362054 | out ridge=0.999178973060369 ridgeC=0.9988690155677953
+[s30] shift cos(enc(r),enc(r+1)): moment=1.0000 ridge=0.0347 ridge_centered=1.000000
+[s30] DONE (22s) -> /home/adityamohan/git/Factored-FB/results/spec30_geom/z25_cs_actor.json
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec18/factored-fb/GCIQL-CubeSingle-Flow-Measure-Density-d50/d18_cs_dens_s0/params_500000.pkl
+[s30] d18_cs_dens_s0: pool P=16384 d=50 (13s)
+[s30] target: ||mu||=615.890 E||B-mu||=18.560 eff_rank uncentered=1.0017 CENTERED=6.33/50
+[s30] kernel rows done (15s)
+[s30]   point            cos_mean=0.9991 PR=1.00/50
+[s30]   point_centered   cos_mean=0.0039 PR=6.60/50
+[s30]   ridge            cos_mean=0.0035 PR=9.03/50
+[s30]   ridge_centered   cos_mean=0.0025 PR=29.82/50
+[s30] CONTROL GATE: PASS (eff_rank=1.0017, point cos=0.9991)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[s30] t1   AUC point=0.8550914347647255 pointC=0.9969479838116483 ridge=0.9975339934369924 ridgeC=0.9999504622026606 | out ridge=0.9974625403632372 ridgeC=0.9999649015328458
+[s30] t2   AUC point=0.774904808433707 pointC=0.9983745653963444 ridge=0.9956636606388081 ridgeC=0.9992174517495279 | out ridge=0.9957634342537541 ridgeC=0.9993666564815585
+[s30] t3   AUC point=0.555409174022284 pointC=0.9912465962456755 ridge=0.9908591930964628 ridgeC=0.9991012115392205 | out ridge=0.9907018674333016 ridgeC=0.9989727258082504
+[s30] t4   AUC point=0.32649724401757696 pointC=0.9764562360542014 ridge=0.9851588265210657 ridgeC=0.9988094089990018 | out ridge=0.9862773096468749 ridgeC=0.9992297105068845
+[s30] t5   AUC point=0.4399141441211947 pointC=0.9728843605529042 ridge=0.9768346631458578 ridgeC=0.9987075009783745 | out ridge=0.9788490063478898 ridgeC=0.9982023615851648
+[s30] c0   AUC point=0.6637030672503853 pointC=0.9920134200728284 ridge=0.9754006246334711 ridgeC=0.993612509035364 | out ridge=0.9699602921682511 ridgeC=0.9925401940806305
+[s30] c1   AUC point=0.13386851906995817 pointC=0.9986082567329425 ridge=0.9995940952204285 ridgeC=0.999395902387589 | out ridge=0.999713400272716 ridgeC=0.9995150613611008
+[s30] c2   AUC point=0.32268058839966235 pointC=0.9954082290374264 ridge=0.9986003692787877 ridgeC=0.9998349363379467 | out ridge=0.9981996242765759 ridgeC=0.9998138678346323
+[s30] c3   AUC point=0.28228221824144367 pointC=0.9916983269793984 ridge=0.9960270590868561 ridgeC=0.9989493952643317 | out ridge=0.9956151827271502 ridgeC=0.9987039451822154
+[s30] shift cos(enc(r),enc(r+1)): moment=0.9997 ridge=-0.0001 ridge_centered=1.000000
+[s30] DONE (22s) -> /home/adityamohan/git/Factored-FB/results/spec30_geom/d18_cs_dens_s0.json
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec24/factored-fb/GCIQL-CubeDouble-Flow-Measure-DensityZ-d50/z24_cd_z_s0/params_500000.pkl
+[s30] z24_cd_z_s0: pool P=16384 d=50 (14s)
+[s30] target: ||mu||=496.451 E||B-mu||=11.424 eff_rank uncentered=1.0010 CENTERED=19.12/50
+[s30] kernel rows done (16s)
+[s30]   point            cos_mean=0.9995 PR=1.00/50
+[s30]   point_centered   cos_mean=0.0027 PR=19.84/50
+[s30]   ridge            cos_mean=0.0046 PR=17.81/50
+[s30]   ridge_centered   cos_mean=0.0101 PR=27.66/50
+[s30] CONTROL GATE: PASS (eff_rank=1.0010, point cos=0.9995)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[s30] t1   AUC point=0.9883547008547009 pointC=0.9997405372405372 ridge=0.9998931623931624 ridgeC=0.9999389499389499 | out ridge=None ridgeC=None
+[s30] t2   AUC point=0.6655065738592421 pointC=0.9997455936825823 ridge=0.9996336549029186 ridgeC=0.9988704359506655 | out ridge=0.9991452991452991 ridgeC=0.9981074481074481
+[s30] t3   AUC point=0.8522002973099558 pointC=0.9999348361740689 ridge=0.9998411631742928 ridgeC=0.9998778178263791 | out ridge=0.9997905576402828 ridgeC=0.9998778252901649
+[s30] t4   AUC point=0.9391563873961896 pointC=1.0 ridge=0.99983970444553 ridgeC=0.9999542012701514 | out ridge=0.9998167603225019 ridgeC=1.0
+[s30] t5   AUC point=0.99716892745122 pointC=0.999843849715535 ridge=0.9997318288592882 ridgeC=0.9999117411435632 | out ridge=0.9996335206450037 ridgeC=0.9999185601433341
+[s30] c0   AUC point=0.641637669657937 pointC=1.0 ridge=1.0 ridgeC=1.0 | out ridge=1.0 ridgeC=1.0
+[s30] c1   AUC point=0.9080853477615848 pointC=0.9996291124880007 ridge=0.9984379090671088 ridgeC=0.9976917706606161 | out ridge=0.9984609747160131 ridgeC=0.9972639550506901
+[s30] c2   AUC point=0.7837308491728348 pointC=0.9997977935989918 ridge=0.9986362824118051 ridgeC=0.9996049921468677 | out ridge=0.998681456107441 ridgeC=0.9993611179077291
+[s30] c3   AUC point=0.9435101025524283 pointC=0.9999777904865549 ridge=0.9999500285947486 ridgeC=0.9998834000544133 | out ridge=1.0 ridgeC=1.0
+[s30] shift cos(enc(r),enc(r+1)): moment=0.9999 ridge=-0.0442 ridge_centered=1.000000
+[s30] DONE (23s) -> /home/adityamohan/git/Factored-FB/results/spec30_geom/z24_cd_z_s0.json
+ALLDONE

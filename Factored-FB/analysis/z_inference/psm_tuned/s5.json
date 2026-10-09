@@ -1,0 +1,156 @@
+{
+  "l2_info": {
+    "cube-single-play-singletask-task1-v0": {
+      "residual_init": 546.4313354492188,
+      "residual_final": 66.11383819580078
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "residual_init": 1008.8685302734375,
+      "residual_final": 62.86372375488281
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "residual_init": 548.0952758789062,
+      "residual_final": 66.03531646728516
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "residual_init": 4788.89111328125,
+      "residual_final": 137.91464233398438
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "residual_init": 2515.462646484375,
+      "residual_final": 99.84485626220703
+    }
+  },
+  "l2b_info": {
+    "cube-single-play-singletask-task1-v0": {
+      "residual_init": 590.6636962890625,
+      "residual_final": 53.5488166809082
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "residual_init": 1202.930908203125,
+      "residual_final": 66.5753402709961
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "residual_init": 641.7748413085938,
+      "residual_final": 53.15174102783203
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "residual_init": 4137.8173828125,
+      "residual_final": 113.442138671875
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "residual_init": 1753.05810546875,
+      "residual_final": 86.14933013916016
+    }
+  },
+  "cube-single-play-singletask-task1-v0": {
+    "L0": {
+      "success": 0.4,
+      "value_auc": 0.9285473227500916,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.35,
+      "value_auc": 0.6270933151245117,
+      "cos_to_L0": 0.4088348150253296
+    },
+    "L2": {
+      "success": 0.05,
+      "value_auc": 0.5469606518745422,
+      "cos_to_L0": 0.6048492789268494
+    },
+    "L2b": {
+      "success": 0.05,
+      "value_auc": 0.41371214389801025,
+      "cos_to_L0": 0.5453702211380005
+    }
+  },
+  "cube-single-play-singletask-task2-v0": {
+    "L0": {
+      "success": 0.25,
+      "value_auc": 0.8779410719871521,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.0,
+      "value_auc": 0.4846779406070709,
+      "cos_to_L0": 0.45191270112991333
+    },
+    "L2": {
+      "success": 0.05,
+      "value_auc": 0.552271842956543,
+      "cos_to_L0": 0.49586963653564453
+    },
+    "L2b": {
+      "success": 0.15,
+      "value_auc": 0.5749032497406006,
+      "cos_to_L0": 0.5888476967811584
+    }
+  },
+  "cube-single-play-singletask-task3-v0": {
+    "L0": {
+      "success": 0.45,
+      "value_auc": 0.9140306115150452,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.0,
+      "value_auc": 0.5094010829925537,
+      "cos_to_L0": 0.4096587300300598
+    },
+    "L2": {
+      "success": 0.35,
+      "value_auc": 0.5144765973091125,
+      "cos_to_L0": 0.5468205213546753
+    },
+    "L2b": {
+      "success": 0.15,
+      "value_auc": 0.41416338086128235,
+      "cos_to_L0": 0.5236506462097168
+    }
+  },
+  "cube-single-play-singletask-task4-v0": {
+    "L0": {
+      "success": 0.15,
+      "value_auc": 0.8313825726509094,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.0,
+      "value_auc": 0.42242684960365295,
+      "cos_to_L0": 0.427055299282074
+    },
+    "L2": {
+      "success": 0.1,
+      "value_auc": 0.741212010383606,
+      "cos_to_L0": 0.5764968395233154
+    },
+    "L2b": {
+      "success": 0.1,
+      "value_auc": 0.6715012788772583,
+      "cos_to_L0": 0.5601765513420105
+    }
+  },
+  "cube-single-play-singletask-task5-v0": {
+    "L0": {
+      "success": 0.1,
+      "value_auc": 0.7599743008613586,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.05,
+      "value_auc": 0.6732718348503113,
+      "cos_to_L0": 0.466217041015625
+    },
+    "L2": {
+      "success": 0.1,
+      "value_auc": 0.7352151274681091,
+      "cos_to_L0": 0.5761502981185913
+    },
+    "L2b": {
+      "success": 0.15,
+      "value_auc": 0.6065163612365723,
+      "cos_to_L0": 0.5457091927528381
+    }
+  }
+}

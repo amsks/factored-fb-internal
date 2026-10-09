@@ -1,0 +1,4 @@
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_0/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)

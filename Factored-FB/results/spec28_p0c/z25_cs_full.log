@@ -1,0 +1,37 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec25_stage1/factored-fb/GCIQL-CubeSingle-Flow-Measure-DensityZ-Full-d50/z25_cs_full/params_500000.pkl
+[p0c] z25_cs_full: P=16384 N_cand=4096 d=50 is_z=True lambdas={'0.001': 0.050206, '0.01': 0.502061, '0.1': 5.020609} (14s)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[p0c] dirac  t1   pct: readout=0.745 moment=0.004 moment_braw=0.784 ridge_0.001=0.001 ridge_0.01=0.001 ridge_0.1=0.000 ridge_0.001_braw=0.001 ridge_0.01_braw=0.001 ridge_0.1_braw=0.001  (27s)
+[p0c] dirac  t2   pct: readout=0.276 moment=0.004 moment_braw=0.654 ridge_0.001=0.006 ridge_0.01=0.006 ridge_0.1=0.006 ridge_0.001_braw=0.006 ridge_0.01_braw=0.006 ridge_0.1_braw=0.006  (34s)
+[p0c] dirac  t3   pct: readout=0.178 moment=0.002 moment_braw=0.950 ridge_0.001=0.002 ridge_0.01=0.001 ridge_0.1=0.001 ridge_0.001_braw=0.002 ridge_0.01_braw=0.001 ridge_0.1_braw=0.001  (41s)
+[p0c] dirac  t4   pct: readout=0.252 moment=0.008 moment_braw=0.628 ridge_0.001=0.000 ridge_0.01=0.005 ridge_0.1=0.005 ridge_0.001_braw=0.005 ridge_0.01_braw=0.005 ridge_0.1_braw=0.005  (49s)
+[p0c] dirac  t5   pct: readout=0.422 moment=0.098 moment_braw=0.636 ridge_0.001=0.000 ridge_0.01=0.004 ridge_0.1=0.004 ridge_0.001_braw=0.001 ridge_0.01_braw=0.004 ridge_0.1_braw=0.004  (56s)
+[p0c] dense  t1   pct: readout=0.531 moment=0.004 moment_braw=0.784 ridge_0.001=0.000 ridge_0.01=0.000 ridge_0.1=0.008 ridge_0.001_braw=0.000 ridge_0.01_braw=0.000 ridge_0.1_braw=0.008  (63s)
+[p0c] dense  t2   pct: readout=0.992 moment=0.384 moment_braw=0.654 ridge_0.001=0.006 ridge_0.01=0.002 ridge_0.1=0.002 ridge_0.001_braw=0.006 ridge_0.01_braw=0.002 ridge_0.1_braw=0.006  (71s)
+[p0c] dense  t3   pct: readout=0.383 moment=0.185 moment_braw=0.950 ridge_0.001=0.003 ridge_0.01=0.003 ridge_0.1=0.003 ridge_0.001_braw=0.003 ridge_0.01_braw=0.003 ridge_0.1_braw=0.003  (78s)
+[p0c] dense  t4   pct: readout=0.252 moment=0.019 moment_braw=0.628 ridge_0.001=0.000 ridge_0.01=0.000 ridge_0.1=0.003 ridge_0.001_braw=0.000 ridge_0.01_braw=0.000 ridge_0.1_braw=0.000  (85s)
+[p0c] dense  t5   pct: readout=0.422 moment=0.118 moment_braw=0.636 ridge_0.001=0.000 ridge_0.01=0.002 ridge_0.1=0.002 ridge_0.001_braw=0.000 ridge_0.01_braw=0.002 ridge_0.1_braw=0.006  (92s)
+[p0c] region c0   pct: readout=0.771 moment=0.041 moment_braw=0.631 ridge_0.001=0.003 ridge_0.01=0.006 ridge_0.1=0.006 ridge_0.001_braw=0.003 ridge_0.01_braw=0.006 ridge_0.1_braw=0.002  (100s)
+[p0c] region c1   pct: readout=0.567 moment=0.007 moment_braw=0.720 ridge_0.001=0.006 ridge_0.01=0.006 ridge_0.1=0.006 ridge_0.001_braw=0.006 ridge_0.01_braw=0.006 ridge_0.1_braw=0.006  (107s)
+[p0c] region c2   pct: readout=0.121 moment=0.027 moment_braw=0.948 ridge_0.001=0.001 ridge_0.01=0.001 ridge_0.1=0.001 ridge_0.001_braw=0.001 ridge_0.01_braw=0.001 ridge_0.1_braw=0.001  (114s)
+[p0c] region c3   pct: readout=0.654 moment=0.004 moment_braw=0.695 ridge_0.001=0.002 ridge_0.01=0.003 ridge_0.1=0.003 ridge_0.001_braw=0.002 ridge_0.01_braw=0.003 ridge_0.1_braw=0.003  (122s)
+[p0c] CONTROL GATE vs results/spec27_q2/e2b_z25_cs_full.json: PASS (14/14 cells bit-exact)
+
+[p0c] DONE (122s) -> results/spec28_p0c/z25_cs_full.json
+[p0c]   readout          pct(family-mean)=0.473 flat=0.469
+[p0c]   moment           pct(family-mean)=0.062 flat=0.065
+[p0c]   moment_braw      pct(family-mean)=0.737 flat=0.736
+[p0c]   ridge_0.001      pct(family-mean)=0.002 flat=0.002
+[p0c]   ridge_0.01       pct(family-mean)=0.003 flat=0.003
+[p0c]   ridge_0.1        pct(family-mean)=0.004 flat=0.004
+[p0c]   ridge_0.001_braw pct(family-mean)=0.003 flat=0.003
+[p0c]   ridge_0.01_braw  pct(family-mean)=0.003 flat=0.003
+[p0c]   ridge_0.1_braw   pct(family-mean)=0.004 flat=0.004
+EXIT=0

@@ -1,0 +1,19 @@
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260912_113733-pjpr9t3t
+I0912 11:37:34.194644 139629045930880 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+I0912 11:37:34.544814 139629045930880 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0912 11:37:34.547681 139629045930880 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0912 11:37:34.557065 139629045930880 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0912 11:37:34.627025 139629045930880 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0912 11:37:34.629691 139629045930880 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0912 11:37:34.811651 139629045930880 __init__.py:31] MuJoCo library version is: 3.3.0
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py:215: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+[auto_resume] no params_*.pkl under exp/rldp_ortho1000/puzzle-3x3-play-v0_rldp_flowbc_seed_1; fresh start
+  0%|          | 0/20 [00:00<?, ?it/s]  5%|▌         | 1/20 [00:21<06:56, 21.91s/it] 10%|█         | 2/20 [00:41<06:11, 20.65s/it] 15%|█▌        | 3/20 [01:01<05:44, 20.24s/it] 20%|██        | 4/20 [01:21<05:25, 20.34s/it] 25%|██▌       | 5/20 [01:41<05:03, 20.23s/it] 30%|███       | 6/20 [02:01<04:41, 20.09s/it] 35%|███▌      | 7/20 [02:21<04:20, 20.02s/it] 40%|████      | 8/20 [02:41<03:59, 19.96s/it] 45%|████▌     | 9/20 [03:01<03:39, 19.95s/it] 50%|█████     | 10/20 [03:21<03:19, 19.96s/it]

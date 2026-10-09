@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_cube_decouple",
+ "seed": "decpl_s1",
+ "dir": "/dev/shm/phase2_out/decpl_s1",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/phase2_out/decpl_s1/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.4,
+  "grasped": 0.99
+ },
+ "C2_zB": {
+  "success": 0.13,
+  "grasped": 0.98
+ },
+ "C3_zB": {
+  "success": 0.19,
+  "grasped": 0.92
+ },
+ "C2_zR": {
+  "success": 0.22,
+  "grasped": 0.94
+ },
+ "C3_zR": {
+  "success": 0.18,
+  "grasped": 0.98
+ },
+ "C4_zB": {
+  "success": 0.3,
+  "grasped": 0.96
+ },
+ "secs": 39.1
+}

@@ -1,0 +1,177 @@
+\section{\name{}: Learning Successor Measures as Distributions}
+\label{sec}
+
+
+\begin{algorithm}[t]
+\caption{\name{} training and zero-shot control}
+\label{alg:density-fb}
+    \begin{algorithmic}[1]
+    \Require Offline dataset $\mathcal D$, successor networks $(F_\theta,B_\theta)$, target networks $(\bar F,\bar B)$, actor $\pi_\omega$
+    
+    \For{each training step}
+        \State Sample transitions $\{(s_i,a_i,s_i',\mathrm{terminal}_i)\}_{i=1}^{n}$ from $\mathcal D$
+        \State Sample task vectors $\{z_i\}_{i=1}^{n}$ using the same task distribution as FB
+        \For{$i=1,\ldots,n$}
+            \State Compute normalized successor probabilities
+            \( p_{ij} \gets \softmax_j f_\theta(s_i,a_i,z_i,s_j') \)
+            \State Sample $a_i' \sim \pi_\omega(\cdot\mid s_i',z_i)$
+            \State Compute target-network probabilities
+            \( \bar p_{ij}' \gets \softmax_j \bar f(s_i',a_i',z_i,s_j') \)
+            \State Form the Bellman target
+            \( t_{ij} \gets \sg\!\left[ (1-d_i)\ind{j=i} + d_i\bar p_{ij}' \right] \)
+        \EndFor
+        \State Update $(F_\theta,B_\theta)$ using
+        \( \mathcal L_{\mathrm{DFB}} = -\frac{1}{n} \sum_{i,j} t_{ij}\log p_{ij} \)
+        \State Compute actor values
+        \( \hat q_\theta(s_i,a,z_i) = \sum_j p_j(s_i,a,z_i)\, B_\theta(s_j')^\top z_i \)
+        \State Update $\pi_\omega$ using Equation~\eqref{eq:density-actor-loss}, with $(F_\theta,B_\theta)$ fixed
+        \State Update target networks $(\bar F,\bar B)$
+    \EndFor
+    \Statex
+    \Statex \textbf{Zero-shot control for a downstream reward $r$}
+    \State Evaluate $r$ on states sampled from the offline dataset
+    \State Infer the task vector $z_r$ using the reward encoder in Appendix~\ref{app:reward-inference}
+    \State Execute the frozen policy $\pi_\omega(\cdot\mid s,z_r)$ without further training
+    \end{algorithmic}
+\end{algorithm}
+
+%%AZ.8.29: start with a reminder of the high-level modification, what problem are we fixing before you get to how we're doing it.
+%%AZ.8.29: after going through this section, it is way too low-level with no explanation of the design choices made in the algorithm. You could either include the high-level justification/intuition here interspersed with the method details, or separate it into a prior section.
+%%AZ.8.29: why is the normalization important?
+%%AZ.8.29: why this parameterization design choice?
+%%AZ.9.5: This section should be divided up into two main parts. One defines the problem and explains the high level solution, the second provides the technical instantiation of the method. My comments from last week are still not satisfactorily addressed. There needs to be a roadmap for 2.1, 2.2, and 2.3 and why I should read them.
+
+Section~\ref{sec:failure} showed that action selection can depend on a small difference between two SMs even when their dominant structure is similar.
+Standard FB approximates these SMs through a low-dimensional density-ratio factorization and point-wise squared regression.
+A model can therefore fit most of the successor structure while poorly representing the smaller difference that determines the action gap in Equation~\eqref{eq:action-gap}.
+\name{} mitigates this by changing three parts of FB.
+First, we normalize the successor measure and model the resulting density as a probability distribution.
+Second, we replace point-wise squared regression with a categorical Bellman objective.
+Third, because $F^\top B$ now represents a score rather than the successor density itself, we compute action values by integrating rewards against the learned distribution.
+We first describe the successor-learning objective (\cref{sec:method-learning}) and then the corresponding value extraction, actor update, and downstream reward inference (\cref{sec:method-control}).
+
+\subsection{Learning a normalized successor distribution}
+\label{sec:method-learning}
+
+Recall that standard FB represents the successor density ratio using Equation~\eqref{eq:fb-factorization} and fits it with point-wise squared regression.
+\name{} keeps the forward--backward factorization but changes what it represents and how it is fitted.
+
+Every discounted successor measure has total mass $1/(1-\gamma)$.
+We therefore define
+\begin{equation}
+    \nu^{\pi_z}(s,a,\cdot) := (1-\gamma)M^{\pi_z}(s,a,\cdot), \qquad \nu^{\pi_z}(s,a,\mathcal S) = 1. 
+    \label{eq:normalized-sm}
+\end{equation}
+For any bounded reward $r$,
+\begin{equation}
+    \int_{\mathcal S} r(s^+) \nu^{\pi_z}(s,a,ds^+) = (1-\gamma)Q_r^{\pi_z}(s,a), 
+    \label{eq:normalized-value-exact}
+\end{equation}
+so normalization does not change which action is preferred.
+The main change in \name{} is to learn the normalized successor measure directly as a distribution.
+
+The normalized SM satisfies the Bellman equation
+\begin{equation}
+\nu^\pi(s,a,\cdot) = (1-\gamma)P(\cdot\mid s,a) + \gamma \E_{\substack{ s'\sim P(\cdot\mid s,a)\ a'\sim\pi(\cdot\mid s')}} \left[ \nu^\pi(s',a',\cdot) \right]. \label{eq}
+\end{equation}
+
+For a task $z$ and its policy $\pi_z$, define the normalized successor density relative to $\rho$ as
+\begin{equation}
+    h^{\pi_z}(s,a,s^+) := \frac{ d\nu^{\pi_z}(s,a,\cdot) }{ d\rho }(s^+). 
+    \label{eq:true-density}
+\end{equation}
+
+We retain the bilinear representation used by FB, but use its output as a score, normalized as
+\begin{equation}
+    h_\theta(s,a,z,s^+) := \frac{ \exp f_\theta(s,a,z,s^+) }{ \E_{\tilde s^+\sim\rho} \left[ \exp f_\theta(s,a,z,\tilde s^+) \right] }. 
+    \label{eq:density-model}
+\end{equation}
+The exponential makes the prediction non-negative, while the denominator makes it integrate to one under $\rho$.
+The normalizer can also be estimated using states already sampled from the offline dataset.
+
+The normalized successor measure satisfies the Bellman equation
+\begin{equation}
+    \nu^{\pi_z}(s,a,\cdot) = (1-\gamma)P(\cdot\mid s,a) + \gamma \E_{\substack{ s'\sim P(\cdot\mid s,a)\\ a'\sim\pi_z(\cdot\mid s') }} \left[ \nu^{\pi_z}(s',a',\cdot) \right]. \label{eq:normalized-bellman}
+\end{equation}
+In practice, we represent this distribution using the next states in each minibatch.
+For transitions $\{(s_i,a_i,s_i')\}_{i=1}^{n}$, define
+\begin{equation}
+    p_{ij} := \softmax_j \left( f_\theta(s_i,a_i,z_i,s_j') \right). 
+    \label{eq:density-probabilities}
+\end{equation}
+Each row $p_i$ is therefore a probability distribution over the candidate future states ${s_j'}_{j=1}^{n}$.
+
+We use the same states to construct the Bellman target.
+Let $ a_i' \sim \pi_\omega(\cdot\mid s_i',z_i),$ and define
+\begin{equation}
+    \bar p_{ij}' := \softmax_j \left( \frac{ \bar F(s_i',a_i',z_i)^\top \bar B(s_j') }{ \tau } \right), 
+    \label{eq:target-density-probabilities}
+\end{equation}
+where $\bar F$ and $\bar B$ are target networks.
+
+With $ d_i := \gamma (1-\mathrm{terminal}i),$ the sampled Bellman target is
+\begin{equation}
+    t{ij} := \sg \left[ (1-d_i)\ind{j=i} + d_i\bar p_{ij}' \right]. 
+    \label{eq}
+\end{equation}
+The observed next state gives the immediate part of the target, while $\bar p_i'$ gives the distribution over later states.
+
+We fit this target with cross-entropy,
+\begin{equation}
+    \mathcal L_{\mathrm{DFB}} := - \frac{1}{n} \sum_{i=1}^{n} \sum_{j=1}^{n} t_{ij} \log p_{ij}. 
+    \label{eq:density-loss}
+\end{equation}
+
+\begin{proposition}[Correct Bellman fixed point]
+\label{prop:density-bellman}
+Fix a task $z$ and its policy $\pi_z$.
+At the population level, if the model can represent the Bellman target exactly, minimizing the cross-entropy in Equation~\eqref{eq:density-loss} performs one Bellman update of the normalized successor distribution.
+Repeated exact updates converge to the normalized successor distribution of $\pi_z$.
+\end{proposition}
+
+The proof and technical assumptions are given \Cref{app:theory}.
+The proposition shows that \name{} changes how the successor measure is fitted without changing the quantity recovered by exact Bellman updates.
+It does not claim that \name{} must preserve action differences better than FB under limited function approximation; we test this experimentally in Section~\ref{sec:experiments}.
+
+The squared and categorical objectives nevertheless weight approximation errors differently.
+Because standard FB fits a density ratio relative to $\rho$, this difference depends on both the successor distribution and how frequently a state appears in the offline data.
+Appendix~\ref{app:loss-geometry} shows that, for small relative errors, squared density-ratio regression weights an error proportionally to $\nu_j^2/\rho_j$, whereas the categorical objective weights it proportionally to $\nu_j$.
+This motivates the change in objective without claiming that every rare future state is automatically preserved.
+
+\subsection{Using the learned distribution for control}
+\label{sec:method-control}
+
+The normalized parameterization changes how action values are read from the representation.
+In standard FB, the linear factorization gives the value readout in Equation~\eqref{eq:fb-value-readout}.
+In \name{}, $F^\top B$ instead defines a score inside the normalized distribution in Equation~\eqref{eq:density-model}, so this mapping no longer applies.
+
+For any reward $r$, we evaluate an action directly under the predicted successor distribution:
+\begin{equation}
+    \hat q_{\theta,r}(s,a,z) := \sum_{j=1}^{K} p_j(s,a,z)\, r(s_j^+), \qquad s_j^+\sim\rho. 
+    \label{eq:density-value}
+\end{equation}
+
+During pretraining, a task vector $z$ defines the reward
+\begin{equation}
+    r_z(s) := B_\theta(s)^\top z. \label{eq:latent-reward}
+\end{equation}
+Using the mini-batch next states as candidate future states, we therefore compute
+\begin{equation}
+    \hat q_\theta(s,a,z) := \sum_{j=1}^{n} p_j(s,a,z)\, B_\theta(s_j')^\top z. 
+    \label{eq:density-actor-value}
+\end{equation}
+
+The actor is trained to maximize this value while retaining the same offline regularization as the FB baseline:
+\begin{equation}
+    \mathcal L_{\mathrm{actor}} := - \frac{ \E_{s,z} \left[ \hat q_\theta \left( s, \pi_\omega(s,z), z \right) \right] }{ s_q } 
+                                    + \lambda_{\mathrm{BC}} \mathcal L_{\mathrm{offline}}(\omega), 
+    \label{eq:density-actor-loss}
+\end{equation}
+where $s_q$ is a detached estimate of the value scale over the batch.
+The successor networks are fixed during this update.
+
+The normalized parameterization also breaks the standard FB identity used to map a downstream reward directly to a task vector.
+We therefore infer the task vector from reward-labelled offline states using a separate reward encoder, described in Appendix~\ref{app:reward-inference}.
+At test time, all networks remain frozen: we infer the task vector from the new reward and execute the corresponding policy without additional training or environment interaction.
+Thus, relative to standard FB, \name{} changes the successor parameterization, its Bellman objective, and the value readout used to train the actor.
+The policy architecture, offline regularizer, and pretraining task distribution remain unchanged.

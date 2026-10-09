@@ -1,0 +1,26 @@
+[
+  {
+    "name": "FLOOR (density_fb_state loses >0.15 H0->H1 on >=2 seeds)",
+    "fired": false,
+    "detail": "seeds losing >0.15: []",
+    "blocked_by": "fewer than 2 seeds lost >0.15 -- readings stand"
+  },
+  {
+    "name": "R-HELD1 (bottleneck is load-bearing for FB)",
+    "fired": false,
+    "detail": "delta>=0.30 on seeds []; of those within 0.10 of Density-FB: []",
+    "blocked_by": "only 0 seed(s) reach delta>=0.30"
+  },
+  {
+    "name": "R-HELD2 (deficit lives AFTER the bottleneck)",
+    "fired": false,
+    "detail": "delta<=0.10 on seeds [0]; retention<0.6 on []; maintain+dropped>=50% on [0]; Density-FB stable on [0]",
+    "blocked_by": "only 1 seed(s) have delta<=0.10"
+  },
+  {
+    "name": "R-HELD3 (mixed: FB gains but stays far below)",
+    "fired": false,
+    "detail": "seeds in (0.10, 0.30) with a >0.10 gap: []",
+    "blocked_by": "only 0 seed(s) qualify"
+  }
+]

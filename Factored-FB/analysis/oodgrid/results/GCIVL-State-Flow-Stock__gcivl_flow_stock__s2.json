@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIVL-State-Flow-Stock",
+ "seed": "gcivl_flow_stock__s2",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIVL-State-Flow-Stock/gcivl_flow_stock__s2",
+ "step": 500000,
+ "agent_name": "gcivl_flow",
+ "value_arch": "mlp",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.99,
+  "grasped": 1.0
+ },
+ "C2": {
+  "success": 0.69,
+  "grasped": 0.84
+ },
+ "C4": {
+  "success": 0.77,
+  "grasped": 0.95
+ },
+ "C3": {
+  "success": 0.52,
+  "grasped": 0.76
+ },
+ "secs": 406.5
+}

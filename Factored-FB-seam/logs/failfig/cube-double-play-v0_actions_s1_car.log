@@ -1,0 +1,20 @@
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-double-play-v0_fb_tdj_flowbc_seed_1/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_1/params_1000000.pkl (params only)
+  [seed1_1000000_car] carrying 4/64 (281s) fb_tdj: rank -0.02 regret 0.99 density_fb_z: rank -0.04 regret 0.44
+  [seed1_1000000_car] carrying 8/64 (549s) fb_tdj: rank 0.10 regret 0.87 density_fb_z: rank 0.09 regret 0.60
+  [seed1_1000000_car] carrying 12/64 (822s) fb_tdj: rank 0.15 regret 0.89 density_fb_z: rank 0.20 regret 0.46
+  [seed1_1000000_car] carrying 16/64 (1041s) fb_tdj: rank 0.12 regret 0.87 density_fb_z: rank 0.18 regret 0.46
+  [seed1_1000000_car] carrying 20/64 (1299s) fb_tdj: rank 0.11 regret 0.84 density_fb_z: rank 0.22 regret 0.43
+  [seed1_1000000_car] carrying 24/64 (1550s) fb_tdj: rank 0.09 regret 0.86 density_fb_z: rank 0.21 regret 0.41
+  [seed1_1000000_car] carrying 28/64 (1788s) fb_tdj: rank 0.11 regret 0.88 density_fb_z: rank 0.21 regret 0.41
+  [seed1_1000000_car] carrying 32/64 (2052s) fb_tdj: rank 0.10 regret 0.88 density_fb_z: rank 0.22 regret 0.43
+  [seed1_1000000_car] carrying 36/64 (2267s) fb_tdj: rank 0.09 regret 0.86 density_fb_z: rank 0.24 regret 0.41
+  [seed1_1000000_car] carrying 40/64 (2529s) fb_tdj: rank 0.09 regret 0.86 density_fb_z: rank 0.23 regret 0.41
+  [seed1_1000000_car] carrying 44/64 (2806s) fb_tdj: rank 0.10 regret 0.83 density_fb_z: rank 0.21 regret 0.42
+  [seed1_1000000_car] carrying 48/64 (3014s) fb_tdj: rank 0.07 regret 0.84 density_fb_z: rank 0.21 regret 0.45
+  [seed1_1000000_car] carrying 52/64 (3291s) fb_tdj: rank 0.06 regret 0.83 density_fb_z: rank 0.20 regret 0.46
+  [seed1_1000000_car] carrying 56/64 (3578s) fb_tdj: rank 0.06 regret 0.81 density_fb_z: rank 0.21 regret 0.45
+  [seed1_1000000_car] carrying 60/64 (3815s) fb_tdj: rank 0.07 regret 0.79 density_fb_z: rank 0.21 regret 0.45
+  [seed1_1000000_car] carrying 64/64 (4077s) fb_tdj: rank 0.06 regret 0.80 density_fb_z: rank 0.20 regret 0.46

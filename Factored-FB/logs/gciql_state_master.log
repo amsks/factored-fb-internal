@@ -1,0 +1,66 @@
+[gciql-sweep] 10 seeds | 8 GPUs | 2 job(s)/GPU (16 parallel)
+[gciql-sweep] seeds:      1 2 3 4 5 6 7 8 9 10
+[gciql-sweep] env:        cube-single-play-v0 (state), 1M steps, alpha=1.0
+[gciql-sweep] wandb:      online  group=factored-fb-gciql
+[gciql-sweep] save_intvl: 100000
+[gciql-sweep] shm out:    /dev/shm/gciql_outputs
+[gciql-sweep] durable:    /home/adityamohan/gciql_runs/20260518_201030  (rsync every 600s)
+[gciql-sweep] logs:       /home/adityamohan/git/Factored-FB/logs/gciql_state_20260518_201030
+
+[gciql-sweep] 20:10:30  launching 1/10 seed=1 on GPU 0 (slot 0)
+[gciql-sweep] 20:10:30  launching 2/10 seed=2 on GPU 1 (slot 1)
+[gciql-sweep] 20:10:30  launching 3/10 seed=3 on GPU 2 (slot 2)
+[gciql-sweep] 20:10:30  launching 4/10 seed=4 on GPU 3 (slot 3)
+[gciql-sweep] 20:10:30  launching 5/10 seed=5 on GPU 4 (slot 4)
+[gciql-sweep] 20:10:30  launching 6/10 seed=6 on GPU 5 (slot 5)
+[gciql-sweep] 20:10:30  launching 7/10 seed=7 on GPU 6 (slot 6)
+[gciql-sweep] 20:10:30  launching 8/10 seed=8 on GPU 7 (slot 7)
+[gciql-sweep] 20:10:30  launching 9/10 seed=9 on GPU 0 (slot 8)
+[gciql-sweep] 20:10:30  launching 10/10 seed=10 on GPU 1 (slot 9)
+[gciql-sweep] 20:10:30  all 10 seeds launched — waiting...
+[gciql-sweep] 20:20:31  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 20:30:31  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 20:40:32  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 20:50:33  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 21:00:34  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 21:09:37  DONE seed=8 (exit=0)
+[gciql-sweep] 21:09:50  DONE seed=6 (exit=0)
+[gciql-sweep] 21:09:53  DONE seed=4 (exit=0)
+[gciql-sweep] 21:10:04  DONE seed=7 (exit=0)
+[gciql-sweep] 21:10:34  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 21:11:16  DONE seed=5 (exit=0)
+[gciql-sweep] 21:11:54  DONE seed=3 (exit=0)
+[gciql-sweep] 21:20:35  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 21:30:35  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 21:40:35  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 21:50:35  synced -> /home/adityamohan/gciql_runs/20260518_201030
+[gciql-sweep] 21:53:53  DONE seed=1 (exit=0)
+[gciql-sweep] 21:53:53  pid=3214142 finished (exit=0)
+[gciql-sweep] 21:54:28  DONE seed=9 (exit=0)
+[gciql-sweep] 21:54:45  DONE seed=2 (exit=0)
+[gciql-sweep] 21:54:45  pid=3214146 finished (exit=0)
+[gciql-sweep] 21:54:45  pid=3214150 finished (exit=0)
+[gciql-sweep] 21:54:45  pid=3214154 finished (exit=0)
+[gciql-sweep] 21:54:45  pid=3214158 finished (exit=0)
+[gciql-sweep] 21:54:45  pid=3214162 finished (exit=0)
+[gciql-sweep] 21:54:45  pid=3214166 finished (exit=0)
+[gciql-sweep] 21:54:45  pid=3214170 finished (exit=0)
+[gciql-sweep] 21:54:45  pid=3214175 finished (exit=0)
+[gciql-sweep] 21:55:14  DONE seed=10 (exit=0)
+[gciql-sweep] 21:55:14  pid=3214179 finished (exit=0)
+[gciql-sweep] final sync -> /home/adityamohan/gciql_runs/20260518_201030
+
+[gciql-sweep] ══════════════════════════════════════════════════
+[gciql-sweep] Complete: 10 seeds. Logs: /home/adityamohan/git/Factored-FB/logs/gciql_state_20260518_201030
+[gciql-sweep] Durable checkpoints: /home/adityamohan/gciql_runs/20260518_201030
+  seed 1    [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=1 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+  seed 2    [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=2 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+  seed 3    [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=3 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+  seed 4    [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=4 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+  seed 5    [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=5 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+  seed 6    [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=6 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+  seed 7    [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=7 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+  seed 8    [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=8 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+  seed 9    [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=9 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+  seed 10   [run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=cube-single-play-v0 --agent=agents/gciql.py --seed=10 --train_steps=1000000 --log_interval=5000 --eval_interval=100000 --save_interval=100000 --eval_episodes=50 --eval_on_cpu=1 --run_group=factored-fb-gciql --save_dir=/dev/shm/gciql_outputs --agent.alpha=1.0
+[gciql-sweep] ══════════════════════════════════════════════════

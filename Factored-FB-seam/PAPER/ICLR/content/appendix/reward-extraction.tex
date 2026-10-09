@@ -1,0 +1,38 @@
+\section{Reward extraction across successor representations}
+\label{app:reward-extraction}
+
+\cref{tab:manipulation} gives every method the task as a goal observation, which is the interface the goal-conditioned reference implementations are built for.
+This appendix gives the same frozen checkpoints the task as a \emph{reward} instead: each method draws $10^4$ transitions from its own training data, labels them with the task reward, and solves for the conditioning vector whose implied values best explain those labels, through its own inference rule.
+Only successor representations appear here, because the comparison is about the reward-extraction step and the goal-conditioned baselines have none.
+
+\begin{table}[h]
+    \centering
+    \small
+    \caption{\textbf{Task given as a reward} (success rate, \%). The same $10^6$-step checkpoints as \cref{tab:manipulation}; the conditioning vector is inferred from $10^4$ reward-labelled dataset states, five tasks per environment, ten episodes per task, mean $\pm$ standard deviation over three seeds.}
+    \label{tab:reward-extraction}
+    \begin{tabular}{lrrrrr}
+    \toprule
+    Task & FB & HILP & RLDP & \name{} & \name{}$^{\,\mathrm{oc}}$ \\
+    \midrule
+    \texttt{cube-single} & 42.0\pmse{11.4} & 72.7\pmse{3.4} & 36.7\pmse{2.5} & \textbf{92.0}\pmse{0.0} & 84.7\pmse{4.1} \\
+    \texttt{cube-double} &  4.7\pmse{0.9} &  8.0\pmse{0.0} &  2.0\pmse{1.6} & 14.7\pmse{4.1} & \textbf{34.0}\pmse{8.6} \\
+    \texttt{scene}       & 10.7\pmse{6.8} & 37.3\pmse{4.1} & 10.7\pmse{4.1} & 50.7\pmse{6.8} & \textbf{52.0}\pmse{1.6} \\
+    \texttt{puzzle-3x3}  &  4.0\pmse{3.3} &  0.7\pmse{0.9} & \textbf{9.3}\pmse{7.5} &  5.3\pmse{2.5} & 6.7\pmse{1.9} \\
+    \bottomrule
+    \end{tabular}
+    \par\vspace{2pt}
+    \begin{minipage}{\linewidth}\scriptsize\raggedright
+    $^{\mathrm{oc}}$: the backward network reads the object-coordinate block of the observation instead of the full state. Every other column reads the full state.
+    On \texttt{cube-double} reward extraction is capped near half of goal-conditioned success for every method: the environment re-permutes the cube-to-target assignment at every reset, while the reward samples encode one fixed assignment.
+    \end{minipage}
+\end{table}
+
+Two readings follow.
+
+First, the reward-extraction step is where the successor representations separate.
+\name{} leads on three of the four environments, and its margin over FB is larger here than under goal conditioning ($92.0$ against $42.0$ on \texttt{cube-single}, $50.7$ against $10.7$ on \texttt{scene}).
+
+Second, the two interfaces are not interchangeable, and which one a method prefers is itself informative.
+FB and RLDP lose most of their performance when the task arrives as a goal rather than a reward ($42.0\to17.3$ and $36.7\to10.7$ on \texttt{cube-single}): evaluating their backward map at a single state is a harder query than averaging it against $10^4$ reward-weighted samples.
+HILP moves the other way ($72.7\to86.0$), since its features are trained to make state-to-state distances meaningful and a goal is its native query.
+\name{} is stable across both ($92.0$ and $84.3$), which is what a normalized successor measure predicts: the value is an average of the reward against a distribution, so it does not depend on whether the reward is concentrated at one state or spread over many.

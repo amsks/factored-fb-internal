@@ -1,0 +1,36 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/fb.py:87: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_0/params_1000000.pkl (params only)
+  [fb_tdj_seed0_1000000_smoke] approach task 1: 1/1 (19s)
+  [fb_tdj_seed0_1000000_smoke] approach task 3: 1/1 (23s)
+  [fb_tdj_seed0_1000000_smoke] approach task 4: 1/1 (28s)
+  [fb_tdj_seed0_1000000_smoke] approach task 5: 1/1 (32s)
+[predict] fb_tdj_seed0_1000000_smoke approach: TV 0.941 goal-mass pred 0.083 truth 0.004
+  [fb_tdj_seed0_1000000_smoke] inhand task 4: 3/3 (46s)
+  [fb_tdj_seed0_1000000_smoke] inhand task 5: 1/1 (51s)
+[predict] fb_tdj_seed0_1000000_smoke inhand: TV 0.889 goal-mass pred 0.174 truth 0.007
+  [fb_tdj_seed0_1000000_smoke] carrying task 3: 1/1 (55s)
+  [fb_tdj_seed0_1000000_smoke] carrying task 4: 3/3 (65s)
+[predict] fb_tdj_seed0_1000000_smoke carrying: TV 0.870 goal-mass pred 0.174 truth 0.238
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/density_fb.py:1237: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+  [density_fb_z_seed0_1000000_smoke] approach task 1: 1/1 (6s)
+  [density_fb_z_seed0_1000000_smoke] approach task 3: 1/1 (10s)
+  [density_fb_z_seed0_1000000_smoke] approach task 4: 1/1 (14s)
+  [density_fb_z_seed0_1000000_smoke] approach task 5: 1/1 (18s)
+[predict] density_fb_z_seed0_1000000_smoke approach: TV 0.822 goal-mass pred 0.739 truth 0.117
+  [density_fb_z_seed0_1000000_smoke] inhand task 4: 3/3 (24s)
+  [density_fb_z_seed0_1000000_smoke] inhand task 5: 1/1 (27s)
+[predict] density_fb_z_seed0_1000000_smoke inhand: TV 0.412 goal-mass pred 0.695 truth 0.602
+  [density_fb_z_seed0_1000000_smoke] carrying task 3: 1/1 (31s)
+  [density_fb_z_seed0_1000000_smoke] carrying task 4: 3/3 (35s)
+[predict] density_fb_z_seed0_1000000_smoke carrying: TV 0.339 goal-mass pred 0.936 truth 0.892

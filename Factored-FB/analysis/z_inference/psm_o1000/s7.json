@@ -1,0 +1,156 @@
+{
+  "l2_info": {
+    "cube-single-play-singletask-task1-v0": {
+      "residual_init": 3165.301513671875,
+      "residual_final": 190.58607482910156
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "residual_init": 3448.8486328125,
+      "residual_final": 249.20590209960938
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "residual_init": 2358.691162109375,
+      "residual_final": 179.0141143798828
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "residual_init": 5415.220703125,
+      "residual_final": 248.59690856933594
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "residual_init": 5693.88427734375,
+      "residual_final": 282.74169921875
+    }
+  },
+  "l2b_info": {
+    "cube-single-play-singletask-task1-v0": {
+      "residual_init": 5115.14599609375,
+      "residual_final": 224.3603515625
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "residual_init": 6032.86669921875,
+      "residual_final": 267.81805419921875
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "residual_init": 4767.52783203125,
+      "residual_final": 197.23239135742188
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "residual_init": 8527.3427734375,
+      "residual_final": 288.2520751953125
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "residual_init": 8998.5712890625,
+      "residual_final": 309.7392883300781
+    }
+  },
+  "cube-single-play-singletask-task1-v0": {
+    "L0": {
+      "success": 0.55,
+      "value_auc": 0.850054919719696,
+      "cos_to_L0": 1.0000001192092896
+    },
+    "L1": {
+      "success": 0.5,
+      "value_auc": 0.854152500629425,
+      "cos_to_L0": 0.9943732619285583
+    },
+    "L2": {
+      "success": 0.0,
+      "value_auc": 0.7282097339630127,
+      "cos_to_L0": 0.5115114450454712
+    },
+    "L2b": {
+      "success": 0.05,
+      "value_auc": 0.7084548473358154,
+      "cos_to_L0": 0.4960657060146332
+    }
+  },
+  "cube-single-play-singletask-task2-v0": {
+    "L0": {
+      "success": 0.7,
+      "value_auc": 0.8592149615287781,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.6,
+      "value_auc": 0.8633597493171692,
+      "cos_to_L0": 0.9939472079277039
+    },
+    "L2": {
+      "success": 0.1,
+      "value_auc": 0.7627260088920593,
+      "cos_to_L0": 0.4619749188423157
+    },
+    "L2b": {
+      "success": 0.3,
+      "value_auc": 0.6953666806221008,
+      "cos_to_L0": 0.4707200229167938
+    }
+  },
+  "cube-single-play-singletask-task3-v0": {
+    "L0": {
+      "success": 0.3,
+      "value_auc": 0.8233913779258728,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.65,
+      "value_auc": 0.8451618552207947,
+      "cos_to_L0": 0.9923354387283325
+    },
+    "L2": {
+      "success": 0.1,
+      "value_auc": 0.6687731742858887,
+      "cos_to_L0": 0.4516167938709259
+    },
+    "L2b": {
+      "success": 0.1,
+      "value_auc": 0.6547122001647949,
+      "cos_to_L0": 0.45539700984954834
+    }
+  },
+  "cube-single-play-singletask-task4-v0": {
+    "L0": {
+      "success": 0.1,
+      "value_auc": 0.5655595064163208,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.2,
+      "value_auc": 0.5490555763244629,
+      "cos_to_L0": 0.9934618473052979
+    },
+    "L2": {
+      "success": 0.25,
+      "value_auc": 0.8070953488349915,
+      "cos_to_L0": 0.5403156280517578
+    },
+    "L2b": {
+      "success": 0.4,
+      "value_auc": 0.7173493504524231,
+      "cos_to_L0": 0.4925884008407593
+    }
+  },
+  "cube-single-play-singletask-task5-v0": {
+    "L0": {
+      "success": 0.05,
+      "value_auc": 0.651094377040863,
+      "cos_to_L0": 0.9999999403953552
+    },
+    "L1": {
+      "success": 0.1,
+      "value_auc": 0.6788102984428406,
+      "cos_to_L0": 0.9943695664405823
+    },
+    "L2": {
+      "success": 0.1,
+      "value_auc": 0.6962676048278809,
+      "cos_to_L0": 0.4350174069404602
+    },
+    "L2b": {
+      "success": 0.05,
+      "value_auc": 0.6865051984786987,
+      "cos_to_L0": 0.4315195083618164
+    }
+  }
+}

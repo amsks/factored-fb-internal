@@ -1,0 +1,163 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec19/factored-fb/GCIQL-CubeDouble-Flow-Measure-DensityBehavior-d50/d19_cd_bdens_s0",
+    "checkpoint_step": 500000,
+    "env": "cube-double-play-v0",
+    "gamma": 0.99,
+    "tau": 1.0,
+    "hit_spec": "19:22:0.4,28:31:0.4",
+    "n_samples_requested": 2000,
+    "n_samples_used": 2000,
+    "min_remaining": 500,
+    "horizon": 500,
+    "pool_size": 4096,
+    "ors_reward_scale": 1.0,
+    "n_goals": 25,
+    "n_task_goals": 5,
+    "n_random_goals": 20,
+    "seed": 0,
+    "formula": "r_W = scale*(1-gamma)*sum_j mean_h softmax_j(F_D(s,a)_h.B_D(u_j)/tau) * (-d2_eps(u_j,g)); ground truth = truncated/renormalized discounted future d2_eps under the dataset trajectory (spec 19b sec.0/1; PAPER/Multistep-FB/specs/19b-ors-transcription.md)",
+    "gate": "Spearman(STATE axis, pooled over goals) >= 0.65"
+  },
+  "state_axis": {
+    "pooled": {
+      "spearman": 0.9702619089223448,
+      "n": 50000,
+      "gate_passed": true
+    },
+    "per_goal": {
+      "task1": {
+        "spearman": 0.9642053665513418,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "task2": {
+        "spearman": 0.9682023335505833,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "task3": {
+        "spearman": 0.9644858066214516,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "task4": {
+        "spearman": 0.9638424819606204,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "task5": {
+        "spearman": 0.9683987150996787,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand0": {
+        "spearman": 0.9790011737502935,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand1": {
+        "spearman": 0.9688380592095147,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand2": {
+        "spearman": 0.9673280538320134,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand3": {
+        "spearman": 0.9737857624464406,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand4": {
+        "spearman": 0.9623226230806557,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand5": {
+        "spearman": 0.9631449352862337,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand6": {
+        "spearman": 0.9546521986630497,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand7": {
+        "spearman": 0.9767518031879506,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand8": {
+        "spearman": 0.9608019527004881,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand9": {
+        "spearman": 0.9622391975597994,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand10": {
+        "spearman": 0.966291232572808,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand11": {
+        "spearman": 0.9773597098399275,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand12": {
+        "spearman": 0.9725508766377191,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand13": {
+        "spearman": 0.9758948799737199,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand14": {
+        "spearman": 0.9727741111935279,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand15": {
+        "spearman": 0.9647964206991052,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand16": {
+        "spearman": 0.9743071550767888,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand17": {
+        "spearman": 0.9785500936375234,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand18": {
+        "spearman": 0.9755947208986802,
+        "n": 2000,
+        "gate_passed": true
+      },
+      "rand19": {
+        "spearman": 0.9717925424481356,
+        "n": 2000,
+        "gate_passed": true
+      }
+    }
+  },
+  "action_axis": {
+    "n_groups": 107,
+    "n_rows_covered": 223,
+    "coverage_fraction": 0.1115,
+    "spearman": 0.9675196672990946,
+    "gate_passed_informational_only": true
+  }
+}

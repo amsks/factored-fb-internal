@@ -1,0 +1,16 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/factored-fb-crl-flowbc/sd001_20260525_080819/params_500000.pkl
+[render] restored crl_flowbc from sd001_20260525_080819 @ 500000
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:01<00:00,  1.24s/it]100%|██████████| 1/1 [00:01<00:00,  1.24s/it]
+[render] wrote results/videos/CRL/task1.gif  ((200, 400, 200, 3))
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  1.38it/s]100%|██████████| 1/1 [00:00<00:00,  1.38it/s]
+[render] wrote results/videos/CRL/task2.gif  ((200, 400, 200, 3))
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  1.35it/s]100%|██████████| 1/1 [00:00<00:00,  1.35it/s]
+[render] wrote results/videos/CRL/task3.gif  ((200, 400, 200, 3))
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  1.17it/s]100%|██████████| 1/1 [00:00<00:00,  1.17it/s]
+[render] wrote results/videos/CRL/task4.gif  ((200, 400, 200, 3))
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  1.45it/s]100%|██████████| 1/1 [00:00<00:00,  1.45it/s]
+[render] wrote results/videos/CRL/task5.gif  ((200, 400, 200, 3))

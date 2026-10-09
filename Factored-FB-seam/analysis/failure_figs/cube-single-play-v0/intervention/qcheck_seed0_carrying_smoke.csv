@@ -1,0 +1,5 @@
+critic,seed,bank,state,q_rel_dev
+fb_tdj,0,carrying,0,7.626880788802519e-07
+density_fb_z,0,carrying,0,0.0001276092843306737
+fb_tdj,0,carrying,1,2.1433723177035053e-06
+density_fb_z,0,carrying,1,5.5481489580086716e-05

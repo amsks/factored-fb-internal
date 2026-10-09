@@ -1,0 +1,11 @@
+[phase] seed=0 out=analysis/phase_probe_tdmpc2/s0_final
+[phase] seed=1 out=analysis/phase_probe_tdmpc2/s1_final
+[phase] seed=2 out=analysis/phase_probe_tdmpc2/s2_final
+[phase] seed=3 out=analysis/phase_probe_tdmpc2/s3_final
+[phase] seed=4 out=analysis/phase_probe_tdmpc2/s4_final
+[phase] seed=5 out=analysis/phase_probe_tdmpc2/s5_final
+[phase] seed=6 out=analysis/phase_probe_tdmpc2/s6_final
+[phase] seed=7 out=analysis/phase_probe_tdmpc2/s7_final
+[phase] seed=8 out=analysis/phase_probe_tdmpc2/s8_final
+[phase] seed=9 out=analysis/phase_probe_tdmpc2/s9_final
+[phase] ALL SEEDS DONE — output at analysis/phase_probe_tdmpc2/s*_final/per_episode.parquet

@@ -1,0 +1,36 @@
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-double-play-v0_fb_tdj_flowbc_seed_0/params_250000.pkl (params only)
+  [fb_tdj_seed0_250000] carrying task 2: 8/13 (52s)
+  [fb_tdj_seed0_250000] carrying task 2: 13/13 (74s)
+  [fb_tdj_seed0_250000] carrying task 5: 8/15 (100s)
+  [fb_tdj_seed0_250000] carrying task 5: 15/15 (130s)
+  [fb_tdj_seed0_250000] carrying task 3: 8/15 (154s)
+  [fb_tdj_seed0_250000] carrying task 3: 15/15 (174s)
+  [fb_tdj_seed0_250000] carrying task 4: 8/13 (199s)
+  [fb_tdj_seed0_250000] carrying task 4: 13/13 (215s)
+  [fb_tdj_seed0_250000] carrying task 1: 8/8 (236s)
+[predict] fb_tdj_seed0_250000 carrying: TV 0.802 goal-mass pred 0.057 truth 0.178
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-double-play-v0_fb_tdj_flowbc_seed_1/params_250000.pkl (params only)
+  [fb_tdj_seed1_250000] carrying task 2: 8/13 (22s)
+  [fb_tdj_seed1_250000] carrying task 2: 13/13 (37s)
+  [fb_tdj_seed1_250000] carrying task 5: 8/15 (61s)
+  [fb_tdj_seed1_250000] carrying task 5: 15/15 (81s)
+  [fb_tdj_seed1_250000] carrying task 3: 8/15 (105s)
+  [fb_tdj_seed1_250000] carrying task 3: 15/15 (127s)
+  [fb_tdj_seed1_250000] carrying task 4: 8/13 (151s)
+  [fb_tdj_seed1_250000] carrying task 4: 13/13 (167s)
+  [fb_tdj_seed1_250000] carrying task 1: 8/8 (187s)
+[predict] fb_tdj_seed1_250000 carrying: TV 0.844 goal-mass pred 0.057 truth 0.219
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-double-play-v0_fb_tdj_flowbc_seed_2/params_250000.pkl (params only)
+  [fb_tdj_seed2_250000] carrying task 2: 8/13 (22s)
+  [fb_tdj_seed2_250000] carrying task 2: 13/13 (37s)
+  [fb_tdj_seed2_250000] carrying task 5: 8/15 (61s)
+  [fb_tdj_seed2_250000] carrying task 5: 15/15 (82s)
+  [fb_tdj_seed2_250000] carrying task 3: 8/15 (106s)
+  [fb_tdj_seed2_250000] carrying task 3: 15/15 (126s)
+  [fb_tdj_seed2_250000] carrying task 4: 8/13 (151s)
+  [fb_tdj_seed2_250000] carrying task 4: 13/13 (165s)
+  [fb_tdj_seed2_250000] carrying task 1: 8/8 (185s)
+[predict] fb_tdj_seed2_250000 carrying: TV 0.849 goal-mass pred 0.056 truth 0.190

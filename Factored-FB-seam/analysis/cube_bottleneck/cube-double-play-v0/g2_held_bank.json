@@ -1,0 +1,650 @@
+{
+  "n": 64,
+  "n_kept": 64,
+  "drop_frac": 0.0,
+  "n_settle": 2,
+  "drift_bound": 0.04,
+  "contact_min": 0.5,
+  "per_row": [
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0017584469208285702,
+      "lift": 0.056808425134637755,
+      "grip": 0.5533539652824402,
+      "contact": 0.9807683229446411,
+      "passes": true,
+      "bank_row": 2386
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0067875631647814245,
+      "lift": 0.07925069233371933,
+      "grip": 0.5541613698005676,
+      "contact": 0.9439473748207092,
+      "passes": true,
+      "bank_row": 5153
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.002569192651835878,
+      "lift": 0.15835305011435108,
+      "grip": 0.5540521740913391,
+      "contact": 0.9708235859870911,
+      "passes": true,
+      "bank_row": 7575
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007924583958988448,
+      "lift": 0.08726853544657943,
+      "grip": 0.5541417002677917,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 14604
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0055662745881060165,
+      "lift": 0.29103967648207174,
+      "grip": 0.5541027188301086,
+      "contact": 0.9306811690330505,
+      "passes": true,
+      "bank_row": 19596
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.005431761063832917,
+      "lift": 0.2610388718992795,
+      "grip": 0.5541543364524841,
+      "contact": 0.97712242603302,
+      "passes": true,
+      "bank_row": 25962
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.006633537062170179,
+      "lift": 0.23030813756189591,
+      "grip": 0.5541768670082092,
+      "contact": 0.9773133397102356,
+      "passes": true,
+      "bank_row": 31430
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007375525575542022,
+      "lift": 0.20561111286053604,
+      "grip": 0.5541489124298096,
+      "contact": 0.9336203932762146,
+      "passes": true,
+      "bank_row": 37885
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0032677957652118388,
+      "lift": 0.1343290889627579,
+      "grip": 0.5541619658470154,
+      "contact": 0.9803797602653503,
+      "passes": true,
+      "bank_row": 72823
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.008172327033176928,
+      "lift": 0.12959455952093335,
+      "grip": 0.554158091545105,
+      "contact": 0.9654583930969238,
+      "passes": true,
+      "bank_row": 78930
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0017879801709661095,
+      "lift": 0.0723885239250028,
+      "grip": 0.5541216731071472,
+      "contact": 0.9693544507026672,
+      "passes": true,
+      "bank_row": 88211
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007716330298780394,
+      "lift": 0.10959571244192513,
+      "grip": 0.5541559457778931,
+      "contact": 0.9745519757270813,
+      "passes": true,
+      "bank_row": 124180
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.008639306963320931,
+      "lift": 0.2042204592204237,
+      "grip": 0.5541583895683289,
+      "contact": 0.9344959855079651,
+      "passes": true,
+      "bank_row": 171576
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0017456191177082773,
+      "lift": 0.13187029805122155,
+      "grip": 0.554133415222168,
+      "contact": 0.9532067775726318,
+      "passes": true,
+      "bank_row": 172384
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.00925628767187373,
+      "lift": 0.14034543578253042,
+      "grip": 0.5540981292724609,
+      "contact": 0.9487136006355286,
+      "passes": true,
+      "bank_row": 257397
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.003431096127504786,
+      "lift": 0.06749185314648824,
+      "grip": 0.5541215538978577,
+      "contact": 0.9902969002723694,
+      "passes": true,
+      "bank_row": 269930
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0037889175739610767,
+      "lift": 0.24684615833102455,
+      "grip": 0.5541650056838989,
+      "contact": 0.9293820858001709,
+      "passes": true,
+      "bank_row": 277322
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007015371524529242,
+      "lift": 0.22560949396791508,
+      "grip": 0.5527045130729675,
+      "contact": 0.9638663530349731,
+      "passes": true,
+      "bank_row": 300441
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0011951412133459395,
+      "lift": 0.03874181198240097,
+      "grip": 0.5511432886123657,
+      "contact": 0.9639794230461121,
+      "passes": true,
+      "bank_row": 308425
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.001635178626266425,
+      "lift": 0.25828436708569025,
+      "grip": 0.5541802048683167,
+      "contact": 0.9277002215385437,
+      "passes": true,
+      "bank_row": 383048
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0013894730906631333,
+      "lift": 0.10386964928963265,
+      "grip": 0.542193591594696,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 388425
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.004842035318457755,
+      "lift": 0.27783664269954467,
+      "grip": 0.5541466474533081,
+      "contact": 0.946124792098999,
+      "passes": true,
+      "bank_row": 395144
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0032926542505702415,
+      "lift": 0.2783231800918751,
+      "grip": 0.5541154146194458,
+      "contact": 0.9290004968643188,
+      "passes": true,
+      "bank_row": 402895
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0029969344902981538,
+      "lift": 0.14671698096683372,
+      "grip": 0.554194450378418,
+      "contact": 0.9294586181640625,
+      "passes": true,
+      "bank_row": 413160
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.00782143960840645,
+      "lift": 0.07716974453442006,
+      "grip": 0.5217793583869934,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 430493
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0029517473908995248,
+      "lift": 0.3013859476383399,
+      "grip": 0.5528398752212524,
+      "contact": 0.9294938445091248,
+      "passes": true,
+      "bank_row": 466599
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.00104016197926142,
+      "lift": 0.039091394091380835,
+      "grip": 0.550069272518158,
+      "contact": 0.8148961067199707,
+      "passes": true,
+      "bank_row": 484303
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.005648833055547465,
+      "lift": 0.1493567788352421,
+      "grip": 0.5541490912437439,
+      "contact": 0.9315698146820068,
+      "passes": true,
+      "bank_row": 506442
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.003059682021778894,
+      "lift": 0.18898947531912902,
+      "grip": 0.5541062951087952,
+      "contact": 0.9886234402656555,
+      "passes": true,
+      "bank_row": 513820
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0030847968328406574,
+      "lift": 0.09585889192116072,
+      "grip": 0.5537698268890381,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 527742
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.003997091571366184,
+      "lift": 0.15657305533302687,
+      "grip": 0.5541908144950867,
+      "contact": 0.9346462488174438,
+      "passes": true,
+      "bank_row": 543587
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007900052563995976,
+      "lift": 0.09989465099362689,
+      "grip": 0.5540080070495605,
+      "contact": 0.9497107267379761,
+      "passes": true,
+      "bank_row": 545602
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.008126229154072243,
+      "lift": 0.22949556031935553,
+      "grip": 0.5541241765022278,
+      "contact": 0.9782044291496277,
+      "passes": true,
+      "bank_row": 557958
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0024711047813687007,
+      "lift": 0.29740414572558954,
+      "grip": 0.5346795916557312,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 562786
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0019810500143080043,
+      "lift": 0.03631416027334593,
+      "grip": 0.5539478659629822,
+      "contact": 0.9568286538124084,
+      "passes": true,
+      "bank_row": 612087
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0015241490431693765,
+      "lift": 0.05037525356810958,
+      "grip": 0.5540856122970581,
+      "contact": 0.9498363137245178,
+      "passes": true,
+      "bank_row": 621273
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.002014760559629069,
+      "lift": 0.30133725950249496,
+      "grip": 0.5536494851112366,
+      "contact": 0.9693194031715393,
+      "passes": true,
+      "bank_row": 638300
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0004076740733157811,
+      "lift": 0.03890350286118506,
+      "grip": 0.5504315495491028,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 644114
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007221229830662397,
+      "lift": 0.05739221964720048,
+      "grip": 0.5540606379508972,
+      "contact": 0.9471620917320251,
+      "passes": true,
+      "bank_row": 655159
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0024061429420941384,
+      "lift": 0.12857076161172756,
+      "grip": 0.5534780025482178,
+      "contact": 0.9829486012458801,
+      "passes": true,
+      "bank_row": 657225
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.006857447724658895,
+      "lift": 0.18840261207491016,
+      "grip": 0.5541268587112427,
+      "contact": 0.9732020497322083,
+      "passes": true,
+      "bank_row": 658063
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.010000681092832999,
+      "lift": 0.09157879938474447,
+      "grip": 0.5541077256202698,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 677357
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007369801052396217,
+      "lift": 0.10544940304877408,
+      "grip": 0.554105818271637,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 677444
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.006545788695539105,
+      "lift": 0.10622851729995049,
+      "grip": 0.5541679859161377,
+      "contact": 0.9618386626243591,
+      "passes": true,
+      "bank_row": 690365
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007710067766887338,
+      "lift": 0.2034165295585458,
+      "grip": 0.5538329482078552,
+      "contact": 0.9858174324035645,
+      "passes": true,
+      "bank_row": 692093
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.009766587008472289,
+      "lift": 0.1279242354140581,
+      "grip": 0.5541155338287354,
+      "contact": 0.945185124874115,
+      "passes": true,
+      "bank_row": 707763
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.006046351982979967,
+      "lift": 0.1427600152270904,
+      "grip": 0.5541512370109558,
+      "contact": 0.9692220091819763,
+      "passes": true,
+      "bank_row": 734053
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0014054065399757725,
+      "lift": 0.0537865378641002,
+      "grip": 0.5541766285896301,
+      "contact": 0.9471287727355957,
+      "passes": true,
+      "bank_row": 734211
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0014712788306496083,
+      "lift": 0.12221100341425702,
+      "grip": 0.554110050201416,
+      "contact": 0.9328762888908386,
+      "passes": true,
+      "bank_row": 766600
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0024679832883146772,
+      "lift": 0.13560033643480268,
+      "grip": 0.553673267364502,
+      "contact": 0.9994524717330933,
+      "passes": true,
+      "bank_row": 766979
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.001896887613657645,
+      "lift": 0.1055370642958584,
+      "grip": 0.5541341304779053,
+      "contact": 0.9610778093338013,
+      "passes": true,
+      "bank_row": 810200
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.00255836449725313,
+      "lift": 0.1960888131888145,
+      "grip": 0.5541653633117676,
+      "contact": 0.9753469824790955,
+      "passes": true,
+      "bank_row": 816383
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.005050880905222074,
+      "lift": 0.17772866433665527,
+      "grip": 0.5541679859161377,
+      "contact": 0.9604161977767944,
+      "passes": true,
+      "bank_row": 818667
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0030299756176283897,
+      "lift": 0.0681515092411952,
+      "grip": 0.5516209602355957,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 847407
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.005175361404234392,
+      "lift": 0.2344645906350962,
+      "grip": 0.534785270690918,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 853985
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007239626454106561,
+      "lift": 0.17967367179558819,
+      "grip": 0.5527908205986023,
+      "contact": 0.9614815711975098,
+      "passes": true,
+      "bank_row": 857442
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0042508048639992415,
+      "lift": 0.2620559886913702,
+      "grip": 0.5541689991950989,
+      "contact": 0.927556574344635,
+      "passes": true,
+      "bank_row": 863527
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.009181480285005508,
+      "lift": 0.1225525384934114,
+      "grip": 0.5540189743041992,
+      "contact": 1.0,
+      "passes": true,
+      "bank_row": 868718
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0026494982546466897,
+      "lift": 0.19839151188676368,
+      "grip": 0.5539913773536682,
+      "contact": 0.98385089635849,
+      "passes": true,
+      "bank_row": 917225
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.007612881135534289,
+      "lift": 0.09666864113948359,
+      "grip": 0.5541355013847351,
+      "contact": 0.9459584951400757,
+      "passes": true,
+      "bank_row": 939616
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0024833933309500495,
+      "lift": 0.0795525231739046,
+      "grip": 0.5541921257972717,
+      "contact": 0.9489596486091614,
+      "passes": true,
+      "bank_row": 954782
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0041349831261257965,
+      "lift": 0.09000349769983006,
+      "grip": 0.5520790219306946,
+      "contact": 0.9653080105781555,
+      "passes": true,
+      "bank_row": 970442
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.010150296133868544,
+      "lift": 0.1781713404496941,
+      "grip": 0.554138720035553,
+      "contact": 0.9684639573097229,
+      "passes": true,
+      "bank_row": 980389
+    },
+    {
+      "held": true,
+      "in_contact": true,
+      "drift_m": 0.0016943750764067368,
+      "lift": 0.06960099677327135,
+      "grip": 0.5541024804115295,
+      "contact": 0.9699286222457886,
+      "passes": true,
+      "bank_row": 998120
+    }
+  ]
+}

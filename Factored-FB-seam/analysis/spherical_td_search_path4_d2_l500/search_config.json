@@ -1,0 +1,36 @@
+{
+  "out": "analysis/spherical_td_search_path4_d2_l500",
+  "n": 4,
+  "d": 2,
+  "family": "path",
+  "goal": 1,
+  "start": 0,
+  "gamma": [
+    0.5,
+    0.8,
+    0.9
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "rates": [
+    0.001,
+    0.01
+  ],
+  "ortho": 500.0,
+  "steps": 100000,
+  "interval": 10000,
+  "methods": [
+    "fb"
+  ],
+  "target_rate": 0.005,
+  "sphere_fb": true,
+  "sphere_density": false,
+  "one_forward_head": true,
+  "source_sha256": "2a81e205ed0a32636209431c094843cb064e85a5b8205ac7de547074721ba443",
+  "runner_sha256": "21f9a10a474adedbc4cb002d381c8fa857e88dc80031e9e08e1ca925c3ddf332",
+  "normalization": "sqrt(d)*B/||B||; F unrestricted",
+  "float64": true
+}

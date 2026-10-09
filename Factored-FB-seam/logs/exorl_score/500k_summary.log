@@ -1,0 +1,5 @@
+AGG sphere+qnorm @500k dmc-cheetah: n=5 mean=282.0 popstd=34.5 per-seed=[299, 224, 308, 316, 263] {'run': 92, 'run_backward': 104, 'walk': 432, 'walk_backward': 499}
+AGG sphere+qnorm @500k dmc-walker: n=5 mean=728.8 popstd=20.5 per-seed=[751, 706, 736, 748, 703] {'run': 300, 'spin': 980, 'stand': 888, 'walk': 746}
+AGG table batch @500k dmc-cheetah: n=5 mean=249.7 popstd=37.7 per-seed=[263, 208, 287, 288, 202] {'run': 68, 'run_backward': 119, 'walk': 310, 'walk_backward': 502}
+AGG table batch @500k dmc-walker: n=5 mean=692.7 popstd=27.9 per-seed=[716, 702, 726, 657, 662] {'run': 312, 'spin': 982, 'stand': 790, 'walk': 687}
+SCORE500K_EXIT=0

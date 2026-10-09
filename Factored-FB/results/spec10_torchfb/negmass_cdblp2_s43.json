@@ -1,0 +1,19 @@
+{
+ "run": "/home/adityamohan/exp_spec10/torchfb/p2_cdbl_s43",
+ "env": "cube-double-play-v0",
+ "hit_spec": "19:22:0.4,28:31:0.4",
+ "neg_frac": 0.47685625,
+ "neg_mass_share": 0.34824981238542535,
+ "mag_neg": 0.9183608349827039,
+ "mag_pos": 1.5672937092834962,
+ "neg_frac_by_density_quartile": [
+  0.4689,
+  0.4765,
+  0.4812,
+  0.4806
+ ],
+ "gate_G1": false,
+ "starts": 32,
+ "goals": 20000,
+ "seed": 0
+}

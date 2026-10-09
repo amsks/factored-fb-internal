@@ -1,0 +1,109 @@
+agent,actor,variant,experiment,mean_500k,ci95,n_seeds,seeds,per_seed,n_runs_in_group,n_seeds_dropped,wandb_group
+GCIQL,fql_flow,anneal-zero,CONTROL: finetune the 0.904 anchor 400k more steps with NO measure loss (validates restore; isolates extra IQL steps),0.931,0.070,3,0 1 2,0.956 0.860 0.976,3,0,GCIQL-State-Flow-Anneal-Zero
+GCIQL,fql_flow,g4-zcond,actor_cond=z from value psi (G4),0.924,0.024,3,0 1 2,0.936 0.936 0.900,13,7,gciql_g4_zcond
+GCIQL,fql_flow,E2-mix-l10,shared legs (absorption limit test),0.917,0.041,3,0 1 2,0.932 0.876 0.944,3,0,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l10
+GCIQL,fql_flow,ANCHOR IQL-bilinear d50,paper anchor — protocol check,0.916,0.031,3,0 1 2,0.948 0.900 0.900,13,7,GCIQL-State-Flow-Bilinear-d50
+GCIQL,fql_flow,single-q,GCIQL self-ablation,0.905,0.025,3,0 1 2,0.904 0.884 0.928,14,8,GCIQL-State-Flow-Bilinear-d50-singleq
+GCIQL,fql_flow,tau0.95,GCIQL self-ablation,0.903,0.022,3,0 1 2,0.880 0.912 0.916,13,7,GCIQL-State-Flow-Bilinear-d50-tau095
+GCIQL,fql_flow,E2-mix-l0.01,"IQL + scale-normed measure, shared legs",0.897,0.057,3,0 1 2,0.888 0.852 0.952,3,0,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l001
+GCIQL,fql_flow,E2-mix-l0.1-sgphi,stopgrad-phi (measure->psi only),0.891,0.031,3,0 1 2,0.860 0.912 0.900,3,0,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01-sgphi
+GCIQL,fql_flow,tau0.5,GCIQL self-ablation,0.887,0.010,3,0 1 2,0.892 0.892 0.876,13,7,GCIQL-State-Flow-Bilinear-d50-tau05
+GCIQL,fql_flow,E2-mix-l0.1,shared legs,0.881,0.050,3,0 1 2,0.852 0.860 0.932,3,0,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01
+GCIQL,fql_flow,B-twotower-projz,two-tower + sphere-Norm,0.875,0.058,3,0 1 2,0.816 0.908 0.900,3,0,GCIQL-State-Flow-Bilinear-d50-B-TwoTowerProjZ
+GCIQL,fql_flow,E2-mix-l1,shared legs,0.873,0.042,3,0 1 2,0.852 0.852 0.916,3,0,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1
+GCIQL,fql_flow,B4-full-struct,"two-tower + z-fwd + sphere + ortho1, IQL",0.871,0.028,3,0 1 2,0.876 0.844 0.892,4,0,GCIQL-State-Flow-Bilinear-d50-B4-FBstruct
+GCIQL,fql_flow,two-tower,"FB two-tower forward map, IQL objective",0.864,0.008,3,0 1 2,0.872 0.860 0.860,3,0,GCIQL-State-Flow-Bilinear-d50-TwoTower
+GCIQL,fql_flow,E2-mix-l1-sgphi,stopgrad-phi,0.857,0.017,3,0 1 2,0.840 0.864 0.868,3,0,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1-sgphi
+GCIQL,fql_flow,B-twotower-ortho1,two-tower + ortho1.0,0.855,0.021,3,0 1 2,0.876 0.844 0.844,3,0,GCIQL-State-Flow-Bilinear-d50-B-TwoTowerOrtho1
+GCIQL,fql_flow,anneal-sgphi,warm-start + lambda 0->10 ramp on the stopgrad-phi measure (crosses the cold cliff at lambda=3),0.849,0.021,3,0 1 2,0.864 0.828 0.856,3,0,GCIQL-State-Flow-Anneal-SgPhi
+GCIQL,fql_flow,B1-fbz-iql,fb_forward_z under IQL (USFA-IQL core),0.844,0.008,3,0 1 2,0.848 0.836 0.848,3,0,GCIQL-State-Flow-Bilinear-d50-B1-FBzIQL
+GCIQL,fql_flow,ANCHOR GCIQL MLP critic,paper anchor — protocol check,0.713,0.034,3,0 1 2,0.692 0.700 0.748,20,14,GCIQL-State-Flow
+FB,flowbc,idB-dnorm,identity-B (z=g) + dnorm,0.653,0.073,3,0 1 2,0.700 0.680 0.580,3,0,fb_bridge_idB_dnorm
+FB,flowbc,r2-dnorm,r0 + sqrt(d) norm,0.653,0.069,3,0 1 2,0.600 0.720 0.640,3,0,fb_bridge_r2_dnorm
+FB,flowbc,a0-cubexyz,privileged cube-xyz reward,0.627,0.091,3,0 1 2,0.700 0.540 0.640,3,0,fb_bridge_a0_cubexyz
+FB,flowbc,r0-base,FB<-IQL + goal-match + GCIQL mix,0.587,0.094,3,0 1 2,0.680 0.560 0.520,3,0,fb_bridge_r0_base
+FB,flowbc,r1-decond,r0 + de-condition F->phi,0.580,0.158,3,0 1 2,0.740 0.520 0.480,3,0,fb_bridge_r1_decond
+FB,flowbc,r3-allon,r0 + decond + dnorm,0.567,0.026,3,0 1 2,0.580 0.540 0.580,3,0,fb_bridge_r3_allon
+FB,flowbc,r3-bilinearv,r3 + bilinear-V head (refuted gap-closer),0.540,0.104,3,0 1 2,0.640 0.460 0.520,3,0,fb_bridge_r3_bilinearv
+FB,flowbc,iql-ontraj,FB-IQL on-trajectory goals,0.507,0.035,3,0 1 2,0.540 0.500 0.480,3,0,fb_iql_ontraj_flow
+FB,flowbc,zg-iql,z=g identity-FB + IQL,0.507,0.171,3,0 1 2,0.680 0.440 0.400,3,0,fb_cube_zg_iql
+FB,flowbc,decouple,decouple actor-z,0.440,0.039,3,0 1 2,0.460 0.400 0.460,3,0,fb_cube_decouple
+FB,flowbc,decouple-zher,decouple actor-z + zHER-traj,0.387,0.035,3,0 1 2,0.420 0.380 0.360,3,0,fb_cube_decouple_zher_traj
+GCIQL,fql_flow,simplesf-arch,"SimpleSF trunk split (b=h/||h||, Psi=head(h)), psi learned end-to-end; scalar IQL TD",0.380,0.063,3,0 1 2,0.316 0.408 0.416,3,0,GCIQL-State-Flow-SimpleSF-Arch
+FB,flowbc,hp-ortho100-lrb1e-5,FB incidental-HP ladder,0.350,0.020,2,1 2,0.360 0.340,10,8,cube-single-ortho100-lrb1e-5
+FB,flowbc,zher,z-HER relabel,0.347,0.079,3,0 1 2,0.420 0.340 0.280,10,7,fb_state_zher
+FB,flowbc,fb-iql-v0,FB<-IQL objective (early),0.340,0.039,3,0 1 2,0.380 0.320 0.320,10,7,fb_state_iql
+FB,flowbc,ANCHOR plain FB (measure),paper anchor — protocol check,0.340,0.091,3,0 1 2,0.420 0.340 0.260,10,7,FB-State-Flow
+GCIQL,fql_flow,bilinear-sg-d50,"psi(s,g) not psi(g): same inner-product head, no low-rank GOAL bottleneck",0.325,0.394,3,0 1 2,0.692 0.284 0.000,3,0,GCIQL-State-Flow-Bilinear-SG-d50
+FB,flowbc,video-replay,FB data ablation (video replay),0.300,0.078,2,1 2,0.340 0.260,10,8,cube-single-video-replay-ortho1000-lrb1e-4
+FB,flowbc,hp-ortho1000-lrb1e-4,FB incidental-HP ladder,0.300,0.078,2,1 2,0.340 0.260,10,8,cube-single-ortho1000-lrb1e-4
+FB,flowbc,hp-ortho1000-lrb1e-5,FB incidental-HP ladder,0.290,0.098,2,1 2,0.340 0.240,10,8,cube-single-ortho1000-lrb1e-5
+FB,flowbc,learnedB-her,learned-B + HER,0.280,0.099,3,0 1 2,0.240 0.220 0.380,3,0,fb_cube_her_learnedB_r1
+FB,flowbc,z128-ortho1000,FB capacity/ortho variant,0.280,0.060,3,0 1 2,0.220 0.320 0.300,10,7,fb_z128_ortho1000
+FB,flowbc,idnorm-her,identity-norm + HER,0.273,0.057,3,0 1 2,0.280 0.220 0.320,3,0,fb_cube_her_idnorm_r1
+ISFB,flowbc,torch-exp1,faithful SG-ISFB torch,0.267,0.079,3,0 1 2,0.260 0.200 0.340,12,0,ISFB-Torch-Exp1-fixed
+FB,ddpgbc,iql-ontraj,"FB-IQL on-trajectory goals, ddpgbc actor",0.260,0.091,3,0 1 2,0.260 0.340 0.180,3,0,fb_iql_ontraj_ddpgbc
+GCIQL,fql_flow,C1-fbz-ortho1000,measure + fb_forward_z (C1),0.255,0.052,3,0 1 2,0.208 0.256 0.300,3,0,GCIQL-Bil-FBz-O1000
+FB,flowbc,zg-her,z=g identity-FB + HER,0.247,0.114,3,0 1 2,0.140 0.340 0.260,3,0,fb_cube_zg_her
+FB,flowbc,goal-cond-v1,explicit goal obs into F + actor,0.247,0.073,3,0 1 2,0.320 0.220 0.200,10,7,FB-State-Flow-GoalCond
+GCIQL,fql_flow,C-fbz-projz-ortho1000,measure + fbz + sphere + ortho1000,0.231,0.030,3,0 1 2,0.224 0.208 0.260,3,0,GCIQL-State-Flow-Bilinear-d50-C-FBzProjZ-O1000
+FB,flowbc,hp-ortho100-lrb1e-4,FB incidental-HP ladder,0.230,0.059,2,1 2,0.200 0.260,10,8,cube-single-ortho100-lrb1e-4
+FB,flowbc,iwr,IWR reweight,0.227,0.105,3,0 1 2,0.280 0.280 0.120,3,0,fb_state_iwr
+GCIQL,fql_flow,D1-actor-z-critic,actor z from critic psi under measure,0.220,0.036,3,0 1 2,0.208 0.196 0.256,4,0,GCIQL-State-Flow-Bilinear-d50-D1-ActorZCritic
+FB,flowbc,fb-iql-critic-fix,"FB<-IQL critic (lr1e-4, ortho1000)",0.200,0.060,3,0 1 2,0.260 0.160 0.180,10,7,fb_state_iqlcritic_fix
+FB,flowbc,learnedB-iql,learned-B + IQL (phase2 control),0.200,0.060,3,0 1 2,0.260 0.160 0.180,3,0,fb_cube_iql_learnedB_r1
+FB,flowbc,decouple-iql,decouple actor-z + IQL,0.200,0.060,3,0 1 2,0.260 0.160 0.180,3,0,fb_cube_decouple_iql
+GCIQL,fql_flow,C-tasknorm,"FB measure, residual tested in the TASK norm (test states ~ value_goals) instead of the replay norm",0.200,0.053,3,0 1 2,0.148 0.212 0.240,3,0,GCIQL-State-Flow-Bilinear-d50-C-TaskNorm
+ISFB,fql_flow,scalargate-hard,SG-ISFB jax,0.199,0.038,3,0 1 2,0.160 0.220 0.216,8,0,ISFB-State-ScalarGateHard-d50
+GCIQL,fql_flow,E2-mix-l3-sgphi,stopgrad-phi dose,0.176,0.047,3,0 1 2,0.128 0.200 0.200,3,0,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l3-sgphi
+ISFB,fql_flow,coord,SG-ISFB jax coord readout,0.173,0.040,3,0 1 2,0.144 0.212 0.164,4,0,ISFB-State-Coord-d50
+FB,flowbc,iwr-wz,IWR reweight w/ z,0.167,0.057,3,0 1 2,0.120 0.220 0.160,3,0,fb_state_iwr_wz
+GCIQL,fql_flow,C4-fb-rebuild,measure + fbz + sphere + ortho1 (full C stack),0.165,0.030,3,0 1 2,0.148 0.152 0.196,3,0,GCIQL-State-Flow-Bilinear-d50-C4-FBrebuild
+GCIQL,fql_flow,C5b-zmix-actorz,C5a + actor_cond=z + z-consistent bootstrap,0.165,0.055,3,0 1 2,0.112 0.176 0.208,3,0,GCIQL-State-Flow-Bilinear-d50-C5-Zmix-ActorZ
+GCIQL,fql_flow,C-fbz-ortho1,measure + fbz + ortho1.0,0.165,0.016,3,0 1 2,0.164 0.180 0.152,3,0,GCIQL-State-Flow-Bilinear-d50-C-FBz-O1
+GCIQL,fql_flow,sf-td-frozen-cond,+ task-conditioned phi (CONFOUNDED),0.157,0.023,3,0 1 2,0.152 0.140 0.180,3,0,GCIQL-State-Flow-SF-FeatureTD-FrozenCond
+ISFB,fql_flow,scalargate-awr,SG-ISFB jax,0.145,0.038,3,0 1 2,0.120 0.184 0.132,6,0,ISFB-State-ScalarGateAWR-d50
+FB,flowbc,covbal-prio-wz,coverage-balanced prioritized w/ z,0.133,0.086,3,0 1 2,0.080 0.220 0.100,10,7,covbal_prio_wz_a0.5
+GCIQL,ddpgbc,sf-td-frozen-cond,no-flow-actor control,0.127,0.032,3,0 1 2,0.156 0.124 0.100,3,0,GCIQL-State-Flow-SF-FeatureTD-FrozenCond-DDPGBC
+GCIQL,fql_flow,sf-joint-ortho1k-absorb,+ absorbing goal mask: Q=gamma^T (first-hitting) instead of a visitation density,0.125,0.017,3,0 1 2,0.108 0.136 0.132,3,0,GCIQL-State-Flow-SF-JointPsi-Ortho1k-Absorb
+GCIQL,fql_flow,sf-joint-ortho1k,"SF vector TD trains psi too; FB ortho1000 + sphere; b=psi(s'), no mask (matched to C-fbz-projz-ortho1000 except the estimator)",0.120,0.016,3,0 1 2,0.108 0.136 0.116,3,0,GCIQL-State-Flow-SF-JointPsi-Ortho1k
+GCIQL,fql_flow,sf-td-identity-cond,+ task-conditioned phi (CONFOUNDED),0.120,0.027,3,0 1 2,0.096 0.144 0.120,3,0,GCIQL-State-Flow-SF-FeatureTD-IdentityCond
+GCIQL,fql_flow,identity-psi-measure-fbz,REVERTED mis-build; crashed/partial,0.115,0.040,3,0 1 2,0.124 0.076 0.144,3,0,GCIQL-State-Flow-IdentityPsi-Measure-FBz
+FB,flowbc,covbal,coverage-balanced rho reweight,0.113,0.107,3,0 1 2,0.080 0.220 0.040,10,7,covbal_a0.5
+GCIQL,fql_flow,measure-only,FB successor-measure objective only,0.099,0.060,3,0 1 2,0.040 0.112 0.144,3,0,GCIQL-Bil-MeasureOnly
+GCIQL,fql_flow,sf-td-identity,"SF vector TD, identity base (CONFOUNDED, see audit)",0.097,0.025,3,0 1 2,0.112 0.072 0.108,3,0,GCIQL-State-Flow-SF-FeatureTD-IdentityB
+GCIQL,fql_flow,sf-td-frozen50,"SF vector TD, frozen base (CONFOUNDED)",0.092,0.033,3,0 1 2,0.100 0.060 0.116,3,0,GCIQL-State-Flow-SF-FeatureTD-Frozen50
+GCIQL,fql_flow,measure-only-ortho1000,measure only + ortho1000,0.088,0.048,3,0 1 2,0.072 0.056 0.136,3,0,GCIQL-Bil-MeasureOnly-O1000
+GCIQL,fql_flow,C5a-zmix,C4 + FB mixed z-sampling (random sqrt(d) directions),0.085,0.028,3,0 1 2,0.064 0.112 0.080,3,0,GCIQL-State-Flow-Bilinear-d50-C5-Zmix
+GCIQL,fql_flow,C2-measure-twotower,measure + two-tower,0.080,0.005,3,0 1 2,0.076 0.084 0.080,3,0,GCIQL-State-Flow-Bilinear-d50-C2-MeasureTwoTower
+GCIQL,fql_flow,iql-ortho1000,FB ortho coef on IQL critic (kills it),0.072,0.014,3,0 1 2,0.072 0.060 0.084,3,0,GCIQL-State-Flow-Bilinear-d50-Ortho1000
+GCIQL,ddpgbc,sf-td-identity-cond,no-flow-actor control,0.071,0.007,3,0 1 2,0.064 0.076 0.072,3,0,GCIQL-State-Flow-SF-FeatureTD-IdentityCond-DDPGBC
+FB,flowbc,fixed-b-cubexyz-v2,privileged USFA B=cube xyz,0.067,0.035,3,0 1 2,0.060 0.100 0.040,10,7,FB-State-Flow-USFA
+GCIQL,fql_flow,C-taskproj,+ rank-1 test set: project each residual onto its own z_i=psi(g_i); fixed point = scalar TD with a kernel reward,0.067,0.022,3,0 1 2,0.044 0.076 0.080,3,0,GCIQL-State-Flow-Bilinear-d50-C-TaskProj
+GCIQL,fql_flow,iql+measure-mc1.0-RAW,crashed (scale blowup),0.064,0.008,2,0 2,0.068 0.060,3,0,GCIQL-Bilinear-Measure-mc1.0
+GCIQL,fql_flow,frozen-psi-d50,scalar IQL TD + frozen random psi (isolates the vector TD from the frozen readout),0.061,0.019,3,0 1 2,0.056 0.048 0.080,3,0,GCIQL-State-Flow-Bilinear-d50-FrozenPsi
+GCIQL,fql_flow,identity-psi-measure,REVERTED mis-build (identity_psi); crashed/partial,0.057,0.018,3,0 1 2,0.040 0.060 0.072,3,0,GCIQL-State-Flow-IdentityPsi-Measure
+GCIQL,fql_flow,iql+measure-mc10-RAW,crashed (scale blowup),0.056,0.016,2,0 1,0.064 0.048,3,0,GCIQL-Bilinear-Measure-mc10.0
+GCIQL,fql_flow,anneal-sgphi-iqlfade,warm-start + crossfade IQL OUT as lambda ramps to 10 (endpoint = measure-only): does the good basin survive without L_IQL?,0.053,0.052,3,0 1 2,0.084 0.076 0.000,3,0,GCIQL-State-Flow-Anneal-SgPhi-IQLfade
+GCIQL,fql_flow,sf-td-rewreg-shift-cond,+ task-conditioned phi (audit pt3: goal-dependent mask),0.035,0.027,3,0 1 2,0.032 0.012 0.060,3,0,GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond
+GCIQL,fql_flow,identity-psi-d28,"scalar IQL TD + psi(g)=g (read vs bilinear-d28, not d50)",0.028,0.009,3,0 1 2,0.020 0.028 0.036,3,0,GCIQL-State-Flow-Bilinear-IdentityPsi
+FB,flowbc,fb-iql-critic,FB<-IQL critic (old incidentals),0.027,0.026,3,0 1 2,0.000 0.040 0.040,3,0,fb_state_iqlcritic
+FB,flowbc,idB-decond-dnorm,identity-B + decond + dnorm (collapse),0.027,0.013,3,0 1 2,0.020 0.020 0.040,3,0,fb_bridge_idB_decond_dnorm
+GCIQL,ddpgbc,sf-td-identity,no-flow-actor control (CONFOUNDED),0.027,0.025,3,0 1 2,0.016 0.012 0.052,3,0,GCIQL-State-Flow-SF-FeatureTD-IdentityB-DDPGBC
+GCIQL,fql_flow,simplesf-anneal,SimpleSF curriculum: cross-fade true-reward TD OUT while reward-regression grounding fades IN (rung 2 geometry -> rung 3 endpoint); tests optimization-path vs representability,0.025,0.015,3,0 1 2,0.040 0.020 0.016,3,0,GCIQL-State-Flow-SimpleSF-Anneal
+GCIQL,fql_flow,E2-mix-l10-sgphi,stopgrad-phi dose (1 q-band violation),0.024,0.047,3,0 1 2,0.000 0.000 0.072,3,0,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l10-sgphi
+FB,flowbc,encmatch,critic-encoder match (KNOWN design confound),0.013,0.013,3,0 1 2,0.020 0.000 0.020,5,2,FB-State-Flow-EncMatch
+GCIQL,ddpgbc,sf-td-frozen50,no-flow-actor control,0.013,0.005,3,0 1 2,0.008 0.016 0.016,3,0,GCIQL-State-Flow-SF-FeatureTD-Frozen50-DDPGBC
+GCIQL,fql_flow,anneal-shared,"warm-start + lambda 0->100 ramp on the shared-legs measure (cold cliff is above 10, never located)",0.009,0.003,3,0 1 2,0.008 0.008 0.012,3,0,GCIQL-State-Flow-Anneal-Shared
+GCIQL,fql_flow,sf-td-frozen-cond-ortho1k,+ phi ortho,0.005,0.005,3,0 1 2,0.008 0.000 0.008,3,0,GCIQL-State-Flow-SF-FeatureTD-FrozenCond-Ortho1k
+GCIQL,fql_flow,iql+measure-mc0.3-RAW,"IQL+measure interpolation, NO scale ctrl (18/18 crashed)",0.004,0.008,2,1 2,0.008 0.000,3,0,GCIQL-Bilinear-Measure-mc0.3
+GCIQL,fql_flow,sf-td-frozen-ortho1k,+ phi ortho,0.004,0.000,3,0 1 2,0.004 0.004 0.004,3,0,GCIQL-State-Flow-SF-FeatureTD-Frozen-Ortho1k
+GCIQL,fql_flow,exp4-actor-z-infer,"inferred-z actor (ARTIFACT: z=99% noise, see audit)",0.003,0.005,3,0 1 2,0.000 0.008 0.000,3,0,GCIQL-State-Flow-Bilinear-d50-Exp4-ActorZInfer
+GCIQL,fql_flow,sf-td-identity-ortho1k,+ phi ortho (kills critic),0.003,0.005,3,0 1 2,0.000 0.008 0.000,3,0,GCIQL-State-Flow-SF-FeatureTD-Identity-Ortho1k
+GCIQL,fql_flow,E2-mix-l30-sgphi,"stopgrad-phi dose (3/3 q-band violations, UNINTERPRETABLE)",0.001,0.003,3,0 1 2,0.000 0.000 0.004,3,0,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l30-sgphi
+GCIQL,fql_flow,sf-td-rewreg-shift,"E3: SF vector TD + reward-regressed learned base (corrected r_hat(s,g))",0.001,0.003,3,0 1 2,0.000 0.004 0.000,3,0,GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Fix
+GCIQL,fql_flow,simplesf-grounded,"Chua et al.'s cell: + psi trained ONLY by reward regression <sg[b],psi(g)>",0.001,0.003,3,0 1 2,0.000 0.000 0.004,3,0,GCIQL-State-Flow-SimpleSF-Grounded
+GCIQL,fql_flow,sf-td-identity-cond-ortho1k,+ phi ortho,0.001,0.003,3,0 1 2,0.000 0.004 0.000,3,0,GCIQL-State-Flow-SF-FeatureTD-IdentityCond-Ortho1k
+GCIQL,fql_flow,measureSA-mc0.3,"(s,a)-measure legs, crashed <=15k",0.000,0.000,2,1 2,0.000 0.000,3,0,GCIQL-Bil-MeasureSA-mc0.3
+GCIQL,fql_flow,measureSA-mc1.0,crashed,0.000,0.000,2,0 2,0.000 0.000,3,0,GCIQL-Bil-MeasureSA-mc1.0
+GCIQL,fql_flow,measureSA-mc10,crashed,0.000,0.000,2,0 1,0.000 0.000,3,0,GCIQL-Bil-MeasureSA-mc10.0

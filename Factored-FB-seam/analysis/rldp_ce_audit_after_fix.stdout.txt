@@ -1,0 +1,220 @@
+{
+  "scope": "CPU value/gradient checks at fixed initialized arrays; no training",
+  "source_sha256": {
+    "impls/critics/rldp.py": "398413bc82f1ef638f70c5ea1dd26f69b3bdcfe9f777597f5864a9fcaa31ef95",
+    "impls/critics/rldp_density.py": "6b4c9811830fecb50cdd5e943903f6413398327779efc765b1ec7bd3c80e38ed"
+  },
+  "fb_target_online_b": {
+    "plain_loss_false": 17.684826067667494,
+    "plain_loss_true": 13.896115242780109,
+    "density_loss_false": 14.022649303783563,
+    "density_loss_true": 13.514992724161248
+  },
+  "ortho_inert": {
+    "plain_loss_false": 17.684826067667494,
+    "plain_loss_true": 12.162262942449622,
+    "density_loss_false": 14.022649303783563,
+    "density_loss_true": 8.500086178565692
+  },
+  "ce_gradient_norms": {
+    "backward": 0.0,
+    "forward": 1.5278328014431577,
+    "left_encoder": 1.2434686298122648,
+    "predictor": 0.0
+  },
+  "joint_representation_gradient_parity": {
+    "backward": 0.0,
+    "predictor": 0.0
+  },
+  "categorical_target": {
+    "manual_ce": 2.1076750921530683,
+    "actual_ce": 2.1076750921530683,
+    "max_row_sum_error": 2.220446049250313e-16,
+    "minimum_target_entry": 0.0,
+    "terminal_rows_onehot_error": 0.0,
+    "all_target_parameter_gradient_norm": 0.0
+  },
+  "phase_mr": {
+    "active_groups": [
+      "backward",
+      "predictor"
+    ],
+    "train_actor": false,
+    "backward_gradient_difference": 0.0,
+    "predictor_gradient_difference": 0.0
+  },
+  "phase_fb": {
+    "active_groups": [
+      "forward",
+      "left_encoder"
+    ]
+  },
+  "actor_pessimism": {
+    "plain_max_q_change": 2.3837434732578093,
+    "density_max_q_change": 0.4947997970667056,
+    "density_max_head_disagreement": 0.9895995941334113
+  },
+  "flowbc_denominator": {
+    "centered_head_mean_abs": 1.3639338254967788,
+    "raw_heads_mean_abs": 1.363933825496779,
+    "identical_rows_centered_abs": 0.0,
+    "identical_rows_q_abs": 1.5347308923570309
+  },
+  "nonwhite_reward_inference_counterexample": {
+    "B_row_norms": [
+      1.4142135623730951,
+      1.4142135623730951,
+      1.4142135623730951,
+      1.4142135623730951
+    ],
+    "rho": [
+      0.7,
+      0.1,
+      0.1,
+      0.1
+    ],
+    "second_moment": [
+      [
+        1.6,
+        0.0
+      ],
+      [
+        0.0,
+        0.4000000000000001
+      ]
+    ],
+    "linear_reward_coefficient": [
+      1.0,
+      2.0
+    ],
+    "inferred_z_before_unit_projection": [
+      1.6,
+      0.8000000000000002
+    ],
+    "true_reward_gap_outcome2_minus0": 1.4142135623730951,
+    "density_proxy_gap_outcome2_minus0": -1.1313708498984762,
+    "covariance_corrected_gap": 1.4142135623730951
+  },
+  "resolved_current_configs": {
+    "exp/cube-single-play-v0_rldp_flowbc_seed_0/config.json": {
+      "batch_size": 256,
+      "z_dim": 50,
+      "num_parallel": 2,
+      "discount": 0.99,
+      "ortho_coef": 0.01,
+      "train_goal_ratio": 0.5,
+      "fb_pessimism_penalty": 0.0,
+      "norm_z": true,
+      "backward": {
+        "hidden_dim": 512,
+        "hidden_layers": 4,
+        "norm": true
+      },
+      "dataset_class": "WindowedDataset",
+      "actor": {
+        "type": "flow",
+        "hidden_dim": 512,
+        "hidden_layers": 2,
+        "embedding_layers": 2,
+        "bc_coeff": 3.0,
+        "q_coeff": 1.0,
+        "flow_steps": 10,
+        "lr_actor_vf": 0.0003,
+        "flow_vf_hidden_dim": 512,
+        "flow_vf_hidden_layers": 4
+      }
+    },
+    "exp/cube-single-play-v0_rldp_density_flowbc_seed_0/config.json": {
+      "batch_size": 256,
+      "z_dim": 50,
+      "num_parallel": 2,
+      "discount": 0.99,
+      "ortho_coef": 0.01,
+      "train_goal_ratio": 0.5,
+      "fb_pessimism_penalty": 0.0,
+      "norm_z": true,
+      "backward": {
+        "hidden_dim": 512,
+        "hidden_layers": 4,
+        "norm": true
+      },
+      "temp": 1.0,
+      "actor_temp": null,
+      "actor_q_center": true,
+      "dataset_class": "WindowedDataset",
+      "actor": {
+        "type": "flow",
+        "hidden_dim": 512,
+        "hidden_layers": 2,
+        "embedding_layers": 2,
+        "bc_coeff": 3.0,
+        "q_coeff": 1.0,
+        "flow_steps": 10,
+        "lr_actor_vf": 0.0003,
+        "flow_vf_hidden_dim": 512,
+        "flow_vf_hidden_layers": 4
+      }
+    },
+    "exp/cube-double-play-v0_rldp_flowbc_seed_0/config.json": {
+      "batch_size": 256,
+      "z_dim": 50,
+      "num_parallel": 2,
+      "discount": 0.99,
+      "ortho_coef": 0.01,
+      "train_goal_ratio": 0.5,
+      "fb_pessimism_penalty": 0.0,
+      "norm_z": true,
+      "backward": {
+        "hidden_dim": 512,
+        "hidden_layers": 4,
+        "norm": true
+      },
+      "dataset_class": "WindowedDataset",
+      "actor": {
+        "type": "flow",
+        "hidden_dim": 512,
+        "hidden_layers": 2,
+        "embedding_layers": 2,
+        "bc_coeff": 3.0,
+        "q_coeff": 1.0,
+        "flow_steps": 10,
+        "lr_actor_vf": 0.0003,
+        "flow_vf_hidden_dim": 512,
+        "flow_vf_hidden_layers": 4
+      }
+    },
+    "exp/cube-double-play-v0_rldp_density_flowbc_seed_0/config.json": {
+      "batch_size": 256,
+      "z_dim": 50,
+      "num_parallel": 2,
+      "discount": 0.99,
+      "ortho_coef": 0.01,
+      "train_goal_ratio": 0.5,
+      "fb_pessimism_penalty": 0.0,
+      "norm_z": true,
+      "backward": {
+        "hidden_dim": 512,
+        "hidden_layers": 4,
+        "norm": true
+      },
+      "temp": 1.0,
+      "actor_temp": null,
+      "actor_q_center": true,
+      "dataset_class": "WindowedDataset",
+      "actor": {
+        "type": "flow",
+        "hidden_dim": 512,
+        "hidden_layers": 2,
+        "embedding_layers": 2,
+        "bc_coeff": 3.0,
+        "q_coeff": 1.0,
+        "flow_steps": 10,
+        "lr_actor_vf": 0.0003,
+        "flow_vf_hidden_dim": 512,
+        "flow_vf_hidden_layers": 4
+      }
+    }
+  },
+  "status": "PASS: repaired flags; default values and gradient checks exactly unchanged",
+  "default_behavior_exactly_unchanged_from_prepatch": true
+}

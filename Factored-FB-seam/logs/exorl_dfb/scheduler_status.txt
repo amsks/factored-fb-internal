@@ -1,0 +1,120 @@
+[2026-09-16 01:23:03] scheduler start: gpus [0, 1, 2, 3, 4, 5, 6, 7], 2/gpu = 16 slots
+[2026-09-16 01:23:03] === PHASE 1: 20 jobs ===
+[2026-09-16 01:23:03] LAUNCH dmc-walker_dfbz_s0 on gpu0 (try 0)  [1 running]
+[2026-09-16 01:23:03] LAUNCH dmc-walker_dfbz_s1 on gpu1 (try 0)  [2 running]
+[2026-09-16 01:23:03] LAUNCH dmc-walker_dfbz_s2 on gpu2 (try 0)  [3 running]
+[2026-09-16 01:23:03] LAUNCH dmc-walker_dfbz_s3 on gpu3 (try 0)  [4 running]
+[2026-09-16 01:23:03] LAUNCH dmc-walker_dfbz_s4 on gpu4 (try 0)  [5 running]
+[2026-09-16 01:23:03] LAUNCH dmc-cheetah_dfbz_s0 on gpu5 (try 0)  [6 running]
+[2026-09-16 01:23:03] LAUNCH dmc-cheetah_dfbz_s1 on gpu6 (try 0)  [7 running]
+[2026-09-16 01:23:03] LAUNCH dmc-cheetah_dfbz_s2 on gpu7 (try 0)  [8 running]
+[2026-09-16 01:23:03] LAUNCH dmc-cheetah_dfbz_s3 on gpu0 (try 0)  [9 running]
+[2026-09-16 01:23:03] LAUNCH dmc-cheetah_dfbz_s4 on gpu1 (try 0)  [10 running]
+[2026-09-16 01:23:03] LAUNCH dmc-quadruped_dfbz_s0 on gpu2 (try 0)  [11 running]
+[2026-09-16 01:23:03] LAUNCH dmc-quadruped_dfbz_s1 on gpu3 (try 0)  [12 running]
+[2026-09-16 01:23:03] LAUNCH dmc-quadruped_dfbz_s2 on gpu4 (try 0)  [13 running]
+[2026-09-16 01:23:03] LAUNCH dmc-quadruped_dfbz_s3 on gpu5 (try 0)  [14 running]
+[2026-09-16 01:23:03] LAUNCH dmc-quadruped_dfbz_s4 on gpu6 (try 0)  [15 running]
+[2026-09-16 01:23:03] LAUNCH dmc-point-mass-maze_dfbz_s0 on gpu7 (try 0)  [16 running]
+[2026-09-16 10:08:33] DONE dmc-cheetah_dfbz_s1 (rc=0)
+[2026-09-16 10:08:33] LAUNCH dmc-point-mass-maze_dfbz_s1 on gpu6 (try 0)  [16 running]
+[2026-09-16 10:12:33] DONE dmc-cheetah_dfbz_s0 (rc=0)
+[2026-09-16 10:12:33] LAUNCH dmc-point-mass-maze_dfbz_s2 on gpu5 (try 0)  [16 running]
+[2026-09-16 10:13:03] DONE dmc-cheetah_dfbz_s2 (rc=0)
+[2026-09-16 10:13:03] LAUNCH dmc-point-mass-maze_dfbz_s3 on gpu7 (try 0)  [16 running]
+[2026-09-16 10:19:03] DONE dmc-walker_dfbz_s4 (rc=0)
+[2026-09-16 10:19:03] LAUNCH dmc-point-mass-maze_dfbz_s4 on gpu4 (try 0)  [16 running]
+[2026-09-16 10:21:03] DONE dmc-walker_dfbz_s2 (rc=0)
+[2026-09-16 10:28:03] DONE dmc-walker_dfbz_s0 (rc=0)
+[2026-09-16 10:31:03] DONE dmc-point-mass-maze_dfbz_s0 (rc=0)
+[2026-09-16 10:31:33] DONE dmc-walker_dfbz_s3 (rc=0)
+[2026-09-16 10:31:33] DONE dmc-cheetah_dfbz_s3 (rc=0)
+[2026-09-16 10:48:33] DONE dmc-quadruped_dfbz_s1 (rc=0)
+[2026-09-16 10:50:33] DONE dmc-walker_dfbz_s1 (rc=0)
+[2026-09-16 10:51:03] DONE dmc-cheetah_dfbz_s4 (rc=0)
+[2026-09-16 11:31:03] DONE dmc-quadruped_dfbz_s0 (rc=0)
+[2026-09-16 12:00:03] DONE dmc-quadruped_dfbz_s3 (rc=0)
+[2026-09-16 12:26:03] DONE dmc-quadruped_dfbz_s4 (rc=0)
+[2026-09-16 12:26:33] DONE dmc-quadruped_dfbz_s2 (rc=0)
+[2026-09-16 15:03:03] DONE dmc-point-mass-maze_dfbz_s3 (rc=0)
+[2026-09-16 15:45:33] DONE dmc-point-mass-maze_dfbz_s2 (rc=0)
+[2026-09-16 16:03:03] DONE dmc-point-mass-maze_dfbz_s4 (rc=0)
+[2026-09-16 16:09:33] DONE dmc-point-mass-maze_dfbz_s1 (rc=0)
+[2026-09-16 16:09:33] === PHASE 1 COMPLETE ===
+[2026-09-16 16:09:33] === PHASE 2: 16 jobs ===
+[2026-09-16 16:09:33] LAUNCH ogb_oc_cube_single_s3 on gpu0 (try 0)  [1 running]
+[2026-09-16 16:09:33] LAUNCH ogb_oc_cube_single_s4 on gpu1 (try 0)  [2 running]
+[2026-09-16 16:09:33] LAUNCH ogb_oc_cube_double_s3 on gpu2 (try 0)  [3 running]
+[2026-09-16 16:09:33] LAUNCH ogb_oc_cube_double_s4 on gpu3 (try 0)  [4 running]
+[2026-09-16 16:09:33] LAUNCH ogb_oc_scene_play_s3 on gpu4 (try 0)  [5 running]
+[2026-09-16 16:09:33] LAUNCH ogb_oc_scene_play_s4 on gpu5 (try 0)  [6 running]
+[2026-09-16 16:09:33] LAUNCH ogb_oc_puzzle_3x3_s3 on gpu6 (try 0)  [7 running]
+[2026-09-16 16:09:33] LAUNCH ogb_oc_puzzle_3x3_s4 on gpu7 (try 0)  [8 running]
+[2026-09-16 16:09:33] LAUNCH ogb_state_cube_single_s3 on gpu0 (try 0)  [9 running]
+[2026-09-16 16:09:33] LAUNCH ogb_state_cube_single_s4 on gpu1 (try 0)  [10 running]
+[2026-09-16 16:09:33] LAUNCH ogb_state_cube_double_s3 on gpu2 (try 0)  [11 running]
+[2026-09-16 16:09:33] LAUNCH ogb_state_cube_double_s4 on gpu3 (try 0)  [12 running]
+[2026-09-16 16:09:33] LAUNCH ogb_state_scene_play_s3 on gpu4 (try 0)  [13 running]
+[2026-09-16 16:09:33] LAUNCH ogb_state_scene_play_s4 on gpu5 (try 0)  [14 running]
+[2026-09-16 16:09:33] LAUNCH ogb_state_puzzle_3x3_s3 on gpu6 (try 0)  [15 running]
+[2026-09-16 16:09:33] LAUNCH ogb_state_puzzle_3x3_s4 on gpu7 (try 0)  [16 running]
+[2026-09-16 20:51:03] DONE ogb_oc_cube_single_s4 (rc=0)
+[2026-09-16 21:04:33] DONE ogb_state_cube_single_s4 (rc=0)
+[2026-09-16 21:16:33] DONE ogb_oc_cube_single_s3 (rc=0)
+[2026-09-16 21:23:33] DONE ogb_state_cube_single_s3 (rc=0)
+[2026-09-17 02:53:03] DONE ogb_oc_cube_double_s4 (rc=0)
+[2026-09-17 03:31:03] DONE ogb_oc_cube_double_s3 (rc=0)
+[2026-09-17 04:00:03] DONE ogb_state_cube_double_s4 (rc=0)
+[2026-09-17 04:08:03] DONE ogb_state_cube_double_s3 (rc=0)
+[2026-09-17 05:33:33] DONE ogb_state_puzzle_3x3_s4 (rc=0)
+[2026-09-17 05:36:03] DONE ogb_oc_puzzle_3x3_s4 (rc=0)
+[2026-09-17 06:06:33] DONE ogb_state_puzzle_3x3_s3 (rc=0)
+[2026-09-17 06:09:33] DONE ogb_oc_puzzle_3x3_s3 (rc=0)
+[2026-09-17 06:20:33] DONE ogb_oc_scene_play_s3 (rc=0)
+[2026-09-17 06:57:33] DONE ogb_state_scene_play_s4 (rc=0)
+[2026-09-17 07:00:03] DONE ogb_state_scene_play_s3 (rc=0)
+[2026-09-17 07:03:03] DONE ogb_oc_scene_play_s4 (rc=0)
+[2026-09-17 07:03:03] === PHASE 2 COMPLETE ===
+[2026-09-17 07:03:03] === PHASE 3: 20 jobs ===
+[2026-09-17 07:03:03] LAUNCH dmc-walker_dfbz_sup86_s0 on gpu0 (try 0)  [1 running]
+[2026-09-17 07:03:03] LAUNCH dmc-walker_dfbz_sup86_s1 on gpu1 (try 0)  [2 running]
+[2026-09-17 07:03:03] LAUNCH dmc-walker_dfbz_sup86_s2 on gpu2 (try 0)  [3 running]
+[2026-09-17 07:03:03] LAUNCH dmc-walker_dfbz_sup86_s3 on gpu3 (try 0)  [4 running]
+[2026-09-17 07:03:03] LAUNCH dmc-walker_dfbz_sup86_s4 on gpu4 (try 0)  [5 running]
+[2026-09-17 07:03:03] LAUNCH dmc-cheetah_dfbz_sup86_s0 on gpu5 (try 0)  [6 running]
+[2026-09-17 07:03:03] LAUNCH dmc-cheetah_dfbz_sup86_s1 on gpu6 (try 0)  [7 running]
+[2026-09-17 07:03:03] LAUNCH dmc-cheetah_dfbz_sup86_s2 on gpu7 (try 0)  [8 running]
+[2026-09-17 07:03:03] LAUNCH dmc-cheetah_dfbz_sup86_s3 on gpu0 (try 0)  [9 running]
+[2026-09-17 07:03:03] LAUNCH dmc-cheetah_dfbz_sup86_s4 on gpu1 (try 0)  [10 running]
+[2026-09-17 07:03:03] LAUNCH dmc-quadruped_dfbz_sup86_s0 on gpu2 (try 0)  [11 running]
+[2026-09-17 07:03:03] LAUNCH dmc-quadruped_dfbz_sup86_s1 on gpu3 (try 0)  [12 running]
+[2026-09-17 07:03:03] LAUNCH dmc-quadruped_dfbz_sup86_s2 on gpu4 (try 0)  [13 running]
+[2026-09-17 07:03:03] LAUNCH dmc-quadruped_dfbz_sup86_s3 on gpu5 (try 0)  [14 running]
+[2026-09-17 07:03:03] LAUNCH dmc-quadruped_dfbz_sup86_s4 on gpu6 (try 0)  [15 running]
+[2026-09-17 07:03:03] LAUNCH dmc-point-mass-maze_dfbz_sup86_s0 on gpu7 (try 0)  [16 running]
+[2026-09-17 11:40:34] DONE dmc-walker_dfbz_sup86_s2 (rc=0)
+[2026-09-17 11:40:34] LAUNCH dmc-point-mass-maze_dfbz_sup86_s1 on gpu2 (try 0)  [16 running]
+[2026-09-17 11:43:04] DONE dmc-point-mass-maze_dfbz_sup86_s0 (rc=0)
+[2026-09-17 11:43:04] LAUNCH dmc-point-mass-maze_dfbz_sup86_s2 on gpu7 (try 0)  [16 running]
+[2026-09-17 11:43:34] DONE dmc-cheetah_dfbz_sup86_s2 (rc=0)
+[2026-09-17 11:43:34] LAUNCH dmc-point-mass-maze_dfbz_sup86_s3 on gpu7 (try 0)  [16 running]
+[2026-09-17 11:45:34] DONE dmc-walker_dfbz_sup86_s4 (rc=0)
+[2026-09-17 11:45:34] LAUNCH dmc-point-mass-maze_dfbz_sup86_s4 on gpu4 (try 0)  [16 running]
+[2026-09-17 11:46:04] DONE dmc-walker_dfbz_sup86_s1 (rc=0)
+[2026-09-17 11:46:04] DONE dmc-cheetah_dfbz_sup86_s4 (rc=0)
+[2026-09-17 11:47:34] DONE dmc-cheetah_dfbz_sup86_s3 (rc=0)
+[2026-09-17 11:48:04] DONE dmc-walker_dfbz_sup86_s0 (rc=0)
+[2026-09-17 11:50:04] DONE dmc-cheetah_dfbz_sup86_s0 (rc=0)
+[2026-09-17 11:57:34] DONE dmc-cheetah_dfbz_sup86_s1 (rc=0)
+[2026-09-17 11:58:04] DONE dmc-walker_dfbz_sup86_s3 (rc=0)
+[2026-09-17 11:59:04] DONE dmc-quadruped_dfbz_sup86_s1 (rc=0)
+[2026-09-17 11:59:34] DONE dmc-quadruped_dfbz_sup86_s3 (rc=0)
+[2026-09-17 12:00:04] DONE dmc-quadruped_dfbz_sup86_s4 (rc=0)
+[2026-09-17 12:14:04] DONE dmc-quadruped_dfbz_sup86_s2 (rc=0)
+[2026-09-17 12:32:04] DONE dmc-quadruped_dfbz_sup86_s0 (rc=0)
+[2026-09-17 14:22:34] DONE dmc-point-mass-maze_dfbz_sup86_s4 (rc=0)
+[2026-09-17 14:34:34] DONE dmc-point-mass-maze_dfbz_sup86_s1 (rc=0)
+[2026-09-17 16:17:34] DONE dmc-point-mass-maze_dfbz_sup86_s2 (rc=0)
+[2026-09-17 16:18:04] DONE dmc-point-mass-maze_dfbz_sup86_s3 (rc=0)
+[2026-09-17 16:18:04] === PHASE 3 COMPLETE ===
+[2026-09-17 16:18:04] ALL PHASES COMPLETE

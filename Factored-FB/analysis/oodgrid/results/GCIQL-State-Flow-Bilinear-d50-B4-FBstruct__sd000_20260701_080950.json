@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-Bilinear-d50-B4-FBstruct",
+ "seed": "sd000_20260701_080950",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-B4-FBstruct/sd000_20260701_080950",
+ "step": 500000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.79,
+  "grasped": 0.92
+ },
+ "C2": {
+  "success": 0.85,
+  "grasped": 0.92
+ },
+ "C3": {
+  "success": 0.92,
+  "grasped": 1.0
+ },
+ "C4": {
+  "success": 0.69,
+  "grasped": 0.89
+ },
+ "secs": 21.9
+}

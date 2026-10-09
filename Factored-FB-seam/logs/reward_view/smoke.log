@@ -1,0 +1,40 @@
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_0/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+[hist] seed 0: 2000 states x 5 tasks, positives per task [39, 39, 44, 51, 38] (40s)
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+=== reward view on dataset states: separation of true-reward-1 from reward-0 states (task 0 = pooled) ===
+      critic     method  task  n_seeds  auc_pooled  dprime_pooled  auc_mean  auc_min  auc_max  dprime_mean  n1   n0
+density_fb_z Density-FB     0        1       0.998          8.611     0.998    0.998    0.998        8.611 211 9789
+density_fb_z Density-FB     1        1       0.999          8.623     0.999    0.999    0.999        8.623  39 1961
+density_fb_z Density-FB     2        1       0.997          8.537     0.997    0.997    0.997        8.537  39 1961
+density_fb_z Density-FB     3        1       0.998          8.940     0.998    0.998    0.998        8.940  44 1956
+density_fb_z Density-FB     4        1       0.999          8.500     0.999    0.999    0.999        8.500  51 1949
+density_fb_z Density-FB     5        1       0.998          8.430     0.998    0.998    0.998        8.430  38 1962
+      fb_tdj         FB     0        1       0.901          1.825     0.901    0.901    0.901        1.822 211 9789
+      fb_tdj         FB     1        1       0.850          1.492     0.850    0.850    0.850        1.492  39 1961
+      fb_tdj         FB     2        1       0.930          1.866     0.930    0.930    0.930        1.866  39 1961
+      fb_tdj         FB     3        1       0.897          1.835     0.897    0.897    0.897        1.835  44 1956
+      fb_tdj         FB     4        1       0.911          1.865     0.911    0.911    0.911        1.865  51 1949
+      fb_tdj         FB     5        1       0.915          2.057     0.915    0.915    0.915        2.057  38 1962
+[fig] PAPER/ICLR/figures/gap_preservation/smoke_rv/fig_reward_view_hist.pdf/.png
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_0/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+  [rv seed0] carrying 3/3 (10s)
+[rv] seed 0: 1 bank files in 10s
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_0/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+=== three-number test, pooled over seeds (gamma^t weights normalised over H) ===
+    method     bank  n  true_gap_mean  true_gap_se  feat_gap_mean  feat_gap_se  critic_gap_mean  critic_gap_se  feat_over_true  critic_over_true  feat_sign_ok  critic_sign_ok  corr_feat_critic  spearman_feat_critic  corr_true_critic
+Density-FB carrying  3          0.321        0.085          7.113        1.468            2.753          0.731          22.166             8.580         1.000           1.000            -0.594                -0.500            -0.931
+        FB carrying  3          0.000        0.000          3.493        9.036            2.221          3.161             NaN               NaN         0.667           0.333             0.935                 1.000               NaN
+=== per seed ===
+ seed     method     bank  n  true_gap_mean  true_gap_se  feat_gap_mean  feat_gap_se  critic_gap_mean  critic_gap_se  feat_over_true  critic_over_true  feat_sign_ok  critic_sign_ok  corr_feat_critic  spearman_feat_critic  corr_true_critic
+    0 Density-FB carrying  3          0.321        0.085          7.113        1.468            2.753          0.731          22.166             8.580         1.000           1.000            -0.594                -0.500            -0.931
+    0         FB carrying  3          0.000        0.000          3.493        9.036            2.221          3.161             NaN               NaN         0.667           0.333             0.935                 1.000               NaN
+=== re-roll consistency: {'delta_mc_abs_diff_max': 43.332864512698265, 'delta_mc_abs_diff_mean': 22.649858360467192, 'n_states': 6}
+[fig] PAPER/ICLR/figures/gap_preservation/smoke_rv/fig_reward_view_gaps.pdf/.png

@@ -1,0 +1,54 @@
+
+=== cube-single [campaign] /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/cube-single-play-v0_density_fb_z_flowbc_seed_0 @ 1000000 seed 0
+  gym.logger.warn(
+  gym.logger.warn(
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+    hit_spec=19:22:0.4 d=50 z_rand_frac=0.5 actor_reward=latent_centered rows=next_observations
+    eval d_goal/rms per task: [0.408, 0.41, 0.376, 0.418, 0.428] median 0.410 inside 0.00 | khot median 0.339 inside 0.00 | dense median 0.818 inside 0.00 | goal NN median/rms 0.162
+    eval centroid_pct [68.2, 22.3, 84.0, 49.6, 40.8] knn10_pct [97.3, 95.5, 89.6, 92.5, 92.0]
+    eval meta: [{'task': 1, 'n_pos': 197, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.019700000062584877, 'n_distinct': 2}, {'task': 2, 'n_pos': 202, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.02019999921321869, 'n_distinct': 2}, {'task': 3, 'n_pos': 223, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.022299999371170998, 'n_distinct': 2}, {'task': 4, 'n_pos': 249, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.024900000542402267, 'n_distinct': 2}, {'task': 5, 'n_pos': 227, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.022700000554323196, 'n_distinct': 2}]
+    khot meta: [{'k': 1, 'blocks': [0], 'n_pos': 182, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 115, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 206, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 34, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 212, 'attempts': 1}]
+    dense meta: [{'median_d_eps': 7.301116110237679, 'frac_unclipped': 0.5}, {'median_d_eps': 6.4561797317698595, 'frac_unclipped': 0.5}, {'median_d_eps': 5.7101617123408825, 'frac_unclipped': 0.5}, {'median_d_eps': 5.229591816309632, 'frac_unclipped': 0.5}, {'median_d_eps': 10.164239677727297, 'frac_unclipped': 0.5}]
+    done in 24s
+
+=== cube-double [campaign] /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/cube-double-play-v0_density_fb_z_flowbc_seed_0 @ 1000000 seed 0
+Restored from /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/cube-double-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+    hit_spec=19:22:0.4,28:31:0.4 d=50 z_rand_frac=0.5 actor_reward=latent_centered rows=next_observations
+    eval d_goal/rms per task: [0.778, 0.959, 0.864, 0.743, 0.735] median 0.778 inside 0.00 | khot median 0.659 inside 0.20 | dense median 0.813 inside 0.00 | goal NN median/rms 0.344
+    eval centroid_pct [58.1, 16.9, 28.6, 52.7, 69.3] knn10_pct [99.8, 99.9, 99.9, 99.5, 99.6]
+    eval meta: [{'task': 1, 'n_pos': 5, 'r_min': -1.0, 'r_max': 1.0, 'r_mean': -0.9473999738693237, 'n_distinct': 3}, {'task': 2, 'n_pos': 5, 'r_min': -1.0, 'r_max': 1.0, 'r_mean': -0.945900022983551, 'n_distinct': 3}, {'task': 3, 'n_pos': 12, 'r_min': -1.0, 'r_max': 1.0, 'r_mean': -0.9476000070571899, 'n_distinct': 3}, {'task': 4, 'n_pos': 7, 'r_min': -1.0, 'r_max': 1.0, 'r_mean': -0.9491999745368958, 'n_distinct': 3}, {'task': 5, 'n_pos': 23, 'r_min': -1.0, 'r_max': 1.0, 'r_mean': -0.9704999923706055, 'n_distinct': 3}]
+    khot meta: [{'k': 2, 'blocks': [0, 1], 'n_pos': 11, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 211, 'attempts': 1}, {'k': 2, 'blocks': [0, 1], 'n_pos': 7, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 15, 'attempts': 1}, {'k': 1, 'blocks': [1], 'n_pos': 155, 'attempts': 3}]
+    dense meta: [{'median_d_eps': 10.071172740435937, 'frac_unclipped': 0.5}, {'median_d_eps': 8.356282788580994, 'frac_unclipped': 0.5}, {'median_d_eps': 11.062970760513936, 'frac_unclipped': 0.4999}, {'median_d_eps': 11.534190767898524, 'frac_unclipped': 0.5}, {'median_d_eps': 9.78632354194108, 'frac_unclipped': 0.5}]
+    done in 8s
+
+=== scene [campaign] /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/scene-play-v0_density_fb_z_flowbc_seed_0 @ 1000000 seed 0
+Restored from /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/scene-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+    hit_spec=19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6 d=50 z_rand_frac=0.5 actor_reward=latent_centered rows=next_observations
+    eval d_goal/rms per task: [1.031, 1.142, 1.049, 1.021, 1.111] median 1.049 inside 0.00 | khot median 0.652 inside 0.00 | dense median 0.605 inside 0.00 | goal NN median/rms 0.163
+    eval centroid_pct [45.8, 43.4, 54.5, 1.8, 14.9] knn10_pct [100.0, 100.0, 100.0, 100.0, 100.0]
+    eval meta: [{'task': 1, 'n_pos': 32, 'r_min': -4.0, 'r_max': 1.0, 'r_mean': -2.171600103378296, 'n_distinct': 6}, {'task': 2, 'n_pos': 17, 'r_min': -4.0, 'r_max': 1.0, 'r_mean': -2.17549991607666, 'n_distinct': 6}, {'task': 3, 'n_pos': 24, 'r_min': -4.0, 'r_max': 1.0, 'r_mean': -2.154099941253662, 'n_distinct': 6}, {'task': 4, 'n_pos': 80, 'r_min': -4.0, 'r_max': 1.0, 'r_mean': -2.090399980545044, 'n_distinct': 6}, {'task': 5, 'n_pos': 38, 'r_min': -4.0, 'r_max': 1.0, 'r_mean': -2.194999933242798, 'n_distinct': 6}]
+    khot meta: [{'k': 3, 'blocks': [2, 3, 4], 'n_pos': 685, 'attempts': 1}, {'k': 3, 'blocks': [0, 1, 3], 'n_pos': 153, 'attempts': 1}, {'k': 4, 'blocks': [0, 1, 3, 4], 'n_pos': 81, 'attempts': 1}, {'k': 4, 'blocks': [0, 1, 3, 4], 'n_pos': 94, 'attempts': 1}, {'k': 2, 'blocks': [3, 4], 'n_pos': 785, 'attempts': 1}]
+    dense meta: [{'median_d_eps': 6.339026809733761, 'frac_unclipped': 0.5}, {'median_d_eps': 5.69072963506601, 'frac_unclipped': 0.5}, {'median_d_eps': 6.258722164828024, 'frac_unclipped': 0.5}, {'median_d_eps': 5.466192888192691, 'frac_unclipped': 0.4999}, {'median_d_eps': 7.957451321292622, 'frac_unclipped': 0.5}]
+    done in 8s
+
+=== puzzle-3x3 [campaign] /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/puzzle-3x3-play-v0_density_fb_z_flowbc_seed_0 @ 1000000 seed 0
+Restored from /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/puzzle-3x3-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+    hit_spec=19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5 d=50 z_rand_frac=0.5 actor_reward=latent_centered rows=next_observations
+    eval d_goal/rms per task: [1.053, 1.017, 0.955, 0.946, 1.052] median 1.017 inside 0.00 | khot median 0.822 inside 0.00 | dense median 0.625 inside 0.00 | goal NN median/rms 0.000
+    eval centroid_pct [7.5, 58.6, 92.8, 59.1, 33.4] knn10_pct [100.0, 100.0, 100.0, 100.0, 100.0]
+    eval meta: [{'task': 1, 'n_pos': 17, 'r_min': -8.0, 'r_max': 1.0, 'r_mean': -3.487499952316284, 'n_distinct': 10}, {'task': 2, 'n_pos': 22, 'r_min': -8.0, 'r_max': 1.0, 'r_mean': -3.5097999572753906, 'n_distinct': 10}, {'task': 3, 'n_pos': 32, 'r_min': -8.0, 'r_max': 1.0, 'r_mean': -3.460599899291992, 'n_distinct': 10}, {'task': 4, 'n_pos': 18, 'r_min': -8.0, 'r_max': 1.0, 'r_mean': -3.5055999755859375, 'n_distinct': 10}, {'task': 5, 'n_pos': 16, 'r_min': -8.0, 'r_max': 1.0, 'r_mean': -3.490799903869629, 'n_distinct': 10}]
+    khot meta: [{'k': 5, 'blocks': [1, 3, 4, 5, 7], 'n_pos': 280, 'attempts': 1}, {'k': 5, 'blocks': [1, 4, 5, 6, 7], 'n_pos': 311, 'attempts': 1}, {'k': 3, 'blocks': [1, 5, 8], 'n_pos': 1246, 'attempts': 1}, {'k': 2, 'blocks': [2, 3], 'n_pos': 2483, 'attempts': 1}, {'k': 6, 'blocks': [2, 3, 4, 6, 7, 8], 'n_pos': 144, 'attempts': 1}]
+    dense meta: [{'median_d_eps': 5.656854249492381, 'frac_unclipped': 0.2551}, {'median_d_eps': 5.656854249492381, 'frac_unclipped': 0.2588}, {'median_d_eps': 5.656854249492381, 'frac_unclipped': 0.2516}, {'median_d_eps': 6.324555320336759, 'frac_unclipped': 0.4907}, {'median_d_eps': 5.656854249492381, 'frac_unclipped': 0.2577}]
+    done in 8s
+
+=== antmaze-medium [campaign] /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/antmaze-medium-navigate-v0_density_fb_z_flowbc_seed_2 @ 1000000 seed 2
+Restored from /tmp/claude-1001/-home-adityamohan-git-Factored-FB-seam/678b32e6-6347-4028-b719-b8c7b248a0ea/scratchpad/zcov_ckpt/antmaze-medium-navigate-v0_density_fb_z_flowbc_seed_2/params_1000000.pkl (params only)
+    hit_spec=0:2:0.5 d=50 z_rand_frac=0.5 actor_reward=latent_centered rows=next_observations
+    eval d_goal/rms per task: [0.066, 0.047, 0.087, 0.055, 0.044] median 0.055 inside 1.00 | khot median 0.176 inside 0.00 | dense median 1.110 inside 0.00 | goal NN median/rms 0.119
+    eval centroid_pct [54.6, 71.7, 75.7, 61.8, 90.6] knn10_pct [9.6, 11.3, 12.0, 2.8, 0.1]
+    eval meta: [{'task': 1, 'n_pos': 89, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.008899999782443047, 'n_distinct': 2}, {'task': 2, 'n_pos': 84, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.00839999970048666, 'n_distinct': 2}, {'task': 3, 'n_pos': 92, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.009200000204145908, 'n_distinct': 2}, {'task': 4, 'n_pos': 91, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.009100000374019146, 'n_distinct': 2}, {'task': 5, 'n_pos': 75, 'r_min': 0.0, 'r_max': 1.0, 'r_mean': 0.007499999832361937, 'n_distinct': 2}]
+    khot meta: [{'k': 1, 'blocks': [0], 'n_pos': 57, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 76, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 19, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 65, 'attempts': 1}, {'k': 1, 'blocks': [0], 'n_pos': 88, 'attempts': 1}]
+    dense meta: [{'median_d_eps': 23.940947954478826, 'frac_unclipped': 0.5}, {'median_d_eps': 29.491066364425315, 'frac_unclipped': 0.5}, {'median_d_eps': 30.311204141048226, 'frac_unclipped': 0.5}, {'median_d_eps': 24.718474995045792, 'frac_unclipped': 0.5}, {'median_d_eps': 18.20027039893327, 'frac_unclipped': 0.5}]
+    done in 7s
+ALL DONE

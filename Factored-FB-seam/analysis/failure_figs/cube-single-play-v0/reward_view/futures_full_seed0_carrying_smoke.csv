@@ -1,0 +1,7 @@
+critic,seed,bank,state,task,cube,best,worst,gamma,K,H,delta_mc,delta_hat,goal_x,goal_y,goal_z
+fb_tdj,0,carrying,0,3,0,fb_perturb0,fb_perturb1,0.99,2,20,36.29722343032599,155.533935546875,0.35,0.0,0.02
+density_fb_z,0,carrying,0,3,0,density_perturb2,fb_perturb1,0.99,2,20,49.73746548873004,3.032461166381836,0.35,0.0,0.02
+fb_tdj,0,carrying,1,4,0,density_perturb1,fb_policy,0.99,2,20,4.854254298216459,-14.92626953125,0.5,0.2,0.02
+density_fb_z,0,carrying,1,4,0,fb_perturb3,release,0.99,2,20,32.362433019906305,1.3705787658691406,0.5,0.2,0.02
+fb_tdj,0,carrying,2,5,0,density_perturb2,fb_policy,0.99,2,20,2.2693410512827006,-19.27294921875,0.5,-0.2,0.02
+density_fb_z,0,carrying,2,5,0,fb_policy,release,0.99,2,20,27.90771101824344,3.8566970825195312,0.5,-0.2,0.02

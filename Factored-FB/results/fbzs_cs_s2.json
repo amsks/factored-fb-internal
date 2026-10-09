@@ -1,0 +1,328 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_q1fb/fbref_cs_s2",
+    "checkpoint": "/home/adityamohan/exp_q1fb/fbref_cs_s2/checkpoints/step_500000.pt",
+    "checkpoint_step": 500000,
+    "agent": "fb_flowbc",
+    "obs_type": "state",
+    "z_dim": 50,
+    "ortho_coef": 1000.0,
+    "env": "cube-single-play-v0",
+    "d_c": 3,
+    "gamma": 0.99,
+    "hit_spec": "19:22:0.4",
+    "pool_size": 16384,
+    "pool_cap": 16384,
+    "seed": 0,
+    "episodes": 25,
+    "horizon": 200,
+    "relabel_size": 50000,
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac",
+      "dense",
+      "region"
+    ],
+    "readout": {
+      "z_r": "project(sum_i r(x_i) B(s'_i)) -- FBModel.reward_inference, FB's own reward interface (agents/fb/agent.py infer_z)",
+      "policy": "FBAgent.act(obs, z_r): the trained flow actor conditioned on z_r; Q_r(s,a)=F(s,a,z_r)^T z_r is what it was trained to maximize. No goal decode and no retrieval -- that is the one intended difference from the density columns",
+      "families": "reward_conj_dirac / reward_conj_dense / region centers imported from eval_zeroshot_rewards.py + eval_partition_zeroshot.py, the same functions eval_density_zeroshot.py calls",
+      "success": "env info['success'] latched over the episode (dirac/dense); conjunctive region membership at the final step (region)"
+    },
+    "native_success_wandb": null,
+    "goal_coords": {
+      "t1": [
+        0.0,
+        -1.0,
+        0.1995989978313446
+      ],
+      "t2": [
+        0.75,
+        0.0,
+        0.1995989978313446
+      ],
+      "t3": [
+        -0.75,
+        0.0,
+        0.1995989978313446
+      ],
+      "t4": [
+        0.75,
+        2.0,
+        0.1995989978313446
+      ],
+      "t5": [
+        0.75,
+        -2.0,
+        0.1995989978313446
+      ]
+    },
+    "reference_check": {
+      "ref": "results/spec18_eval/dzs_d18_cs_dens_s0_RET_k1_P16384.json",
+      "checks": {
+        "env": {
+          "ref": "cube-single-play-v0",
+          "ours": "cube-single-play-v0",
+          "match": true
+        },
+        "hit_spec": {
+          "ref": "19:22:0.4",
+          "ours": "19:22:0.4",
+          "match": true
+        },
+        "pool_size": {
+          "ref": 16384,
+          "ours": 16384,
+          "match": true
+        },
+        "episodes": {
+          "ref": 25,
+          "ours": 25,
+          "match": true
+        },
+        "horizon": {
+          "ref": 200,
+          "ours": 200,
+          "match": true
+        },
+        "checkpoint_step": {
+          "ref": 500000,
+          "ours": 500000,
+          "match": true
+        },
+        "seed": {
+          "ref": 0,
+          "ours": 0,
+          "match": true
+        },
+        "relabel_size": {
+          "ref": 50000,
+          "ours": 50000,
+          "match": true
+        },
+        "region_centers": {
+          "shape_ref": [
+            4,
+            3
+          ],
+          "shape_ours": [
+            4,
+            3
+          ],
+          "max_abs_diff": 0.0,
+          "match": true
+        }
+      },
+      "ok": true
+    }
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "success": 0.56,
+        "z_diag": {
+          "pool_r_sum": 332.0,
+          "pool_r_nonzero": 332,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "t2": {
+        "success": 0.28,
+        "z_diag": {
+          "pool_r_sum": 303.0,
+          "pool_r_nonzero": 303,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071066856384277
+        }
+      },
+      "t3": {
+        "success": 0.4,
+        "z_diag": {
+          "pool_r_sum": 380.0,
+          "pool_r_nonzero": 380,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071068286895752
+        }
+      },
+      "t4": {
+        "success": 0.36,
+        "z_diag": {
+          "pool_r_sum": 379.0,
+          "pool_r_nonzero": 379,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "t5": {
+        "success": 0.48,
+        "z_diag": {
+          "pool_r_sum": 389.0,
+          "pool_r_nonzero": 389,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071068286895752
+        }
+      },
+      "mean": 0.41600000000000004
+    },
+    "dense": {
+      "t1": {
+        "success": 0.28,
+        "z_diag": {
+          "pool_r_sum": 2304.3380551015307,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071067810058594
+        }
+      },
+      "t2": {
+        "success": 0.72,
+        "z_diag": {
+          "pool_r_sum": 2072.6490682440485,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "t3": {
+        "success": 0.68,
+        "z_diag": {
+          "pool_r_sum": 2137.053921000708,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071068286895752
+        }
+      },
+      "t4": {
+        "success": 0.48,
+        "z_diag": {
+          "pool_r_sum": 1761.0428026826498,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071067810058594
+        }
+      },
+      "t5": {
+        "success": 0.48,
+        "z_diag": {
+          "pool_r_sum": 1768.8944156351777,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071067810058594
+        }
+      },
+      "mean": 0.528
+    },
+    "region": {
+      "n_centers": 4,
+      "centers_rejected": 0,
+      "center_min_pos": 5,
+      "c0": {
+        "success_final": 0.0,
+        "success_any": 0.48,
+        "center_coord": [
+          0.5506685376167297,
+          -1.6700644493103027,
+          0.5707740187644958
+        ],
+        "center_n_pos": 282,
+        "z_diag": {
+          "pool_r_sum": 90.0,
+          "pool_r_nonzero": 90,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071068286895752
+        }
+      },
+      "c1": {
+        "success_final": 0.04,
+        "success_any": 0.72,
+        "center_coord": [
+          -0.8845282793045044,
+          2.862821340560913,
+          0.21804046630859375
+        ],
+        "center_n_pos": 762,
+        "z_diag": {
+          "pool_r_sum": 254.0,
+          "pool_r_nonzero": 254,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071068286895752
+        }
+      },
+      "c2": {
+        "success_final": 0.32,
+        "success_any": 0.8,
+        "center_coord": [
+          -1.0903798341751099,
+          0.38134169578552246,
+          0.199607253074646
+        ],
+        "center_n_pos": 903,
+        "z_diag": {
+          "pool_r_sum": 273.0,
+          "pool_r_nonzero": 273,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "c3": {
+        "success_final": 0.04,
+        "success_any": 0.4,
+        "center_coord": [
+          -0.39474910497665405,
+          2.739003896713257,
+          0.19960717856884003
+        ],
+        "center_n_pos": 982,
+        "z_diag": {
+          "pool_r_sum": 342.0,
+          "pool_r_nonzero": 342,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.07106876373291
+        }
+      },
+      "mean_final": 0.09999999999999999,
+      "mean_any": 0.6
+    }
+  },
+  "controls": {
+    "randz_floor": {
+      "note": "z ~ model.sample_z (the model's own prior over task indices): what this success criterion scores with no task information at all",
+      "tasks": {
+        "t1": 0.04,
+        "t2": 0.0,
+        "t3": 0.0,
+        "t4": 0.04,
+        "t5": 0.12
+      },
+      "regions": {
+        "c0": 0.0,
+        "c1": 0.04,
+        "c2": 0.0,
+        "c3": 0.04
+      },
+      "task_mean": 0.04,
+      "region_mean": 0.02
+    }
+  }
+}

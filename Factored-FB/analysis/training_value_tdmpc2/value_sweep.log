@@ -1,0 +1,21 @@
+=== value extraction s0 ===
+[training_value:tdmpc2] 4000 states x 5 tasks -> analysis/training_value_tdmpc2/s0
+=== value extraction s1 ===
+[training_value:tdmpc2] 20000 states x 5 tasks -> analysis/training_value_tdmpc2/s1
+=== value extraction s2 ===
+[training_value:tdmpc2] 20000 states x 5 tasks -> analysis/training_value_tdmpc2/s2
+=== value extraction s3 ===
+[training_value:tdmpc2] 20000 states x 5 tasks -> analysis/training_value_tdmpc2/s3
+=== value extraction s4 ===
+[training_value:tdmpc2] 20000 states x 5 tasks -> analysis/training_value_tdmpc2/s4
+=== value extraction s5 ===
+[training_value:tdmpc2] 20000 states x 5 tasks -> analysis/training_value_tdmpc2/s5
+=== value extraction s6 ===
+[training_value:tdmpc2] 20000 states x 5 tasks -> analysis/training_value_tdmpc2/s6
+=== value extraction s7 ===
+[training_value:tdmpc2] 20000 states x 5 tasks -> analysis/training_value_tdmpc2/s7
+=== value extraction s8 ===
+[training_value:tdmpc2] 20000 states x 5 tasks -> analysis/training_value_tdmpc2/s8
+=== value extraction s9 ===
+[training_value:tdmpc2] 20000 states x 5 tasks -> analysis/training_value_tdmpc2/s9
+=== VALUE SWEEP DONE ===

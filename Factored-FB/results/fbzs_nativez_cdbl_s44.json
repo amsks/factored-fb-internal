@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_q1fb/fbref_cdbl_s44",
+    "checkpoint": "/home/adityamohan/exp_q1fb/fbref_cdbl_s44/checkpoints/step_500000.pt",
+    "checkpoint_step": 500000,
+    "agent": "fb_flowbc",
+    "obs_type": "state",
+    "z_dim": 50,
+    "ortho_coef": 1000.0,
+    "env": "cube-double-play-v0",
+    "d_c": 6,
+    "gamma": 0.99,
+    "hit_spec": "19:22:0.4,28:31:0.4",
+    "pool_size": 16384,
+    "pool_cap": 16384,
+    "seed": 0,
+    "episodes": 25,
+    "horizon": 500,
+    "relabel_size": 50000,
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [],
+    "readout": {
+      "z_r": "project(sum_i r(x_i) B(s'_i)) -- FBModel.reward_inference, FB's own reward interface (agents/fb/agent.py infer_z)",
+      "policy": "FBAgent.act(obs, z_r): the trained flow actor conditioned on z_r; Q_r(s,a)=F(s,a,z_r)^T z_r is what it was trained to maximize. No goal decode and no retrieval -- that is the one intended difference from the density columns",
+      "families": "reward_conj_dirac / reward_conj_dense / region centers imported from eval_zeroshot_rewards.py + eval_partition_zeroshot.py, the same functions eval_density_zeroshot.py calls",
+      "success": "env info['success'] latched over the episode (dirac/dense); conjunctive region membership at the final step (region)"
+    },
+    "native_success_wandb": null,
+    "goal_coords": {
+      "t1": [
+        0.0,
+        0.0,
+        0.1995989978313446,
+        0.0,
+        1.0,
+        0.1995989978313446
+      ],
+      "t2": [
+        -0.75,
+        1.0,
+        0.1995989978313446,
+        0.75,
+        1.0,
+        0.1995989978313446
+      ],
+      "t3": [
+        0.0,
+        -2.0,
+        0.1995989978313446,
+        0.0,
+        2.0,
+        0.1995989978313446
+      ],
+      "t4": [
+        0.0,
+        1.0,
+        0.1995989978313446,
+        0.0,
+        -1.0,
+        0.1995989978313446
+      ],
+      "t5": [
+        0.0,
+        0.0,
+        0.19921384751796722,
+        0.0,
+        0.0,
+        0.5991264581680298
+      ]
+    },
+    "reference_check": {
+      "ref": "results/xenv_eval/dzs_cd_dens_s0_RET_k1.json",
+      "checks": {
+        "env": {
+          "ref": "cube-double-play-v0",
+          "ours": "cube-double-play-v0",
+          "match": true
+        },
+        "hit_spec": {
+          "ref": "19:22:0.4,28:31:0.4",
+          "ours": "19:22:0.4,28:31:0.4",
+          "match": true
+        },
+        "pool_size": {
+          "ref": 16384,
+          "ours": 16384,
+          "match": true
+        },
+        "episodes": {
+          "ref": 25,
+          "ours": 25,
+          "match": true
+        },
+        "horizon": {
+          "ref": 500,
+          "ours": 500,
+          "match": true
+        },
+        "checkpoint_step": {
+          "ref": 500000,
+          "ours": 500000,
+          "match": true
+        },
+        "seed": {
+          "ref": 0,
+          "ours": 0,
+          "match": true
+        },
+        "relabel_size": {
+          "ref": 50000,
+          "ours": 50000,
+          "match": true
+        },
+        "region_centers": {
+          "shape_ref": [
+            4,
+            6
+          ],
+          "shape_ours": [
+            4,
+            6
+          ],
+          "max_abs_diff": 0.0,
+          "match": true
+        }
+      },
+      "ok": true
+    }
+  },
+  "families": {},
+  "controls": {
+    "native_z": {
+      "note": "z from evals/ogbench.py OGBenchEvaluator._infer_z -- the run's OWN native task-inference (relabelled offline transitions, reward shifted by eval_shift_reward), rolled out through THIS script's rollout. Differs from the dirac family ONLY in how the reward fed to the SAME estimator is defined.",
+      "relabel_size": 10000,
+      "shift_reward": 1.0,
+      "tasks": {
+        "t1": {
+          "success": 0.08,
+          "relabel": {
+            "relabel_reward#mean": -0.947,
+            "relabel_reward#nonzero": 9486.0,
+            "relabel_reward#zero": 514.0,
+            "relabel_reward#num_samples": 10000.0
+          }
+        },
+        "t2": {
+          "success": 0.0,
+          "relabel": {
+            "relabel_reward#mean": -0.9455,
+            "relabel_reward#nonzero": 9475.0,
+            "relabel_reward#zero": 525.0,
+            "relabel_reward#num_samples": 10000.0
+          }
+        },
+        "t3": {
+          "success": 0.0,
+          "relabel": {
+            "relabel_reward#mean": -0.9482,
+            "relabel_reward#nonzero": 9504.0,
+            "relabel_reward#zero": 496.0,
+            "relabel_reward#num_samples": 10000.0
+          }
+        },
+        "t4": {
+          "success": 0.0,
+          "relabel": {
+            "relabel_reward#mean": -0.9488,
+            "relabel_reward#nonzero": 9516.0,
+            "relabel_reward#zero": 484.0,
+            "relabel_reward#num_samples": 10000.0
+          }
+        },
+        "t5": {
+          "success": 0.0,
+          "relabel": {
+            "relabel_reward#mean": -0.9759,
+            "relabel_reward#nonzero": 9775.0,
+            "relabel_reward#zero": 225.0,
+            "relabel_reward#num_samples": 10000.0
+          }
+        }
+      },
+      "mean": 0.016
+    }
+  }
+}

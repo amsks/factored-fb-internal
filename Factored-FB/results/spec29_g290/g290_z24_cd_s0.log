@@ -1,0 +1,28 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec24/factored-fb/GCIQL-CubeDouble-Flow-Measure-DensityZ-d50/z24_cd_z_s0/params_500000.pkl
+[g290] restored z24_cd_z_s0 step=500000 env=cube-double-play-v0 z=True d=50 zenc_tower=target_density_b P=16384 N=4096 (12s)
+[g290] Sigma_B[target_density_b] eff_rank=1.0010/50 cond=1.03e+06 (13s)
+[g290] goals 1024/4096 (17s)
+[g290] goals 2048/4096 (19s)
+[g290] goals 3072/4096 (21s)
+[g290] goals 4096/4096 (23s)
+[g290] control: batched dual == spec28 ridge_index (max err 6.11e-13)
+
+[g290] z24_cd_z_s0  (sphere ref cos -0.001, PR2 49.4/50)
+  index set                           cos_mean  PR(2nd mom)   PR(cov)
+  sphere_encoding_z(g)                  0.9995        1.001    22.999
+  sphere_reference                     -0.0007       49.411    49.412
+  moment_primal[zenc]                   0.9997        1.001    15.759
+  dual_ridge_0.001[zenc]                0.0042       29.209    29.163
+  dual_ridge_0.01[zenc]                 0.0045       17.944    17.937
+  dual_ridge_0.1[zenc]                  0.0179       16.328    15.967
+  moment_primal[online]                 0.9997        1.001    15.748
+  dual_ridge_0.001[online]              0.0042       29.199    29.153
+  dual_ridge_0.01[online]               0.0045       17.937    17.930
+  dual_ridge_0.1[online]                0.0179       16.321    15.959
+[g290] DONE (24s) -> results/spec29_g290/g290_z24_cd_s0.json

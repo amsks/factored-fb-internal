@@ -1,0 +1,7 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[R6_move_keep] T=500 mean/step -0.0062 +- 0.0268 disc -0.040 aux_cube1_in_A_mean=0.000 aux_cube2_in_B0_mean=0.988  (18s)
+[R7_either_cube] T=500 mean/step 0.0000 +- 0.0000 disc 0.000 aux_cube1_in_A_mean=0.000 aux_cube2_in_A_mean=0.000  (16s)
+[done] /home/adityamohan/git/Factored-FB-seam/analysis/reward_families/cube-double-play-v0/random.json in 53s

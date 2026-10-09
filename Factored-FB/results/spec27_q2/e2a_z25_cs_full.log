@@ -1,0 +1,34 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec25_stage1/factored-fb/GCIQL-CubeSingle-Flow-Measure-DensityZ-Full-d50/z25_cs_full/params_500000.pkl
+[density-z2] restored z25_cs_full step=500000 arm=e2a env=cube-single-play-v0 d=50 gamma=0.99 hit_spec='19:22:0.4' double_q=True temp=1.0 pool_size=16384 retrieval_k=1 H=200
+[density-z2] pool drawn: P=16384 (12s)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/scripts/rescuing_fb/eval_density_z_rewards.py:282: UserWarning: Explicitly requested dtype float64 requested in asarray is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  num = jnp.mean(jnp.asarray(r_pool, jnp.float64)[:, None] * jnp.asarray(b_t), axis=0)
+[density-z2][dirac] t1: succ=0.12 qr0=1.290 (49s)
+[density-z2][dirac] t2: succ=0.0 qr0=0.782 (81s)
+[density-z2][dirac] t3: succ=0.0 qr0=1.368 (112s)
+[density-z2][dirac] t4: succ=0.04 qr0=0.801 (143s)
+[density-z2][dirac] t5: succ=0.2 qr0=0.783 (174s)
+[density-z2][dense] t1: succ=0.04 qr0=11.019 (184s)
+[density-z2][dense] t2: succ=0.04 qr0=13.687 (194s)
+[density-z2][dense] t3: succ=0.04 qr0=14.119 (204s)
+[density-z2][dense] t4: succ=0.08 qr0=4.483 (213s)
+[density-z2][dense] t5: succ=0.16 qr0=4.121 (222s)
+[density-z2][region] 4/4 hindsight centers (0 rejected)
+[density-z2][region] c0: fin=0.0 any=0.08 (232s)
+[density-z2][region] c1: fin=0.0 any=0.0 (242s)
+[density-z2][region] c2: fin=0.0 any=0.08 (252s)
+[density-z2][region] c3: fin=0.0 any=0.0 (262s)
+
+[density-z2] DONE (262s) -> results/spec27_q2/e2a_z25_cs_full.json
+[density-z2] family means: {'dirac': 0.072, 'dense': 0.072, 'region_final': 0.0, 'region_any': 0.04}
+EXIT=0

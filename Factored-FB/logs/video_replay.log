@@ -1,0 +1,51 @@
+[sweep] 10 jobs  |  8 GPUs  |  2 job(s)/GPU (16 parallel)  |  logs → /home/adityamohan/git/Factored-FB/logs/20260514_214417
+[sweep] domains:    cube_single
+[sweep] ortho_coef: 1000
+[sweep] lr_b:       1e-4
+[sweep] seeds:      1 2 3 4 5 6 7 8 9 10
+[sweep] data_path:  /dev/shm/datasets
+[sweep] extra_args: save_eval_videos=true wandb_group=cube-single-video-replay-ortho1000-lrb1e-4
+
+[sweep] 21:44:17  launching job 1/10 on GPU 0 (slot 0): cube_single__s1__ortho1000__lrb1e-4
+[sweep] 21:44:17  launching job 2/10 on GPU 1 (slot 1): cube_single__s2__ortho1000__lrb1e-4
+[sweep] 21:44:17  launching job 3/10 on GPU 2 (slot 2): cube_single__s3__ortho1000__lrb1e-4
+[sweep] 21:44:17  launching job 4/10 on GPU 3 (slot 3): cube_single__s4__ortho1000__lrb1e-4
+[sweep] 21:44:17  launching job 5/10 on GPU 4 (slot 4): cube_single__s5__ortho1000__lrb1e-4
+[sweep] 21:44:17  launching job 6/10 on GPU 5 (slot 5): cube_single__s6__ortho1000__lrb1e-4
+[sweep] 21:44:17  launching job 7/10 on GPU 6 (slot 6): cube_single__s7__ortho1000__lrb1e-4
+[sweep] 21:44:17  launching job 8/10 on GPU 7 (slot 7): cube_single__s8__ortho1000__lrb1e-4
+[sweep] 21:44:17  launching job 9/10 on GPU 0 (slot 8): cube_single__s9__ortho1000__lrb1e-4
+[sweep] 21:44:17  launching job 10/10 on GPU 1 (slot 9): cube_single__s10__ortho1000__lrb1e-4
+[sweep] 21:44:17  all jobs launched — waiting for stragglers...
+[sweep] 02:38:04  DONE: cube_single__s3__ortho1000__lrb1e-4
+[sweep] 02:39:19  DONE: cube_single__s6__ortho1000__lrb1e-4
+[sweep] 02:39:29  DONE: cube_single__s5__ortho1000__lrb1e-4
+[sweep] 02:42:54  DONE: cube_single__s4__ortho1000__lrb1e-4
+[sweep] 02:44:12  DONE: cube_single__s8__ortho1000__lrb1e-4
+[sweep] 02:46:12  DONE: cube_single__s7__ortho1000__lrb1e-4
+[sweep] 03:00:08  DONE: cube_single__s10__ortho1000__lrb1e-4
+[sweep] 03:06:45  pid=2245496 finished (exit=120)
+[sweep] 03:06:45  pid=2245500 finished (exit=1)
+[sweep] 03:06:45  pid=2245504 finished (exit=0)
+[sweep] 03:06:45  pid=2245508 finished (exit=0)
+[sweep] 03:06:45  pid=2245512 finished (exit=0)
+[sweep] 03:06:45  pid=2245516 finished (exit=0)
+[sweep] 03:06:45  pid=2245520 finished (exit=0)
+[sweep] 03:06:45  pid=2245524 finished (exit=0)
+[sweep] 03:06:45  pid=2245528 finished (exit=120)
+[sweep] 03:06:45  pid=2245532 finished (exit=0)
+
+[sweep] ══════════════════════════════════════════════════
+[sweep] Sweep complete: 10 runs in /home/adityamohan/git/Factored-FB/logs/20260514_214417
+[sweep] Quick tail of each log (last line):
+  cube_single_s1_ortho1000_lrb1e-4                      [step   994000]  train/target_M=118.6428  train/M1=118.6105  train/F1=-0.8538  train/B=-0.0045  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=-24276.
+  cube_single_s2_ortho1000_lrb1e-4                      [1;34mwandb[0m: Find logs at: [1;35mwandb/run-20260514_214421-fn8cpmvy/logs[0m
+  cube_single_s3_ortho1000_lrb1e-4                      [train] Done.
+  cube_single_s4_ortho1000_lrb1e-4                      [train] Done.
+  cube_single_s5_ortho1000_lrb1e-4                      [train] Done.
+  cube_single_s6_ortho1000_lrb1e-4                      [train] Done.
+  cube_single_s7_ortho1000_lrb1e-4                      [train] Done.
+  cube_single_s8_ortho1000_lrb1e-4                      [train] Done.
+  cube_single_s9_ortho1000_lrb1e-4                      [step   989000]  train/target_M=118.6423  train/M1=118.6114  train/F1=2.6571  train/B=0.0276  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=-24336.6186  train/fb_diag=-92.6417  train/fb_offdiag=792.4200  train/orth_loss
+  cube_single_s10_ortho1000_lrb1e-4                     [train] Done.
+[sweep] ══════════════════════════════════════════════════

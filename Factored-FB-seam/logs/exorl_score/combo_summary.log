@@ -1,0 +1,11 @@
+baseline 1M recipe (5 seeds): walker 724.6 (n=5), cheetah 301.4 (n=5)
+arm                      domain    n    mean  popstd   delta  per-seed
+sq                       walker    5   730.0    26.9    +5.4  [763, 712, 757, 692, 727]
+sq                       cheetah   5   341.2    13.2   +39.8  [335, 363, 342, 322, 344]
+sq_headmean              cheetah   1   279.6     0.0   -21.8  [280]
+sq_tau001                cheetah   1   300.3     0.0    -1.1  [300]
+sq_tower1024             walker    1   730.0     0.0    +5.4  [730]
+sq_tower1024             cheetah   1   281.7     0.0   -19.7  [282]
+sq_tower1024_headmean    cheetah   1   343.3     0.0   +41.9  [343]
+sq_tower1024_tau001      cheetah   1   472.3     0.0  +170.9  [472]
+SCORE_COMBO_EXIT=0

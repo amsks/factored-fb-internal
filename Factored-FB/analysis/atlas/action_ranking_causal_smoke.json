@@ -1,0 +1,34 @@
+{
+  "cont": "mlp_flow",
+  "H": 150,
+  "n_act": 8,
+  "n_states": 2,
+  "cells": {
+    "C2": {
+      "prereg": "rho_bil>rho_MLP",
+      "verdict": "tie",
+      "rho_bil_ret": -0.12045557481293151,
+      "rho_mlp_ret": -0.07240230697048489,
+      "rho_bil_prog": -0.0892857142857143,
+      "rho_mlp_prog": -0.0773809523809524,
+      "rho_bil_1step": -0.4285714285714286,
+      "rho_mlp_1step": -0.29761904761904767,
+      "cf_success": 0.9375,
+      "n_pairs": 4,
+      "n_ret_defined": 4
+    },
+    "C3": {
+      "prereg": "rho_bil>rho_MLP",
+      "verdict": "mlp",
+      "rho_bil_ret": -0.21052714496457642,
+      "rho_mlp_ret": 0.18949457669813627,
+      "rho_bil_prog": -0.11904761904761908,
+      "rho_mlp_prog": -0.07738095238095244,
+      "rho_bil_1step": NaN,
+      "rho_mlp_1step": NaN,
+      "cf_success": 0.875,
+      "n_pairs": 4,
+      "n_ret_defined": 4
+    }
+  }
+}

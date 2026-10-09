@@ -1,0 +1,1418 @@
+{
+  "meta": {
+    "spec": "PAPER/rescuing-fb/specs/11-smb-eval-suite.md",
+    "tasks_json": "/home/adityamohan/git/Factored-FB/analysis/rescuing-fb/smb_cube_single_v1.json",
+    "tasks_version": "smb_cube_single_v1",
+    "run_dir": "/home/adityamohan/exp_spec08/factored-fb/GCIQL-State-Flow-Measure-BallVisit-ZX-d50/visz_s0",
+    "checkpoint_step": 500000,
+    "d": 50,
+    "actor_cond": "z",
+    "actor_mode": "z",
+    "fb_forward_z": true,
+    "measure_only": true,
+    "psi_src": "critic",
+    "tiers": [
+      "t3",
+      "t4",
+      "t5",
+      "t6"
+    ],
+    "episodes": 25,
+    "horizon": 200,
+    "z_inference": "moment",
+    "z_select": "measure",
+    "gpi": true,
+    "oracle_z": false,
+    "relabel_size": 50000,
+    "candidate_pool": 50000,
+    "match_data_norm": 1.907228097734654,
+    "gamma": 0.99,
+    "eps_obs": 0.4,
+    "seed": 0,
+    "achieved_reward_def": "sum_t gamma^t r(cube(s_{t+1})) over real steps, obs units, from the recorded rollout track"
+  },
+  "tiers": {
+    "t3": {
+      "note": "oracle = max over the two dedicated single-region arms; chose-correct = larger unweighted discounted dwell in the occupancy-correct region",
+      "pairs": {
+        "pair0": {
+          "variant": 1,
+          "w_S": 1.0,
+          "w_T": 2.0,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -1.16890287399292,
+              2.979377031326294,
+              0.199607253074646
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -1.1652559041976929,
+              2.311915874481201,
+              0.937234103679657
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 6.134164586205404,
+              "dwell_S": 5.861263090947642,
+              "dwell_T": 0.13645074762888118
+            },
+            "dedicated_transient": {
+              "G": 17.632781768473446,
+              "dwell_S": 0.0,
+              "dwell_T": 8.816390884236723
+            },
+            "main": {
+              "diag": {
+                "route": "moment",
+                "n_pos": 434,
+                "n_neg": 0,
+                "z_raw_norm": 0.013373960404385038,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346543
+              },
+              "measure_select": {
+                "chosen": "z_r",
+                "scores": {
+                  "stable": 68.82028449779223,
+                  "transient": 80.12634503782502,
+                  "z_r": 85.73282206727363
+                },
+                "details": {
+                  "stable": {
+                    "q": 68.82028449779223,
+                    "n_live": 434
+                  },
+                  "transient": {
+                    "q": 80.12634503782502,
+                    "n_live": 434
+                  },
+                  "z_r": {
+                    "q": 85.73282206727363,
+                    "n_live": 434
+                  }
+                }
+              },
+              "conditioning": "measure_select:z_r",
+              "G": 13.039180072498688,
+              "G_over_oracle": 0.7394851387437974,
+              "chose_correct_rate": 0.32,
+              "chosen_frac": {
+                "stable": 0.32,
+                "transient": 0.04,
+                "none": 0.64
+              },
+              "dwell_S": 10.689658949924542,
+              "dwell_T": 1.1747605612870737
+            }
+          },
+          "oracle_G": 17.632781768473446,
+          "oracle_arm": "transient"
+        },
+        "pair1": {
+          "variant": 2,
+          "w_S": 1.0,
+          "w_T": 2.916503534245957,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -1.056196928024292,
+              -0.2273283749818802,
+              0.2023230493068695
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -0.28056347370147705,
+              -2.3460776805877686,
+              0.9863142371177673
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 70.49637119308805,
+              "dwell_S": 70.49637119308805,
+              "dwell_T": 0.0
+            },
+            "dedicated_transient": {
+              "G": 45.40494087512032,
+              "dwell_S": 22.205346441311814,
+              "dwell_T": 7.9545915722014096
+            },
+            "main": {
+              "diag": {
+                "route": "moment",
+                "n_pos": 1167,
+                "n_neg": 0,
+                "z_raw_norm": 0.04151513083567464,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346538
+              },
+              "measure_select": {
+                "chosen": "transient",
+                "scores": {
+                  "stable": 90.91052258181267,
+                  "transient": 163.66250509772203,
+                  "z_r": 69.06727448788425
+                },
+                "details": {
+                  "stable": {
+                    "q": 90.91052258181267,
+                    "n_live": 1167
+                  },
+                  "transient": {
+                    "q": 163.66250509772203,
+                    "n_live": 1167
+                  },
+                  "z_r": {
+                    "q": 69.06727448788425,
+                    "n_live": 1167
+                  }
+                }
+              },
+              "conditioning": "measure_select:transient",
+              "G": 45.40494087512032,
+              "G_over_oracle": 0.6440748666446554,
+              "chose_correct_rate": 0.64,
+              "chosen_frac": {
+                "stable": 0.64,
+                "transient": 0.36,
+                "none": 0.0
+              },
+              "dwell_S": 22.205346441311814,
+              "dwell_T": 7.9545915722014096
+            }
+          },
+          "oracle_G": 70.49637119308805,
+          "oracle_arm": "stable"
+        },
+        "pair2": {
+          "variant": 3,
+          "w_S": 1.0,
+          "w_T": 2.868705334064957,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              0.47709959745407104,
+              -1.9574989080429077,
+              0.199607253074646
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -0.15097200870513916,
+              1.3056135177612305,
+              0.9815219640731812
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 35.05705998810661,
+              "dwell_S": 35.05705998810661,
+              "dwell_T": 0.0
+            },
+            "dedicated_transient": {
+              "G": 18.593432359580376,
+              "dwell_S": 0.0,
+              "dwell_T": 6.481471672530923
+            },
+            "main": {
+              "diag": {
+                "route": "moment",
+                "n_pos": 1238,
+                "n_neg": 0,
+                "z_raw_norm": 0.04197881576602303,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346538
+              },
+              "measure_select": {
+                "chosen": "transient",
+                "scores": {
+                  "stable": 35.06327362675134,
+                  "transient": 114.59552342046251,
+                  "z_r": 45.8502724103616
+                },
+                "details": {
+                  "stable": {
+                    "q": 35.06327362675134,
+                    "n_live": 1238
+                  },
+                  "transient": {
+                    "q": 114.59552342046251,
+                    "n_live": 1238
+                  },
+                  "z_r": {
+                    "q": 45.8502724103616,
+                    "n_live": 1238
+                  }
+                }
+              },
+              "conditioning": "measure_select:transient",
+              "G": 18.593432359580376,
+              "G_over_oracle": 0.530376259899956,
+              "chose_correct_rate": 0.0,
+              "chosen_frac": {
+                "stable": 0.0,
+                "transient": 0.76,
+                "none": 0.24
+              },
+              "dwell_S": 0.0,
+              "dwell_T": 6.481471672530923
+            }
+          },
+          "oracle_G": 35.05705998810661,
+          "oracle_arm": "stable"
+        },
+        "pair3": {
+          "variant": 4,
+          "w_S": 1.0,
+          "w_T": 2.9943072582598114,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.0122166872024536,
+              0.3856981098651886,
+              0.199607253074646
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.1904343366622925,
+              -1.4501835107803345,
+              0.8902702927589417
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 25.407905303209027,
+              "dwell_S": 25.407905303209027,
+              "dwell_T": 0.0
+            },
+            "dedicated_transient": {
+              "G": 20.786801364563466,
+              "dwell_S": 0.0,
+              "dwell_T": 6.942106995607404
+            },
+            "main": {
+              "diag": {
+                "route": "moment",
+                "n_pos": 951,
+                "n_neg": 0,
+                "z_raw_norm": 0.03455236631684864,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346536
+              },
+              "measure_select": {
+                "chosen": "transient",
+                "scores": {
+                  "stable": 54.5235786851497,
+                  "transient": 92.8522237666071,
+                  "z_r": 58.452310157407055
+                },
+                "details": {
+                  "stable": {
+                    "q": 54.5235786851497,
+                    "n_live": 951
+                  },
+                  "transient": {
+                    "q": 92.8522237666071,
+                    "n_live": 951
+                  },
+                  "z_r": {
+                    "q": 58.452310157407055,
+                    "n_live": 951
+                  }
+                }
+              },
+              "conditioning": "measure_select:transient",
+              "G": 20.786801364563466,
+              "G_over_oracle": 0.818123379967812,
+              "chose_correct_rate": 0.0,
+              "chosen_frac": {
+                "stable": 0.0,
+                "transient": 0.56,
+                "none": 0.44
+              },
+              "dwell_S": 0.0,
+              "dwell_T": 6.942106995607404
+            }
+          },
+          "oracle_G": 25.407905303209027,
+          "oracle_arm": "stable"
+        },
+        "pair4": {
+          "variant": 5,
+          "w_S": 1.0,
+          "w_T": 2.939049837212078,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.056520938873291,
+              2.731971025466919,
+              0.199607253074646
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.3518284559249878,
+              -0.19607524573802948,
+              0.8879906535148621
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 4.563981289259448,
+              "dwell_S": 4.563981289259448,
+              "dwell_T": 0.0
+            },
+            "dedicated_transient": {
+              "G": 12.57175312999192,
+              "dwell_S": 0.0,
+              "dwell_T": 4.277488925440348
+            },
+            "main": {
+              "diag": {
+                "route": "moment",
+                "n_pos": 766,
+                "n_neg": 0,
+                "z_raw_norm": 0.04913329477092092,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.907228097734654
+              },
+              "measure_select": {
+                "chosen": "transient",
+                "scores": {
+                  "stable": 16.446025766728614,
+                  "transient": 64.04481687387154,
+                  "z_r": 19.59702939602691
+                },
+                "details": {
+                  "stable": {
+                    "q": 16.446025766728614,
+                    "n_live": 766
+                  },
+                  "transient": {
+                    "q": 64.04481687387154,
+                    "n_live": 766
+                  },
+                  "z_r": {
+                    "q": 19.59702939602691,
+                    "n_live": 766
+                  }
+                }
+              },
+              "conditioning": "measure_select:transient",
+              "G": 12.57175312999192,
+              "G_over_oracle": 1.0,
+              "chose_correct_rate": 0.0,
+              "chosen_frac": {
+                "stable": 0.0,
+                "transient": 0.72,
+                "none": 0.28
+              },
+              "dwell_S": 0.0,
+              "dwell_T": 4.277488925440348
+            }
+          },
+          "oracle_G": 12.57175312999192,
+          "oracle_arm": "transient"
+        }
+      },
+      "mean_G": 22.079221560350952,
+      "mean_G_over_oracle": 0.7464119290512442,
+      "mean_chose_correct": 0.192
+    },
+    "t4": {
+      "union0": {
+        "variant": 1,
+        "cands": [
+          {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              0.17401020228862762,
+              -1.481825590133667,
+              0.199607253074646
+            ]
+          },
+          {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              0.8330784440040588,
+              3.2665929794311523,
+              0.199607253074646
+            ]
+          },
+          {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -1.2593224048614502,
+              1.250421404838562,
+              0.22099490463733673
+            ]
+          }
+        ],
+        "diag": {
+          "route": "moment",
+          "n_pos": 1694,
+          "n_neg": 0,
+          "z_raw_norm": 0.04094339566218196,
+          "match_data_norm": 1.907228097734654,
+          "z_norm": 1.9072280977346538
+        },
+        "main": {
+          "measure_select": {
+            "chosen": "ball0",
+            "scores": {
+              "ball0": 56.802993616599856,
+              "ball1": -2.587897961978525,
+              "ball2": 49.66770013159259,
+              "z_r": 35.358754815198175
+            },
+            "details": {
+              "ball0": {
+                "q": 56.802993616599856,
+                "n_live": 1694
+              },
+              "ball1": {
+                "q": -2.587897961978525,
+                "n_live": 1694
+              },
+              "ball2": {
+                "q": 49.66770013159259,
+                "n_live": 1694
+              },
+              "z_r": {
+                "q": 35.358754815198175,
+                "n_live": 1694
+              }
+            }
+          },
+          "conditioning": "measure_select:ball0",
+          "G": 41.622781675754325,
+          "success_end": 0.84,
+          "success_any": 0.88,
+          "dwell_union": 41.622781675754325
+        }
+      },
+      "union1": {
+        "variant": 2,
+        "cands": [
+          {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.244318962097168,
+              0.7500737309455872,
+              0.199607253074646
+            ]
+          },
+          {
+            "n_in_ball": 4,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -0.5463008284568787,
+              -3.3143839836120605,
+              0.21894337236881256
+            ]
+          },
+          {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.1843135356903076,
+              -3.106750726699829,
+              0.199607253074646
+            ]
+          }
+        ],
+        "diag": {
+          "route": "moment",
+          "n_pos": 749,
+          "n_neg": 0,
+          "z_raw_norm": 0.028183826986871927,
+          "match_data_norm": 1.907228097734654,
+          "z_norm": 1.9072280977346545
+        },
+        "main": {
+          "measure_select": {
+            "chosen": "ball0",
+            "scores": {
+              "ball0": 42.72201289457595,
+              "ball1": 3.8100100816766567,
+              "ball2": 10.422619247278606,
+              "z_r": 22.07688328932268
+            },
+            "details": {
+              "ball0": {
+                "q": 42.72201289457595,
+                "n_live": 749
+              },
+              "ball1": {
+                "q": 3.8100100816766567,
+                "n_live": 749
+              },
+              "ball2": {
+                "q": 10.422619247278606,
+                "n_live": 749
+              },
+              "z_r": {
+                "q": 22.07688328932268,
+                "n_live": 749
+              }
+            }
+          },
+          "conditioning": "measure_select:ball0",
+          "G": 30.448986564025446,
+          "success_end": 0.64,
+          "success_any": 0.8,
+          "dwell_union": 30.448986564025446
+        }
+      },
+      "union2": {
+        "variant": 3,
+        "cands": [
+          {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -1.0762661695480347,
+              3.002370595932007,
+              0.199607253074646
+            ]
+          },
+          {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -1.2463979721069336,
+              -0.5309777855873108,
+              0.199607253074646
+            ]
+          },
+          {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              0.1843380331993103,
+              1.8119899034500122,
+              0.199607253074646
+            ]
+          }
+        ],
+        "diag": {
+          "route": "moment",
+          "n_pos": 2264,
+          "n_neg": 0,
+          "z_raw_norm": 0.03932188304371368,
+          "match_data_norm": 1.907228097734654,
+          "z_norm": 1.907228097734654
+        },
+        "main": {
+          "measure_select": {
+            "chosen": "ball2",
+            "scores": {
+              "ball0": 35.05811312630309,
+              "ball1": 57.75801394862421,
+              "ball2": 69.32320910068087,
+              "z_r": 32.77153322324292
+            },
+            "details": {
+              "ball0": {
+                "q": 35.05811312630309,
+                "n_live": 2264
+              },
+              "ball1": {
+                "q": 57.75801394862421,
+                "n_live": 2264
+              },
+              "ball2": {
+                "q": 69.32320910068087,
+                "n_live": 2264
+              },
+              "z_r": {
+                "q": 32.77153322324292,
+                "n_live": 2264
+              }
+            }
+          },
+          "conditioning": "measure_select:ball2",
+          "G": 22.91073798401878,
+          "success_end": 0.44,
+          "success_any": 0.44,
+          "dwell_union": 22.91073798401878
+        }
+      },
+      "mean_G": 31.66083540793285,
+      "mean_success_end": 0.64
+    },
+    "t5": {
+      "note": "lambda=0 = the no-penalty control pricing the detour; deflection = time_in_B(lam)/time_in_B(0)",
+      "tasks": {
+        "t1": {
+          "avoid_center": [
+            -0.6310857534408569,
+            0.09977982193231583,
+            0.199607253074646
+          ],
+          "avoid_radius": 0.5,
+          "arms": {
+            "lam0": {
+              "lambda": 0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1021,
+                "n_neg": 0,
+                "z_raw_norm": 0.035646349191026994,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346543
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 59.2893877681097,
+                  "z_r": 57.785087012037664
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 59.2893877681097,
+                    "n_live": 1021
+                  },
+                  "z_r": {
+                    "q": 57.785087012037664,
+                    "n_live": 1021
+                  }
+                }
+              },
+              "success_at_A": 0.84,
+              "time_in_B": 0.0,
+              "G_signed": 1.0957266826919139,
+              "dwell_A": 1.0957266826919139
+            },
+            "lam1": {
+              "lambda": 1.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1021,
+                "n_neg": 1809,
+                "z_raw_norm": 0.06822339876356592,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346538
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 63.341919369769826,
+                  "z_r": 12.946675984201532
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 63.341919369769826,
+                    "n_live": 2830
+                  },
+                  "z_r": {
+                    "q": 12.946675984201532,
+                    "n_live": 2830
+                  }
+                }
+              },
+              "success_at_A": 0.84,
+              "time_in_B": 0.0,
+              "G_signed": 1.0957266826919139,
+              "dwell_A": 1.0957266826919139
+            },
+            "lam5": {
+              "lambda": 5.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1021,
+                "n_neg": 1809,
+                "z_raw_norm": 0.31142083116985436,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346543
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 79.5520457764103,
+                  "z_r": 46.78944068446331
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 79.5520457764103,
+                    "n_live": 2830
+                  },
+                  "z_r": {
+                    "q": 46.78944068446331,
+                    "n_live": 2830
+                  }
+                }
+              },
+              "success_at_A": 0.84,
+              "time_in_B": 0.0,
+              "G_signed": 1.0957266826919139,
+              "dwell_A": 1.0957266826919139
+            }
+          },
+          "corridor_binds": false
+        },
+        "t2": {
+          "avoid_center": [
+            -0.6310864090919495,
+            0.09978410601615906,
+            0.19949419796466827
+          ],
+          "avoid_radius": 0.5,
+          "arms": {
+            "lam0": {
+              "lambda": 0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1087,
+                "n_neg": 0,
+                "z_raw_norm": 0.035821383557746896,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346536
+              },
+              "measure_select": {
+                "chosen": "z_r",
+                "scores": {
+                  "goal_A": 70.17867532154233,
+                  "z_r": 71.15598718321998
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 70.17867532154233,
+                    "n_live": 1087
+                  },
+                  "z_r": {
+                    "q": 71.15598718321998,
+                    "n_live": 1087
+                  }
+                }
+              },
+              "success_at_A": 0.8,
+              "time_in_B": 0.548427775081112,
+              "G_signed": 0.9963505352184423,
+              "dwell_A": 0.9963505352184423
+            },
+            "lam1": {
+              "lambda": 1.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1087,
+                "n_neg": 1809,
+                "z_raw_norm": 0.07323653542250717,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346538
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 42.227170905150025,
+                  "z_r": -28.89964843138651
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 42.227170905150025,
+                    "n_live": 2896
+                  },
+                  "z_r": {
+                    "q": -28.89964843138651,
+                    "n_live": 2896
+                  }
+                }
+              },
+              "success_at_A": 0.88,
+              "time_in_B": 0.5834578106454308,
+              "G_signed": -28.423669450651524,
+              "dwell_A": 1.0858810478048566,
+              "deflection": 1.0638735621279172
+            },
+            "lam5": {
+              "lambda": 5.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1087,
+                "n_neg": 1809,
+                "z_raw_norm": 0.31698373263994273,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.907228097734654
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": -69.57884676041913,
+                  "z_r": -164.424873470178
+                },
+                "details": {
+                  "goal_A": {
+                    "q": -69.57884676041913,
+                    "n_live": 2896
+                  },
+                  "z_r": {
+                    "q": -164.424873470178,
+                    "n_live": 2896
+                  }
+                }
+              },
+              "success_at_A": 0.88,
+              "time_in_B": 0.5834578106454308,
+              "G_signed": -146.46187144447705,
+              "dwell_A": 1.0858810478048566,
+              "deflection": 1.0638735621279172
+            }
+          },
+          "corridor_binds": true
+        },
+        "t3": {
+          "avoid_center": [
+            -0.0772523581981659,
+            0.6009634137153625,
+            0.23685462772846222
+          ],
+          "avoid_radius": 0.5,
+          "arms": {
+            "lam0": {
+              "lambda": 0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1205,
+                "n_neg": 0,
+                "z_raw_norm": 0.046743492464933804,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346536
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 69.36660656798087,
+                  "z_r": 67.85371083545095
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 69.36660656798087,
+                    "n_live": 1205
+                  },
+                  "z_r": {
+                    "q": 67.85371083545095,
+                    "n_live": 1205
+                  }
+                }
+              },
+              "success_at_A": 0.68,
+              "time_in_B": 0.032400000000000005,
+              "G_signed": 0.7264707542733856,
+              "dwell_A": 0.7264707542733856
+            },
+            "lam1": {
+              "lambda": 1.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1205,
+                "n_neg": 1721,
+                "z_raw_norm": 0.05579562821639992,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346543
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 53.85669955948248,
+                  "z_r": 23.312110135727405
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 53.85669955948248,
+                    "n_live": 2926
+                  },
+                  "z_r": {
+                    "q": 23.312110135727405,
+                    "n_live": 2926
+                  }
+                }
+              },
+              "success_at_A": 0.68,
+              "time_in_B": 0.032400000000000005,
+              "G_signed": -1.5984092784978032,
+              "dwell_A": 0.7264707542733856,
+              "deflection": 1.0
+            },
+            "lam5": {
+              "lambda": 5.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1205,
+                "n_neg": 1721,
+                "z_raw_norm": 0.21088923841514154,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346543
+              },
+              "measure_select": {
+                "chosen": "z_r",
+                "scores": {
+                  "goal_A": -8.182928474511067,
+                  "z_r": 41.025110908682294
+                },
+                "details": {
+                  "goal_A": {
+                    "q": -8.182928474511067,
+                    "n_live": 2926
+                  },
+                  "z_r": {
+                    "q": 41.025110908682294,
+                    "n_live": 2926
+                  }
+                }
+              },
+              "success_at_A": 0.08,
+              "time_in_B": 0.04258481012658228,
+              "G_signed": -15.704378662831198,
+              "dwell_A": 0.0623942380522505,
+              "deflection": 1.3143459915611813
+            }
+          },
+          "corridor_binds": false
+        },
+        "t4": {
+          "avoid_center": [
+            0.2696392238140106,
+            0.9565160274505615,
+            0.19960610568523407
+          ],
+          "avoid_radius": 0.5,
+          "arms": {
+            "lam0": {
+              "lambda": 0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1155,
+                "n_neg": 0,
+                "z_raw_norm": 0.044435073087478065,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346538
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 53.403212539506846,
+                  "z_r": 51.34957518770881
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 53.403212539506846,
+                    "n_live": 1155
+                  },
+                  "z_r": {
+                    "q": 51.34957518770881,
+                    "n_live": 1155
+                  }
+                }
+              },
+              "success_at_A": 0.92,
+              "time_in_B": 0.0,
+              "G_signed": 0.911825893614117,
+              "dwell_A": 0.911825893614117
+            },
+            "lam1": {
+              "lambda": 1.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1155,
+                "n_neg": 1795,
+                "z_raw_norm": 0.06827337351716119,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346543
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 52.35059070859624,
+                  "z_r": 4.554768756703919
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 52.35059070859624,
+                    "n_live": 2950
+                  },
+                  "z_r": {
+                    "q": 4.554768756703919,
+                    "n_live": 2950
+                  }
+                }
+              },
+              "success_at_A": 0.92,
+              "time_in_B": 0.0,
+              "G_signed": 0.911825893614117,
+              "dwell_A": 0.911825893614117
+            },
+            "lam5": {
+              "lambda": 5.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1155,
+                "n_neg": 1795,
+                "z_raw_norm": 0.27058091712457316,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346536
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 48.140103384953804,
+                  "z_r": 33.44224995822364
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 48.140103384953804,
+                    "n_live": 2950
+                  },
+                  "z_r": {
+                    "q": 33.44224995822364,
+                    "n_live": 2950
+                  }
+                }
+              },
+              "success_at_A": 0.92,
+              "time_in_B": 0.0,
+              "G_signed": 0.911825893614117,
+              "dwell_A": 0.911825893614117
+            }
+          },
+          "corridor_binds": false
+        },
+        "t5": {
+          "avoid_center": [
+            0.2742464542388916,
+            -0.3373964726924896,
+            0.20347915589809418
+          ],
+          "avoid_radius": 0.5,
+          "arms": {
+            "lam0": {
+              "lambda": 0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1199,
+                "n_neg": 0,
+                "z_raw_norm": 0.03931032971124202,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346543
+              },
+              "measure_select": {
+                "chosen": "z_r",
+                "scores": {
+                  "goal_A": 58.786151294185224,
+                  "z_r": 62.179119818475954
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 58.786151294185224,
+                    "n_live": 1199
+                  },
+                  "z_r": {
+                    "q": 62.179119818475954,
+                    "n_live": 1199
+                  }
+                }
+              },
+              "success_at_A": 0.84,
+              "time_in_B": 0.0,
+              "G_signed": 0.9396649570056465,
+              "dwell_A": 0.9396649570056465
+            },
+            "lam1": {
+              "lambda": 1.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1199,
+                "n_neg": 1733,
+                "z_raw_norm": 0.059861493510593417,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346543
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 66.84684356475799,
+                  "z_r": 35.8834900009623
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 66.84684356475799,
+                    "n_live": 2932
+                  },
+                  "z_r": {
+                    "q": 35.8834900009623,
+                    "n_live": 2932
+                  }
+                }
+              },
+              "success_at_A": 0.8,
+              "time_in_B": 0.0,
+              "G_signed": 0.8901306585903268,
+              "dwell_A": 0.8901306585903268
+            },
+            "lam5": {
+              "lambda": 5.0,
+              "diag": {
+                "route": "moment",
+                "n_pos": 1199,
+                "n_neg": 1733,
+                "z_raw_norm": 0.23933489406664837,
+                "match_data_norm": 1.907228097734654,
+                "z_norm": 1.9072280977346543
+              },
+              "measure_select": {
+                "chosen": "goal_A",
+                "scores": {
+                  "goal_A": 99.08961264704905,
+                  "z_r": 23.51872468879563
+                },
+                "details": {
+                  "goal_A": {
+                    "q": 99.08961264704905,
+                    "n_live": 2932
+                  },
+                  "z_r": {
+                    "q": 23.51872468879563,
+                    "n_live": 2932
+                  }
+                }
+              },
+              "success_at_A": 0.8,
+              "time_in_B": 0.0,
+              "G_signed": 0.8901306585903268,
+              "dwell_A": 0.8901306585903268
+            }
+          },
+          "corridor_binds": false
+        }
+      },
+      "mean_G_lam0": 0.934007764560701,
+      "mean_timeB_lam0": 0.11616555501622239,
+      "mean_G_lam1": -5.424879098850594,
+      "mean_timeB_lam1": 0.12317156212908616,
+      "mean_G_lam5": -31.85371337448238,
+      "mean_timeB_lam5": 0.12520852415440262
+    },
+    "t6": {
+      "note": "controls: random-z (floor) + best-candidate (GPI over the 5 native conditionings scored at z_tilde) -- the second separates 'learned z~' from 'any reasonable policy scores'",
+      "draws": [
+        {
+          "draw": 0,
+          "diag": {
+            "route": "moment",
+            "n_pos": 29676,
+            "n_neg": 20324,
+            "z_raw_norm": 0.03776576446795423,
+            "match_data_norm": 1.907228097734654,
+            "z_norm": 1.9072280977346538
+          },
+          "cos_zr_ztilde": 0.6998507615375404,
+          "measure_select": {
+            "chosen": "z_r",
+            "scores": {
+              "psi_g1": 42.78115927861019,
+              "psi_g2": 48.64360163048847,
+              "psi_g3": 9.247096004020625,
+              "psi_g4": -36.30963142975266,
+              "psi_g5": 11.660875251739093,
+              "z_r": 110.55189518958356
+            },
+            "details": {
+              "psi_g1": {
+                "q": 42.78115927861019,
+                "n_live": 50000
+              },
+              "psi_g2": {
+                "q": 48.64360163048847,
+                "n_live": 50000
+              },
+              "psi_g3": {
+                "q": 9.247096004020625,
+                "n_live": 50000
+              },
+              "psi_g4": {
+                "q": -36.30963142975266,
+                "n_live": 50000
+              },
+              "psi_g5": {
+                "q": 11.660875251739093,
+                "n_live": 50000
+              },
+              "z_r": {
+                "q": 110.55189518958356,
+                "n_live": 50000
+              }
+            }
+          },
+          "conditioning": "measure_select:z_r",
+          "G_main": 1.4198541582787862,
+          "G_control_random_z": -2.420896913567719,
+          "G_control_best_candidate": 0.7133417044682663,
+          "best_candidate_choice_frac": [
+            0.073,
+            0.2598,
+            0.0986,
+            0.3066,
+            0.262
+          ]
+        },
+        {
+          "draw": 1,
+          "diag": {
+            "route": "moment",
+            "n_pos": 22188,
+            "n_neg": 27812,
+            "z_raw_norm": 0.04087390966525033,
+            "match_data_norm": 1.907228097734654,
+            "z_norm": 1.907228097734654
+          },
+          "cos_zr_ztilde": 0.6484466655902916,
+          "measure_select": {
+            "chosen": "z_r",
+            "scores": {
+              "psi_g1": -24.519192167208764,
+              "psi_g2": -41.99569313185623,
+              "psi_g3": -19.524096812412118,
+              "psi_g4": 28.02385394133352,
+              "psi_g5": -50.34419955027202,
+              "z_r": 50.877129945827434
+            },
+            "details": {
+              "psi_g1": {
+                "q": -24.519192167208764,
+                "n_live": 50000
+              },
+              "psi_g2": {
+                "q": -41.99569313185623,
+                "n_live": 50000
+              },
+              "psi_g3": {
+                "q": -19.524096812412118,
+                "n_live": 50000
+              },
+              "psi_g4": {
+                "q": 28.02385394133352,
+                "n_live": 50000
+              },
+              "psi_g5": {
+                "q": -50.34419955027202,
+                "n_live": 50000
+              },
+              "z_r": {
+                "q": 50.877129945827434,
+                "n_live": 50000
+              }
+            }
+          },
+          "conditioning": "measure_select:z_r",
+          "G_main": 2.7947085259023505,
+          "G_control_random_z": 1.824173731477562,
+          "G_control_best_candidate": 4.502724623969525,
+          "best_candidate_choice_frac": [
+            0.1482,
+            0.1366,
+            0.1872,
+            0.4372,
+            0.0908
+          ]
+        },
+        {
+          "draw": 2,
+          "diag": {
+            "route": "moment",
+            "n_pos": 28391,
+            "n_neg": 21609,
+            "z_raw_norm": 0.030095067884755876,
+            "match_data_norm": 1.907228097734654,
+            "z_norm": 1.9072280977346543
+          },
+          "cos_zr_ztilde": 0.7096199326154868,
+          "measure_select": {
+            "chosen": "z_r",
+            "scores": {
+              "psi_g1": -13.23240396879033,
+              "psi_g2": -1.225735037595628,
+              "psi_g3": -10.82287233550777,
+              "psi_g4": -3.9671756077644003,
+              "psi_g5": 27.769354394929692,
+              "z_r": 32.82319822769857
+            },
+            "details": {
+              "psi_g1": {
+                "q": -13.23240396879033,
+                "n_live": 50000
+              },
+              "psi_g2": {
+                "q": -1.225735037595628,
+                "n_live": 50000
+              },
+              "psi_g3": {
+                "q": -10.82287233550777,
+                "n_live": 50000
+              },
+              "psi_g4": {
+                "q": -3.9671756077644003,
+                "n_live": 50000
+              },
+              "psi_g5": {
+                "q": 27.769354394929692,
+                "n_live": 50000
+              },
+              "z_r": {
+                "q": 32.82319822769857,
+                "n_live": 50000
+              }
+            }
+          },
+          "conditioning": "measure_select:z_r",
+          "G_main": 3.7357968815046574,
+          "G_control_random_z": 5.162977695285819,
+          "G_control_best_candidate": 5.963343783876546,
+          "best_candidate_choice_frac": [
+            0.1472,
+            0.131,
+            0.152,
+            0.1214,
+            0.4484
+          ]
+        }
+      ],
+      "mean_G_main": 2.650119855228598,
+      "mean_G_control_random_z": 1.5220848377318872,
+      "mean_G_control_best_candidate": 3.726470037438112
+    }
+  }
+}

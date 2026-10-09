@@ -1,0 +1,120 @@
+\section{\name{}: Learning Successor Measures as Distributions}
+\label{sec:method}
+
+%%AZ.8.29: start with a reminder of the high-level modification, what problem are we fixing before you get to how we're doing it.
+%%AZ.8.29: after going through this section, it is way too low-level with no explanation of the design choices made in the algorithm. You could either include the high-level justification/intuition here interspersed with the method details, or separate it into a prior section.
+%%AZ.8.29: why is the normalization important?
+%%AZ.8.29: why this parameterization design choice?
+%%AZ.9.5: This section should be divided up into two main parts. One defines the problem and explains the high level solution, the second provides the technical instantiation of the method. My comments from last week are still not satisfactorily addressed. There needs to be a roadmap for 2.1, 2.2, and 2.3 and why I should read them.
+%%AZ.9.12: Given the extensive references to App. B.2, I took a look. I found it very difficult to understand, check that section for comments.
+% \ben{I don't really follow the arguments here. Standard FB is learning a density (ratio), so the ``density'' part of our method isn't unique. And the representations learned by FB are nonlinear functions of the action, so I'm not sure about the linearity assumption. I agree that we're using a CE loss instead of a LSIF loss.}
+
+%%AZ.9.25: This transition from the end of section 4 could be improved. 
+The failure in \cref{sec:failure} motivates representing occupancies beyond the linear span of the backward features.
+\name{} achieves this by placing the low-rank constraint on bilinear scores, whose normalized exponentials define successor distributions, thereby allowing the predicted occupancies to extend beyond the linear span of the backward features.
+Pretraining then alternates fitting these distributions to Bellman targets by cross-entropy (\cref{sec:method-learning}) with improving policies through reward expectations (\cref{sec:method-policy}).
+After pretraining, a downstream reward determines the task index used to select and execute a frozen policy.
+
+\subsection{Learning a normalized successor distribution}
+\label{sec:method-learning}
+
+For temperature $\tau>0$, define the score $f_\theta(s,a,z,s^+):=F_\theta(s,a,z)^\top B_\theta(s^+)/\tau$ and normalize its exponential relative to $\rho$, where $\tau>0$ is a temperature and $\tilde s^+$ is a reference state drawn from $\rho$:
+\begin{equation}
+    h_\theta(s,a,z,s^+) :=\frac{\exp f_\theta(s,a,z,s^+)} {\E_{\tilde s^+\sim\rho} [\exp f_\theta(s,a,z,\tilde s^+)]}.
+    \label{eq:density-model}
+\end{equation}
+Assuming a finite denominator, the predicted SM $\widehat M_\theta(s,a,z,ds^+) :=h_\theta(s,a,z,s^+)\rho(ds^+)$ is a probability measure.
+The following proposition relates its approximation accuracy to preservation of a bottleneck distinctions between action-values in the bottleneck.
+
+\begin{proposition}[Preservation of a bottleneck distinction]
+\label{prop:bottleneck-preservation}
+Fix $\pi=\pi_z$ and a bounded measurable reward $r$.
+At a bottleneck entry state $s$, choose $a_+\in\mathcal A_+(s)$ and $a_-\in\mathcal A_-(s)$ with
+\(\delta:=Q_r^\pi(s,a_+)-Q_r^\pi(s,a_-)>0,\) and $\qquad R:=\sup_{\mathcal S}r-\inf_{\mathcal S}r.$
+Any fit satisfying
+\[
+    D_{\mathrm{KL}}\!\left( M^\pi(s,a,\cdot) \,\middle\|\, \widehat M_\theta(s,a,z,\cdot) \right) <\frac{(1-\gamma)^2\delta^2}{2R^2}, \qquad a\in\{a_+,a_-\},
+\]
+preserves their action ordering $ \widehat Q_r^\pi(s,a_+)> \widehat Q_r^\pi(s,a_-).$
+\end{proposition}
+
+\paragraph{Proof sketch.} The total variation distance by the square root of half the KL divergence, thereby controlling differences in expected bounded rewards. 
+Under the stated KL condition, each action-value error is smaller than $\delta/2$, so their combined error cannot reverse the true gap $\delta$ (\cref{app:bottleneck-proof}).
+
+Under the finite-state realizability and exact-fitting assumptions of \cref{app:exact-fitting-convergence}, TD updates eventually meet this accuracy threshold for a fixed policy.
+The minibatch procedure below approximates these updates using sampled future states.
+
+\paragraph{Evaluating task-conditioned policies.}
+We apply TD InfoNCE (\cref{eq:td-infonce-population}) to the policy family $\pi_\omega(\cdot\mid s,z)$.
+Tasks $z\sim p_Z$ mix random vectors with indices inferred from sampled goal-reaching rewards (\cref{app:task-index}).
+For a minibatch $\{(s_i,a_i,s_i',\mathrm{terminal}_i)\}_{i=1}^n$, the next states serve as candidates $s_j^+:=s_j'$, giving probabilities
+\begin{equation}
+    p_j(s,a,z) :=\frac{\exp f_\theta(s,a,z,s_j^+)} {\sum_{\ell=1}^n\exp f_\theta(s,a,z,s_\ell^+)}.
+    \label{eq:density-candidates}
+\end{equation}
+Here $i$ indexes transitions and $j$ indexes candidates, so candidate $i$ is the observed next state of transition $i$.
+Let $\bar p_j$ denote target-network probabilities, sample $a_i'\sim\pi_\omega(\cdot\mid s_i',z_i)$,
+and set $d_i:=\gamma(1-\mathrm{terminal}_i)$.
+We fit the Bellman targets by cross-entropy:
+\begin{align}
+    &t_{ij} :=\sg\!\left[(1-d_i)\ind{j=i}+d_i\bar p_j(s_i',a_i',z_i)\right], \quad a_i'\sim\pi_\omega(\cdot\mid s_i',z_i), \; d_i:=\gamma(1-\mathrm{terminal}_i), \nonumber\\
+    &\mathcal L_{\mathrm{DFB}} :=-\frac1n\sum_{i,j}t_{ij}\log p_j(s_i,a_i,z_i),
+    \label{eq:density-loss}
+\end{align}
+where $\sg$ stands for stop-gradient through the targets, which combine the observed next state with the predicted continuation.
+For terminal transitions, all mass remains on the observed next state, following the absorbing-state convention.
+% % \ben{Is this exactly the same as TD InfoNCE? If so, it might be simpler to introduce the TD InfoNCE loss in the prelims as a method for policy evaluation. Then, in this section, we can say that we're applying it to evaluate the density of skill conditioned policies.}
+% % \ben{I think we're missing an equation here describing how the policy is updated during pre-training.}
+
+
+\subsection{Policy improvement during pretraining}
+\label{sec:method-policy}
+
+To improve the policies being evaluated, we compute action values by averaging rewards under their predicted distributions:
+\begin{equation}
+    \widehat Q_{\theta,r}(s,a,z) :=\frac{1}{1-\gamma} \sum_{j=1}^n p_j(s,a,z)\,r(s_j^+).
+     \label{eq:density-value}
+\end{equation}
+Because $F_\theta$ parameterizes scores, the FB readout $F_\theta(s,a,z)^\top z$ does not generally recover this reward expectation: the cross-entropy objective fixes the scores only up to a constant per state-action pair, and our preliminary ablations demonstrated that training the actor on $F_\theta(s,a,z)^\top z$ generally gave much lower success (\cref{app:fz-ablation}).
+During reward-free pretraining, each task vector $z$ defines a reward by weighting the learned state features:
+\begin{equation}
+    r_z(s^+) :=\frac{\bigl(B_\xi(s^+)-\hat\mu\bigr)^\top z}{\sqrt d},
+    \label{eq:pretraining-reward}
+\end{equation}
+where $B_\xi$ is a slowly updated backward encoder, $\hat\mu$ its running feature mean, and $1/\sqrt d$ sets
+the reward scale.
+Each policy $\pi_\omega(\cdot\mid s,z)$ is therefore trained to maximize the expected discounted return under its corresponding reward $r_z$.
+%%AZ.9.25: this isn't really a sentence. can you provide context on this reward expression?
+\begin{equation}
+    \mathcal J_{\mathrm{value}}(\omega) := \E_{\substack{ s\sim\mathcal D,\;z\sim p_Z\\ a\sim\pi_\omega(\cdot\mid s,z) }} \left[\widehat Q_{\theta,r_z}(s,a,z)\right].
+    \label{eq:density-policy-objective}
+\end{equation}
+We combine this objective with behavior regularization for offline training; \cref{app:actor} gives the full objectives and value scaling.in \cref{app:actor}.
+We outline the connection between our objective and successor features in \cref{app:reward-successor-features}.
+
+\paragraph{Zero-shot control.}
+\label{sec:method-control}
+For a downstream reward $r$, we infer $z_r$ from reward-labeled offline states using the encoder in \cref{app:task-index}, then execute the frozen policy $\pi_\omega(\cdot\mid s,z_r)$ without further training.
+
+% \ben{Readers might wonder: how does this compare to just naively using $Q(s, a, z) = F(s, a, z)^Tz$, as done by FB?}
+% \ben{The following paragraph is kinda hard to parse. How is this different from what we've already introduced around Eq 9?}
+% \ben{This reward seems a bit like magic. Can you explain a bit where it comes from?}
+
+\begin{algorithm}[t]
+    \caption{\name{} training and zero-shot control}
+    \label{alg:density-fb}
+    \begin{algorithmic}[1]
+        \Require Dataset $\mathcal D$, successor networks $(F_\theta,B_\theta)$, target networks $(\bar F,\bar B)$,
+        actor $\pi_\omega$
+        \For{each training step}
+            \State Sample transitions and task vectors and use next states as future-state candidates
+            \State Compute online and target probabilities (\cref{eq:density-candidates})
+            \State Fit Bellman targets by cross-entropy (\cref{eq:density-loss})
+            \State Improve the actor using reward-averaged values and behavior regularization (\cref{eq:density-policy-objective})
+            \State Update target networks, reward encoder $B_\xi$, and feature mean $\hat\mu$
+        \EndFor
+        \Statex \textbf{Zero-shot control for reward $r$}
+        \State Infer $z_r$ from reward-labeled offline states
+        \State Execute the frozen policy $\pi_\omega(\cdot\mid s,z_r)$
+    \end{algorithmic}
+\end{algorithm}

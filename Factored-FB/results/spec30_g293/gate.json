@@ -1,0 +1,56 @@
+{
+ "native_sample_actions": {
+  "1": {
+   "succ_env": 0.82,
+   "succ_ball": 0.82
+  },
+  "2": {
+   "succ_env": 0.94,
+   "succ_ball": 0.94
+  },
+  "3": {
+   "succ_env": 0.48,
+   "succ_ball": 0.48
+  },
+  "4": {
+   "succ_env": 1.0,
+   "succ_ball": 1.0
+  },
+  "5": {
+   "succ_env": 0.78,
+   "succ_ball": 0.78
+  }
+ },
+ "overall_native": 0.8039999999999999,
+ "harness_z_api_frozen_pool": {
+  "1": {
+   "succ_env": 0.9,
+   "succ_ball": 0.9,
+   "z_norm": 7.071067810058594
+  },
+  "2": {
+   "succ_env": 0.98,
+   "succ_ball": 0.98,
+   "z_norm": 7.0710673332214355
+  },
+  "3": {
+   "succ_env": 0.48,
+   "succ_ball": 0.48,
+   "z_norm": 7.071067810058594
+  },
+  "4": {
+   "succ_env": 1.0,
+   "succ_ball": 1.0,
+   "z_norm": 7.071067810058594
+  },
+  "5": {
+   "succ_env": 0.78,
+   "succ_ball": 0.78,
+   "z_norm": 7.071068286895752
+  }
+ },
+ "overall_harness": 0.828,
+ "reference": 0.816,
+ "tol": 0.06,
+ "pass": true
+}

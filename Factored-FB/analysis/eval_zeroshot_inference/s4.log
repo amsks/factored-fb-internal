@@ -1,0 +1,18 @@
+Restored from /home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/gciql_g4_zcond/sd004_20260623_164312/params_1000000.pkl
+[zeroshot] agent restored (d=512, actor_cond=z, step=1000000)
+  cube-single-play-singletask-task1-v0 v0_moment: cos=0.885  succ match_g=0.960 sqrtd=1.000
+  cube-single-play-singletask-task1-v0 v1_whitened: cos=0.510  succ match_g=0.040 sqrtd=0.000
+  cube-single-play-singletask-task1-v0: exact(v2)=1.000  r_pos=0.0204  ||psi_g||=40.00 (sqrt_d=22.63)
+  cube-single-play-singletask-task2-v0 v0_moment: cos=0.891  succ match_g=1.000 sqrtd=1.000
+  cube-single-play-singletask-task2-v0 v1_whitened: cos=0.518  succ match_g=0.000 sqrtd=0.000
+  cube-single-play-singletask-task2-v0: exact(v2)=1.000  r_pos=0.0208  ||psi_g||=39.18 (sqrt_d=22.63)
+  cube-single-play-singletask-task3-v0 v0_moment: cos=0.899  succ match_g=1.000 sqrtd=0.960
+  cube-single-play-singletask-task3-v0 v1_whitened: cos=0.501  succ match_g=0.000 sqrtd=0.000
+  cube-single-play-singletask-task3-v0: exact(v2)=0.960  r_pos=0.0238  ||psi_g||=40.95 (sqrt_d=22.63)
+  cube-single-play-singletask-task4-v0 v0_moment: cos=0.883  succ match_g=0.920 sqrtd=0.080
+  cube-single-play-singletask-task4-v0 v1_whitened: cos=0.463  succ match_g=0.000 sqrtd=0.000
+  cube-single-play-singletask-task4-v0: exact(v2)=0.920  r_pos=0.0245  ||psi_g||=40.20 (sqrt_d=22.63)
+  cube-single-play-singletask-task5-v0 v0_moment: cos=0.878  succ match_g=0.920 sqrtd=0.120
+  cube-single-play-singletask-task5-v0 v1_whitened: cos=0.477  succ match_g=0.000 sqrtd=0.000
+  cube-single-play-singletask-task5-v0: exact(v2)=1.000  r_pos=0.0223  ||psi_g||=40.91 (sqrt_d=22.63)
+[zeroshot] mean success  v2_exact=0.976  v0=0.96/0.632 (match_g/sqrtd)  v1=0.008/0.0  cos v0=0.887152566116954 v1=0.4937949021042972  -> analysis/eval_zeroshot_inference/s4.json

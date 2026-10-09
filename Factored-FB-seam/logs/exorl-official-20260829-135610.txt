@@ -1,0 +1,9 @@
+LAUNCHED gpu=0 rldp_official-walker-s0
+LAUNCHED gpu=1 rldp_official-walker-s1
+LAUNCHED gpu=2 rldp_official-walker-s2
+LAUNCHED gpu=3 rldp_official-walker-s3
+LAUNCHED gpu=4 rldp_official-cheetah-s0
+LAUNCHED gpu=5 rldp_official-cheetah-s1
+LAUNCHED gpu=6 rldp_official-cheetah-s2
+LAUNCHED gpu=7 rldp_official-cheetah-s3
+== 8 cells; manifest logs/exorl-official-20260829-135610.txt ==

@@ -1,0 +1,26 @@
+---
+name: density-audit-20260810
+description: "2026-08-10 density-FB triple audit — ALL headline numbers VERIFIED (cs .929, cd .736, BC .019, ORS .739/.364); training path CLEAN; 10 code-review findings (top = G4 partition head-aggregation mismatch, next_actions off-by-one in behavior runs); tex fixed (91186ad); P16384 reruns + scene s1 resume in flight"
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 73a4df12-2b06-49d2-98a3-c282720c698b
+  modified: 2026-08-11T02:14:31.119Z
+---
+
+Triple audit of [[spec18-density-measure-20260806]]/[[spec19-ors-implemented-20260806]] results (provenance fork + landmine fork + /code-review high on 74e861d/c5348cf/bf70d20/8b33c52).
+
+**Verdicts.** Every quoted number reproduces from run configs + final-step artifacts (density cs .896/.928/.964→.929; cd .680/.736/.792→.736 from scratch; BC-only .111/.019; ORS .739/.364 = the scale-4.0 3-seed arm; K-sweep; ESS medians; P1.2 cs .845 / cd .970). Landmine checklist 13/13 PASS on the training path, 86 tests green — **no training-side defect that could inflate goal success**. Quoting hazards fixed in density-fb.tex (commit 91186ad): G4 "passes the gate" → reported as the SPLIT (pooled .77–.79 + 4ε .83–.85 pass; native ε .41–.48 FAILS, high-ties); appendix "converged by 16384" had NO rollout artifact (archived 16384→32768 was Q-drift 0.6–1.0, not zero); seed s.d. added; tab:main (50-ep training-loop) vs tab:multi (25-ep harness) protocol footnotes (.927/.916, .53/.500 pairs); ρ-mass 3.3e-4 vs indicator-rate 4.6e-4 disambiguated; scene = 2 seeds done (.672/.644), split = open/unlock/rearrange-medium solved vs put-in-drawer/rearrange-hard ~0.
+
+**Code-review top findings (open, NOT yet fixed):**
+1. G4 probe scores PARTITION ckpts with vector-min-then-dot while the deployed readout dots-then-mins (eval_measure_g4_spearman.py:325) — the committed partition G4 PASS numbers used a mismatched estimator; rescore before quoting the density-vs-partition calibration comparison.
+2. GCDataset next_actions substitutes at every trajectory's LAST VALID transition (datasets.py:239, live on compact datasets) — all spec-19a behavior runs bootstrap traj-end rows on a_{t-1}; `density_sarsa_subst` should be 0 for a correct impl. ~1/traj_len of rows; P1.2 passed anyway (.845/.970) so results stand, but fix before new behavior runs.
+3–10 (hardening/provenance, no number impact): ORS lattice gaps (fake-NULL combos pass create), ors_pool_path relative + ors_reward_ckpt-into-/dev/shm restore coupling, dead `replace` branch caps pools at n_ds, behavior flags.json records next_actions=False (post-write mutation), probe consistency checks crash opaquely on behavior ckpts, BC-only config records inert actor_q_center=true + 0.0 q sentinels, ORS static-tuple jit-hash overhead (~217k float hashes/step), bit-identity guard pytest.skips forever after squash-merge.
+
+**Method lessons:** the shipped dzs zero-shot JSONs were decoded at P=4096 — the pool size G3 itself showed drifts ≤.12/task; P16384 rerun shows t2 dirac 0.64→0.84 (pool sensitivity real, direction favorable). Big-pool evals must run on CPU jax (50000×16384 kernel OOMs 23G GPUs; CUDA_VISIBLE_DEVICES= empty); eval scripts need /dev/shm/.venv-jax python directly (repo .venv has no jax — run_gciql re-execs itself). run_gciql.py has first-class resume (++restore_path/++restore_epoch/++train_steps, CSV append with step offset) — used for scene s1 (died 450k–500k, params stop at 400k).
+
+**COMPLETED 2026-08-10 (commit d4d1ca2):** all reruns landed. P16384 dzs: region margin HOLDS and grows (density .27/.31/.30, hard .51 vs part .04–.18); dirac rises to .70/.82/.92; dense unchanged. Scene FINAL 3 seeds = .628±.054 (.672/.568/.644) — clears every non-hindsight arm, below TDFB-hindsight .927; split consistent (open/unlock/rearrange-medium .88–1.0; put-in-drawer .02–.48; rearrange-hard ~0) — tex table cell filled. G3 32768 full-rollout artifact: dirac/region pool-STABLE (max .08/.00) but DENSE per-task flips up to .48 (4096↔16384) and .12 (16384↔32768), absolute Q not converged at 32768 — mechanism = the ONE-PROXY retrieval decode switches proxy with pool content (same ckpt same P=16384: dense t3 .76 vs .36 on different pool draws!); "converged by 16384" claim replaced in Appendix F. RULE: quote per-task numbers only with pool size AND contents pinned; family means move ≲.1; dense family least stable.
+
+**2026-08-11 finding 1 CLOSED (commit = g4 dot-then-min fix):** rescored all 3 partition ckpts with the deployed aggregation — mismatch real in code, IMMATERIAL to the statistic (every Spearman moves ≤.005, all gates unchanged; density sanity rerun reproduces its JSON exactly). Final symmetric calibration picture: partition pooled .778–.790 / native ε .423–.477 / 4ε .830–.834; density pooled .767–.789 / native ε .407–.462 / 4ε .831–.848 — the two parameterizations are CALIBRATION-EQUIVALENT at every scale (both pass pooled, both fail native ε), so density's control wins (cs .929, cd .736, scene .628) come at no calibration cost. Rescored JSONs = results/spec19_g4/*_rescored.json (+ head_agg meta key).
+
+**Still owed:** next_actions traj-end fix (finding 2) before new behavior runs; findings 3–10 hardening; d18/d19 results_map + CSV refresh.

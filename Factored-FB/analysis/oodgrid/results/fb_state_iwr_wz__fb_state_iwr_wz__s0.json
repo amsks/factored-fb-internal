@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_state_iwr_wz",
+ "seed": "fb_state_iwr_wz__s0",
+ "dir": "/dev/shm/factored-fb/runs/fb_state_iwr_wz__s0",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb/runs/fb_state_iwr_wz__s0/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.15,
+  "grasped": 0.57
+ },
+ "C2_zB": {
+  "success": 0.14,
+  "grasped": 0.73
+ },
+ "C3_zB": {
+  "success": 0.09,
+  "grasped": 0.81
+ },
+ "C2_zR": {
+  "success": 0.11,
+  "grasped": 0.67
+ },
+ "C3_zR": {
+  "success": 0.21,
+  "grasped": 0.87
+ },
+ "C4_zB": {
+  "success": 0.14,
+  "grasped": 0.89
+ },
+ "secs": 39.9
+}

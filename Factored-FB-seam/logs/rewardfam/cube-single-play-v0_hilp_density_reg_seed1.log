@@ -1,0 +1,37 @@
+[load] exp/hlevers/cube-single-play-v0_hilp_density_reg_flowbc_seed_1 epoch 1000000
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from exp/hlevers/cube-single-play-v0_hilp_density_reg_flowbc_seed_1/params_1000000.pkl (params only)
+[R1_region] z norm 7.071 cos1 0.051 valid True label mean 1.067 pos 0.0669
+[R1_region] T=200 mean/step 0.6305 +- 0.2088 disc 41.339 aux_in_A_mean=0.630 aux_in_B_mean=0.000  (20s)
+[R2_either] z norm 7.071 cos1 0.181 valid True label mean 1.140 pos 0.1404
+[R2_either] T=200 mean/step 0.3535 +- 0.3034 disc 21.472 aux_in_A_mean=0.052 aux_in_B_mean=0.301  (12s)
+[R3_pref_a] z norm 7.071 cos1 0.110 valid True label mean 1.089 pos 0.1404
+[R3_pref_a] T=200 mean/step 0.7250 +- 0.1035 disc 47.343 aux_in_A_mean=0.725 aux_in_B_mean=0.000  (13s)
+[R3_pref_b] z norm 7.071 cos1 0.201 valid True label mean 1.094 pos 0.1404
+[R3_pref_b] T=200 mean/step 0.5523 +- 0.2586 disc 35.987 aux_in_A_mean=0.002 aux_in_B_mean=0.552  (12s)
+[R4_lift] z norm 7.071 cos1 -0.153 valid True label mean 1.317 pos 0.4454
+[R4_lift] T=200 mean/step 0.5353 +- 0.0807 disc 40.023 aux_lifted_3cm_mean=0.583  (14s)
+[R5_dense_t1] z norm 7.071 cos1 0.081 valid True label mean 0.792 pos 0.0000
+[R5_dense_t1] T=200 mean/step -0.1367 +- 0.0371 disc -13.752 aux_dense_mean=-0.137 aux_hit_mean=0.206  (13s)
+[R5_sparse_t1] z norm 7.071 cos1 0.134 valid True label mean 1.022 pos 0.0217
+[R5_sparse_t1] T=200 mean/step 0.2248 +- 0.2442 disc 12.487 aux_dense_mean=-0.131 aux_hit_mean=0.225  (13s)
+[R5_dense_t2] z norm 7.071 cos1 0.108 valid True label mean 0.794 pos 0.0000
+[R5_dense_t2] T=200 mean/step -0.1248 +- 0.0259 disc -11.992 aux_dense_mean=-0.125 aux_hit_mean=0.230  (14s)
+[R5_sparse_t2] z norm 7.071 cos1 -0.017 valid True label mean 1.023 pos 0.0228
+[R5_sparse_t2] T=200 mean/step 0.3968 +- 0.2697 disc 23.877 aux_dense_mean=-0.096 aux_hit_mean=0.397  (15s)
+[R5_dense_t3] z norm 7.071 cos1 -0.056 valid True label mean 0.795 pos 0.0000
+[R5_dense_t3] T=200 mean/step -0.1228 +- 0.0174 disc -11.815 aux_dense_mean=-0.123 aux_hit_mean=0.237  (14s)
+[R5_sparse_t3] z norm 7.071 cos1 -0.184 valid True label mean 1.025 pos 0.0248
+[R5_sparse_t3] T=200 mean/step 0.3925 +- 0.2433 disc 23.940 aux_dense_mean=-0.102 aux_hit_mean=0.392  (13s)
+[R5_dense_t4] z norm 7.071 cos1 0.012 valid True label mean 0.734 pos 0.0000
+[R5_dense_t4] T=200 mean/step -0.2285 +- 0.0808 disc -24.711 aux_dense_mean=-0.228 aux_hit_mean=0.129  (13s)
+[R5_sparse_t4] z norm 7.071 cos1 -0.018 valid True label mean 1.025 pos 0.0251
+[R5_sparse_t4] T=200 mean/step 0.3078 +- 0.3073 disc 17.721 aux_dense_mean=-0.161 aux_hit_mean=0.308  (12s)
+[R5_dense_t5] z norm 7.071 cos1 0.111 valid True label mean 0.732 pos 0.0000
+[R5_dense_t5] T=200 mean/step -0.2062 +- 0.0542 disc -23.137 aux_dense_mean=-0.206 aux_hit_mean=0.109  (13s)
+[R5_sparse_t5] z norm 7.071 cos1 0.200 valid True label mean 1.023 pos 0.0232
+[R5_sparse_t5] T=200 mean/step 0.4527 +- 0.2804 disc 25.361 aux_dense_mean=-0.156 aux_hit_mean=0.453  (12s)
+[done] /home/adityamohan/git/Factored-FB-seam/analysis/reward_families/cube-single-play-v0/hilp_density_reg_seed1.json in 241s

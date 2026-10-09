@@ -1,0 +1,5 @@
+- storage=shm
+- seed=6
+- save_interval=100000
+- wandb_mode=online
+- run_group=factored-fb-gciql

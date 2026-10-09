@@ -1,0 +1,58 @@
+{
+ "play-resample/mw-push": {
+  "eps": 0.05,
+  "episodes": 200,
+  "T": 500,
+  "p_arrive_ep": 0.546,
+  "run_mean": 38.2,
+  "run_med": 24.0,
+  "run_p90": 78.0,
+  "entries_per_visiting_ep": 2.18,
+  "revisit_prob": 0.514,
+  "dwell_mass_frac": 0.74,
+  "ratio_med": 1.031,
+  "log_pearson": 0.9856
+ },
+ "play-resample/mw-pick-place": {
+  "eps": 0.07,
+  "episodes": 200,
+  "T": 500,
+  "p_arrive_ep": 0.714,
+  "run_mean": 26.6,
+  "run_med": 13.0,
+  "run_p90": 49.0,
+  "entries_per_visiting_ep": 2.65,
+  "revisit_prob": 0.639,
+  "dwell_mass_frac": 0.736,
+  "ratio_med": 1.24,
+  "log_pearson": 0.9131
+ },
+ "play-resample-hard/mw-push": {
+  "eps": 0.05,
+  "episodes": 200,
+  "T": 500,
+  "p_arrive_ep": 0.407,
+  "run_mean": 50.7,
+  "run_med": 18.0,
+  "run_p90": 148.0,
+  "entries_per_visiting_ep": 1.91,
+  "revisit_prob": 0.448,
+  "dwell_mass_frac": 0.798,
+  "ratio_med": 1.05,
+  "log_pearson": 0.9943
+ },
+ "play-resample-hard/mw-pick-place": {
+  "eps": 0.07,
+  "episodes": 200,
+  "T": 500,
+  "p_arrive_ep": 0.455,
+  "run_mean": 54.7,
+  "run_med": 18.0,
+  "run_p90": 167.0,
+  "entries_per_visiting_ep": 1.99,
+  "revisit_prob": 0.464,
+  "dwell_mass_frac": 0.801,
+  "ratio_med": 1.007,
+  "log_pearson": 0.9883
+ }
+}

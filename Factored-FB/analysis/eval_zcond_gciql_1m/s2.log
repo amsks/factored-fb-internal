@@ -1,0 +1,8 @@
+Restored from /dev/shm/gciql_outputs/factored-fb/gciql_g4_zcond/sd002_20260616_193331/params_1000000.pkl
+[eval_zcond] agent restored (d=512, actor_cond=z)
+  cube-single-play-singletask-task1-v0: success exact=0.880  inferred=0.120  (relabel r_pos=0.024)
+  cube-single-play-singletask-task2-v0: success exact=0.920  inferred=0.140  (relabel r_pos=0.028)
+  cube-single-play-singletask-task3-v0: success exact=0.920  inferred=0.020  (relabel r_pos=0.030)
+  cube-single-play-singletask-task4-v0: success exact=0.900  inferred=0.020  (relabel r_pos=0.026)
+  cube-single-play-singletask-task5-v0: success exact=0.860  inferred=0.020  (relabel r_pos=0.021)
+[eval_zcond] mean success  exact=0.896  inferred=0.064  -> analysis/eval_zcond_gciql_1m/s2.json

@@ -1,0 +1,69 @@
+{
+  "run_dir": "/home/adityamohan/exp_spec17/factored-fb/GCIQL-CubeSingle-Flow-Measure-DeltaPartition-d50/d17_cs_part_s2",
+  "object": "partition",
+  "checkpoint_step": 500000,
+  "env": "cube-single-play-v0",
+  "gamma": 0.99,
+  "double_q": true,
+  "hit_spec": "19:22:0.4",
+  "seed": 0,
+  "protocol": {
+    "reference": "scripts/rescuing_fb/torchfb_full_measure.py part B (valid-measure campaign G2/G4 Spearman machinery); PAPER/rescuing-fb/PHASE2-LEDGER.md sec.9.15",
+    "starts": 24,
+    "mc": 2,
+    "horizon": 200,
+    "boxes_per_mult": 12,
+    "mults": [
+      1.0,
+      2.0,
+      4.0
+    ],
+    "pool_size": null,
+    "readout": "p^T box_indicator(protos) / (1-gamma)  [compute_Qr_from_dots(r_x0=0, p.box_indicator, phi(x0)_term=0, gamma) -- same fix, phi(x0) pair dropped]",
+    "mc_ground_truth": "sum_k gamma^k 1[x_{1+k} in box], box=env_geometry.HitSpec.box_contains (L-inf), teleport to dataset (qpos,qvel)[s_row], a0 then g-conditioned policy rollout (exact torchfb_full_measure.py part B translation)",
+    "spearman_fn": "spearman_tie (average-rank, tie-corrected) -- see g4-verification.md item 3; spearman_ordinal_uncorrected kept alongside for reference only"
+  },
+  "gate": {
+    "threshold": 0.65,
+    "statistic": "pooled Spearman (tie-corrected), all mults combined",
+    "value": 0.7771490798555157,
+    "pass": true,
+    "caveat": "pooling is not innocent -- box size drives both MC and model mass, so the pooled figure sits above every individual mult column except mult=4.0; see per_mult for the honest per-scale read"
+  },
+  "pooled": {
+    "n": 864,
+    "spearman": 0.7771490798555157,
+    "spearman_ordinal_uncorrected": 0.7125188752473596,
+    "degenerate_frac": 0.6041666666666666
+  },
+  "nondegenerate_mc_gt_0": {
+    "n": 342,
+    "spearman": 0.7828404437863222
+  },
+  "per_mult": {
+    "1.0": {
+      "n": 288,
+      "mc_mean": 1.2356342350643363,
+      "model_mass_mean": 2.0605359679533786,
+      "spearman": 0.42301045043990687,
+      "spearman_ordinal_uncorrected": 0.29699663222534356,
+      "degenerate_frac": 0.8472222222222222
+    },
+    "2.0": {
+      "n": 288,
+      "mc_mean": 4.062864182117497,
+      "model_mass_mean": 5.816173584723298,
+      "spearman": 0.6083795498464621,
+      "spearman_ordinal_uncorrected": 0.42629978820796616,
+      "degenerate_frac": 0.7118055555555556
+    },
+    "4.0": {
+      "n": 288,
+      "mc_mean": 25.996799177845876,
+      "model_mass_mean": 33.02157682448972,
+      "spearman": 0.8296273904531005,
+      "spearman_ordinal_uncorrected": 0.8112935992187407,
+      "degenerate_frac": 0.2534722222222222
+    }
+  }
+}

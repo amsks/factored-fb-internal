@@ -1,0 +1,199 @@
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/adityamohan/.netrc.
+wandb: Currently logged in as: amsks (al-laq-fb) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.27.0
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB/wandb/run-20260519_195608-vxo86krs
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run cube-single-play-v0__fb_flowbc__s0
+wandb: ⭐️ View project at https://wandb.ai/al-laq-fb/factored-fb
+wandb: 🚀 View run at https://wandb.ai/al-laq-fb/factored-fb/runs/vxo86krs
+wandb: Detected [agents] in use.
+wandb: Use W&B Weave for improved LLM call tracing. Install Weave with `pip install weave` then add `import weave` to the top of your script.
+wandb: For more information, check out the docs at: https://weave-docs.wandb.ai
+domain: cube-single-play-v0
+obs_type: pixels
+data_path: /dev/shm/factored-fb/datasets
+n_transitions: null
+load_n_episodes: 1000
+num_train_steps: 50000
+batch_size: 256
+eval_every: 50000
+log_every: 1000
+save_every: 200000
+seed: 0
+device: cuda
+eval_n_episodes: 10
+eval_relabel_size: 10000
+eval_shift_reward: 1.0
+save_eval_videos: false
+use_wandb: true
+wandb_project: factored-fb
+wandb_run_name: null
+wandb_entity: null
+wandb_group: null
+wandb_tags: []
+wandb_save_code: true
+save_dir: ${hydra:runtime.output_dir}/checkpoints
+eval_videos_dir: ${hydra:runtime.output_dir}/eval_videos
+agent: fb_flowbc
+z_dim: 50
+L_dim: 256
+actor_encode_obs: false
+discount: 0.99
+lr_f: 0.0001
+lr_b: 0.0001
+lr_actor: 0.0001
+weight_decay: 0.0
+clip_grad_norm: 0.0
+ortho_coef: 1.0
+train_goal_ratio: 0.5
+fb_pessimism_penalty: 0.0
+actor_pessimism_penalty: 0.0
+actor_std: 0.2
+stddev_clip: 0.3
+f_target_tau: 0.005
+b_target_tau: 0.005
+bc_coeff: 3.0
+q_loss_coef: 0.0
+amp: false
+forward:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+  num_parallel: 2
+backward:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+left_encoder:
+  hidden_dim: 512
+  hidden_layers: 0
+  norm: true
+actor:
+  name: noise_conditioned_actor
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+flow_steps: 10
+lr_actor_vf: 0.0003
+actor_vf:
+  hidden_dim: 512
+  hidden_layers: 4
+frame_stack: 3
+obs_normalizer:
+  name: RGBNormalizerConfig
+rgb_encoder:
+  name: drq
+  feature_dim: 256
+augmentator:
+  name: random_shifts
+  pad: 2
+
+[train] env: cube-single-play-v0
+[2026-05-19 19:56:09,583][OpenGL.platform.ctypesloader][INFO] - Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+[2026-05-19 19:56:09,585][OpenGL.acceleratesupport][INFO] - No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+[2026-05-19 19:56:09,595][OpenGL.platform.ctypesloader][INFO] - Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+[2026-05-19 19:56:09,672][absl][INFO] - MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+[2026-05-19 19:56:09,674][OpenGL.platform.ctypesloader][INFO] - Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+[2026-05-19 19:56:09,873][absl][INFO] - MuJoCo library version is: 3.8.1
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[train] obs_space=(9, 64, 64)  action_dim=5
+[train] loading dataset for cube-single-play-v0
+[train] buffer size: 1,000,000
+[train] agent: FBFlowBCAgent
+[train] 50,000 steps
+[eval] step=0
+[step        0]  eval/reward/cube-single-play-singletask-task1-v0/success=0.0000  eval/reward/cube-single-play-singletask-task1-v0/reward=-200.0000  eval/reward/cube-single-play-singletask-task1-v0/reward#std=0.0000  eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#mean=0.0240  eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#nonzero=240.0000  eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#zero=9760.0000  eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#num_samples=10000.0000  eval/reward/cube-single-play-singletask-task2-v0/success=0.0000  eval/reward/cube-single-play-singletask-task2-v0/reward=-200.0000  eval/reward/cube-single-play-singletask-task2-v0/reward#std=0.0000  eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#mean=0.0236  eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#nonzero=236.0000  eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#zero=9764.0000  eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#num_samples=10000.0000  eval/reward/cube-single-play-singletask-task3-v0/success=0.0000  eval/reward/cube-single-play-singletask-task3-v0/reward=-200.0000  eval/reward/cube-single-play-singletask-task3-v0/reward#std=0.0000  eval/reward/cube-single-play-singletask-task3-v0/relabel_reward#mean=0.0240  eval/reward/cube-single-play-singletask-task3-v0/relabel_reward#nonzero=240.0000  eval/reward/cube-single-play-singletask-task3-v0/relabel_reward#zero=9760.0000  eval/reward/cube-single-play-singletask-task3-v0/relabel_reward#num_samples=10000.0000  eval/reward/cube-single-play-singletask-task4-v0/success=0.0000  eval/reward/cube-single-play-singletask-task4-v0/reward=-200.0000  eval/reward/cube-single-play-singletask-task4-v0/reward#std=0.0000  eval/reward/cube-single-play-singletask-task4-v0/relabel_reward#mean=0.0238  eval/reward/cube-single-play-singletask-task4-v0/relabel_reward#nonzero=238.0000  eval/reward/cube-single-play-singletask-task4-v0/relabel_reward#zero=9762.0000  eval/reward/cube-single-play-singletask-task4-v0/relabel_reward#num_samples=10000.0000  eval/reward/cube-single-play-singletask-task5-v0/success=0.0000  eval/reward/cube-single-play-singletask-task5-v0/reward=-200.0000  eval/reward/cube-single-play-singletask-task5-v0/reward#std=0.0000  eval/reward/cube-single-play-singletask-task5-v0/relabel_reward#mean=0.0220  eval/reward/cube-single-play-singletask-task5-v0/relabel_reward#nonzero=220.0000  eval/reward/cube-single-play-singletask-task5-v0/relabel_reward#zero=9780.0000  eval/reward/cube-single-play-singletask-task5-v0/relabel_reward#num_samples=10000.0000  eval/reward/eval/reward=-200.0000  eval/reward/eval/reward#std=0.0000  eval/reward/eval/success=0.0000
+[step        0]  train/target_M=-3.4988  train/M1=-3.6894  train/F1=-0.1187  train/B=-0.3556  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=1134.6237  train/fb_diag=-0.1684  train/fb_offdiag=2.7512  train/orth_loss=1132.0409  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=1182.0409  train/q_loss=0.0000  train/actor_loss=2.4539  train/bc_flow_loss=1.1799  train/bc_error=0.6026  train/q=3.3115  train/duration=49.6949  train/FPS=0.0201
+[step     1000]  train/target_M=-1.3580  train/M1=-0.2927  train/F1=0.0001  train/B=-0.0479  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=25.3551  train/fb_diag=-33.9475  train/fb_offdiag=29.7347  train/orth_loss=29.5679  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=79.5679  train/q_loss=0.0000  train/actor_loss=0.8832  train/bc_flow_loss=0.6823  train/bc_error=0.0326  train/q=-0.2925  train/duration=89.6990  train/FPS=24.9979
+[step     2000]  train/target_M=4.5369  train/M1=5.5343  train/F1=-0.1053  train/B=-0.0346  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=-11.0324  train/fb_diag=-63.3103  train/fb_offdiag=76.4222  train/orth_loss=-24.1442  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=25.8558  train/q_loss=0.0000  train/actor_loss=0.4519  train/bc_flow_loss=0.4986  train/bc_error=0.0251  train/q=2.5897  train/duration=129.7075  train/FPS=24.9951
+[step     3000]  train/target_M=9.7715  train/M1=10.7438  train/F1=-0.2291  train/B=-0.0263  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=40.7004  train/fb_diag=-68.7273  train/fb_offdiag=133.3026  train/orth_loss=-23.8749  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=26.1251  train/q_loss=0.0000  train/actor_loss=0.3176  train/bc_flow_loss=0.4273  train/bc_error=0.0195  train/q=5.6766  train/duration=169.7197  train/FPS=24.9929
+[step     4000]  train/target_M=14.6798  train/M1=15.6137  train/F1=-0.3419  train/B=-0.0220  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=107.7551  train/fb_diag=-69.5854  train/fb_offdiag=200.5853  train/orth_loss=-23.2449  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=26.7551  train/q_loss=0.0000  train/actor_loss=0.2481  train/bc_flow_loss=0.3892  train/bc_error=0.0199  train/q=9.3132  train/duration=209.7634  train/FPS=24.9732
+[step     5000]  train/target_M=19.0159  train/M1=19.9081  train/F1=-0.4487  train/B=-0.0209  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=190.4460  train/fb_diag=-69.1796  train/fb_offdiag=282.2362  train/orth_loss=-22.6106  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=27.3894  train/q_loss=0.0000  train/actor_loss=0.1670  train/bc_flow_loss=0.3683  train/bc_error=0.0236  train/q=15.8766  train/duration=249.8694  train/FPS=24.9344
+[step     6000]  train/target_M=23.5150  train/M1=24.3610  train/F1=-0.5489  train/B=-0.0209  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=277.6744  train/fb_diag=-68.5926  train/fb_offdiag=368.2337  train/orth_loss=-21.9666  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=28.0334  train/q_loss=0.0000  train/actor_loss=0.0413  train/bc_flow_loss=0.3509  train/bc_error=0.0239  train/q=27.7685  train/duration=290.0232  train/FPS=24.9046
+[step     7000]  train/target_M=27.8024  train/M1=28.6002  train/F1=-0.6688  train/B=-0.0200  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=359.1993  train/fb_diag=-67.9569  train/fb_offdiag=448.4871  train/orth_loss=-21.3310  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=28.6690  train/q_loss=0.0000  train/actor_loss=-0.0808  train/bc_flow_loss=0.3408  train/bc_error=0.0253  train/q=43.9872  train/duration=330.3442  train/FPS=24.8014
+[step     8000]  train/target_M=32.1263  train/M1=32.8815  train/F1=-0.7998  train/B=-0.0211  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=429.5293  train/fb_diag=-67.5816  train/fb_offdiag=517.6798  train/orth_loss=-20.5689  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=29.4311  train/q_loss=0.0000  train/actor_loss=-0.1994  train/bc_flow_loss=0.3330  train/bc_error=0.0256  train/q=66.9542  train/duration=370.6720  train/FPS=24.7973
+[step     9000]  train/target_M=36.1718  train/M1=36.8847  train/F1=-0.9197  train/B=-0.0207  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=490.5075  train/fb_diag=-67.8359  train/fb_offdiag=578.2718  train/orth_loss=-19.9284  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=30.0716  train/q_loss=0.0000  train/actor_loss=-0.3067  train/bc_flow_loss=0.3255  train/bc_error=0.0241  train/q=96.3678  train/duration=411.3238  train/FPS=24.5995
+[step    10000]  train/target_M=39.8994  train/M1=40.5732  train/F1=-1.1255  train/B=-0.0220  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=550.9180  train/fb_diag=-67.7894  train/fb_offdiag=638.1126  train/orth_loss=-19.4052  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=30.5948  train/q_loss=0.0000  train/actor_loss=-0.3841  train/bc_flow_loss=0.3206  train/bc_error=0.0227  train/q=129.2054  train/duration=451.8344  train/FPS=24.6853
+[step    11000]  train/target_M=43.4147  train/M1=44.0576  train/F1=-1.3015  train/B=-0.0224  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=591.4841  train/fb_diag=-68.3922  train/fb_offdiag=678.7472  train/orth_loss=-18.8710  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=31.1290  train/q_loss=0.0000  train/actor_loss=-0.4519  train/bc_flow_loss=0.3140  train/bc_error=0.0208  train/q=166.5767  train/duration=492.1733  train/FPS=24.7904
+[step    12000]  train/target_M=47.2596  train/M1=47.8646  train/F1=-1.4487  train/B=-0.0229  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=646.2759  train/fb_diag=-68.0055  train/fb_offdiag=733.0309  train/orth_loss=-18.7495  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=31.2505  train/q_loss=0.0000  train/actor_loss=-0.4922  train/bc_flow_loss=0.3116  train/bc_error=0.0198  train/q=205.8178  train/duration=532.6281  train/FPS=24.7195
+[step    13000]  train/target_M=50.8392  train/M1=51.4080  train/F1=-1.6810  train/B=-0.0234  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=694.6256  train/fb_diag=-67.2964  train/fb_offdiag=780.1565  train/orth_loss=-18.2345  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=31.7655  train/q_loss=0.0000  train/actor_loss=-0.5266  train/bc_flow_loss=0.3083  train/bc_error=0.0190  train/q=249.5003  train/duration=572.9184  train/FPS=24.8203
+[step    14000]  train/target_M=54.2664  train/M1=54.7973  train/F1=-1.7964  train/B=-0.0227  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=718.0748  train/fb_diag=-67.5395  train/fb_offdiag=803.0880  train/orth_loss=-17.4736  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=32.5264  train/q_loss=0.0000  train/actor_loss=-0.5486  train/bc_flow_loss=0.3087  train/bc_error=0.0181  train/q=293.1476  train/duration=615.6734  train/FPS=23.3896
+[step    15000]  train/target_M=57.6170  train/M1=58.1133  train/F1=-1.9899  train/B=-0.0235  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=763.5364  train/fb_diag=-67.3258  train/fb_offdiag=848.2270  train/orth_loss=-17.3648  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=32.6352  train/q_loss=0.0000  train/actor_loss=-0.5684  train/bc_flow_loss=0.3057  train/bc_error=0.0175  train/q=339.4561  train/duration=658.4581  train/FPS=23.3734
+[step    16000]  train/target_M=60.6557  train/M1=61.1240  train/F1=-2.1028  train/B=-0.0223  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=804.6475  train/fb_diag=-66.4668  train/fb_offdiag=888.0217  train/orth_loss=-16.9073  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=33.0927  train/q_loss=0.0000  train/actor_loss=-0.5876  train/bc_flow_loss=0.3034  train/bc_error=0.0162  train/q=388.3710  train/duration=701.2880  train/FPS=23.3487
+[step    17000]  train/target_M=63.8313  train/M1=64.2699  train/F1=-2.2872  train/B=-0.0190  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=800.8804  train/fb_diag=-66.4710  train/fb_offdiag=883.6411  train/orth_loss=-16.2897  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=33.7103  train/q_loss=0.0000  train/actor_loss=-0.6080  train/bc_flow_loss=0.2996  train/bc_error=0.0151  train/q=448.5093  train/duration=744.0502  train/FPS=23.3856
+[step    18000]  train/target_M=66.6564  train/M1=67.0675  train/F1=-2.4436  train/B=-0.0203  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=796.2051  train/fb_diag=-66.1749  train/fb_offdiag=878.0364  train/orth_loss=-15.6565  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=34.3435  train/q_loss=0.0000  train/actor_loss=-0.6272  train/bc_flow_loss=0.2941  train/bc_error=0.0140  train/q=502.6844  train/duration=786.8879  train/FPS=23.3444
+[step    19000]  train/target_M=69.3738  train/M1=69.7547  train/F1=-2.5861  train/B=-0.0197  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=809.3587  train/fb_diag=-65.2351  train/fb_offdiag=889.2370  train/orth_loss=-14.6432  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=35.3568  train/q_loss=0.0000  train/actor_loss=-0.6347  train/bc_flow_loss=0.2937  train/bc_error=0.0137  train/q=551.9460  train/duration=829.7088  train/FPS=23.3536
+[step    20000]  train/target_M=71.7845  train/M1=72.1443  train/F1=-2.6963  train/B=-0.0181  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=776.7428  train/fb_diag=-64.7968  train/fb_offdiag=855.4215  train/orth_loss=-13.8819  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=36.1181  train/q_loss=0.0000  train/actor_loss=-0.6430  train/bc_flow_loss=0.2935  train/bc_error=0.0131  train/q=607.5141  train/duration=872.4006  train/FPS=23.4242
+[step    21000]  train/target_M=73.9661  train/M1=74.3032  train/F1=-2.6515  train/B=-0.0177  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=761.5496  train/fb_diag=-63.7949  train/fb_offdiag=838.5837  train/orth_loss=-13.2391  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=36.7609  train/q_loss=0.0000  train/actor_loss=-0.6379  train/bc_flow_loss=0.3001  train/bc_error=0.0138  train/q=640.2514  train/duration=915.0949  train/FPS=23.4228
+[step    22000]  train/target_M=77.2761  train/M1=77.5841  train/F1=-2.7378  train/B=-0.0187  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=714.1438  train/fb_diag=-65.7266  train/fb_offdiag=792.5132  train/orth_loss=-12.6428  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=37.3572  train/q_loss=0.0000  train/actor_loss=-0.6588  train/bc_flow_loss=0.2893  train/bc_error=0.0117  train/q=690.9862  train/duration=957.7593  train/FPS=23.4392
+[step    23000]  train/target_M=79.1028  train/M1=79.3982  train/F1=-2.7921  train/B=-0.0171  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=685.4059  train/fb_diag=-66.0470  train/fb_offdiag=763.5444  train/orth_loss=-12.0915  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=37.9085  train/q_loss=0.0000  train/actor_loss=-0.6644  train/bc_flow_loss=0.2880  train/bc_error=0.0114  train/q=732.2635  train/duration=1000.4830  train/FPS=23.4067
+[step    24000]  train/target_M=81.8689  train/M1=82.1357  train/F1=-2.8237  train/B=-0.0186  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=690.7214  train/fb_diag=-65.7923  train/fb_offdiag=768.7971  train/orth_loss=-12.2835  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=37.7165  train/q_loss=0.0000  train/actor_loss=-0.6597  train/bc_flow_loss=0.2911  train/bc_error=0.0123  train/q=768.0482  train/duration=1043.0485  train/FPS=23.4937
+[step    25000]  train/target_M=83.9459  train/M1=84.1992  train/F1=-2.9083  train/B=-0.0182  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=653.0118  train/fb_diag=-66.9398  train/fb_offdiag=731.6505  train/orth_loss=-11.6989  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=38.3011  train/q_loss=0.0000  train/actor_loss=-0.6685  train/bc_flow_loss=0.2878  train/bc_error=0.0111  train/q=803.1880  train/duration=1085.1819  train/FPS=23.7346
+[step    26000]  train/target_M=85.8856  train/M1=86.1185  train/F1=-2.9016  train/B=-0.0172  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=639.1952  train/fb_diag=-67.9249  train/fb_offdiag=718.8320  train/orth_loss=-11.7119  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=38.2881  train/q_loss=0.0000  train/actor_loss=-0.6775  train/bc_flow_loss=0.2832  train/bc_error=0.0099  train/q=828.9551  train/duration=1125.1684  train/FPS=25.0090
+[step    27000]  train/target_M=87.8472  train/M1=88.0592  train/F1=-2.8690  train/B=-0.0170  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=653.3933  train/fb_diag=-67.7491  train/fb_offdiag=732.2048  train/orth_loss=-11.0624  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=38.9376  train/q_loss=0.0000  train/actor_loss=-0.6735  train/bc_flow_loss=0.2850  train/bc_error=0.0108  train/q=849.6262  train/duration=1169.6679  train/FPS=22.4725
+[step    28000]  train/target_M=89.6583  train/M1=89.8581  train/F1=-2.8983  train/B=-0.0170  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=673.3205  train/fb_diag=-67.7356  train/fb_offdiag=752.4667  train/orth_loss=-11.4106  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=38.5894  train/q_loss=0.0000  train/actor_loss=-0.6748  train/bc_flow_loss=0.2844  train/bc_error=0.0105  train/q=875.3907  train/duration=1214.6793  train/FPS=22.2169
+[step    29000]  train/target_M=91.4322  train/M1=91.6124  train/F1=-2.9450  train/B=-0.0177  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=671.7498  train/fb_diag=-68.7906  train/fb_offdiag=751.8767  train/orth_loss=-11.3363  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=38.6637  train/q_loss=0.0000  train/actor_loss=-0.6800  train/bc_flow_loss=0.2821  train/bc_error=0.0097  train/q=904.3636  train/duration=1254.6663  train/FPS=25.0085
+[step    30000]  train/target_M=92.7884  train/M1=92.9614  train/F1=-2.9375  train/B=-0.0156  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=689.1771  train/fb_diag=-69.6385  train/fb_offdiag=769.8732  train/orth_loss=-11.0576  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=38.9424  train/q_loss=0.0000  train/actor_loss=-0.6791  train/bc_flow_loss=0.2830  train/bc_error=0.0098  train/q=928.0879  train/duration=1294.6544  train/FPS=25.0079
+[step    31000]  train/target_M=94.4450  train/M1=94.6001  train/F1=-2.9586  train/B=-0.0158  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=696.1739  train/fb_diag=-69.8209  train/fb_offdiag=777.2427  train/orth_loss=-11.2479  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=38.7521  train/q_loss=0.0000  train/actor_loss=-0.6788  train/bc_flow_loss=0.2829  train/bc_error=0.0099  train/q=956.0443  train/duration=1334.6419  train/FPS=25.0082
+[step    32000]  train/target_M=96.3094  train/M1=96.4449  train/F1=-2.9319  train/B=-0.0147  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=716.6147  train/fb_diag=-69.4659  train/fb_offdiag=797.0869  train/orth_loss=-11.0064  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=38.9936  train/q_loss=0.0000  train/actor_loss=-0.6778  train/bc_flow_loss=0.2832  train/bc_error=0.0103  train/q=980.1201  train/duration=1374.6294  train/FPS=25.0083
+[step    33000]  train/target_M=97.7523  train/M1=97.8773  train/F1=-2.9815  train/B=-0.0149  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=709.7679  train/fb_diag=-70.9435  train/fb_offdiag=791.2952  train/orth_loss=-10.5838  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=39.4162  train/q_loss=0.0000  train/actor_loss=-0.6833  train/bc_flow_loss=0.2801  train/bc_error=0.0096  train/q=1006.1291  train/duration=1414.6152  train/FPS=25.0093
+[step    34000]  train/target_M=99.2922  train/M1=99.3999  train/F1=-2.9302  train/B=-0.0136  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=701.1802  train/fb_diag=-71.1150  train/fb_offdiag=782.1260  train/orth_loss=-9.8308  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=40.1692  train/q_loss=0.0000  train/actor_loss=-0.6868  train/bc_flow_loss=0.2786  train/bc_error=0.0090  train/q=1028.4909  train/duration=1454.6029  train/FPS=25.0081
+[step    35000]  train/target_M=100.9954  train/M1=101.0897  train/F1=-3.0373  train/B=-0.0153  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=732.0679  train/fb_diag=-70.9950  train/fb_offdiag=813.3025  train/orth_loss=-10.2395  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=39.7605  train/q_loss=0.0000  train/actor_loss=-0.6889  train/bc_flow_loss=0.2766  train/bc_error=0.0090  train/q=1065.1822  train/duration=1494.5903  train/FPS=25.0083
+[step    36000]  train/target_M=102.1369  train/M1=102.2174  train/F1=-2.9872  train/B=-0.0136  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=721.4434  train/fb_diag=-71.2086  train/fb_offdiag=802.5155  train/orth_loss=-9.8635  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=40.1365  train/q_loss=0.0000  train/actor_loss=-0.6893  train/bc_flow_loss=0.2761  train/bc_error=0.0091  train/q=1086.1185  train/duration=1534.5779  train/FPS=25.0082
+[step    37000]  train/target_M=103.6362  train/M1=103.7049  train/F1=-3.0346  train/B=-0.0155  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=734.7061  train/fb_diag=-71.0465  train/fb_offdiag=815.3124  train/orth_loss=-9.5598  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=40.4402  train/q_loss=0.0000  train/actor_loss=-0.6888  train/bc_flow_loss=0.2767  train/bc_error=0.0091  train/q=1117.4698  train/duration=1574.5655  train/FPS=25.0082
+[step    38000]  train/target_M=105.0790  train/M1=105.1357  train/F1=-3.0507  train/B=-0.0159  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=729.1199  train/fb_diag=-71.8376  train/fb_offdiag=810.5510  train/orth_loss=-9.5936  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=40.4064  train/q_loss=0.0000  train/actor_loss=-0.6895  train/bc_flow_loss=0.2775  train/bc_error=0.0087  train/q=1144.8001  train/duration=1614.5526  train/FPS=25.0085
+[step    39000]  train/target_M=106.1313  train/M1=106.1743  train/F1=-3.0587  train/B=-0.0139  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=743.6561  train/fb_diag=-71.4188  train/fb_offdiag=823.9857  train/orth_loss=-8.9108  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=41.0892  train/q_loss=0.0000  train/actor_loss=-0.6874  train/bc_flow_loss=0.2788  train/bc_error=0.0090  train/q=1160.5720  train/duration=1654.5400  train/FPS=25.0083
+[step    40000]  train/target_M=106.9376  train/M1=106.9780  train/F1=-3.0653  train/B=-0.0144  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=747.2678  train/fb_diag=-71.9834  train/fb_offdiag=827.9594  train/orth_loss=-8.7082  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=41.2918  train/q_loss=0.0000  train/actor_loss=-0.6892  train/bc_flow_loss=0.2770  train/bc_error=0.0090  train/q=1177.8075  train/duration=1694.5266  train/FPS=25.0087
+[step    41000]  train/target_M=108.5279  train/M1=108.5531  train/F1=-3.0440  train/B=-0.0146  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=739.2015  train/fb_diag=-73.0909  train/fb_offdiag=820.9406  train/orth_loss=-8.6482  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=41.3518  train/q_loss=0.0000  train/actor_loss=-0.6948  train/bc_flow_loss=0.2735  train/bc_error=0.0083  train/q=1209.1277  train/duration=1734.5130  train/FPS=25.0090
+[step    42000]  train/target_M=109.2549  train/M1=109.2724  train/F1=-3.0449  train/B=-0.0131  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=756.4425  train/fb_diag=-73.1261  train/fb_offdiag=838.5071  train/orth_loss=-8.9384  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=41.0616  train/q_loss=0.0000  train/actor_loss=-0.6971  train/bc_flow_loss=0.2725  train/bc_error=0.0079  train/q=1232.2955  train/duration=1774.5028  train/FPS=25.0068
+[step    43000]  train/target_M=110.7158  train/M1=110.7191  train/F1=-3.0365  train/B=-0.0140  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=770.6922  train/fb_diag=-72.6255  train/fb_offdiag=851.8437  train/orth_loss=-8.5260  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=41.4740  train/q_loss=0.0000  train/actor_loss=-0.6952  train/bc_flow_loss=0.2734  train/bc_error=0.0083  train/q=1262.4646  train/duration=1814.4884  train/FPS=25.0094
+[step    44000]  train/target_M=111.3102  train/M1=111.3076  train/F1=-3.0232  train/B=-0.0124  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=761.8057  train/fb_diag=-73.2618  train/fb_offdiag=842.6531  train/orth_loss=-7.5856  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=42.4144  train/q_loss=0.0000  train/actor_loss=-0.6986  train/bc_flow_loss=0.2716  train/bc_error=0.0077  train/q=1271.3119  train/duration=1854.4764  train/FPS=25.0079
+[step    45000]  train/target_M=111.9969  train/M1=111.9867  train/F1=-3.0966  train/B=-0.0145  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=792.3364  train/fb_diag=-72.6451  train/fb_offdiag=872.3694  train/orth_loss=-7.3878  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=42.6122  train/q_loss=0.0000  train/actor_loss=-0.6936  train/bc_flow_loss=0.2749  train/bc_error=0.0083  train/q=1291.1961  train/duration=1894.4629  train/FPS=25.0089
+[step    46000]  train/target_M=113.3875  train/M1=113.3653  train/F1=-3.1044  train/B=-0.0174  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=777.6608  train/fb_diag=-73.2478  train/fb_offdiag=859.0987  train/orth_loss=-8.1901  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=41.8099  train/q_loss=0.0000  train/actor_loss=-0.6982  train/bc_flow_loss=0.2717  train/bc_error=0.0079  train/q=1331.7313  train/duration=1934.4506  train/FPS=25.0081
+[step    47000]  train/target_M=114.0272  train/M1=113.9992  train/F1=-3.0358  train/B=-0.0159  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=770.1865  train/fb_diag=-73.5707  train/fb_offdiag=850.6947  train/orth_loss=-6.9374  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=43.0626  train/q_loss=0.0000  train/actor_loss=-0.7005  train/bc_flow_loss=0.2703  train/bc_error=0.0076  train/q=1339.9529  train/duration=1974.4365  train/FPS=25.0092wandb: updating run metadata
+wandb: uploading history steps 49-50, summary, console lines 76-78
+wandb: 
+wandb: Run history:
+wandb:        eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#mean █▁
+wandb:     eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#nonzero █▁
+wandb: eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#num_samples ▁▁
+wandb:        eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#zero ▁█
+wandb:                     eval/reward/cube-single-play-singletask-task1-v0/reward ▁▁
+wandb:                 eval/reward/cube-single-play-singletask-task1-v0/reward#std ▁▁
+wandb:                    eval/reward/cube-single-play-singletask-task1-v0/success ▁▁
+wandb:        eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#mean █▁
+wandb:     eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#nonzero █▁
+wandb: eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#num_samples ▁▁
+wandb:                                                                         +47 ...
+wandb: 
+wandb: Run summary:
+wandb:        eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#mean 0.0239
+wandb:     eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#nonzero 239
+wandb: eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#num_samples 10000
+wandb:        eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#zero 9761
+wandb:                     eval/reward/cube-single-play-singletask-task1-v0/reward -200
+wandb:                 eval/reward/cube-single-play-singletask-task1-v0/reward#std 0
+wandb:                    eval/reward/cube-single-play-singletask-task1-v0/success 0
+wandb:        eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#mean 0.0204
+wandb:     eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#nonzero 204
+wandb: eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#num_samples 10000
+wandb:                                                                         +47 ...
+wandb: 
+wandb: 🚀 View run cube-single-play-v0__fb_flowbc__s0 at: https://wandb.ai/al-laq-fb/factored-fb/runs/vxo86krs
+wandb: ⭐️ View project at: https://wandb.ai/al-laq-fb/factored-fb
+wandb: Synced 7 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260519_195608-vxo86krs/logs
+
+[step    48000]  train/target_M=114.9441  train/M1=114.9044  train/F1=-3.0107  train/B=-0.0151  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=811.4133  train/fb_diag=-72.9045  train/fb_offdiag=891.3862  train/orth_loss=-7.0685  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=42.9315  train/q_loss=0.0000  train/actor_loss=-0.6947  train/bc_flow_loss=0.2747  train/bc_error=0.0082  train/q=1364.8753  train/duration=2014.4237  train/FPS=25.0085
+[step    49000]  train/target_M=115.8501  train/M1=115.8055  train/F1=-3.1057  train/B=-0.0150  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=788.7068  train/fb_diag=-73.2549  train/fb_offdiag=868.1823  train/orth_loss=-6.2206  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=43.7794  train/q_loss=0.0000  train/actor_loss=-0.7017  train/bc_flow_loss=0.2693  train/bc_error=0.0075  train/q=1374.1037  train/duration=2054.4123  train/FPS=25.0076
+[eval] step=50000
+[step    50000]  eval/reward/cube-single-play-singletask-task1-v0/success=0.0000  eval/reward/cube-single-play-singletask-task1-v0/reward=-200.0000  eval/reward/cube-single-play-singletask-task1-v0/reward#std=0.0000  eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#mean=0.0239  eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#nonzero=239.0000  eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#zero=9761.0000  eval/reward/cube-single-play-singletask-task1-v0/relabel_reward#num_samples=10000.0000  eval/reward/cube-single-play-singletask-task2-v0/success=0.0000  eval/reward/cube-single-play-singletask-task2-v0/reward=-200.0000  eval/reward/cube-single-play-singletask-task2-v0/reward#std=0.0000  eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#mean=0.0204  eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#nonzero=204.0000  eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#zero=9796.0000  eval/reward/cube-single-play-singletask-task2-v0/relabel_reward#num_samples=10000.0000  eval/reward/cube-single-play-singletask-task3-v0/success=0.2000  eval/reward/cube-single-play-singletask-task3-v0/reward=-175.7000  eval/reward/cube-single-play-singletask-task3-v0/reward#std=48.6252  eval/reward/cube-single-play-singletask-task3-v0/relabel_reward#mean=0.0239  eval/reward/cube-single-play-singletask-task3-v0/relabel_reward#nonzero=239.0000  eval/reward/cube-single-play-singletask-task3-v0/relabel_reward#zero=9761.0000  eval/reward/cube-single-play-singletask-task3-v0/relabel_reward#num_samples=10000.0000  eval/reward/cube-single-play-singletask-task4-v0/success=0.0000  eval/reward/cube-single-play-singletask-task4-v0/reward=-200.0000  eval/reward/cube-single-play-singletask-task4-v0/reward#std=0.0000  eval/reward/cube-single-play-singletask-task4-v0/relabel_reward#mean=0.0243  eval/reward/cube-single-play-singletask-task4-v0/relabel_reward#nonzero=243.0000  eval/reward/cube-single-play-singletask-task4-v0/relabel_reward#zero=9757.0000  eval/reward/cube-single-play-singletask-task4-v0/relabel_reward#num_samples=10000.0000  eval/reward/cube-single-play-singletask-task5-v0/success=0.0000  eval/reward/cube-single-play-singletask-task5-v0/reward=-200.0000  eval/reward/cube-single-play-singletask-task5-v0/reward#std=0.0000  eval/reward/cube-single-play-singletask-task5-v0/relabel_reward#mean=0.0207  eval/reward/cube-single-play-singletask-task5-v0/relabel_reward#nonzero=207.0000  eval/reward/cube-single-play-singletask-task5-v0/relabel_reward#zero=9793.0000  eval/reward/cube-single-play-singletask-task5-v0/relabel_reward#num_samples=10000.0000  eval/reward/eval/reward=-195.1400  eval/reward/eval/reward#std=23.8193  eval/reward/eval/success=0.0400
+[step    50000]  train/target_M=116.4520  train/M1=116.3982  train/F1=-3.0841  train/B=-0.0151  train/B_norm=7.0711  train/z_norm=7.0711  train/fb_loss=790.5733  train/fb_diag=-74.1424  train/fb_offdiag=870.8776  train/orth_loss=-6.1619  train/orth_loss_diag=-50.0000  train/orth_loss_offdiag=43.8381  train/q_loss=0.0000  train/actor_loss=-0.7045  train/bc_flow_loss=0.2675  train/bc_error=0.0072  train/q=1399.8108  train/duration=2140.1681  train/FPS=11.6611
+[train] Done.

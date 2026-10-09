@@ -1,0 +1,202 @@
+{
+  "n_samples": 32,
+  "episodes": 50,
+  "max_steps": 200,
+  "mu_source": "bilinear_flow",
+  "obs_units_per_meter": 10.0,
+  "cube_dims": "obs[19:22]",
+  "arms": {
+    "bilinear|K1": {
+      "critic": "bilinear",
+      "K": 1,
+      "sigma_m": 0.0,
+      "sigma_obs": 0.0,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.96,
+        "2": 0.9,
+        "3": 0.96,
+        "4": 0.96,
+        "5": 0.84
+      },
+      "mean_success": 0.924
+    },
+    "mlp|K1": {
+      "critic": "mlp",
+      "K": 1,
+      "sigma_m": 0.0,
+      "sigma_obs": 0.0,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.54,
+        "2": 0.74,
+        "3": 0.7,
+        "4": 0.58,
+        "5": 0.52
+      },
+      "mean_success": 0.616
+    },
+    "bilinear|K8|sig2cm": {
+      "critic": "bilinear",
+      "K": 8,
+      "sigma_m": 0.02,
+      "sigma_obs": 0.2,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.9,
+        "2": 0.8,
+        "3": 1.0,
+        "4": 0.82,
+        "5": 0.8
+      },
+      "mean_success": 0.8640000000000001
+    },
+    "bilinear|K8|sig4cm": {
+      "critic": "bilinear",
+      "K": 8,
+      "sigma_m": 0.04,
+      "sigma_obs": 0.4,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.76,
+        "2": 0.84,
+        "3": 0.88,
+        "4": 0.94,
+        "5": 0.54
+      },
+      "mean_success": 0.792
+    },
+    "bilinear|K32|sig2cm": {
+      "critic": "bilinear",
+      "K": 32,
+      "sigma_m": 0.02,
+      "sigma_obs": 0.2,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.98,
+        "2": 0.92,
+        "3": 0.94,
+        "4": 0.92,
+        "5": 0.8
+      },
+      "mean_success": 0.9119999999999999
+    },
+    "bilinear|K32|sig4cm": {
+      "critic": "bilinear",
+      "K": 32,
+      "sigma_m": 0.04,
+      "sigma_obs": 0.4,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.96,
+        "2": 0.9,
+        "3": 0.96,
+        "4": 0.94,
+        "5": 0.56
+      },
+      "mean_success": 0.8640000000000001
+    },
+    "bilinear|K32|randomgoal": {
+      "critic": "bilinear",
+      "K": 32,
+      "sigma_m": 0.0,
+      "sigma_obs": 0.0,
+      "mode": "random",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.02,
+        "2": 0.0,
+        "3": 0.02,
+        "4": 0.7,
+        "5": 0.0
+      },
+      "mean_success": 0.148
+    },
+    "mlp|K8|sig2cm": {
+      "critic": "mlp",
+      "K": 8,
+      "sigma_m": 0.02,
+      "sigma_obs": 0.2,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.42,
+        "2": 0.74,
+        "3": 0.68,
+        "4": 0.5,
+        "5": 0.4
+      },
+      "mean_success": 0.5479999999999999
+    },
+    "mlp|K8|sig4cm": {
+      "critic": "mlp",
+      "K": 8,
+      "sigma_m": 0.04,
+      "sigma_obs": 0.4,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.4,
+        "2": 0.68,
+        "3": 0.36,
+        "4": 0.58,
+        "5": 0.26
+      },
+      "mean_success": 0.45600000000000007
+    },
+    "mlp|K32|sig2cm": {
+      "critic": "mlp",
+      "K": 32,
+      "sigma_m": 0.02,
+      "sigma_obs": 0.2,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.62,
+        "2": 0.64,
+        "3": 0.56,
+        "4": 0.56,
+        "5": 0.52
+      },
+      "mean_success": 0.58
+    },
+    "mlp|K32|sig4cm": {
+      "critic": "mlp",
+      "K": 32,
+      "sigma_m": 0.04,
+      "sigma_obs": 0.4,
+      "mode": "perturb",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.2,
+        "2": 0.48,
+        "3": 0.5,
+        "4": 0.46,
+        "5": 0.4
+      },
+      "mean_success": 0.40800000000000003
+    },
+    "mlp|K32|randomgoal": {
+      "critic": "mlp",
+      "K": 32,
+      "sigma_m": 0.0,
+      "sigma_obs": 0.0,
+      "mode": "random",
+      "n_episodes": 50,
+      "per_task": {
+        "1": 0.04,
+        "2": 0.0,
+        "3": 0.06,
+        "4": 0.06,
+        "5": 0.04
+      },
+      "mean_success": 0.04
+    }
+  }
+}

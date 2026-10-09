@@ -1,0 +1,13 @@
+[load] exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_1 epoch 1000000
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/density_fb.py:1243: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_1/params_1000000.pkl (params only)
+[R6_move_keep] z norm 7.071 cos1 0.092 valid True label mean 0.604 pos 0.0704
+[R6_move_keep] T=500 mean/step 0.7366 +- 0.1598 disc 46.766 aux_cube1_in_A_mean=0.790 aux_cube2_in_B0_mean=0.893  (41s)
+[R7_either_cube] z norm 7.071 cos1 0.081 valid True label mean 1.127 pos 0.1273
+[R7_either_cube] T=500 mean/step 0.6077 +- 0.3770 disc 40.305 aux_cube1_in_A_mean=0.468 aux_cube2_in_A_mean=0.443  (35s)
+[done] /home/adityamohan/git/Factored-FB-seam/analysis/reward_families/cube-double-play-v0/density_fb_z_seed1.json in 109s

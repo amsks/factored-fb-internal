@@ -1,0 +1,15 @@
+[grid] AGENT=psm_flowbc  6 jobs  grid ortho_coef{100 1000} x lr_phi{1e-5} x seeds{0 1 2}
+[grid] 3 GPUs x 2/GPU = 6 parallel  steps=500000  logs -> /home/adityamohan/git/Factored-FB/logs/grid_20260609_190511
+[grid] 19:05:11 launch psm_state_orthohi__ortho_coef100__lr_phi1e-5__s0 on GPU5 (slot 0)
+[grid] 19:05:11 launch psm_state_orthohi__ortho_coef100__lr_phi1e-5__s1 on GPU6 (slot 1)
+[grid] 19:05:11 launch psm_state_orthohi__ortho_coef100__lr_phi1e-5__s2 on GPU7 (slot 2)
+[grid] 19:05:11 launch psm_state_orthohi__ortho_coef1000__lr_phi1e-5__s0 on GPU5 (slot 3)
+[grid] 19:05:11 launch psm_state_orthohi__ortho_coef1000__lr_phi1e-5__s1 on GPU6 (slot 4)
+[grid] 19:05:11 launch psm_state_orthohi__ortho_coef1000__lr_phi1e-5__s2 on GPU7 (slot 5)
+[grid] 00:33:34 DONE psm_state_orthohi__ortho_coef100__lr_phi1e-5__s2 rc=0
+[grid] 00:33:44 DONE psm_state_orthohi__ortho_coef1000__lr_phi1e-5__s2 rc=0
+[grid] 00:41:53 DONE psm_state_orthohi__ortho_coef100__lr_phi1e-5__s1 rc=0
+[grid] 00:42:10 DONE psm_state_orthohi__ortho_coef1000__lr_phi1e-5__s1 rc=0
+[grid] 00:48:09 DONE psm_state_orthohi__ortho_coef1000__lr_phi1e-5__s0 rc=0
+[grid] 00:48:22 DONE psm_state_orthohi__ortho_coef100__lr_phi1e-5__s0 rc=0
+[grid] all done -> /home/adityamohan/git/Factored-FB/logs/grid_20260609_190511 (0 job(s) exited nonzero)

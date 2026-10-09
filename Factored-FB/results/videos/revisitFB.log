@@ -1,0 +1,22 @@
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[fb_measure] warm-started model from /home/adityamohan/exp_spec10/torchfb/p1_s42/checkpoints/final.pt; ignored 0 extra checkpoint key(s); optimizers FRESH; nhat_head fresh-init
+[fb_measure] freeze_b: _backward_map + _bw_encoder frozen, backward_optimizer=None
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[render] buffer 1,000,000 rows; domain cube-single-play-v0
+[eval] wrote results/videos/revisitFB/step_0/cube-single-play-singletask-task1-v0.gif
+[eval] wrote results/videos/revisitFB/step_0/cube-single-play-singletask-task2-v0.gif
+[eval] wrote results/videos/revisitFB/step_0/cube-single-play-singletask-task3-v0.gif
+[eval] wrote results/videos/revisitFB/step_0/cube-single-play-singletask-task4-v0.gif
+[eval] wrote results/videos/revisitFB/step_0/cube-single-play-singletask-task5-v0.gif
+[render] cube-single-play-singletask-task1-v0/success = 1.00
+[render] cube-single-play-singletask-task2-v0/success = 1.00
+[render] cube-single-play-singletask-task3-v0/success = 1.00
+[render] cube-single-play-singletask-task4-v0/success = 1.00
+[render] cube-single-play-singletask-task5-v0/success = 1.00
+[render] eval/success = 1.00

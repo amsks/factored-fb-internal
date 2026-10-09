@@ -1,0 +1,114 @@
+=== candidate identity check (|q_regen - q_cached| / range(q), per state): {'n': 1152, 'q_rel_dev_max': 0.0335635244378571, 'q_rel_dev_mean': 0.0015441593553757918}
+=== intervention by phase (pooled over seeds; s.e. over states) ===
+    method     bank    cond  n_states  n_rollouts  success_any_mean  success_any_se  success_final_mean  ret_mean  ret_se  held20_mean  held20_se  held_all_mean  frac_same_as_actor  frac_critic_eq_rollout  mc_sel_mean  frac_tie_mc
+Density-FB approach   actor       192        1920             0.852           0.022               0.852    20.599   0.598        0.000      0.000          0.000               1.000                   0.068       20.572        0.021
+Density-FB approach  critic       192        1920             0.793           0.025               0.793    18.737   0.640        0.000      0.000          0.000               0.000                   0.068       18.733        0.021
+Density-FB approach rollout       192        1920             0.926           0.015               0.926    23.004   0.461        0.000      0.000          0.000               0.057                   0.068       24.006        0.021
+Density-FB   inhand   actor       192        1920             1.000           0.000               1.000    40.454   0.617        0.722      0.023          0.433               1.000                   0.203       40.665        0.000
+Density-FB   inhand  critic       192        1920             0.955           0.011               0.955    36.493   0.919        0.534      0.030          0.348               0.047                   0.203       36.647        0.000
+Density-FB   inhand rollout       192        1920             1.000           0.000               1.000    44.120   0.479        0.754      0.022          0.486               0.042                   0.203       44.434        0.000
+Density-FB carrying   actor       192        1920             1.000           0.000               1.000    52.464   0.311        0.545      0.018          0.511               1.000                   0.271       52.406        0.000
+Density-FB carrying  critic       192        1920             0.994           0.003               0.994    51.855   0.566        0.477      0.021          0.457               0.031                   0.271       51.867        0.000
+Density-FB carrying rollout       192        1920             0.999           0.001               0.999    54.866   0.370        0.320      0.023          0.306               0.031                   0.271       55.041        0.000
+        FB approach   actor       192        1920             0.355           0.024               0.355     6.300   0.475        0.000      0.000          0.000               1.000                   0.062        6.872        0.052
+        FB approach  critic       192        1920             0.355           0.024               0.355     6.278   0.471        0.000      0.000          0.000               0.000                   0.062        5.940        0.052
+        FB approach rollout       192        1920             0.383           0.023               0.383     6.720   0.469        0.000      0.000          0.000               0.141                   0.062       10.530        0.052
+        FB   inhand   actor       192        1920             0.376           0.024               0.376     9.136   0.745        0.199      0.022          0.019               1.000                   0.167        9.011        0.036
+        FB   inhand  critic       192        1920             0.385           0.025               0.385    11.282   0.880        0.506      0.031          0.041               0.005                   0.167       11.417        0.036
+        FB   inhand rollout       192        1920             0.442           0.025               0.442    14.523   1.059        0.515      0.030          0.059               0.089                   0.167       18.516        0.036
+        FB carrying   actor       192        1920             0.587           0.029               0.587    25.677   1.655        0.184      0.020          0.114               1.000                   0.120       25.460        0.031
+        FB carrying  critic       192        1920             0.521           0.028               0.521    22.045   1.486        0.195      0.021          0.093               0.026                   0.120       21.850        0.031
+        FB carrying rollout       192        1920             0.716           0.026               0.716    37.268   1.690        0.131      0.017          0.053               0.057                   0.120       38.363        0.031
+=== per seed ===
+    method  seed     bank    cond  n_states  success_any_mean  held20_mean  ret_mean
+Density-FB     0 approach   actor        64             0.831        0.000    20.862
+Density-FB     1 approach   actor        64             0.839        0.000    20.179
+Density-FB     2 approach   actor        64             0.886        0.000    20.755
+Density-FB     0 approach  critic        64             0.709        0.000    17.226
+Density-FB     1 approach  critic        64             0.842        0.000    19.824
+Density-FB     2 approach  critic        64             0.827        0.000    19.161
+Density-FB     0 approach rollout        64             0.889        0.000    22.836
+Density-FB     1 approach rollout        64             0.952        0.000    23.627
+Density-FB     2 approach rollout        64             0.938        0.000    22.549
+Density-FB     0   inhand   actor        64             1.000        0.828    42.027
+Density-FB     1   inhand   actor        64             1.000        0.680    41.284
+Density-FB     2   inhand   actor        64             1.000        0.659    38.052
+Density-FB     0   inhand  critic        64             0.964        0.655    39.205
+Density-FB     1   inhand  critic        64             0.977        0.453    36.604
+Density-FB     2   inhand  critic        64             0.925        0.494    33.671
+Density-FB     0   inhand rollout        64             1.000        0.772    44.626
+Density-FB     1   inhand rollout        64             1.000        0.725    44.786
+Density-FB     2   inhand rollout        64             1.000        0.764    42.948
+Density-FB     0 carrying   actor        64             1.000        0.538    52.734
+Density-FB     1 carrying   actor        64             1.000        0.483    52.896
+Density-FB     2 carrying   actor        64             1.000        0.614    51.762
+Density-FB     0 carrying  critic        64             0.995        0.461    52.827
+Density-FB     1 carrying  critic        64             0.995        0.412    51.571
+Density-FB     2 carrying  critic        64             0.991        0.556    51.168
+Density-FB     0 carrying rollout        64             0.998        0.325    55.013
+Density-FB     1 carrying rollout        64             1.000        0.272    54.970
+Density-FB     2 carrying rollout        64             1.000        0.364    54.614
+        FB     0 approach   actor        64             0.209        0.000     3.518
+        FB     1 approach   actor        64             0.386        0.000     7.358
+        FB     2 approach   actor        64             0.469        0.000     8.025
+        FB     0 approach  critic        64             0.191        0.000     3.440
+        FB     1 approach  critic        64             0.398        0.000     7.068
+        FB     2 approach  critic        64             0.475        0.000     8.326
+        FB     0 approach rollout        64             0.242        0.000     4.205
+        FB     1 approach rollout        64             0.427        0.000     7.851
+        FB     2 approach rollout        64             0.480        0.000     8.104
+        FB     0   inhand   actor        64             0.242        0.330     6.244
+        FB     1   inhand   actor        64             0.411        0.198    10.014
+        FB     2   inhand   actor        64             0.473        0.070    11.150
+        FB     0   inhand  critic        64             0.273        0.728     8.338
+        FB     1   inhand  critic        64             0.409        0.419    11.651
+        FB     2   inhand  critic        64             0.473        0.372    13.858
+        FB     0   inhand rollout        64             0.330        0.650    11.568
+        FB     1   inhand rollout        64             0.448        0.516    14.664
+        FB     2   inhand rollout        64             0.547        0.378    17.336
+        FB     0 carrying   actor        64             0.498        0.230    23.850
+        FB     1 carrying   actor        64             0.583        0.202    25.667
+        FB     2 carrying   actor        64             0.680        0.120    27.512
+        FB     0 carrying  critic        64             0.409        0.245    17.633
+        FB     1 carrying  critic        64             0.528        0.191    23.108
+        FB     2 carrying  critic        64             0.625        0.148    25.394
+        FB     0 carrying rollout        64             0.669        0.163    36.123
+        FB     1 carrying rollout        64             0.692        0.142    36.275
+        FB     2 carrying rollout        64             0.786        0.087    39.407
+=== paired within-state differences (x - y; s.e. over states; 'changed' = the two rules picked different candidates) ===
+    method     bank           pair   n  n_changed  success_any_diff  success_any_diff_se  success_any_diff_changed  success_any_diff_changed_se  held20_diff  held20_diff_se  ret_diff  ret_diff_se
+Density-FB approach   critic-actor 192        192            -0.059                0.018                    -0.059                        0.018        0.000           0.000    -1.862        0.444
+Density-FB approach  rollout-actor 192        181             0.074                0.017                     0.078                        0.018        0.000           0.000     2.405        0.394
+Density-FB approach rollout-critic 192        179             0.133                0.020                     0.143                        0.022        0.000           0.000     4.267        0.483
+Density-FB   inhand   critic-actor 192        183            -0.045                0.011                    -0.047                        0.011       -0.189           0.029    -3.961        0.741
+Density-FB   inhand  rollout-actor 192        184             0.000                0.000                     0.000                        0.000        0.031           0.022     3.666        0.304
+Density-FB   inhand rollout-critic 192        153             0.045                0.011                     0.056                        0.013        0.220           0.033     7.627        0.734
+Density-FB carrying   critic-actor 192        186            -0.006                0.003                    -0.006                        0.003       -0.068           0.023    -0.609        0.445
+Density-FB carrying  rollout-actor 192        186            -0.001                0.001                    -0.001                        0.001       -0.224           0.025     2.402        0.157
+Density-FB carrying rollout-critic 192        140             0.006                0.003                     0.008                        0.005       -0.156           0.026     3.011        0.441
+        FB approach   critic-actor 192        192             0.000                0.014                     0.000                        0.014        0.000           0.000    -0.022        0.290
+        FB approach  rollout-actor 192        165             0.028                0.012                     0.033                        0.014        0.000           0.000     0.420        0.249
+        FB approach rollout-critic 192        180             0.028                0.014                     0.030                        0.014        0.000           0.000     0.442        0.280
+        FB   inhand   critic-actor 192        191             0.010                0.014                     0.010                        0.014        0.307           0.030     2.146        0.595
+        FB   inhand  rollout-actor 192        175             0.066                0.015                     0.073                        0.017        0.315           0.029     5.387        0.750
+        FB   inhand rollout-critic 192        160             0.056                0.015                     0.067                        0.018        0.008           0.034     3.241        0.719
+        FB carrying   critic-actor 192        187            -0.066                0.022                    -0.068                        0.023        0.011           0.017    -3.632        1.311
+        FB carrying  rollout-actor 192        181             0.129                0.019                     0.136                        0.020       -0.053           0.023    11.592        0.949
+        FB carrying rollout-critic 192        169             0.195                0.022                     0.221                        0.024       -0.064           0.023    15.223        1.342
+=== which candidate each rule picks (counts per critic, bank) ===
+  Density-FB approach: critic {'release': 98, 'secure': 44, 'fb_perturb1': 12, 'fb_perturb0': 8, 'fb_perturb2': 7, 'density_perturb2': 6, 'density_perturb0': 5, 'density_perturb1': 5, 'fb_perturb3': 4, 'density_perturb3': 3}
+      rollout {'density_perturb1': 27, 'density_perturb2': 23, 'density_perturb3': 22, 'fb_perturb2': 20, 'density_perturb0': 18, 'fb_perturb1': 17, 'fb_perturb3': 16, 'fb_perturb0': 16, 'fb_policy': 13, 'density_policy': 11, 'release': 6, 'secure': 3}
+  Density-FB carrying: critic {'density_perturb3': 30, 'density_perturb2': 28, 'density_perturb1': 26, 'fb_perturb1': 20, 'release': 19, 'fb_perturb2': 18, 'density_perturb0': 18, 'fb_perturb3': 16, 'fb_perturb0': 11, 'density_policy': 6}
+      rollout {'release': 64, 'density_perturb1': 26, 'density_perturb2': 19, 'density_perturb3': 18, 'density_perturb0': 18, 'fb_perturb3': 16, 'fb_perturb2': 10, 'fb_perturb1': 9, 'density_policy': 6, 'fb_perturb0': 5, 'fb_policy': 1}
+  Density-FB inhand: critic {'release': 40, 'density_perturb0': 22, 'density_perturb3': 21, 'density_perturb1': 21, 'density_perturb2': 20, 'fb_perturb1': 15, 'fb_perturb2': 14, 'fb_perturb0': 11, 'fb_perturb3': 11, 'density_policy': 9, 'secure': 6, 'fb_policy': 2}
+      rollout {'density_perturb1': 32, 'density_perturb3': 28, 'density_perturb0': 26, 'density_perturb2': 23, 'fb_perturb1': 22, 'fb_perturb3': 20, 'fb_perturb2': 14, 'fb_perturb0': 11, 'density_policy': 8, 'release': 4, 'fb_policy': 3, 'secure': 1}
+  FB approach: critic {'secure': 121, 'fb_perturb0': 12, 'fb_perturb2': 11, 'density_perturb0': 11, 'density_perturb3': 9, 'fb_perturb3': 8, 'fb_perturb1': 8, 'density_perturb1': 7, 'density_perturb2': 5}
+      rollout {'fb_policy': 27, 'density_perturb2': 19, 'fb_perturb3': 19, 'fb_perturb2': 18, 'density_perturb1': 15, 'density_policy': 15, 'fb_perturb1': 14, 'release': 14, 'density_perturb0': 14, 'density_perturb3': 14, 'fb_perturb0': 12, 'secure': 11}
+  FB carrying: critic {'fb_perturb0': 32, 'fb_perturb2': 27, 'density_perturb2': 25, 'fb_perturb1': 24, 'density_perturb1': 21, 'density_perturb3': 16, 'fb_perturb3': 15, 'density_perturb0': 11, 'secure': 11, 'fb_policy': 5, 'density_policy': 3, 'release': 2}
+      rollout {'release': 65, 'density_perturb3': 21, 'density_perturb1': 19, 'density_perturb0': 18, 'density_perturb2': 13, 'fb_perturb1': 12, 'fb_policy': 11, 'fb_perturb2': 10, 'fb_perturb0': 9, 'fb_perturb3': 8, 'density_policy': 5, 'secure': 1}
+  FB inhand: critic {'density_perturb3': 28, 'fb_perturb3': 24, 'fb_perturb0': 23, 'density_perturb2': 21, 'density_perturb1': 21, 'density_perturb0': 21, 'fb_perturb2': 19, 'fb_perturb1': 17, 'secure': 16, 'fb_policy': 1, 'release': 1}
+      rollout {'density_perturb1': 23, 'fb_perturb2': 21, 'density_perturb2': 19, 'fb_perturb1': 18, 'density_perturb0': 18, 'density_perturb3': 18, 'fb_policy': 17, 'fb_perturb0': 16, 'fb_perturb3': 15, 'release': 11, 'density_policy': 9, 'secure': 7}
+[fig] PAPER/ICLR/figures/gap_preservation/fig_intervention_by_phase_density.pdf/.png
+[fig] PAPER/ICLR/figures/gap_preservation/fig_intervention_held_by_phase_density.pdf/.png
+[fig] PAPER/ICLR/figures/gap_preservation/fig_intervention_by_phase.pdf/.png
+[fig] PAPER/ICLR/figures/gap_preservation/fig_intervention_held_by_phase.pdf/.png

@@ -1,0 +1,19 @@
+{
+ "run": "/home/adityamohan/exp_spec10/torchfb/p1_scn_s42",
+ "env": "scene-play-v0",
+ "hit_spec": "19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6",
+ "neg_frac": 0.3641578125,
+ "neg_mass_share": 0.1748845810737853,
+ "mag_neg": 0.04423229180820229,
+ "mag_pos": 0.11904956874236469,
+ "neg_frac_by_density_quartile": [
+  0.4021,
+  0.4212,
+  0.3753,
+  0.2583
+ ],
+ "gate_G1": false,
+ "starts": 32,
+ "goals": 20000,
+ "seed": 0
+}

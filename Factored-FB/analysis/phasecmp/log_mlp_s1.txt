@@ -1,0 +1,10 @@
+[phase_probe_gciql] seed=1 step=1000000 ckpt_dir=/home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/GCIQL-State-Flow/sd001_20260609_234411 value_arch=mlp d=512
+[phase_probe_gciql] out=analysis/phasecmp/gciql_mlp/s1 tasks=5 scenarios=['S0'] episodes=20
+Restored from /home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/GCIQL-State-Flow/sd001_20260609_234411/params_1000000.pkl
+[phase_probe_gciql] agent restored
+  task=cube-single-play-singletask-task1-v0 scenario=S0: 13/20
+  task=cube-single-play-singletask-task2-v0 scenario=S0: 14/20
+  task=cube-single-play-singletask-task3-v0 scenario=S0: 15/20
+  task=cube-single-play-singletask-task4-v0 scenario=S0: 13/20
+  task=cube-single-play-singletask-task5-v0 scenario=S0: 14/20
+[phase_probe_gciql] wrote analysis/phasecmp/gciql_mlp/s1/per_episode.parquet: 100 rows; overall_success=0.690

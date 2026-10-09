@@ -1,0 +1,4 @@
+done N=10000 rc=0
+done N=50000 rc=0
+done N=200000 rc=0
+PUZZLE_PROBE_DONE

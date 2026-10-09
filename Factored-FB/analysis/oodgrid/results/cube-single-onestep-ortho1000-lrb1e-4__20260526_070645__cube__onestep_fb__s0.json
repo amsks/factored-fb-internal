@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "cube-single-onestep-ortho1000-lrb1e-4",
+ "seed": "20260526_070645__cube__onestep_fb__s0",
+ "dir": "/dev/shm/factored-fb/runs/20260526_070645__cube__onestep_fb__s0",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb/runs/20260526_070645__cube__onestep_fb__s0/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.04,
+  "grasped": 0.41
+ },
+ "C2_zB": {
+  "success": 0.05,
+  "grasped": 0.89
+ },
+ "C3_zB": {
+  "success": 0.04,
+  "grasped": 0.89
+ },
+ "C2_zR": {
+  "success": 0.11,
+  "grasped": 0.85
+ },
+ "C3_zR": {
+  "success": 0.05,
+  "grasped": 0.77
+ },
+ "C4_zB": {
+  "success": 0.04,
+  "grasped": 0.84
+ },
+ "secs": 38.5
+}

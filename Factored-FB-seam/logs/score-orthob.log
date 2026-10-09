@@ -1,0 +1,26 @@
+--inference-samples defaulted to 50000 for critic rldp_orthob
+16 cells: 1 domains x 4 tasks x 4 seeds (8 at a time)
+[ok] dmc-walker/stand/s3
+[ok] dmc-walker/stand/s0
+[ok] dmc-walker/stand/s1
+[ok] dmc-walker/walk/s3
+[ok] dmc-walker/walk/s1
+[ok] dmc-walker/stand/s2
+[ok] dmc-walker/walk/s0
+[ok] dmc-walker/walk/s2
+[ok] dmc-walker/run/s3
+[ok] dmc-walker/flip/s0
+[ok] dmc-walker/run/s0
+[ok] dmc-walker/run/s2
+[ok] dmc-walker/flip/s1
+[ok] dmc-walker/run/s1
+[ok] dmc-walker/flip/s2
+[ok] dmc-walker/flip/s3
+
+critic                   domain                 task                      mean      std  n
+rldp_orthob              dmc-walker             flip                      28.2      5.1  4
+rldp_orthob              dmc-walker             run                       24.7      3.7  4
+rldp_orthob              dmc-walker             stand                    147.9     20.6  4
+rldp_orthob              dmc-walker             walk                      40.9     33.1  4
+
+Compare against RLDP Table 1 in docs/notes/2026-08-28-rldp-paper-eval.md. Gate (spec §4): per-task mean within 1 sigma of the official cell for >= 3 of 4 tasks, and no task below 50% of an official mean > 100.

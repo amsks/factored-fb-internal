@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_cube_iql_learnedB_r1",
+ "seed": "iqllb_s1",
+ "dir": "/dev/shm/phase2_out/iqllb_s1",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/phase2_out/iqllb_s1/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.52,
+  "grasped": 0.94
+ },
+ "C2_zB": {
+  "success": 0.08,
+  "grasped": 0.85
+ },
+ "C3_zB": {
+  "success": 0.03,
+  "grasped": 0.9
+ },
+ "C2_zR": {
+  "success": 0.2,
+  "grasped": 0.93
+ },
+ "C3_zR": {
+  "success": 0.07,
+  "grasped": 0.88
+ },
+ "C4_zB": {
+  "success": 0.23,
+  "grasped": 0.9
+ },
+ "secs": 33.6
+}

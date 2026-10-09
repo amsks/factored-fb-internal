@@ -1,0 +1,156 @@
+{
+  "objective": "E + 40 delta^2; E=||N-N Pi_B||_F^2, C=B^T B/4 has eigenvalues 1+delta and 1-delta",
+  "candidate_square_objective": {
+    "exact": "149734/1856825",
+    "decimal": 0.08063980181223325
+  },
+  "candidate_start_gap": {
+    "exact": "-1168/21845",
+    "decimal": -0.05346761272602426
+  },
+  "certified_global_start_gap_upper": {
+    "exact": "-135790507/4722260000",
+    "decimal": -0.028755406733216724
+  },
+  "normalized_control_witness_square_error": {
+    "exact": "1228/7225",
+    "decimal": 0.16996539792387544
+  },
+  "normalized_control_witness_probabilities": [
+    [
+      0.25882352941176473,
+      0.25882352941176473,
+      0.2411764705882353,
+      0.2411764705882353
+    ],
+    [
+      0.38823529411764707,
+      0.38823529411764707,
+      0.11176470588235295,
+      0.11176470588235295
+    ],
+    [
+      0.21176470588235294,
+      0.21176470588235294,
+      0.28823529411764703,
+      0.28823529411764703
+    ],
+    [
+      0.1411764705882353,
+      0.1411764705882353,
+      0.3588235294117647,
+      0.3588235294117647
+    ]
+  ],
+  "capacity_and_normalization_control": {
+    "dimension": 2,
+    "row_norm": "sqrt(2)",
+    "second_moment": "I",
+    "correct_control_witness_exists": true
+  },
+  "interpretation": "Every global spherical FB square-loss optimum has a negative start gap, although the same normalized rank-2 class contains a correct-control witness.",
+  "tabular_td_same_path": {
+    "fb_spherical": [
+      {
+        "seed": 0,
+        "lr": 0.001,
+        "start_gap": 0.5000007303174315,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 1,
+        "gradient_norm": 4.2534567115858766e-05
+      },
+      {
+        "seed": 0,
+        "lr": 0.01,
+        "start_gap": 0.5000000416786982,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 1,
+        "gradient_norm": 9.560903969169509e-08
+      },
+      {
+        "seed": 1,
+        "lr": 0.001,
+        "start_gap": -0.23529223316330206,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 1,
+        "gradient_norm": 1.001167412412996e-05
+      },
+      {
+        "seed": 1,
+        "lr": 0.01,
+        "start_gap": -0.23529283681548502,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 1,
+        "gradient_norm": 1.188832374983533e-06
+      },
+      {
+        "seed": 2,
+        "lr": 0.001,
+        "start_gap": -0.23529207108204697,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 1,
+        "gradient_norm": 9.040973760124582e-06
+      },
+      {
+        "seed": 2,
+        "lr": 0.01,
+        "start_gap": -0.2352918890217332,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 1,
+        "gradient_norm": 2.2795757626184676e-06
+      }
+    ],
+    "density": [
+      {
+        "seed": 0,
+        "lr": 0.001,
+        "start_gap": 0.41146456853362223,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 0,
+        "gradient_norm": 3.836043814518595e-06
+      },
+      {
+        "seed": 0,
+        "lr": 0.01,
+        "start_gap": 0.41190548150347295,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 0,
+        "gradient_norm": 7.896957653410169e-05
+      },
+      {
+        "seed": 1,
+        "lr": 0.001,
+        "start_gap": 0.41146973867134295,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 0,
+        "gradient_norm": 7.926030933356028e-10
+      },
+      {
+        "seed": 1,
+        "lr": 0.01,
+        "start_gap": 0.4114698946088317,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 0,
+        "gradient_norm": 5.6574969920088634e-08
+      },
+      {
+        "seed": 2,
+        "lr": 0.001,
+        "start_gap": 0.41146474368035935,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 0,
+        "gradient_norm": 5.016519881017543e-07
+      },
+      {
+        "seed": 2,
+        "lr": 0.01,
+        "start_gap": 0.41172431877155646,
+        "true_start_gap": 0.6470588235294116,
+        "wrong_strict_states": 0,
+        "gradient_norm": 4.740873564711357e-05
+      }
+    ],
+    "protocol": "full-expectation tabular TD; path4; gamma=.8; six seed/lr settings; 100k updates",
+    "scope": "Empirical TD check, not the exact global-optimum theorem."
+  }
+}

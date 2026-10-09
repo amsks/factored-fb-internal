@@ -1,0 +1,1 @@
+ARGS=train.py domain=cube_single ortho_coef=1000 lr_b=1e-4 seed=1 data_path=/dev/shm/datasets use_wandb=true wandb_entity=amsks wandb_group=cube-single-ortho1000-lrb1e-4 wandb_tags=[sweep-20260514_213134] wandb_run_name=cube_single__s1__ortho1000__lrb1e-4 save_eval_videos=true foo=bar

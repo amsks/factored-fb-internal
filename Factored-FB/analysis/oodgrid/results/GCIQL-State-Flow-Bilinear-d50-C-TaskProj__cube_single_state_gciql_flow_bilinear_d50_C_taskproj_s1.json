@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-Bilinear-d50-C-TaskProj",
+ "seed": "cube_single_state_gciql_flow_bilinear_d50_C_taskproj_s1",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-C-TaskProj/cube_single_state_gciql_flow_bilinear_d50_C_taskproj_s1",
+ "step": 500000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.11,
+  "grasped": 0.84
+ },
+ "C2": {
+  "success": 0.05,
+  "grasped": 0.94
+ },
+ "C3": {
+  "success": 0.05,
+  "grasped": 0.96
+ },
+ "C4": {
+  "success": 0.12,
+  "grasped": 0.85
+ },
+ "secs": 43.0
+}

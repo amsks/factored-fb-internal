@@ -1,0 +1,53 @@
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260916_011727-vl4k1vlb
+I0916 01:17:35.942281 140539100437376 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0916 01:17:35.951614 140539100437376 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:17:35.953367 140539100437376 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0916 01:17:35.962410 140539100437376 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:17:36.103942 140539100437376 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:17:36.105710 140539100437376 __init__.py:31] MuJoCo library version is: 3.3.0
+I0916 01:17:36.137504 140539100437376 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:17:36.139915 140539100437376 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0916 01:17:36.142148 140539100437376 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:17:36.147876 140539100437376 __init__.py:31] MuJoCo library version is: 3.8.1
+I0916 01:17:36.731450 140539100437376 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+/home/adityamohan/git/Factored-FB-seam/impls/critics/density_fb.py:1243: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+[auto_resume] no params_*.pkl under exp/exorl_dfb/dmc-walker/density_fb_z/dmc-walker_density_fb_z_ddpgbc_seed_0; fresh start
+[infer-cond] step 1: evaluating on the inferred conditioning from 50000 rb['next_observations'] rows; the env goal is NOT supplied
+eval 1 task None {'episode_return': 25.7510753241885, 'inferred_cond': 1.0, 'inferred_cond_action_calls': 10000.0, 'inferred_cond_goals_dropped': 0.0, 'inferred_cond_norm': 7.071068286895752, 'inferred_cond_cos_neutral': 0.04698663577437401}
+5000 {'actor_loss': 0.012091211974620819, 'bc_log_prob': -11.146137237548828, 'bc_loss': -0.0, 'density_ce': 5.380758762359619, 'density_ess': 99.77376556396484, 'density_ess_h0': 142.37423706054688, 'density_ess_h1': 57.173282623291016, 'density_ess_median': 80.63703918457031, 'density_k_self': 1.0, 'density_sarsa_subst': 3.0833170413970947, 'density_sq': 0.00036043196450918913, 'q_loss': 0.012091211974620819, 'q_mean': -0.012091211974620819}
+Saved to exp/exorl_dfb/dmc-walker/density_fb_z/dmc-walker_density_fb_z_ddpgbc_seed_0/params_8476.pkl
+[signal] caught signal 15 -- checkpointed at step 8476 and exiting; resubmit with --auto_resume to continue
+wandb: 
+wandb: Run history:
+wandb:              eval/episode_return ▁
+wandb:               eval/inferred_cond ▁
+wandb:  eval/inferred_cond_action_calls ▁
+wandb:   eval/inferred_cond_cos_neutral ▁
+wandb: eval/inferred_cond_goals_dropped ▁
+wandb:          eval/inferred_cond_norm ▁
+wandb:                 train/actor_loss ▁
+wandb:                train/bc_log_prob ▁
+wandb:                    train/bc_loss ▁
+wandb:                 train/density_ce ▁
+wandb:                               +9 ...
+wandb: 
+wandb: Run summary:
+wandb:              eval/episode_return 25.75108
+wandb:               eval/inferred_cond 1
+wandb:  eval/inferred_cond_action_calls 10000
+wandb:   eval/inferred_cond_cos_neutral 0.04699
+wandb: eval/inferred_cond_goals_dropped 0
+wandb:          eval/inferred_cond_norm 7.07107
+wandb:                 train/actor_loss 0.01209
+wandb:                train/bc_log_prob -11.14614
+wandb:                    train/bc_loss 0
+wandb:                 train/density_ce 5.38076
+wandb:                               +9 ...
+wandb: 
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260916_011727-vl4k1vlb
+wandb: Find logs at: ./wandb/offline-run-20260916_011727-vl4k1vlb/logs

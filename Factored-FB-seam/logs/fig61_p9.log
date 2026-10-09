@@ -1,0 +1,60 @@
+sweep d=1 fb: +0.00
+sweep d=1 normsq: +0.00
+sweep d=1 softsq: +0.00
+sweep d=1 density: +0.00
+sweep d=1 density_soft: -0.00
+sweep d=2 fb: +0.00
+sweep d=2 normsq: -0.00
+sweep d=2 softsq: +0.58
+sweep d=2 density: +0.48
+sweep d=2 density_soft: +0.47
+sweep d=3 fb: -0.00
+sweep d=3 normsq: +0.00
+sweep d=3 softsq: +0.88
+sweep d=3 density: +0.89
+sweep d=3 density_soft: +0.54
+sweep d=4 fb: +0.00
+sweep d=4 normsq: -0.00
+sweep d=4 softsq: +1.00
+sweep d=4 density: +1.00
+sweep d=4 density_soft: +0.67
+sweep d=5 fb: +0.00
+sweep d=5 normsq: +0.00
+sweep d=5 softsq: +1.00
+sweep d=5 density: +1.00
+sweep d=5 density_soft: +0.71
+sweep d=6 fb: +0.00
+sweep d=6 normsq: -0.00
+sweep d=6 softsq: +1.00
+sweep d=6 density: +1.00
+sweep d=6 density_soft: +0.71
+sweep d=7 fb: +0.44
+sweep d=7 normsq: +0.97
+sweep d=7 softsq: +1.00
+sweep d=7 density: +1.00
+sweep d=7 density_soft: +0.71
+sweep d=8 fb: +0.98
+sweep d=8 normsq: +1.00
+sweep d=8 softsq: +1.00
+sweep d=8 density: +1.00
+sweep d=8 density_soft: +0.71
+(a) exact: Q(a+) 3.00+-0.00  Q(a-) 2.00+-0.00
+(a) FB: Q(a+) 2.26+-0.04  Q(a-) 2.26+-0.04
+(a) Density-FB: Q(a+) 3.00+-0.00  Q(a-) 2.00+-0.00
+(b) max |feature-average difference| over runs 6.8e-03, max |refit| 2.1e-03
+(c) rank 1: KL max-over-actions median 0.1406, below eps 0.0, ordering kept 0.4
+(c) rank 2: KL max-over-actions median 0.1185, below eps 0.0, ordering kept 1.0
+(c) rank 3: KL max-over-actions median 0.0434, below eps 0.0, ordering kept 1.0
+(c) rank 4: KL max-over-actions median 0.0003, below eps 1.0, ordering kept 1.0
+(c) rank 5: KL max-over-actions median 0.0000, below eps 1.0, ordering kept 1.0
+(c) rank 6: KL max-over-actions median 0.0000, below eps 1.0, ordering kept 1.0
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/nine_state/fig_61_main.pdf
+rank sweep FB: 1:0.00 2:0.00 3:-0.00 4:0.00 5:0.00 6:0.00 7:0.44 8:0.98
+rank sweep Density-FB: 1:0.00 2:0.48 3:0.89 4:1.00 5:1.00 6:1.00 7:1.00 8:1.00
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/nine_state/fig_61_rank.pdf
+ablation FB: 1:0.00 2:0.00 3:-0.00 4:0.00 5:0.00 6:0.00 7:0.44 8:0.98
+ablation FB, normalized target: 1:0.00 2:-0.00 3:0.00 4:-0.00 5:0.00 6:-0.00 7:0.97 8:1.00
+ablation softmax + squared error: 1:0.00 2:0.58 3:0.88 4:1.00 5:1.00 6:1.00 7:1.00 8:1.00
+ablation Density-FB: 1:0.00 2:0.48 3:0.89 4:1.00 5:1.00 6:1.00 7:1.00 8:1.00
+ablation Density-FB, soft immediate target: 1:-0.00 2:0.47 3:0.54 4:0.67 5:0.71 6:0.71 7:0.71 8:0.71
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/nine_state/fig_61_ablation.pdf

@@ -1,0 +1,5 @@
+dmc-cheetah: n=5 mean=301.4 popstd=45.4 per-seed=[274, 346, 366, 263, 258] {'run': 102, 'run_backward': 126, 'walk': 401, 'walk_backward': 577}
+dmc-point-mass-maze: n=5 mean=751.5 popstd=74.1 per-seed=[752, 798, 798, 608, 802] {'reach_bottom_left': 739, 'reach_bottom_right': 521, 'reach_top_left': 944, 'reach_top_right': 801}
+dmc-quadruped: n=5 mean=655.9 popstd=15.9 per-seed=[653, 680, 667, 636, 644] {'jump': 733, 'run': 460, 'stand': 904, 'walk': 527}
+dmc-walker: n=5 mean=724.6 popstd=41.2 per-seed=[744, 722, 764, 647, 748] {'run': 327, 'spin': 985, 'stand': 843, 'walk': 744}
+SCORE1M_EXIT=0

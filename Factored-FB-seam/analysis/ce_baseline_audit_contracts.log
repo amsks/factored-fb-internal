@@ -1,0 +1,143 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1789094098.760897       3 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1789094098.785839       3 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1789094098.794089       3 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+{
+  "scope": "Actual shared sampler on ten monotonic states; reproduces boundary alignment without neural training.",
+  "ordinary_window": {
+    "observations": [
+      [
+        8.0
+      ]
+    ],
+    "next_observations": [
+      [
+        9.0
+      ]
+    ],
+    "future_observations": [
+      [
+        [
+          9.0
+        ],
+        [
+          9.0
+        ],
+        [
+          9.0
+        ],
+        [
+          9.0
+        ]
+      ]
+    ],
+    "future_actions": [
+      [
+        [
+          9.0
+        ],
+        [
+          9.0
+        ],
+        [
+          9.0
+        ],
+        [
+          9.0
+        ]
+      ]
+    ],
+    "terminals": [
+      0.0
+    ]
+  },
+  "no_clamp_window": {
+    "observations": [
+      [
+        8.0
+      ]
+    ],
+    "next_observations": [
+      [
+        9.0
+      ]
+    ],
+    "future_observations": [
+      [
+        [
+          6.0
+        ],
+        [
+          7.0
+        ],
+        [
+          8.0
+        ],
+        [
+          9.0
+        ]
+      ]
+    ],
+    "future_actions": [
+      [
+        [
+          5.0
+        ],
+        [
+          6.0
+        ],
+        [
+          7.0
+        ],
+        [
+          8.0
+        ]
+      ]
+    ],
+    "terminals": [
+      0.0
+    ]
+  },
+  "hilp_emitted_terminals": [
+    0.0
+  ],
+  "base_emitted_terminals_even_if_terminal_index_requested": [
+    0.0
+  ],
+  "actual_rldp_sp_rollout": {
+    "initial_state": 8.0,
+    "actions": [
+      8.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0
+    ],
+    "target_states": [
+      9.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0
+    ],
+    "contract": "The rollout starts at B(observations), then recursively applies all these actions; it does not restart at the shifted window start."
+  },
+  "terminal_semantics": {
+    "gamma": 0.8,
+    "single_terminal_arrival_reward": 1.0,
+    "episodic_successor_value": 1.0,
+    "episodic_value_times_one_minus_gamma": 0.2,
+    "categorical_terminal_target_integral": 1.0,
+    "categorical_integral_divided_by_one_minus_gamma": 5.0,
+    "two_action_ranking_example": {
+      "episodic_terminal_reward_one_value": 1.0,
+      "continuing_reward_point_three_value": 1.5,
+      "categorical_terminal_value": 1.0,
+      "categorical_continuing_value": 0.3,
+      "interpretation": "A one-time terminal reward1 is worse than reward.3 forever under episodic discounted returns, but the terminal one-hot categorical readout reverses that action ranking."
+    },
+    "interpretation": "The one-hot terminal branch corresponds to an absorbing outcome when converted by 1/(1-gamma), not a single episodic terminal reward. Current FBDataset/WindowedDataset/HILPFutureDataset emit zero terminals."
+  }
+}

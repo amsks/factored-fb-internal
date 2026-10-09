@@ -1,0 +1,42 @@
+--inference-samples defaulted to 50000 for critic rldp_official
+16 cells: 1 domains x 4 tasks x 4 seeds (8 at a time)
+LEGACY-ARCH dmc-walker/stand/s0: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_0/config.json)
+LEGACY-ARCH dmc-walker/stand/s1: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_1/config.json)
+LEGACY-ARCH dmc-walker/stand/s2: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_2/config.json)
+LEGACY-ARCH dmc-walker/stand/s3: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_3/config.json)
+LEGACY-ARCH dmc-walker/walk/s1: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_1/config.json)
+LEGACY-ARCH dmc-walker/walk/s3: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_3/config.json)
+LEGACY-ARCH dmc-walker/walk/s2: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_2/config.json)
+LEGACY-ARCH dmc-walker/walk/s0: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_0/config.json)
+[ok] dmc-walker/walk/s3
+LEGACY-ARCH dmc-walker/run/s0: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_0/config.json)
+[ok] dmc-walker/stand/s0
+LEGACY-ARCH dmc-walker/run/s1: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_1/config.json)
+[ok] dmc-walker/walk/s0
+LEGACY-ARCH dmc-walker/run/s2: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_2/config.json)
+[ok] dmc-walker/walk/s2
+LEGACY-ARCH dmc-walker/run/s3: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_3/config.json)
+[ok] dmc-walker/stand/s2
+LEGACY-ARCH dmc-walker/flip/s0: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_0/config.json)
+[ok] dmc-walker/walk/s1
+LEGACY-ARCH dmc-walker/flip/s1: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_1/config.json)
+[ok] dmc-walker/stand/s1
+LEGACY-ARCH dmc-walker/flip/s2: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_2/config.json)
+[ok] dmc-walker/stand/s3
+LEGACY-ARCH dmc-walker/flip/s3: rldp_official_nets=false (from dmc-walker_rldp_official_ddpgbc_seed_3/config.json)
+[ok] dmc-walker/run/s0
+[ok] dmc-walker/run/s2
+[ok] dmc-walker/run/s1
+[ok] dmc-walker/run/s3
+[ok] dmc-walker/flip/s2
+[ok] dmc-walker/flip/s0
+[ok] dmc-walker/flip/s3
+[ok] dmc-walker/flip/s1
+
+critic                   domain                 task                      mean      std  n
+rldp_official            dmc-walker             flip                     124.9     90.3  4
+rldp_official            dmc-walker             run                       66.5     32.7  4
+rldp_official            dmc-walker             stand                    365.4    153.9  4
+rldp_official            dmc-walker             walk                     106.9     87.7  4
+
+Compare against RLDP Table 1 in docs/notes/2026-08-28-rldp-paper-eval.md. Gate (spec §4): per-task mean within 1 sigma of the official cell for >= 3 of 4 tasks, and no task below 50% of an official mean > 100.

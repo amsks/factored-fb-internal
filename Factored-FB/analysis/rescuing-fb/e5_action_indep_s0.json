@@ -1,0 +1,19 @@
+{
+  "fp_run": "/home/adityamohan/exp_spec06/factored-fb/GCIQL-State-Flow-Measure-FirstPassage-NoOrtho-d50/m_firstpassage_noortho_s0",
+  "vis_run": "/home/adityamohan/exp_spec07/factored-fb/GCIQL-State-Flow-Measure-BallVisit-FrozenPsi-d50/vis_s0",
+  "d": 50,
+  "grid": {
+    "goals": 150,
+    "states": 24,
+    "actions": 16,
+    "q_thresh": 0.05
+  },
+  "n_reachable_sg": 1526,
+  "argmax_agreement": 0.2948885976408912,
+  "rankcorr_QM_mean": 0.39920206614755993,
+  "rankcorr_QM_median": 0.4911764705882353,
+  "R_icc_given_g": 0.24248266215870773,
+  "R_cv_within_goal_median": 1.3488375802545818,
+  "R_mean": 32.255170615912135,
+  "R_median": 40.890198082500376
+}

@@ -1,0 +1,22 @@
+spec 29 G29-0 pre-flight gate -- are the DUAL indices de-collapsed?
+zhat(g)=sqrt(d)*normalize((Sigma_B+lam I)^-1 m_hat), m_hat=mean_j kg_j B_bar(u_j),
+kg = _delta_phi(goals, u_raw) (query-set-normalized, spec-28 rule); N=4096 dataset
+goals, P=16384 pool, d=50, tower = the one _density_z_encode uses. READOUT ONLY.
+PASS = mean pairwise cosine well below .99 (sphere ref ~.000), corroborated by a
+participation ratio of the index set lifted off 1 (sphere ref ~49.4/50).
+
+ckpt          env          effR(SigB) | cos z(g) cos ref | cos_.001  cos_.01   cos_.1 | PR2 z(g) PR2_.001 PR2_.01  PR2_.1 PR2 ref
+---------------------------------------------------------------------------------------------------------------------------------
+g_cs          cube-single      1.0017 |   0.9991 -0.0007 |   0.0052  -0.0003   0.0076 |    1.002   19.17    9.18    5.53   49.41
+g_cd          cube-double      1.0045 |   0.9978 -0.0007 |   0.0039   0.0019   0.0034 |    1.004   38.07   23.30   12.00   49.41
+z24_cd_s0     cube-double      1.0010 |   0.9995 -0.0007 |   0.0042   0.0045   0.0179 |    1.001   29.21   17.94   16.33   49.41
+z25_cs_full   cube-single      1.0012 |   0.9994 -0.0007 |   0.0031   0.0029   0.0147 |    1.001   23.50   12.68   10.78   49.41
+z25_cs_actor  cube-single      1.0002 |   0.9999 -0.0007 |   0.0024   0.0027   0.0749 |    1.000   14.08   11.90   12.96   49.41
+z25_cs_dec    cube-single      1.0004 |   0.9998 -0.0007 |   0.0030   0.0075   0.0533 |    1.000   19.88   15.53   15.82   49.41
+z25_cs_tilt   cube-single      1.0001 |   1.0000 -0.0007 |   0.0020   0.0054   0.2008 |    1.000   10.05    8.95    8.88   49.41
+
+ONLINE-tower control (density_b instead of the z-encode tower): max |cos difference| = 2.58e-03 -- the verdict does not turn on the tower choice.
+PRIMAL control (moment index sqrt(d)*normalize(m_hat), no ridge solve): cos .998-1.000, PR2 1.000-1.003 on every ckpt -- collapsed exactly like the shipped z(g), so the ridge SOLVE is what de-collapses, not the reward-weighting.
+
+VERDICT: PASS on all 7 checkpoints (cube-single + cube-double, g-indexed and z-indexed).
+pmm was not run: the P0a control gate declared exorl:point_mass_maze UNLICENSED.

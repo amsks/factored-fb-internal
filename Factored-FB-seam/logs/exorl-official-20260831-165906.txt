@@ -1,0 +1,2 @@
+LAUNCHED gpu=7 hilp_tdj-walker-s2
+== 1 cells; manifest logs/exorl-official-20260831-165906.txt ==

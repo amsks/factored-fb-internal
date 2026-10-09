@@ -1,0 +1,138 @@
+{
+  "jax_version": "0.10.2",
+  "dtype": "float64",
+  "training_steps": 0,
+  "temperature_alias": {
+    "requested_critic_temperature": 0.25,
+    "actual_critic_temperature": 1.0,
+    "requested_actor_temperature": 0.5,
+    "actual_actor_temperature": null,
+    "scope": "Nondefault overrides silently inert; existing 1/null defaults coincide."
+  },
+  "ce_and_heads": {
+    "ce": 1.2011569409599083,
+    "scaled_loss": 0.6005784704799542,
+    "manual_loss_matches": true,
+    "row_sums": [
+      [
+        1.0,
+        1.0,
+        0.9999999999999999
+      ],
+      [
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "online_phi_gradient_max": 0.0,
+    "online_sf_gradient_max": 0.058376420091242484,
+    "target_gradient_max": 0.0,
+    "target_mean_translation_invariant": true,
+    "configured_actor_head_reduce": "min",
+    "actual_returned_q": [
+      0.0,
+      0.0
+    ],
+    "head_min_q": [
+      -0.9640275800758169,
+      -0.9640275800758169
+    ],
+    "scope": "Head-reduction override is ignored; all examined campaign configs request mean."
+  },
+  "object_coordinate_alias": {
+    "obs_object_arm": [
+      [
+        0.0,
+        0.0
+      ]
+    ],
+    "goal_object_arm": [
+      [
+        0.0,
+        1.0
+      ]
+    ],
+    "next_object_arm": [
+      [
+        0.0,
+        2.0
+      ]
+    ],
+    "full_state_goal_test_loss": 0.9999800001000001,
+    "object_space_goal_test_loss": 1e-06,
+    "gradient": 0.0,
+    "scope": "Object-only phi forces equal embeddings, but full-state equality labels the goal as unreached; affects both HILP variants with object-only inputs."
+  },
+  "goal_kernel_encoding": {
+    "training_goal_z": [
+      [
+        0.9999999999992928,
+        0.9999999999992928
+      ],
+      [
+        0.9999999999992928,
+        0.9999999999992928
+      ],
+      [
+        0.9999999999992928,
+        0.9999999999992928
+      ],
+      [
+        0.9999999999992928,
+        0.9999999999992928
+      ]
+    ],
+    "evaluation_goal_z_by_current_state": [
+      [
+        0.9999999999996464,
+        0.9999999999996464
+      ],
+      [
+        1.414213562372388,
+        0.0
+      ],
+      [
+        0.0,
+        1.414213562372388
+      ],
+      [
+        0.0,
+        0.0
+      ]
+    ],
+    "scope": "Goal-kernel-only mismatch: train uses whitened absolute goal; inherited goal evaluation uses relative goal-current feature direction (zero at goal). Reward-inference evaluation is a different route."
+  },
+  "actor_normalization": {
+    "same_values_raw_head_normalizer": {
+      "loss": -0.97,
+      "gradient": 0.50990990990991,
+      "finite": true
+    },
+    "same_values_centered_normalizer": {
+      "loss": -11.07,
+      "gradient": -0.3999999999999999,
+      "finite": true
+    },
+    "centered_and_times_1_minus_gamma": {
+      "loss": -11.069999999999997,
+      "gradient": -0.3999999999999998,
+      "finite": true
+    },
+    "constant_q_centered_normalizer": {
+      "loss": "-inf",
+      "gradient": "-inf",
+      "finite": false
+    },
+    "scope": "Production FlowBC.loss on explicit toy actor/readout. Centering can reverse combined actor+BC gradient; positive scaling cancels. Zero spread gives nonfinite loss/gradient. Does not establish occurrence in recorded runs."
+  },
+  "source_sha256": {
+    "impls/critics/hilp.py": "fba5ce87a623030433a50c297c3881a2bccac8a86a8d3dd17a4d3d80b4c465e0",
+    "impls/critics/hilp_density.py": "66e6fd9340954993d1265a2a0560c0a28ca052fb33b726c4f8e99ac22f955bcd",
+    "impls/actors/flowbc.py": "dd0a4c0c104af66fb03709d0f6d66650297d201663156ed3db72cb06b48e2698",
+    "impls/actors/ddpgbc.py": "105f7084c699b1db882c88dd0768ef6b4e3a95cb686d65e75a484fb79dbd688d",
+    "impls/utils/datasets.py": "2fd883cea0407dc18878a62b25b68c14e9db62e9b467320dea6848a0fdd49507",
+    "impls/configs/critic/hilp_density_tdjc.yaml": "7dad11b3d80b5deb503d175abe112e4472a765ca3db9ed10bf78f9f377869c55"
+  },
+  "all_assertions_passed": true
+}

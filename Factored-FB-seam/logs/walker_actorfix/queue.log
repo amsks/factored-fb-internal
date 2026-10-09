@@ -1,0 +1,13 @@
+13:43:22Z waiting for the dfb_state queue to launch its six runs
+17:43:22Z dfb_state is fully launched; 9 actor-fix runs pending
+17:43:53Z launching qnorm_s0 (rldp_density_tdj_reg) on GPU 4
+21:31:51Z launching qnorm_s1 (rldp_density_tdj_reg) on GPU 3
+21:49:23Z launching qnorm_s2 (rldp_density_tdj_reg) on GPU 4
+01:37:22Z launching lr1e4_s0 (rldp_density_tdj_reg) on GPU 3
+01:39:53Z launching lr1e4_s1 (rldp_density_tdj_reg) on GPU 6
+01:52:24Z launching lr1e4_s2 (rldp_density_tdj_reg) on GPU 4
+03:50:09Z launching qnorm_plain_s0 (rldp_tdj) on GPU 2
+04:02:41Z launching qnorm_plain_s1 (rldp_tdj) on GPU 7
+05:35:23Z launching qnorm_plain_s2 (rldp_tdj) on GPU 0
+05:37:23Z all 9 runs started
+10:01:11Z ACTORFIX_DONE

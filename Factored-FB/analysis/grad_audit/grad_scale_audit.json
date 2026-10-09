@@ -1,0 +1,160 @@
+{
+  "fb_plain": [
+    {
+      "step": 200000,
+      "g_measure": 8040.402587890625,
+      "C_g_ortho": 11475.555777549744,
+      "ratio_ortho_over_measure": 1.4272364663471808,
+      "cos(g_m,g_o)": 0.017906008753925562,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 400000,
+      "g_measure": 6721.616455078125,
+      "C_g_ortho": 8056.284785270691,
+      "ratio_ortho_over_measure": 1.1985635953959015,
+      "cos(g_m,g_o)": 0.009611948858946562,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 600000,
+      "g_measure": 4703.981872558594,
+      "C_g_ortho": 6647.773087024689,
+      "ratio_ortho_over_measure": 1.4132225138463015,
+      "cos(g_m,g_o)": 0.12124138581566513,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 800000,
+      "g_measure": 3961.738067626953,
+      "C_g_ortho": 5866.582930088043,
+      "ratio_ortho_over_measure": 1.4808103993614288,
+      "cos(g_m,g_o)": -0.04226291342638433,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 1000000,
+      "g_measure": 2698.4588928222656,
+      "C_g_ortho": 5235.415697097778,
+      "ratio_ortho_over_measure": 1.9401502505832724,
+      "cos(g_m,g_o)": 0.01283252879511565,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 1200000,
+      "g_measure": 2995.470947265625,
+      "C_g_ortho": 4780.5551290512085,
+      "ratio_ortho_over_measure": 1.5959277232900801,
+      "cos(g_m,g_o)": -0.0011610961519181728,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 1400000,
+      "g_measure": 3553.7991333007812,
+      "C_g_ortho": 4366.333365440369,
+      "ratio_ortho_over_measure": 1.228638198632488,
+      "cos(g_m,g_o)": -0.051981054013594985,
+      "ortho_coef": 1000.0
+    }
+  ],
+  "psm_o1000": [
+    {
+      "step": 200000,
+      "g_measure": 3441.828643798828,
+      "C_g_ortho": 88889.03045654297,
+      "ratio_ortho_over_measure": 25.826105729201565,
+      "cos(g_m,g_o)": 0.20473675802350044,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 400000,
+      "g_measure": 5163.2381591796875,
+      "C_g_ortho": 79614.20345306396,
+      "ratio_ortho_over_measure": 15.419432727796682,
+      "cos(g_m,g_o)": 0.13861777679994702,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 600000,
+      "g_measure": 6247.0799560546875,
+      "C_g_ortho": 76941.83444976807,
+      "ratio_ortho_over_measure": 12.316447842995162,
+      "cos(g_m,g_o)": 0.15876617655158043,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 800000,
+      "g_measure": 10663.203491210938,
+      "C_g_ortho": 75861.3691329956,
+      "ratio_ortho_over_measure": 7.11431317947967,
+      "cos(g_m,g_o)": 0.09660091623663902,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 1000000,
+      "g_measure": 17079.722534179688,
+      "C_g_ortho": 77451.77841186523,
+      "ratio_ortho_over_measure": 4.53472111486998,
+      "cos(g_m,g_o)": 0.060297470656223595,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 1200000,
+      "g_measure": 10522.766357421875,
+      "C_g_ortho": 78181.38408660889,
+      "ratio_ortho_over_measure": 7.429736766080177,
+      "cos(g_m,g_o)": 0.14852726086974144,
+      "ortho_coef": 1000.0
+    },
+    {
+      "step": 1400000,
+      "g_measure": 13816.968139648438,
+      "C_g_ortho": 80342.52071380615,
+      "ratio_ortho_over_measure": 5.81477209050367,
+      "cos(g_m,g_o)": 0.10413835162762552,
+      "ortho_coef": 1000.0
+    }
+  ],
+  "psm_tuned": [
+    {
+      "step": 200000,
+      "g_measure": 16251.841796875,
+      "C_g_ortho": 327.0190620422363,
+      "ratio_ortho_over_measure": 0.020121969320739848,
+      "cos(g_m,g_o)": -0.11456418037414551,
+      "ortho_coef": 1.0
+    },
+    {
+      "step": 400000,
+      "g_measure": 26305.194580078125,
+      "C_g_ortho": 406.2350158691406,
+      "ratio_ortho_over_measure": 0.015443148106450316,
+      "cos(g_m,g_o)": 0.020251800713595003,
+      "ortho_coef": 1.0
+    },
+    {
+      "step": 600000,
+      "g_measure": 69377.52685546875,
+      "C_g_ortho": 465.4195022583008,
+      "ratio_ortho_over_measure": 0.006708505237263494,
+      "cos(g_m,g_o)": -0.09348950115963817,
+      "ortho_coef": 1.0
+    },
+    {
+      "step": 800000,
+      "g_measure": 73687.28466796875,
+      "C_g_ortho": 502.3164520263672,
+      "ratio_ortho_over_measure": 0.006816867445852839,
+      "cos(g_m,g_o)": 0.07713332958519459,
+      "ortho_coef": 1.0
+    },
+    {
+      "step": 1000000,
+      "g_measure": 54728.89697265625,
+      "C_g_ortho": 534.9982070922852,
+      "ratio_ortho_over_measure": 0.009775424623660548,
+      "cos(g_m,g_o)": -0.0021887794137001038,
+      "ortho_coef": 1.0
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "config": "/dev/shm/factored-fb_outputs/psm_state_orthohi__ortho_coef1000__lr_phi1e-5__s5/.hydra/config.yaml",
+  "checkpoint": "/dev/shm/factored-fb_outputs/psm_state_orthohi__ortho_coef1000__lr_phi1e-5__s5/checkpoints/step_1000000.pt",
+  "tasks": [
+    "cube-single-play-singletask-task1-v0",
+    "cube-single-play-singletask-task2-v0",
+    "cube-single-play-singletask-task3-v0",
+    "cube-single-play-singletask-task4-v0",
+    "cube-single-play-singletask-task5-v0"
+  ],
+  "buffer_sample": 20000,
+  "topk": 256,
+  "q_aggregation": "ensemble-mean over F heads"
+}

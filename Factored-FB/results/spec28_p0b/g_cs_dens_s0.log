@@ -1,0 +1,31 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec18/factored-fb/GCIQL-CubeSingle-Flow-Measure-Density-d50/d18_cs_dens_s0/params_500000.pkl
+[p0b] d18_cs_dens_s0: pool P=16384 d=50 (13s)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[p0b] Sigma_B target: cond=2.35e+06 eff_rank=1.00/50
+[p0b] t1   n_hit=  332 | AUC point=0.8550914347647255 moment=0.8526927921003726 ridge1e-2=0.9975339934369924 rand=0.5674412701891544 | rho point=0.452 moment=0.449 ridge1e-2=0.918
+[p0b] t2   n_hit=  303 | AUC point=0.774904808433707 moment=0.7704640061668003 ridge1e-2=0.9956636606388081 rand=0.32427310886054095 | rho point=0.556 moment=0.554 ridge1e-2=0.826
+[p0b] t3   n_hit=  380 | AUC point=0.555409174022284 moment=0.5512736947342112 ridge1e-2=0.9908591930964628 rand=0.6843535278461087 | rho point=0.496 moment=0.494 ridge1e-2=0.865
+[p0b] t4   n_hit=  379 | AUC point=0.32649724401757696 moment=0.32149814660491155 ridge1e-2=0.9851588265210657 rand=0.5269022405871956 | rho point=0.059 moment=0.055 ridge1e-2=0.830
+[p0b] t5   n_hit=  389 | AUC point=0.4399141441211947 moment=0.4367605236533589 ridge1e-2=0.9768346631458578 rand=0.5140986914023314 | rho point=0.244 moment=0.242 ridge1e-2=0.736
+[p0b] c0   n_hit=   90 | AUC point=0.6637030672503853 moment=0.6619239529206388 ridge1e-2=0.9754006246334711 rand=0.7286529010906082 | rho point=0.318 moment=0.318 ridge1e-2=0.906
+[p0b] c1   n_hit=  254 | AUC point=0.13386851906995817 moment=0.13148752019760704 ridge1e-2=0.9995940952204285 rand=0.16745772943912077 | rho point=-0.044 moment=-0.041 ridge1e-2=0.421
+[p0b] c2   n_hit=  273 | AUC point=0.32268058839966235 moment=0.31766024305283197 ridge1e-2=0.9986003692787877 rand=0.572738318998638 | rho point=0.383 moment=0.381 ridge1e-2=0.760
+[p0b] c3   n_hit=  342 | AUC point=0.28228203597136464 moment=0.27840879679146335 ridge1e-2=0.9960270590868561 rand=0.5604049725221779 | rho point=-0.024 moment=-0.025 ridge1e-2=0.491
+[p0b] INSTRUMENT GATE: PASS oracle AUC=1.0 rho=1.0000 p@64=1.000 | random AUC=0.516 rho=0.099 p@64=0.000
+
+[p0b] DONE (23s) -> results/spec28_p0b/g_cs_dens_s0.json
+[p0b]   point          AUC=0.4838167795612066 rho=0.271 p@64=0.000 margin=-0.05469343068714949
+[p0b]   moment         AUC=0.48024107513579956 rho=0.270 p@64=0.000 margin=-0.05733079824462766
+[p0b]   moment_raw     AUC=0.48024107513579956 rho=0.270 p@64=0.000 margin=-0.05733079824463689
+[p0b]   ridge_0.001    AUC=0.9938516514049073 rho=0.585 p@64=0.288 margin=0.42271991764768463
+[p0b]   ridge_0.01     AUC=0.9906302761176367 rho=0.750 p@64=0.262 margin=0.2201260550485357
+[p0b]   ridge_0.1      AUC=0.9897245768914923 rho=0.780 p@64=0.280 margin=0.15650699675764804
+[p0b]   oracle_kg      AUC=1.0 rho=1.000 p@64=1.000 margin=2.352926160121501
+[p0b]   random         AUC=0.5162580845484306 rho=0.099 p@64=0.000 margin=-0.010043125310731683

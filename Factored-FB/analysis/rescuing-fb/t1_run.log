@@ -1,0 +1,98 @@
+[t1] loading critics + mu flow (E=50, N=32, H=200)
+Restored from /home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50/sd000_20260615_011444/params_500000.pkl
+Restored from /home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/GCIQL-State-Flow/sd000_20260609_234409/params_1000000.pkl
+Restored from /home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50/sd000_20260615_011444/params_500000.pkl
+[t1] loading dataset observations (random-goal control)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[t1] dataset obs: (1000000, 28)
+[t1] arm bilinear|K1  (K=1, sigma=0.0 obs units, mode=perturb)
+    task 1: 0.960  (51s)
+    task 2: 0.900  (46s)
+    task 3: 0.960  (46s)
+    task 4: 0.960  (46s)
+    task 5: 0.840  (46s)
+[t1] arm bilinear|K1 overall 0.924
+[t1] arm mlp|K1  (K=1, sigma=0.0 obs units, mode=perturb)
+    task 1: 0.540  (58s)
+    task 2: 0.740  (51s)
+    task 3: 0.700  (51s)
+    task 4: 0.580  (51s)
+    task 5: 0.520  (53s)
+[t1] arm mlp|K1 overall 0.616
+[t1] GATE K=1: bilinear 0.924 (expect ~0.95), mlp 0.616 (expect 0.57-0.59) -> PASS
+[t1] arm bilinear|K8|sig2cm  (K=8, sigma=0.2 obs units, mode=perturb)
+    task 1: 0.900  (48s)
+    task 2: 0.800  (48s)
+    task 3: 1.000  (35s)
+    task 4: 0.820  (46s)
+    task 5: 0.800  (46s)
+[t1] arm bilinear|K8|sig2cm overall 0.864
+[t1] arm bilinear|K8|sig4cm  (K=8, sigma=0.4 obs units, mode=perturb)
+    task 1: 0.760  (48s)
+    task 2: 0.840  (47s)
+    task 3: 0.880  (47s)
+    task 4: 0.940  (46s)
+    task 5: 0.540  (50s)
+[t1] arm bilinear|K8|sig4cm overall 0.792
+[t1] arm bilinear|K32|sig2cm  (K=32, sigma=0.2 obs units, mode=perturb)
+    task 1: 0.980  (49s)
+    task 2: 0.920  (50s)
+    task 3: 0.940  (47s)
+    task 4: 0.920  (48s)
+    task 5: 0.800  (52s)
+[t1] arm bilinear|K32|sig2cm overall 0.912
+[t1] arm bilinear|K32|sig4cm  (K=32, sigma=0.4 obs units, mode=perturb)
+    task 1: 0.960  (47s)
+    task 2: 0.900  (50s)
+    task 3: 0.960  (47s)
+    task 4: 0.940  (48s)
+    task 5: 0.560  (60s)
+[t1] arm bilinear|K32|sig4cm overall 0.864
+[t1] arm bilinear|K32|randomgoal  (K=32, sigma=0.0 obs units, mode=random)
+    task 1: 0.020  (61s)
+    task 2: 0.000  (61s)
+    task 3: 0.020  (61s)
+    task 4: 0.700  (57s)
+    task 5: 0.000  (61s)
+[t1] arm bilinear|K32|randomgoal overall 0.148
+[t1] arm mlp|K8|sig2cm  (K=8, sigma=0.2 obs units, mode=perturb)
+    task 1: 0.420  (55s)
+    task 2: 0.740  (51s)
+    task 3: 0.680  (51s)
+    task 4: 0.500  (58s)
+    task 5: 0.400  (60s)
+[t1] arm mlp|K8|sig2cm overall 0.548
+[t1] arm mlp|K8|sig4cm  (K=8, sigma=0.4 obs units, mode=perturb)
+    task 1: 0.400  (60s)
+    task 2: 0.680  (54s)
+    task 3: 0.360  (60s)
+    task 4: 0.580  (52s)
+    task 5: 0.260  (61s)
+[t1] arm mlp|K8|sig4cm overall 0.456
+[t1] arm mlp|K32|sig2cm  (K=32, sigma=0.2 obs units, mode=perturb)
+    task 1: 0.620  (61s)
+    task 2: 0.640  (59s)
+    task 3: 0.560  (59s)
+    task 4: 0.560  (59s)
+    task 5: 0.520  (61s)
+[t1] arm mlp|K32|sig2cm overall 0.580
+[t1] arm mlp|K32|sig4cm  (K=32, sigma=0.4 obs units, mode=perturb)
+    task 1: 0.200  (61s)
+    task 2: 0.480  (61s)
+    task 3: 0.500  (60s)
+    task 4: 0.460  (60s)
+    task 5: 0.400  (60s)
+[t1] arm mlp|K32|sig4cm overall 0.408
+[t1] arm mlp|K32|randomgoal  (K=32, sigma=0.0 obs units, mode=random)
+    task 1: 0.040  (61s)
+    task 2: 0.000  (60s)
+    task 3: 0.060  (61s)
+    task 4: 0.060  (60s)
+    task 5: 0.040  (61s)
+[t1] arm mlp|K32|randomgoal overall 0.040
+[t1] done -> /home/adityamohan/git/Factored-FB/analysis/rescuing-fb/t1_goal_smooth_rerank.json

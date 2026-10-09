@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond",
+ "seed": "cube_single_state_gciql_flow_sf_feature_td_rewreg_shift_cond_s2",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond/cube_single_state_gciql_flow_sf_feature_td_rewreg_shift_cond_s2",
+ "step": 500000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.25,
+  "grasped": 0.66
+ },
+ "C2": {
+  "success": 0.09,
+  "grasped": 0.7
+ },
+ "C3": {
+  "success": 0.05,
+  "grasped": 0.63
+ },
+ "C4": {
+  "success": 0.11,
+  "grasped": 0.73
+ },
+ "secs": 41.8
+}

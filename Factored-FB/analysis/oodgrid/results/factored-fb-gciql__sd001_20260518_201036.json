@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "factored-fb-gciql",
+ "seed": "sd001_20260518_201036",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/factored-fb-gciql/sd001_20260518_201036",
+ "step": 1000000,
+ "agent_name": "gciql",
+ "value_arch": "mlp",
+ "value_latent_dim": null,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 1.0,
+  "grasped": 1.0
+ },
+ "C2": {
+  "success": 0.72,
+  "grasped": 0.9
+ },
+ "C3": {
+  "success": 0.67,
+  "grasped": 0.9
+ },
+ "C4": {
+  "success": 0.76,
+  "grasped": 0.95
+ },
+ "secs": 30.4
+}

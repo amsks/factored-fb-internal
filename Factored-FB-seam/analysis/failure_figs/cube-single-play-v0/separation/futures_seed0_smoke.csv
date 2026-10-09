@@ -1,0 +1,7 @@
+critic,seed,bank,state,task,best,worst,gamma,K,H,fb_clip_frac,fb_neg_mass
+fb_tdj,0,carrying,0,3,fb_perturb0,fb_perturb1,0.99,2,20,0.5272216796875,0.41853392124176025
+density_fb_z,0,carrying,0,3,density_perturb2,fb_perturb1,0.99,2,20,0.0,0.0
+fb_tdj,0,carrying,1,4,density_perturb1,fb_policy,0.99,2,20,0.52685546875,0.4035722017288208
+density_fb_z,0,carrying,1,4,fb_perturb3,release,0.99,2,20,0.0,0.0
+fb_tdj,0,carrying,2,5,density_perturb2,fb_policy,0.99,2,20,0.5106201171875,0.3859655261039734
+density_fb_z,0,carrying,2,5,fb_policy,release,0.99,2,20,0.0,0.0

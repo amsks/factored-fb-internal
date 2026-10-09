@@ -1,0 +1,21 @@
+I0920 09:48:48.916932 139716622949248 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0920 09:48:48.925538 139716622949248 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0920 09:48:48.926815 139716622949248 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0920 09:48:48.935236 139716622949248 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0920 09:48:49.069947 139716622949248 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0920 09:48:49.071546 139716622949248 __init__.py:31] MuJoCo library version is: 3.3.0
+I0920 09:48:49.103212 139716622949248 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0920 09:48:49.105369 139716622949248 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0920 09:48:49.107546 139716622949248 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0920 09:48:49.113328 139716622949248 __init__.py:31] MuJoCo library version is: 3.8.1
+I0920 09:48:49.691996 139716622949248 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+/home/adityamohan/git/Factored-FB-seam/impls/critics/density_fb.py:1258: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/exorl_sqt/dmc-cheetah/dmc-cheetah_density_fb_z_ddpgbc_seed_4/params_1000000.pkl (params only)
+[zsearch] inferred z: return 122.5 over 10 eps (|z|=7.071, d=50, 249s)
+[zsearch] inferred z on the 2 search episodes: 150.9
+[zsearch] round 0: max 227.3 mean 94.5 best-so-far 227.3 cos(best, inferred) 0.856 (1344s)
+[zsearch] round 1: max 231.1 mean 154.3 best-so-far 231.1 cos(best, inferred) 0.821 (2048s)
+[zsearch] round 2: max 252.5 mean 160.7 best-so-far 252.5 cos(best, inferred) 0.799 (2746s)
+ZSEARCH tag=sqt_s4_run task=run inferred=122.5 best=179.7 (search-eps 252.5) cos=0.799
+ZS_DONE rc=0

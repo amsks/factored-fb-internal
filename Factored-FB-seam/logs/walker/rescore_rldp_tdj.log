@@ -1,0 +1,4 @@
+--inference-samples defaulted to 10000 for critic rldp_tdj
+12 cells: 1 domains x 4 tasks x 3 seeds (2 at a time)
+LEGACY-ARCH dmc-walker/stand/s0: rldp_official_nets=false (from dmc-walker_rldp_tdj_ddpgbc_seed_0/config.json)
+LEGACY-ARCH dmc-walker/stand/s1: rldp_official_nets=false (from dmc-walker_rldp_tdj_ddpgbc_seed_1/config.json)

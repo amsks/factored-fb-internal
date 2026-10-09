@@ -1,0 +1,26 @@
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Traceback (most recent call last):
+  File "/home/adityamohan/git/Factored-FB/scripts/probes/phase_probe.py", line 138, in <module>
+    main()
+  File "/home/adityamohan/git/Factored-FB/scripts/probes/phase_probe.py", line 120, in main
+    per_ep, summary, _hist = run_phase_probe(
+                             ^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/evals/phase_probe.py", line 312, in run_phase_probe
+    z = infer_z(task)
+        ^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/scripts/probes/phase_probe.py", line 107, in infer_z
+    z, _ = agent.eval_context(env=e, domain=cfg.domain, task=task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/.venv/lib/python3.11/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/agents/fb/agent.py", line 862, in eval_context
+    raise AttributeError("baseline uses reward-inference _infer_z")
+AttributeError: baseline uses reward-inference _infer_z

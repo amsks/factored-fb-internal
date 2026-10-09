@@ -1,0 +1,44 @@
+[crl-campaign] dry_run=0 wandb=online train_steps=1000000 save_intvl=100000
+[crl-campaign] PIXEL seeds=[0 1 2 3 4] gpus=[0 1 2 3 4] (1/GPU)
+[crl-campaign] STATE seeds=[0 1 2 3 4 5 6 7 8 9] gpus=[5 6 7] (2/GPU)
+[crl-campaign] logs=/home/adityamohan/git/Factored-FB/logs/crl_flowbc_campaign_20260524_070255  durable=/home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc-pixel-drq seed=0 -> GPU 0
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc seed=0 -> GPU 5
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc-pixel-drq seed=1 -> GPU 1
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc seed=1 -> GPU 5
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc-pixel-drq seed=2 -> GPU 2
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc seed=2 -> GPU 6
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc-pixel-drq seed=3 -> GPU 3
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc seed=3 -> GPU 6
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc-pixel-drq seed=4 -> GPU 4
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc seed=4 -> GPU 7
+[crl-campaign] 07:02:55 factored-fb-crl-flowbc seed=5 -> GPU 7
+[crl-campaign] 07:13:29 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 07:23:30 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 07:33:30 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 07:43:31 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 07:53:31 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 08:03:31 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 08:13:31 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 08:23:31 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 08:33:32 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 08:43:32 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 08:53:32 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 09:03:32 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 09:13:32 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 09:23:33 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 09:33:33 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 09:43:33 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 09:53:33 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 10:03:33 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 10:13:33 synced -> /home/adityamohan/gciql_runs/crl_flowbc_20260524_070255
+[crl-campaign] 10:17:05 factored-fb-crl-flowbc seed=6 -> GPU 5
+scripts/run_crl_flowbc_campaign.sh: line 54: /home/adityamohan/git/Factored-FB/logs/crl_flowbc_campaign_20260524_070255/factored-fb-crl-flowbc_s6.log: No space left on device
+[crl-campaign] 10:17:05 factored-fb-crl-flowbc seed=7 -> GPU 5
+scripts/run_crl_flowbc_campaign.sh: line 54: /home/adityamohan/git/Factored-FB/logs/crl_flowbc_campaign_20260524_070255/factored-fb-crl-flowbc_s7.log: No space left on device
+[crl-campaign] 10:17:05 factored-fb-crl-flowbc seed=8 -> GPU 6
+scripts/run_crl_flowbc_campaign.sh: line 54: /home/adityamohan/git/Factored-FB/logs/crl_flowbc_campaign_20260524_070255/factored-fb-crl-flowbc_s8.log: No space left on device
+[crl-campaign] 10:17:05 factored-fb-crl-flowbc seed=9 -> GPU 5
+scripts/run_crl_flowbc_campaign.sh: line 54: /home/adityamohan/git/Factored-FB/logs/crl_flowbc_campaign_20260524_070255/factored-fb-crl-flowbc_s9.log: No space left on device
+[crl-campaign] ALL DONE. logs=/home/adityamohan/git/Factored-FB/logs/crl_flowbc_campaign_20260524_070255 durable=/home/adityamohan/gciql_runs/crl_flowbc_20260524_070255

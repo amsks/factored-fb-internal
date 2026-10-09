@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l30-sgphi",
+ "seed": "cube_single_state_gciql_flow_bilinear_d50_measuremix_l30_sgphi_s0",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-MeasureMix-l30-sgphi/cube_single_state_gciql_flow_bilinear_d50_measuremix_l30_sgphi_s0",
+ "step": 500000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.11,
+  "grasped": 0.48
+ },
+ "C2": {
+  "success": 0.03,
+  "grasped": 0.2
+ },
+ "C3": {
+  "success": 0.0,
+  "grasped": 0.15
+ },
+ "C4": {
+  "success": 0.06,
+  "grasped": 0.57
+ },
+ "secs": 34.2
+}

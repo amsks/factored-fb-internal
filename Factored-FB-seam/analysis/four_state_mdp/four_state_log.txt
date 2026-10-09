@@ -1,0 +1,29 @@
+[grow] d=1  n=4  done (3s)
+[grow] d=2  n=9  done (11s)
+[grow] d=3  n=14  done (24s)
+[grow] d=4  n=19  done (43s)
+[grow] d=5  n=24  done (68s)
+[grow] d=6  n=29  done (120s)
+[fixed] rank=1  n=12  done (126s)
+[fixed] rank=2  n=12  done (135s)
+[fixed] rank=3  n=12  done (144s)
+[fixed] rank=4  n=12  done (153s)
+[fixed] rank=5  n=12  done (163s)
+[fixed] rank=6  n=12  done (173s)
+[fixed] rank=7  n=12  done (185s)
+[fixed] rank=8  n=12  done (195s)
+[features-lose d=2] G=5.000  FB best-fit reads 0.000  Density-FB reads 5.000 +/- 0.001
+
+recovered fraction of the action gap, grow-with-d (closed / TD-trained):
+               arm      1      2      3      4      5      6
+                FB  closed +0.00  +0.00  +0.00  +0.00  +0.00  +0.00   trained +0.30  +0.20  +0.01  +0.11  -0.01  +0.06
+   FB, norm target  closed +0.00  +0.00  +0.00  +0.00  +0.00  +0.00   trained +0.22  +0.10  +0.01  -0.00  +0.05  +0.16
+        softmax+sq  closed +0.69  +1.00  +1.00  +1.00  +1.00  +1.00   trained +0.96  +1.00  +1.00  +1.00  +1.00  +1.00
+        Density-FB  closed +0.69  +1.00  +1.00  +1.00  +1.00  +1.00   trained +0.95  +1.00  +1.00  +1.00  +1.00  +1.00
+
+recovered fraction of the action gap, fixed connected MDP (n=12) (closed / TD-trained):
+               arm      1      2      3      4      5      6      7      8
+                FB  closed +0.00  -0.00  -0.00  +1.04  +1.04  +1.04  +1.04  +1.04   trained -0.00  -0.00  -0.00  +0.29  +0.96  +0.97  +0.96  +0.96
+   FB, norm target  closed +0.00  +0.00  +0.00  +1.04  +1.04  +1.04  +1.04  +1.04   trained -0.00  +0.00  +0.00  +0.54  +0.96  +0.96  +0.96  +0.96
+        softmax+sq  closed -0.01  +0.80  +0.99  +1.00  +1.00  +1.00  +1.00  +1.00   trained +0.07  +0.54  +0.99  +1.00  +1.00  +1.00  +1.00  +1.00
+        Density-FB  closed +0.21  +0.99  +1.00  +1.00  +1.00  +1.00  +1.00  +1.00   trained -0.00  +0.33  +0.97  +0.99  +1.00  +1.00  +1.00  +1.00

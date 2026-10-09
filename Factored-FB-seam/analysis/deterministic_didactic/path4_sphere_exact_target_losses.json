@@ -1,0 +1,71 @@
+{
+  "definition": "Normalized squared objective = E_row sum_u (Nhat-N)^2/rho(u), rho=1/4. Raw regression = 1/2 E_row,u (mhat-4M)^2. Penalty coefficient1. These are common exact-target evaluations, not joint-TD self-target losses.",
+  "runs": [
+    {
+      "seed": 0,
+      "lr": 0.001,
+      "gamma": 0.8,
+      "gap": 0.5000007303174315,
+      "normalized_squared_objective": 0.2283737024251996,
+      "orthogonality_penalty": -0.9999999999900668,
+      "orthogonality_excess_above_minus_one": 9.933165401321276e-12,
+      "raw_squared_regression_half_MSE": 2.8546712803149967,
+      "raw_squared_plus_ortho_excess": 2.85467128032493
+    },
+    {
+      "seed": 0,
+      "lr": 0.01,
+      "gamma": 0.8,
+      "gap": 0.5000000416786982,
+      "normalized_squared_objective": 0.22837370242218086,
+      "orthogonality_penalty": -0.9999999999999973,
+      "orthogonality_excess_above_minus_one": 2.6645352591003757e-15,
+      "raw_squared_regression_half_MSE": 2.8546712802772616,
+      "raw_squared_plus_ortho_excess": 2.8546712802772642
+    },
+    {
+      "seed": 1,
+      "lr": 0.001,
+      "gamma": 0.8,
+      "gap": -0.23529223316330206,
+      "normalized_squared_objective": 0.08256821366491146,
+      "orthogonality_penalty": -0.9968393207631234,
+      "orthogonality_excess_above_minus_one": 0.0031606792368765735,
+      "raw_squared_regression_half_MSE": 1.0321026708113932,
+      "raw_squared_plus_ortho_excess": 1.0352633500482697
+    },
+    {
+      "seed": 1,
+      "lr": 0.01,
+      "gamma": 0.8,
+      "gap": -0.23529283681548502,
+      "normalized_squared_objective": 0.08256815439254281,
+      "orthogonality_penalty": -0.9968393508008644,
+      "orthogonality_excess_above_minus_one": 0.0031606491991356123,
+      "raw_squared_regression_half_MSE": 1.032101929906785,
+      "raw_squared_plus_ortho_excess": 1.0352625791059207
+    },
+    {
+      "seed": 2,
+      "lr": 0.001,
+      "gamma": 0.8,
+      "gap": -0.23529207108204697,
+      "normalized_squared_objective": 0.08256821074166037,
+      "orthogonality_penalty": -0.9968393153180946,
+      "orthogonality_excess_above_minus_one": 0.0031606846819054457,
+      "raw_squared_regression_half_MSE": 1.032102634270755,
+      "raw_squared_plus_ortho_excess": 1.0352633189526605
+    },
+    {
+      "seed": 2,
+      "lr": 0.01,
+      "gamma": 0.8,
+      "gap": -0.2352918890217332,
+      "normalized_squared_objective": 0.0825682204332165,
+      "orthogonality_penalty": -0.9968393145579957,
+      "orthogonality_excess_above_minus_one": 0.0031606854420043184,
+      "raw_squared_regression_half_MSE": 1.0321027554152067,
+      "raw_squared_plus_ortho_excess": 1.035263440857211
+    }
+  ]
+}

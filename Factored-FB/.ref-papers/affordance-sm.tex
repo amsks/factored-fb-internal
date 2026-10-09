@@ -1,0 +1,455 @@
+\subsection{Affordance Successor Measures for \texttt{cube-single}}
+
+We consider the state-based \texttt{cube-single} manipulation dataset.  Let the
+offline dataset contain transitions
+\[
+\mathcal{D}
+=
+\{(s_t,a_t,s_{t+1},m_t)\}_{t=1}^N,
+\]
+where \(s_t\in\mathcal{S}\) is the state observation, \(a_t\in\mathcal{A}\) is the
+continuous action, \(s_{t+1}\) is the next observation, and \(m_t\in\{0,1\}\)
+is the bootstrap mask.  The usual FB successor measure would place mass on
+future states \(s'\).  For manipulation, we instead define a successor measure
+over \emph{affordance events}
+\[
+\zeta_t = \eta(s_t,a_t,s_{t+1}) \in \mathcal{Z}_{\mathcal{A}},
+\]
+where \(\eta\) extracts object-control information from the transition.
+
+For \texttt{cube-single}, a useful event representation is
+\[
+\zeta_t
+=
+\Big[
+p_{t+1}^{o},
+\Delta p_t^{o},
+h_{t+1}^{o},
+\psi_{t+1}^{o},
+d_{t+1}^{eo},
+c_{t+1},
+g_{t+1}^{\mathrm{open}},
+a_t
+\Big],
+\]
+where \(p_{t+1}^{o}\) is the cube position, \(\Delta p_t^{o}=p_{t+1}^{o}-p_t^{o}\)
+is the cube displacement, \(h_{t+1}^{o}\) is object height, \(\psi_{t+1}^{o}\)
+is object yaw, \(d_{t+1}^{eo}=\|p_{t+1}^{e}-p_{t+1}^{o}\|\) is end-effector/object
+distance, \(c_{t+1}\) is a contact or near-contact indicator, \(g_{t+1}^{\mathrm{open}}\)
+is gripper opening, and \(a_t\) is optionally included to support action-cost
+rewards.  If the first implementation should remain minimal, we can start with
+\[
+\zeta_t
+=
+\Big[
+p_{t+1}^{o},
+\Delta p_t^{o},
+h_{t+1}^{o},
+d_{t+1}^{eo},
+a_t
+\Big].
+\]
+
+The affordance successor measure of a reward-conditioned policy \(\pi_z\) is
+\[
+\Psi_{\mathcal{A}}^{\pi_z}(s,a,d\zeta)
+=
+\mathbb{E}^{\pi_z}
+\left[
+\sum_{k=0}^{\infty}
+\gamma^k
+\delta_{\zeta_{t+k}}(d\zeta)
+\;\middle|\;
+s_t=s,\ a_t=a
+\right].
+\]
+Unlike the standard successor measure
+\[
+M^{\pi_z}(s,a,ds')
+=
+\mathbb{E}^{\pi_z}
+\left[
+\sum_{k=0}^{\infty}
+\gamma^k
+\delta_{s_{t+k+1}}(ds')
+\;\middle|\;
+s_t=s,\ a_t=a
+\right],
+\]
+this object does not primarily model future state visitation.  It models future
+object-control events.  Thus, it asks which manipulation affordances become
+available after taking action \(a\) in state \(s\).
+
+We approximate the measure by a low-rank factorization
+\[
+\Psi_{\mathcal{A}}^{\pi_z}(s,a,d\zeta)
+\approx
+F_\theta(s,a,z)^\top B_\theta(\zeta)\,\nu(d\zeta),
+\]
+where \(\nu\) is the empirical distribution of affordance events in the dataset,
+\(B_\theta:\mathcal{Z}_{\mathcal{A}}\to\mathbb{R}^d\) is the affordance-event basis,
+and \(F_\theta:\mathcal{S}\times\mathcal{A}\times\mathbb{R}^d\to\mathbb{R}^d\)
+is the forward successor feature.
+
+For a reward over affordance events,
+\[
+r:\mathcal{Z}_{\mathcal{A}}\to\mathbb{R},
+\]
+the corresponding task vector is
+\[
+z_r
+=
+\mathbb{E}_{\zeta\sim\nu}
+\left[
+r(\zeta)B_\theta(\zeta)
+\right].
+\]
+The induced action-value function is
+\[
+Q_r^{\pi_{z_r}}(s,a)
+=
+\int r(\zeta)\Psi_{\mathcal{A}}^{\pi_{z_r}}(s,a,d\zeta)
+\approx
+F_\theta(s,a,z_r)^\top z_r.
+\]
+This gives the same zero-shot readout interface as FB, but the reward is now a
+function of manipulation-relevant affordance events rather than raw future states.
+
+\paragraph{Pure affordance-FB objective.}
+The direct FB analogue replaces future-state reconstruction with affordance-event
+reconstruction.  The Bellman equation is
+\[
+\Psi_{\mathcal{A}}^{\pi_z}(s,a,d\zeta)
+=
+\delta_{\eta(s,a,s^+)}(d\zeta)
++
+\gamma m_t
+\Psi_{\mathcal{A}}^{\pi_z}
+(s^+,\pi_z(s^+,z),d\zeta),
+\]
+where \(s^+=s_{t+1}\).  With the low-rank model, a sampled objective is
+\[
+\mathcal{L}_{\mathrm{AFB}}
+=
+\mathbb{E}_{(s,a,s^+)\sim\mathcal{D},\ z,\ \bar\zeta\sim\nu}
+\left[
+\left(
+F_\theta(s,a,z)^\top B_\theta(\bar\zeta)
+-
+\gamma m_t
+\bar F(s^+,\pi_z(s^+,z),z)^\top \bar B(\bar\zeta)
+\right)^2
+\right]
+-
+2\,
+\mathbb{E}_{(s,a,s^+)\sim\mathcal{D},\ z}
+\left[
+F_\theta(s,a,z)^\top B_\theta(\zeta^+)
+\right],
+\]
+where
+\[
+\zeta^+ = \eta(s,a,s^+).
+\]
+As in FB, we add an orthonormality constraint on the basis:
+\[
+\mathcal{L}_{\mathrm{ortho}}
+=
+\left\|
+\mathbb{E}_{\zeta\sim\nu}
+\left[
+B_\theta(\zeta)B_\theta(\zeta)^\top
+\right]
+-
+I
+\right\|_F^2.
+\]
+The full measure objective is
+\[
+\mathcal{L}_{\mathrm{measure}}
+=
+\mathcal{L}_{\mathrm{AFB}}
++
+\lambda_{\mathrm{ortho}}\mathcal{L}_{\mathrm{ortho}}.
+\]
+
+\paragraph{Value-coupled affordance successor objective.}
+The pure measure objective still evaluates a policy family.  To preserve the main
+lesson from bilinear GCIQL, we instead train the affordance successor features
+through an IQL-style value-coupled objective.  For a sampled task vector \(z\),
+define the projected reward
+\[
+r_z(\zeta)
+=
+B_\theta(\zeta)^\top z.
+\]
+The corresponding critic is
+\[
+Q_\theta(s,a,z)
+=
+F_\theta(s,a,z)^\top z.
+\]
+Given a transition \((s,a,s^+)\), compute
+\[
+\zeta^+ = \eta(s,a,s^+),
+\qquad
+r_z^+ = B_\theta(\zeta^+)^\top z.
+\]
+The value function is trained by an expectile regression over dataset actions:
+\[
+\mathcal{L}_V
+=
+\mathbb{E}_{(s,a)\sim\mathcal{D},\ z}
+\left[
+L_2^\tau
+\left(
+\bar Q(s,a,z)-V_\psi(s,z)
+\right)
+\right],
+\]
+where
+\[
+L_2^\tau(u)
+=
+|\tau-\mathbbm{1}[u<0]|u^2,
+\qquad
+\tau>\frac{1}{2}.
+\]
+The critic target is
+\[
+y_z
+=
+r_z^+
++
+\gamma m_t V_{\bar\psi}(s^+,z),
+\]
+and the critic loss is
+\[
+\mathcal{L}_Q
+=
+\mathbb{E}_{(s,a,s^+)\sim\mathcal{D},\ z}
+\left[
+\left(
+F_\theta(s,a,z)^\top z
+-
+y_z
+\right)^2
+\right].
+\]
+The representation should still be regularized so that \(B_\theta\) remains a useful
+reward basis:
+\[
+\mathcal{L}_{B}
+=
+\lambda_{\mathrm{ortho}}
+\left\|
+\mathbb{E}_{\zeta\sim\nu}
+\left[
+B_\theta(\zeta)B_\theta(\zeta)^\top
+\right]
+-
+I
+\right\|_F^2
++
+\lambda_{\mathrm{scale}}
+\mathbb{E}_{\zeta\sim\nu}
+\left[
+\|B_\theta(\zeta)\|_2^2
+\right].
+\]
+The value-coupled affordance-SM objective is
+\[
+\mathcal{L}_{\mathrm{ASM}}
+=
+\mathcal{L}_Q
++
+\lambda_V\mathcal{L}_V
++
+\mathcal{L}_{B}.
+\]
+This objective trains the successor representation and the value readout jointly.
+It is therefore closer to bilinear GCIQL than to pure FB, but it retains FB's
+zero-shot reward interface through \(z_r=\mathbb{E}[r(\zeta)B(\zeta)]\).
+
+\paragraph{Task-vector distribution.}
+The policy must be trained on the same kind of task vectors that will be used at
+test time.  We therefore sample \(z\) from a mixture distribution
+\[
+p(z)
+=
+\alpha_{\mathrm{goal}}p_{\mathrm{goal}}(z)
++
+\alpha_{\mathrm{rand}}p_{\mathrm{rand}}(z)
++
+\alpha_{\mathrm{hand}}p_{\mathrm{hand}}(z),
+\qquad
+\alpha_{\mathrm{goal}}+\alpha_{\mathrm{rand}}+\alpha_{\mathrm{hand}}=1.
+\]
+Goal-reaching vectors are obtained from goal kernels:
+\[
+r_g(\zeta)
+=
+K(p^o,g),
+\qquad
+z_g
+=
+\mathbb{E}_{\zeta\sim\nu}
+\left[
+K(p^o,g)B_\theta(\zeta)
+\right].
+\]
+Random reward vectors are sampled as
+\[
+z\sim \mathcal{N}(0,I),
+\qquad
+z\leftarrow \frac{z}{\|z\|_2}.
+\]
+Hand-designed manipulation reward vectors are obtained by first defining
+\(r_i(\zeta)\) and then computing
+\[
+z_i
+=
+\mathbb{E}_{\zeta\sim\nu}
+\left[
+r_i(\zeta)B_\theta(\zeta)
+\right].
+\]
+Useful hand-designed rewards include
+\[
+r_{\mathrm{right}}(\zeta)=\Delta p_x^o,
+\]
+\[
+r_{\mathrm{lift}}(\zeta)=p_z^o,
+\]
+\[
+r_{\mathrm{contact}}(\zeta)=\mathbbm{1}[d^{eo}<\epsilon],
+\]
+\[
+r_{\mathrm{stable}}(\zeta)
+=
+\mathbbm{1}[d^{eo}<\epsilon]
+-
+\lambda_{\mathrm{slip}}\|\Delta p^o\|_2^2,
+\]
+\[
+r_{\mathrm{avoid}}(\zeta)
+=
+-\mathbbm{1}[p^o\in\mathcal{B}_{\mathrm{bad}}],
+\]
+and, if yaw is included,
+\[
+r_{\mathrm{yaw}}(\zeta)
+=
+\cos(\psi^o-\psi^\star).
+\]
+
+\paragraph{Actor.}
+We train a \(z\)-conditioned actor
+\[
+\pi_\omega(a\mid s,z)
+\]
+to realize the in-support maximizer of the learned affordance value.  A flow actor is
+preferred because the action distribution in manipulation is multimodal.  Abstractly,
+the actor objective is
+\[
+\max_\omega
+\mathbb{E}_{s\sim\mathcal{D},\ z\sim p(z),\ a\sim \pi_\omega(\cdot\mid s,z)}
+\left[
+Q_\theta(s,a,z)
+\right]
+-
+\beta_{\mathrm{BC}}\mathcal{L}_{\mathrm{BC}}(\omega),
+\]
+where
+\[
+Q_\theta(s,a,z)=F_\theta(s,a,z)^\top z.
+\]
+For a DDPG+BC-style actor, this can be written as
+\[
+\mathcal{L}_{\pi}
+=
+-
+\mathbb{E}_{s,z}
+\left[
+Q_\theta(s,\pi_\omega(s,z),z)
+\right]
++
+\beta_{\mathrm{BC}}
+\mathbb{E}_{(s,a)\sim\mathcal{D},z}
+\left[
+\|\pi_\omega(s,z)-a\|_2^2
+\right].
+\]
+For a flow actor, \(\mathcal{L}_{\mathrm{BC}}\) is replaced by the flow matching or
+flow-BC objective, and the Q-term is used to bias generated in-support actions toward
+high affordance value.
+
+\paragraph{Zero-shot policy extraction.}
+At test time, define a new manipulation reward
+\[
+r:\mathcal{Z}_{\mathcal{A}}\to\mathbb{R}.
+\]
+Compute
+\[
+z_r
+=
+\mathbb{E}_{\zeta\sim\nu}
+\left[
+r(\zeta)B_\theta(\zeta)
+\right].
+\]
+Then use
+\[
+a_t\sim \pi_\omega(\cdot\mid s_t,z_r),
+\]
+or choose the best action among flow samples:
+\[
+a_t
+=
+\arg\max_{a_i\sim\pi_\omega(\cdot\mid s_t,z_r)}
+F_\theta(s_t,a_i,z_r)^\top z_r.
+\]
+This recovers FB-style zero-shot control, but over affordance rewards.
+
+\paragraph{Policies enabled beyond bilinear GCIQL.}
+A bilinear GCIQL critic trained as
+\[
+Q(s,a,g)=f(s,a)^\top \phi(g)
+\]
+primarily gives policies for reaching a specified goal \(g\), such as placing the
+cube at a target position.  The affordance successor measure instead gives
+\[
+Q(s,a,z_r)=F(s,a,z_r)^\top z_r,
+\]
+where \(z_r\) may correspond to any reward over the affordance event space.  This
+enables zero-shot extraction of policies such as
+\[
+\text{push the cube right:}\qquad r(\zeta)=\Delta p_x^o,
+\]
+\[
+\text{lift the cube:}\qquad r(\zeta)=p_z^o,
+\]
+\[
+\text{maintain contact:}\qquad r(\zeta)=\mathbbm{1}[d^{eo}<\epsilon],
+\]
+\[
+\text{avoid a forbidden region:}\qquad
+r(\zeta)=-\mathbbm{1}[p^o\in\mathcal{B}_{\mathrm{bad}}],
+\]
+\[
+\text{stabilize the object:}\qquad
+r(\zeta)=-\|\Delta p^o\|_2^2,
+\]
+\[
+\text{reach a target while preserving contact:}\qquad
+r(\zeta)=K(p^o,g)+\lambda\mathbbm{1}[d^{eo}<\epsilon],
+\]
+and, if the event representation contains yaw,
+\[
+\text{align orientation:}\qquad
+r(\zeta)=\cos(\psi^o-\psi^\star).
+These are not all naturally expressible as a single goal input \(g\).  They are
+\]
+reward functionals over object-control events.  The additional capability of the
+affordance successor measure is therefore not merely better goal reaching; it is a
+broader reward interface for manipulation.

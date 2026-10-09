@@ -1,0 +1,427 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec17/factored-fb/GCIQL-CubeSingle-Flow-Measure-DeltaPartition-d50/d17_cs_part_s0",
+    "checkpoint_step": 500000,
+    "env": "cube-single-play-v0",
+    "K": 256,
+    "d_c": 3,
+    "gamma": 0.99,
+    "double_q": true,
+    "hit_spec": "19:22:0.4",
+    "prototypes": {
+      "path": "/home/adityamohan/git/Factored-FB/results/delta_protos/cube_single_K256_s0.npy",
+      "sha256": "b4e13e9d9e0a0b0b18deedf5fdce66c1d3f9a17e02175608dd1679064494cbf5",
+      "matched": true,
+      "expected_sha256": "b4e13e9d9e0a0b0b18deedf5fdce66c1d3f9a17e02175608dd1679064494cbf5"
+    },
+    "readout": {
+      "z_r_k": "r(proto_k) -- reward evaluated directly at each of the K prototypes; NO relabel-sample z-inference (contrast the bilinear eval_zeroshot_rewards.py harness)",
+      "F_delta": "p(s, a, g_hat) - phi(x0)",
+      "Q_r": "( r(x0) + F_delta . z_r ) / (1 - gamma)",
+      "phi": "GCIQLFlowAgent._delta_phi (same code path as training)",
+      "p": "softmax(delta_head([s, a, g_hat])), min over the 2 heads (double_q)",
+      "policy": "'retrieval' (default, spec-14-comparable): ONE goal-proxy observation g_hat decoded per family/task via Q_r-scored retrieval over the shared relabel dataset pool (decode_goal_retrieval + select_retrieval_candidate), then a plain fixed-goal rollout (batched_goal_rollout, no per-step re-scoring) -- mirrors eval_zeroshot_rewards.py's actor_cond='goal' deployment convention.",
+      "decode": "retrieval",
+      "unvalidated": "NEW design choice by this script, no golden reference -- UNVALIDATED absent a real checkpoint (module docstring)",
+      "spec": "PAPER/Multistep-FB/specs/17b-delta-partition-impl.md sec.3 + PAPER/Multistep-FB/specs/17-delta-measure.md sec.1 variant B"
+    },
+    "decode": "retrieval",
+    "retrieval_k": 1,
+    "n_candidates": 8,
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac",
+      "dense",
+      "region"
+    ],
+    "episodes": 25,
+    "horizon": 200,
+    "seed": 0,
+    "relabel_size": 50000,
+    "goal_coords": {
+      "t1": [
+        0.0,
+        -1.0,
+        0.1995989978313446
+      ],
+      "t2": [
+        0.75,
+        1.2313702593220601e-17,
+        0.1995989978313446
+      ],
+      "t3": [
+        -0.75,
+        8.320486531759635e-18,
+        0.1995989978313446
+      ],
+      "t4": [
+        0.75,
+        2.0,
+        0.1995989978313446
+      ],
+      "t5": [
+        0.75,
+        -2.0,
+        0.1995989978313446
+      ]
+    }
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "diag": {
+          "n_pos": 8,
+          "n_neg": 248,
+          "z_r_mean": 0.03125,
+          "z_r_max": 1.0
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.2836848497390747,
+          "score_max": 0.2836848497390747,
+          "score_mean": 0.018165490986308933,
+          "top1_idx": 37432,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 0.92,
+        "success": 0.92,
+        "qr_pred_t0_mean": 27.798420152563175
+      },
+      "t2": {
+        "diag": {
+          "n_pos": 2,
+          "n_neg": 254,
+          "z_r_mean": 0.0078125,
+          "z_r_max": 1.0
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.12155652791261673,
+          "score_max": 0.12155652791261673,
+          "score_mean": 0.00576599446467495,
+          "top1_idx": 24658,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 0.92,
+        "success": 0.92,
+        "qr_pred_t0_mean": 11.737191560532656
+      },
+      "t3": {
+        "diag": {
+          "n_pos": 10,
+          "n_neg": 246,
+          "z_r_mean": 0.0390625,
+          "z_r_max": 1.0
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.3001931309700012,
+          "score_max": 0.3001931309700012,
+          "score_mean": 0.019229703362598667,
+          "top1_idx": 33847,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 1.0,
+        "success": 1.0,
+        "qr_pred_t0_mean": 29.468766393058985
+      },
+      "t4": {
+        "diag": {
+          "n_pos": 4,
+          "n_neg": 252,
+          "z_r_mean": 0.015625,
+          "z_r_max": 1.0
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.2836688160896301,
+          "score_max": 0.2836688160896301,
+          "score_mean": 0.011568692552512416,
+          "top1_idx": 15939,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 0.28,
+        "success": 0.28,
+        "qr_pred_t0_mean": 28.638511896133394
+      },
+      "t5": {
+        "diag": {
+          "n_pos": 6,
+          "n_neg": 250,
+          "z_r_mean": 0.0234375,
+          "z_r_max": 1.0
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.252132385969162,
+          "score_max": 0.252132385969162,
+          "score_mean": 0.014911618848494486,
+          "top1_idx": 8978,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 0.72,
+        "success": 0.72,
+        "qr_pred_t0_mean": 25.14960014820097
+      },
+      "mean": 0.768
+    },
+    "dense": {
+      "t1": {
+        "diag": {
+          "n_pos": 11,
+          "n_neg": 245,
+          "z_r_mean": 0.14721376856534138,
+          "z_r_max": 0.7985189394370453
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.3523888885974884,
+          "score_max": 0.3523888885974884,
+          "score_mean": 0.1115169862858206,
+          "top1_idx": 24047,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 0.96,
+        "success": 0.96,
+        "qr_pred_t0_mean": 34.91053873119797
+      },
+      "t2": {
+        "diag": {
+          "n_pos": 7,
+          "n_neg": 249,
+          "z_r_mean": 0.1227807513655402,
+          "z_r_max": 0.8127193050650853
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.36226290464401245,
+          "score_max": 0.36226290464401245,
+          "score_mean": 0.1292480065356195,
+          "top1_idx": 39400,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 1.0,
+        "success": 1.0,
+        "qr_pred_t0_mean": 34.73068739883288
+      },
+      "t3": {
+        "diag": {
+          "n_pos": 15,
+          "n_neg": 241,
+          "z_r_mean": 0.14643224422732776,
+          "z_r_max": 0.9184710950375398
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.4137856960296631,
+          "score_max": 0.4137856960296631,
+          "score_mean": 0.14067247333426028,
+          "top1_idx": 25916,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 0.92,
+        "success": 0.92,
+        "qr_pred_t0_mean": 37.758488674337286
+      },
+      "t4": {
+        "diag": {
+          "n_pos": 9,
+          "n_neg": 247,
+          "z_r_mean": 0.1010702101617521,
+          "z_r_max": 0.869283098153065
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.3687645196914673,
+          "score_max": 0.3687645196914673,
+          "score_mean": 0.06722591374907178,
+          "top1_idx": 29210,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 0.64,
+        "success": 0.64,
+        "qr_pred_t0_mean": 37.46543912592998
+      },
+      "t5": {
+        "diag": {
+          "n_pos": 10,
+          "n_neg": 246,
+          "z_r_mean": 0.10857250383746078,
+          "z_r_max": 0.8729541003803127
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.32767361402511597,
+          "score_max": 0.32767361402511597,
+          "score_mean": 0.06766283714717952,
+          "top1_idx": 7669,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "g_hat": "retrieval-decoded dataset proxy (see decode)",
+        "success_env": 0.76,
+        "success": 0.76,
+        "qr_pred_t0_mean": 32.38114589261734
+      },
+      "mean": 0.8560000000000001
+    },
+    "region": {
+      "probe_policy": "random",
+      "region_variant": 1,
+      "n_centers": 4,
+      "centers_rejected": 0,
+      "center_min_pos": 5,
+      "c0": {
+        "center_coord": [
+          0.5506685376167297,
+          -1.6700644493103027,
+          0.5707740187644958
+        ],
+        "center_n_pos": 282,
+        "diag": {
+          "n_pos": 0,
+          "n_neg": 256
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.0,
+          "score_max": 0.0,
+          "score_mean": 0.0,
+          "top1_idx": 49999,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "success_final": 0.0,
+        "success_any": 0.0,
+        "qr_pred_t0_mean": 0.0
+      },
+      "c1": {
+        "center_coord": [
+          -0.8845282793045044,
+          2.862821340560913,
+          0.21804046630859375
+        ],
+        "center_n_pos": 762,
+        "diag": {
+          "n_pos": 5,
+          "n_neg": 251
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.48523837327957153,
+          "score_max": 0.48523837327957153,
+          "score_mean": 0.012119579186265236,
+          "top1_idx": 21329,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "success_final": 0.0,
+        "success_any": 0.0,
+        "qr_pred_t0_mean": 49.1001815546965
+      },
+      "c2": {
+        "center_coord": [
+          -1.0903798341751099,
+          0.38134169578552246,
+          0.199607253074646
+        ],
+        "center_n_pos": 903,
+        "diag": {
+          "n_pos": 5,
+          "n_neg": 251
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.29170936346054077,
+          "score_max": 0.29170936346054077,
+          "score_mean": 0.010615329844342778,
+          "top1_idx": 26490,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "success_final": 0.56,
+        "success_any": 0.8,
+        "qr_pred_t0_mean": 28.439164308132582
+      },
+      "c3": {
+        "center_coord": [
+          -0.39474910497665405,
+          2.739003896713257,
+          0.19960717856884003
+        ],
+        "center_n_pos": 982,
+        "diag": {
+          "n_pos": 6,
+          "n_neg": 250
+        },
+        "decode": {
+          "retrieval_k": 1,
+          "n_candidates": 50000,
+          "score_chosen": 0.3832012414932251,
+          "score_max": 0.3832012414932251,
+          "score_mean": 0.013216876602533265,
+          "top1_idx": 17262,
+          "x0_source": "canonical seed-0 env reset (main()'s per-task/region pool env)",
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, g_j), temperature=0, single shared rng key across all candidates",
+          "mode": "retrieval"
+        },
+        "success_final": 0.16,
+        "success_any": 0.76,
+        "qr_pred_t0_mean": 39.058560634510705
+      },
+      "mean_final": 0.18000000000000002,
+      "mean_any": 0.39,
+      "degenerate_frac": 0.0
+    }
+  }
+}

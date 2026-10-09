@@ -1,0 +1,11 @@
+{
+  "scope": "Source hashes after the bounded repairs; not historical training source provenance.",
+  "source_sha256": {
+    "impls/critics/hilp.py": "df1e361ce4bde8d10b05fa7e7370b3b3102188a20aac58f806f0aec82e3d8db6",
+    "impls/critics/hilp_density.py": "38413216eb597ad53932c38bc3beceb33f54a0e19e03492fd88b33c7ace2c4c1",
+    "impls/critics/rldp_density.py": "ec2214d925545e42e6134d1e08bccf3f1d93ea817f72e39ca362d88715d5b7ab",
+    "impls/actors/flowbc.py": "e7d5ec6edccafcd0d79204da9c24b560d98a0b76ec1402ff5fd9d81ccdd0c7ca",
+    "tests/impls/test_hilp_goal_predicate.py": "80ac33fcf8eca4b5d40a86f35e51b097a1b14bd83b0a89343a9cd4cf26758810",
+    "tests/impls/test_rldp_density_inference.py": "9a707513e7e4c5bc82ee2f460a988e3089981dc83d13a8223d1abd4a754d4a38"
+  }
+}

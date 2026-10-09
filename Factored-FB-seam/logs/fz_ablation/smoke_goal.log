@@ -1,0 +1,60 @@
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260925_033016-swce1ogt
+I0925 03:30:18.087993 140554672774016 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+I0925 03:30:18.434906 140554672774016 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0925 03:30:18.436776 140554672774016 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0925 03:30:18.446257 140554672774016 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0925 03:30:18.516514 140554672774016 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0925 03:30:18.519083 140554672774016 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0925 03:30:18.672411 140554672774016 __init__.py:31] MuJoCo library version is: 3.3.0
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/density_fb.py:1308: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:06<00:00,  6.46s/it]100%|██████████| 1/1 [00:06<00:00,  6.46s/it]
+eval 1 task 1 {'proprio/joint_pos': -0.3217930932673129, 'proprio/joint_vel': 0.05927294620210712, 'proprio/effector_pos': 0.29158575654198043, 'proprio/effector_yaw': -2.010776218744863, 'proprio/gripper_opening': 0.9780650329027409, 'proprio/gripper_vel': 0.001724275332446072, 'proprio/gripper_contact': 0.24811725120657882, 'privileged/block_0_pos': 0.18066517276628813, 'privileged/block_0_quat': 0.34622469040926634, 'privileged/block_0_yaw': 1.978724810993906, 'prev_qpos': 0.07555963789855583, 'prev_qvel': 0.016982556603038157, 'qpos': 0.07653496275244624, 'qvel': 0.01756820997923136, 'control': 36.16392176945977, 'time': 10.100000000000042, 'success': 0.0}
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:05<00:00,  5.00s/it]100%|██████████| 1/1 [00:05<00:00,  5.00s/it]
+eval 1 task 2 {'proprio/joint_pos': 0.21729911638432794, 'proprio/joint_vel': 0.06550299482483697, 'proprio/effector_pos': 0.31167219899292026, 'proprio/effector_yaw': 0.9674359907359966, 'proprio/gripper_opening': 0.9778415054419639, 'proprio/gripper_vel': 8.847796801329051e-05, 'proprio/gripper_contact': 1.0, 'privileged/block_0_pos': 0.12594420583047827, 'privileged/block_0_quat': 0.06657324132629314, 'privileged/block_0_yaw': -1.94965314922797, 'prev_qpos': 0.16843107241639893, 'prev_qvel': 0.020205460226663176, 'qpos': 0.16948729281250063, 'qvel': 0.0203168809434452, 'control': 36.62639133065239, 'time': 10.100000000000042, 'success': 0.0}
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:04<00:00,  4.94s/it]100%|██████████| 1/1 [00:04<00:00,  4.95s/it]
+eval 1 task 3 {'proprio/joint_pos': 0.36650403949127214, 'proprio/joint_vel': 0.011098976271251561, 'proprio/effector_pos': 0.20501837240758358, 'proprio/effector_yaw': 0.6480752888649237, 'proprio/gripper_opening': 0.9781749566301515, 'proprio/gripper_vel': 0.00044563226699222385, 'proprio/gripper_contact': 0.3270133947142355, 'privileged/block_0_pos': 0.17236566284692859, 'privileged/block_0_quat': 0.2743983897869603, 'privileged/block_0_yaw': 2.9354235736557004, 'prev_qpos': 0.25818563304214087, 'prev_qvel': 0.004402948312118447, 'qpos': 0.25836247618338454, 'qvel': 0.0036611124361044154, 'control': 36.7548073520698, 'time': 10.100000000000042, 'success': 0.0}
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:04<00:00,  4.93s/it]100%|██████████| 1/1 [00:04<00:00,  4.93s/it]
+eval 1 task 4 {'proprio/joint_pos': 0.3128262143605551, 'proprio/joint_vel': 0.07795983356775112, 'proprio/effector_pos': 0.21626535587727194, 'proprio/effector_yaw': 0.8763661533164956, 'proprio/gripper_opening': 0.9779172532149267, 'proprio/gripper_vel': 0.0009444946357250225, 'proprio/gripper_contact': 0.4140026164161308, 'privileged/block_0_pos': 0.056512656309014676, 'privileged/block_0_quat': 0.06673289611147495, 'privileged/block_0_yaw': -1.950572783314046, 'prev_qpos': 0.18569746933053072, 'prev_qvel': 0.022112059054742565, 'qpos': 0.18690961767258815, 'qvel': 0.024046700431803583, 'control': 36.70815256938568, 'time': 10.100000000000042, 'success': 0.0}
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:04<00:00,  4.94s/it]100%|██████████| 1/1 [00:04<00:00,  4.94s/it]
+eval 1 task 5 {'proprio/joint_pos': -0.5628772086074382, 'proprio/joint_vel': 0.020294801331268493, 'proprio/effector_pos': 0.18716853044014878, 'proprio/effector_yaw': -0.29070107852804755, 'proprio/gripper_opening': 0.9780181480016834, 'proprio/gripper_vel': 0.0012041473979718992, 'proprio/gripper_contact': 0.3936483701703569, 'privileged/block_0_pos': 0.19537424156451133, 'privileged/block_0_quat': 0.23511144247710744, 'privileged/block_0_yaw': -3.0257721296660143, 'prev_qpos': -0.011704113687567361, 'prev_qvel': 0.006046802768539348, 'qpos': -0.01136628840178626, 'qvel': 0.0062036871195369995, 'control': 35.94843627179069, 'time': 10.100000000000042, 'success': 0.0}
+1000 {'action_gap_l2': 0.4979846477508545, 'actor_loss': -0.19705095887184143, 'bc_error': 0.025246893987059593, 'bc_flow_loss': 0.2693791687488556, 'density_ce': 3.975010395050049, 'density_ess': 41.6702880859375, 'density_ess_h0': 31.295551300048828, 'density_ess_h1': 52.045021057128906, 'density_ess_median': 30.954090118408203, 'density_k_self': 1.0, 'density_sarsa_subst': 0.4977897107601166, 'density_sq': 0.00035101803950965405, 'q': 0.2655602693557739, 'q_gap_data_minus_actor': -0.06266555190086365}
+2000 {'action_gap_l2': 0.4987242519855499, 'actor_loss': -0.6337199807167053, 'bc_error': 0.02746662311255932, 'bc_flow_loss': 0.22890038788318634, 'density_ce': 4.218360900878906, 'density_ess': 47.30940628051758, 'density_ess_h0': 38.60984802246094, 'density_ess_h1': 56.00896453857422, 'density_ess_median': 38.39862823486328, 'density_k_self': 1.0, 'density_sarsa_subst': 0.489737868309021, 'density_sq': 0.0002317932085134089, 'q': 0.5028696060180664, 'q_gap_data_minus_actor': -0.071788489818573}
+3000 {'action_gap_l2': 0.5490390658378601, 'actor_loss': -0.9723785519599915, 'bc_error': 0.03809097036719322, 'bc_flow_loss': 0.22463150322437286, 'density_ce': 4.300712585449219, 'density_ess': 50.899391174316406, 'density_ess_h0': 35.268489837646484, 'density_ess_h1': 66.5302963256836, 'density_ess_median': 37.70382308959961, 'density_k_self': 1.0, 'density_sarsa_subst': 0.553023099899292, 'density_sq': 0.0002676723524928093, 'q': 0.7392898797988892, 'q_gap_data_minus_actor': -0.11827659606933594}
+wandb: 
+wandb: Run history:
+wandb:                 eval/task1/control ▁
+wandb:               eval/task1/prev_qpos ▁
+wandb:               eval/task1/prev_qvel ▁
+wandb:  eval/task1/privileged/block_0_pos ▁
+wandb: eval/task1/privileged/block_0_quat ▁
+wandb:  eval/task1/privileged/block_0_yaw ▁
+wandb:    eval/task1/proprio/effector_pos ▁
+wandb:    eval/task1/proprio/effector_yaw ▁
+wandb: eval/task1/proprio/gripper_contact ▁
+wandb: eval/task1/proprio/gripper_opening ▁
+wandb:                                +89 ...
+wandb: 
+wandb: Run summary:
+wandb:                 eval/task1/control 36.16392
+wandb:               eval/task1/prev_qpos 0.07556
+wandb:               eval/task1/prev_qvel 0.01698
+wandb:  eval/task1/privileged/block_0_pos 0.18067
+wandb: eval/task1/privileged/block_0_quat 0.34622
+wandb:  eval/task1/privileged/block_0_yaw 1.97872
+wandb:    eval/task1/proprio/effector_pos 0.29159
+wandb:    eval/task1/proprio/effector_yaw -2.01078
+wandb: eval/task1/proprio/gripper_contact 0.24812
+wandb: eval/task1/proprio/gripper_opening 0.97807
+wandb:                                +89 ...
+wandb: 
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260925_033016-swce1ogt
+wandb: Find logs at: ./wandb/offline-run-20260925_033016-swce1ogt/logs

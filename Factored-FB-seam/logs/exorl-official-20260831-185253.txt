@@ -1,0 +1,6 @@
+LAUNCHED gpu=0 hilp_tdj-walker-s0
+== 1 cells; manifest logs/exorl-official-20260831-185253.txt ==
+LAUNCHED gpu=1 hilp_tdj-walker-s1
+== 1 cells; manifest logs/exorl-official-20260831-185253.txt ==
+LAUNCHED gpu=6 hilp_tdj-walker-s2
+== 1 cells; manifest logs/exorl-official-20260831-185253.txt ==

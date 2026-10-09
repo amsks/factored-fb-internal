@@ -1,0 +1,39 @@
+[load] exp/ortho1/cube-single-play-v0_rldp_flowbc_seed_0 epoch 1000000
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py:215: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/ortho1/cube-single-play-v0_rldp_flowbc_seed_0/params_1000000.pkl (params only)
+[R1_region] z norm 7.071 cos1 0.070 valid True label mean 1.067 pos 0.0669
+[R1_region] T=200 mean/step 0.2810 +- 0.1779 disc 17.765 aux_in_A_mean=0.281 aux_in_B_mean=0.000  (20s)
+[R2_either] z norm 7.071 cos1 0.115 valid True label mean 1.140 pos 0.1404
+[R2_either] T=200 mean/step 0.1968 +- 0.1387 disc 12.902 aux_in_A_mean=0.061 aux_in_B_mean=0.135  (13s)
+[R3_pref_a] z norm 7.071 cos1 0.088 valid True label mean 1.089 pos 0.1404
+[R3_pref_a] T=200 mean/step 0.2298 +- 0.2381 disc 14.320 aux_in_A_mean=0.230 aux_in_B_mean=0.000  (13s)
+[R3_pref_b] z norm 7.071 cos1 0.046 valid True label mean 1.094 pos 0.1404
+[R3_pref_b] T=200 mean/step 0.1752 +- 0.1920 disc 11.828 aux_in_A_mean=0.000 aux_in_B_mean=0.175  (13s)
+[R4_lift] z norm 7.071 cos1 0.052 valid True label mean 1.317 pos 0.4454
+[R4_lift] T=200 mean/step 0.5245 +- 0.1710 disc 38.142 aux_lifted_3cm_mean=0.571  (13s)
+[R5_dense_t1] z norm 7.071 cos1 -0.165 valid True label mean 0.792 pos 0.0000
+[R5_dense_t1] T=200 mean/step -0.1850 +- 0.0446 disc -16.876 aux_dense_mean=-0.185 aux_hit_mean=0.048  (13s)
+[R5_sparse_t1] z norm 7.071 cos1 -0.096 valid True label mean 1.022 pos 0.0217
+[R5_sparse_t1] T=200 mean/step 0.0230 +- 0.0861 disc 1.067 aux_dense_mean=-0.242 aux_hit_mean=0.023  (13s)
+[R5_dense_t2] z norm 7.071 cos1 -0.160 valid True label mean 0.794 pos 0.0000
+[R5_dense_t2] T=200 mean/step -0.1598 +- 0.0261 disc -13.972 aux_dense_mean=-0.160 aux_hit_mean=0.042  (14s)
+[R5_sparse_t2] z norm 7.071 cos1 -0.072 valid True label mean 1.023 pos 0.0228
+[R5_sparse_t2] T=200 mean/step 0.0093 +- 0.0240 disc 0.843 aux_dense_mean=-0.173 aux_hit_mean=0.009  (15s)
+[R5_dense_t3] z norm 7.071 cos1 -0.212 valid True label mean 0.795 pos 0.0000
+[R5_dense_t3] T=200 mean/step -0.1721 +- 0.0294 disc -14.746 aux_dense_mean=-0.172 aux_hit_mean=0.033  (14s)
+[R5_sparse_t3] z norm 7.071 cos1 -0.149 valid True label mean 1.025 pos 0.0248
+[R5_sparse_t3] T=200 mean/step 0.0050 +- 0.0157 disc 0.263 aux_dense_mean=-0.201 aux_hit_mean=0.005  (14s)
+[R5_dense_t4] z norm 7.071 cos1 -0.070 valid True label mean 0.734 pos 0.0000
+[R5_dense_t4] T=200 mean/step -0.2742 +- 0.0677 disc -27.447 aux_dense_mean=-0.274 aux_hit_mean=0.003  (14s)
+[R5_sparse_t4] z norm 7.071 cos1 -0.003 valid True label mean 1.025 pos 0.0251
+[R5_sparse_t4] T=200 mean/step 0.0190 +- 0.0625 disc 1.512 aux_dense_mean=-0.305 aux_hit_mean=0.019  (14s)
+[R5_dense_t5] z norm 7.071 cos1 -0.100 valid True label mean 0.732 pos 0.0000
+[R5_dense_t5] T=200 mean/step -0.2456 +- 0.0530 disc -25.804 aux_dense_mean=-0.246 aux_hit_mean=0.058  (14s)
+[R5_sparse_t5] z norm 7.071 cos1 -0.047 valid True label mean 1.023 pos 0.0232
+[R5_sparse_t5] T=200 mean/step 0.0263 +- 0.0352 disc 1.855 aux_dense_mean=-0.314 aux_hit_mean=0.026  (13s)
+[done] /home/adityamohan/git/Factored-FB-seam/analysis/reward_families/cube-single-play-v0/rldp_seed0.json in 249s

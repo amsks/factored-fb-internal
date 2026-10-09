@@ -1,0 +1,429 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec08/factored-fb/GCIQL-Scene-Flow-Measure-FirstPassage-NoOrtho-d50/sc_fp_s0",
+    "checkpoint_step": 500000,
+    "d": 50,
+    "env": "scene-play-v0",
+    "hit_spec": "19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6",
+    "probe_centers": "hindsight",
+    "actor_cond": "goal",
+    "actor_mode": "goal",
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac",
+      "region"
+    ],
+    "gpi": false,
+    "z_inference": "retrieval",
+    "retrieval_k": 1,
+    "z_weighting": "plain",
+    "renewal_head": null,
+    "episodes": 25,
+    "horizon": 750,
+    "relabel_size": 50000,
+    "match_data_norm": 8.866246936473663,
+    "gamma": 0.99,
+    "eps_obs": 0.4,
+    "sigma_obs": 0.8,
+    "thresh_m": 0.04,
+    "reward_convention": "[0,1] indicator (FP corner), reachavoid in [-1,1]",
+    "goal_xyzs_m": null,
+    "goal_coords_ou": {
+      "t1": [
+        -0.75,
+        0.5,
+        0.1995989978313446,
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        -2.880000114440918,
+        3.0
+      ],
+      "t2": [
+        -0.75,
+        -0.5,
+        0.1995989978313446,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "t3": [
+        -0.25,
+        1.5,
+        0.1995989978313446,
+        0.0,
+        1.0,
+        0.0,
+        1.0,
+        -2.880000114440918,
+        0.0
+      ],
+      "t4": [
+        -0.9500232934951782,
+        -3.5600790977478027,
+        0.6598637104034424,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        -1.0842297726298966e-08,
+        0.0
+      ],
+      "t5": [
+        -0.9500232934951782,
+        -3.5600790977478027,
+        0.6598636507987976,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        -7.166588850138211e-11,
+        3.0
+      ]
+    },
+    "regions_m": null,
+    "reachavoid": {
+      "A": "R1",
+      "B": "R2"
+    },
+    "seed": 0,
+    "spec": "PAPER/rescuing-fb/specs/07-fp-capability-and-renewal-measure.md item 3 + specs/14-multienv-measure-eval.md \u00a77"
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "diag": {
+          "n_pos": 125,
+          "n_neg": 0,
+          "z_raw_norm": 0.01860425469368252,
+          "match_data_norm": 8.866246936473663,
+          "retrieval_n": 1,
+          "z_norm": 8.8662469260314
+        },
+        "cos_zr_psig": 0.6263568623151853,
+        "goal_proxy": {
+          "proxy_idx": 20363,
+          "proxy_coord": [
+            -0.9427617192268372,
+            0.3855120539665222,
+            0.199607253074646,
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            -2.878066062927246,
+            3.0
+          ],
+          "dist_to_goal_scaled": 0.5605004724951342
+        },
+        "success_env": 1.0,
+        "success": 1.0
+      },
+      "t2": {
+        "diag": {
+          "n_pos": 120,
+          "n_neg": 0,
+          "z_raw_norm": 0.017681359664582424,
+          "match_data_norm": 8.866246936473663,
+          "retrieval_n": 1,
+          "z_norm": 8.866246926966705
+        },
+        "cos_zr_psig": 0.3973179386304018,
+        "goal_proxy": {
+          "proxy_idx": 11979,
+          "proxy_coord": [
+            -0.9300384521484375,
+            -0.21794234216213226,
+            0.199607253074646,
+            1.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -1.0363376129474133e-10
+          ],
+          "dist_to_goal_scaled": 0.8365493360568234
+        },
+        "success_env": 0.64,
+        "success": 0.64
+      },
+      "t3": {
+        "diag": {
+          "n_pos": 133,
+          "n_neg": 0,
+          "z_raw_norm": 0.016933780191102893,
+          "match_data_norm": 8.866246936473663,
+          "retrieval_n": 1,
+          "z_norm": 8.86624692524173
+        },
+        "cos_zr_psig": 0.4567862247545989,
+        "goal_proxy": {
+          "proxy_idx": 31930,
+          "proxy_coord": [
+            -0.24440403282642365,
+            1.177831768989563,
+            0.199607253074646,
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            -2.6801259517669678,
+            -6.16734204886849e-33
+          ],
+          "dist_to_goal_scaled": 0.8520337156492866
+        },
+        "success_env": 0.64,
+        "success": 0.64
+      },
+      "t4": {
+        "diag": {
+          "n_pos": 311,
+          "n_neg": 0,
+          "z_raw_norm": 0.05174155751844506,
+          "match_data_norm": 8.866246936473663,
+          "retrieval_n": 1,
+          "z_norm": 8.866246927415977
+        },
+        "cos_zr_psig": 0.508779382295144,
+        "goal_proxy": {
+          "proxy_idx": 32245,
+          "proxy_coord": [
+            -0.9799337387084961,
+            -3.4876084327697754,
+            0.6598607897758484,
+            0.0,
+            1.0,
+            1.0,
+            0.0,
+            -0.2753036618232727,
+            0.33377784490585327
+          ],
+          "dist_to_goal_scaled": 0.7029125414822022
+        },
+        "success_env": 0.2,
+        "success": 0.2
+      },
+      "t5": {
+        "diag": {
+          "n_pos": 223,
+          "n_neg": 0,
+          "z_raw_norm": 0.03755346034320122,
+          "match_data_norm": 8.866246936473663,
+          "retrieval_n": 1,
+          "z_norm": 8.866246927005385
+        },
+        "cos_zr_psig": 0.6349156562223376,
+        "goal_proxy": {
+          "proxy_idx": 38181,
+          "proxy_coord": [
+            -1.0542712211608887,
+            -3.559569835662842,
+            0.6598601937294006,
+            1.0,
+            0.0,
+            1.0,
+            0.0,
+            -0.039073407649993896,
+            2.905921220779419
+          ],
+          "dist_to_goal_scaled": 0.3089579200763002
+        },
+        "success_env": 0.12,
+        "success": 0.12
+      },
+      "mean": 0.5200000000000001
+    },
+    "region": {
+      "probe_policy": "hindsight",
+      "region_variant": 1,
+      "n_centers": 4,
+      "centers_rejected": 0,
+      "center_min_pos": 5,
+      "c0": {
+        "center_coord": [
+          0.1347949206829071,
+          0.826764702796936,
+          0.5558516979217529,
+          1.0,
+          0.0,
+          1.0,
+          0.0,
+          -0.0039041228592395782,
+          2.944819211959839
+        ],
+        "center_n_pos": 25,
+        "diag": {
+          "n_pos": 25,
+          "n_neg": 0,
+          "z_raw_norm": 0.0039467321122473795,
+          "match_data_norm": 8.866246936473663,
+          "retrieval_n": 1,
+          "z_norm": 8.866246926188168
+        },
+        "goal_proxy": {
+          "proxy_idx": 30685,
+          "proxy_coord": [
+            0.06318596005439758,
+            0.7575439214706421,
+            0.199607253074646,
+            1.0,
+            0.0,
+            1.0,
+            0.0,
+            2.5668642231637932e-37,
+            2.4342398643493652
+          ],
+          "dist_to_center_scaled": 1.2567243020736643
+        },
+        "success_final": 0.08,
+        "success_any": 0.36
+      },
+      "c1": {
+        "center_coord": [
+          -0.7979885339736938,
+          -3.435753107070923,
+          0.6598601341247559,
+          0.0,
+          1.0,
+          1.0,
+          0.0,
+          -0.30944129824638367,
+          1.5059561729431152
+        ],
+        "center_n_pos": 86,
+        "diag": {
+          "n_pos": 86,
+          "n_neg": 0,
+          "z_raw_norm": 0.013995635988582956,
+          "match_data_norm": 8.866246936473663,
+          "retrieval_n": 1,
+          "z_norm": 8.866246927573508
+        },
+        "goal_proxy": {
+          "proxy_idx": 14783,
+          "proxy_coord": [
+            -0.8706154227256775,
+            -3.480509042739868,
+            0.6598601341247559,
+            0.0,
+            1.0,
+            1.0,
+            0.0,
+            -0.2925778925418854,
+            1.353926181793213
+          ],
+          "dist_to_center_scaled": 0.3320205718567153
+        },
+        "success_final": 0.0,
+        "success_any": 0.0
+      },
+      "c2": {
+        "center_coord": [
+          -0.9373949766159058,
+          -2.083153009414673,
+          0.6598600745201111,
+          0.0,
+          1.0,
+          1.0,
+          0.0,
+          -2.880113363265991,
+          0.3920705020427704
+        ],
+        "center_n_pos": 437,
+        "diag": {
+          "n_pos": 437,
+          "n_neg": 0,
+          "z_raw_norm": 0.06029896291328396,
+          "match_data_norm": 8.866246936473663,
+          "retrieval_n": 1,
+          "z_norm": 8.866246925837453
+        },
+        "goal_proxy": {
+          "proxy_idx": 17319,
+          "proxy_coord": [
+            -0.9916489124298096,
+            -2.3052916526794434,
+            0.6598601341247559,
+            0.0,
+            1.0,
+            1.0,
+            0.0,
+            -2.790595054626465,
+            0.33333438634872437
+          ],
+          "dist_to_center_scaled": 0.5931677679994944
+        },
+        "success_final": 0.48,
+        "success_any": 0.64
+      },
+      "c3": {
+        "center_coord": [
+          -0.6690980792045593,
+          1.682716727256775,
+          0.199607253074646,
+          0.0,
+          1.0,
+          0.0,
+          1.0,
+          -2.880000114440918,
+          -0.022784274071455002
+        ],
+        "center_n_pos": 77,
+        "diag": {
+          "n_pos": 77,
+          "n_neg": 0,
+          "z_raw_norm": 0.00986605494690842,
+          "match_data_norm": 8.866246936473663,
+          "retrieval_n": 1,
+          "z_norm": 8.866246924646621
+        },
+        "goal_proxy": {
+          "proxy_idx": 25301,
+          "proxy_coord": [
+            -0.7131054997444153,
+            1.8079688549041748,
+            0.199607253074646,
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            -2.3306024074554443,
+            -2.98756832594051e-42
+          ],
+          "dist_to_center_scaled": 0.8329739538136334
+        },
+        "success_final": 0.48,
+        "success_any": 0.68
+      },
+      "mean_final": 0.26,
+      "mean_any": 0.42000000000000004,
+      "degenerate_frac": 0.0
+    }
+  },
+  "summary": {
+    "dirac_mean": 0.5200000000000001,
+    "mixture_mean": null,
+    "mixture_gpi": false,
+    "region_mean_final": 0.26,
+    "dense_mean": null,
+    "dense_mean_delta_vs_dirac": null,
+    "linear_G_zr": null,
+    "linear_G_control": null,
+    "reachavoid_success_at_A": null,
+    "reachavoid_frac_time_in_B": null,
+    "bars": {
+      "dirac_ge_0.90": false,
+      "regions_ge_0.672": false
+    }
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec06/factored-fb/GCIQL-State-Flow-Measure-FirstPassage-NoOrtho-d50/m_firstpassage_noortho_s0",
+    "checkpoint_step": 500000,
+    "d": 50,
+    "actor_cond": "goal",
+    "actor_mode": "goal",
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac"
+    ],
+    "gpi": false,
+    "z_weighting": "renewal",
+    "renewal_head": "analysis/rescuing-fb/renewal_psi_s0.npz",
+    "episodes": 25,
+    "horizon": 200,
+    "relabel_size": 50000,
+    "match_data_norm": 9.09571454363846,
+    "gamma": 0.99,
+    "eps_obs": 0.4,
+    "sigma_obs": 0.8,
+    "thresh_m": 0.04,
+    "reward_convention": "[0,1] indicator (FP corner), reachavoid in [-1,1]",
+    "goal_xyzs_m": {
+      "t1": [
+        0.425,
+        -0.1,
+        0.02
+      ],
+      "t2": [
+        0.5,
+        0.0,
+        0.02
+      ],
+      "t3": [
+        0.35,
+        0.0,
+        0.02
+      ],
+      "t4": [
+        0.5,
+        0.2,
+        0.02
+      ],
+      "t5": [
+        0.5,
+        -0.2,
+        0.02
+      ]
+    },
+    "regions_m": {
+      "R1": [
+        0.3515,
+        0.172,
+        0.02
+      ],
+      "R2": [
+        0.4251,
+        -0.1708,
+        0.02
+      ],
+      "R3": [
+        0.498,
+        0.0848,
+        0.02
+      ]
+    },
+    "reachavoid": {
+      "A": "R1",
+      "B": "R2"
+    },
+    "seed": 0,
+    "spec": "PAPER/rescuing-fb/specs/07-fp-capability-and-renewal-measure.md item 3"
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "diag": {
+          "n_pos": 1021,
+          "n_neg": 0,
+          "z_raw_norm": 4.589020164937659,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.09571453386226
+        },
+        "cos_zr_psig": 0.5436821207746922,
+        "goal_proxy": {
+          "proxy_idx": 28529,
+          "proxy_cube_m": [
+            0.39079641103744506,
+            -0.11395440250635147,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.036940660385283985
+        },
+        "success": 0.96
+      },
+      "t2": {
+        "diag": {
+          "n_pos": 1087,
+          "n_neg": 0,
+          "z_raw_norm": 4.746076863699584,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533869604
+        },
+        "cos_zr_psig": 0.5254228650942311,
+        "goal_proxy": {
+          "proxy_idx": 29327,
+          "proxy_cube_m": [
+            0.522937896847725,
+            -0.026264911517500877,
+            0.019925108179450035
+          ],
+          "dist_to_goal_m": 0.034871167138537336
+        },
+        "success": 1.0
+      },
+      "t3": {
+        "diag": {
+          "n_pos": 1205,
+          "n_neg": 0,
+          "z_raw_norm": 5.445014564174564,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.09571453139693
+        },
+        "cos_zr_psig": 0.2713441353997552,
+        "goal_proxy": {
+          "proxy_idx": 31992,
+          "proxy_cube_m": [
+            0.3431796312332153,
+            0.03247637301683426,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.0331848425778352
+        },
+        "success": 1.0
+      },
+      "t4": {
+        "diag": {
+          "n_pos": 1155,
+          "n_neg": 0,
+          "z_raw_norm": 6.657143529210805,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714534860933
+        },
+        "cos_zr_psig": 0.41655887112422313,
+        "goal_proxy": {
+          "proxy_idx": 13381,
+          "proxy_cube_m": [
+            0.5288220152258873,
+            0.17308489978313446,
+            0.01995762251317501
+          ],
+          "dist_to_goal_m": 0.03943517436523627
+        },
+        "success": 0.64
+      },
+      "t5": {
+        "diag": {
+          "n_pos": 1199,
+          "n_neg": 0,
+          "z_raw_norm": 6.4294850554861345,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533337437
+        },
+        "cos_zr_psig": 0.5744508171894253,
+        "goal_proxy": {
+          "proxy_idx": 44359,
+          "proxy_cube_m": [
+            0.5166766971349717,
+            -0.2185698002576828,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.024958991394165346
+        },
+        "success": 0.84
+      },
+      "mean": 0.8880000000000001
+    }
+  },
+  "summary": {
+    "dirac_mean": 0.8880000000000001,
+    "mixture_mean": null,
+    "mixture_gpi": false,
+    "region_mean_final": null,
+    "dense_mean": null,
+    "dense_mean_delta_vs_dirac": null,
+    "linear_G_zr": null,
+    "linear_G_control": null,
+    "reachavoid_success_at_A": null,
+    "reachavoid_frac_time_in_B": null,
+    "bars": {
+      "dirac_ge_0.90": false
+    }
+  }
+}

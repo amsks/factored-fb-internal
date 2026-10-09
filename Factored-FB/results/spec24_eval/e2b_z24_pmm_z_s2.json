@@ -1,0 +1,328 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec24/factored-fb/GCIQL-PointMassMaze-RND-Flow-Measure-DensityZ-d50/z24_pmm_z_s2",
+    "checkpoint_step": 500000,
+    "arm": "e2b",
+    "env": "exorl:point_mass_maze_rnd_seed0",
+    "d": 50,
+    "gamma": 0.99,
+    "double_q": true,
+    "temp": 1.0,
+    "hit_spec": "0:2:0.03",
+    "pool_size": 16384,
+    "e2b_candidate_size": 4096,
+    "ridge": 0.0001,
+    "seed": 0,
+    "episodes": 25,
+    "horizon": 1000,
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac",
+      "dense",
+      "region"
+    ],
+    "tower_convention": "w/kappa readout = ONLINE density_b (build_pool, unchanged from eval_density_zeroshot.py); z_r reward embedding (E2a) and _density_z_encode candidates (E2b) = TARGET target_density_b -- spec 24 sec.1",
+    "readout": {
+      "e2a": "z_r = sqrt(d) * normalize( E_pool[ r(x) B_bar(x_tilde) ] ) -- spec 24 sec.3 E2a, gciql_flow._sphere norm convention",
+      "e2b": "candidates z(u_j) = agent._density_z_encode(u_j) for u_j ~ e2b_candidate_size pool samples; scored by pool PRIMARY Q_r(s0,.) (compute_density_primary/density_weights, imported unchanged); argmax selects z* -- spec 24 sec.3 E2b",
+      "rollout": "plain fixed-z rollout (sample_actions_with_z), no per-step re-scoring -- retrieval-decode-then-rollout shape shared with eval_density_zeroshot.py",
+      "success": "region_success_from_obs (imported unchanged) at the family's own reward center, uniformly across dirac/dense/region -- point-mass-maze's native env success is keyed to a DIFFERENT (env-internal task_id) goal, so the manipspace shortcut of using info['success'] does not apply here",
+      "spec": "PAPER/Multistep-FB/specs/24-z-indexed-density.md sec.3"
+    },
+    "family_means": {
+      "dirac": 0.0,
+      "dense": 0.0,
+      "region": 0.01
+    }
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 1086,
+          "score_max": -0.02264671451244638,
+          "score_mean": -0.09874830104100053,
+          "score_std": 0.028850315065058897,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 1.924998379565429,
+        "qr_secondary_t0_mean": 1.7217192193746544,
+        "success_any": 0.44,
+        "goal_coord": [
+          -0.15,
+          0.15
+        ]
+      },
+      "t2": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 9,
+          "score_max": -0.002231006429392194,
+          "score_mean": -0.007101462162899816,
+          "score_std": 0.0030753720028590683,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 7.073068466864795,
+        "qr_secondary_t0_mean": 7.234697337101976,
+        "success_any": 0.48,
+        "goal_coord": [
+          -0.22,
+          0.22
+        ]
+      },
+      "t3": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 3449,
+          "score_max": 0.008362736594895809,
+          "score_mean": 0.007505473850092275,
+          "score_std": 0.000576190767828718,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.6709036005467207,
+        "qr_secondary_t0_mean": 0.7451227892842778,
+        "success_any": 0.48,
+        "goal_coord": [
+          -0.08,
+          0.08
+        ]
+      },
+      "t4": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 477,
+          "score_max": 0.006488214467646131,
+          "score_mean": 0.004295823536510833,
+          "score_std": 0.001059130125862236,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 1.1533292842457492,
+        "qr_secondary_t0_mean": 1.1516528668617672,
+        "success_any": 0.56,
+        "goal_coord": [
+          -0.22,
+          0.08
+        ]
+      },
+      "t5": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 1461,
+          "score_max": 0.008115613076258852,
+          "score_mean": 0.006105481070341026,
+          "score_std": 0.0005749900287625563,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.625590886927277,
+        "qr_secondary_t0_mean": 0.9025516142942591,
+        "success_any": 0.36,
+        "goal_coord": [
+          -0.08,
+          0.22
+        ]
+      },
+      "mean": 0.0
+    },
+    "dense": {
+      "t1": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 2367,
+          "score_max": 0.041829075113350225,
+          "score_mean": 0.02860280407453613,
+          "score_std": 0.008153597698568733,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 16.897345684044943,
+        "qr_secondary_t0_mean": 17.043601919382294,
+        "success_any": 0.44,
+        "goal_coord": [
+          -0.15,
+          0.15
+        ]
+      },
+      "t2": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 2967,
+          "score_max": -0.1831556778329554,
+          "score_mean": -0.23418591201141653,
+          "score_std": 0.03413349624913956,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 33.016411923029665,
+        "qr_secondary_t0_mean": 33.287295998591446,
+        "success_any": 0.64,
+        "goal_coord": [
+          -0.22,
+          0.22
+        ]
+      },
+      "t3": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 3186,
+          "score_max": 0.03674814140670087,
+          "score_mean": 0.031158456043537466,
+          "score_std": 0.004364737144970496,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 5.6957299836582935,
+        "qr_secondary_t0_mean": 5.678709380766994,
+        "success_any": 0.44,
+        "goal_coord": [
+          -0.08,
+          0.08
+        ]
+      },
+      "t4": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 3234,
+          "score_max": 0.057569544447797834,
+          "score_mean": 0.04322736326281782,
+          "score_std": 0.004441942312518303,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 11.021726169708202,
+        "qr_secondary_t0_mean": 11.061303559533492,
+        "success_any": 0.52,
+        "goal_coord": [
+          -0.22,
+          0.08
+        ]
+      },
+      "t5": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 1144,
+          "score_max": 0.06281460134793446,
+          "score_mean": 0.040516890508691006,
+          "score_std": 0.0020194143331159547,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 12.917578163467784,
+        "qr_secondary_t0_mean": 12.799039444002867,
+        "success_any": 0.32,
+        "goal_coord": [
+          -0.08,
+          0.22
+        ]
+      },
+      "mean": 0.0
+    },
+    "region": {
+      "n_centers": 4,
+      "centers_rejected": 1,
+      "center_min_pos": 5,
+      "c0": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 3034,
+          "score_max": 0.039575549070943156,
+          "score_mean": 0.025173885714147096,
+          "score_std": 0.013060149659402729,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 1.0470336714594926,
+        "qr_secondary_t0_mean": 0.7969669397465576,
+        "success_any": 0.36,
+        "center_coord": [
+          -0.01066151075065136,
+          0.2682478129863739
+        ],
+        "center_n_pos": 91
+      },
+      "c1": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 3952,
+          "score_max": 0.0008530451673719082,
+          "score_mean": 0.0002307539708251569,
+          "score_std": 0.0001604028764018757,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.04553195152559618,
+        "qr_secondary_t0_mean": 0.12750641706967789,
+        "success_any": 0.04,
+        "center_coord": [
+          0.23317460715770721,
+          0.20014476776123047
+        ],
+        "center_n_pos": 25
+      },
+      "c2": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 648,
+          "score_max": 0.05830995910607677,
+          "score_mean": 0.011597527873312495,
+          "score_std": 0.012822343781454224,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.04,
+        "qr_primary_t0_mean": 2.495138846259263,
+        "qr_secondary_t0_mean": 2.318519968242893,
+        "success_any": 0.24,
+        "center_coord": [
+          -0.1130041852593422,
+          0.2804172933101654
+        ],
+        "center_n_pos": 130
+      },
+      "c3": {
+        "decode": {
+          "n_candidates": 4096,
+          "chosen_idx": 4040,
+          "score_max": 0.0024664046824610366,
+          "score_mean": 0.0011141473035040934,
+          "score_std": 0.0005445035803582618,
+          "action_fed": "trained flow actor's one-shot deterministic proposal a_j ~ actor(x0, z_j) via sample_actions_with_z, temperature=0, single shared rng key across all candidates",
+          "arm": "e2b"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.2085481052897676,
+        "qr_secondary_t0_mean": 0.21393744051197872,
+        "success_any": 0.28,
+        "center_coord": [
+          0.0636010691523552,
+          0.1894296556711197
+        ],
+        "center_n_pos": 20
+      },
+      "mean": 0.01
+    }
+  }
+}

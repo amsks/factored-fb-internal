@@ -1,0 +1,20 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[R1_region] T=200 mean/step 0.0000 +- 0.0000 disc 0.000 aux_in_A_mean=0.000 aux_in_B_mean=0.000  (7s)
+[R2_either] T=200 mean/step 0.0000 +- 0.0000 disc 0.000 aux_in_A_mean=0.000 aux_in_B_mean=0.000  (6s)
+[R3_pref_a] T=200 mean/step 0.0000 +- 0.0000 disc 0.000 aux_in_A_mean=0.000 aux_in_B_mean=0.000  (6s)
+[R3_pref_b] T=200 mean/step 0.0000 +- 0.0000 disc 0.000 aux_in_A_mean=0.000 aux_in_B_mean=0.000  (9s)
+[R4_lift] T=200 mean/step 0.0012 +- 0.0045 disc 0.052 aux_lifted_3cm_mean=0.000  (9s)
+[R5_dense_t1] T=200 mean/step -0.1980 +- 0.0058 disc -17.148 aux_dense_mean=-0.198 aux_hit_mean=0.000  (6s)
+[R5_sparse_t1] T=200 mean/step 0.0000 +- 0.0000 disc 0.000 aux_dense_mean=-0.202 aux_hit_mean=0.000  (6s)
+[R5_dense_t2] T=200 mean/step -0.1506 +- 0.0055 disc -12.999 aux_dense_mean=-0.151 aux_hit_mean=0.000  (6s)
+[R5_sparse_t2] T=200 mean/step 0.0000 +- 0.0000 disc 0.000 aux_dense_mean=-0.150 aux_hit_mean=0.000  (6s)
+[R5_dense_t3] T=200 mean/step -0.1523 +- 0.0143 disc -13.108 aux_dense_mean=-0.152 aux_hit_mean=0.000  (6s)
+[R5_sparse_t3] T=200 mean/step 0.0000 +- 0.0000 disc 0.000 aux_dense_mean=-0.150 aux_hit_mean=0.000  (6s)
+[R5_dense_t4] T=200 mean/step -0.4257 +- 0.0045 disc -36.863 aux_dense_mean=-0.426 aux_hit_mean=0.000  (6s)
+[R5_sparse_t4] T=200 mean/step 0.0000 +- 0.0000 disc 0.000 aux_dense_mean=-0.427 aux_hit_mean=0.000  (6s)
+[R5_dense_t5] T=200 mean/step -0.4272 +- 0.0109 disc -37.080 aux_dense_mean=-0.427 aux_hit_mean=0.000  (6s)
+[R5_sparse_t5] T=200 mean/step 0.0000 +- 0.0000 disc 0.000 aux_dense_mean=-0.428 aux_hit_mean=0.000  (6s)
+[done] /home/adityamohan/git/Factored-FB-seam/analysis/reward_families/cube-single-play-v0/random.json in 116s

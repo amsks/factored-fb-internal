@@ -1,0 +1,20 @@
+{
+ "framework": "torch",
+ "group": "psm_z50_ortho1000",
+ "seed": "psm_z50_ortho1000_s1",
+ "dir": "/dev/shm/factored-fb_outputs/psm_z50_ortho1000_s1",
+ "agent_name": "psm_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb_outputs/psm_z50_ortho1000_s1/checkpoints/final.pt",
+ "zB_note": "psm_flowbc has no backward_map; zB cells (C1/C4) not defined",
+ "C2_zR": {
+  "success": 0.36,
+  "grasped": 0.96
+ },
+ "C3_zR": {
+  "success": 0.52,
+  "grasped": 0.99
+ },
+ "secs": 90.7
+}

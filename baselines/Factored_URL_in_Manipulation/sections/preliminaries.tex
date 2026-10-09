@@ -1,0 +1,90 @@
+%\vspace{-1em}
+\section{Background}
+%\vspace{-1em}
+In this section, we set up the basic modeling framework. Specifically, we model manipulation as a Markov Decision Process with factored structures that describe interactions, and then learn goal-conditioned policies using CRL within the GCRL framework.
+
+\textbf{Factorized Markov Decision Process} We consider a Markov decision process (MDP) $\mathcal{M}=(\mathcal{S},\mathcal{A},P,r,\gamma)$ with a factored state space~\citep{guestrin2003efficient}. Specifically, the state is decomposed into $n$ components, $s = (s^{1}, s^{2}, \ldots, s^{n}) \in \mathcal{S},
+    \quad 
+    \mathcal{S} = \mathcal{S}^{1} \times \mathcal{S}^{2} \times \cdots \times \mathcal{S}^{n}$.
+Each factor $s^{i}$ represents the state of an entity, such as the robot, an object, and its properties. This factorization gives a natural way to describe manipulation domains with multiple interacting entities.
+
+\textbf{Goal-Conditioned Reinforcement Learning}
+In Goal-Conditioned Reinforcement Learning (GCRL)~\citep{kaelbling1993learning}, an agent learns the policy that can solve a family of tasks specified by different goals. Let $\mathcal{S}$ denote the state space, $\mathcal{A}$ the action space, and $\mathcal{G}$ the goal space. At the beginning of each episode, a goal $g \in \mathcal{G}$ is sampled from a goal distribution $p(g)$. The agent then acts according to a goal-conditioned policy $\pi(a \mid s, g)$, which maps the current state and desired goal to a distribution over actions. 
+Given transition dynamics $p(s_{t+1}\mid s_t,a_t)$ and a goal-conditioned reward function $r:\mathcal{S}\times\mathcal{A}\times\mathcal{G}\rightarrow \mathbb{R}$, the objective is to maximize the expected discounted return over both trajectories and goals: $J(\pi)
+    =
+    \mathbb{E}_{g \sim p(g),\; \tau \sim p_\pi(\tau \mid g)}
+    \left[
+    \sum_{t=0}^{T} \gamma^t r(s_t,a_t,g)
+    \right]$,
+where $\tau=(s_0,a_0,\ldots,s_T)$ is a trajectory induced by $\pi(\cdot\mid s,g)$ and $\gamma \in [0,1)$ is the discount factor. 
+%In many manipulation settings, the reward is sparse and only indicates whether the achieved state is close to the desired goal, \textit{e.g.},
+%$r(s_t,a_t,g) = \mathbbm{1}\{d(\phi(s_{t+1}), g) \leq \epsilon\}$,
+%where $\phi(s)$ extracts the achieved goal from the state and $d(\cdot,\cdot)$ measures goal distance.
+
+\textbf{Contrastive Reinforcement Learning} We consider goals as future states or achieved goal states. For a state-action pair $(s,a)$, we define the discounted future occupancy under policy $\pi$ as
+\begin{equation*}
+    \rho^\pi(g\mid s,a)
+    =
+    (1-\gamma)\sum_{k=1}^{\infty}\gamma^{k-1}
+    p^\pi(s_{t+k}=g\mid s_t=s,a_t=a).
+\end{equation*}
+This essentially measures how likely the policy is to reach goal $g$ in the future after taking action $a$ at state $s$. Thus, learning a goal-conditioned policy can be viewed as learning a representation of state-goal reachability.
+
+Given this goal-conditioned setting, contrastive reinforcement learning (CRL)~\citep{eysenbach2022contrastive} learns a goal-reaching energy that measures how likely a future goal $g$ is reachable from a state-action pair $(s,a)$. CRL can be viewed as estimating the density ratio between this conditional future occupancy $\rho^\pi(g\mid s,a)$ and a replay-marginal future distribution $\bar{\rho}^{\pi}_{\mathcal{B}}(g)$:
+\begin{equation}
+    E^\star(s,a,g)
+    =
+    \log \rho^\pi(g\mid s,a)
+    -
+    \log \bar{\rho}^{\pi}_{\mathcal{B}}(g).
+\end{equation}
+In practice, CRL parameterizes this energy with an inner product between a state-action encoder and a goal encoder~\citep{eysenbach2022contrastive,liu2025singlegoal}. Let
+$\phi:\mathcal{S}\times\mathcal{A}\rightarrow\mathbb{R}^d$
+and
+$\psi:\mathcal{S}\rightarrow\mathbb{R}^d$.
+The learned energy is
+\begin{equation}
+    E_{\phi,\psi}(s,a,g)=\phi(s,a)^\top\psi(g).
+\label{eq:inner_energy}
+\end{equation}
+For each state-action pair $(s,a)\sim d_{\mathcal{B}}(s,a)$, CRL samples one positive future
+$g^{(1)}\sim\rho^\pi(\cdot\mid s,a)$
+and $N-1$ negative futures
+$g^{(2)},\ldots,g^{(N)}\sim\bar{\rho}^{\pi}_{\mathcal{B}}(\cdot)$.
+The critic is trained with an InfoNCE-style objective, together with a LogSumExp regularizer:
+\begin{equation}
+  \max_{\phi,\psi}\;
+  \mathbb{E}
+  \Bigg[
+  \log
+  \frac{
+  \exp(\phi(s,a)^\top\psi(g^{(1)}))
+  }{
+  \sum_{j=1}^N \exp(\phi(s,a)^\top\psi(g^{(j)}))
+  }
+  -
+  \beta_{\rm lse}
+  \left(
+  \log\sum_{j=1}^N \exp(\phi(s,a)^\top\psi(g^{(j)}))
+  \right)^2
+  \Bigg],
+  \label{eq:sgcrl-critic-objective}
+\end{equation}
+where the expectation is over
+$(s,a)\sim d_{\mathcal{B}}(s,a)$,
+$g^{(1)}\sim\rho^\pi(\cdot\mid s,a)$, and
+$g^{(2)},\ldots,g^{(N)}\sim\bar{\rho}^{\pi}_{\mathcal{B}}(\cdot)$.
+The learned energy is then used as an implicit goal-reaching reward for actor learning.
+
+%The learned energy is then used as an implicit goal-reaching reward for actor learning. Thus, the success of CRL depends on whether the inner-product energy can faithfully represent the reachability structure of the environment. This representation is effective when reachability varies smoothly, but can become insufficient in manipulation domains where interactions induce sharp mode changes and piecewise nonlinear future distributions.
+
+% Placeholder: definition and a short summary
+
+
+% Placeholder: An elegant way to define object-object relational process.
+% In this paper we only consider state input, and fmdp could be easily
+% achieved by object-centric model, or 3d point cloud, anything has a rough
+% distance measure
+
+
+

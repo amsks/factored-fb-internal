@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_bridge_r3_allon",
+ "seed": "r3_allon_s2",
+ "dir": "/dev/shm/bridge_knobs_out/r3_allon_s2",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/bridge_knobs_out/r3_allon_s2/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.63,
+  "grasped": 0.91
+ },
+ "C2_zB": {
+  "success": 0.76,
+  "grasped": 0.87
+ },
+ "C3_zB": {
+  "success": 0.61,
+  "grasped": 0.92
+ },
+ "C2_zR": {
+  "success": 0.63,
+  "grasped": 0.93
+ },
+ "C3_zR": {
+  "success": 0.51,
+  "grasped": 0.93
+ },
+ "C4_zB": {
+  "success": 0.45,
+  "grasped": 0.84
+ },
+ "secs": 27.3
+}

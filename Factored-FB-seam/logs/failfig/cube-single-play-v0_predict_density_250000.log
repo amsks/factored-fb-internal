@@ -1,0 +1,18 @@
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_250000.pkl (params only)
+Traceback (most recent call last):
+  File "/home/adityamohan/git/Factored-FB-seam/scripts/probes/cube_bottleneck/failure_figs.py", line 687, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/scripts/probes/cube_bottleneck/failure_figs.py", line 681, in main
+    stage_predict(args.env, r, bank_file, args.banks, out / "predict", tag=args.tag,
+  File "/home/adityamohan/git/Factored-FB-seam/scripts/probes/cube_bottleneck/failure_figs.py", line 564, in stage_predict
+    conds = A.relabel_cond_agents(arm, tasks)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/scripts/probes/cube_bottleneck/agents.py", line 188, in relabel_cond_agents
+    obs, rew = adapter.relabel_infer_batch(arm.dataset, arm.env, int(tid), n,
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/env/ogbench.py", line 332, in relabel_infer_batch
+    assert "qpos" in train_ds, (
+           ^^^^^^^^^^^^^^^^^^
+AssertionError: eval_relabel_size requires the dataset to carry 'qpos' -- OGBenchAdapter.make_env_and_datasets forces add_info=True whenever cfg['eval_relabel_size'] is set, so a dataset without 'qpos' here means that wiring did not run (e.g. a hand-built cfg in a test)

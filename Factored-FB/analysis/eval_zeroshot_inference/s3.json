@@ -1,0 +1,122 @@
+{
+  "seed": 3,
+  "checkpoint_step": 1000000,
+  "value_latent_dim": 512,
+  "ridge": 1.0,
+  "episodes": 25,
+  "relabel_size": 50000,
+  "mean_success_v2_exact": 0.9279999999999999,
+  "mean_success_v0_match_g": 0.944,
+  "mean_success_v0_sqrtd": 0.736,
+  "mean_success_v1_match_g": 0.0,
+  "mean_success_v1_sqrtd": 0.024,
+  "mean_cos_v0": 0.8897934885492171,
+  "mean_cos_v1": 0.4866835939892873,
+  "per_task": {
+    "cube-single-play-singletask-task1-v0": {
+      "n_samples": 50000,
+      "r_pos": 0.02022,
+      "psi_g_norm": 41.15689468383789,
+      "sqrt_d": 22.627416997969522,
+      "success_v2_exact": 0.88,
+      "z_rules": {
+        "v0_moment": {
+          "cos_to_psi_g": 0.8919572088559946,
+          "raw_norm": 31851.532300847346,
+          "success_match_g": 0.88,
+          "success_sqrtd": 0.92
+        },
+        "v1_whitened": {
+          "cos_to_psi_g": 0.5142326739991832,
+          "raw_norm": 0.022443472653951333,
+          "success_match_g": 0.0,
+          "success_sqrtd": 0.0
+        }
+      }
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "n_samples": 50000,
+      "r_pos": 0.02002,
+      "psi_g_norm": 39.98029327392578,
+      "sqrt_d": 22.627416997969522,
+      "success_v2_exact": 0.96,
+      "z_rules": {
+        "v0_moment": {
+          "cos_to_psi_g": 0.8842824095292239,
+          "raw_norm": 32204.59668565516,
+          "success_match_g": 1.0,
+          "success_sqrtd": 1.0
+        },
+        "v1_whitened": {
+          "cos_to_psi_g": 0.4773100997914317,
+          "raw_norm": 0.021573257173406152,
+          "success_match_g": 0.0,
+          "success_sqrtd": 0.0
+        }
+      }
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "n_samples": 50000,
+      "r_pos": 0.02402,
+      "psi_g_norm": 39.45688247680664,
+      "sqrt_d": 22.627416997969522,
+      "success_v2_exact": 1.0,
+      "z_rules": {
+        "v0_moment": {
+          "cos_to_psi_g": 0.8959993631297333,
+          "raw_norm": 38326.68980807187,
+          "success_match_g": 1.0,
+          "success_sqrtd": 1.0
+        },
+        "v1_whitened": {
+          "cos_to_psi_g": 0.5178516661328851,
+          "raw_norm": 0.02493026507992727,
+          "success_match_g": 0.0,
+          "success_sqrtd": 0.12
+        }
+      }
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "n_samples": 50000,
+      "r_pos": 0.02372,
+      "psi_g_norm": 42.797462463378906,
+      "sqrt_d": 22.627416997969522,
+      "success_v2_exact": 0.88,
+      "z_rules": {
+        "v0_moment": {
+          "cos_to_psi_g": 0.8859871751938329,
+          "raw_norm": 38485.72445498213,
+          "success_match_g": 0.96,
+          "success_sqrtd": 0.4
+        },
+        "v1_whitened": {
+          "cos_to_psi_g": 0.45183773253340337,
+          "raw_norm": 0.023928195743858398,
+          "success_match_g": 0.0,
+          "success_sqrtd": 0.0
+        }
+      }
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "n_samples": 50000,
+      "r_pos": 0.0227,
+      "psi_g_norm": 42.15352249145508,
+      "sqrt_d": 22.627416997969522,
+      "success_v2_exact": 0.92,
+      "z_rules": {
+        "v0_moment": {
+          "cos_to_psi_g": 0.8907412860373015,
+          "raw_norm": 36874.82745772283,
+          "success_match_g": 0.88,
+          "success_sqrtd": 0.36
+        },
+        "v1_whitened": {
+          "cos_to_psi_g": 0.47218579748953304,
+          "raw_norm": 0.022790088062164683,
+          "success_match_g": 0.0,
+          "success_sqrtd": 0.0
+        }
+      }
+    }
+  }
+}

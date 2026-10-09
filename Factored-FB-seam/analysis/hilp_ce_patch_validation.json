@@ -1,0 +1,28 @@
+{
+  "scope": "Bounded contract and numerical guard fixes; no training; no changes to feature detach or centering strategy.",
+  "prepatch": "analysis/hilp_ce_audit_prepatch.json",
+  "postpatch_sha256": {
+    "impls/critics/hilp_density.py": "38413216eb597ad53932c38bc3beceb33f54a0e19e03492fd88b33c7ace2c4c1",
+    "impls/actors/flowbc.py": "e7d5ec6edccafcd0d79204da9c24b560d98a0b76ec1402ff5fd9d81ccdd0c7ca",
+    "tests/impls/test_hilp_density_contracts.py": "261b410b664d13e2ee6bc011851383092378bbfb565c6219472b559660754762",
+    "tests/impls/test_flowbc_q_normalizer.py": "905a94bb1f1908fdcae29cede632d836cc5be5d7232add161b2cb9c26e0c83a4"
+  },
+  "passed_tests": {
+    "test_hilp_density_contracts.py": 10,
+    "test_flowbc_q_normalizer.py": 6,
+    "test_hilp_density.py": 4,
+    "test_flowbc_actor_static.py": 1
+  },
+  "observed_red_failures": {
+    "initial_hilp_contracts": 5,
+    "selected_value_normalization": 1,
+    "flowbc_zero_denominator": 2
+  },
+  "review_followup": {
+    "test": "test_action_dependent_value_scale_is_detached_from_the_policy_gradient",
+    "loss": -2.97,
+    "detached_gradient": -29.4,
+    "gradient_without_detach": 0.6,
+    "production_changed_after_review": false
+  }
+}

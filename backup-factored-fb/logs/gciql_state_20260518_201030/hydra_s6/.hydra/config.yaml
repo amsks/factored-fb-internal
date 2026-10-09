@@ -1,0 +1,17 @@
+jax_python: /dev/shm/.venv-jax/bin/python
+output_root: /dev/shm/gciql_outputs
+ogbench_home_symlink: ~/.ogbench
+variant: state
+env_name: cube-single-play-v0
+agent_file: agents/gciql.py
+seed: 6
+train_steps: 1000000
+log_interval: 5000
+eval_interval: 100000
+save_interval: 100000
+eval_episodes: 50
+eval_on_cpu: 1
+run_group: factored-fb-gciql
+agent_overrides:
+  alpha: 1.0
+wandb_mode: online

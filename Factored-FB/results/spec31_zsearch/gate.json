@@ -1,0 +1,41 @@
+{
+ "native": {
+  "1": {
+   "succ_env": 0.82
+  },
+  "2": {
+   "succ_env": 0.94
+  },
+  "3": {
+   "succ_env": 0.48
+  },
+  "4": {
+   "succ_env": 1.0
+  },
+  "5": {
+   "succ_env": 0.78
+  }
+ },
+ "overall_native": 0.8039999999999999,
+ "frozen_pool_z_api": {
+  "1": {
+   "succ_env": 0.9
+  },
+  "2": {
+   "succ_env": 0.98
+  },
+  "3": {
+   "succ_env": 0.48
+  },
+  "4": {
+   "succ_env": 1.0
+  },
+  "5": {
+   "succ_env": 0.78
+  }
+ },
+ "overall_z_api": 0.828,
+ "reference": 0.816,
+ "tol": 0.06,
+ "pass": true
+}

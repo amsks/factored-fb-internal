@@ -1,0 +1,17 @@
+RESUME rldp_official-walker-s0 from step 2000000
+LAUNCHED gpu=0 rldp_official-walker-s0
+RESUME rldp_official-walker-s1 from step 2000000
+LAUNCHED gpu=1 rldp_official-walker-s1
+RESUME rldp_official-walker-s2 from step 1000000
+LAUNCHED gpu=2 rldp_official-walker-s2
+RESUME rldp_official-walker-s3 from step 2000000
+LAUNCHED gpu=3 rldp_official-walker-s3
+RESUME rldp_official-cheetah-s0 from step 2000000
+LAUNCHED gpu=4 rldp_official-cheetah-s0
+RESUME rldp_official-cheetah-s1 from step 1000000
+LAUNCHED gpu=5 rldp_official-cheetah-s1
+RESUME rldp_official-cheetah-s2 from step 2000000
+LAUNCHED gpu=6 rldp_official-cheetah-s2
+RESUME rldp_official-cheetah-s3 from step 2000000
+LAUNCHED gpu=7 rldp_official-cheetah-s3
+== 8 cells; manifest logs/exorl-official-20260828-125333.txt ==

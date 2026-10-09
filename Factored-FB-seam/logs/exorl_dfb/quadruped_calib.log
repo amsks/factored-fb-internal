@@ -1,0 +1,7 @@
+block 0:78  (d_c=78)   states=200,200  pairs=399,996
+pairwise L2: median 32.079   mean 36.050   min 9.085
+
+CALIBRATED eps = 21.087   -> hit rate 0.0133  (target 0.0133)
+  hit-spec string: "0:78:21.087"
+  probe eps=2      -> hit rate 0.0000
+  probe eps=4      -> hit rate 0.0000

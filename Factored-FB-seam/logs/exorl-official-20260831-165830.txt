@@ -1,0 +1,10 @@
+LAUNCHED gpu=0 rldp_tdj-walker-s0
+LAUNCHED gpu=0 rldp_tdj-walker-s1
+LAUNCHED gpu=0 rldp_tdj-walker-s2
+== 3 cells; manifest logs/exorl-official-20260831-165830.txt ==
+NOTE: 3 cells on 1 GPUs -- windows past the first 1 share a device. Run in waves (set SEEDS / DOMAINS) if that is not wanted.
+LAUNCHED gpu=0 hilp_tdj-walker-s0
+LAUNCHED gpu=0 hilp_tdj-walker-s1
+LAUNCHED gpu=0 hilp_tdj-walker-s2
+== 3 cells; manifest logs/exorl-official-20260831-165830.txt ==
+NOTE: 3 cells on 1 GPUs -- windows past the first 1 share a device. Run in waves (set SEEDS / DOMAINS) if that is not wanted.

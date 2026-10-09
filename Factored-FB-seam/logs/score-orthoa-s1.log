@@ -1,0 +1,128 @@
+--inference-samples defaulted to 50000 for critic rldp_orthoa
+4 cells: 1 domains x 4 tasks x 1 seeds (4 at a time)
+[FAIL] dmc-walker/walk/s1 rc=1
+  agent = flax.serialization.from_state_dict(agent, loaded)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 177, in _restore_dict
+    return {
+           ^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 178, in <dictcomp>
+    key: from_state_dict(value, states[str(key)], name=str(key))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 171, in _restore_dict
+    raise ValueError(
+ValueError: The target dict keys and state dict keys do not match, target dict contains keys {'actor_net', 'mean_net'} which are not present in state dict at path ./net/actor/params
+
+[FAIL] dmc-walker/run/s1 rc=1
+  agent = flax.serialization.from_state_dict(agent, loaded)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 177, in _restore_dict
+    return {
+           ^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 178, in <dictcomp>
+    key: from_state_dict(value, states[str(key)], name=str(key))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 171, in _restore_dict
+    raise ValueError(
+ValueError: The target dict keys and state dict keys do not match, target dict contains keys {'actor_net', 'mean_net'} which are not present in state dict at path ./net/actor/params
+
+[FAIL] dmc-walker/flip/s1 rc=1
+  agent = flax.serialization.from_state_dict(agent, loaded)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 177, in _restore_dict
+    return {
+           ^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 178, in <dictcomp>
+    key: from_state_dict(value, states[str(key)], name=str(key))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 171, in _restore_dict
+    raise ValueError(
+ValueError: The target dict keys and state dict keys do not match, target dict contains keys {'mean_net', 'actor_net'} which are not present in state dict at path ./net/actor/params
+
+[FAIL] dmc-walker/stand/s1 rc=1
+  agent = flax.serialization.from_state_dict(agent, loaded)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 177, in _restore_dict
+    return {
+           ^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 178, in <dictcomp>
+    key: from_state_dict(value, states[str(key)], name=str(key))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/struct.py", line 168, in from_state_dict
+    updates[name] = serialization.from_state_dict(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 93, in from_state_dict
+    return ty_from_state_dict(target, state)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/flax/serialization.py", line 171, in _restore_dict
+    raise ValueError(
+ValueError: The target dict keys and state dict keys do not match, target dict contains keys {'actor_net', 'mean_net'} which are not present in state dict at path ./net/actor/params
+
+
+no results at exp/paper_eval_ortho.jsonl

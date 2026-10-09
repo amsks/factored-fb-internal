@@ -1,0 +1,23 @@
+{
+  "run_dir": "/home/adityamohan/exp_spec24/factored-fb/GCIQL-CubeDouble-Flow-Measure-DensityZ-d50/z24_cd_z_s0",
+  "checkpoint_step": 500000,
+  "env": "cube-double-play-v0",
+  "measure_density_z": true,
+  "d": 50,
+  "hit_spec": "19:22:0.4,28:31:0.4",
+  "seed": 0,
+  "pool_size": 16384,
+  "n_queries": 500,
+  "protocol": {
+    "encode": "agent._density_z_encode(pool_obs) -- target_density_b + sphere-normalize, called live, the EXACT transform E1/E2's z(g) used (not reimplemented); architecture-generic, so this runs UNCHANGED on g-indexed checkpoints as a for-scale control",
+    "retrieval": "cosine-NN over the SAME pool (self excluded); top-K = any of the K nearest OTHER pool points' coordinate falls inside the query's own hit-spec eps-ball (env_geometry.HitSpec.contains, mult=1.0); nearest_wrong_cosine_mean = cosine to the first ranked candidate OUTSIDE that eps-ball, averaged over queries",
+    "spec": "coordinator follow-up 2026-08-13, spec 24 E1/E2/G4 chain"
+  },
+  "result": {
+    "top1": 0.738,
+    "top8": 0.798,
+    "nearest_wrong_cosine_mean": 0.9999649208035932,
+    "n_queries": 500,
+    "n_queries_with_a_wrong_candidate": 500
+  }
+}

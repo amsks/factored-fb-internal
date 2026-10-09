@@ -1,0 +1,185 @@
+============================= test session starts ==============================
+platform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0
+rootdir: /home/adityamohan/git/Factored-FB-seam
+configfile: pyproject.toml
+plugins: hydra-core-1.3.2, anyio-4.14.2, typeguard-4.5.2
+collected 4 items
+
+tests/impls/test_rldp_density_contracts.py FFFF                          [100%]
+
+=================================== FAILURES ===================================
+_________ test_online_backward_target_ignores_stale_backward_snapshot __________
+
+density_case = (RLDPDensityCritic(forward=ForwardMap(
+    # attributes
+    z_dim = 5
+    hidden_dim = 16
+    num_parallel = 2
+    hid...6786091, -0.95382289,  0.8105132 ],
+       [ 0.77585268, -0.88932024,  0.15238564,  0.83839829]],      dtype=float64)})
+
+    def test_online_backward_target_ignores_stale_backward_snapshot(density_case):
+        critic, params, target, batch, cond, boot = density_case
+        stale = {**target, "backward": jax.tree.map(lambda x: -x, target["backward"])}
+    
+        def ce(c, t):
+            return c.stage_loss("fb", params, t, batch, cond, boot)[1]["density_ce"]
+    
+        # The fixture distinguishes the snapshots under the default target-B recipe.
+        assert abs(float(ce(critic, target) - ce(critic, stale))) > 1e-4
+        online = dataclasses.replace(critic, phase="fb", fb_target_online_b=True)
+>       np.testing.assert_allclose(ce(online, target), ce(online, stale), rtol=0, atol=1e-12)
+E       AssertionError: 
+E       Not equal to tolerance rtol=0, atol=1e-12
+E       
+E       Mismatched elements: 1 / 1 (100%)
+E       Max absolute difference among violations: 0.50765658
+E       Max relative difference among violations: 0.23169895
+E        ACTUAL: array(1.683361)
+E        DESIRED: array(2.191018)
+
+tests/impls/test_rldp_density_contracts.py:35: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1789093398.376912       3 cudart_stub.cc:31] Could not find cuda drivers on your machine, GPU will not be used.
+______ test_inert_orthogonality_preserves_spherical_sp_backward_gradient _______
+
+density_case = (RLDPDensityCritic(forward=ForwardMap(
+    # attributes
+    z_dim = 5
+    hidden_dim = 16
+    num_parallel = 2
+    hid...6786091, -0.95382289,  0.8105132 ],
+       [ 0.77585268, -0.88932024,  0.15238564,  0.83839829]],      dtype=float64)})
+
+    def test_inert_orthogonality_preserves_spherical_sp_backward_gradient(density_case):
+        critic, params, target, batch, cond, boot = density_case
+        critic = dataclasses.replace(critic, phase="mr", ortho_inert=True)
+    
+        def total(backward):
+            p = {**params, "backward": backward}
+            return critic.stage_loss("fb", p, target, batch, cond, boot)[0]
+    
+        def sp(backward):
+            return critic._sp_loss({**params, "backward": backward}, target, batch)[0]
+    
+        # B has fixed norm sqrt(d), so the requested diagonal-only penalty is constant.
+        # CE also detaches B: the only remaining backward gradient must come from SP.
+        actual = jax.grad(total)(params["backward"])
+        expected = jax.grad(sp)(params["backward"])
+        for a, e in zip(jax.tree.leaves(actual), jax.tree.leaves(expected)):
+>           np.testing.assert_allclose(a, e, rtol=1e-10, atol=1e-10)
+E           AssertionError: 
+E           Not equal to tolerance rtol=1e-10, atol=1e-10
+E           
+E           Mismatched elements: 16 / 16 (100%)
+E           First 5 mismatches are at indices:
+E            [0]: -0.34887170791625977 (ACTUAL), 1.473730206489563 (DESIRED)
+E            [1]: -0.8239034414291382 (ACTUAL), 0.15646111965179443 (DESIRED)
+E            [2]: 0.6882491111755371 (ACTUAL), -0.2726963758468628 (DESIRED)
+E            [3]: 0.2089599072933197 (ACTUAL), 0.5793458819389343 (DESIRED)
+E            [4]: 2.796950340270996 (ACTUAL), -0.13884009420871735 (DESIRED)
+E           Max absolute difference among violations: 3.006522
+E           Max relative difference among violations: 21.14512
+E            ACTUAL: array([-0.348872, -0.823903,  0.688249,  0.20896 ,  2.79695 ,  0.910322,
+E                   0.417752, -1.598153,  0.028206, -0.386709,  1.107487, -0.427245,
+E                   0.574855, -4.651906,  0.700741,  0.803266], dtype=float32)
+E            DESIRED: array([ 1.47373 ,  0.156461, -0.272696,  0.579346, -0.13884 , -0.245954,
+E                   0.076093, -0.161018, -0.452025, -0.66002 ,  0.8378  , -0.677534,
+E                   0.401024, -1.645384, -0.563043,  1.292061], dtype=float32)
+
+tests/impls/test_rldp_density_contracts.py:54: AssertionError
+___________ test_actor_pessimism_uses_integrated_head_values[False] ____________
+
+density_case = (RLDPDensityCritic(forward=ForwardMap(
+    # attributes
+    z_dim = 5
+    hidden_dim = 16
+    num_parallel = 2
+    hid...6786091, -0.95382289,  0.8105132 ],
+       [ 0.77585268, -0.88932024,  0.15238564,  0.83839829]],      dtype=float64)})
+center = False
+
+    @pytest.mark.parametrize("center", [False, True])
+    def test_actor_pessimism_uses_integrated_head_values(density_case, center):
+        critic, params, target, batch, cond, boot = density_case
+        pool = critic._B(params["backward"], batch["next_observations"])
+        cond = {**cond, "_pool_B": pool}
+        base = dataclasses.replace(critic, actor_q_center=False, actor_pessimism=0.0)
+        mean, heads = base.q_fn(params, batch["observations"], cond, batch["actions"])
+        expected = np.asarray(heads).min(axis=0)
+        assert np.max(np.abs(np.asarray(mean) - expected)) > 1e-4
+    
+        # Two heads with coefficient 1/2 give exactly min(Q1,Q2), after integration.
+        pessimistic = dataclasses.replace(critic, actor_q_center=center, actor_pessimism=0.5)
+        actual, scale_values = pessimistic.q_fn(params, batch["observations"], cond, batch["actions"])
+>       np.testing.assert_allclose(actual, expected, rtol=1e-10, atol=1e-10)
+E       AssertionError: 
+E       Not equal to tolerance rtol=1e-10, atol=1e-10
+E       
+E       Mismatched elements: 6 / 6 (100%)
+E       First 5 mismatches are at indices:
+E        [0]: 1.5347308923570309 (ACTUAL), 1.2307761692875678 (DESIRED)
+E        [1]: -0.9209776114758222 (ACTUAL), -1.4157774085425279 (DESIRED)
+E        [2]: -0.358025970649877 (ACTUAL), -0.4677386788469814 (DESIRED)
+E        [3]: 1.0291982648598617 (ACTUAL), 0.8073309293267319 (DESIRED)
+E        [4]: -0.3991954892309873 (ACTUAL), -0.506932181859229 (DESIRED)
+E       Max absolute difference among violations: 0.4947998
+E       Max relative difference among violations: 0.34948982
+E        ACTUAL: array([ 1.534731, -0.920978, -0.358026,  1.029198, -0.399195,  3.941475])
+E        DESIRED: array([ 1.230776, -1.415777, -0.467739,  0.807331, -0.506932,  3.791366])
+
+tests/impls/test_rldp_density_contracts.py:70: AssertionError
+____________ test_actor_pessimism_uses_integrated_head_values[True] ____________
+
+density_case = (RLDPDensityCritic(forward=ForwardMap(
+    # attributes
+    z_dim = 5
+    hidden_dim = 16
+    num_parallel = 2
+    hid...6786091, -0.95382289,  0.8105132 ],
+       [ 0.77585268, -0.88932024,  0.15238564,  0.83839829]],      dtype=float64)})
+center = True
+
+    @pytest.mark.parametrize("center", [False, True])
+    def test_actor_pessimism_uses_integrated_head_values(density_case, center):
+        critic, params, target, batch, cond, boot = density_case
+        pool = critic._B(params["backward"], batch["next_observations"])
+        cond = {**cond, "_pool_B": pool}
+        base = dataclasses.replace(critic, actor_q_center=False, actor_pessimism=0.0)
+        mean, heads = base.q_fn(params, batch["observations"], cond, batch["actions"])
+        expected = np.asarray(heads).min(axis=0)
+        assert np.max(np.abs(np.asarray(mean) - expected)) > 1e-4
+    
+        # Two heads with coefficient 1/2 give exactly min(Q1,Q2), after integration.
+        pessimistic = dataclasses.replace(critic, actor_q_center=center, actor_pessimism=0.5)
+        actual, scale_values = pessimistic.q_fn(params, batch["observations"], cond, batch["actions"])
+>       np.testing.assert_allclose(actual, expected, rtol=1e-10, atol=1e-10)
+E       AssertionError: 
+E       Not equal to tolerance rtol=1e-10, atol=1e-10
+E       
+E       Mismatched elements: 6 / 6 (100%)
+E       First 5 mismatches are at indices:
+E        [0]: 1.5347308923570309 (ACTUAL), 1.2307761692875678 (DESIRED)
+E        [1]: -0.9209776114758222 (ACTUAL), -1.4157774085425279 (DESIRED)
+E        [2]: -0.358025970649877 (ACTUAL), -0.4677386788469814 (DESIRED)
+E        [3]: 1.0291982648598617 (ACTUAL), 0.8073309293267319 (DESIRED)
+E        [4]: -0.3991954892309873 (ACTUAL), -0.506932181859229 (DESIRED)
+E       Max absolute difference among violations: 0.4947998
+E       Max relative difference among violations: 0.34948982
+E        ACTUAL: array([ 1.534731, -0.920978, -0.358026,  1.029198, -0.399195,  3.941475])
+E        DESIRED: array([ 1.230776, -1.415777, -0.467739,  0.807331, -0.506932,  3.791366])
+
+tests/impls/test_rldp_density_contracts.py:70: AssertionError
+=============================== warnings summary ===============================
+../../.cache/uv/archive-v0/bGJ2MXTEs_qs5ER4uuadh/tensorflow_probability/python/internal/backend/jax/ops.py:684
+  /home/adityamohan/.cache/uv/archive-v0/bGJ2MXTEs_qs5ER4uuadh/tensorflow_probability/python/internal/backend/jax/ops.py:684: DeprecationWarning: jax.core.pytype_aval_mappings is deprecated.
+    jax.core.pytype_aval_mappings[onp.ndarray])
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/impls/test_rldp_density_contracts.py::test_online_backward_target_ignores_stale_backward_snapshot
+FAILED tests/impls/test_rldp_density_contracts.py::test_inert_orthogonality_preserves_spherical_sp_backward_gradient
+FAILED tests/impls/test_rldp_density_contracts.py::test_actor_pessimism_uses_integrated_head_values[False]
+FAILED tests/impls/test_rldp_density_contracts.py::test_actor_pessimism_uses_integrated_head_values[True]
+======================== 4 failed, 1 warning in 18.72s =========================

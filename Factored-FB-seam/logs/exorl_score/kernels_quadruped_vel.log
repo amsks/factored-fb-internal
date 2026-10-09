@@ -1,0 +1,22 @@
+12 cells: 1 domains x 4 tasks x 3 seeds (2 at a time)
+[ok] dmc-quadruped/stand/s0
+[ok] dmc-quadruped/stand/s1
+[ok] dmc-quadruped/stand/s2
+[ok] dmc-quadruped/walk/s0
+[ok] dmc-quadruped/walk/s2
+[ok] dmc-quadruped/walk/s1
+[ok] dmc-quadruped/run/s0
+[ok] dmc-quadruped/run/s1
+[ok] dmc-quadruped/run/s2
+[ok] dmc-quadruped/jump/s0
+[ok] dmc-quadruped/jump/s1
+[ok] dmc-quadruped/jump/s2
+
+critic                   domain                 task                      mean      std  n
+density_fb_z             dmc-quadruped          jump                     595.4     28.6  3
+density_fb_z             dmc-quadruped          run                      465.7     47.4  3
+density_fb_z             dmc-quadruped          stand                    748.1     36.7  3
+density_fb_z             dmc-quadruped          walk                     514.0     25.0  3
+
+Compare against RLDP Table 1 in docs/notes/2026-08-28-rldp-paper-eval.md. Gate (spec §4): per-task mean within 1 sigma of the official cell for >= 3 of 4 tasks, and no task below 50% of an official mean > 100.
+SCORE_DONE arm=quadruped_vel rc=0

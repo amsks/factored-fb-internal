@@ -1,0 +1,25 @@
+[  176.0s] T=  5 dup= 1 done (fb_unnorm success 1.00)
+[  176.0s] T=  5 dup= 2 done (fb_unnorm success 1.00)
+[  176.0s] T=  5 dup= 5 done (fb_unnorm success 1.00)
+[  176.0s] T=  5 dup=10 done (fb_unnorm success 1.00)
+[  176.0s] T=  5 dup=20 done (fb_unnorm success 1.00)
+[  176.0s] T= 20 dup= 1 done (fb_unnorm success 1.00)
+[  176.0s] T= 20 dup= 2 done (fb_unnorm success 1.00)
+[  176.0s] T= 20 dup= 5 done (fb_unnorm success 1.00)
+[  176.0s] T= 20 dup=10 done (fb_unnorm success 1.00)
+[  176.0s] T= 20 dup=20 done (fb_unnorm success 1.00)
+[  176.0s] T= 44 dup= 1 done (fb_unnorm success 1.00)
+[  176.0s] T= 44 dup= 2 done (fb_unnorm success 1.00)
+[  176.0s] T= 44 dup= 5 done (fb_unnorm success 1.00)
+[  176.0s] T= 44 dup=10 done (fb_unnorm success 1.00)
+[  176.0s] T= 44 dup=20 done (fb_unnorm success 1.00)
+[  176.0s] T=100 dup= 1 done (fb_unnorm success 1.00)
+[  176.0s] T=100 dup= 2 done (fb_unnorm success 1.00)
+[  176.0s] T=100 dup= 5 done (fb_unnorm success 1.00)
+[  176.0s] T=100 dup=10 done (fb_unnorm success 1.00)
+[  176.0s] T=100 dup=20 done (fb_unnorm success 1.00)
+
+=== GATE P1 ===
+success: mean|slope| normalized=0.0000 unnormalized=0.0000
+gap_ratio: mean|slope| normalized=0.1899 unnormalized=0.1809
+summary -> results/spec26_r0a/summary.json

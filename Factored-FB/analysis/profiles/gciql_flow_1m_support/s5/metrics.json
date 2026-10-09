@@ -1,0 +1,14 @@
+{
+  "run_dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow/sd005_20260609_234419",
+  "step": 1000000,
+  "tasks": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "n_episodes": 20,
+  "env_name": "cube-single-play-v0",
+  "value_fn": "GCValue V(s,g)"
+}

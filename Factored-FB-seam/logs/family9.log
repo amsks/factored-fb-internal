@@ -1,0 +1,59 @@
+P9 gap 1.0 attempts 1 p_first [0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5 0.5]
+R1 gap 1.0 attempts 1 p_first [0.46 0.35 0.49 0.73 0.47 0.42 0.75 0.64 0.36]
+R2 gap 1.0 attempts 1 p_first [0.69 0.73 0.58 0.33 0.6  0.33 0.41 0.34 0.7 ]
+R3 gap 1.0 attempts 1 p_first [0.4  0.69 0.58 0.75 0.74 0.32 0.35 0.37 0.38]
+R4 gap 1.0 attempts 1 p_first [0.57 0.4  0.71 0.58 0.52 0.28 0.54 0.52 0.34]
+R5 gap 1.0 attempts 1 p_first [0.61 0.49 0.65 0.7  0.26 0.55 0.5  0.59 0.25]
+[R2] d=1 done
+[R5] d=1 done
+[R3] d=1 done
+[R1] d=1 done
+[R4] d=1 done
+[R2] d=2 done
+[R5] d=2 done
+[R3] d=2 done
+[R4] d=2 done
+[R1] d=2 done
+[R2] d=3 done
+[R5] d=3 done
+[R3] d=3 done
+[R4] d=3 done
+[R1] d=3 done
+[R2] d=4 done
+[R5] d=4 done
+[R3] d=4 done
+[R4] d=4 done
+[R1] d=4 done
+[R2] d=5 done
+[R5] d=5 done
+[R3] d=5 done
+[R4] d=5 done
+[R1] d=5 done
+[R2] d=6 done
+[R5] d=6 done
+[R3] d=6 done
+[R4] d=6 done
+[R1] d=6 done
+[R2] d=7 done
+[R5] d=7 done
+[R3] d=7 done
+[R4] d=7 done
+[R1] d=7 done
+[R2] d=8 done
+[R5] d=8 done
+[R4] d=8 done
+[R3] d=8 done
+[R1] d=8 done
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/nine_state/fig_family_P9.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/nine_state/fig_family_R1.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/nine_state/fig_family_R2.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/nine_state/fig_family_R3.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/nine_state/fig_family_R4.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/nine_state/fig_family_R5.pdf / .png
+
+smallest d with mean gap fraction >= 0.9 (TD):
+A [8, 8, 8, 8, None, None]
+B [7, 7, 8, 8, None, None]
+C [4, 3, 4, 3, 3, 3]
+D [4, 3, 3, 3, 3, 3]
+F [None, None, None, None, None, None]

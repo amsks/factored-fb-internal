@@ -1,0 +1,56 @@
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260914_015346-ze4mjv3d
+I0914 01:53:55.354649 139884410403712 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0914 01:53:55.364499 139884410403712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.366290 139884410403712 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0914 01:53:55.375833 139884410403712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.492709 139884410403712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.494762 139884410403712 __init__.py:31] MuJoCo library version is: 3.3.0
+I0914 01:53:55.528016 139884410403712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.530616 139884410403712 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0914 01:53:55.532980 139884410403712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.538821 139884410403712 __init__.py:31] MuJoCo library version is: 3.8.1
+I0914 01:53:56.188421 139884410403712 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py:215: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+[auto_resume] no params_*.pkl under exp/_smoke_walker_20260914/dmc-walker_rldp_tdj_ddpgbc_seed_0; fresh start
+[infer-cond] step 1: evaluating on the inferred conditioning from 1000 rb['next_observations'] rows; the env goal is NOT supplied
+eval 1 task None {'episode_return': 33.59884408880968, 'inferred_cond': 1.0, 'inferred_cond_action_calls': 1000.0, 'inferred_cond_goals_dropped': 0.0, 'inferred_cond_norm': 7.071067810058594, 'inferred_cond_cos_neutral': 0.13469885289669037}
+100 {'actor_loss': -0.5762314796447754, 'bc_log_prob': -10.060916900634766, 'bc_loss': -0.0, 'fb_diag': -13.836591720581055, 'fb_loss': 16.881526947021484, 'fb_offdiag': 15.411229133605957, 'ortho_diag': -50.00001907348633, 'ortho_loss': -7.3641510009765625, 'ortho_offdiag': 42.635868072509766, 'q_loss': -0.5762314796447754, 'q_mean': 0.5762314796447754, 'sp_loss': 22.67104148864746}
+200 {'actor_loss': -1.5948445796966553, 'bc_log_prob': -10.387919425964355, 'bc_loss': -0.0, 'fb_diag': -18.94923210144043, 'fb_loss': 1.7899761199951172, 'fb_offdiag': 17.634414672851562, 'ortho_diag': -49.99993896484375, 'ortho_loss': -18.890480041503906, 'ortho_offdiag': 31.109458923339844, 'q_loss': -1.5948445796966553, 'q_mean': 1.5948445796966553, 'sp_loss': 21.99527359008789}
+300 {'actor_loss': -2.176262855529785, 'bc_log_prob': -10.546030044555664, 'bc_loss': -0.0, 'fb_diag': -20.756555557250977, 'fb_loss': -2.8073368072509766, 'fb_offdiag': 18.86931037902832, 'ortho_diag': -49.99983215332031, 'ortho_loss': -22.87702178955078, 'ortho_offdiag': 27.12281036376953, 'q_loss': -2.176262855529785, 'q_mean': 2.176262855529785, 'sp_loss': 21.95693016052246}
+[infer-cond] step 300: evaluating on the inferred conditioning from 1000 rb['next_observations'] rows; the env goal is NOT supplied
+eval 300 task None {'episode_return': 40.82625647241094, 'inferred_cond': 1.0, 'inferred_cond_action_calls': 1000.0, 'inferred_cond_goals_dropped': 0.0, 'inferred_cond_norm': 7.0710673332214355, 'inferred_cond_cos_neutral': -0.06948994100093842}
+wandb: 
+wandb: Run history:
+wandb:              eval/episode_return ▁█
+wandb:               eval/inferred_cond ▁▁
+wandb:  eval/inferred_cond_action_calls ▁▁
+wandb:   eval/inferred_cond_cos_neutral █▁
+wandb: eval/inferred_cond_goals_dropped ▁▁
+wandb:          eval/inferred_cond_norm █▁
+wandb:                 train/actor_loss █▄▁
+wandb:                train/bc_log_prob █▃▁
+wandb:                    train/bc_loss ▁▁▁
+wandb:                    train/fb_diag █▃▁
+wandb:                               +8 ...
+wandb: 
+wandb: Run summary:
+wandb:              eval/episode_return 40.82626
+wandb:               eval/inferred_cond 1
+wandb:  eval/inferred_cond_action_calls 1000
+wandb:   eval/inferred_cond_cos_neutral -0.06949
+wandb: eval/inferred_cond_goals_dropped 0
+wandb:          eval/inferred_cond_norm 7.07107
+wandb:                 train/actor_loss -2.17626
+wandb:                train/bc_log_prob -10.54603
+wandb:                    train/bc_loss 0
+wandb:                    train/fb_diag -20.75656
+wandb:                               +8 ...
+wandb: 
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260914_015346-ze4mjv3d
+wandb: Find logs at: ./wandb/offline-run-20260914_015346-ze4mjv3d/logs
+rc=0 rldp_tdj s0

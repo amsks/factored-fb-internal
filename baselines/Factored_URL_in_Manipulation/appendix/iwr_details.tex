@@ -1,0 +1,15 @@
+\section{\methodname{} Details}
+\label{app:iwr_details}
+In this section, we provide some description to give a better understanding of how IWR addresses the challenge of mode switching. 
+
+
+IWR does not change the CRL loss or its energy landscape directly. Instead, it changes the effective sampling distribution of contrastive updates. This provides an inductive bias toward mode-switching regions, giving more critic updates to interaction-relevant transitions rather than to easy passive motion or object-reaching behavior. In terms of our analysis (Section~\ref{sec: analysis}), IWR increases the probability that sampled positive futures cross the interaction bridge near the latent interaction time \(\tau_t\). Such samples expose the interaction shift directly, instead of observing it only after long passive propagation through powers of \(A_0\). Intuitively, based on the analysis of intrinsic reward \cite{bastankhah2026demystifying}, our paradigm shifts intrinsic reward-driven exploration from ``moving the object to the future'' to ``learning how to control the object to move to the future.'' This also connects to Proposition~\ref{prop:endpoint-energy-error} as increasing the coverage of interaction-centered samples reduces the error contribution from the interaction residual. Exact bridge samples provide direct supervision for the piecewise jump term, while the soft weighting in Eq.~\ref{eq:iwr} also covers nearby positives and reduces error accumulation from repeatedly propagating the interaction signal through \(A_0^k\).
+Consequently, IWR reduces the passive bias of ordinary future sampling and improves the conditioning of interaction-relevant representation learning.
+
+
+% We preserve the CRL loss landscape while adding an inductive bias that yields more updates on the interaction part, rather than on easy-to-learn object-reaching behavior or uncontrollable passive target-object motion.
+% Intuitively, based on the analysis of intrinsic reward \cite{bastankhah2026demystifying}, our paradigm shifts intrinsic reward-driven exploration from ``moving the object to the future'' to ``learning how to control the object to move to the future.''
+% Based on Proposition~\ref{prop:endpoint-energy-error}, a higher coverage of the interaction term would control the error bound $|\widehat{E}_k - E_k|$
+% . On the one hand, exact interaction positives would help estimate the piecewise jump transfer by controlling the error bound of $\|e\|$.
+% On the other hand, soft weighting label would sample positives close to the interaction point. Then we could reduce the accumulation of errors from the exponential iteration of $\|A_0^k\|$.
+% As a result, interaction control would be more consistent and robust.

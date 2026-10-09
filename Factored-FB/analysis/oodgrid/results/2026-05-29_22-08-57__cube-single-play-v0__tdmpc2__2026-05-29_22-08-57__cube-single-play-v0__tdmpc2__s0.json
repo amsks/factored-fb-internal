@@ -1,0 +1,11 @@
+{
+ "framework": "torch",
+ "group": "2026-05-29_22-08-57__cube-single-play-v0__tdmpc2",
+ "seed": "2026-05-29_22-08-57__cube-single-play-v0__tdmpc2__s0",
+ "dir": "/dev/shm/factored-fb_outputs/2026-05-29_22-08-57__cube-single-play-v0__tdmpc2__s0",
+ "agent_name": "tdmpc2",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb_outputs/2026-05-29_22-08-57__cube-single-play-v0__tdmpc2__s0/checkpoints/final.pt",
+ "error": "AttributeError: 'TDMPC2Agent' object has no attribute 'model'"
+}

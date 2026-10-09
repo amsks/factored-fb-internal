@@ -1,0 +1,10 @@
+lever            walker    cheetah   (baseline seed 0: walker 744 n_tasks=4, cheetah 274 n_tasks=4)
+disc099          684( -60)     336( +62)  walker:{'run': 302, 'spin': 967, 'stand': 699, 'walk': 767} cheetah:{'run': 85, 'run_backward': 160, 'walk': 376, 'walk_backward': 723}
+headmean         702( -42)     339( +65)  walker:{'run': 329, 'spin': 987, 'stand': 841, 'walk': 650} cheetah:{'run': 158, 'run_backward': 91, 'walk': 667, 'walk_backward': 441}
+qnorm            778( +35)     293( +18)  walker:{'run': 374, 'spin': 978, 'stand': 924, 'walk': 837} cheetah:{'run': 88, 'run_backward': 115, 'walk': 398, 'walk_backward': 569}
+sphere           763( +19)     340( +66)  walker:{'run': 358, 'spin': 984, 'stand': 866, 'walk': 843} cheetah:{'run': 100, 'run_backward': 147, 'walk': 455, 'walk_backward': 659}
+tau001           707( -36)     340( +66)  walker:{'run': 325, 'spin': 985, 'stand': 880, 'walk': 640} cheetah:{'run': 141, 'run_backward': 110, 'walk': 590, 'walk_backward': 521}
+temp2            633(-111)     211( -63)  walker:{'run': 330, 'spin': 987, 'stand': 639, 'walk': 575} cheetah:{'run': 108, 'run_backward': 71, 'walk': 368, 'walk_backward': 295}
+tower1024        618(-125)     381(+106)  walker:{'run': 314, 'spin': 986, 'stand': 452, 'walk': 720} cheetah:{'run': 143, 'run_backward': 159, 'walk': 567, 'walk_backward': 653}
+zdim100          749(  +6)     269(  -5)  walker:{'run': 346, 'spin': 984, 'stand': 858, 'walk': 808} cheetah:{'run': 96, 'run_backward': 106, 'walk': 416, 'walk_backward': 460}
+SCORE_LEVERS_EXIT=0

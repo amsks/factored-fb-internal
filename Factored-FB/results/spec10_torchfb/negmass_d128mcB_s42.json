@@ -1,0 +1,17 @@
+{
+ "run": "/home/adityamohan/exp_spec10/torchfb/p2_d128mcB_s42",
+ "neg_frac": 0.09861406249999999,
+ "neg_mass_share": 0.013531317717956994,
+ "mag_neg": 0.1763774048240142,
+ "mag_pos": 1.6353780374140436,
+ "neg_frac_by_density_quartile": [
+  0.1421,
+  0.1032,
+  0.0729,
+  0.0764
+ ],
+ "gate_G1": true,
+ "starts": 32,
+ "goals": 20000,
+ "seed": 0
+}

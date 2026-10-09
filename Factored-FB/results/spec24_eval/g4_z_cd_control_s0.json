@@ -1,0 +1,73 @@
+{
+  "run_dir": "/home/adityamohan/exp_spec18x/factored-fb/GCIQL-CubeDouble-Flow-Measure-Density-d50/d18x_cd_dens_s0",
+  "object": "density",
+  "checkpoint_step": 500000,
+  "env": "cube-double-play-v0",
+  "gamma": 0.99,
+  "double_q": true,
+  "measure_density_z": false,
+  "hit_spec": "19:22:0.4,28:31:0.4",
+  "seed": 0,
+  "protocol": {
+    "reference": "scripts/rescuing_fb/torchfb_full_measure.py part B (valid-measure campaign G2/G4 Spearman machinery); PAPER/rescuing-fb/PHASE2-LEDGER.md sec.9.15",
+    "starts": 24,
+    "starts_skipped_no_hindsight_rows": 0,
+    "mc": 2,
+    "horizon": 200,
+    "boxes_per_mult": 12,
+    "mults": [
+      1.0,
+      2.0,
+      4.0
+    ],
+    "probe_centers": "hindsight",
+    "pool_size": 16384,
+    "readout": "w^T box_indicator(U_P) / (1-gamma)  [compute_density_primary(r_x0=0, w, kappa_x0=0, box_indicator, gamma) -- see g4-verification.md: r(x0) and kappa(x0) are a de-biasing PAIR that cancels; dropping only r(x0) while keeping -kappa(x0) was the bug fixed 2026-08-06]",
+    "head_agg": "elementwise-vector-min of softmax heads (deployed density convention)",
+    "mc_ground_truth": "sum_k gamma^k 1[x_{1+k} in box], box=env_geometry.HitSpec.box_contains (L-inf), teleport to dataset (qpos,qvel)[s_row], a0 then g-conditioned policy rollout (exact torchfb_full_measure.py part B translation)",
+    "spearman_fn": "spearman_tie (average-rank, tie-corrected) -- see g4-verification.md item 3; spearman_ordinal_uncorrected kept alongside for reference only"
+  },
+  "gate": {
+    "threshold": 0.65,
+    "statistic": "pooled Spearman (tie-corrected), all mults combined",
+    "value": 0.7385059744884306,
+    "pass": true,
+    "caveat": "pooling is not innocent -- box size drives both MC and model mass, so the pooled figure sits above every individual mult column except mult=4.0; see per_mult for the honest per-scale read"
+  },
+  "pooled": {
+    "n": 864,
+    "spearman": 0.7385059744884306,
+    "spearman_ordinal_uncorrected": 0.6262096531122111,
+    "degenerate_frac": 0.6354166666666666
+  },
+  "nondegenerate_mc_gt_0": {
+    "n": 315,
+    "spearman": 0.6656597893403394
+  },
+  "per_mult": {
+    "1.0": {
+      "n": 288,
+      "mc_mean": 3.2672261471870367,
+      "model_mass_mean": 0.46697356694872283,
+      "spearman": 0.5592029004256737,
+      "spearman_ordinal_uncorrected": 0.2906207676757935,
+      "degenerate_frac": 0.8194444444444444
+    },
+    "2.0": {
+      "n": 288,
+      "mc_mean": 5.322837971536667,
+      "model_mass_mean": 2.497911451673878,
+      "spearman": 0.6737043142463267,
+      "spearman_ordinal_uncorrected": 0.5213520128280869,
+      "degenerate_frac": 0.7013888888888888
+    },
+    "4.0": {
+      "n": 288,
+      "mc_mean": 18.452935753195547,
+      "model_mass_mean": 14.773953639391245,
+      "spearman": 0.7835396527035212,
+      "spearman_ordinal_uncorrected": 0.7480342926266633,
+      "degenerate_frac": 0.3854166666666667
+    }
+  }
+}

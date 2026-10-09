@@ -1,0 +1,42 @@
+{
+  "seed": 0,
+  "d": 50,
+  "task": "cube-single-play-singletask-task1-v0",
+  "n_states": 533,
+  "phase_counts": {
+    "approach": 132,
+    "contact": 135,
+    "grasp": 266
+  },
+  "gap_by_phase": {
+    "approach": {
+      "mean": 0.3829174995422363,
+      "median": 0.2937431335449219,
+      "n": 40
+    },
+    "contact": {
+      "mean": 0.6118423938751221,
+      "median": 0.42050933837890625,
+      "n": 40
+    },
+    "grasp": {
+      "mean": 0.7732988119125366,
+      "median": 0.5104937553405762,
+      "n": 40
+    }
+  },
+  "basins_by_phase": {
+    "approach": [
+      1,
+      6
+    ],
+    "contact": [
+      5,
+      13
+    ],
+    "grasp": [
+      2,
+      4
+    ]
+  }
+}

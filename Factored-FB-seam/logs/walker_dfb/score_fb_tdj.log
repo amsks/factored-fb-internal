@@ -1,0 +1,35 @@
+12 cells: 1 domains x 4 tasks x 3 seeds (1 at a time)
+[FAIL] dmc-walker/stand/s0 rc=-15
+t__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0915 04:18:54.977481 139649896455040 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 04:18:54.978738 139649896455040 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0915 04:18:54.987002 139649896455040 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 04:18:55.115492 139649896455040 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 04:18:55.117488 139649896455040 __init__.py:31] MuJoCo library version is: 3.3.0
+I0915 04:18:55.150579 139649896455040 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 04:18:55.152794 139649896455040 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0915 04:18:55.154890 139649896455040 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 04:18:55.160795 139649896455040 __init__.py:31] MuJoCo library version is: 3.8.1
+I0915 04:18:55.808667 139649896455040 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+/home/adityamohan/git/Factored-FB-seam/impls/critics/fb.py:88: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+
+[ok] dmc-walker/stand/s1
+[ok] dmc-walker/stand/s2
+[ok] dmc-walker/walk/s0
+[ok] dmc-walker/walk/s1
+[ok] dmc-walker/walk/s2
+[ok] dmc-walker/run/s0
+[ok] dmc-walker/run/s1
+[ok] dmc-walker/run/s2
+[ok] dmc-walker/spin/s0
+[ok] dmc-walker/spin/s1
+[ok] dmc-walker/spin/s2
+
+critic                   domain                 task                      mean      std  n
+fb_tdj                   dmc-walker             run                       31.0     14.2  3
+fb_tdj                   dmc-walker             spin                     125.4    204.9  3
+fb_tdj                   dmc-walker             stand                    233.2    173.1  2
+fb_tdj                   dmc-walker             walk                      32.0     16.8  3
+
+Compare against RLDP Table 1 in docs/notes/2026-08-28-rldp-paper-eval.md. Gate (spec §4): per-task mean within 1 sigma of the official cell for >= 3 of 4 tasks, and no task below 50% of an official mean > 100.

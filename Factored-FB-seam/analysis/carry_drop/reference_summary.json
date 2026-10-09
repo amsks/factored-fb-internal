@@ -1,0 +1,65 @@
+[
+  {
+    "depth": 1,
+    "persistence": 1,
+    "start_gap": 0.8999999999999986,
+    "mean_rest_probability": 0.27407407407407447,
+    "rest_fraction_squared_successor_norm": 0.19924521211808596
+  },
+  {
+    "depth": 1,
+    "persistence": 10,
+    "start_gap": 1.3937193775227836,
+    "mean_rest_probability": 0.7775502394323961,
+    "rest_fraction_squared_successor_norm": 0.9552171145281764
+  },
+  {
+    "depth": 1,
+    "persistence": 50,
+    "start_gap": 1.539500147299718,
+    "mean_rest_probability": 0.926211900877688,
+    "rest_fraction_squared_successor_norm": 0.9960542212338572
+  },
+  {
+    "depth": 3,
+    "persistence": 1,
+    "start_gap": 0.13315235623960175,
+    "mean_rest_probability": 0.3421324377710047,
+    "rest_fraction_squared_successor_norm": 0.396312117974586
+  },
+  {
+    "depth": 3,
+    "persistence": 10,
+    "start_gap": 0.17719026093484497,
+    "mean_rest_probability": 0.8267223232685753,
+    "rest_fraction_squared_successor_norm": 0.9827641875943147
+  },
+  {
+    "depth": 3,
+    "persistence": 50,
+    "start_gap": 0.18791854523775453,
+    "mean_rest_probability": 0.9447755798417411,
+    "rest_fraction_squared_successor_norm": 0.9986044511658692
+  },
+  {
+    "depth": 6,
+    "persistence": 1,
+    "start_gap": 0.010847080406292814,
+    "mean_rest_probability": 0.3539701802256722,
+    "rest_fraction_squared_successor_norm": 0.44134116512146543
+  },
+  {
+    "depth": 6,
+    "persistence": 10,
+    "start_gap": 0.014117820240793826,
+    "mean_rest_probability": 0.8342130018827797,
+    "rest_fraction_squared_successor_norm": 0.9861324473790049
+  },
+  {
+    "depth": 6,
+    "persistence": 50,
+    "start_gap": 0.014892991992051276,
+    "mean_rest_probability": 0.9480314918665715,
+    "rest_fraction_squared_successor_norm": 0.9989754944108875
+  }
+]

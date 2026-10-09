@@ -1,0 +1,26 @@
+{
+ "maxmix": {
+  "J_closed_form": 0.07073599845170975,
+  "J_search_best": 0.04426869750022888,
+  "J_search_median": 0.04126979596912861,
+  "cos_zcf_zbest": -0.13962020394047292,
+  "rollout_search": {
+   "succ": 0.2,
+   "succ_g1": 0.1,
+   "succ_g2": 0.12
+  },
+  "n_candidates": 256
+ },
+ "negavoid": {
+  "J_closed_form": -0.037707213312387466,
+  "J_search_best": -0.0345148891210556,
+  "J_search_median": -0.03682840242981911,
+  "cos_zcf_zbest": 0.007998060181107134,
+  "rollout_search": {
+   "succ": 0.2,
+   "timeavg_dist": 1.823597668766896,
+   "dataset_median_dist": 2.100221872329712
+  },
+  "n_candidates": 256
+ }
+}

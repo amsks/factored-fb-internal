@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-SF-FeatureTD-FrozenCond-Ortho1k",
+ "seed": "sd002_20260704_212228",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-SF-FeatureTD-FrozenCond-Ortho1k/sd002_20260704_212228",
+ "step": 500000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.02,
+  "grasped": 0.26
+ },
+ "C2": {
+  "success": 0.06,
+  "grasped": 0.28
+ },
+ "C3": {
+  "success": 0.0,
+  "grasped": 0.31
+ },
+ "C4": {
+  "success": 0.04,
+  "grasped": 0.3
+ },
+ "secs": 31.2
+}

@@ -1,0 +1,30 @@
+{
+  "out": "analysis/deterministic_didactic/path4_td",
+  "problem": "path4",
+  "methods": [
+    "fb",
+    "density"
+  ],
+  "gamma": [
+    0.5,
+    0.9,
+    0.99
+  ],
+  "rates": [
+    0.001,
+    0.01
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "steps": 100000,
+  "interval": 10000,
+  "tau": 0.005,
+  "sphere": false,
+  "numpy": "2.4.4",
+  "jax": "0.10.2",
+  "optax": "0.2.8",
+  "source_sha256": "92063666d6d12bb3e5a85398cfe5a4ad78e8338c62bd37ff22fd9d80d78d446f"
+}

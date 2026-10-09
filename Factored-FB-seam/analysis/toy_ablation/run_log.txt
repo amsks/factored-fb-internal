@@ -1,0 +1,126 @@
+=== sanity ===
+rows of (1-gamma)M sum to 1: max err 2.2e-16
+exact values at state 7: action0 (to goal) 2.2000, action1 (back) 0.8000, gap 1.4000
+top-2 right singular directions hold 0.880 of the squared mass; 0.9987 of the squared norm of the state-7 row difference lies outside them
+A at full rank d=9: gap ratio 1.000000
+D at full rank d=9: gap ratio 0.9989 (CE 1.62890)
+F's target (1-gamma) M K at full rank reads a gap ratio of 0.7660 (kernel sigma 0.5 edges; self weight at the goal 0.787)
+sanity passed.
+
+  [closed] d=2 done (2.9s)
+  [closed] d=3 done (5.7s)
+  [closed] d=4 done (8.5s)
+  [closed] d=5 done (11.6s)
+  [closed] d=6 done (14.6s)
+  [closed] d=7 done (17.6s)
+  [closed] d=8 done (20.7s)
+  [closed] d=9 done (23.6s)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/toy_ablation/closed.csv (176 rows)
+  [trained] d=2 fb            gap_ratio mean 0.013  retained 0.844  argmax ok 10/10  (1s)
+  [trained] d=2 normsq        gap_ratio mean 0.013  retained 0.844  argmax ok 10/10  (3s)
+  [trained] d=2 softsq        gap_ratio mean 0.954  retained 0.940  argmax ok 10/10  (4s)
+  [trained] d=2 density       gap_ratio mean 0.530  retained 0.927  argmax ok 10/10  (6s)
+  [trained] d=2 density_soft  gap_ratio mean 0.664  retained 0.941  argmax ok 10/10  (7s)
+  [trained] d=3 fb            gap_ratio mean 0.051  retained 0.864  argmax ok 10/10  (9s)
+  [trained] d=3 normsq        gap_ratio mean 0.013  retained 0.875  argmax ok 10/10  (10s)
+  [trained] d=3 softsq        gap_ratio mean 1.002  retained 0.994  argmax ok 10/10  (12s)
+  [trained] d=3 density       gap_ratio mean 0.989  retained 0.983  argmax ok 10/10  (13s)
+  [trained] d=3 density_soft  gap_ratio mean 0.768  retained 0.973  argmax ok 10/10  (15s)
+  [trained] d=4 fb            gap_ratio mean 0.484  retained 0.911  argmax ok 10/10  (17s)
+  [trained] d=4 normsq        gap_ratio mean 0.515  retained 0.914  argmax ok 10/10  (18s)
+  [trained] d=4 softsq        gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (20s)
+  [trained] d=4 density       gap_ratio mean 1.002  retained 1.000  argmax ok 10/10  (21s)
+  [trained] d=4 density_soft  gap_ratio mean 0.765  retained 0.984  argmax ok 10/10  (23s)
+  [trained] d=5 fb            gap_ratio mean 0.949  retained 0.940  argmax ok 10/10  (25s)
+  [trained] d=5 normsq        gap_ratio mean 1.067  retained 0.946  argmax ok 10/10  (27s)
+  [trained] d=5 softsq        gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (29s)
+  [trained] d=5 density       gap_ratio mean 0.999  retained 1.000  argmax ok 10/10  (31s)
+  [trained] d=5 density_soft  gap_ratio mean 0.765  retained 0.984  argmax ok 10/10  (32s)
+  [trained] d=6 fb            gap_ratio mean 0.990  retained 0.954  argmax ok 10/10  (34s)
+  [trained] d=6 normsq        gap_ratio mean 1.069  retained 0.959  argmax ok 10/10  (36s)
+  [trained] d=6 softsq        gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (38s)
+  [trained] d=6 density       gap_ratio mean 0.999  retained 1.000  argmax ok 10/10  (40s)
+  [trained] d=6 density_soft  gap_ratio mean 0.766  retained 0.984  argmax ok 10/10  (42s)
+  [trained] d=7 fb            gap_ratio mean 0.983  retained 0.973  argmax ok 10/10  (44s)
+  [trained] d=7 normsq        gap_ratio mean 1.000  retained 0.973  argmax ok 10/10  (46s)
+  [trained] d=7 softsq        gap_ratio mean 0.999  retained 1.000  argmax ok 10/10  (48s)
+  [trained] d=7 density       gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (50s)
+  [trained] d=7 density_soft  gap_ratio mean 0.766  retained 0.984  argmax ok 10/10  (52s)
+  [trained] d=8 fb            gap_ratio mean 0.986  retained 0.987  argmax ok 10/10  (54s)
+  [trained] d=8 normsq        gap_ratio mean 1.000  retained 0.984  argmax ok 10/10  (56s)
+  [trained] d=8 softsq        gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (58s)
+  [trained] d=8 density       gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (60s)
+  [trained] d=8 density_soft  gap_ratio mean 0.766  retained 0.984  argmax ok 10/10  (62s)
+  [trained] d=9 fb            gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (64s)
+  [trained] d=9 normsq        gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (66s)
+  [trained] d=9 softsq        gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (69s)
+  [trained] d=9 density       gap_ratio mean 1.000  retained 1.000  argmax ok 10/10  (71s)
+  [trained] d=9 density_soft  gap_ratio mean 0.767  retained 0.984  argmax ok 10/10  (73s)
+wrote /home/adityamohan/git/Factored-FB-seam/analysis/toy_ablation/trained.csv (480 rows)
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/toy_ablation/fig_toy_ablation.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/toy_ablation/fig_toy_ablation_closed.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/toy_ablation/fig_toy_ablation_trained.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/toy_ablation/fig_toy_ablation_mass.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/toy_ablation/fig_toy_ablation_E_calibrated.pdf / .png
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/toy_ablation/fig_toy_ablation_legend.pdf / .png
+
+=== gap ratio at state 7 vs rank (closed form; C-F mean of 5 seeds) ===
+arm | d=2 | d=3 | d=4 | d=5 | d=6 | d=7 | d=8 | d=9
+A | -0.006 | 0.975 | 1.069 | 1.039 | 1.038 | 1.002 | 1.000 | 1.000
+B | -0.006 | 0.975 | 1.069 | 1.039 | 1.038 | 1.002 | 1.000 | 1.000
+C | 1.070 | 1.034 | 0.999 | 1.000 | 1.001 | 1.000 | 1.000 | 1.000
+D | 1.042 | 1.004 | 1.000 | 1.001 | 1.001 | 1.000 | 0.999 | 1.000
+E | 0.387 | 0.390 | 0.018 | -0.039 | 0.071 | 0.048 | 0.072 | 0.079
+F | 0.765 | 0.780 | 0.766 | 0.766 | 0.765 | 0.765 | 0.766 | 0.766
+E calibrated | 0.012 | 0.036 | 0.024 | -0.021 | 0.075 | 0.052 | 0.084 | 0.094
+
+=== gap ratio at state 7 vs rank (TD-trained; mean of 5 seeds x 2 learning rates) ===
+A | 0.013 | 0.051 | 0.484 | 0.949 | 0.990 | 0.983 | 0.986 | 1.000
+B | 0.013 | 0.013 | 0.515 | 1.067 | 1.069 | 1.000 | 1.000 | 1.000
+C | 0.954 | 1.002 | 1.000 | 1.000 | 1.000 | 0.999 | 1.000 | 1.000
+D | 0.530 | 0.989 | 1.002 | 0.999 | 0.999 | 1.000 | 1.000 | 1.000
+E | 1.752 | -0.433 | -0.417 | 0.008 | 0.035 | 0.071 | 0.073 | 0.074
+F | 0.664 | 0.768 | 0.765 | 0.765 | 0.766 | 0.766 | 0.766 | 0.767
+E calibrated | 1.008 | -0.170 | -0.096 | 0.025 | 0.065 | 0.105 | 0.114 | 0.115
+
+--- TD-trained, lr=0.001 only (5 seeds) ---
+A | 0.013 | 0.013 | 0.533 | 1.030 | 1.041 | 0.999 | 0.994 | 1.000
+B | 0.013 | 0.013 | 0.599 | 1.067 | 1.069 | 0.999 | 0.999 | 1.000
+C | 0.913 | 1.013 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000
+D | 0.553 | 0.989 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000
+E | 1.475 | -0.591 | -0.689 | -0.016 | -0.026 | 0.038 | 0.069 | 0.085
+F | 0.664 | 0.768 | 0.765 | 0.765 | 0.766 | 0.766 | 0.766 | 0.766
+
+--- TD-trained, lr=0.01 only (5 seeds) ---
+A | 0.013 | 0.088 | 0.435 | 0.868 | 0.939 | 0.966 | 0.978 | 1.000
+B | 0.013 | 0.013 | 0.431 | 1.066 | 1.069 | 1.000 | 1.000 | 1.001
+C | 0.995 | 0.990 | 1.000 | 1.000 | 1.001 | 0.999 | 1.000 | 1.000
+D | 0.507 | 0.990 | 1.004 | 0.999 | 0.997 | 0.999 | 1.001 | 1.000
+E | 2.029 | -0.275 | -0.146 | 0.032 | 0.096 | 0.105 | 0.078 | 0.063
+F | 0.664 | 0.768 | 0.765 | 0.765 | 0.767 | 0.766 | 0.766 | 0.767
+
+=== retained squared mass vs rank (closed / trained) ===
+A | 0.880 | 0.918 | 0.951 | 0.966 | 0.978 | 0.987 | 0.994 | 1.000  ||  0.844 | 0.864 | 0.911 | 0.940 | 0.954 | 0.973 | 0.987 | 1.000
+B | 0.880 | 0.918 | 0.951 | 0.966 | 0.978 | 0.987 | 0.994 | 1.000  ||  0.844 | 0.875 | 0.914 | 0.946 | 0.959 | 0.973 | 0.984 | 1.000
+C | 0.973 | 0.996 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000  ||  0.940 | 0.994 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000
+D | 0.970 | 0.994 | 0.999 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000  ||  0.927 | 0.983 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000
+E | 0.970 | 0.994 | 0.999 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000  ||  0.927 | 0.983 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000
+F | 0.948 | 0.973 | 0.983 | 0.984 | 0.984 | 0.984 | 0.984 | 0.984  ||  0.941 | 0.973 | 0.984 | 0.984 | 0.984 | 0.984 | 0.984 | 0.984
+
+=== argmax stays on action 0 (fraction of fits) closed / trained ===
+A | 0.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00  ||  1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00
+B | 0.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00  ||  1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00
+C | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00  ||  1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00
+D | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00  ||  1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00
+E | 0.80 | 0.80 | 0.80 | 0.20 | 0.80 | 0.80 | 1.00 | 1.00  ||  1.00 | 0.00 | 0.50 | 0.30 | 0.60 | 0.90 | 1.00 | 1.00
+F | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00  ||  1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00
+
+=== 95% CI of the TD-trained gap ratio (10 runs) ===
+A | 0.01 [0.01, 0.01] | 0.05 [-0.02, 0.12] | 0.48 [0.26, 0.71] | 0.95 [0.87, 1.02] | 0.99 [0.95, 1.03] | 0.98 [0.97, 1.00] | 0.99 [0.98, 1.00] | 1.00 [1.00, 1.00]
+B | 0.01 [0.01, 0.01] | 0.01 [0.01, 0.01] | 0.52 [0.23, 0.80] | 1.07 [1.07, 1.07] | 1.07 [1.07, 1.07] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00]
+C | 0.95 [0.79, 1.12] | 1.00 [0.97, 1.03] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00]
+D | 0.53 [0.50, 0.56] | 0.99 [0.99, 0.99] | 1.00 [1.00, 1.01] | 1.00 [1.00, 1.00] | 1.00 [0.99, 1.00] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00]
+E | 1.75 [1.50, 2.00] | -0.43 [-0.58, -0.28] | -0.42 [-0.92, 0.09] | 0.01 [-0.21, 0.22] | 0.03 [-0.16, 0.23] | 0.07 [0.02, 0.12] | 0.07 [0.06, 0.09] | 0.07 [0.06, 0.09]
+F | 0.66 [0.66, 0.66] | 0.77 [0.77, 0.77] | 0.76 [0.76, 0.77] | 0.77 [0.76, 0.77] | 0.77 [0.77, 0.77] | 0.77 [0.77, 0.77] | 0.77 [0.77, 0.77] | 0.77 [0.77, 0.77]
+
+total wall time 101s

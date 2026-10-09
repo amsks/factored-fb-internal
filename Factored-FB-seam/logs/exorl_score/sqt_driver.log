@@ -1,0 +1,6 @@
+domain                  n    mean  popstd    base   delta  per-seed / per-task
+dmc-walker              5   750.2    29.8   724.6   +25.6  [739, 739, 757, 713, 803] {'run': 350, 'spin': 985, 'stand': 836, 'walk': 830}
+dmc-cheetah             5   431.0    82.0   301.4  +129.5  [451, 495, 517, 406, 286] {'run': 161, 'run_backward': 182, 'walk': 611, 'walk_backward': 771}
+dmc-quadruped           5   491.2   206.7   655.9  -164.7  [495, 112, 494, 685, 671] {'jump': 528, 'run': 318, 'stand': 710, 'walk': 409}
+dmc-point-mass-maze     5   497.3    82.4   751.5  -254.1  [574, 373, 587, 433, 520] {'reach_bottom_left': 431, 'reach_bottom_right': 41, 'reach_top_left': 883, 'reach_top_right': 635}
+SCORE_DONE rc=0

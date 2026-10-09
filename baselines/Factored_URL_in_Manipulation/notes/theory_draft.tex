@@ -1,0 +1,471 @@
+
+
+
+
+\section{Theory Draft}
+
+\section{Locomotion v.s. Manipulation: a view in Factorized Markov Decision Processes}
+
+\subsection{Preliminary}
+
+% FMDP Setup
+
+Consider a discounted Markov decision process $\mathcal M=(\mathcal S,\mathcal A,P,\gamma)$, where \(\mathcal S\) is the state space, \(\mathcal A\) is the action space, \(P: \mathcal S \times \mathcal A \rightarrow \mathcal S\) is the deterministic transition kernel, and \(\gamma\in(0,1)\) is the discount factor. 
+
+Assume the state admits a factorization \(s_t=(u_t,y_t)\in\mathcal S\). Here \(u_t\) is the actuated factor, \(y_t\) is the target factor. For example, in air hockey, \(u_t\) is the paddle state and \(y_t\) is the puck state. In object pushing, \(u_t\) is the gripper state and \(y_t\) is the pushed object state. The state-action anchor is denoted by \(x_t=(u_t,y_t,a_t)\in \mathcal S\times\mathcal A\).
+
+% State Occupancy Setup
+
+Let \(\Delta\sim \operatorname{Geom}(1-\gamma)\) be a geometrically distributed future offset. For the target factor, define the sampled future \(y_f = y_{t+\Delta}\). Given an anchor \(x\in\mathcal S\times\mathcal A\), the discounted target-factor future occupancy is
+\begin{equation}
+\rho(y_f\mid x)
+=
+(1-\gamma)
+\sum_{k\ge 1}
+\gamma^{k-1}
+P(y_{t+k}=y_f\mid x_t=x).
+\end{equation}
+
+Let \(\rho(y_f)\) denote the marginal future distribution induced by the replay distribution over anchors. The ideal target-factor contrastive energy is
+\begin{equation}
+E^\star(x,y_f)
+=
+\log
+\frac{\rho(y_f\mid x)}{\rho(y_f)}.
+\end{equation}
+
+The usual CRL critic directly approximates this density ratio, often through an inner product representation
+\begin{equation}
+E_\theta(x,y_f)
+=
+\phi_\theta(x)^\top\psi_\theta(y_f).
+\end{equation}
+
+\subsection{Locomotion: A Single Control Mode}
+
+In locomotion, the action directly controls the same state variable that appears in the future occupancy. Let \(z_t\in\mathcal Z\) denote the locomotion state, such as body position, velocity, and pose. A deterministic transition can be written as $z_{t+1}=f_{\mathrm{loc}}(z_t,a_t)$
+where \(f_{\mathrm{loc}}:\mathcal Z\times\mathcal A\rightarrow\mathcal Z\). The sampled future is denoted by \(z_f=z_{t+\Delta}\).
+
+\begin{assumption}[Persistent action effect in locomotion]
+\label{assump:locomotion_action_effect}
+For locomotion, the action affects the next controlled state almost everywhere. Formally,
+\begin{equation}
+\left\|
+\nabla_a f_{\mathrm{loc}}(z,a)
+\right\| > 0
+\qquad
+\text{for } \text{a.e. }(z,a)\in\mathcal Z\times\mathcal A.
+\end{equation}
+\end{assumption}
+
+
+\subsection{Manipulation: Source and Target Timelines}
+
+In manipulation, the action directly controls the actuated factor \(u_t\), while the sampled future may concern the target factor \(y_t\). Recall that the state-action anchor is \(x_t=(u_t,y_t,a_t)\in\mathcal S\times\mathcal A\). For air hockey, \(u_t\) is the paddle state and \(y_t\) is the puck state; for pushing, \(u_t\) is the gripper state and \(y_t\) is the pushed object state.
+
+We define an interaction indicator $m(\cdot):\mathcal S\times\mathcal A\rightarrow\{0,1\}$ The passive and interaction sets are
+\[
+\mathcal X_0=\{x\in\mathcal S\times\mathcal A:m(x)=0\},
+\qquad
+\mathcal X_1=\{x\in\mathcal S\times\mathcal A:m(x)=1\}.
+\]
+
+Let \(f_u\) denote the actuated-factor transition. We assume the actuated factor is directly controlled by the action $u_{t+1}=f_u(u_t,a_t)$. The target factor has two transition maps. The passive target transition is denoted by \(f_0\), and the interaction target transition is denoted by \(f_1\). The target transition is therefore
+\begin{equation}
+y_{t+1}
+=
+f(x_t)
+=
+\begin{cases}
+f_0(y_t), & x_t\in\mathcal X_0,\\
+f_1(u_t,y_t,a_t), & x_t\in\mathcal X_1.
+\end{cases}
+\end{equation}
+
+This piecewise transition expresses the dependency switch in manipulation. On the passive region \(\mathcal X_0\), the target evolves autonomously:
+\begin{equation}
+y_{t+1}\perp (u_t,a_t)\mid y_t,
+\qquad x_t\in\mathcal X_0.
+\end{equation}
+On the interaction region \(\mathcal X_1\), the target transition generally depends on the actuated factor and the action:
+\begin{equation}
+y_{t+1}\not\perp (u_t,a_t)\mid y_t,
+\qquad x_t\in\mathcal X_1.
+\end{equation}
+
+% No major problem above
+
+\section{Pointwise Nonlinearity: A Gaussian View}
+
+\subsection{Single-mode Gaussian Interpolation in Locomotion}
+
+We first recall the single-mode idealization behind Gaussian temporal interpolation. Let \(\psi_t\in\mathbb R^d\) denote an idealized temporal representation of the controlled state at time \(t\). In locomotion-like systems, the future variable follows one controlled timeline. A common linear-Gaussian abstraction is
+\begin{equation}
+\psi_{t+1}
+=
+A\psi_t+\epsilon_t,
+\qquad
+\epsilon_t\sim\mathcal N(0,\Sigma),
+\end{equation}
+where \(A\in\mathbb R^{d\times d}\) is a single temporal propagation operator.
+
+After \(n\) steps, repeated substitution gives
+\begin{equation}
+\psi_{t+n}
+=
+A^n\psi_t
++
+\sum_{i=0}^{n-1}
+A^{n-1-i}\epsilon_{t+i}.
+\end{equation}
+Therefore, conditioned on \(\psi_t\), the \(n\)-step future representation is Gaussian:
+\begin{equation}
+p(\psi_{t+n}\mid \psi_t)
+=
+\mathcal N
+\left(
+A^n\psi_t,\;
+\sum_{i=0}^{n-1}
+A^{n-1-i}\Sigma(A^{n-1-i})^\top
+\right).
+\end{equation}
+
+All temporal structure is generated by powers of the same operator \(A\). Thus, in the single-mode case, all future uncertainty is organized around one linear-Gaussian timeline. This is the setting in which temporal contrastive representations can support compact interpolation and inference in representation space. 
+
+\subsection{Manipulation as a Switching Gaussian System}
+
+We now contrast the previous single-mode model with manipulation. Recall that the target transition is piecewise:
+\begin{equation}
+y_{t+1}
+=
+f(x_t)
+=
+\begin{cases}
+f_0(y_t), & x_t\in\mathcal X_0,\\
+f_1(u_t,y_t,a_t), & x_t\in\mathcal X_1.
+\end{cases}
+\end{equation}
+Here \(\mathcal X_0\) is the passive region and \(\mathcal X_1\) is the interaction region. Let
+\[
+\omega_t=m(x_t)\in\{0,1\}
+\]
+denote the mode at time \(t\), where \(\omega_t=0\) corresponds to passive target evolution and \(\omega_t=1\) corresponds to interaction.
+
+We idealize the target representation as a switched affine Gaussian system:
+\begin{equation}
+\psi_{t+1}
+=
+A_{\omega_t}\psi_t
++
+\omega_t b_t
++
+\epsilon_t,
+\qquad
+\epsilon_t\sim\mathcal N(0,\Sigma_{\omega_t}).
+\end{equation}
+Here \(A_0\) is the passive target operator, \(A_1\) is the interaction-mode operator, and
+\[
+b_t=B(u_t,y_t,a_t)\in\mathbb R^d
+\]
+is the interaction impulse induced by the actuated factor and action. Thus,
+\begin{equation}
+\omega_t=0:
+\qquad
+\psi_{t+1}=A_0\psi_t+\epsilon_t,
+\end{equation}
+while
+\begin{equation}
+\omega_t=1:
+\qquad
+\psi_{t+1}=A_1\psi_t+B(u_t,y_t,a_t)+\epsilon_t.
+\end{equation}
+
+This is no longer a single Gauss-Markov chain. It is a switched affine system. Even if the mode indicator \(\omega_t\) is known, the future representation depends on products of mode-dependent operators and on the interaction impulses injected along the trajectory.
+
+\subsection{Two-step Expansion}
+
+Ignoring noise for the moment, the one-step representation update is
+\begin{equation}
+\psi_{t+1}
+=
+A_{\omega_t}\psi_t+\omega_t b_t.
+\end{equation}
+At the next step,
+\begin{equation}
+\psi_{t+2}
+=
+A_{\omega_{t+1}}\psi_{t+1}
++
+\omega_{t+1}b_{t+1}.
+\end{equation}
+Substituting the first equation into the second gives
+\begin{equation}
+\psi_{t+2}
+=
+A_{\omega_{t+1}}A_{\omega_t}\psi_t
++
+A_{\omega_{t+1}}\omega_t b_t
++
+\omega_{t+1}b_{t+1}.
+\end{equation}
+
+The interaction impulse \(b_t\) is not merely added once. Its contribution is transformed by the future mode operator \(A_{\omega_{t+1}}\). If the next mode is passive, then this contribution is \(A_0b_t\). If the next mode is interaction, then this contribution is \(A_1b_t\). Hence the same local interaction impulse has different future meaning depending on the subsequent mode sequence.
+
+This already shows the source of pointwise complexity: the representation must learn not only the local impulse \(B(u_t,y_t,a_t)\), but also how that impulse is propagated by later mode-dependent dynamics.
+
+\subsection{Three-step Expansion}
+
+Again ignoring noise, the three-step update is
+\begin{equation}
+\psi_{t+3}
+=
+A_{\omega_{t+2}}\psi_{t+2}
++
+\omega_{t+2}b_{t+2}.
+\end{equation}
+Substituting the two-step expansion yields
+\begin{equation}
+\psi_{t+3}
+=
+A_{\omega_{t+2}}A_{\omega_{t+1}}A_{\omega_t}\psi_t
++
+A_{\omega_{t+2}}A_{\omega_{t+1}}\omega_t b_t
++
+A_{\omega_{t+2}}\omega_{t+1}b_{t+1}
++
+\omega_{t+2}b_{t+2}.
+\end{equation}
+
+Thus, the first impulse \(b_t\) is propagated by the product
+\[
+A_{\omega_{t+2}}A_{\omega_{t+1}},
+\]
+the second impulse \(b_{t+1}\) is propagated by
+\[
+A_{\omega_{t+2}},
+\]
+and the final impulse \(b_{t+2}\) is not propagated further. Each interaction contribution is interpreted through every later mode operator.
+
+\subsection{General Expansion}
+
+For compact notation, for integers \(j\ge i\), define the ordered mode-product
+\begin{equation}
+\Pi_{j:i}
+=
+A_{\omega_j}A_{\omega_{j-1}}\cdots A_{\omega_i}.
+\end{equation}
+If \(j<i\), we define \(\Pi_{j:i}=I\), the identity matrix.
+
+For \(n\) steps, the same substitution gives the following path-dependent expansion:
+\begin{equation}
+\boxed{
+\psi_{t+n}
+=
+\Pi_{t+n-1:t}\psi_t
++
+\sum_{i=0}^{n-1}
+\Pi_{t+n-1:t+i+1}\,
+\omega_{t+i}b_{t+i}
++
+\sum_{i=0}^{n-1}
+\Pi_{t+n-1:t+i+1}\,
+\epsilon_{t+i}.
+}
+\end{equation}
+
+The key term is
+\begin{equation}
+\Pi_{t+n-1:t+i+1}\,
+\omega_{t+i}b_{t+i}.
+\end{equation}
+It says that an interaction impulse at time \(t+i\) is propagated by all later mode operators. Therefore, the future representation depends on four objects:
+\begin{enumerate}
+    \item the initial representation \(\psi_t\);
+    \item the full mode path \(\omega_t,\omega_{t+1},\ldots,\omega_{t+n-1}\);
+    \item every local interaction impulse \(b_{t+i}=B(u_{t+i},y_{t+i},a_{t+i})\);
+    \item every later propagation operator after each impulse.
+\end{enumerate}
+
+This is the combinatorial burden introduced by manipulation. A low-dimensional representation must compress a path-dependent switching affine process, rather than a single smooth timeline.
+
+\subsection{Mixture Over Mode Paths}
+
+Let
+\[
+\boldsymbol{\omega}_{t:n}
+=
+(\omega_t,\omega_{t+1},\ldots,\omega_{t+n-1})
+\in\{0,1\}^n
+\]
+denote a length-\(n\) mode path. Conditioned on a fixed mode path and a fixed impulse sequence \(b_t,\ldots,b_{t+n-1}\), the future representation is Gaussian. Its mean is
+\begin{equation}
+\mu(\boldsymbol{\omega}_{t:n})
+=
+\Pi_{t+n-1:t}\psi_t
++
+\sum_{i=0}^{n-1}
+\Pi_{t+n-1:t+i+1}
+\omega_{t+i}b_{t+i},
+\end{equation}
+and its covariance is
+\begin{equation}
+\Sigma(\boldsymbol{\omega}_{t:n})
+=
+\sum_{i=0}^{n-1}
+\Pi_{t+n-1:t+i+1}
+\Sigma_{\omega_{t+i}}
+\Pi_{t+n-1:t+i+1}^{\top}.
+\end{equation}
+
+If the mode path is not observed by the representation model, then the marginal future distribution is a mixture over mode paths:
+\begin{equation}
+p(\psi_{t+n}\mid \psi_t)
+=
+\sum_{\boldsymbol{\omega}_{t:n}\in\{0,1\}^n}
+p(\boldsymbol{\omega}_{t:n}\mid \psi_t)
+\,
+\mathcal N
+\left(
+\mu(\boldsymbol{\omega}_{t:n}),
+\Sigma(\boldsymbol{\omega}_{t:n})
+\right).
+\end{equation}
+
+There are up to \(2^n\) binary mode paths. Thus, even if every mode-conditioned transition is Gaussian, the marginal future distribution is generally a mixture of Gaussians rather than a single Gaussian. A nontrivial Gaussian mixture cannot, in general, be represented exactly by a single Gaussian with one transition operator and one covariance. Therefore the single-mode Gaussian interpolation model is generally invalid for interaction-heavy manipulation.
+
+\subsection{One-reset Simplification}
+
+For air-hockey-style interaction, it is often reasonable to consider a one-reset simplification. In this case, the target follows passive dynamics, then experiences one interaction reset, and then follows passive dynamics again. The mode path has the form
+\[
+0,0,\ldots,0,1,0,\ldots,0.
+\]
+
+Let the reset occur at time \(t+\ell\), where \(\ell\in\{0,\ldots,n-1\}\). Before reset, the representation evolves passively:
+\begin{equation}
+\psi_{t+\ell}
+=
+A_0^\ell\psi_t.
+\end{equation}
+At reset,
+\begin{equation}
+\psi_{t+\ell+1}
+=
+A_1A_0^\ell\psi_t
++
+b_{t+\ell}.
+\end{equation}
+After reset, we assume passive propagation:
+\begin{equation}
+\psi_{t+n}
+=
+A_0^{n-\ell-1}
+\left(
+A_1A_0^\ell\psi_t
++
+b_{t+\ell}
+\right).
+\end{equation}
+Thus the future representation associated with reset time \(\ell\) is
+\begin{equation}
+\boxed{
+\psi_{t+n}^{(\ell)}
+=
+A_0^{n-\ell-1}A_1A_0^\ell\psi_t
++
+A_0^{n-\ell-1}b_{t+\ell}.
+}
+\end{equation}
+
+The future distribution is now a mixture over reset times:
+\begin{equation}
+p(\psi_{t+n}\mid \psi_t)
+=
+\sum_{\ell=0}^{n-1}
+p(\tau=\ell\mid \psi_t)
+\,
+\mathcal N
+\left(
+\psi_{t+n}^{(\ell)},\Sigma_\ell
+\right).
+\end{equation}
+
+This is simpler than the unrestricted \(2^n\)-component mixture, but it is still not a single Gaussian. The reset time \(\ell\) is a latent variable, and different reset times induce different component means. Thus, even one-reset air hockey violates the single-Gaussian interpolation model.
+
+\subsection{Pointwise Complexity of Monolithic CRL}
+
+The ideal CRL energy is pointwise in the anchor and sampled future:
+\begin{equation}
+E^\star(x,y_f)
+=
+\log
+\frac{\rho(y_f\mid x)}
+{\rho(y_f)}.
+\end{equation}
+Vanilla CRL approximates this score directly as
+\begin{equation}
+E_\theta(x,y_f)
+=
+\phi_\theta(x)^\top\psi_\theta(y_f).
+\end{equation}
+
+However, in manipulation, \(\rho(y_f\mid x)\) is induced by a latent mixture over mode paths, reset times, and interaction impulses. In the one-reset case, the target-factor occupancy can be written schematically as
+\begin{equation}
+\rho(y_f\mid x)
+=
+\sum_{\ell}
+p(\tau=\ell\mid x)
+\rho_\ell(y_f\mid x),
+\end{equation}
+where \(\rho_\ell(y_f\mid x)\) is the future target distribution conditioned on the reset occurring at time \(t+\ell\). Therefore,
+\begin{equation}
+E^\star(x,y_f)
+=
+\log
+\left[
+\sum_{\ell}
+p(\tau=\ell\mid x)
+\rho_\ell(y_f\mid x)
+\right]
+-
+\log \rho(y_f).
+\end{equation}
+
+The latent reset time \(\tau\), the local impulse \(b_{t+\ell}\), and the mode-dependent propagation products are not observed by the monolithic critic. The critic only sees pairs \((x,y_f)\). Consequently, the critic must compress the structured relation
+\[
+x
+\rightarrow
+(\tau,b_{t+\tau})
+\rightarrow
+y_f
+\]
+into a direct pointwise score
+\[
+x
+\rightarrow
+y_f.
+\]
+
+This explains the pointwise sparsity observed in interaction-heavy tasks. If successful interaction data are sparse, a monolithic critic may learn individual successful correspondences
+\[
+(x_i,y_{f,i})
+\]
+rather than a reusable interaction structure. In representation space, this can appear as trajectory-level clusters, sharp local peaks around interaction events, and poor generalization when the goal radius or initialization distribution changes.
+
+\subsection{Discussion: Why Low-dimensional Gaussian Geometry Breaks}
+
+The single-mode Gaussian model assumes that the future representation is generated by one temporal operator \(A\). This produces a compact Gaussian future distribution and supports interpolation in representation space. Manipulation violates this assumption in two ways.
+
+First, the target transition switches between a passive operator and an interaction operator:
+\[
+A_0
+\quad\text{and}\quad
+A_1.
+\]
+Second, interaction injects a local impulse
+\[
+b_t=B(u_t,y_t,a_t),
+\]
+whose future meaning depends on all later mode operators. Thus, the future representation is not governed by a single operator but by products of mode-dependent operators and injected impulses.
+
+The resulting future distribution is a mixture over mode paths. A low-dimensional single-Gaussian representation must either smooth over these branches, producing biased temporal geometry, or memorize sparse pointwise interactions, producing brittle representations. Therefore, the difficulty of manipulation is not merely long horizon. It is the branching complexity of a switching affine temporal process hidden behind a pointwise contrastive objective.
+

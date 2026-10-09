@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_bridge_r0_base",
+ "seed": "r0_base_s1",
+ "dir": "/dev/shm/bridge_knobs_out/r0_base_s1",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/bridge_knobs_out/r0_base_s1/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.87,
+  "grasped": 0.96
+ },
+ "C2_zB": {
+  "success": 0.7,
+  "grasped": 0.88
+ },
+ "C3_zB": {
+  "success": 0.66,
+  "grasped": 0.94
+ },
+ "C2_zR": {
+  "success": 0.84,
+  "grasped": 0.93
+ },
+ "C3_zR": {
+  "success": 0.61,
+  "grasped": 0.92
+ },
+ "C4_zB": {
+  "success": 0.7,
+  "grasped": 0.8
+ },
+ "secs": 20.1
+}

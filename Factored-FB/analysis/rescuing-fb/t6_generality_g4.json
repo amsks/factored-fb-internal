@@ -1,0 +1,1182 @@
+{
+  "meta": {
+    "checkpoint_dir": "/home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/gciql_g4_zcond/sd000_20260616_193331",
+    "checkpoint_step": 1000000,
+    "d": 512,
+    "episodes": 25,
+    "horizon": 200,
+    "relabel_size": 50000,
+    "match_data_norm": 37.256873487443734,
+    "sqrt_d": 22.627416997969522,
+    "z_lift_m": 0.131,
+    "lift_hold_steps": 10,
+    "box_half_m": 0.03,
+    "regions_m": {
+      "R1": [
+        0.3515,
+        0.172,
+        0.02
+      ],
+      "R2": [
+        0.4251,
+        -0.1708,
+        0.02
+      ],
+      "R3": [
+        0.498,
+        0.0848,
+        0.02
+      ]
+    },
+    "goal_xyzs_m": {
+      "t1": [
+        0.425,
+        -0.1,
+        0.02
+      ],
+      "t2": [
+        0.5,
+        0.0,
+        0.02
+      ],
+      "t3": [
+        0.35,
+        0.0,
+        0.02
+      ],
+      "t4": [
+        0.5,
+        0.2,
+        0.02
+      ],
+      "t5": [
+        0.5,
+        -0.2,
+        0.02
+      ]
+    },
+    "reward_agreement_ds_vs_synthetic": {
+      "t1": 1.0,
+      "t2": 1.0,
+      "t3": 1.0,
+      "t4": 1.0,
+      "t5": 1.0
+    },
+    "stage": "full",
+    "spec": "PAPER/rescuing-fb/05-t6-generality-spec.md"
+  },
+  "anchors": {
+    "t1": {
+      "dataset_r": {
+        "n_pos": 1021,
+        "z_raw_norm": 31253.303936179607,
+        "cos_to_psi_g": {
+          "t1": 0.8807256955033334,
+          "t2": 0.5855568380894134,
+          "t3": 0.5866085305824448,
+          "t4": 0.523446905383388,
+          "t5": 0.5888223881678495
+        },
+        "nearest_psi_g": "t1",
+        "cos_nearest": 0.8807256955033334,
+        "cos_to_mean_psi": 0.8346345587299551
+      },
+      "success": {
+        "match_g": 0.84,
+        "match_data": 0.92,
+        "sqrtd": 0.96
+      },
+      "synthetic_r": {
+        "n_pos": 1021,
+        "z_raw_norm": 31253.303936179607,
+        "cos_to_psi_g": {
+          "t1": 0.8807256955033334,
+          "t2": 0.5855568380894134,
+          "t3": 0.5866085305824448,
+          "t4": 0.523446905383388,
+          "t5": 0.5888223881678495
+        },
+        "nearest_psi_g": "t1",
+        "cos_nearest": 0.8807256955033334,
+        "cos_to_mean_psi": 0.8346345587299551
+      }
+    },
+    "t2": {
+      "dataset_r": {
+        "n_pos": 1087,
+        "z_raw_norm": 33864.16973953631,
+        "cos_to_psi_g": {
+          "t1": 0.5756052038491725,
+          "t2": 0.8971697524584917,
+          "t3": 0.5451301936606258,
+          "t4": 0.5645376548489746,
+          "t5": 0.5648637508260625
+        },
+        "nearest_psi_g": "t2",
+        "cos_nearest": 0.8971697524584917,
+        "cos_to_mean_psi": 0.8284513868966883
+      },
+      "success": {
+        "match_g": 1.0,
+        "match_data": 0.96,
+        "sqrtd": 0.92
+      },
+      "synthetic_r": {
+        "n_pos": 1087,
+        "z_raw_norm": 33864.16973953631,
+        "cos_to_psi_g": {
+          "t1": 0.5756052038491725,
+          "t2": 0.8971697524584917,
+          "t3": 0.5451301936606258,
+          "t4": 0.5645376548489746,
+          "t5": 0.5648637508260625
+        },
+        "nearest_psi_g": "t2",
+        "cos_nearest": 0.8971697524584917,
+        "cos_to_mean_psi": 0.8284513868966883
+      }
+    },
+    "t3": {
+      "dataset_r": {
+        "n_pos": 1205,
+        "z_raw_norm": 37509.48349041083,
+        "cos_to_psi_g": {
+          "t1": 0.5836814456762873,
+          "t2": 0.5618982935527105,
+          "t3": 0.8965687410187146,
+          "t4": 0.5343387992184802,
+          "t5": 0.5301595688785128
+        },
+        "nearest_psi_g": "t3",
+        "cos_nearest": 0.8965687410187146,
+        "cos_to_mean_psi": 0.8247925051269825
+      },
+      "success": {
+        "match_g": 1.0,
+        "match_data": 1.0,
+        "sqrtd": 0.96
+      },
+      "synthetic_r": {
+        "n_pos": 1205,
+        "z_raw_norm": 37509.48349041083,
+        "cos_to_psi_g": {
+          "t1": 0.5836814456762873,
+          "t2": 0.5618982935527105,
+          "t3": 0.8965687410187146,
+          "t4": 0.5343387992184802,
+          "t5": 0.5301595688785128
+        },
+        "nearest_psi_g": "t3",
+        "cos_nearest": 0.8965687410187146,
+        "cos_to_mean_psi": 0.8247925051269825
+      }
+    },
+    "t4": {
+      "dataset_r": {
+        "n_pos": 1155,
+        "z_raw_norm": 36324.14784096673,
+        "cos_to_psi_g": {
+          "t1": 0.5271915594447766,
+          "t2": 0.5612374427477915,
+          "t3": 0.5168174908361359,
+          "t4": 0.8974450205474458,
+          "t5": 0.5277300928051882
+        },
+        "nearest_psi_g": "t4",
+        "cos_nearest": 0.8974450205474458,
+        "cos_to_mean_psi": 0.8170021052886319
+      },
+      "success": {
+        "match_g": 0.96,
+        "match_data": 0.96,
+        "sqrtd": 0.36
+      },
+      "synthetic_r": {
+        "n_pos": 1155,
+        "z_raw_norm": 36324.14784096673,
+        "cos_to_psi_g": {
+          "t1": 0.5271915594447766,
+          "t2": 0.5612374427477915,
+          "t3": 0.5168174908361359,
+          "t4": 0.8974450205474458,
+          "t5": 0.5277300928051882
+        },
+        "nearest_psi_g": "t4",
+        "cos_nearest": 0.8974450205474458,
+        "cos_to_mean_psi": 0.8170021052886319
+      }
+    },
+    "t5": {
+      "dataset_r": {
+        "n_pos": 1199,
+        "z_raw_norm": 38037.08018926239,
+        "cos_to_psi_g": {
+          "t1": 0.5749512021582969,
+          "t2": 0.5474661172112186,
+          "t3": 0.5065828143424256,
+          "t4": 0.5147297730113488,
+          "t5": 0.8795637640238569
+        },
+        "nearest_psi_g": "t5",
+        "cos_nearest": 0.8795637640238569,
+        "cos_to_mean_psi": 0.8165388135986814
+      },
+      "success": {
+        "match_g": 0.8,
+        "match_data": 0.92,
+        "sqrtd": 0.08
+      },
+      "synthetic_r": {
+        "n_pos": 1199,
+        "z_raw_norm": 38037.08018926239,
+        "cos_to_psi_g": {
+          "t1": 0.5749512021582969,
+          "t2": 0.5474661172112186,
+          "t3": 0.5065828143424256,
+          "t4": 0.5147297730113488,
+          "t5": 0.8795637640238569
+        },
+        "nearest_psi_g": "t5",
+        "cos_nearest": 0.8795637640238569,
+        "cos_to_mean_psi": 0.8165388135986814
+      }
+    }
+  },
+  "gate": {
+    "mean_match_g": 0.9199999999999999,
+    "threshold": 0.9,
+    "passed": true
+  },
+  "pairs": {
+    "t1-t2": {
+      "diag": {
+        "n_pos": 2108,
+        "z_raw_norm": 59853.12493230864,
+        "cos_to_psi_g": {
+          "t1": 0.7855559793286144,
+          "t2": 0.8133659632676946,
+          "t3": 0.6147354235510822,
+          "t4": 0.5927350365864464,
+          "t5": 0.6270564325917513
+        },
+        "nearest_psi_g": "t2",
+        "cos_nearest": 0.8133659632676946,
+        "cos_to_mean_psi": 0.9045460197388207
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 0.46,
+          "per_variant": {
+            "t1": {
+              "success": 0.44,
+              "hit_g1": 9,
+              "hit_g2": 2
+            },
+            "t2": {
+              "success": 0.48,
+              "hit_g1": 12,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.426228656998145,
+          "frac_first_g1": 0.9130434782608695
+        },
+        "sqrtd": {
+          "success_mean": 0.42,
+          "per_variant": {
+            "t1": {
+              "success": 0.48,
+              "hit_g1": 7,
+              "hit_g2": 5
+            },
+            "t2": {
+              "success": 0.36,
+              "hit_g1": 7,
+              "hit_g2": 2
+            }
+          },
+          "choice_entropy_bits": 0.9182958340544896,
+          "frac_first_g1": 0.6666666666666666
+        }
+      }
+    },
+    "t1-t3": {
+      "diag": {
+        "n_pos": 2226,
+        "z_raw_norm": 63239.979424392295,
+        "cos_to_psi_g": {
+          "t1": 0.7814546722822178,
+          "t2": 0.6226615023665553,
+          "t3": 0.8216840922479172,
+          "t4": 0.5756203263711136,
+          "t5": 0.6054501757665106
+        },
+        "nearest_psi_g": "t3",
+        "cos_nearest": 0.8216840922479172,
+        "cos_to_mean_psi": 0.9016863843524179
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 0.24,
+          "per_variant": {
+            "t1": {
+              "success": 0.28,
+              "hit_g1": 1,
+              "hit_g2": 6
+            },
+            "t3": {
+              "success": 0.2,
+              "hit_g1": 1,
+              "hit_g2": 4
+            }
+          },
+          "choice_entropy_bits": 0.6500224216483541,
+          "frac_first_g1": 0.16666666666666666
+        },
+        "sqrtd": {
+          "success_mean": 0.1,
+          "per_variant": {
+            "t1": {
+              "success": 0.04,
+              "hit_g1": 0,
+              "hit_g2": 1
+            },
+            "t3": {
+              "success": 0.16,
+              "hit_g1": 3,
+              "hit_g2": 1
+            }
+          },
+          "choice_entropy_bits": 0.9709505944546686,
+          "frac_first_g1": 0.6
+        }
+      }
+    },
+    "t1-t4": {
+      "diag": {
+        "n_pos": 2176,
+        "z_raw_norm": 60750.75435395622,
+        "cos_to_psi_g": {
+          "t1": 0.7683093401573723,
+          "t2": 0.6368160871150442,
+          "t3": 0.610797512498076,
+          "t4": 0.8058891013707428,
+          "t5": 0.6184613075602561
+        },
+        "nearest_psi_g": "t4",
+        "cos_nearest": 0.8058891013707428,
+        "cos_to_mean_psi": 0.9178814879173668
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 0.0,
+          "per_variant": {
+            "t1": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t4": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 0.0
+        },
+        "sqrtd": {
+          "success_mean": 0.02,
+          "per_variant": {
+            "t1": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t4": {
+              "success": 0.04,
+              "hit_g1": 1,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 1.0
+        }
+      }
+    },
+    "t1-t5": {
+      "diag": {
+        "n_pos": 2220,
+        "z_raw_norm": 63910.51863278426,
+        "cos_to_psi_g": {
+          "t1": 0.7728782974081289,
+          "t2": 0.6121777646459937,
+          "t3": 0.5883598918285882,
+          "t4": 0.5623215653549379,
+          "t5": 0.8114264067164029
+        },
+        "nearest_psi_g": "t5",
+        "cos_nearest": 0.8114264067164029,
+        "cos_to_mean_psi": 0.8941226122488627
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 0.66,
+          "per_variant": {
+            "t1": {
+              "success": 0.64,
+              "hit_g1": 0,
+              "hit_g2": 16
+            },
+            "t5": {
+              "success": 0.68,
+              "hit_g1": 2,
+              "hit_g2": 15
+            }
+          },
+          "choice_entropy_bits": 0.32984607020714635,
+          "frac_first_g1": 0.06060606060606061
+        },
+        "sqrtd": {
+          "success_mean": 0.56,
+          "per_variant": {
+            "t1": {
+              "success": 0.64,
+              "hit_g1": 16,
+              "hit_g2": 0
+            },
+            "t5": {
+              "success": 0.48,
+              "hit_g1": 12,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 1.0
+        }
+      }
+    },
+    "t2-t3": {
+      "diag": {
+        "n_pos": 2292,
+        "z_raw_norm": 64718.409469427206,
+        "cos_to_psi_g": {
+          "t1": 0.6394777346299466,
+          "t2": 0.7951126112276657,
+          "t3": 0.8048747214984769,
+          "t4": 0.6050885931341717,
+          "t5": 0.6028370266461389
+        },
+        "nearest_psi_g": "t3",
+        "cos_nearest": 0.8048747214984769,
+        "cos_to_mean_psi": 0.911523625573133
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 1.0,
+          "per_variant": {
+            "t2": {
+              "success": 1.0,
+              "hit_g1": 0,
+              "hit_g2": 25
+            },
+            "t3": {
+              "success": 1.0,
+              "hit_g1": 25,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 1.0,
+          "frac_first_g1": 0.5
+        },
+        "sqrtd": {
+          "success_mean": 1.0,
+          "per_variant": {
+            "t2": {
+              "success": 1.0,
+              "hit_g1": 0,
+              "hit_g2": 25
+            },
+            "t3": {
+              "success": 1.0,
+              "hit_g1": 25,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 1.0,
+          "frac_first_g1": 0.5
+        }
+      }
+    },
+    "t2-t4": {
+      "diag": {
+        "n_pos": 2242,
+        "z_raw_norm": 63804.978151512594,
+        "cos_to_psi_g": {
+          "t1": 0.605629491481529,
+          "t2": 0.7956805581240604,
+          "t3": 0.5835490808222511,
+          "t4": 0.8105405890252508,
+          "t5": 0.6002351063881646
+        },
+        "nearest_psi_g": "t4",
+        "cos_nearest": 0.8105405890252508,
+        "cos_to_mean_psi": 0.9048153501223389
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 0.06,
+          "per_variant": {
+            "t2": {
+              "success": 0.12,
+              "hit_g1": 2,
+              "hit_g2": 1
+            },
+            "t4": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.9182958340544896,
+          "frac_first_g1": 0.6666666666666666
+        },
+        "sqrtd": {
+          "success_mean": 0.04,
+          "per_variant": {
+            "t2": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t4": {
+              "success": 0.08,
+              "hit_g1": 2,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 1.0
+        }
+      }
+    },
+    "t2-t5": {
+      "diag": {
+        "n_pos": 2286,
+        "z_raw_norm": 65355.211705748996,
+        "cos_to_psi_g": {
+          "t1": 0.6328777189758276,
+          "t2": 0.7835017292001986,
+          "t3": 0.5772961567286289,
+          "t4": 0.5920938148624342,
+          "t5": 0.80459810302786
+        },
+        "nearest_psi_g": "t5",
+        "cos_nearest": 0.80459810302786,
+        "cos_to_mean_psi": 0.9044966602429659
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 0.18,
+          "per_variant": {
+            "t2": {
+              "success": 0.12,
+              "hit_g1": 0,
+              "hit_g2": 3
+            },
+            "t5": {
+              "success": 0.24,
+              "hit_g1": 1,
+              "hit_g2": 5
+            }
+          },
+          "choice_entropy_bits": 0.5032583347756457,
+          "frac_first_g1": 0.1111111111111111
+        },
+        "sqrtd": {
+          "success_mean": 0.04,
+          "per_variant": {
+            "t2": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t5": {
+              "success": 0.08,
+              "hit_g1": 2,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 1.0
+        }
+      }
+    },
+    "t3-t4": {
+      "diag": {
+        "n_pos": 2360,
+        "z_raw_norm": 66365.03604773713,
+        "cos_to_psi_g": {
+          "t1": 0.6184487516365201,
+          "t2": 0.6247715525949158,
+          "t3": 0.7896143580106735,
+          "t4": 0.7932143355608304,
+          "t5": 0.5884929751145118
+        },
+        "nearest_psi_g": "t4",
+        "cos_nearest": 0.7932143355608304,
+        "cos_to_mean_psi": 0.9133491025207885
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 0.0,
+          "per_variant": {
+            "t3": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t4": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 0.0
+        },
+        "sqrtd": {
+          "success_mean": 0.0,
+          "per_variant": {
+            "t3": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t4": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 0.0
+        }
+      }
+    },
+    "t3-t5": {
+      "diag": {
+        "n_pos": 2404,
+        "z_raw_norm": 67726.50499751791,
+        "cos_to_psi_g": {
+          "t1": 0.6461732306024891,
+          "t2": 0.6186725177699374,
+          "t3": 0.7810643930739319,
+          "t4": 0.5850233969825714,
+          "t5": 0.7876096518169913
+        },
+        "nearest_psi_g": "t5",
+        "cos_nearest": 0.7876096518169913,
+        "cos_to_mean_psi": 0.9153918866305808
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 0.0,
+          "per_variant": {
+            "t3": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t5": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 0.0
+        },
+        "sqrtd": {
+          "success_mean": 0.02,
+          "per_variant": {
+            "t3": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t5": {
+              "success": 0.04,
+              "hit_g1": 1,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 1.0
+        }
+      }
+    },
+    "t4-t5": {
+      "diag": {
+        "n_pos": 2354,
+        "z_raw_norm": 66769.12351232281,
+        "cos_to_psi_g": {
+          "t1": 0.6143445797909773,
+          "t2": 0.6172087078231361,
+          "t3": 0.5697526652203749,
+          "t4": 0.7814651520430473,
+          "t5": 0.7881694496890498
+        },
+        "nearest_psi_g": "t5",
+        "cos_nearest": 0.7881694496890498,
+        "cos_to_mean_psi": 0.9096368859503493
+      },
+      "per_norm": {
+        "match_data": {
+          "success_mean": 0.0,
+          "per_variant": {
+            "t4": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t5": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 0.0
+        },
+        "sqrtd": {
+          "success_mean": 0.02,
+          "per_variant": {
+            "t4": {
+              "success": 0.0,
+              "hit_g1": 0,
+              "hit_g2": 0
+            },
+            "t5": {
+              "success": 0.04,
+              "hit_g1": 1,
+              "hit_g2": 0
+            }
+          },
+          "choice_entropy_bits": 0.0,
+          "frac_first_g1": 1.0
+        }
+      }
+    }
+  },
+  "lift": {
+    "diag": {
+      "n_pos": 11139,
+      "z_raw_norm": 266590.67860323156,
+      "cos_to_psi_g": {
+        "t1": 0.6450990571092181,
+        "t2": 0.6541289990010354,
+        "t3": 0.6437546787534755,
+        "t4": 0.6176788415031278,
+        "t5": 0.6433372621720449
+      },
+      "nearest_psi_g": "t2",
+      "cos_nearest": 0.6541289990010354,
+      "cos_to_mean_psi": 0.9697218184221634
+    },
+    "per_norm": {
+      "match_data": {
+        "success_mean": 0.944,
+        "per_variant": {
+          "t1": 0.92,
+          "t2": 0.96,
+          "t3": 1.0,
+          "t4": 0.96,
+          "t5": 0.88
+        }
+      },
+      "sqrtd": {
+        "success_mean": 0.952,
+        "per_variant": {
+          "t1": 0.92,
+          "t2": 0.96,
+          "t3": 1.0,
+          "t4": 1.0,
+          "t5": 0.88
+        }
+      }
+    }
+  },
+  "regions": {
+    "R1": {
+      "center_m": [
+        0.3515,
+        0.172,
+        0.02
+      ],
+      "diag": {
+        "n_pos": 1038,
+        "z_raw_norm": 32456.923568609567,
+        "cos_to_psi_g": {
+          "t1": 0.5387467388239439,
+          "t2": 0.5602123630885469,
+          "t3": 0.5750212136082281,
+          "t4": 0.5938639627761042,
+          "t5": 0.5304781223648958
+        },
+        "nearest_psi_g": "t4",
+        "cos_nearest": 0.5938639627761042,
+        "cos_to_mean_psi": 0.8206112456526538
+      },
+      "per_norm": {
+        "match_data": {
+          "success_final_mean": 0.6719999999999999,
+          "success_any_mean": 0.96,
+          "per_variant_final": {
+            "t1": 0.68,
+            "t2": 0.8,
+            "t3": 0.68,
+            "t4": 0.76,
+            "t5": 0.44
+          },
+          "per_variant_any": {
+            "t1": 0.92,
+            "t2": 0.96,
+            "t3": 1.0,
+            "t4": 0.92,
+            "t5": 1.0
+          }
+        },
+        "sqrtd": {
+          "success_final_mean": 0.048,
+          "success_any_mean": 0.24,
+          "per_variant_final": {
+            "t1": 0.04,
+            "t2": 0.0,
+            "t3": 0.0,
+            "t4": 0.0,
+            "t5": 0.2
+          },
+          "per_variant_any": {
+            "t1": 0.08,
+            "t2": 0.0,
+            "t3": 0.04,
+            "t4": 0.08,
+            "t5": 1.0
+          }
+        }
+      }
+    },
+    "R2": {
+      "center_m": [
+        0.4251,
+        -0.1708,
+        0.02
+      ],
+      "diag": {
+        "n_pos": 988,
+        "z_raw_norm": 30907.474379959236,
+        "cos_to_psi_g": {
+          "t1": 0.7670652468960071,
+          "t2": 0.5499171238817576,
+          "t3": 0.5417043736799502,
+          "t4": 0.5143607035419567,
+          "t5": 0.6512805281886033
+        },
+        "nearest_psi_g": "t1",
+        "cos_nearest": 0.7670652468960071,
+        "cos_to_mean_psi": 0.8282451111797208
+      },
+      "per_norm": {
+        "match_data": {
+          "success_final_mean": 0.592,
+          "success_any_mean": 0.8960000000000001,
+          "per_variant_final": {
+            "t1": 0.76,
+            "t2": 0.56,
+            "t3": 0.64,
+            "t4": 0.44,
+            "t5": 0.56
+          },
+          "per_variant_any": {
+            "t1": 0.92,
+            "t2": 1.0,
+            "t3": 1.0,
+            "t4": 0.68,
+            "t5": 0.88
+          }
+        },
+        "sqrtd": {
+          "success_final_mean": 0.264,
+          "success_any_mean": 0.384,
+          "per_variant_final": {
+            "t1": 0.04,
+            "t2": 0.28,
+            "t3": 0.4,
+            "t4": 0.32,
+            "t5": 0.28
+          },
+          "per_variant_any": {
+            "t1": 0.04,
+            "t2": 0.52,
+            "t3": 0.48,
+            "t4": 0.56,
+            "t5": 0.32
+          }
+        }
+      }
+    },
+    "R3": {
+      "center_m": [
+        0.498,
+        0.0848,
+        0.02
+      ],
+      "diag": {
+        "n_pos": 1093,
+        "z_raw_norm": 33658.19881810532,
+        "cos_to_psi_g": {
+          "t1": 0.5799351376055961,
+          "t2": 0.7206892682275026,
+          "t3": 0.5581129558724344,
+          "t4": 0.6907709510293149,
+          "t5": 0.5612515225531832
+        },
+        "nearest_psi_g": "t2",
+        "cos_nearest": 0.7206892682275026,
+        "cos_to_mean_psi": 0.8361228956684924
+      },
+      "per_norm": {
+        "match_data": {
+          "success_final_mean": 0.752,
+          "success_any_mean": 0.8960000000000001,
+          "per_variant_final": {
+            "t1": 0.96,
+            "t2": 0.8,
+            "t3": 0.48,
+            "t4": 0.84,
+            "t5": 0.68
+          },
+          "per_variant_any": {
+            "t1": 0.96,
+            "t2": 0.96,
+            "t3": 0.68,
+            "t4": 1.0,
+            "t5": 0.88
+          }
+        },
+        "sqrtd": {
+          "success_final_mean": 0.5119999999999999,
+          "success_any_mean": 0.9279999999999999,
+          "per_variant_final": {
+            "t1": 0.4,
+            "t2": 0.52,
+            "t3": 0.52,
+            "t4": 0.4,
+            "t5": 0.72
+          },
+          "per_variant_any": {
+            "t1": 0.96,
+            "t2": 0.92,
+            "t3": 0.96,
+            "t4": 0.84,
+            "t5": 0.96
+          }
+        }
+      }
+    }
+  },
+  "uniform_control": {
+    "diag": {
+      "n_pos": 50000,
+      "z_raw_norm": 1251213.9556085765,
+      "cos_to_psi_g": {
+        "t1": 0.7028436174330199,
+        "t2": 0.7091290102231463,
+        "t3": 0.6973084270546124,
+        "t4": 0.6918924524197717,
+        "t5": 0.7014560963139025
+      },
+      "nearest_psi_g": "t2",
+      "cos_nearest": 0.7091290102231463,
+      "cos_to_mean_psi": 1.0
+    },
+    "per_norm": {
+      "match_data": {
+        "scored": {
+          "t1": {
+            "goal_success": {
+              "t1": 0.0,
+              "t2": 0.0,
+              "t3": 0.08,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 0.48,
+            "regions_final": {
+              "R1": 0.0,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          },
+          "t2": {
+            "goal_success": {
+              "t1": 0.04,
+              "t2": 0.0,
+              "t3": 1.0,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 0.4,
+            "regions_final": {
+              "R1": 0.0,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          },
+          "t3": {
+            "goal_success": {
+              "t1": 0.04,
+              "t2": 1.0,
+              "t3": 0.32,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 0.36,
+            "regions_final": {
+              "R1": 0.0,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          },
+          "t4": {
+            "goal_success": {
+              "t1": 0.08,
+              "t2": 0.0,
+              "t3": 0.16,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 1.0,
+            "regions_final": {
+              "R1": 0.0,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          },
+          "t5": {
+            "goal_success": {
+              "t1": 0.0,
+              "t2": 0.0,
+              "t3": 0.4,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 0.96,
+            "regions_final": {
+              "R1": 0.04,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          }
+        },
+        "mean_own_goal": 0.064,
+        "mean_all_goals": 0.12480000000000001,
+        "mean_lift": 0.64,
+        "mean_regions_final": 0.0026666666666666666
+      },
+      "sqrtd": {
+        "scored": {
+          "t1": {
+            "goal_success": {
+              "t1": 0.0,
+              "t2": 0.04,
+              "t3": 0.0,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 0.92,
+            "regions_final": {
+              "R1": 0.04,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          },
+          "t2": {
+            "goal_success": {
+              "t1": 0.0,
+              "t2": 0.04,
+              "t3": 1.0,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 0.92,
+            "regions_final": {
+              "R1": 0.0,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          },
+          "t3": {
+            "goal_success": {
+              "t1": 0.0,
+              "t2": 1.0,
+              "t3": 0.0,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 0.96,
+            "regions_final": {
+              "R1": 0.0,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          },
+          "t4": {
+            "goal_success": {
+              "t1": 0.0,
+              "t2": 0.08,
+              "t3": 0.0,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 0.96,
+            "regions_final": {
+              "R1": 0.0,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          },
+          "t5": {
+            "goal_success": {
+              "t1": 0.0,
+              "t2": 0.0,
+              "t3": 0.0,
+              "t4": 0.0,
+              "t5": 0.0
+            },
+            "lift": 0.96,
+            "regions_final": {
+              "R1": 0.0,
+              "R2": 0.0,
+              "R3": 0.0
+            }
+          }
+        },
+        "mean_own_goal": 0.008,
+        "mean_all_goals": 0.0864,
+        "mean_lift": 0.944,
+        "mean_regions_final": 0.0026666666666666666
+      }
+    }
+  },
+  "summary": {
+    "gate_anchor_match_g": 0.9199999999999999,
+    "anchor_match_data": 0.952,
+    "a_pairs_match_data": 0.25999999999999995,
+    "b_lift_match_data": 0.944,
+    "c_regions_final_match_data": 0.672,
+    "d_uniform_own_goal_match_data": 0.064,
+    "verdict_preregistered": "REFUTED"
+  }
+}

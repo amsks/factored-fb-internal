@@ -1,0 +1,13 @@
+{
+  "what": "spec 28 P0a -- z_cos_spread reinterpretation. The training-time index-collapse instrument (gciql_flow.py:2470) is computed on the MIXED index z=_density_z (measure_density_z_rand_frac=0.5 random spheres), so a FULLY collapsed hindsight branch is diluted to ~0.33 and reads as 'no collapse'.",
+  "simulated_z_cos_spread_fully_collapsed_hindsight_branch": 0.3258,
+  "simulated_z_cos_spread_fully_spread": 0.1134,
+  "observed_z_cos_spread_final_step": {
+    "z25_cs_tilt": 0.3464,
+    "z25_cs_dec": 0.3473,
+    "z25_cs_actor": 0.3503,
+    "z25_cs_full": 0.3457,
+    "z24_cd_z_s0": 0.3485
+  },
+  "conclusion": "observed .346-.350 matches the FULLY-COLLAPSED prediction (.326), not the spread reference (.113). P0a measures the deterministic encode alone (_density_z_encode, no sphere dilution) and reads mean pairwise cos 0.998-1.000 across 4096 dataset goals vs a sphere reference of 0.002."
+}

@@ -1,0 +1,2905 @@
+[2026-05-22 07:00:17] resource_guard start (interval=300s thresholds: root<2G mem<30G shm>90% tmp>90%)
+[2026-05-22 07:00:17] mem_avail=442G shm=108G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:05:17] mem_avail=442G shm=108G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:10:17] mem_avail=442G shm=108G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:15:17] mem_avail=442G shm=108G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:20:17] mem_avail=442G shm=108G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:25:17] mem_avail=442G shm=108G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:30:17] mem_avail=442G shm=108G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:35:17] mem_avail=442G shm=108G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:40:17] mem_avail=440G shm=108G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:45:17] mem_avail=440G shm=109G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:50:18] mem_avail=440G shm=109G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 07:55:18] mem_avail=440G shm=109G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:00:18] mem_avail=440G shm=109G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:05:18] mem_avail=440G shm=109G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:10:18] mem_avail=440G shm=109G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:15:18] mem_avail=440G shm=109G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:20:18] mem_avail=440G shm=109G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:25:18] mem_avail=439G shm=110G(30%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:30:18] mem_avail=439G shm=110G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:35:18] mem_avail=439G shm=110G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:40:18] mem_avail=439G shm=110G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:45:18] mem_avail=439G shm=110G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:50:19] mem_avail=439G shm=110G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 08:55:19] mem_avail=439G shm=110G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:00:19] mem_avail=439G shm=110G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:05:19] mem_avail=439G shm=110G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:10:19] mem_avail=438G shm=110G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:15:19] mem_avail=438G shm=111G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:20:19] mem_avail=438G shm=111G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:25:19] mem_avail=438G shm=111G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:30:19] mem_avail=438G shm=111G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:35:19] mem_avail=438G shm=111G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:40:19] mem_avail=438G shm=111G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:45:20] mem_avail=438G shm=111G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:50:20] mem_avail=437G shm=111G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 09:55:20] mem_avail=437G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:00:20] mem_avail=437G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:05:20] mem_avail=437G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:10:20] mem_avail=437G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:15:20] mem_avail=437G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:20:20] mem_avail=437G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:25:20] mem_avail=437G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:30:20] mem_avail=437G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:35:20] mem_avail=437G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:40:21] mem_avail=436G shm=112G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:45:21] mem_avail=436G shm=113G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:50:21] mem_avail=435G shm=113G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 10:55:21] mem_avail=435G shm=113G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:00:21] mem_avail=435G shm=113G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:05:21] mem_avail=436G shm=113G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:10:21] mem_avail=435G shm=113G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:15:21] mem_avail=435G shm=113G(31%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:20:21] mem_avail=435G shm=114G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:25:21] mem_avail=435G shm=114G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:30:21] mem_avail=435G shm=114G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:35:21] mem_avail=435G shm=114G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:40:22] mem_avail=435G shm=114G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:45:22] mem_avail=435G shm=114G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:50:22] mem_avail=435G shm=114G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 11:55:22] mem_avail=435G shm=114G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:00:22] mem_avail=435G shm=114G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:05:22] mem_avail=435G shm=115G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:10:22] mem_avail=435G shm=115G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:15:22] mem_avail=434G shm=115G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:20:22] mem_avail=434G shm=115G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:25:22] mem_avail=434G shm=115G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:30:22] mem_avail=434G shm=115G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:35:22] mem_avail=434G shm=115G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:40:23] mem_avail=434G shm=115G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:45:23] mem_avail=434G shm=115G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:50:23] mem_avail=434G shm=116G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 12:55:23] mem_avail=433G shm=116G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:00:23] mem_avail=433G shm=117G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:05:23] mem_avail=433G shm=117G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:10:23] mem_avail=433G shm=117G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:15:23] mem_avail=433G shm=117G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:20:23] mem_avail=433G shm=117G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:25:23] mem_avail=433G shm=117G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:30:23] mem_avail=433G shm=117G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:35:24] mem_avail=432G shm=117G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:40:24] mem_avail=433G shm=117G(32%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:45:24] mem_avail=431G shm=117G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:50:24] mem_avail=432G shm=118G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 13:55:24] mem_avail=433G shm=118G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:00:24] mem_avail=433G shm=118G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:05:24] mem_avail=433G shm=118G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:10:24] mem_avail=433G shm=118G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:15:24] mem_avail=433G shm=118G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:20:24] mem_avail=433G shm=118G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:25:24] mem_avail=432G shm=118G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:30:24] mem_avail=432G shm=118G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:35:25] mem_avail=432G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:40:25] mem_avail=432G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:45:25] mem_avail=432G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:50:25] mem_avail=432G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 14:55:25] mem_avail=432G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:00:25] mem_avail=432G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:05:25] mem_avail=431G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:10:25] mem_avail=430G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:15:25] mem_avail=430G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:20:25] mem_avail=430G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:25:25] mem_avail=430G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:30:26] mem_avail=430G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:35:26] mem_avail=430G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:40:26] mem_avail=430G shm=119G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:45:26] mem_avail=430G shm=120G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:50:26] mem_avail=430G shm=120G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 15:55:26] mem_avail=429G shm=120G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:00:26] mem_avail=429G shm=120G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:05:26] mem_avail=429G shm=120G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:10:26] mem_avail=429G shm=120G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:15:26] mem_avail=429G shm=120G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:20:26] mem_avail=429G shm=120G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:25:27] mem_avail=429G shm=120G(33%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:30:27] mem_avail=429G shm=121G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:35:27] mem_avail=429G shm=121G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:40:27] mem_avail=428G shm=121G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:45:27] mem_avail=428G shm=121G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:50:27] mem_avail=428G shm=121G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 16:55:27] mem_avail=428G shm=121G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:00:27] mem_avail=428G shm=121G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:05:27] mem_avail=428G shm=121G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:10:27] mem_avail=428G shm=122G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:15:27] mem_avail=428G shm=122G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:20:27] mem_avail=428G shm=122G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:25:28] mem_avail=427G shm=122G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:30:28] mem_avail=427G shm=122G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:35:28] mem_avail=427G shm=122G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:40:28] mem_avail=427G shm=122G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:45:28] mem_avail=427G shm=122G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:50:28] mem_avail=427G shm=123G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 17:55:28] mem_avail=426G shm=123G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:00:28] mem_avail=427G shm=123G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:05:28] mem_avail=426G shm=123G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:10:28] mem_avail=426G shm=123G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:15:28] mem_avail=426G shm=123G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:20:29] mem_avail=426G shm=123G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:25:29] mem_avail=426G shm=123G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:30:29] mem_avail=426G shm=124G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:35:29] mem_avail=426G shm=124G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:40:29] mem_avail=426G shm=124G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:45:29] mem_avail=426G shm=124G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:50:29] mem_avail=425G shm=124G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 18:55:29] mem_avail=425G shm=124G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:00:29] mem_avail=425G shm=124G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:05:29] mem_avail=425G shm=124G(34%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:10:29] mem_avail=425G shm=124G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:15:29] mem_avail=425G shm=125G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:20:30] mem_avail=425G shm=125G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:25:30] mem_avail=425G shm=125G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:30:30] mem_avail=425G shm=125G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:35:30] mem_avail=425G shm=125G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:40:30] mem_avail=425G shm=125G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:45:30] mem_avail=425G shm=125G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:50:30] mem_avail=424G shm=125G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 19:55:30] mem_avail=424G shm=126G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 20:00:30] mem_avail=424G shm=126G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 20:05:30] mem_avail=424G shm=126G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 20:10:30] mem_avail=424G shm=126G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 20:15:31] mem_avail=424G shm=126G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 20:20:31] mem_avail=424G shm=126G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 20:25:31] mem_avail=423G shm=126G(35%) tmp=1% root_avail~5G runs=4
+[2026-05-22 20:30:31] mem_avail=507G shm=126G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 20:35:31] mem_avail=486G shm=126G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 20:40:31] mem_avail=505G shm=126G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 20:45:31] mem_avail=507G shm=126G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 20:50:31] mem_avail=507G shm=126G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 20:55:31] mem_avail=507G shm=126G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:00:31] mem_avail=507G shm=126G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:05:31] mem_avail=494G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:10:31] mem_avail=505G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:15:32] mem_avail=507G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:20:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:25:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:30:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:35:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:40:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:45:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:50:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 21:55:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:00:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:05:32] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:10:33] mem_avail=506G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:15:33] mem_avail=505G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:20:33] mem_avail=505G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:25:33] mem_avail=505G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:30:33] mem_avail=505G shm=127G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:35:33] mem_avail=505G shm=128G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:40:33] mem_avail=505G shm=128G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:45:33] mem_avail=505G shm=128G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:50:33] mem_avail=505G shm=128G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 22:55:33] mem_avail=505G shm=128G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:00:33] mem_avail=505G shm=128G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:05:34] mem_avail=505G shm=128G(35%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:10:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:15:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:20:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:25:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:30:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:35:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:40:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:45:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:50:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-22 23:55:34] mem_avail=504G shm=128G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:00:34] mem_avail=504G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:05:35] mem_avail=504G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:10:35] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:15:35] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:20:35] mem_avail=488G shm=129G(36%) tmp=1% root_avail~5G runs=3
+[2026-05-23 00:25:35] mem_avail=504G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:30:35] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:35:35] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:40:35] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:45:35] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:50:35] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 00:55:35] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:00:36] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:05:36] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:10:36] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:15:36] mem_avail=502G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:20:36] mem_avail=502G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:25:36] mem_avail=502G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:30:36] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:35:36] mem_avail=503G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:40:36] mem_avail=502G shm=129G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:45:36] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:50:36] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 01:55:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:00:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:05:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:10:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:15:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:20:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:25:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:30:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:35:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:40:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:45:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:50:37] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 02:55:38] mem_avail=502G shm=130G(36%) tmp=1% root_avail~5G runs=2
+[2026-05-23 03:00:38] mem_avail=502G shm=130G(36%) tmp=1% root_avail~4G runs=2
+[2026-05-23 03:05:38] mem_avail=501G shm=130G(36%) tmp=1% root_avail~4G runs=2
+[2026-05-23 03:10:38] mem_avail=501G shm=130G(36%) tmp=1% root_avail~4G runs=2
+[2026-05-23 03:15:38] mem_avail=501G shm=130G(36%) tmp=1% root_avail~4G runs=2
+[2026-05-23 03:20:38] mem_avail=543G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-23 03:25:38] mem_avail=543G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-23 03:30:38] mem_avail=543G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-23 03:35:38] mem_avail=543G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-23 03:40:38] mem_avail=543G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-23 03:45:38] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 03:50:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 03:55:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:00:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:05:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:10:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:15:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:20:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:25:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:30:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:35:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:40:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:45:39] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:50:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 04:55:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:00:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:05:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:10:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:15:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:20:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:25:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:30:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:35:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:40:40] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:45:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:50:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 05:55:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:00:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:05:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:10:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:15:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:20:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:25:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:30:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:35:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:40:41] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:45:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:50:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 06:55:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:00:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:05:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:10:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:15:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:20:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:25:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:30:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:35:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:40:42] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:45:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:50:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 07:55:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:00:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:05:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:10:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:15:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:20:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:25:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:30:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:35:43] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:40:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:45:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:50:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 08:55:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:00:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:05:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:10:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:15:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:20:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:25:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:30:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:35:44] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:40:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:45:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:50:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 09:55:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:00:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:05:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:10:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:15:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:20:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:25:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:30:45] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:35:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:40:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:45:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:50:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 10:55:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:00:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:05:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:10:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:15:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:20:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:25:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:30:46] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:35:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:40:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:45:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:50:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 11:55:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:00:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:05:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:10:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:15:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:20:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:25:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:30:47] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:35:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:40:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:45:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:50:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 12:55:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:00:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:05:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:10:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:15:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:20:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:25:48] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:30:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:35:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:40:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:45:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:50:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 13:55:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:00:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:05:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:10:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:15:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:20:49] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:25:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:30:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:35:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:40:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:45:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:50:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 14:55:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:00:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:05:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:10:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:15:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:20:50] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:25:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:30:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:35:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:40:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:45:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:50:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 15:55:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:00:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:05:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:10:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:15:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:20:51] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:25:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:30:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:35:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:40:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:45:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:50:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 16:55:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:00:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:05:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:10:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:15:52] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:20:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:25:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:30:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:35:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:40:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:45:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:50:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 17:55:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:00:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:05:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:10:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:15:53] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:20:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:25:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:30:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:35:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:40:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:45:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:50:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 18:55:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:00:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:05:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:10:54] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:15:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:20:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:25:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:30:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:35:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:40:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:45:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:50:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 19:55:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:00:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:05:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:10:55] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:15:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:20:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:25:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:30:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:35:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:40:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:45:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:50:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 20:55:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:00:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:05:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:10:56] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:15:57] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:20:57] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:25:57] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:30:57] mem_avail=585G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:35:57] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:40:57] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:45:57] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:50:57] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 21:55:57] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:00:57] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:05:57] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:10:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:15:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:20:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:25:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:30:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:35:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:40:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:45:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:50:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 22:55:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:00:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:05:58] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:10:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:15:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:20:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:25:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:30:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:35:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:40:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:45:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:50:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-23 23:55:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:00:59] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:06:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:11:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:16:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:21:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:26:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:31:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:36:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:41:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:46:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:51:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 00:56:00] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:01:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:06:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:11:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:16:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:21:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:26:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:31:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:36:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:41:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:46:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:51:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 01:56:01] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:01:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:06:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:11:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:16:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:21:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:26:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:31:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:36:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:41:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:46:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:51:02] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 02:56:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:01:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:06:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:11:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:16:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:21:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:26:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:31:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:36:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:41:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:46:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:51:03] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 03:56:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:01:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:06:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:11:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:16:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:21:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:26:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:31:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:36:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:41:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:46:04] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:51:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 04:56:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:01:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:06:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:11:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:16:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:21:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:26:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:31:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:36:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:41:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:46:05] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:51:06] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 05:56:06] mem_avail=583G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 06:01:06] mem_avail=584G shm=131G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 06:06:06] mem_avail=542G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-24 06:11:06] mem_avail=542G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-24 06:16:06] mem_avail=542G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-24 06:21:06] mem_avail=542G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-24 06:26:06] mem_avail=439G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-24 06:31:06] mem_avail=542G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-24 06:36:06] mem_avail=542G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-24 06:41:06] mem_avail=484G shm=131G(36%) tmp=1% root_avail~4G runs=2
+[2026-05-24 06:46:07] mem_avail=499G shm=131G(36%) tmp=1% root_avail~4G runs=2
+[2026-05-24 06:51:07] mem_avail=541G shm=131G(36%) tmp=1% root_avail~4G runs=1
+[2026-05-24 06:56:07] mem_avail=584G shm=132G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 07:01:07] mem_avail=584G shm=132G(36%) tmp=1% root_avail~4G runs=0
+0
+[2026-05-24 07:06:07] mem_avail=345G shm=132G(36%) tmp=1% root_avail~4G runs=5
+[2026-05-24 07:11:07] mem_avail=352G shm=132G(36%) tmp=1% root_avail~4G runs=5
+[2026-05-24 07:16:07] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=132G(36%) tmp=1% root_avail~1G runs=5
+[2026-05-24 07:21:07] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=132G(36%) tmp=1% root_avail~1G runs=5
+[2026-05-24 07:26:07] ⚠️ WARNING ROOT_LOW mem_avail=350G shm=132G(36%) tmp=1% root_avail~1G runs=5
+[2026-05-24 07:31:07] ⚠️ WARNING ROOT_LOW mem_avail=350G shm=132G(36%) tmp=1% root_avail~1G runs=5
+[2026-05-24 07:36:07] ⚠️ WARNING ROOT_LOW mem_avail=349G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 07:41:08] ⚠️ WARNING ROOT_LOW mem_avail=349G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 07:46:08] ⚠️ WARNING ROOT_LOW mem_avail=349G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 07:51:08] ⚠️ WARNING ROOT_LOW mem_avail=349G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 07:56:08] ⚠️ WARNING ROOT_LOW mem_avail=349G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:01:08] ⚠️ WARNING ROOT_LOW mem_avail=354G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:06:08] ⚠️ WARNING ROOT_LOW mem_avail=354G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:11:08] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:16:08] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:21:08] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:26:08] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=132G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:31:08] ⚠️ WARNING ROOT_LOW mem_avail=352G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:36:09] ⚠️ WARNING ROOT_LOW mem_avail=354G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:41:09] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:46:09] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:51:09] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 08:56:09] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:01:09] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:06:09] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:11:09] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:16:09] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:21:09] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:26:09] ⚠️ WARNING ROOT_LOW mem_avail=352G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:31:10] ⚠️ WARNING ROOT_LOW mem_avail=352G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:36:10] ⚠️ WARNING ROOT_LOW mem_avail=352G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:41:10] ⚠️ WARNING ROOT_LOW mem_avail=352G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:46:10] ⚠️ WARNING ROOT_LOW mem_avail=352G shm=133G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:51:10] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 09:56:10] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 10:01:10] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 10:06:10] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 10:11:10] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 10:16:10] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-24 10:21:10] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 10:26:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 10:31:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 10:36:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 10:41:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 10:46:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 10:51:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 10:56:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:01:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:06:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:11:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:16:11] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:21:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:26:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:31:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:36:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:41:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:46:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:51:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 11:56:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 12:01:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 12:06:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 12:11:12] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 12:16:13] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 12:21:13] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 12:26:13] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 12:31:13] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 12:36:13] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 12:41[2026-05-24 14:01:14] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:06:14] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:11:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:16:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:21:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:26:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:31:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:36:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:41:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:46:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:51:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 14:56:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:01:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:06:15] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:11:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:16:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:21:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:26:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:31:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:36:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:41:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:46:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:51:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 15:56:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:01:16] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:06:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:11:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:16:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:21:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:26:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:31:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:36:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:41:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:46:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:51:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 16:56:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:01:17] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:06:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:11:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:16:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:21:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:26:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:31:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:36:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:41:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:46:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:51:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 17:56:18] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:01:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:06:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:11:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:16:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:21:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:26:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:31:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:36:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:41:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:46:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:51:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 18:56:19] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:01:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:06:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:11:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:16:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:21:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:26:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:31:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:36:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:41:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:46:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:51:20] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 19:56:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:01:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:06:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:11:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:16:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:21:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:26:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:31:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:36:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:41:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:46:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:51:21] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 20:56:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:01:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:06:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:11:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:16:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:21:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:26:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:31:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:36:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:41:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:46:22] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:51:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 21:56:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:01:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:06:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:11:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:16:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:21:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:26:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:31:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:36:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:41:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:46:23] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:51:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 22:56:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:01:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:06:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:11:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:16:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:21:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:26:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:31:24] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:36:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:41:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:46:24] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:51:25] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-24 23:56:25] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:01:25] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:06:25] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:11:25] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:16:25] ⚠️ WARNING ROOT_LOW mem_avail=582G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:21:25] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:26:25] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:31:25] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:36:25] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:41:25] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:46:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:51:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 00:56:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:01:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:06:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:11:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:16:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:21:26] ⚠️ WARNING ROOT_LOW mem_avail=577G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:26:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:31:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:36:26] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:41:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:46:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:51:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 01:56:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:01:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:06:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:11:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:16:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:21:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:26:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:31:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:36:27] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:41:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:46:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:51:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 02:56:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:01:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:06:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:11:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:16:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:21:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:26:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:31:28] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:36:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:41:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:46:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:51:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 03:56:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:01:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:06:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:11:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:16:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:21:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:26:29] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:31:30] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:36:30] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:41:30] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:46:30] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:51:30] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 04:56:30] ⚠️ WARNING ROOT_LOW mem_avail=581G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 05:01:30] ⚠️ WARNING ROOT_LOW mem_avail=140G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:06:30] ⚠️ WARNING ROOT_LOW mem_avail=348G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:11:30] ⚠️ WARNING ROOT_LOW mem_avail=349G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:16:30] ⚠️ WARNING ROOT_LOW mem_avail=349G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:21:30] ⚠️ WARNING ROOT_LOW mem_avail=348G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:26:30] ⚠️ WARNING ROOT_LOW mem_avail=348G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:31:31] ⚠️ WARNING ROOT_LOW mem_avail=346G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:36:31] ⚠️ WARNING ROOT_LOW mem_avail=346G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:41:31] ⚠️ WARNING ROOT_LOW mem_avail=346G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:46:31] ⚠️ WARNING ROOT_LOW mem_avail=346G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:51:31] ⚠️ WARNING ROOT_LOW mem_avail=346G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 05:56:31] ⚠️ WARNING ROOT_LOW mem_avail=352G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:01:31] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:06:31] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:11:31] ⚠️ WARNING ROOT_LOW mem_avail=350G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:16:31] ⚠️ WARNING ROOT_LOW mem_avail=350G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:21:32] ⚠️ WARNING ROOT_LOW mem_avail=350G shm=134G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:26:32] ⚠️ WARNING ROOT_LOW mem_avail=350G shm=135G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:31:32] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=135G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:36:32] ⚠️ WARNING ROOT_LOW mem_avail=350G shm=135G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:41:32] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=135G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:46:32] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=135G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:51:32] ⚠️ WARNING ROOT_LOW mem_avail=351G shm=135G(37%) tmp=1% root_avail~1G runs=5
+[2026-05-25 06:56:32] ⚠️ WARNING ROOT_LOW mem_avail=353G shm=135G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:01:32] ⚠️ WARNING ROOT_LOW mem_avail=357G shm=135G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:06:32] ⚠️ WARNING ROOT_LOW mem_avail=357G shm=135G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:11:32] ⚠️ WARNING ROOT_LOW mem_avail=357G shm=135G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:16:33] ⚠️ WARNING ROOT_LOW mem_avail=357G shm=135G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:21:33] ⚠️ WARNING ROOT_LOW mem_avail=357G shm=135G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:26:33] ⚠️ WARNING ROOT_LOW mem_avail=356G shm=136G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:31:33] ⚠️ WARNING ROOT_LOW mem_avail=359G shm=136G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:36:33] ⚠️ WARNING ROOT_LOW mem_avail=355G shm=136G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:41:33] ⚠️ WARNING ROOT_LOW mem_avail=355G shm=136G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:46:33] ⚠️ WARNING ROOT_LOW mem_avail=355G shm=136G(38%) tmp=1% root_avail~1G runs=5
+[2026-05-25 07:51:33] ⚠️ WARNING ROOT_LOW mem_avail=575G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 07:56:33] ⚠️ WARNING ROOT_LOW mem_avail=575G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:01:33] ⚠️ WARNING ROOT_LOW mem_avail=579G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:06:33] ⚠️ WARNING ROOT_LOW mem_avail=583G shm=132G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:11:34] ⚠️ WARNING ROOT_LOW mem_avail=539G shm=132G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:16:34] ⚠️ WARNING ROOT_LOW mem_avail=546G shm=132G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:21:34] ⚠️ WARNING ROOT_LOW mem_avail=546G shm=132G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:26:34] ⚠️ WARNING ROOT_LOW mem_avail=545G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:31:34] ⚠️ WARNING ROOT_LOW mem_avail=545G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:36:34] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:41:34] ⚠️ WARNING ROOT_LOW mem_avail=545G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:46:34] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:51:34] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 08:56:34] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:01:34] ⚠️ WARNING ROOT_LOW mem_avail=546G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:06:35] ⚠️ WARNING ROOT_LOW mem_avail=548G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:11:35] ⚠️ WARNING ROOT_LOW mem_avail=548G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:16:35] ⚠️ WARNING ROOT_LOW mem_avail=549G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:21:35] ⚠️ WARNING ROOT_LOW mem_avail=549G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:26:35] ⚠️ WARNING ROOT_LOW mem_avail=549G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:31:35] ⚠️ WARNING ROOT_LOW mem_avail=548G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:36:35] ⚠️ WARNING ROOT_LOW mem_avail=548G shm=133G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:41:35] ⚠️ WARNING ROOT_LOW mem_avail=548G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:46:35] ⚠️ WARNING ROOT_LOW mem_avail=547G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:51:35] ⚠️ WARNING ROOT_LOW mem_avail=547G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 09:56:35] ⚠️ WARNING ROOT_LOW mem_avail=548G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:01:36] ⚠️ WARNING ROOT_LOW mem_avail=547G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:06:36] ⚠️ WARNING ROOT_LOW mem_avail=547G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:11:36] ⚠️ WARNING ROOT_LOW mem_avail=554G shm=134G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:16:36] ⚠️ WARNING ROOT_LOW mem_avail=561G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:21:36] ⚠️ WARNING ROOT_LOW mem_avail=561G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:26:36] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:31:36] ⚠️ WARNING ROOT_LOW mem_avail=561G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:36:36] ⚠️ WARNING ROOT_LOW mem_avail=561G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:41:36] ⚠️ WARNING ROOT_LOW mem_avail=561G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:46:36] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:51:36] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 10:56:37] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:01:37] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:06:37] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(37%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:11:37] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:16:37] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:21:37] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:26:37] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:31:37] ⚠️ WARNING ROOT_LOW mem_avail=563G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:36:37] ⚠️ WARNING ROOT_LOW mem_avail=563G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:41:37] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:46:37] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:51:38] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 11:56:38] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:01:38] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:06:38] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:11:38] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=135G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:16:38] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:21:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:26:38] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:31:38] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:36:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:41:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:46:39] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:51:39] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 12:56:39] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:01:39] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:06:39] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:11:39] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:16:39] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:21:39] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:26:39] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:31:39] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:36:39] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:41:39] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:46:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:51:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 13:56:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:01:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:06:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:11:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:16:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:21:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:26:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:31:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:36:40] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:41:41] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:46:41] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:51:41] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 14:56:41] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:01:41] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:06:41] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:11:41] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:16:41] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:21:41] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:26:41] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:31:41] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:36:42] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:41:42] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:46:42] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:51:42] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 15:56:42] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:01:42] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:06:42] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:11:42] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:16:42] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:21:42] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:26:42] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:31:42] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:36:43] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=136G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:41:43] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:46:43] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:51:43] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 16:56:43] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:01:43] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:06:43] ⚠️ WARNING ROOT_LOW mem_avail=536G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:11:43] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:16:43] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:21:43] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:26:43] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:31:44] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:36:44] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:41:44] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:46:44] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:51:44] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 17:56:44] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:01:44] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:06:44] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:11:44] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:16:44] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:21:44] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:26:45] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:31:45] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:36:45] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:41:45] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:46:45] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:51:45] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=139G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 18:56:45] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:01:45] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:06:45] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:11:45] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:16:45] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:21:46] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:26:46] ⚠️ WARNING ROOT_LOW mem_avail=525G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:31:46] ⚠️ WARNING ROOT_LOW mem_avail=527G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:36:46] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:41:46] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:46:46] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:51:46] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 19:56:46] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:01:46] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:06:46] ⚠️ WARNING ROOT_LOW mem_avail=562G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:11:46] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:16:47] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:21:47] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:26:47] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:31:47] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:36:47] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:41:47] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:46:47] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:51:47] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 20:56:47] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:01:47] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:06:47] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=137G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:11:47] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:16:48] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:21:48] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:26:48] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:31:48] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:36:48] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:41:48] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:46:48] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:51:48] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 21:56:48] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:01:48] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:06:48] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:11:49] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=138G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:16:49] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=139G(38%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:21:49] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:26:49] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:31:49] ⚠️ WARNING ROOT_LOW mem_avail=530G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:36:49] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:41:49] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:46:49] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:51:49] ⚠️ WARNING ROOT_LOW mem_avail=529G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 22:56:49] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:01:49] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:06:50] ⚠️ WARNING ROOT_LOW mem_avail=531G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:11:50] ⚠️ WARNING ROOT_LOW mem_avail=527G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:16:50] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:21:50] ⚠️ WARNING ROOT_LOW mem_avail=560G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:26:50] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:31:50] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:36:50] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:41:50] ⚠️ WARNING ROOT_LOW mem_avail=532G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:46:50] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:51:50] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-25 23:56:50] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:01:50] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:06:51] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:11:51] ⚠️ WARNING ROOT_LOW mem_avail=539G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:16:51] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:21:51] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=139G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:26:51] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:31:51] ⚠️ WARNING ROOT_LOW mem_avail=543G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:36:51] ⚠️ WARNING ROOT_LOW mem_avail=543G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:41:51] ⚠️ WARNING ROOT_LOW mem_avail=543G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:46:51] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:51:51] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 00:56:51] ⚠️ WARNING ROOT_LOW mem_avail=546G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:01:52] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:06:52] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:11:52] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:16:52] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:21:52] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:26:52] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=140G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:31:52] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:36:52] ⚠️ WARNING ROOT_LOW mem_avail=545G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:41:52] ⚠️ WARNING ROOT_LOW mem_avail=545G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:46:52] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:51:52] ⚠️ WARNING ROOT_LOW mem_avail=541G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 01:56:52] ⚠️ WARNING ROOT_LOW mem_avail=541G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:01:53] ⚠️ WARNING ROOT_LOW mem_avail=541G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:06:53] ⚠️ WARNING ROOT_LOW mem_avail=541G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:11:53] ⚠️ WARNING ROOT_LOW mem_avail=541G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:16:53] ⚠️ WARNING ROOT_LOW mem_avail=541G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:21:53] ⚠️ WARNING ROOT_LOW mem_avail=546G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:26:53] ⚠️ WARNING ROOT_LOW mem_avail=545G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:31:53] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=141G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:36:53] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:41:53] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:46:53] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:51:53] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 02:56:53] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:01:54] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:06:54] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:11:54] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:16:54] ⚠️ WARNING ROOT_LOW mem_avail=543G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:21:54] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:26:54] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:31:54] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:36:54] ⚠️ WARNING ROOT_LOW mem_avail=539G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:41:54] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:46:54] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:51:54] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 03:56:54] ⚠️ WARNING ROOT_LOW mem_avail=541G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:01:55] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:06:55] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:11:55] ⚠️ WARNING ROOT_LOW mem_avail=539G shm=142G(39%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:16:55] ⚠️ WARNING ROOT_LOW mem_avail=543G shm=143G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:21:55] ⚠️ WARNING ROOT_LOW mem_avail=546G shm=143G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:26:55] ⚠️ WARNING ROOT_LOW mem_avail=546G shm=143G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:31:55] ⚠️ WARNING ROOT_LOW mem_avail=553G shm=143G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:36:55] ⚠️ WARNING ROOT_LOW mem_avail=563G shm=143G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:41:55] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:46:55] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:51:55] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 04:56:55] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:01:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:06:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:11:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:16:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:21:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:26:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:31:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:36:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:41:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:46:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:51:56] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 05:56:57] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:01:57] ⚠️ WARNING ROOT_LOW mem_avail=572G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:06:57] ⚠️ WARNING ROOT_LOW mem_avail=571G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:11:57] ⚠️ WARNING ROOT_LOW mem_avail=571G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:16:57] ⚠️ WARNING ROOT_LOW mem_avail=571G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:21:57] ⚠️ WARNING ROOT_LOW mem_avail=571G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:26:57] ⚠️ WARNING ROOT_LOW mem_avail=571G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:31:57] ⚠️ WARNING ROOT_LOW mem_avail=571G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:36:57] ⚠️ WARNING ROOT_LOW mem_avail=571G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:41:57] ⚠️ WARNING ROOT_LOW mem_avail=571G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:46:57] ⚠️ WARNING ROOT_LOW mem_avail=569G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:51:58] ⚠️ WARNING ROOT_LOW mem_avail=550G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 06:56:58] ⚠️ WARNING ROOT_LOW mem_avail=550G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:01:58] ⚠️ WARNING ROOT_LOW mem_avail=571G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:06:58] ⚠️ WARNING ROOT_LOW mem_avail=565G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:11:58] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:16:58] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:21:58] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:26:58] ⚠️ WARNING ROOT_LOW mem_avail=539G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:31:58] ⚠️ WARNING ROOT_LOW mem_avail=539G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:36:58] ⚠️ WARNING ROOT_LOW mem_avail=539G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:41:58] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:46:59] ⚠️ WARNING ROOT_LOW mem_avail=544G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:51:59] ⚠️ WARNING ROOT_LOW mem_avail=543G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 07:56:59] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:01:59] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:06:59] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=144G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:11:59] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:16:59] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:21:59] ⚠️ WARNING ROOT_LOW mem_avail=536G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:26:59] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:31:59] ⚠️ WARNING ROOT_LOW mem_avail=541G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:36:59] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:41:59] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:47:00] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:52:00] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 08:57:00] ⚠️ WARNING ROOT_LOW mem_avail=536G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:02:00] ⚠️ WARNING ROOT_LOW mem_avail=536G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:07:00] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:12:00] ⚠️ WARNING ROOT_LOW mem_avail=541G shm=145G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:17:00] ⚠️ WARNING ROOT_LOW mem_avail=536G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:22:00] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:27:00] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:32:00] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:37:00] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:42:00] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:47:01] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:52:01] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 09:57:01] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:02:01] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:07:01] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:12:01] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=146G(40%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:17:01] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=146G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:22:01] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=146G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:27:01] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=146G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:32:01] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=146G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:37:01] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=146G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:42:01] ⚠️ WARNING ROOT_LOW mem_avail=538G shm=146G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:47:02] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=146G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:52:02] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=146G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 10:57:02] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=146G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:02:02] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:07:02] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:12:02] ⚠️ WARNING ROOT_LOW mem_avail=534G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:17:02] ⚠️ WARNING ROOT_LOW mem_avail=535G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:22:02] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:27:02] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:32:02] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:37:02] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:42:02] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:47:03] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:52:03] ⚠️ WARNING ROOT_LOW mem_avail=533G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 11:57:03] ⚠️ WARNING ROOT_LOW mem_avail=537G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:02:03] ⚠️ WARNING ROOT_LOW mem_avail=540G shm=147G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:07:03] ⚠️ WARNING ROOT_LOW mem_avail=542G shm=148G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:12:03] ⚠️ WARNING ROOT_LOW mem_avail=539G shm=148G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:17:03] ⚠️ WARNING ROOT_LOW mem_avail=539G shm=148G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:22:03] ⚠️ WARNING ROOT_LOW mem_avail=553G shm=148G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:27:03] ⚠️ WARNING ROOT_LOW mem_avail=563G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:32:03] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:37:03] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:42:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:47:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:52:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 12:57:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:02:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:07:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:12:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:17:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:22:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:27:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:32:04] ⚠️ WARNING ROOT_LOW mem_avail=567G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:37:04] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:42:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:47:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:52:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 13:57:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:02:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:07:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:12:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:17:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:22:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:27:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:32:05] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:37:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:42:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:47:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:52:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 14:57:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:02:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:07:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:12:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:17:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:22:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:27:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:32:06] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:37:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:42:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:47:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:52:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 15:57:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:02:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:07:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:12:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:17:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:22:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:27:07] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:32:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:37:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:42:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:47:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:52:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 16:57:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:02:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:07:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:12:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:17:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:22:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:27:08] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:32:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:37:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:42:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:47:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:52:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 17:57:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:02:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:07:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:12:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:17:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:22:09] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:27:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:32:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:37:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:42:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:47:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:52:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 18:57:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:02:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:07:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:12:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:17:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:22:10] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:27:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:32:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:37:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:42:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:47:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:52:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 19:57:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:02:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:07:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:12:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:17:11] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:22:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:27:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:32:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:37:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:42:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:47:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:52:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 20:57:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:02:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:07:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:12:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:17:12] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:22:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:27:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:32:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:37:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:42:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:47:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:52:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 21:57:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:02:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:07:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:12:13] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:17:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:22:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:27:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:32:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:37:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:42:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:47:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:52:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 22:57:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:02:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:07:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:12:14] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:17:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:22:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:27:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:32:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:37:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:42:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:47:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:52:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-26 23:57:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:02:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:07:15] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:12:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:17:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:22:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:27:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:32:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:37:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:42:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:47:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:52:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 00:57:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:02:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:07:16] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:12:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:17:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:22:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:27:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:32:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:37:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:42:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:47:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:52:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 01:57:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:02:17] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:07:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:12:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:17:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:22:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:27:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:32:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:37:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:42:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:47:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:52:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 02:57:18] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:02:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:07:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:12:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:17:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:22:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:27:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:32:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:37:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:42:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:47:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:52:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 03:57:19] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:02:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:07:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:12:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:17:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:22:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:27:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:32:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:37:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:42:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:47:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:52:20] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 04:57:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:02:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:07:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:12:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:17:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:22:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:27:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:32:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:37:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:42:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:47:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:52:21] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 05:57:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:02:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:07:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:12:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:17:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:22:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:27:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:32:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:37:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:42:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:47:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:52:22] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 06:57:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:02:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:07:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:12:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:17:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:22:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:27:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:32:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:37:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:42:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:47:23] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:52:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 07:57:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:02:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:07:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:12:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:17:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:22:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:27:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:32:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:37:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:42:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:47:24] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:52:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 08:57:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:02:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:07:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:12:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:17:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:22:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:27:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:32:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:37:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:42:25] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:47:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:52:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 09:57:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:02:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:07:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:12:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:17:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:22:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:27:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:32:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:37:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:42:26] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:47:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:52:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 10:57:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:02:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:07:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:12:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:17:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:22:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:27:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:32:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:37:27] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:42:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:47:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:52:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 11:57:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:02:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:07:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:12:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:17:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:22:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:27:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:32:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:37:28] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:42:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:47:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:52:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 12:57:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:02:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:07:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:12:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:17:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:22:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:27:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:32:29] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:37:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:42:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:47:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:52:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 13:57:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:02:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:07:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:12:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:17:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:22:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:27:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:32:30] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:37:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:42:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:47:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:52:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 14:57:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:02:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:07:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:12:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:17:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:22:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:27:31] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:32:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:37:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:42:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:47:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:52:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 15:57:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:02:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:07:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:12:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:17:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:22:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:27:32] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:32:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:37:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:42:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:47:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:52:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 16:57:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:02:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:07:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:12:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:17:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:22:33] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:27:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:32:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:37:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:42:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:47:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:52:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 17:57:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:02:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:07:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:12:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:17:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:22:34] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:27:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:32:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:37:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:42:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:47:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:52:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 18:57:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:02:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:07:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:12:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:17:35] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:22:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:27:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:32:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:37:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:42:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:47:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:52:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 19:57:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:02:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:07:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:12:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:17:36] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:22:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:27:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:32:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:37:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:42:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:47:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:52:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 20:57:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:02:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:07:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:12:37] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:17:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:22:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:27:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:32:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:37:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:42:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:47:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:52:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 21:57:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 22:02:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 22:07:38] ⚠️ WARNING ROOT_LOW mem_avail=566G shm=149G(41%) tmp=1% root_avail~1G runs=0
+0
+[2026-05-27 22:12:38] mem_avail=563G shm=151G(42%) tmp=1% root_avail~3G runs=0
+0
+[2026-05-27 22:17:39] mem_avail=563G shm=151G(42%) tmp=1% root_avail~3G runs=0
+0
+[2026-05-27 22:22:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~10G runs=0
+0
+[2026-05-27 22:27:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~10G runs=0
+0
+[2026-05-27 22:32:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~10G runs=0
+0
+[2026-05-27 22:37:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~10G runs=0
+0
+[2026-05-27 22:42:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~10G runs=0
+0
+[2026-05-27 22:47:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~10G runs=0
+0
+[2026-05-27 22:52:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~10G runs=0
+0
+[2026-05-27 22:57:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~11G runs=0
+0
+[2026-05-27 23:02:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~11G runs=0
+0
+[2026-05-27 23:07:39] mem_avail=556G shm=159G(44%) tmp=1% root_avail~11G runs=0
+0

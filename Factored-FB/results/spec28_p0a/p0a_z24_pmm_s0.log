@@ -1,0 +1,13 @@
+Restored from /home/adityamohan/exp_spec24/factored-fb/GCIQL-PointMassMaze-RND-Flow-Measure-DensityZ-d50/z24_pmm_z_s0/params_500000.pkl
+[p0a] restored z24_pmm_z_s0 step=500000 env=exorl:point_mass_maze_rnd_seed0 z=True d=50 temp=1.0 tilt=0.0 hit_spec='0:2:0.03' P=16384
+[p0a] pool P=16384 (10s)
+[p0a] pair 8/64 (15s)
+[p0a] pair 16/64 (16s)
+[p0a] pair 24/64 (18s)
+[p0a] pair 32/64 (19s)
+[p0a] pair 40/64 (20s)
+[p0a] pair 48/64 (22s)
+[p0a] pair 56/64 (23s)
+[p0a] pair 64/64 (24s)
+[p0a] DONE (25s) -> results/spec28_p0a/p0a_z24_pmm_s0.json
+[p0a] spearman(q_g,q_z) med=0.011929395851793857  span_g=5.638e-05 span_z=2.905e-01  snr_g=67.60 snr_z=88.03  AUC_g=0.6396484375 AUC_z=0.55712890625 (chance .500)  d/span_g=0.5211111108053541 d/span_z=0.3582378176453685  sens_goal=0.0 (noise floor 1.385983094573021, unif ceiling 1.15)

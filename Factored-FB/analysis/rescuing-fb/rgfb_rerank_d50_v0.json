@@ -1,0 +1,296 @@
+{
+  "group": "RGFB-Cube-Single-State-d50-v0",
+  "checkpoint_step": 500000,
+  "n_seeds": 3,
+  "episodes": 25,
+  "agg_mean_std": {
+    "flow_z_N16": [
+      0.008,
+      0.006531972647421808
+    ],
+    "flow_z_N32": [
+      0.010666666666666666,
+      0.015084944665313014
+    ],
+    "flow_z_N64": [
+      0.013333333333333334,
+      0.018856180831641266
+    ],
+    "flow_z_N8": [
+      0.018666666666666665,
+      0.02639865316429777
+    ],
+    "flow_z_floor": [
+      0.09333333333333332,
+      0.02639865316429778
+    ],
+    "oneshot_z_N16": [
+      0.6906666666666667,
+      0.08698403429493384
+    ],
+    "oneshot_z_N32": [
+      0.6053333333333334,
+      0.10251937486261917
+    ],
+    "oneshot_z_N64": [
+      0.5733333333333334,
+      0.16189983185771242
+    ],
+    "oneshot_z_N8": [
+      0.7600000000000001,
+      0.06433246976967905
+    ],
+    "oneshot_z_floor": [
+      0.8666666666666667,
+      0.009977753031397205
+    ]
+  },
+  "best_rerank_cell": "oneshot_z_N8",
+  "best_rerank_success": 0.7600000000000001,
+  "verdict_preregistered": "BELOW_ANCHOR",
+  "runs": [
+    {
+      "run_dir": "/home/adityamohan/exp_rgfb/factored-fb/RGFB-Cube-Single-State-d50-v0/rgfb_v0_s0",
+      "seed": 0,
+      "d": 50,
+      "vf_cond": "z",
+      "run_group": "RGFB-Cube-Single-State-d50-v0",
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "flow_z_floor": 0.24,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.88,
+          "oneshot_z_N8": 0.84,
+          "oneshot_z_N16": 0.8,
+          "oneshot_z_N32": 0.72,
+          "oneshot_z_N64": 0.8
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "flow_z_floor": 0.04,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.92,
+          "oneshot_z_N8": 0.64,
+          "oneshot_z_N16": 0.52,
+          "oneshot_z_N32": 0.44,
+          "oneshot_z_N64": 0.48
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "flow_z_floor": 0.08,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.92,
+          "oneshot_z_N8": 0.96,
+          "oneshot_z_N16": 0.92,
+          "oneshot_z_N32": 0.92,
+          "oneshot_z_N64": 0.88
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "flow_z_floor": 0.0,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.84,
+          "oneshot_z_N8": 0.6,
+          "oneshot_z_N16": 0.6,
+          "oneshot_z_N32": 0.68,
+          "oneshot_z_N64": 0.64
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "flow_z_floor": 0.08,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.84,
+          "oneshot_z_N8": 0.88,
+          "oneshot_z_N16": 0.88,
+          "oneshot_z_N32": 0.48,
+          "oneshot_z_N64": 0.24
+        }
+      },
+      "agg": {
+        "flow_z_N16": 0.0,
+        "flow_z_N32": 0.0,
+        "flow_z_N64": 0.0,
+        "flow_z_N8": 0.0,
+        "flow_z_floor": 0.088,
+        "oneshot_z_N16": 0.744,
+        "oneshot_z_N32": 0.648,
+        "oneshot_z_N64": 0.608,
+        "oneshot_z_N8": 0.784,
+        "oneshot_z_floor": 0.8800000000000001
+      }
+    },
+    {
+      "run_dir": "/home/adityamohan/exp_rgfb/factored-fb/RGFB-Cube-Single-State-d50-v0/rgfb_v0_s1",
+      "seed": 1,
+      "d": 50,
+      "vf_cond": "z",
+      "run_group": "RGFB-Cube-Single-State-d50-v0",
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "flow_z_floor": 0.2,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.92,
+          "oneshot_z_N8": 0.6,
+          "oneshot_z_N16": 0.4,
+          "oneshot_z_N32": 0.4,
+          "oneshot_z_N64": 0.2
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "flow_z_floor": 0.0,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.04,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.88,
+          "oneshot_z_N8": 0.88,
+          "oneshot_z_N16": 0.84,
+          "oneshot_z_N32": 0.64,
+          "oneshot_z_N64": 0.6
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "flow_z_floor": 0.24,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.96,
+          "oneshot_z_N8": 0.72,
+          "oneshot_z_N16": 0.48,
+          "oneshot_z_N32": 0.44,
+          "oneshot_z_N64": 0.2
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "flow_z_floor": 0.0,
+          "flow_z_N8": 0.04,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.76,
+          "oneshot_z_N8": 0.68,
+          "oneshot_z_N16": 0.64,
+          "oneshot_z_N32": 0.44,
+          "oneshot_z_N64": 0.48
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "flow_z_floor": 0.2,
+          "flow_z_N8": 0.24,
+          "flow_z_N16": 0.04,
+          "flow_z_N32": 0.16,
+          "flow_z_N64": 0.2,
+          "oneshot_z_floor": 0.8,
+          "oneshot_z_N8": 0.48,
+          "oneshot_z_N16": 0.48,
+          "oneshot_z_N32": 0.4,
+          "oneshot_z_N64": 0.32
+        }
+      },
+      "agg": {
+        "flow_z_N16": 0.016,
+        "flow_z_N32": 0.032,
+        "flow_z_N64": 0.04,
+        "flow_z_N8": 0.055999999999999994,
+        "flow_z_floor": 0.128,
+        "oneshot_z_N16": 0.568,
+        "oneshot_z_N32": 0.46399999999999997,
+        "oneshot_z_N64": 0.36,
+        "oneshot_z_N8": 0.672,
+        "oneshot_z_floor": 0.8639999999999999
+      }
+    },
+    {
+      "run_dir": "/home/adityamohan/exp_rgfb/factored-fb/RGFB-Cube-Single-State-d50-v0/rgfb_v0_s2",
+      "seed": 2,
+      "d": 50,
+      "vf_cond": "z",
+      "run_group": "RGFB-Cube-Single-State-d50-v0",
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "flow_z_floor": 0.24,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.88,
+          "oneshot_z_N8": 0.88,
+          "oneshot_z_N16": 0.96,
+          "oneshot_z_N32": 0.84,
+          "oneshot_z_N64": 0.88
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "flow_z_floor": 0.04,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.88,
+          "oneshot_z_N8": 0.88,
+          "oneshot_z_N16": 0.88,
+          "oneshot_z_N32": 0.8,
+          "oneshot_z_N64": 0.76
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "flow_z_floor": 0.04,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.04,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.96,
+          "oneshot_z_N8": 0.88,
+          "oneshot_z_N16": 0.72,
+          "oneshot_z_N32": 0.6,
+          "oneshot_z_N64": 0.76
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "flow_z_floor": 0.0,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.68,
+          "oneshot_z_N8": 0.72,
+          "oneshot_z_N16": 0.56,
+          "oneshot_z_N32": 0.64,
+          "oneshot_z_N64": 0.72
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "flow_z_floor": 0.0,
+          "flow_z_N8": 0.0,
+          "flow_z_N16": 0.0,
+          "flow_z_N32": 0.0,
+          "flow_z_N64": 0.0,
+          "oneshot_z_floor": 0.88,
+          "oneshot_z_N8": 0.76,
+          "oneshot_z_N16": 0.68,
+          "oneshot_z_N32": 0.64,
+          "oneshot_z_N64": 0.64
+        }
+      },
+      "agg": {
+        "flow_z_N16": 0.008,
+        "flow_z_N32": 0.0,
+        "flow_z_N64": 0.0,
+        "flow_z_N8": 0.0,
+        "flow_z_floor": 0.06399999999999999,
+        "oneshot_z_N16": 0.76,
+        "oneshot_z_N32": 0.7040000000000001,
+        "oneshot_z_N64": 0.752,
+        "oneshot_z_N8": 0.8240000000000001,
+        "oneshot_z_floor": 0.8560000000000001
+      }
+    }
+  ]
+}

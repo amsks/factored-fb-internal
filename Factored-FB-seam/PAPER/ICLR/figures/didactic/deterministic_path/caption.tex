@@ -1,0 +1,15 @@
+\caption{\textbf{A deterministic MDP where the best squared successor fit chooses
+the wrong action.} Left and Right move between adjacent states; outward actions
+at the endpoints stay in place. The agent starts at $s_0$ and receives $+1$ on
+entering $s_1$ (Goal), which is continuing. Successors are defined under the
+uniform Left/Right continuation policy, with $\gamma=0.8$, uniform state-action
+sampling and its natural uniform next-state reference. With dimension two and
+unrestricted backward output norms, the unique best squared approximation to
+the exact successor matrix prefers Left at Start and earns zero under greedy
+execution, although a feasible rank-two representation preserves every action
+value for this goal reward. A feasible rank-two categorical model certifies that
+every global exact-target cross-entropy optimum induces optimal control from
+Start, with return $25/9$. This compares linear and exponential successor model
+classes; it is an exact-target approximation result, not a global TD-optimality
+claim.}
+\label{fig:deterministic-path}

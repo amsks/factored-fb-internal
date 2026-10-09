@@ -1,0 +1,27 @@
+{
+  "out": "analysis/deterministic_didactic/bottleneck5_td_test_nosphere",
+  "problem": "bottleneck5",
+  "methods": [
+    "fb",
+    "density"
+  ],
+  "gamma": [
+    0.8
+  ],
+  "rates": [
+    0.001,
+    0.01
+  ],
+  "seeds": [
+    0,
+    1
+  ],
+  "steps": 20000,
+  "interval": 5000,
+  "tau": 0.005,
+  "sphere": false,
+  "numpy": "2.4.6",
+  "jax": "0.10.2",
+  "optax": "0.2.8",
+  "source_sha256": "77f02453da952c25abe02bcede53ccef40b87b85114d2dd4acfcb33d4794bfa9"
+}

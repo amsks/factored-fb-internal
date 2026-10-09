@@ -1,0 +1,196 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec25_stage1/factored-fb/GCIQL-CubeSingle-Flow-Measure-DensityZ-C3Actor-d50/z25_cs_actor",
+    "checkpoint_step": 500000,
+    "env": "cube-single-play-v0",
+    "d": 50,
+    "pool_size": 16384,
+    "n_goals": 4096,
+    "seed": 0,
+    "tag": "z25_cs_actor",
+    "is_density_z": true,
+    "zenc_tower": "density_b_zenc",
+    "measure_density_z_enc_tau": 0.0005,
+    "hit_spec": "19:22:0.4",
+    "b_geometry": {
+      "zenc": {
+        "trace_over_d": 23390.30169880031,
+        "cond": 10482408.512721052,
+        "eff_rank": 1.0001873035344422
+      },
+      "online": {
+        "trace_over_d": 23688.822121016095,
+        "cond": 10336012.134104695,
+        "eff_rank": 1.0001877696438168
+      }
+    },
+    "ridge_lambda": {
+      "zenc": {
+        "0.001": 23.39030169880031,
+        "0.01": 233.90301698800312,
+        "0.1": 2339.0301698800313
+      },
+      "online": {
+        "0.001": 23.688822121016095,
+        "0.01": 236.88822121016096,
+        "0.1": 2368.8822121016096
+      }
+    },
+    "reward_row": "r_j = kg_j = GCIQLFlowAgent._delta_phi(goals, u_raw, blocks) -- the QUERY-SET SOFTMAX-NORMALIZED kernel (standing spec-28 rule); m_hat(g) = mean_j r_j B_bar(u_j)",
+    "probe": "spec 29 G29-0 pre-flight: is the DUAL index de-collapsed? zhat = sqrt(d)*normalize((Sigma+lam I)^-1 m). READOUT ONLY -- no F call, no actor, no rollout, nothing conditioned on zhat.",
+    "spec": "PAPER/Multistep-FB/specs/29-ra-dual-index.md G29-0",
+    "gate": "PASS = mean pairwise cosine well below .99 (sphere ref ~.002), corroborated by a participation ratio lifted off 1."
+  },
+  "index_sets": {
+    "sphere_encoding_z(g)": {
+      "cos_mean": 0.9999061350107844,
+      "cos_median": 0.999905100735561,
+      "dist_median": 0.09741625158929247,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 1.0001870486419748,
+        "pr_covariance": 20.120981939427836,
+        "top_eig_share_second_moment": 0.9999064885798499,
+        "top_eig_share_covariance": 0.1009310804497309,
+        "norm_median": 7.071067800562533
+      }
+    },
+    "sphere_reference": {
+      "cos_mean": -0.000709858483429463,
+      "cos_median": -0.0008852120156990356,
+      "dist_median": 10.004425081006824,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 49.41147317350916,
+        "pr_covariance": 49.41199384784016,
+        "top_eig_share_second_moment": 0.024498454811168403,
+        "top_eig_share_covariance": 0.024498563798397436,
+        "norm_median": 7.0710678118654755
+      }
+    },
+    "moment_primal[zenc]": {
+      "cos_mean": 0.9999470736669368,
+      "cos_median": 0.9999439250813591,
+      "dist_median": 0.07488205348789953,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 1.0001056591354065,
+        "pr_covariance": 12.087210077189944,
+        "top_eig_share_second_moment": 0.9999471745029335,
+        "top_eig_share_covariance": 0.16744482934291777,
+        "norm_median": 7.070960669105725
+      }
+    },
+    "dual_ridge_0.001[zenc]": {
+      "cos_mean": 0.0023559399632264123,
+      "cos_median": -0.10265848674850536,
+      "dist_median": 9.897440935878329,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 14.080532282433587,
+        "pr_covariance": 14.057531204360659,
+        "top_eig_share_second_moment": 0.14078637522871368,
+        "top_eig_share_covariance": 0.1413809091803941,
+        "norm_median": 6.649293845723052
+      }
+    },
+    "dual_ridge_0.01[zenc]": {
+      "cos_mean": 0.002710322059007868,
+      "cos_median": -0.10837792444693732,
+      "dist_median": 6.995494253612042,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 11.903000083142668,
+        "pr_covariance": 11.861160034786614,
+        "top_eig_share_second_moment": 0.17023351206381065,
+        "top_eig_share_covariance": 0.17085633043668227,
+        "norm_median": 4.669921592562708
+      }
+    },
+    "dual_ridge_0.1[zenc]": {
+      "cos_mean": 0.07494989188620704,
+      "cos_median": -0.03319867594643433,
+      "dist_median": 1.7445178234945777,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 12.95867280723149,
+        "pr_covariance": 11.988836096112781,
+        "top_eig_share_second_moment": 0.15664405039355678,
+        "top_eig_share_covariance": 0.16892092523232088,
+        "norm_median": 1.213658629302373
+      }
+    },
+    "moment_primal[online]": {
+      "cos_mean": 0.9999469944174036,
+      "cos_median": 0.9999438506229342,
+      "dist_median": 0.07493176019503758,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 1.000105819961214,
+        "pr_covariance": 12.063315066757312,
+        "top_eig_share_second_moment": 0.9999470941022013,
+        "top_eig_share_covariance": 0.16757359098300223,
+        "norm_median": 7.070961344808573
+      }
+    },
+    "dual_ridge_0.001[online]": {
+      "cos_mean": 0.002378789219109085,
+      "cos_median": -0.1027468135376819,
+      "dist_median": 9.893568609624895,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 14.069632934370748,
+        "pr_covariance": 14.046584366833496,
+        "top_eig_share_second_moment": 0.1408526787045935,
+        "top_eig_share_covariance": 0.14144793212879306,
+        "norm_median": 6.646541278024593
+      }
+    },
+    "dual_ridge_0.01[online]": {
+      "cos_mean": 0.0027301775464746566,
+      "cos_median": -0.10855353820945766,
+      "dist_median": 6.980219775167266,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 11.886419283668973,
+        "pr_covariance": 11.844654991537855,
+        "top_eig_share_second_moment": 0.17030519505823918,
+        "top_eig_share_covariance": 0.17092740796233363,
+        "norm_median": 4.660376996030041
+      }
+    },
+    "dual_ridge_0.1[online]": {
+      "cos_mean": 0.07482490712938296,
+      "cos_median": -0.03325208100587937,
+      "dist_median": 1.7366340173686743,
+      "sphere_ref_cos_mean": 0.0005796072072158592,
+      "spread": {
+        "d": 50,
+        "n": 4096,
+        "pr_second_moment": 12.936349045746297,
+        "pr_covariance": 11.96687278595895,
+        "top_eig_share_second_moment": 0.15677073850602666,
+        "top_eig_share_covariance": 0.16903992296057535,
+        "norm_median": 1.2079959043371593
+      }
+    }
+  }
+}

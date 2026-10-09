@@ -1,0 +1,11 @@
+env,critic,method,seed,epoch,task,episode,outcome,success,length,n_moving,reached_any,secured_any,relabel_n,relabel_shift,relabel_reward_mean,relabel_reward_pos_frac,relabel_inferred_cond,relabel_inferred_cond_action_calls,relabel_inferred_cond_goals_dropped,relabel_inferred_cond_norm,relabel_inferred_cond_cos_neutral
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,1,0,acquisition,0,200,1,1,0,10000,1.0,0.020800000056624413,0.0208,1.0,0.0,0.0,7.071067810058594,-0.007369625382125378
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,1,1,acquisition,0,200,1,1,0,10000,1.0,0.020800000056624413,0.0208,1.0,0.0,0.0,7.071067810058594,-0.007369625382125378
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,2,0,acquisition,0,200,1,1,0,10000,1.0,0.02280000038444996,0.0228,1.0,0.0,0.0,7.071068286895752,0.021086685359477997
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,2,1,success,1,50,1,1,1,10000,1.0,0.02280000038444996,0.0228,1.0,0.0,0.0,7.071068286895752,0.021086685359477997
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,3,0,acquisition,0,200,1,1,0,10000,1.0,0.02319999970495701,0.0232,1.0,0.0,0.0,7.071067810058594,-0.03785319626331329
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,3,1,success,1,140,1,1,1,10000,1.0,0.02319999970495701,0.0232,1.0,0.0,0.0,7.071067810058594,-0.03785319626331329
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,4,0,success,1,59,1,1,1,10000,1.0,0.024399999529123306,0.0244,1.0,0.0,0.0,7.071067810058594,-0.09216742217540741
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,4,1,success,1,159,1,1,1,10000,1.0,0.024399999529123306,0.0244,1.0,0.0,0.0,7.071067810058594,-0.09216742217540741
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,5,0,acquisition,0,200,1,1,0,10000,1.0,0.02290000021457672,0.0229,1.0,0.0,0.0,7.071067810058594,0.07222364842891693
+cube-single-play-v0,density_fb_z,Density-FB,0,1000000,5,1,acquisition,0,200,1,1,0,10000,1.0,0.02290000021457672,0.0229,1.0,0.0,0.0,7.071067810058594,0.07222364842891693

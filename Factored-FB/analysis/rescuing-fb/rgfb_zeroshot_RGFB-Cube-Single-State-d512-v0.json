@@ -1,0 +1,265 @@
+{
+  "group": "RGFB-Cube-Single-State-d512-v0",
+  "checkpoint_step": 500000,
+  "episodes": 50,
+  "relabel_size": 50000,
+  "n_seeds": 3,
+  "zeroshot_success": 0.828,
+  "zeroshot_success_std": 0.0228619042659763,
+  "exact_z_success": 0.84,
+  "exact_z_success_std": 0.03456395039150855,
+  "zeroshot_minus_exact_gap": -0.01200000000000001,
+  "zeroshot_success_sqrtd": 0.7426666666666666,
+  "mean_cos": 0.8865638470272462,
+  "runs": [
+    {
+      "run_dir": "/home/adityamohan/exp_spec06/factored-fb/RGFB-Cube-Single-State-d512-v0/d512v0_s0",
+      "seed": 0,
+      "d": 512,
+      "run_group": "RGFB-Cube-Single-State-d512-v0",
+      "actor_vf_cond": "z",
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02042,
+          "psi_g_norm": 37.71094512939453,
+          "mean_psi_data_norm": 35.14817810058594,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.86,
+          "zeroshot": {
+            "cos_to_psi_g": 0.87845418735563,
+            "raw_norm": 30106.419641459892,
+            "success_match_data": 0.92,
+            "success_sqrtd": 0.92
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02076,
+          "psi_g_norm": 37.55167007446289,
+          "mean_psi_data_norm": 35.129920959472656,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.78,
+          "zeroshot": {
+            "cos_to_psi_g": 0.898850290086196,
+            "raw_norm": 30760.086124106412,
+            "success_match_data": 0.88,
+            "success_sqrtd": 0.82
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.0239,
+          "psi_g_norm": 36.49296951293945,
+          "mean_psi_data_norm": 35.130409240722656,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.8,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8738901568356457,
+            "raw_norm": 35924.16413756745,
+            "success_match_data": 0.86,
+            "success_sqrtd": 0.94
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.0227,
+          "psi_g_norm": 37.13112258911133,
+          "mean_psi_data_norm": 35.13492965698242,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.64,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8795213201415338,
+            "raw_norm": 34147.799079647564,
+            "success_match_data": 0.62,
+            "success_sqrtd": 0.34
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02362,
+          "psi_g_norm": 37.462249755859375,
+          "mean_psi_data_norm": 35.12746810913086,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.88,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8624570009400498,
+            "raw_norm": 35520.07314740084,
+            "success_match_data": 0.76,
+            "success_sqrtd": 0.62
+          }
+        }
+      },
+      "mean_exact_z_success": 0.792,
+      "mean_zeroshot_match_data": 0.808,
+      "mean_zeroshot_sqrtd": 0.728,
+      "mean_cos": 0.8786345910718112
+    },
+    {
+      "run_dir": "/home/adityamohan/exp_spec06/factored-fb/RGFB-Cube-Single-State-d512-v0/d512v0_s1",
+      "seed": 1,
+      "d": 512,
+      "run_group": "RGFB-Cube-Single-State-d512-v0",
+      "actor_vf_cond": "z",
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02056,
+          "psi_g_norm": 36.38859558105469,
+          "mean_psi_data_norm": 33.587093353271484,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.92,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8927271101225462,
+            "raw_norm": 28863.075877149597,
+            "success_match_data": 0.76,
+            "success_sqrtd": 0.92
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02104,
+          "psi_g_norm": 35.376285552978516,
+          "mean_psi_data_norm": 33.61180114746094,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.86,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8995508149333368,
+            "raw_norm": 30210.505679255257,
+            "success_match_data": 0.9,
+            "success_sqrtd": 0.88
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02424,
+          "psi_g_norm": 36.46580505371094,
+          "mean_psi_data_norm": 33.57276916503906,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.98,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8997558523543778,
+            "raw_norm": 34631.69169910286,
+            "success_match_data": 0.88,
+            "success_sqrtd": 0.94
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02152,
+          "psi_g_norm": 36.88314437866211,
+          "mean_psi_data_norm": 33.5709342956543,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.72,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8874927850539452,
+            "raw_norm": 31577.59821312716,
+            "success_match_data": 0.82,
+            "success_sqrtd": 0.26
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02408,
+          "psi_g_norm": 36.82572555541992,
+          "mean_psi_data_norm": 33.593231201171875,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.88,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8982166742853944,
+            "raw_norm": 34802.47212054262,
+            "success_match_data": 0.72,
+            "success_sqrtd": 0.82
+          }
+        }
+      },
+      "mean_exact_z_success": 0.8719999999999999,
+      "mean_zeroshot_match_data": 0.8160000000000001,
+      "mean_zeroshot_sqrtd": 0.764,
+      "mean_cos": 0.8955486473499201
+    },
+    {
+      "run_dir": "/home/adityamohan/exp_spec06/factored-fb/RGFB-Cube-Single-State-d512-v0/d512v0_s2",
+      "seed": 2,
+      "d": 512,
+      "run_group": "RGFB-Cube-Single-State-d512-v0",
+      "actor_vf_cond": "z",
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.01994,
+          "psi_g_norm": 37.88376998901367,
+          "mean_psi_data_norm": 34.37992477416992,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.86,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8782019170371617,
+            "raw_norm": 29100.576569302284,
+            "success_match_data": 0.9,
+            "success_sqrtd": 0.9
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02102,
+          "psi_g_norm": 36.671451568603516,
+          "mean_psi_data_norm": 34.3846321105957,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.8,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8943088671898352,
+            "raw_norm": 31026.563772200658,
+            "success_match_data": 0.92,
+            "success_sqrtd": 0.94
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02476,
+          "psi_g_norm": 37.13233184814453,
+          "mean_psi_data_norm": 34.37687683105469,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.9,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8917467348203936,
+            "raw_norm": 36702.63487275028,
+            "success_match_data": 0.9,
+            "success_sqrtd": 0.86
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02384,
+          "psi_g_norm": 37.436378479003906,
+          "mean_psi_data_norm": 34.37706756591797,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.82,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8898547985334199,
+            "raw_norm": 35790.83581039644,
+            "success_match_data": 0.84,
+            "success_sqrtd": 0.3
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "n_samples": 50000,
+          "r_pos": 0.02164,
+          "psi_g_norm": 38.22362518310547,
+          "mean_psi_data_norm": 34.3558349609375,
+          "sqrt_d": 22.627416997969522,
+          "exact_z_success": 0.9,
+          "zeroshot": {
+            "cos_to_psi_g": 0.8734291957192265,
+            "raw_norm": 32067.624315863297,
+            "success_match_data": 0.74,
+            "success_sqrtd": 0.68
+          }
+        }
+      },
+      "mean_exact_z_success": 0.8560000000000001,
+      "mean_zeroshot_match_data": 0.86,
+      "mean_zeroshot_sqrtd": 0.736,
+      "mean_cos": 0.8855083026600074
+    }
+  ]
+}

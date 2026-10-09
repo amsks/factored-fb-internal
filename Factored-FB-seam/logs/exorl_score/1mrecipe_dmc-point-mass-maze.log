@@ -1,0 +1,41 @@
+20 cells: 1 domains x 4 tasks x 5 seeds (2 at a time)
+[ok] dmc-point-mass-maze/reach_top_left/s0
+[ok] dmc-point-mass-maze/reach_top_left/s1
+[ok] dmc-point-mass-maze/reach_top_left/s2
+[ok] dmc-point-mass-maze/reach_top_left/s3
+[ok] dmc-point-mass-maze/reach_top_left/s4
+[ok] dmc-point-mass-maze/reach_top_right/s0
+[ok] dmc-point-mass-maze/reach_top_right/s1
+[ok] dmc-point-mass-maze/reach_top_right/s2
+[ok] dmc-point-mass-maze/reach_top_right/s3
+[ok] dmc-point-mass-maze/reach_top_right/s4
+[ok] dmc-point-mass-maze/reach_bottom_left/s0
+[ok] dmc-point-mass-maze/reach_bottom_left/s1
+[ok] dmc-point-mass-maze/reach_bottom_left/s3
+[ok] dmc-point-mass-maze/reach_bottom_left/s2
+[ok] dmc-point-mass-maze/reach_bottom_right/s0
+[ok] dmc-point-mass-maze/reach_bottom_left/s4
+[ok] dmc-point-mass-maze/reach_bottom_right/s1
+[ok] dmc-point-mass-maze/reach_bottom_right/s2
+[ok] dmc-point-mass-maze/reach_bottom_right/s4
+[ok] dmc-point-mass-maze/reach_bottom_right/s3
+
+critic                   domain                 task                      mean      std  n
+density_fb_z             dmc-cheetah            run                      102.0     15.4  5
+density_fb_z             dmc-cheetah            run_backward             130.0     39.6  3
+density_fb_z             dmc-cheetah            walk                     401.0     92.6  5
+density_fb_z             dmc-cheetah            walk_backward            577.0    101.8  5
+density_fb_z             dmc-point-mass-maze    reach_bottom_left        739.5    127.3  5
+density_fb_z             dmc-point-mass-maze    reach_bottom_right       520.7    212.5  5
+density_fb_z             dmc-point-mass-maze    reach_top_left           944.4      0.8  5
+density_fb_z             dmc-point-mass-maze    reach_top_right          801.2      6.4  5
+density_fb_z             dmc-quadruped          jump                     730.3     53.2  3
+density_fb_z             dmc-quadruped          run                      460.2     41.4  5
+density_fb_z             dmc-quadruped          stand                    903.8     31.5  5
+density_fb_z             dmc-quadruped          walk                     527.1     72.1  5
+density_fb_z             dmc-walker             run                      327.0     13.3  5
+density_fb_z             dmc-walker             spin                     985.0      1.6  3
+density_fb_z             dmc-walker             stand                    842.5    157.9  5
+density_fb_z             dmc-walker             walk                     744.0     50.4  5
+
+Compare against RLDP Table 1 in docs/notes/2026-08-28-rldp-paper-eval.md. Gate (spec §4): per-task mean within 1 sigma of the official cell for >= 3 of 4 tasks, and no task below 50% of an official mean > 100.

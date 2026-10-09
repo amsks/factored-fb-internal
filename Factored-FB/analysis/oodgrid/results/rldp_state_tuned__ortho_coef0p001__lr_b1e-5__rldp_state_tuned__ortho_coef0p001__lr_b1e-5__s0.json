@@ -1,0 +1,11 @@
+{
+ "framework": "torch",
+ "group": "rldp_state_tuned__ortho_coef0p001__lr_b1e-5",
+ "seed": "rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s0",
+ "dir": "/dev/shm/factored-fb_outputs/rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s0",
+ "agent_name": "rldp_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb_outputs/rldp_state_tuned__ortho_coef0p001__lr_b1e-5__s0/checkpoints/final.pt",
+ "error": "unsupported torch agent for this harness: rldp_flowbc (no act(obs,z))"
+}

@@ -1,0 +1,374 @@
+\section{Theoretical Analysis}
+\label{app:dfb-theory}
+\label{app:theory}
+\label{app:bottleneck-proof}
+
+\subsection{Proof of Lemma~\ref{lem:linear-action-difference}}
+
+\paragraph{Setup.}
+Fix $z$ and write $\pi=\pi_z$.
+Let $\rho$ be the reference probability distribution, $r$ a bounded measurable reward, and $B\in L^2(\rho;\mathbb R^d)$ fixed. 
+At a bottleneck entry state $s$, choose $a_+\in\mathcal A_+(s)$ and $a_-\in\mathcal A_-(s)$ such that $Q_r^\pi(s,a_+)>Q_r^\pi(s,a_-)$.
+For each $a\in\{a_+,a_-\}$, write
+\[
+    M_a:=M^\pi(s,a,\cdot),
+    \qquad
+    M_a(ds^+)=m_a(s^+)\,\rho(ds^+),
+    \qquad
+    m_a\in L^2(\rho).
+\]
+The forward vectors minimize their squared errors independently:
+\[
+    F^*(s,a,z)
+    \in\operatorname*{arg\,min}_{f\in\mathbb R^d}
+    \int_{\mathcal S}
+    \bigl[m_a(s^+)-f^\top B(s^+)\bigr]^2\,\rho(ds^+).
+\]
+Define the fitted densities and values by
+\[
+    \widehat m_a(s^+):=F^*(s,a,z)^\top B(s^+),
+    \qquad
+    \widehat Q_r^\pi(s,a)
+    :=\frac{1}{1-\gamma}
+    \int_{\mathcal S}r(s^+)\widehat m_a(s^+)\,\rho(ds^+).
+\]
+
+\begin{proof}
+\noindent\textbf{Step 1: Characterize the optimal fit.}
+With $B$ fixed, fitting retains the component of each successor density that lies in the span of the backward features.
+To see this, differentiating the squared-error objective gives
+\[
+    G_B F^*(s,a,z)
+    =\int_{\mathcal S}B(s^+)\,M_a(ds^+),
+    \qquad
+    G_B:=\int_{\mathcal S}
+    B(s^+)B(s^+)^\top\,\rho(ds^+).
+\]
+Equivalently, for every $j=1,\ldots,d$,
+\[
+    \int_{\mathcal S}
+    B_j(s^+)\bigl[m_a(s^+)-\widehat m_a(s^+)\bigr]
+    \,\rho(ds^+)=0.
+\]
+Thus the residual is orthogonal to the backward feature span.
+Writing $\Pi_B$ for the $L^2(\rho)$ orthogonal projection onto $\operatorname{span}\{B_1,\ldots,B_d\}$, we obtain
+\[
+    \widehat m_a=\Pi_Bm_a
+    \qquad \rho\text{-almost everywhere}.
+\]
+The fitted density is therefore unique, even if $G_B$ is singular and the minimizing forward vector is not unique.
+
+\noindent\textbf{Step 2: Identify when the action distinction is lost.}
+The two fits coincide exactly when the backward features have the same expectations under the two SMs.
+Let
+\[
+    v:=F^*(s,a_+,z)-F^*(s,a_-,z).
+\]
+Subtracting the optimality equations yields
+\[
+    G_Bv
+    =\int_{\mathcal S}B(s^+)\,M_{a_+}(ds^+)
+     -\int_{\mathcal S}B(s^+)\,M_{a_-}(ds^+).
+\]
+If these feature expectations agree, then $G_Bv=0$, and hence
+\[
+    \int_{\mathcal S}
+    \bigl[\widehat m_{a_+}(s^+)-\widehat m_{a_-}(s^+)\bigr]^2
+    \,\rho(ds^+)
+    =v^\top G_Bv=0.
+\]
+The fitted densities therefore coincide $\rho$-almost everywhere.
+Conversely, if they coincide, then
+\[
+    G_Bv
+    =\int_{\mathcal S}B(s^+)
+    \bigl[\widehat m_{a_+}(s^+)-\widehat m_{a_-}(s^+)\bigr]
+    \,\rho(ds^+)=0,
+\]
+so their feature expectations agree.
+This proves
+\[
+    \mathbb E_{M_{a_+}}[B]=\mathbb E_{M_{a_-}}[B]
+    \quad\Longleftrightarrow\quad
+    \widehat m_{a_+}=\widehat m_{a_-}
+    \quad \rho\text{-almost everywhere}.
+\]
+
+\noindent\textbf{Step 3: Relate the lost distinction to action values.}
+The same projection can be applied to the reward: evaluating the fitted density against $r$ is equivalent to evaluating the exact density against $\Pi_Br$.
+Indeed, orthogonality gives
+\[
+\begin{aligned}
+    (1-\gamma)\widehat Q_r^\pi(s,a)
+    &=\int_{\mathcal S}
+      r(s^+)\widehat m_a(s^+)\,\rho(ds^+)\\
+    &=\int_{\mathcal S}
+      (\Pi_Br)(s^+)\widehat m_a(s^+)\,\rho(ds^+)\\
+    &=\int_{\mathcal S}
+      (\Pi_Br)(s^+)m_a(s^+)\,\rho(ds^+).
+\end{aligned}
+\]
+The second equality uses that $\widehat m_a$ lies in the backward feature span; the third uses that $\Pi_Br$ does.
+
+Under the equivalent conditions of Step 2, the fitted densities coincide, so
+\[
+    \widehat Q_r^\pi(s,a_+)-\widehat Q_r^\pi(s,a_-)
+    =\frac{1}{1-\gamma}
+    \int_{\mathcal S}r(s^+)
+    \bigl[\widehat m_{a_+}(s^+)-\widehat m_{a_-}(s^+)\bigr]
+    \,\rho(ds^+)=0.
+\]
+For the chosen action pair, however, \eqref{eq:sm-value} gives
+\[
+    Q_r^\pi(s,a_+)-Q_r^\pi(s,a_-)
+    =\frac{1}{1-\gamma}
+    \int_{\mathcal S}r(s^+)
+    \bigl[m_{a_+}(s^+)-m_{a_-}(s^+)\bigr]
+    \,\rho(ds^+)>0.
+\]
+Thus fitting discards the component of the successor densities that carries their true action-value distinction.
+\end{proof}
+
+\subsection{Proof of Proposition~\ref{prop:bottleneck-preservation}}
+
+\paragraph{Setup.}
+Both the normalized SMs $M^\pi(s,a,\cdot)$ and the Density-FB predictions $\widehat M_\theta(s,a,z,\cdot)$ are probability measures.
+Define the fitted values by
+\[
+    \widehat Q_r^\pi(s,a) :=\frac{1}{1-\gamma} \int_{\mathcal S} r(s^+)\,\widehat M_\theta(s,a,z,ds^+).
+\]
+The assumed positive gap implies that $r$ is non-constant, so $0<R<\infty$.
+
+\begin{proof}
+\noindent\textbf{Step 1: Convert distribution error into value error.}
+For bounded rewards, closeness of the successor distributions controls the error in their predicted returns.
+The bounded-reward expectation bound and Pinsker's inequality give, for each $a\in\{a_+,a_-\}$,
+\[
+    \left| \widehat Q_r^\pi(s,a)-Q_r^\pi(s,a) \right| \le \frac{R}{1-\gamma} \sqrt{ \frac12 D_{\mathrm{KL}}\!\left( M^\pi(s,a,\cdot) \,\middle\|\, \widehat M_\theta(s,a,z,\cdot) \right) }.
+\]
+Here KL divergence uses natural-log.
+
+\noindent\textbf{Step 2: Compare the errors with the true gap.}
+The stated KL threshold makes each value error smaller than half the true action-value gap:
+\[
+    \left| \widehat Q_r^\pi(s,a)-Q_r^\pi(s,a) \right| < \frac{R}{1-\gamma} \sqrt{\frac{(1-\gamma)^2\delta^2}{4R^2}} =\frac{\delta}{2}, \qquad a\in\{a_+,a_-\}.
+\]
+
+\noindent\textbf{Step 3: Preserve the action ordering.}
+Even if both errors reduce the predicted gap, their combined magnitude is insufficient to erase it:
+\[
+\begin{aligned}
+    &\widehat Q_r^\pi(s,a_+)-\widehat Q_r^\pi(s,a_-)\\
+    &\quad\ge
+    \delta -\left|\widehat Q_r^\pi(s,a_+)-Q_r^\pi(s,a_+)\right| -\left|\widehat Q_r^\pi(s,a_-)-Q_r^\pi(s,a_-)\right|\\
+    &\quad> \delta-\frac{\delta}{2}-\frac{\delta}{2} =0.
+\end{aligned}
+\]
+\end{proof}
+
+
+\subsection{Convergence under exact fitting}
+\label{app:exact-fitting-convergence}
+
+We adapt the exact-expectation convergence argument of TD InfoNCE~\citep[Appendix~A]{zheng-iclr24a} and establish a KL contraction that connects the fitted updates to \cref{prop:bottleneck-preservation}.
+
+\paragraph{Setup.}
+Assume finite state and action spaces, $0<\gamma<1$, a reference distribution $\rho$ with positive mass on every state, and a fixed continuation policy $\pi=\pi_z$.
+All expectations and normalizing constants are evaluated exactly.
+Write
+\[
+    \widehat M_k(s,a,\cdot) :=\widehat M_{\theta_k}(s,a,z,\cdot),
+\]
+and initialize $\widehat M_0(s,a,\cdot)$ with positive mass on every state for every $(s,a)$.
+
+At iteration $k$, form the Bellman targets
+\[
+    T_k(s,a,\cdot) :=(1-\gamma)P(\cdot\mid s,a) +\gamma \mathbb E_{\substack{ s'\sim P(\cdot\mid s,a)\\ a'\sim\pi(\cdot\mid s') }} \left[\widehat M_k(s',a',\cdot)\right].
+\]
+Assume that these targets are jointly representable by \name{} at the chosen feature dimension.
+With the targets held fixed, globally minimize the weighted sum of categorical fitting losses, assigning positive weight to every state-action pair.
+Both the forward and backward parameters may change during fitting.
+Then
+\[
+    \max_{s,a} D_{\mathrm{KL}}\!\left( M^\pi(s,a,\cdot) \,\middle\|\, \widehat M_k(s,a,\cdot) \right) \longrightarrow 0.
+\]
+Consequently, for any fixed bounded reward and any bottleneck action pair with a strictly positive true value gap, the fitted ordering is correct at every sufficiently large iteration.
+
+\begin{proof}
+\noindent\textbf{Step 1: Recover the Bellman target.}
+Exact cross-entropy fitting recovers a representable target distribution.
+Writing
+\[
+    \widehat M_\theta(s,a,z,ds^+)
+    =h_\theta(s,a,z,s^+)\,\rho(ds^+),
+\]
+the loss for each state-action pair satisfies
+\[
+\begin{aligned}
+    &-\int_{\mathcal S}
+      \log h_\theta(s,a,z,s^+)\,T_k(s,a,ds^+)\\
+    &\qquad=
+    D_{\mathrm{KL}}\!\left(
+        T_k(s,a,\cdot)
+        \,\middle\|\,
+        \widehat M_\theta(s,a,z,\cdot)
+    \right)
+    +\text{constant},
+\end{aligned}
+\]
+where the constant is independent of $\theta$.
+Joint realizability allows all KL terms to vanish simultaneously.
+Since every fitting weight is positive, every global minimizer therefore satisfies
+\[
+    \widehat M_{k+1}(s,a,\cdot)=T_k(s,a,\cdot)
+    \qquad\text{for every }(s,a).
+\]
+
+\noindent\textbf{Step 2: Contract the KL error.}
+The true SM and the fitted update have the same immediate-transition component.
+Their discrepancy comes only from the continuation predictions.
+Define
+\[
+    K_k:=\max_{s,a}
+    D_{\mathrm{KL}}\!\left(
+        M^\pi(s,a,\cdot)
+        \,\middle\|\,
+        \widehat M_k(s,a,\cdot)
+    \right).
+\]
+Using \eqref{eq:sm-bellman}, Step 1, and joint convexity of KL,
+\[
+\begin{aligned}
+    &D_{\mathrm{KL}}\!\left(
+        M^\pi(s,a,\cdot)
+        \,\middle\|\,
+        \widehat M_{k+1}(s,a,\cdot)
+    \right)\\
+    &\quad\le
+    \gamma
+    \mathbb E_{\substack{
+        s'\sim P(\cdot\mid s,a)\\
+        a'\sim\pi(\cdot\mid s')
+    }}
+    \left[
+        D_{\mathrm{KL}}\!\left(
+            M^\pi(s',a',\cdot)
+            \,\middle\|\,
+            \widehat M_k(s',a',\cdot)
+        \right)
+    \right]\\
+    &\quad\le\gamma K_k.
+\end{aligned}
+\]
+Taking the maximum over $(s,a)$ gives
+\[
+    K_{k+1}\le\gamma K_k.
+\]
+
+\noindent\textbf{Step 3: Reach the preservation threshold.}
+Positive initialization and finite state and action spaces ensure $K_0<\infty$.
+Hence
+\[
+    K_k\le\gamma^kK_0\longrightarrow0.
+\]
+Fix a bounded reward $r$ and a bottleneck action pair $a_+\in\mathcal A_+(s)$, $a_-\in\mathcal A_-(s)$ with
+\[
+    \delta:=Q_r^\pi(s,a_+)-Q_r^\pi(s,a_-)>0.
+\]
+Let
+\[
+    R:=\sup_{\mathcal S}r-\inf_{\mathcal S}r,
+    \qquad
+    \varepsilon:=\frac{(1-\gamma)^2\delta^2}{2R^2}.
+\]
+There exists $k_0$ such that, for every $k\ge k_0$,
+\[
+    D_{\mathrm{KL}}\!\left(
+        M^\pi(s,a,\cdot)
+        \,\middle\|\,
+        \widehat M_k(s,a,\cdot)
+    \right)
+    \le K_k<\varepsilon,
+    \qquad a\in\{a_+,a_-\}.
+\]
+Thus \cref{prop:bottleneck-preservation} gives
+\[
+    \widehat Q_{k,r}^\pi(s,a_+)>
+    \widehat Q_{k,r}^\pi(s,a_-),
+    \qquad k\ge k_0,
+\]
+where $\widehat Q_{k,r}^\pi$ integrates $r$ against $\widehat M_k$ as in \eqref{eq:sm-value}.
+\end{proof}
+
+
+\subsection{Successor-feature interpretation of the training reward}
+\label{app:reward-successor-features}
+
+\paragraph{Setup.}
+Fix $z$, $\pi=\pi_z$, and a bounded measurable feature map $B_\theta:\mathcal S\to\mathbb R^d$.
+Consider the training reward
+\[
+    r_z(s^+):=\frac{B_\theta(s^+)^\top z}{\sqrt d}.
+\]
+With these reward features held fixed, the value of $r_z$ has the standard successor-feature representation~\citep{barreto-neurips17}.
+
+\begin{proof}
+\noindent\textbf{Step 1: Express successor features using the SM.}
+Successor features record the expected discounted sum of future features.
+By the definition of the normalized SM,
+\[
+\begin{aligned}
+    \psi^\pi(s,a)
+    &:=
+    \mathbb E_\pi\!\left[
+        \sum_{t\ge0}\gamma^t
+        \frac{B_\theta(s_{t+1})}{\sqrt d}
+        \,\middle|\,
+        s_0=s,a_0=a
+    \right]\\
+    &=
+    \frac{1}{1-\gamma}
+    \int_{\mathcal S}
+    \frac{B_\theta(s^+)}{\sqrt d}\,
+    M^\pi(s,a,ds^+).
+\end{aligned}
+\]
+Boundedness of $B_\theta$ justifies exchanging the expectation and the discounted sum.
+
+\noindent\textbf{Step 2: Recover the reward value.}
+Since the reward is linear in these features, its value is linear in their discounted occupancies:
+\[
+\begin{aligned}
+    Q_{r_z}^\pi(s,a)
+    &=
+    \frac{1}{1-\gamma}
+    \int_{\mathcal S}
+    \frac{B_\theta(s^+)^\top z}{\sqrt d}\,
+    M^\pi(s,a,ds^+)\\
+    &=\psi^\pi(s,a)^\top z.
+\end{aligned}
+\]
+
+\noindent\textbf{Step 3: Identify the features estimated by the readout.}
+For candidate future states $s_j^+$, the probabilities $p_j(s,a,z)$ in \eqref{eq:density-candidates} define the estimate
+\[
+    \widehat\psi_\theta(s,a,z)
+    :=
+    \frac{1}{1-\gamma}
+    \sum_j p_j(s,a,z)
+    \frac{B_\theta(s_j^+)}{\sqrt d}.
+\]
+Substituting $r_z$ into \eqref{eq:density-value} gives
+\[
+\begin{aligned}
+    \widehat Q_{\theta,r_z}(s,a,z)
+    &=
+    \frac{1}{1-\gamma}
+    \sum_j p_j(s,a,z)\,r_z(s_j^+)\\
+    &=\widehat\psi_\theta(s,a,z)^\top z.
+\end{aligned}
+\]
+Thus the readout estimates successor features by averaging future-state features under the predicted probabilities, then applies the reward weights $z$.
+\end{proof}
+
+For the implemented centered reward, the same identities hold with $B_\theta$ replaced by $B_\xi-\hat\mu$, holding $B_\xi$ and $\hat\mu$ fixed.

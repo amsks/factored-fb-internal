@@ -1,0 +1,9 @@
+{
+  "n_states": 64,
+  "n_std_above": 44,
+  "required": 40,
+  "median_std": 0.274019718170166,
+  "passes": true,
+  "p1_median_std": 0.04056645929813385,
+  "p3_median_std": 0.21636182069778442
+}

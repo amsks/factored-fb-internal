@@ -1,0 +1,21 @@
+12 cells: 1 domains x 4 tasks x 3 seeds (4 at a time)
+[ok] dmc-point-mass-maze/reach_top_left/s2
+[ok] dmc-point-mass-maze/reach_top_right/s0
+[ok] dmc-point-mass-maze/reach_top_left/s0
+[ok] dmc-point-mass-maze/reach_top_left/s1
+[ok] dmc-point-mass-maze/reach_bottom_left/s0
+[ok] dmc-point-mass-maze/reach_top_right/s2
+[ok] dmc-point-mass-maze/reach_top_right/s1
+[ok] dmc-point-mass-maze/reach_bottom_left/s1
+[ok] dmc-point-mass-maze/reach_bottom_right/s1
+[ok] dmc-point-mass-maze/reach_bottom_left/s2
+[ok] dmc-point-mass-maze/reach_bottom_right/s0
+[ok] dmc-point-mass-maze/reach_bottom_right/s2
+
+critic                   domain                 task                      mean      std  n
+fb                       dmc-point-mass-maze    reach_bottom_left        413.6    335.4  3
+fb                       dmc-point-mass-maze    reach_bottom_right         3.8      6.6  3
+fb                       dmc-point-mass-maze    reach_top_left           731.3    161.8  3
+fb                       dmc-point-mass-maze    reach_top_right          329.1    417.4  3
+
+Compare against RLDP Table 1 in docs/notes/2026-08-28-rldp-paper-eval.md. Gate (spec §4): per-task mean within 1 sigma of the official cell for >= 3 of 4 tasks, and no task below 50% of an official mean > 100.

@@ -1,0 +1,62 @@
+{
+  "cube-single-play-singletask-task1-v0": {
+    "L0": {
+      "success": 0.2,
+      "value_auc": 0.6433918476104736,
+      "cos_to_L0": 0.9999999403953552
+    },
+    "L1": {
+      "success": 0.25,
+      "value_auc": 0.6865359544754028,
+      "cos_to_L0": 0.8610628247261047
+    }
+  },
+  "cube-single-play-singletask-task2-v0": {
+    "L0": {
+      "success": 0.0,
+      "value_auc": 0.5821736454963684,
+      "cos_to_L0": 0.9999998211860657
+    },
+    "L1": {
+      "success": 0.55,
+      "value_auc": 0.6158856749534607,
+      "cos_to_L0": 0.8115112781524658
+    }
+  },
+  "cube-single-play-singletask-task3-v0": {
+    "L0": {
+      "success": 0.4,
+      "value_auc": 0.5681683421134949,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.45,
+      "value_auc": 0.5418375730514526,
+      "cos_to_L0": 0.8121693134307861
+    }
+  },
+  "cube-single-play-singletask-task4-v0": {
+    "L0": {
+      "success": 0.05,
+      "value_auc": 0.6558650135993958,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.3,
+      "value_auc": 0.565676748752594,
+      "cos_to_L0": 0.814568281173706
+    }
+  },
+  "cube-single-play-singletask-task5-v0": {
+    "L0": {
+      "success": 0.35,
+      "value_auc": 0.6609094738960266,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.15,
+      "value_auc": 0.6097868084907532,
+      "cos_to_L0": 0.8123167753219604
+    }
+  }
+}

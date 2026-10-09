@@ -1,0 +1,361 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_missbase/tunedfb_cdbl_s43",
+    "checkpoint": "/home/adityamohan/exp_missbase/tunedfb_cdbl_s43/checkpoints/step_500000.pt",
+    "checkpoint_step": 500000,
+    "agent": "fb_flowbc",
+    "obs_type": "state",
+    "z_dim": 50,
+    "ortho_coef": 1.0,
+    "env": "cube-double-play-v0",
+    "d_c": 6,
+    "gamma": 0.99,
+    "hit_spec": "19:22:0.4,28:31:0.4",
+    "pool_size": 16384,
+    "pool_cap": 16384,
+    "seed": 0,
+    "episodes": 25,
+    "horizon": 500,
+    "relabel_size": 50000,
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac",
+      "dense",
+      "region"
+    ],
+    "readout": {
+      "z_r": "project(sum_i r(x_i) B(s'_i)) -- FBModel.reward_inference, FB's own reward interface (agents/fb/agent.py infer_z)",
+      "policy": "FBAgent.act(obs, z_r): the trained flow actor conditioned on z_r; Q_r(s,a)=F(s,a,z_r)^T z_r is what it was trained to maximize. No goal decode and no retrieval -- that is the one intended difference from the density columns",
+      "families": "reward_conj_dirac / reward_conj_dense / region centers imported from eval_zeroshot_rewards.py + eval_partition_zeroshot.py, the same functions eval_density_zeroshot.py calls",
+      "success": "env info['success'] latched over the episode (dirac/dense); conjunctive region membership at the final step (region)"
+    },
+    "native_success_wandb": 0.0,
+    "goal_coords": {
+      "t1": [
+        0.0,
+        0.0,
+        0.1995989978313446,
+        0.0,
+        1.0,
+        0.1995989978313446
+      ],
+      "t2": [
+        -0.75,
+        1.0,
+        0.1995989978313446,
+        0.75,
+        1.0,
+        0.1995989978313446
+      ],
+      "t3": [
+        0.0,
+        -2.0,
+        0.1995989978313446,
+        0.0,
+        2.0,
+        0.1995989978313446
+      ],
+      "t4": [
+        0.0,
+        1.0,
+        0.1995989978313446,
+        0.0,
+        -1.0,
+        0.1995989978313446
+      ],
+      "t5": [
+        0.0,
+        0.0,
+        0.19921384751796722,
+        0.0,
+        0.0,
+        0.5991264581680298
+      ]
+    },
+    "reference_check": {
+      "ref": "results/xenv_eval/dzs_cd_dens_s0_RET_k1.json",
+      "checks": {
+        "env": {
+          "ref": "cube-double-play-v0",
+          "ours": "cube-double-play-v0",
+          "match": true
+        },
+        "hit_spec": {
+          "ref": "19:22:0.4,28:31:0.4",
+          "ours": "19:22:0.4,28:31:0.4",
+          "match": true
+        },
+        "pool_size": {
+          "ref": 16384,
+          "ours": 16384,
+          "match": true
+        },
+        "episodes": {
+          "ref": 25,
+          "ours": 25,
+          "match": true
+        },
+        "horizon": {
+          "ref": 500,
+          "ours": 500,
+          "match": true
+        },
+        "checkpoint_step": {
+          "ref": 500000,
+          "ours": 500000,
+          "match": true
+        },
+        "seed": {
+          "ref": 0,
+          "ours": 0,
+          "match": true
+        },
+        "relabel_size": {
+          "ref": 50000,
+          "ours": 50000,
+          "match": true
+        },
+        "region_centers": {
+          "shape_ref": [
+            4,
+            6
+          ],
+          "shape_ours": [
+            4,
+            6
+          ],
+          "max_abs_diff": 0.0,
+          "match": true
+        }
+      },
+      "ok": true
+    }
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "success": 0.28,
+        "z_diag": {
+          "pool_r_sum": 4.0,
+          "pool_r_nonzero": 4,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "t2": {
+        "success": 0.0,
+        "z_diag": {
+          "pool_r_sum": 6.0,
+          "pool_r_nonzero": 6,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "t3": {
+        "success": 0.0,
+        "z_diag": {
+          "pool_r_sum": 15.0,
+          "pool_r_nonzero": 15,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "t4": {
+        "success": 0.0,
+        "z_diag": {
+          "pool_r_sum": 8.0,
+          "pool_r_nonzero": 8,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071067810058594
+        }
+      },
+      "t5": {
+        "success": 0.0,
+        "z_diag": {
+          "pool_r_sum": 18.0,
+          "pool_r_nonzero": 18,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "mean": 0.05600000000000001
+    },
+    "dense": {
+      "t1": {
+        "success": 0.32,
+        "z_diag": {
+          "pool_r_sum": 890.9166585165159,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071067810058594
+        }
+      },
+      "t2": {
+        "success": 0.0,
+        "z_diag": {
+          "pool_r_sum": 667.1511678661393,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "t3": {
+        "success": 0.08,
+        "z_diag": {
+          "pool_r_sum": 574.6140806193496,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071067810058594
+        }
+      },
+      "t4": {
+        "success": 0.0,
+        "z_diag": {
+          "pool_r_sum": 777.8648992798455,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071067810058594
+        }
+      },
+      "t5": {
+        "success": 0.0,
+        "z_diag": {
+          "pool_r_sum": 943.4512700552743,
+          "pool_r_nonzero": 16384,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071067810058594
+        }
+      },
+      "mean": 0.08
+    },
+    "region": {
+      "n_centers": 4,
+      "centers_rejected": 0,
+      "center_min_pos": 5,
+      "c0": {
+        "success_final": 0.0,
+        "success_any": 0.0,
+        "center_coord": [
+          -0.14507551491260529,
+          -0.7839939594268799,
+          0.199607253074646,
+          1.131671667098999,
+          1.2365483045578003,
+          0.535377562046051
+        ],
+        "center_n_pos": 14,
+        "z_diag": {
+          "pool_r_sum": 3.0,
+          "pool_r_nonzero": 3,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071068286895752
+        }
+      },
+      "c1": {
+        "success_final": 0.0,
+        "success_any": 0.0,
+        "center_coord": [
+          -0.9081528186798096,
+          0.19804082810878754,
+          0.199607253074646,
+          -0.47518113255500793,
+          -0.32575294375419617,
+          0.19904091954231262
+        ],
+        "center_n_pos": 24,
+        "z_diag": {
+          "pool_r_sum": 14.0,
+          "pool_r_nonzero": 14,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071067810058594
+        }
+      },
+      "c2": {
+        "success_final": 0.0,
+        "success_any": 0.0,
+        "center_coord": [
+          -0.2127457857131958,
+          -0.4847254753112793,
+          0.199607253074646,
+          0.6542578935623169,
+          2.259143352508545,
+          0.199607253074646
+        ],
+        "center_n_pos": 38,
+        "z_diag": {
+          "pool_r_sum": 26.0,
+          "pool_r_nonzero": 26,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.0710673332214355
+        }
+      },
+      "c3": {
+        "success_final": 0.0,
+        "success_any": 0.0,
+        "center_coord": [
+          -0.3395206928253174,
+          -1.1974105834960938,
+          0.199607253074646,
+          0.14022807776927948,
+          0.6516172885894775,
+          0.199607253074646
+        ],
+        "center_n_pos": 35,
+        "z_diag": {
+          "pool_r_sum": 11.0,
+          "pool_r_nonzero": 11,
+          "pool_size": 16384,
+          "degenerate": false,
+          "z_norm": 7.071068286895752
+        }
+      },
+      "mean_final": 0.0,
+      "mean_any": 0.0
+    }
+  },
+  "controls": {
+    "randz_floor": {
+      "note": "z ~ model.sample_z (the model's own prior over task indices): what this success criterion scores with no task information at all",
+      "tasks": {
+        "t1": 0.04,
+        "t2": 0.0,
+        "t3": 0.0,
+        "t4": 0.0,
+        "t5": 0.0
+      },
+      "regions": {
+        "c0": 0.0,
+        "c1": 0.0,
+        "c2": 0.0,
+        "c3": 0.0
+      },
+      "task_mean": 0.008,
+      "region_mean": 0.0
+    },
+    "native_vs_dirac": {
+      "native_success_overall_wandb": 0.0,
+      "zeroshot_dirac_mean": 0.05600000000000001,
+      "abs_diff": 0.05600000000000001,
+      "note": "dirac = the five native tasks with indicator rewards at the native radius (obs cube xyz = (m - CEN)*10 so eps 0.4 = the 0.04 m OGBench threshold); a wild disagreement means the harness is wrong, not that FB transfers"
+    }
+  }
+}

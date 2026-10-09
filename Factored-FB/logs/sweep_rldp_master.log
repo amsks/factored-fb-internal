@@ -1,0 +1,39 @@
+[grid] AGENT=rldp_flowbc  18 jobs  grid ortho_coef{0.001 0.01 0.1} x lr_b{1e-4 1e-5} x seeds{0 1 2}
+[grid] 8 GPUs x 2/GPU = 16 parallel  steps=500000  logs -> /home/adityamohan/git/Factored-FB/logs/grid_20260608_080705
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p001__lr_b1e-4__s0 on GPU0 (slot 0)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p001__lr_b1e-4__s1 on GPU1 (slot 1)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p001__lr_b1e-4__s2 on GPU2 (slot 2)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p001__lr_b1e-5__s0 on GPU3 (slot 3)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p001__lr_b1e-5__s1 on GPU4 (slot 4)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p001__lr_b1e-5__s2 on GPU5 (slot 5)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p01__lr_b1e-4__s0 on GPU6 (slot 6)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p01__lr_b1e-4__s1 on GPU7 (slot 7)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p01__lr_b1e-4__s2 on GPU0 (slot 8)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p01__lr_b1e-5__s0 on GPU1 (slot 9)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p01__lr_b1e-5__s1 on GPU2 (slot 10)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p01__lr_b1e-5__s2 on GPU3 (slot 11)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p1__lr_b1e-4__s0 on GPU4 (slot 12)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p1__lr_b1e-4__s1 on GPU5 (slot 13)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p1__lr_b1e-4__s2 on GPU6 (slot 14)
+[grid] 08:07:05 launch rldp_state_sweep__ortho_coef0p1__lr_b1e-5__s0 on GPU7 (slot 15)
+[grid] 15:17:30 DONE rldp_state_sweep__ortho_coef0p001__lr_b1e-4__s0 rc=0
+[grid] 15:17:32 launch rldp_state_sweep__ortho_coef0p1__lr_b1e-5__s1 on GPU0 (slot 0)
+[grid] 15:19:41 DONE rldp_state_sweep__ortho_coef0p01__lr_b1e-5__s0 rc=0
+[grid] 15:19:41 launch rldp_state_sweep__ortho_coef0p1__lr_b1e-5__s2 on GPU1 (slot 9)
+[grid] 15:19:49 DONE rldp_state_sweep__ortho_coef0p001__lr_b1e-4__s1 rc=0
+[grid] 15:20:21 DONE rldp_state_sweep__ortho_coef0p1__lr_b1e-5__s0 rc=0
+[grid] 15:21:44 DONE rldp_state_sweep__ortho_coef0p01__lr_b1e-4__s2 rc=0
+[grid] 15:22:33 DONE rldp_state_sweep__ortho_coef0p001__lr_b1e-5__s2 rc=0
+[grid] 15:25:17 DONE rldp_state_sweep__ortho_coef0p01__lr_b1e-5__s1 rc=0
+[grid] 15:25:43 DONE rldp_state_sweep__ortho_coef0p001__lr_b1e-4__s2 rc=0
+[grid] 15:26:17 DONE rldp_state_sweep__ortho_coef0p001__lr_b1e-5__s0 rc=0
+[grid] 15:26:24 DONE rldp_state_sweep__ortho_coef0p01__lr_b1e-5__s2 rc=0
+[grid] 15:26:44 DONE rldp_state_sweep__ortho_coef0p1__lr_b1e-4__s1 rc=0
+[grid] 15:27:45 DONE rldp_state_sweep__ortho_coef0p01__lr_b1e-4__s1 rc=0
+[grid] 15:27:52 DONE rldp_state_sweep__ortho_coef0p1__lr_b1e-4__s0 rc=0
+[grid] 15:28:05 DONE rldp_state_sweep__ortho_coef0p001__lr_b1e-5__s1 rc=0
+[grid] 15:33:08 DONE rldp_state_sweep__ortho_coef0p01__lr_b1e-4__s0 rc=0
+[grid] 15:33:10 DONE rldp_state_sweep__ortho_coef0p1__lr_b1e-4__s2 rc=0
+[grid] 20:13:50 DONE rldp_state_sweep__ortho_coef0p1__lr_b1e-5__s2 rc=0
+[grid] 20:17:17 DONE rldp_state_sweep__ortho_coef0p1__lr_b1e-5__s1 rc=0
+[grid] all done -> /home/adityamohan/git/Factored-FB/logs/grid_20260608_080705 (0 job(s) exited nonzero)

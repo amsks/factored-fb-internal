@@ -1,0 +1,8 @@
+[banks] cube-single-play-v0: 20 episodes; candidates approach=1394 inhand=90 carrying=153
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[banks] cube-single-play-v0 approach: {'candidates': 1394, 'episodes': 20, 'tried': 8, 'banked': 8, 'gate_pass': 1.0, 'from_fb': 2, 'from_density': 6}
+[banks] cube-single-play-v0 inhand: {'candidates': 90, 'episodes': 9, 'tried': 8, 'banked': 8, 'gate_pass': 1.0, 'from_fb': 5, 'from_density': 3}
+[banks] cube-single-play-v0 carrying: {'candidates': 153, 'episodes': 9, 'tried': 8, 'banked': 8, 'gate_pass': 1.0, 'from_fb': 5, 'from_density': 3}

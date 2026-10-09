@@ -1,0 +1,20 @@
+{
+ "framework": "torch",
+ "group": "psm_state_fbmatch_tau01__target_tau0p01__lr_phi1e-5",
+ "seed": "2026-06-08_20-59-48__cube-single-play-v0__psm_flowbc__s1",
+ "dir": "/dev/shm/factored-fb_outputs/2026-06-08_20-59-48__cube-single-play-v0__psm_flowbc__s1",
+ "agent_name": "psm_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb_outputs/2026-06-08_20-59-48__cube-single-play-v0__psm_flowbc__s1/checkpoints/final.pt",
+ "zB_note": "psm_flowbc has no backward_map; zB cells (C1/C4) not defined",
+ "C2_zR": {
+  "success": 0.24,
+  "grasped": 0.94
+ },
+ "C3_zR": {
+  "success": 0.27,
+  "grasped": 1.0
+ },
+ "secs": 323.6
+}

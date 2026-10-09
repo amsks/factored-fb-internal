@@ -1,0 +1,159 @@
+[monitor] watching logs/crl_flowbc_campaign_20260524_070255  (tick=900s, stale>1800s, target=1000000)
+
+════════ [monitor] 2026-05-24 08:02:22  tick 1 ════════
+  EVAL    factored-fb-crl-flowbc-pixel-drq_s0          0% step=0                   eval=20.11s/it
+  EVAL    factored-fb-crl-flowbc-pixel-drq_s1          0% step=0                   eval=20.10s/it
+  EVAL    factored-fb-crl-flowbc-pixel-drq_s2          0% step=0                   eval=20.14s/it
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3          3% step=33730    11.02it/s  
+  EVAL    factored-fb-crl-flowbc-pixel-drq_s4          0% step=0                   eval=20.11s/it
+  TRAIN   factored-fb-crl-flowbc_s0                   20% step=202400   65.38it/s  
+  TRAIN   factored-fb-crl-flowbc_s1                   20% step=202627   65.35it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   20% step=201121   64.79it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   20% step=201134   64.56it/s  
+  TRAIN   factored-fb-crl-flowbc_s4                   20% step=206475   65.50it/s  
+  TRAIN   factored-fb-crl-flowbc_s5                   20% step=206626   65.30it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 08:17:23  tick 2 ════════
+  EVAL    factored-fb-crl-flowbc-pixel-drq_s0          0% step=0                   eval=20.08s/it
+  EVAL    factored-fb-crl-flowbc-pixel-drq_s1          0% step=0                   eval=20.11s/it
+  EVAL    factored-fb-crl-flowbc-pixel-drq_s2          0% step=0                   eval=20.14s/it
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3          4% step=43415    10.97it/s  
+  EVAL    factored-fb-crl-flowbc-pixel-drq_s4          0% step=0                   eval=20.10s/it
+  TRAIN   factored-fb-crl-flowbc_s0                   25% step=259330   62.53it/s  
+  TRAIN   factored-fb-crl-flowbc_s1                   25% step=259554   63.31it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   25% step=258044   63.32it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   25% step=258055   63.16it/s  
+  TRAIN   factored-fb-crl-flowbc_s4                   26% step=264823   64.77it/s  
+  TRAIN   factored-fb-crl-flowbc_s5                   26% step=264977   63.76it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 08:32:23  tick 3 ════════
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s0          0% step=369      11.06it/s  eval=20.11s/it
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s1          0% step=357      10.39it/s  eval=20.12s/it
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s2          0% step=273      10.86it/s  eval=20.14s/it
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3          5% step=52711    10.42it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s4          0% step=337      10.81it/s  eval=20.12s/it
+  TRAIN   factored-fb-crl-flowbc_s0                   30% step=309695   64.59it/s  
+  TRAIN   factored-fb-crl-flowbc_s1                   30% step=309729   63.73it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   30% step=308201   63.71it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   30% step=308364   64.71it/s  
+  TRAIN   factored-fb-crl-flowbc_s4                   31% step=316213   64.30it/s  
+  TRAIN   factored-fb-crl-flowbc_s5                   31% step=316785   64.40it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 08:47:24  tick 4 ════════
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s0          1% step=10629    11.77it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s1          1% step=11299    12.36it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s2          1% step=10249    11.41it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3          6% step=62522    10.36it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s4          1% step=10483    11.82it/s  
+  TRAIN   factored-fb-crl-flowbc_s0                   36% step=366746   63.30it/s  
+  TRAIN   factored-fb-crl-flowbc_s1                   36% step=366791   63.13it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   36% step=365208   64.17it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   36% step=365369   63.38it/s  
+  TRAIN   factored-fb-crl-flowbc_s4                   37% step=374469   64.94it/s  
+  TRAIN   factored-fb-crl-flowbc_s5                   37% step=375040   64.34it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 09:02:25  tick 5 ════════
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s0          2% step=21261    11.88it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s1          2% step=22365    12.40it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s2          2% step=20758    12.01it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3          7% step=72424    10.90it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s4          2% step=21011    12.11it/s  
+  TRAIN   factored-fb-crl-flowbc_s0                   41% step=417370   63.89it/s  
+  TRAIN   factored-fb-crl-flowbc_s1                   41% step=417135   63.78it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   41% step=415418   63.95it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   41% step=416051   63.89it/s  
+  TRAIN   factored-fb-crl-flowbc_s4                   42% step=426053   64.65it/s  
+  TRAIN   factored-fb-crl-flowbc_s5                   42% step=427214   64.60it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 09:17:26  tick 6 ════════
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s0          3% step=31719    11.41it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s1          3% step=33327    12.31it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s2          3% step=31518    12.22it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3          8% step=82358    11.07it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s4          3% step=31807    12.07it/s  
+  TRAIN   factored-fb-crl-flowbc_s0                   47% step=474741   63.56it/s  
+  TRAIN   factored-fb-crl-flowbc_s1                   47% step=474502   63.45it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   47% step=472769   63.57it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   47% step=473399   63.52it/s  
+  TRAIN   factored-fb-crl-flowbc_s4                   48% step=484545   64.83it/s  
+  TRAIN   factored-fb-crl-flowbc_s5                   48% step=485703   64.87it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 09:32:26  tick 7 ════════
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s0          4% step=42237    11.65it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s1          4% step=44339    12.37it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s2          4% step=41920    11.22it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3          9% step=91891    11.09it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s4          4% step=42367    10.58it/s  
+  TRAIN   factored-fb-crl-flowbc_s0                   52% step=524890   62.81it/s  
+  TRAIN   factored-fb-crl-flowbc_s1                   52% step=525173   63.73it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   52% step=523281   63.32it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   52% step=524112   63.40it/s  
+  TRAIN   factored-fb-crl-flowbc_s4                   53% step=536289   64.50it/s  
+  TRAIN   factored-fb-crl-flowbc_s5                   53% step=538164   64.52it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 09:47:27  tick 8 ════════
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s0          5% step=52649    11.55it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s1          5% step=55257    11.87it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s2          5% step=52060    11.40it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3          9% step=99998    10.99it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s4          5% step=52791    10.69it/s  
+  TRAIN   factored-fb-crl-flowbc_s0                   58% step=581798   63.50it/s  
+  TRAIN   factored-fb-crl-flowbc_s1                   58% step=582082   62.68it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   58% step=580217   63.11it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   58% step=581047   63.23it/s  
+  TRAIN   factored-fb-crl-flowbc_s4                   59% step=594495   64.78it/s  
+  TRAIN   factored-fb-crl-flowbc_s5                   59% step=596368   64.65it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 10:02:28  tick 9 ════════
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s0          6% step=62879    11.96it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s1          6% step=65985    12.30it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s2          6% step=62442    11.79it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3         11% step=110088   11.80it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s4          6% step=63101    10.83it/s  
+  TRAIN   factored-fb-crl-flowbc_s0                   63% step=632398   62.85it/s  
+  TRAIN   factored-fb-crl-flowbc_s1                   63% step=632535   63.00it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   63% step=630971   62.87it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   63% step=631813   62.98it/s  
+  TRAIN   factored-fb-crl-flowbc_s4                   64% step=646732   64.64it/s  
+  TRAIN   factored-fb-crl-flowbc_s5                   64% step=648743   64.63it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 10:17:29  tick 10 ════════
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s0          7% step=72829    11.05it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s1          7% step=76624    9.29it/s   
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s2          7% step=72674    10.52it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3         12% step=120262   11.84it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s4          7% step=73383    12.06it/s  
+  TRAIN   factored-fb-crl-flowbc_s0                   68% step=687854   124.06it/s 
+  TRAIN   factored-fb-crl-flowbc_s1                   68% step=687724   63.11it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   68% step=686296   63.28it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   68% step=687377   122.10it/s 
+  TRAIN   factored-fb-crl-flowbc_s4                   69% step=699990   130.06it/s 
+  TRAIN   factored-fb-crl-flowbc_s5                   69% step=699993   64.50it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 10:32:30  tick 11 ════════
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s0          7% step=72829    11.05it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s1          7% step=76624    9.29it/s   
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s2          7% step=72674    10.52it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s3         12% step=120262   11.84it/s  
+  TRAIN   factored-fb-crl-flowbc-pixel-drq_s4          7% step=73383    12.06it/s  
+  TRAIN   factored-fb-crl-flowbc_s0                   68% step=687854   124.06it/s 
+  TRAIN   factored-fb-crl-flowbc_s1                   68% step=687724   63.11it/s  
+  TRAIN   factored-fb-crl-flowbc_s2                   68% step=686296   63.28it/s  
+  TRAIN   factored-fb-crl-flowbc_s3                   68% step=687377   122.10it/s 
+  TRAIN   factored-fb-crl-flowbc_s4                   69% step=699990   130.06it/s 
+  TRAIN   factored-fb-crl-flowbc_s5                   69% step=699993   64.50it/s  
+  ---- 11 running, 0 done, 0 crashed, 11 total ----
+
+════════ [monitor] 2026-05-24 10:47:31  tick 12 ════════
+  STALLED factored-fb-crl-flowbc-pixel-drq_s0          7% step=72829    11.05it/s   !!! no log update for 30m
+  STALLED factored-fb-crl-flowbc-pixel-drq_s1          7% step=76624    9.29it/s    !!! no log update

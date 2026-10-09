@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-Bilinear-IdentityPsi",
+ "seed": "cube_single_state_gciql_flow_bilinear_identity_psi_s0",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-IdentityPsi/cube_single_state_gciql_flow_bilinear_identity_psi_s0",
+ "step": 500000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 28,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.45,
+  "grasped": 0.74
+ },
+ "C2": {
+  "success": 0.07,
+  "grasped": 0.55
+ },
+ "C3": {
+  "success": 0.02,
+  "grasped": 0.65
+ },
+ "C4": {
+  "success": 0.3,
+  "grasped": 0.77
+ },
+ "secs": 31.1
+}

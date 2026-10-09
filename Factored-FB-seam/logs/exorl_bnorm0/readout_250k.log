@@ -1,0 +1,9 @@
+DFB epoch 250000 task walk: zenc tower {'mu2': 107.8750228881836, 'trC': 3.1172818773067092, 'effrank': 32.68415207421898, 'mean_pair_cos': 2.157498598098755, 'rms_pair_cos': 2.16294527053833}
+   online tower {'mu2': 109.66259765625, 'trC': 3.1207692231820676, 'effrank': 32.70089064578845, 'mean_pair_cos': 2.1932501792907715, 'rms_pair_cos': 2.198707103729248}
+   INIT tower {'mu2': 6.9404072761535645, 'trC': 11.363217672673219, 'effrank': 12.875411647693062, 'mean_pair_cos': 0.13879668712615967, 'rms_pair_cos': 0.16695968806743622}
+   eval z: z^T C z = 6.306 vs sphere-z median 3.035 [p5 2.233, p95 4.595]; energy of z in top-5 / bottom-25 eigdirs = 0.55 / 0.28; proxy reward std 0.354, corr(proxy, r) 0.772; r mean 0.187 std 0.250
+   R2(r ~ linear in zenc B) = 0.598
+FB ref 1M: {'mu2': 1.309109091758728, 'trC': 48.69089413168786, 'effrank': 45.32658898687331, 'mean_pair_cos': 0.026133423671126366, 'rms_pair_cos': 0.1521248072385788}
+   FB eval z: z^T C z = 40.445 vs sphere median 48.721 [p5 42.349, p95 55.167]; proxy (B.z/sqrt d) std 0.899, corr(proxy,r) 0.606; R2(r ~ linear in B) = 0.607
+--- in-run eval at 250k:
+'episode_return': 621.5913672313939

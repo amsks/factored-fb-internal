@@ -1,0 +1,368 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec08/factored-fb/GCIQL-State-Flow-Bilinear-d50/an_cs_s2",
+    "checkpoint_step": 500000,
+    "d": 50,
+    "env": "cube-single-play-v0",
+    "hit_spec": "19:22:0.4",
+    "probe_centers": "random",
+    "actor_cond": "goal",
+    "actor_mode": "goal",
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac",
+      "region"
+    ],
+    "gpi": false,
+    "z_inference": "retrieval",
+    "retrieval_k": 1,
+    "z_weighting": "plain",
+    "renewal_head": null,
+    "episodes": 25,
+    "horizon": 200,
+    "relabel_size": 50000,
+    "match_data_norm": 22.314291600065445,
+    "gamma": 0.99,
+    "eps_obs": 0.4,
+    "sigma_obs": 0.8,
+    "thresh_m": 0.04,
+    "reward_convention": "[0,1] indicator (FP corner), reachavoid in [-1,1]",
+    "goal_xyzs_m": {
+      "t1": [
+        0.425,
+        -0.1,
+        0.02
+      ],
+      "t2": [
+        0.5,
+        0.0,
+        0.02
+      ],
+      "t3": [
+        0.35,
+        0.0,
+        0.02
+      ],
+      "t4": [
+        0.5,
+        0.2,
+        0.02
+      ],
+      "t5": [
+        0.5,
+        -0.2,
+        0.02
+      ]
+    },
+    "goal_coords_ou": {
+      "t1": [
+        0.0,
+        -1.0,
+        0.1995989978313446
+      ],
+      "t2": [
+        0.75,
+        0.0,
+        0.1995989978313446
+      ],
+      "t3": [
+        -0.75,
+        -2.0258579902203649e-19,
+        0.1995989978313446
+      ],
+      "t4": [
+        0.75,
+        2.0,
+        0.1995989978313446
+      ],
+      "t5": [
+        0.75,
+        -2.0,
+        0.1995989978313446
+      ]
+    },
+    "regions_m": {
+      "R1": [
+        0.3515,
+        0.172,
+        0.02
+      ],
+      "R2": [
+        0.4251,
+        -0.1708,
+        0.02
+      ],
+      "R3": [
+        0.498,
+        0.0848,
+        0.02
+      ]
+    },
+    "reachavoid": {
+      "A": "R1",
+      "B": "R2"
+    },
+    "seed": 0,
+    "spec": "PAPER/rescuing-fb/specs/07-fp-capability-and-renewal-measure.md item 3 + specs/14-multienv-measure-eval.md \u00a77"
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "diag": {
+          "n_pos": 1021,
+          "n_neg": 0,
+          "z_raw_norm": 0.38381319617092885,
+          "match_data_norm": 22.314291600065445,
+          "retrieval_n": 1,
+          "z_norm": 22.31429158996354
+        },
+        "cos_zr_psig": 0.9003532467861557,
+        "goal_proxy": {
+          "proxy_idx": 33443,
+          "proxy_cube_m": [
+            0.417816558573395,
+            -0.08777475357055664,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.014179563585043596
+        },
+        "success_env": 1.0,
+        "success": 1.0
+      },
+      "t2": {
+        "diag": {
+          "n_pos": 1087,
+          "n_neg": 0,
+          "z_raw_norm": 0.42894353186304146,
+          "match_data_norm": 22.314291600065445,
+          "retrieval_n": 1,
+          "z_norm": 22.31429159028216
+        },
+        "cos_zr_psig": 0.9015372915152217,
+        "goal_proxy": {
+          "proxy_idx": 26489,
+          "proxy_cube_m": [
+            0.46858544200658797,
+            -0.02445647120475769,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.039811995430809564
+        },
+        "success_env": 0.76,
+        "success": 0.76
+      },
+      "t3": {
+        "diag": {
+          "n_pos": 1205,
+          "n_neg": 0,
+          "z_raw_norm": 0.4645360255863039,
+          "match_data_norm": 22.314291600065445,
+          "retrieval_n": 1,
+          "z_norm": 22.314291590401798
+        },
+        "cos_zr_psig": 0.904790579207302,
+        "goal_proxy": {
+          "proxy_idx": 41780,
+          "proxy_cube_m": [
+            0.3110761523246765,
+            0.0053644729778170586,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.03929179342628338
+        },
+        "success_env": 0.92,
+        "success": 0.92
+      },
+      "t4": {
+        "diag": {
+          "n_pos": 1155,
+          "n_neg": 0,
+          "z_raw_norm": 0.4607733848878064,
+          "match_data_norm": 22.314291600065445,
+          "retrieval_n": 1,
+          "z_norm": 22.31429159024933
+        },
+        "cos_zr_psig": 0.8874726158016072,
+        "goal_proxy": {
+          "proxy_idx": 39754,
+          "proxy_cube_m": [
+            0.48373557925224303,
+            0.1942196488380432,
+            0.05141226574778557
+          ],
+          "dist_to_goal_m": 0.035842353176446226
+        },
+        "success_env": 0.96,
+        "success": 0.96
+      },
+      "t5": {
+        "diag": {
+          "n_pos": 1199,
+          "n_neg": 0,
+          "z_raw_norm": 0.4702590081241897,
+          "match_data_norm": 22.314291600065445,
+          "retrieval_n": 1,
+          "z_norm": 22.31429159027706
+        },
+        "cos_zr_psig": 0.8907505223686463,
+        "goal_proxy": {
+          "proxy_idx": 42225,
+          "proxy_cube_m": [
+            0.531196865439415,
+            -0.2133776843547821,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.033944195297773094
+        },
+        "success_env": 0.72,
+        "success": 0.72
+      },
+      "mean": 0.8720000000000001
+    },
+    "region": {
+      "R1": {
+        "center_m": [
+          0.3515,
+          0.172,
+          0.02
+        ],
+        "diag": {
+          "n_pos": 1038,
+          "n_neg": 0,
+          "z_raw_norm": 0.4016499003722453,
+          "match_data_norm": 22.314291600065445,
+          "retrieval_n": 1,
+          "z_norm": 22.314291590784567
+        },
+        "goal_proxy": {
+          "proxy_idx": 47545,
+          "proxy_cube_m": [
+            0.35176343023777007,
+            0.13568758964538574,
+            0.019784606993198395
+          ],
+          "dist_to_center_m": 0.036314004673120896
+        },
+        "per_variant_final": {
+          "t1": 0.68,
+          "t2": 0.64,
+          "t3": 0.72,
+          "t4": 0.48,
+          "t5": 0.8
+        },
+        "per_variant_any": {
+          "t1": 0.92,
+          "t2": 0.84,
+          "t3": 0.88,
+          "t4": 0.68,
+          "t5": 1.0
+        },
+        "success_final": 0.664,
+        "success_any": 0.8640000000000001
+      },
+      "R2": {
+        "center_m": [
+          0.4251,
+          -0.1708,
+          0.02
+        ],
+        "diag": {
+          "n_pos": 988,
+          "n_neg": 0,
+          "z_raw_norm": 0.3757345484140568,
+          "match_data_norm": 22.314291600065445,
+          "retrieval_n": 1,
+          "z_norm": 22.314291590914664
+        },
+        "goal_proxy": {
+          "proxy_idx": 4279,
+          "proxy_cube_m": [
+            0.40876942612230777,
+            -0.19559189677238464,
+            0.01996072567999363
+          ],
+          "dist_to_center_m": 0.02968715768172411
+        },
+        "per_variant_final": {
+          "t1": 0.84,
+          "t2": 0.64,
+          "t3": 0.88,
+          "t4": 0.24,
+          "t5": 0.68
+        },
+        "per_variant_any": {
+          "t1": 0.96,
+          "t2": 0.92,
+          "t3": 1.0,
+          "t4": 0.28,
+          "t5": 0.84
+        },
+        "success_final": 0.6559999999999999,
+        "success_any": 0.8
+      },
+      "R3": {
+        "center_m": [
+          0.498,
+          0.0848,
+          0.02
+        ],
+        "diag": {
+          "n_pos": 1093,
+          "n_neg": 0,
+          "z_raw_norm": 0.43125323675961774,
+          "match_data_norm": 22.314291600065445,
+          "retrieval_n": 1,
+          "z_norm": 22.314291589789338
+        },
+        "goal_proxy": {
+          "proxy_idx": 28719,
+          "proxy_cube_m": [
+            0.4807337515056133,
+            0.09378908574581146,
+            0.01996072567999363
+          ],
+          "dist_to_center_m": 0.019466086974214238
+        },
+        "per_variant_final": {
+          "t1": 0.08,
+          "t2": 0.32,
+          "t3": 0.6,
+          "t4": 0.2,
+          "t5": 0.36
+        },
+        "per_variant_any": {
+          "t1": 0.24,
+          "t2": 0.92,
+          "t3": 0.72,
+          "t4": 0.88,
+          "t5": 0.8
+        },
+        "success_final": 0.312,
+        "success_any": 0.7120000000000001
+      },
+      "mean_final": 0.5439999999999999
+    }
+  },
+  "summary": {
+    "dirac_mean": 0.8720000000000001,
+    "mixture_mean": null,
+    "mixture_gpi": false,
+    "region_mean_final": 0.5439999999999999,
+    "dense_mean": null,
+    "dense_mean_delta_vs_dirac": null,
+    "linear_G_zr": null,
+    "linear_G_control": null,
+    "reachavoid_success_at_A": null,
+    "reachavoid_frac_time_in_B": null,
+    "bars": {
+      "dirac_ge_0.90": false,
+      "regions_ge_0.672": false
+    }
+  }
+}

@@ -1,0 +1,9 @@
+env,critic,seed,H0,H1,H2,delta_held
+cube-double-play-v0,density_fb,0,0.592,0.612,0.58,0.020000000000000018
+cube-double-play-v0,density_fb,1,0.616,0.544,0.54,-0.07199999999999995
+cube-double-play-v0,density_fb,2,0.6599999999999999,0.6799999999999999,0.6,0.020000000000000018
+cube-double-play-v0,density_fb_state,0,0.088,0.052000000000000005,0.1,-0.03599999999999999
+cube-double-play-v0,density_fb_state,1,0.04,0.024,0.06000000000000001,-0.016
+cube-double-play-v0,density_fb_state,2,0.076,0.02,0.02,-0.055999999999999994
+cube-double-play-v0,fb,0,0.012,0.012,0.04,0.0
+cube-double-play-v0,fb_ref,0,0.012,0.004,0.02,-0.008

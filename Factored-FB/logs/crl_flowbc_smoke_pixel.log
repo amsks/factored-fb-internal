@@ -1,0 +1,62 @@
+wandb: WARNING `start_method` is deprecated and will be removed in a future version of wandb. This setting is currently non-functional and safely ignored.
+I0523 00:20:12.243409 140342187449216 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0523 00:20:12.244908 140342187449216 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0523 00:20:12.253594 140342187449216 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0523 00:20:12.324960 140342187449216 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0523 00:20:12.327200 140342187449216 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0523 00:20:12.512838 140342187449216 __init__.py:31] MuJoCo library version is: 3.8.1
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+  0%|          | 0/2000 [00:00<?, ?it/s]E0523 00:22:59.640977  200671 cuda_timer.cc:87] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+
+  0%|          | 0/5 [00:00<?, ?it/s][A
+
+  0%|          | 0/3 [00:00<?, ?it/s][A[A  0%|          | 0/3 [00:00<?, ?it/s]
+  0%|          | 0/5 [00:00<?, ?it/s]
+  0%|          | 0/2000 [00:27<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/adityamohan/git/Factored-FB/third_party/ogbench/impls/main.py", line 163, in <module>
+    app.run(main)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 367, in run
+    _run_main(main, args)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 312, in _run_main
+    sys.exit(main(argv))
+             ^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/third_party/ogbench/impls/main.py", line 125, in main
+    eval_info, trajs, cur_renders = evaluate(
+                                    ^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/third_party/ogbench/impls/utils/evaluation.py", line 80, in evaluate
+    action = actor_fn(observations=observation, goals=goal, temperature=eval_temperature)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/third_party/ogbench/impls/utils/evaluation.py", line 14, in wrapped
+    return f(*args, seed=key, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/tools/wandb_mode_shim/crl_flowbc.py", line 85, in sample_actions
+    actions = self.network.select('actor')(observations, goals, noise)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/third_party/ogbench/impls/utils/flax_utils.py", line 114, in __call__
+    return self.apply_fn(variables, *args, method=method_name, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/third_party/ogbench/impls/utils/flax_utils.py", line 50, in __call__
+    return self.modules[name](*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/tools/wandb_mode_shim/ogbench_flow.py", line 88, in __call__
+    return NoiseConditionedActor(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/tools/wandb_mode_shim/ogbench_flow.py", line 51, in __call__
+    z_emb = self._embed(jnp.concatenate([obs, z, noise], axis=-1), "embed_z")
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/jax/_src/numpy/lax_numpy.py", line 4560, in concatenate
+    arrays_out = [lax.concatenate(arrays_out[i:i+k], axis)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/jax/_src/numpy/lax_numpy.py", line 4560, in <listcomp>
+    arrays_out = [lax.concatenate(arrays_out[i:i+k], axis)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: Cannot concatenate arrays with different numbers of dimensions: got (256,), (256,), (64, 5).
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.
+I0523 00:23:22.235556 140342187449216 baseplatform.py:462] Platform import failed (likely during shutdown)
+I0523 00:23:22.235781 140342187449216 baseplatform.py:462] Platform import failed (likely during shutdown)
+[run_gciql] /dev/shm/.venv-jax/bin/python main.py --env_name=visual-cube-single-play-v0 --agent=/home/adityamohan/git/Factored-FB/tools/wandb_mode_shim/crl_flowbc.py --seed=0 --train_steps=2000 --log_interval=5000 --eval_interval=1000 --save_interval=2000 --eval_episodes=2 --eval_on_cpu=0 --run_group=crl-flowbc-smoke --save_dir=/dev/shm/gciql_outputs --agent.batch_size=256 --agent.bc_coeff=3.0 --agent.encoder=drq --agent.frame_stack=3 --agent.p_aug=1.0

@@ -1,0 +1,374 @@
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/adityamohan/.netrc.
+wandb: Currently logged in as: amsks (al-laq-fb) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/run-20260831_165833-xgaawmep
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run dmc-walker_rldp_tdj_ddpgbc_seed_2
+wandb: ⭐️ View project at https://wandb.ai/al-laq-fb/factored-fb
+wandb: 🚀 View run at https://wandb.ai/al-laq-fb/factored-fb/runs/xgaawmep
+I0831 16:58:42.924969 140538614184832 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 16:58:42.933974 140538614184832 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:58:42.935688 140538614184832 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0831 16:58:42.944548 140538614184832 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:58:43.131301 140538614184832 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:58:43.133241 140538614184832 __init__.py:31] MuJoCo library version is: 3.3.0
+I0831 16:58:43.166161 140538614184832 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:58:43.168680 140538614184832 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 16:58:43.170911 140538614184832 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:58:43.176597 140538614184832 __init__.py:31] MuJoCo library version is: 3.8.1
+I0831 16:58:44.314375 140538614184832 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/adityamohan/.netrc.
+wandb: Currently logged in as: amsks (al-laq-fb) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/run-20260831_165908-bw3ebrxj
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run dmc-walker_rldp_tdj_ddpgbc_seed_2
+wandb: ⭐️ View project at https://wandb.ai/al-laq-fb/factored-fb
+wandb: 🚀 View run at https://wandb.ai/al-laq-fb/factored-fb/runs/bw3ebrxj
+I0831 16:59:17.747360 140101655628672 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 16:59:17.756423 140101655628672 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:59:17.758096 140101655628672 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0831 16:59:17.766922 140101655628672 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:59:17.953819 140101655628672 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:59:17.955856 140101655628672 __init__.py:31] MuJoCo library version is: 3.3.0
+I0831 16:59:17.988644 140101655628672 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:59:17.991132 140101655628672 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 16:59:17.993322 140101655628672 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 16:59:17.998887 140101655628672 __init__.py:31] MuJoCo library version is: 3.8.1
+I0831 16:59:19.342432 140101655628672 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+wandb: updating run metadata
+wandb: 🚀 View run dmc-walker_rldp_tdj_ddpgbc_seed_2 at: https://wandb.ai/al-laq-fb/factored-fb/runs/bw3ebrxj
+wandb: ⭐️ View project at: https://wandb.ai/al-laq-fb/factored-fb
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260831_165908-bw3ebrxj/logs
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/adityamohan/git/Factored-FB-seam/impls/main.py", line 452, in <module>
+    app.run(main)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 410, in run
+    _run_main(main, args)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 355, in _run_main
+    sys.exit(main(argv))
+             ^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/main.py", line 283, in main
+    agent = Agent.create(FLAGS.critic, FLAGS.actor, FLAGS.seed,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/agents/__init__.py", line 326, in create
+    critic_cls = CRITICS[CRITIC_ALIASES.get(critic_name, critic_name)]
+                 ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyError: 'rldp_tdj'
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/adityamohan/.netrc.
+wandb: Currently logged in as: amsks (al-laq-fb) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/run-20260831_170119-rlpgn8s8
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run dmc-walker_rldp_tdj_ddpgbc_seed_2
+wandb: ⭐️ View project at https://wandb.ai/al-laq-fb/factored-fb
+wandb: 🚀 View run at https://wandb.ai/al-laq-fb/factored-fb/runs/rlpgn8s8
+I0831 17:01:29.048996 139895497862016 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 17:01:29.058089 139895497862016 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:01:29.059744 139895497862016 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0831 17:01:29.068804 139895497862016 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:01:29.336258 139895497862016 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:01:29.338310 139895497862016 __init__.py:31] MuJoCo library version is: 3.3.0
+I0831 17:01:29.373349 139895497862016 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:01:29.376071 139895497862016 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 17:01:29.378265 139895497862016 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:01:29.384230 139895497862016 __init__.py:31] MuJoCo library version is: 3.8.1
+I0831 17:01:30.724388 139895497862016 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+wandb: updating run metadata
+wandb: uploading summary, console lines 0-10
+wandb: 🚀 View run dmc-walker_rldp_tdj_ddpgbc_seed_2 at: https://wandb.ai/al-laq-fb/factored-fb/runs/rlpgn8s8
+wandb: ⭐️ View project at: https://wandb.ai/al-laq-fb/factored-fb
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260831_170119-rlpgn8s8/logs
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/adityamohan/git/Factored-FB-seam/impls/main.py", line 452, in <module>
+    app.run(main)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 410, in run
+    _run_main(main, args)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 355, in _run_main
+    sys.exit(main(argv))
+             ^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/main.py", line 283, in main
+    agent = Agent.create(FLAGS.critic, FLAGS.actor, FLAGS.seed,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/agents/__init__.py", line 335, in create
+    critic, cparams, targets = critic_cls.build(ex_obs, ex_actions, config)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py", line 526, in build
+    embedding_layers=config["predictor"]["embedding_layers"])
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'embedding_layers'
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/adityamohan/.netrc.
+wandb: Currently logged in as: amsks (al-laq-fb) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/run-20260831_170437-bcbta4ek
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run dmc-walker_rldp_tdj_ddpgbc_seed_2
+wandb: ⭐️ View project at https://wandb.ai/al-laq-fb/factored-fb
+wandb: 🚀 View run at https://wandb.ai/al-laq-fb/factored-fb/runs/bcbta4ek
+I0831 17:04:46.926290 140112000248704 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 17:04:46.935084 140112000248704 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:04:46.936726 140112000248704 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0831 17:04:46.945443 140112000248704 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:04:47.079101 140112000248704 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:04:47.081033 140112000248704 __init__.py:31] MuJoCo library version is: 3.3.0
+I0831 17:04:47.113636 140112000248704 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:04:47.116141 140112000248704 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 17:04:47.118382 140112000248704 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:04:47.124392 140112000248704 __init__.py:31] MuJoCo library version is: 3.8.1
+I0831 17:04:47.880539 140112000248704 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py:215: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+wandb: updating run metadata
+wandb: 🚀 View run dmc-walker_rldp_tdj_ddpgbc_seed_2 at: https://wandb.ai/al-laq-fb/factored-fb/runs/bcbta4ek
+wandb: ⭐️ View project at: https://wandb.ai/al-laq-fb/factored-fb
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260831_170437-bcbta4ek/logs
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/adityamohan/git/Factored-FB-seam/impls/main.py", line 452, in <module>
+    app.run(main)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 410, in run
+    _run_main(main, args)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 355, in _run_main
+    sys.exit(main(argv))
+             ^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/main.py", line 366, in main
+    agent, info = agent.update(batch)
+                  ^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/agents/__init__.py", line 294, in update
+    new_agent, info = self.apply_update(batch, cond, boot)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/agents/__init__.py", line 223, in apply_update
+    (_, sinfo), grads = jax.value_and_grad(stage_loss_fn, has_aux=True)(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/agents/__init__.py", line 221, in stage_loss_fn
+    return self.critic.stage_loss(stage, params, target, batch, cond, boot)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py", line 417, in stage_loss
+    sp, B_pred = self._sp_loss(params, target, batch)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py", line 309, in _sp_loss
+    actions, targets = self._sp_pairs(batch)
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py", line 301, in _sp_pairs
+    assert self.horizon == 1, (
+           ^^^^^^^^^^^^^^^^^
+AssertionError: critic built with horizon=5 but the batch carries no 'future_observations'; rldp needs dataset_class: WindowedDataset
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/adityamohan/.netrc.
+wandb: Currently logged in as: amsks (al-laq-fb) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: setting up run rtnwzphd
+wandb: Tracking run with wandb version 0.27.0
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/run-20260831_170659-rtnwzphd
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run dmc-walker_rldp_tdj_ddpgbc_seed_2
+wandb: ⭐️ View project at https://wandb.ai/al-laq-fb/factored-fb
+wandb: 🚀 View run at https://wandb.ai/al-laq-fb/factored-fb/runs/rtnwzphd
+I0831 17:07:09.446203 139640159202176 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 17:07:09.454932 139640159202176 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:07:09.456565 139640159202176 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0831 17:07:09.465331 139640159202176 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:07:09.614817 139640159202176 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:07:09.616687 139640159202176 __init__.py:31] MuJoCo library version is: 3.3.0
+I0831 17:07:09.649933 139640159202176 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:07:09.652773 139640159202176 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 17:07:09.655562 139640159202176 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 17:07:09.663179 139640159202176 __init__.py:31] MuJoCo library version is: 3.8.1
+I0831 17:07:10.480479 139640159202176 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py:215: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+[infer-cond] step 1: evaluating on the inferred conditioning from 50000 rb['next_observations'] rows; the env goal is NOT supplied
+eval 1 task None {'episode_return': 25.255630824033886, 'inferred_cond': 1.0, 'inferred_cond_action_calls': 10000.0, 'inferred_cond_goals_dropped': 0.0, 'inferred_cond_norm': 7.071067810058594, 'inferred_cond_cos_neutral': -0.3093329966068268}
+5000 {'actor_loss': -23.929603576660156, 'bc_log_prob': -10.768364906311035, 'bc_loss': -0.0, 'fb_diag': -68.00576782226562, 'fb_loss': -1.8261481523513794, 'fb_offdiag': 52.7870979309082, 'ortho_diag': -49.999977111816406, 'ortho_loss': -2.7527008056640625, 'ortho_offdiag': 47.247276306152344, 'q_loss': -23.929603576660156, 'q_mean': 23.929603576660156, 'sp_loss': 13.420048713684082}
+10000 {'actor_loss': -52.62052536010742, 'bc_log_prob': -10.570489883422852, 'bc_loss': -0.0, 'fb_diag': -78.37879180908203, 'fb_loss': 2.1018054485321045, 'fb_offdiag': 74.2838363647461, 'ortho_diag': -49.99980163574219, 'ortho_loss': -5.639728546142578, 'ortho_offdiag': 44.36007308959961, 'q_loss': -52.62052536010742, 'q_mean': 52.62052536010742, 'sp_loss': 6.253158092498779}
+15000 {'actor_loss': -86.50128173828125, 'bc_log_prob': -10.65577220916748, 'bc_loss': -0.0, 'fb_diag': -80.49678039550781, 'fb_loss': 20.605554580688477, 'fb_offdiag': 96.92899322509766, 'ortho_diag': -49.99982452392578, 'ortho_loss': -8.19283676147461, 'ortho_offdiag': 41.80698776245117, 'q_loss': -86.50128173828125, 'q_mean': 86.50128173828125, 'sp_loss': 4.255269527435303}
+20000 {'actor_loss': -124.42897033691406, 'bc_log_prob': -10.760997772216797, 'bc_loss': -0.0, 'fb_diag': -82.46444702148438, 'fb_loss': 43.2033576965332, 'fb_offdiag': 122.2322769165039, 'ortho_diag': -49.999935150146484, 'ortho_loss': -10.053668975830078, 'ortho_offdiag': 39.946266174316406, 'q_loss': -124.42897033691406, 'q_mean': 124.42897033691406, 'sp_loss': 3.536064624786377}
+25000 {'actor_loss': -157.90853881835938, 'bc_log_prob': -10.931138038635254, 'bc_loss': -0.0, 'fb_diag': -83.5642318725586, 'fb_loss': 54.14999771118164, 'fb_offdiag': 134.54473876953125, 'ortho_diag': -50.0002555847168, 'ortho_loss': -11.349895477294922, 'ortho_offdiag': 38.650360107421875, 'q_loss': -157.90853881835938, 'q_mean': 157.90853881835938, 'sp_loss': 3.282991409301758}
+30000 {'actor_loss': -192.82696533203125, 'bc_log_prob': -10.81165599822998, 'bc_loss': -0.0, 'fb_diag': -84.72047424316406, 'fb_loss': 68.58997344970703, 'fb_offdiag': 150.6643524169922, 'ortho_diag': -50.000099182128906, 'ortho_loss': -12.750015258789062, 'ortho_offdiag': 37.250083923339844, 'q_loss': -192.82696533203125, 'q_mean': 192.82696533203125, 'sp_loss': 2.7735977172851562}
+35000 {'actor_loss': -234.27166748046875, 'bc_log_prob': -10.887727737426758, 'bc_loss': -0.0, 'fb_diag': -83.23212432861328, 'fb_loss': 82.98807525634766, 'fb_offdiag': 163.75479125976562, 'ortho_diag': -49.999935150146484, 'ortho_loss': -13.741737365722656, 'ortho_offdiag': 36.25819778442383, 'q_loss': -234.27166748046875, 'q_mean': 234.27166748046875, 'sp_loss': 2.6028287410736084}
+40000 {'actor_loss': -260.7460021972656, 'bc_log_prob': -10.879363059997559, 'bc_loss': -0.0, 'fb_diag': -83.79218292236328, 'fb_loss': 95.84163665771484, 'fb_offdiag': 177.10955810546875, 'ortho_diag': -49.99993133544922, 'ortho_loss': -14.917194366455078, 'ortho_offdiag': 35.08273696899414, 'q_loss': -260.7460021972656, 'q_mean': 260.7460021972656, 'sp_loss': 2.673431873321533}
+45000 {'actor_loss': -286.66510009765625, 'bc_log_prob': -10.908008575439453, 'bc_loss': -0.0, 'fb_diag': -84.54427337646484, 'fb_loss': 110.7872085571289, 'fb_offdiag': 192.9842987060547, 'ortho_diag': -50.00003433227539, 'ortho_loss': -15.61562728881836, 'ortho_offdiag': 34.38440704345703, 'q_loss': -286.66510009765625, 'q_mean': 286.66510009765625, 'sp_loss': 2.503342390060425}
+50000 {'actor_loss': -313.50628662109375, 'bc_log_prob': -10.754792213439941, 'bc_loss': -0.0, 'fb_diag': -86.87747192382812, 'fb_loss': 111.5890121459961, 'fb_offdiag': 196.27174377441406, 'ortho_diag': -50.0001335144043, 'ortho_loss': -16.479015350341797, 'ortho_offdiag': 33.5211181640625, 'q_loss': -313.50628662109375, 'q_mean': 313.50628662109375, 'sp_loss': 2.3595306873321533}
+55000 {'actor_loss': -348.5282287597656, 'bc_log_prob': -10.876083374023438, 'bc_loss': -0.0, 'fb_diag': -86.03595733642578, 'fb_loss': 120.89983367919922, 'fb_offdiag': 204.81393432617188, 'ortho_diag': -49.999935150146484, 'ortho_loss': -17.107837677001953, 'ortho_offdiag': 32.89209747314453, 'q_loss': -348.5282287597656, 'q_mean': 348.5282287597656, 'sp_loss': 2.2929399013519287}
+60000 {'actor_loss': -379.5887451171875, 'bc_log_prob': -10.870046615600586, 'bc_loss': -0.0, 'fb_diag': -86.25660705566406, 'fb_loss': 134.9112091064453, 'fb_offdiag': 218.90597534179688, 'ortho_diag': -49.99968338012695, 'ortho_loss': -17.45679473876953, 'ortho_offdiag': 32.54288864135742, 'q_loss': -379.5887451171875, 'q_mean': 379.5887451171875, 'sp_loss': 2.4363973140716553}
+65000 {'actor_loss': -412.09967041015625, 'bc_log_prob': -10.988066673278809, 'bc_loss': -0.0, 'fb_diag': -85.7244873046875, 'fb_loss': 132.58177185058594, 'fb_offdiag': 216.34133911132812, 'ortho_diag': -50.000099182128906, 'ortho_loss': -18.212602615356445, 'ortho_offdiag': 31.78749656677246, 'q_loss': -412.09967041015625, 'q_mean': 412.09967041015625, 'sp_loss': 2.1470494270324707}
+70000 {'actor_loss': -432.2349853515625, 'bc_log_prob': -10.899734497070312, 'bc_loss': -0.0, 'fb_diag': -84.29650115966797, 'fb_loss': 139.59027099609375, 'fb_offdiag': 221.8931121826172, 'ortho_diag': -50.000213623046875, 'ortho_loss': -18.60184097290039, 'ortho_offdiag': 31.398372650146484, 'q_loss': -432.2349853515625, 'q_mean': 432.2349853515625, 'sp_loss': 2.179677963256836}
+75000 {'actor_loss': -456.397705078125, 'bc_log_prob': -11.004484176635742, 'bc_loss': -0.0, 'fb_diag': -85.83818817138672, 'fb_loss': 145.4954376220703, 'fb_offdiag': 229.3114013671875, 'ortho_diag': -50.00020980834961, 'ortho_loss': -18.856037139892578, 'ortho_offdiag': 31.14417266845703, 'q_loss': -456.397705078125, 'q_mean': 456.397705078125, 'sp_loss': 2.210780382156372}
+80000 {'actor_loss': -483.5677795410156, 'bc_log_prob': -10.946761131286621, 'bc_loss': -0.0, 'fb_diag': -82.89019775390625, 'fb_loss': 158.2015380859375, 'fb_offdiag': 239.3354949951172, 'ortho_diag': -49.999656677246094, 'ortho_loss': -19.135284423828125, 'ortho_offdiag': 30.86437225341797, 'q_loss': -483.5677795410156, 'q_mean': 483.5677795410156, 'sp_loss': 1.9476072788238525}
+85000 {'actor_loss': -496.3834228515625, 'bc_log_prob': -11.001956939697266, 'bc_loss': -0.0, 'fb_diag': -83.92101287841797, 'fb_loss': 141.89486694335938, 'fb_offdiag': 224.12908935546875, 'ortho_diag': -49.99980926513672, 'ortho_loss': -19.38898277282715, 'ortho_offdiag': 30.61082649230957, 'q_loss': -496.3834228515625, 'q_mean': 496.3834228515625, 'sp_loss': 1.8806854486465454}
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/adityamohan/.netrc.
+wandb: Currently logged in as: amsks (al-laq-fb) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: setting up run fc183pqk
+wandb: Tracking run with wandb version 0.27.0
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/run-20260831_184459-fc183pqk
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run dmc-walker_rldp_tdj_ddpgbc_seed_2
+wandb: ⭐️ View project at https://wandb.ai/al-laq-fb/factored-fb
+wandb: 🚀 View run at https://wandb.ai/al-laq-fb/factored-fb/runs/fc183pqk
+I0831 18:45:09.293313 140534089177984 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 18:45:09.302778 140534089177984 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 18:45:09.304606 140534089177984 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0831 18:45:09.313686 140534089177984 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 18:45:09.453927 140534089177984 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 18:45:09.455858 140534089177984 __init__.py:31] MuJoCo library version is: 3.3.0
+I0831 18:45:09.488395 140534089177984 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 18:45:09.490929 140534089177984 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0831 18:45:09.493210 140534089177984 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0831 18:45:09.499000 140534089177984 __init__.py:31] MuJoCo library version is: 3.8.1
+I0831 18:45:10.296664 140534089177984 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+/home/adityamohan/git/Factored-FB-seam/impls/critics/rldp.py:215: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+[infer-cond] step 1: evaluating on the inferred conditioning from 50000 rb['next_observations'] rows; the env goal is NOT supplied
+eval 1 task None {'episode_return': 24.583478918073396, 'inferred_cond': 1.0, 'inferred_cond_action_calls': 10000.0, 'inferred_cond_goals_dropped': 0.0, 'inferred_cond_norm': 7.071067810058594, 'inferred_cond_cos_neutral': -0.3093329668045044}
+5000 {'actor_loss': -24.043352127075195, 'bc_log_prob': -10.830041885375977, 'bc_loss': -0.0, 'fb_diag': -67.87797546386719, 'fb_loss': -1.8375557661056519, 'fb_offdiag': 52.62837600708008, 'ortho_diag': -49.9998779296875, 'ortho_loss': -2.823627471923828, 'ortho_offdiag': 47.17625045776367, 'q_loss': -24.043352127075195, 'q_mean': 24.043352127075195, 'sp_loss': 13.440279960632324}
+10000 {'actor_loss': -52.893760681152344, 'bc_log_prob': -10.500596046447754, 'bc_loss': -0.0, 'fb_diag': -78.22547912597656, 'fb_loss': 2.3021464347839355, 'fb_offdiag': 74.33952331542969, 'ortho_diag': -49.99977493286133, 'ortho_loss': -5.662204742431641, 'ortho_offdiag': 44.33757019042969, 'q_loss': -52.893760681152344, 'q_mean': 52.893760681152344, 'sp_loss': 6.244724273681641}
+15000 {'actor_loss': -86.48187255859375, 'bc_log_prob': -10.629542350769043, 'bc_loss': -0.0, 'fb_diag': -80.45011901855469, 'fb_loss': 19.70887565612793, 'fb_offdiag': 95.9790267944336, 'ortho_diag': -50.00003433227539, 'ortho_loss': -8.231494903564453, 'ortho_offdiag': 41.76853942871094, 'q_loss': -86.48187255859375, 'q_mean': 86.48187255859375, 'sp_loss': 4.2622833251953125}
+20000 {'actor_loss': -124.43998718261719, 'bc_log_prob': -10.715875625610352, 'bc_loss': -0.0, 'fb_diag': -82.10396575927734, 'fb_loss': 42.51625061035156, 'fb_offdiag': 121.1476821899414, 'ortho_diag': -50.00018310546875, 'ortho_loss': -10.109321594238281, 'ortho_offdiag': 39.89086151123047, 'q_loss': -124.43998718261719, 'q_mean': 124.43998718261719, 'sp_loss': 3.5736281871795654}
+25000 {'actor_loss': -158.88601684570312, 'bc_log_prob': -10.852835655212402, 'bc_loss': -0.0, 'fb_diag': -83.357666015625, 'fb_loss': 55.79037094116211, 'fb_offdiag': 135.91885375976562, 'ortho_diag': -50.000152587890625, 'ortho_loss': -11.346118927001953, 'ortho_offdiag': 38.65403366088867, 'q_loss': -158.88601684570312, 'q_mean': 158.88601684570312, 'sp_loss': 3.3426456451416016}
+30000 {'actor_loss': -193.66392517089844, 'bc_log_prob': -10.749628067016602, 'bc_loss': -0.0, 'fb_diag': -84.30470275878906, 'fb_loss': 68.03890991210938, 'fb_offdiag': 149.71031188964844, 'ortho_diag': -49.999794006347656, 'ortho_loss': -12.664665222167969, 'ortho_offdiag': 37.33512878417969, 'q_loss': -193.66392517089844, 'q_mean': 193.66392517089844, 'sp_loss': 2.7599525451660156}
+35000 {'actor_loss': -235.369873046875, 'bc_log_prob': -10.877573013305664, 'bc_loss': -0.0, 'fb_diag': -83.234130859375, 'fb_loss': 86.67838287353516, 'fb_offdiag': 167.37893676757812, 'ortho_diag': -50.00008773803711, 'ortho_loss': -13.632343292236328, 'ortho_offdiag': 36.36774444580078, 'q_loss': -235.369873046875, 'q_mean': 235.369873046875, 'sp_loss': 2.6699018478393555}
+40000 {'actor_loss': -261.68841552734375, 'bc_log_prob': -10.8074369430542, 'bc_loss': -0.0, 'fb_diag': -82.4864501953125, 'fb_loss': 96.37202453613281, 'fb_offdiag': 176.3042449951172, 'ortho_diag': -49.9998779296875, 'ortho_loss': -14.768783569335938, 'ortho_offdiag': 35.23109436035156, 'q_loss': -261.68841552734375, 'q_mean': 261.68841552734375, 'sp_loss': 2.7019217014312744}
+45000 {'actor_loss': -289.2681884765625, 'bc_log_prob': -10.971978187561035, 'bc_loss': -0.0, 'fb_diag': -85.09319305419922, 'fb_loss': 108.37565612792969, 'fb_offdiag': 191.1436309814453, 'ortho_diag': -50.00006103515625, 'ortho_loss': -15.493156433105469, 'ortho_offdiag': 34.50690460205078, 'q_loss': -289.2681884765625, 'q_mean': 289.2681884765625, 'sp_loss': 2.4801464080810547}
+50000 {'actor_loss': -311.5723876953125, 'bc_log_prob': -10.755012512207031, 'bc_loss': -0.0, 'fb_diag': -86.13203430175781, 'fb_loss': 109.42146301269531, 'fb_offdiag': 193.3814697265625, 'ortho_diag': -50.00031280517578, 'ortho_loss': -16.440349578857422, 'ortho_offdiag': 33.55996322631836, 'q_loss': -311.5723876953125, 'q_mean': 311.5723876953125, 'sp_loss': 2.336435317993164}
+55000 {'actor_loss': -348.43109130859375, 'bc_log_prob': -10.872275352478027, 'bc_loss': -0.0, 'fb_diag': -86.63783264160156, 'fb_loss': 126.38532257080078, 'fb_offdiag': 210.9169921875, 'ortho_diag': -49.99995040893555, 'ortho_loss': -17.006610870361328, 'ortho_offdiag': 32.99333953857422, 'q_loss': -348.43109130859375, 'q_mean': 348.43109130859375, 'sp_loss': 2.2762303352355957}
+60000 {'actor_loss': -379.38397216796875, 'bc_log_prob': -10.844888687133789, 'bc_loss': -0.0, 'fb_diag': -85.80586242675781, 'fb_loss': 130.51219177246094, 'fb_offdiag': 214.05921936035156, 'ortho_diag': -49.99978256225586, 'ortho_loss': -17.391830444335938, 'ortho_offdiag': 32.60795211791992, 'q_loss': -379.38397216796875, 'q_mean': 379.38397216796875, 'sp_loss': 2.4327523708343506}
+65000 {'actor_loss': -408.19036865234375, 'bc_log_prob': -10.908998489379883, 'bc_loss': -0.0, 'fb_diag': -86.25798034667969, 'fb_loss': 131.6813201904297, 'fb_offdiag': 215.97015380859375, 'ortho_diag': -50.000064849853516, 'ortho_loss': -18.113845825195312, 'ortho_offdiag': 31.886219024658203, 'q_loss': -408.19036865234375, 'q_mean': 408.19036865234375, 'sp_loss': 2.1502845287323}
+70000 {'actor_loss': -433.4886474609375, 'bc_log_prob': -10.909650802612305, 'bc_loss': -0.0, 'fb_diag': -84.56282043457031, 'fb_loss': 138.30162048339844, 'fb_offdiag': 220.8853302001953, 'ortho_diag': -50.0001106262207, 'ortho_loss': -18.533525466918945, 'ortho_offdiag': 31.466585159301758, 'q_loss': -433.4886474609375, 'q_mean': 433.4886474609375, 'sp_loss': 2.1644413471221924}
+75000 {'actor_loss': -454.7659912109375, 'bc_log_prob': -10.93712329864502, 'bc_loss': -0.0, 'fb_diag': -85.53175354003906, 'fb_loss': 147.27273559570312, 'fb_offdiag': 230.7967071533203, 'ortho_diag': -50.00000762939453, 'ortho_loss': -18.778926849365234, 'ortho_offdiag': 31.221080780029297, 'q_loss': -454.7659912109375, 'q_mean': 454.7659912109375, 'sp_loss': 2.1955716609954834}
+80000 {'actor_loss': -482.44989013671875, 'bc_log_prob': -10.903261184692383, 'bc_loss': -0.0, 'fb_diag': -84.46849822998047, 'fb_loss': 151.8517303466797, 'fb_offdiag': 234.5753936767578, 'ortho_diag': -49.99964141845703, 'ortho_loss': -19.0076961517334, 'ortho_offdiag': 30.991945266723633, 'q_loss': -482.44989013671875, 'q_mean': 482.44989013671875, 'sp_loss': 1.934904932975769}
+85000 {'actor_loss': -492.037841796875, 'bc_log_prob': -11.020051002502441, 'bc_loss': -0.0, 'fb_diag': -85.84963989257812, 'fb_loss': 143.0439910888672, 'fb_offdiag': 227.2025146484375, 'ortho_diag': -50.00031280517578, 'ortho_loss': -19.240407943725586, 'ortho_offdiag': 30.759904861450195, 'q_loss': -492.037841796875, 'q_mean': 492.037841796875, 'sp_loss': 1.8835136890411377}
+90000 {'actor_loss': -532.2173461914062, 'bc_log_prob': -10.86697006225586, 'bc_loss': -0.0, 'fb_diag': -85.08001708984375, 'fb_loss': 145.7581787109375, 'fb_offdiag': 229.08897399902344, 'ortho_diag': -50.00007629394531, 'ortho_loss': -19.57609748840332, 'ortho_offdiag': 30.423978805541992, 'q_loss': -532.2173461914062, 'q_mean': 532.2173461914062, 'sp_loss': 1.9449719190597534}
+95000 {'actor_loss': -545.6585693359375, 'bc_log_prob': -10.920228958129883, 'bc_loss': -0.0, 'fb_diag': -86.06853485107422, 'fb_loss': 147.06932067871094, 'fb_offdiag': 231.4827117919922, 'ortho_diag': -49.99988555908203, 'ortho_loss': -19.817949295043945, 'ortho_offdiag': 30.181936264038086, 'q_loss': -545.6585693359375, 'q_mean': 545.6585693359375, 'sp_loss': 1.853310465812683}
+100000 {'actor_loss': -561.9932861328125, 'bc_log_prob': -10.760632514953613, 'bc_loss': -0.0, 'fb_diag': -85.69096374511719, 'fb_loss': 158.4049072265625, 'fb_offdiag': 242.2181854248047, 'ortho_diag': -50.00006103515625, 'ortho_loss': -19.902667999267578, 'ortho_offdiag': 30.097393035888672, 'q_loss': -561.9932861328125, 'q_mean': 561.9932861328125, 'sp_loss': 2.076712131500244}
+Saved to /home/adityamohan/git/Factored-FB-seam/exp/exorl-tdj/dmc-walker/rldp_tdj/dmc-walker_rldp_tdj_ddpgbc_seed_2/params_100000.pkl
+105000 {'actor_loss': -588.5900268554688, 'bc_log_prob': -10.943095207214355, 'bc_loss': -0.0, 'fb_diag': -87.746826171875, 'fb_loss': 155.63148498535156, 'fb_offdiag': 241.7575225830078, 'ortho_diag': -50.0002326965332, 'ortho_loss': -20.0846004486084, 'ortho_offdiag': 29.915632247924805, 'q_loss': -588.5900268554688, 'q_mean': 588.5900268554688, 'sp_loss': 1.8216447830200195}
+110000 {'actor_loss': -594.5647583007812, 'bc_log_prob': -10.882911682128906, 'bc_loss': -0.0, 'fb_diag': -87.30872344970703, 'fb_loss': 154.1732940673828, 'fb_offdiag': 239.87982177734375, 'ortho_diag': -49.99989318847656, 'ortho_loss': -20.177440643310547, 'ortho_offdiag': 29.822452545166016, 'q_loss': -594.5647583007812, 'q_mean': 594.5647583007812, 'sp_loss': 1.8039616346359253}
+115000 {'actor_loss': -614.3272705078125, 'bc_log_prob': -10.850804328918457, 'bc_loss': -0.0, 'fb_diag': -88.86329650878906, 'fb_loss': 159.1062469482422, 'fb_offdiag': 246.43846130371094, 'ortho_diag': -50.00022888183594, 'ortho_loss': -20.109905242919922, 'ortho_offdiag': 29.890323638916016, 'q_loss': -614.3272705078125, 'q_mean': 614.3272705078125, 'sp_loss': 1.732184648513794}
+120000 {'actor_loss': -626.0234985351562, 'bc_log_prob': -10.836797714233398, 'bc_loss': -0.0, 'fb_diag': -86.26045227050781, 'fb_loss': 163.87405395507812, 'fb_offdiag': 248.57598876953125, 'ortho_diag': -49.99992370605469, 'ortho_loss': -20.64716911315918, 'ortho_offdiag': 29.352754592895508, 'q_loss': -626.0234985351562, 'q_mean': 626.0234985351562, 'sp_loss': 1.7649822235107422}
+125000 {'actor_loss': -634.6929931640625, 'bc_log_prob': -10.906961441040039, 'bc_loss': -0.0, 'fb_diag': -85.90599060058594, 'fb_loss': 148.83277893066406, 'fb_offdiag': 233.2822723388672, 'ortho_diag': -50.000064849853516, 'ortho_loss': -20.739519119262695, 'ortho_offdiag': 29.26054573059082, 'q_loss': -634.6929931640625, 'q_mean': 634.6929931640625, 'sp_loss': 1.663888931274414}
+130000 {'actor_loss': -644.2412109375, 'bc_log_prob': -11.043781280517578, 'bc_loss': -0.0, 'fb_diag': -88.6205825805664, 'fb_loss': 165.52880859375, 'fb_offdiag': 252.68914794921875, 'ortho_diag': -50.00007247924805, 'ortho_loss': -20.789093017578125, 'ortho_offdiag': 29.210979461669922, 'q_loss': -644.2412109375, 'q_mean': 644.2412109375, 'sp_loss': 1.6681216955184937}
+135000 {'actor_loss': -667.6038208007812, 'bc_log_prob': -11.116788864135742, 'bc_loss': -0.0, 'fb_diag': -84.89146423339844, 'fb_loss': 150.498779296875, 'fb_offdiag': 233.83352661132812, 'ortho_diag': -49.999961853027344, 'ortho_loss': -20.909488677978516, 'ortho_offdiag': 29.090473175048828, 'q_loss': -667.6038208007812, 'q_mean': 667.6038208007812, 'sp_loss': 1.7658061981201172}
+140000 {'actor_loss': -690.1221923828125, 'bc_log_prob': -10.882866859436035, 'bc_loss': -0.0, 'fb_diag': -87.64703369140625, 'fb_loss': 162.15823364257812, 'fb_offdiag': 248.40365600585938, 'ortho_diag': -50.0, 'ortho_loss': -20.820865631103516, 'ortho_offdiag': 29.179134368896484, 'q_loss': -690.1221923828125, 'q_mean': 690.1221923828125, 'sp_loss': 1.609824776649475}
+145000 {'actor_loss': -687.1740112304688, 'bc_log_prob': -10.926482200622559, 'bc_loss': -0.0, 'fb_diag': -89.17683410644531, 'fb_loss': 152.9116668701172, 'fb_offdiag': 240.74917602539062, 'ortho_diag': -49.999969482421875, 'ortho_loss': -21.232690811157227, 'ortho_offdiag': 28.76727867126465, 'q_loss': -687.1740112304688, 'q_mean': 687.1740112304688, 'sp_loss': 1.5516525506973267}
+150000 {'actor_loss': -681.1826171875, 'bc_log_prob': -10.966558456420898, 'bc_loss': -0.0, 'fb_diag': -88.69422149658203, 'fb_loss': 159.0758514404297, 'fb_offdiag': 246.17054748535156, 'ortho_diag': -49.99985122680664, 'ortho_loss': -21.107637405395508, 'ortho_offdiag': 28.892213821411133, 'q_loss': -681.1826171875, 'q_mean': 681.1826171875, 'sp_loss': 1.810603380203247}
+155000 {'actor_loss': -701.4825439453125, 'bc_log_prob': -10.890942573547363, 'bc_loss': -0.0, 'fb_diag': -88.6822280883789, 'fb_loss': 157.06610107421875, 'fb_offdiag': 244.4241485595703, 'ortho_diag': -49.99983215332031, 'ortho_loss': -21.42173194885254, 'ortho_offdiag': 28.578100204467773, 'q_loss': -701.4825439453125, 'q_mean': 701.4825439453125, 'sp_loss': 1.5384048223495483}
+160000 {'actor_loss': -709.982177734375, 'bc_log_prob': -10.851458549499512, 'bc_loss': -0.0, 'fb_diag': -88.43730163574219, 'fb_loss': 156.23617553710938, 'fb_offdiag': 243.19520568847656, 'ortho_diag': -50.00008010864258, 'ortho_loss': -21.307373046875, 'ortho_offdiag': 28.692707061767578, 'q_loss': -709.982177734375, 'q_mean': 709.982177734375, 'sp_loss': 1.6913458108901978}
+165000 {'actor_loss': -716.0781860351562, 'bc_log_prob': -10.887838363647461, 'bc_loss': -0.0, 'fb_diag': -90.07566833496094, 'fb_loss': 164.18630981445312, 'fb_offdiag': 252.71534729003906, 'ortho_diag': -49.99988555908203, 'ortho_loss': -21.464859008789062, 'ortho_offdiag': 28.53502655029297, 'q_loss': -716.0781860351562, 'q_mean': 716.0781860351562, 'sp_loss': 1.761277198791504}
+170000 {'actor_loss': -724.171142578125, 'bc_log_prob': -10.858510971069336, 'bc_loss': -0.0, 'fb_diag': -87.5340576171875, 'fb_loss': 156.6600799560547, 'fb_offdiag': 242.83155822753906, 'ortho_diag': -49.99987030029297, 'ortho_loss': -21.3536319732666, 'ortho_offdiag': 28.646238327026367, 'q_loss': -724.171142578125, 'q_mean': 724.171142578125, 'sp_loss': 1.5761066675186157}
+175000 {'actor_loss': -709.510986328125, 'bc_log_prob': -10.794137954711914, 'bc_loss': -0.0, 'fb_diag': -89.23057556152344, 'fb_loss': 142.3065948486328, 'fb_offdiag': 230.2706756591797, 'ortho_diag': -49.99980163574219, 'ortho_loss': -21.49114990234375, 'ortho_offdiag': 28.508651733398438, 'q_loss': -709.510986328125, 'q_mean': 709.510986328125, 'sp_loss': 1.4813991785049438}
+180000 {'actor_loss': -713.7144775390625, 'bc_log_prob': -11.00019645690918, 'bc_loss': -0.0, 'fb_diag': -89.00859832763672, 'fb_loss': 149.0546417236328, 'fb_offdiag': 236.83578491210938, 'ortho_diag': -49.999786376953125, 'ortho_loss': -21.634828567504883, 'ortho_offdiag': 28.364957809448242, 'q_loss': -713.7144775390625, 'q_mean': 713.7144775390625, 'sp_loss': 1.4438130855560303}
+185000 {'actor_loss': -722.0280151367188, 'bc_log_prob': -10.870170593261719, 'bc_loss': -0.0, 'fb_diag': -88.6512680053711, 'fb_loss': 154.50564575195312, 'fb_offdiag': 242.0150604248047, 'ortho_diag': -49.99994659423828, 'ortho_loss': -21.747512817382812, 'ortho_offdiag': 28.25243377685547, 'q_loss': -722.0280151367188, 'q_mean': 722.0280151367188, 'sp_loss': 1.3593189716339111}
+190000 {'actor_loss': -741.1253662109375, 'bc_log_prob': -10.885114669799805, 'bc_loss': -0.0, 'fb_diag': -86.57186889648438, 'fb_loss': 146.0067901611328, 'fb_offdiag': 231.02162170410156, 'ortho_diag': -49.99951934814453, 'ortho_loss': -21.648765563964844, 'ortho_offdiag': 28.350753784179688, 'q_loss': -741.1253662109375, 'q_mean': 741.1253662109375, 'sp_loss': 1.7735350131988525}
+195000 {'actor_loss': -729.1324462890625, 'bc_log_prob': -10.93800163269043, 'bc_loss': -0.0, 'fb_diag': -88.11392211914062, 'fb_loss': 140.67787170410156, 'fb_offdiag': 227.53123474121094, 'ortho_diag': -49.99980545043945, 'ortho_loss': -21.822641372680664, 'ortho_offdiag': 28.17716407775879, 'q_loss': -729.1324462890625, 'q_mean': 729.1324462890625, 'sp_loss': 1.478784441947937}
+200000 {'actor_loss': -735.9501953125, 'bc_log_prob': -10.991836547851562, 'bc_loss': -0.0, 'fb_diag': -86.35548400878906, 'fb_loss': 160.26263427734375, 'fb_offdiag': 245.30264282226562, 'ortho_diag': -50.00006866455078, 'ortho_loss': -21.843666076660156, 'ortho_offdiag': 28.156402587890625, 'q_loss': -735.9501953125, 'q_mean': 735.9501953125, 'sp_loss': 1.5339022874832153}
+Saved to /home/adityamohan/git/Factored-FB-seam/exp/exorl-tdj/dmc-walker/rldp_tdj/dmc-walker_rldp_tdj_ddpgbc_seed_2/params_200000.pkl
+205000 {'actor_loss': -759.490234375, 'bc_log_prob': -11.102407455444336, 'bc_loss': -0.0, 'fb_diag': -86.7386474609375, 'fb_loss': 146.02862548828125, 'fb_offdiag': 231.51739501953125, 'ortho_diag': -50.00000762939453, 'ortho_loss': -22.016353607177734, 'ortho_offdiag': 27.983654022216797, 'q_loss': -759.490234375, 'q_mean': 759.490234375, 'sp_loss': 1.47003972530365}
+210000 {'actor_loss': -735.2080078125, 'bc_log_prob': -10.922933578491211, 'bc_loss': -0.0, 'fb_diag': -87.36101531982422, 'fb_loss': 126.72964477539062, 'fb_offdiag': 212.9508819580078, 'ortho_diag': -49.999542236328125, 'ortho_loss': -22.181041717529297, 'ortho_offdiag': 27.818500518798828, 'q_loss': -735.2080078125, 'q_mean': 735.2080078125, 'sp_loss': 1.3615853786468506}
+215000 {'actor_loss': -751.8375244140625, 'bc_log_prob': -10.957643508911133, 'bc_loss': -0.0, 'fb_diag': -89.0129623413086, 'fb_loss': 152.65310668945312, 'fb_offdiag': 240.49295043945312, 'ortho_diag': -49.999961853027344, 'ortho_loss': -22.021547317504883, 'ortho_offdiag': 27.97841453552246, 'q_loss': -751.8375244140625, 'q_mean': 751.8375244140625, 'sp_loss': 1.3933417797088623}
+220000 {'actor_loss': -756.47705078125, 'bc_log_prob': -10.954938888549805, 'bc_loss': -0.0, 'fb_diag': -88.20191192626953, 'fb_loss': 151.51258850097656, 'fb_offdiag': 238.43362426757812, 'ortho_diag': -49.99995422363281, 'ortho_loss': -22.182353973388672, 'ortho_offdiag': 27.81760025024414, 'q_loss': -756.47705078125, 'q_mean': 756.47705078125, 'sp_loss': 1.5026905536651611}
+225000 {'actor_loss': -743.5023803710938, 'bc_log_prob': -10.911832809448242, 'bc_loss': -0.0, 'fb_diag': -90.37902069091797, 'fb_loss': 146.80690002441406, 'fb_offdiag': 235.8199462890625, 'ortho_diag': -49.99998474121094, 'ortho_loss': -22.10189437866211, 'ortho_offdiag': 27.898090362548828, 'q_loss': -743.5023803710938, 'q_mean': 743.5023803710938, 'sp_loss': 1.5870059728622437}
+230000 {'actor_loss': -756.398193359375, 'bc_log_prob': -10.870394706726074, 'bc_loss': -0.0, 'fb_diag': -86.79997253417969, 'fb_loss': 141.99876403808594, 'fb_offdiag': 227.67457580566406, 'ortho_diag': -50.00003433227539, 'ortho_loss': -22.161014556884766, 'ortho_offdiag': 27.839019775390625, 'q_loss': -756.398193359375, 'q_mean': 756.398193359375, 'sp_loss': 1.3457651138305664}
+235000 {'actor_loss': -738.4013061523438, 'bc_log_prob': -11.063753128051758, 'bc_loss': -0.0, 'fb_diag': -90.00586700439453, 'fb_loss': 163.0342254638672, 'fb_offdiag': 251.90179443359375, 'ortho_diag': -49.99977111816406, 'ortho_loss': -22.356489181518555, 'ortho_offdiag': 27.643281936645508, 'q_loss': -738.4013061523438, 'q_mean': 738.4013061523438, 'sp_loss': 1.3618546724319458}
+240000 {'actor_loss': -762.9197998046875, 'bc_log_prob': -10.734249114990234, 'bc_loss': -0.0, 'fb_diag': -91.15100860595703, 'fb_loss': 144.16493225097656, 'fb_offdiag': 234.0622100830078, 'ortho_diag': -50.000362396240234, 'ortho_loss': -22.24611473083496, 'ortho_offdiag': 27.754247665405273, 'q_loss': -762.9197998046875, 'q_mean': 762.9197998046875, 'sp_loss': 1.4761985540390015}
+245000 {'actor_loss': -761.580078125, 'bc_log_prob': -10.962198257446289, 'bc_loss': -0.0, 'fb_diag': -91.804931640625, 'fb_loss': 138.96783447265625, 'fb_offdiag': 229.64419555664062, 'ortho_diag': -49.999900817871094, 'ortho_loss': -22.07493782043457, 'ortho_offdiag': 27.924962997436523, 'q_loss': -761.580078125, 'q_mean': 761.580078125, 'sp_loss': 1.3493165969848633}
+250000 {'actor_loss': -754.83642578125, 'bc_log_prob': -10.942973136901855, 'bc_loss': -0.0, 'fb_diag': -93.57872009277344, 'fb_loss': 136.9409637451172, 'fb_offdiag': 229.37774658203125, 'ortho_diag': -50.00006866455078, 'ortho_loss': -22.033958435058594, 'ortho_offdiag': 27.966110229492188, 'q_loss': -754.83642578125, 'q_mean': 754.83642578125, 'sp_loss': 1.362278938293457}
+255000 {'actor_loss': -759.2131958007812, 'bc_log_prob': -10.819283485412598, 'bc_loss': -0.0, 'fb_diag': -86.86334991455078, 'fb_loss': 154.8915252685547, 'fb_offdiag': 240.43417358398438, 'ortho_diag': -50.00006866455078, 'ortho_loss': -22.24769401550293, 'ortho_offdiag': 27.75237464904785, 'q_loss': -759.2131958007812, 'q_mean': 759.2131958007812, 'sp_loss': 1.543165683746338}
+260000 {'actor_loss': -762.488037109375, 'bc_log_prob': -10.945011138916016, 'bc_loss': -0.0, 'fb_diag': -88.90812683105469, 'fb_loss': 136.0195770263672, 'fb_offdiag': 223.82032775878906, 'ortho_diag': -49.999935150146484, 'ortho_loss': -22.30542755126953, 'ortho_offdiag': 27.694507598876953, 'q_loss': -762.488037109375, 'q_mean': 762.488037109375, 'sp_loss': 1.3304260969161987}
+265000 {'actor_loss': -749.5139770507812, 'bc_log_prob': -10.802644729614258, 'bc_loss': -0.0, 'fb_diag': -92.20278930664062, 'fb_loss': 150.39981079101562, 'fb_offdiag': 241.35125732421875, 'ortho_diag': -49.99994659423828, 'ortho_loss': -22.341785430908203, 'ortho_offdiag': 27.658161163330078, 'q_loss': -749.5139770507812, 'q_mean': 749.5139770507812, 'sp_loss': 1.4747565984725952}
+270000 {'actor_loss': -767.1414794921875, 'bc_log_prob': -10.859745025634766, 'bc_loss': -0.0, 'fb_diag': -88.23585510253906, 'fb_loss': 142.85989379882812, 'fb_offdiag': 230.07998657226562, 'ortho_diag': -50.00010681152344, 'ortho_loss': -22.311330795288086, 'ortho_offdiag': 27.68877601623535, 'q_loss': -767.1414794921875, 'q_mean': 767.1414794921875, 'sp_loss': 1.2388827800750732}
+275000 {'actor_loss': -772.9830322265625, 'bc_log_prob': -11.013238906860352, 'bc_loss': -0.0, 'fb_diag': -87.99656677246094, 'fb_loss': 145.62844848632812, 'fb_offdiag': 232.42910766601562, 'ortho_diag': -49.999977111816406, 'ortho_loss': -22.21681785583496, 'ortho_offdiag': 27.783159255981445, 'q_loss': -772.9830322265625, 'q_mean': 772.9830322265625, 'sp_loss': 1.418068528175354}
+280000 {'actor_loss': -759.3724365234375, 'bc_log_prob': -10.856199264526367, 'bc_loss': -0.0, 'fb_diag': -89.28926849365234, 'fb_loss': 149.44369506835938, 'fb_offdiag': 237.41021728515625, 'ortho_diag': -49.99998474121094, 'ortho_loss': -22.481307983398438, 'ortho_offdiag': 27.5186767578125, 'q_loss': -759.3724365234375, 'q_mean': 759.3724365234375, 'sp_loss': 1.5475634336471558}
+285000 {'actor_loss': -762.1427001953125, 'bc_log_prob': -11.102442741394043, 'bc_loss': -0.0, 'fb_diag': -90.70387268066406, 'fb_loss': 135.49832153320312, 'fb_offdiag': 225.0681610107422, 'ortho_diag': -50.000038146972656, 'ortho_loss': -22.306245803833008, 'ortho_offdiag': 27.69379234313965, 'q_loss': -762.1427001953125, 'q_mean': 762.1427001953125, 'sp_loss': 1.3570976257324219}
+290000 {'actor_loss': -760.6536254882812, 'bc_log_prob': -10.83767318725586, 'bc_loss': -0.0, 'fb_diag': -92.84042358398438, 'fb_loss': 131.5271759033203, 'fb_offdiag': 223.2311553955078, 'ortho_diag': -49.9998779296875, 'ortho_loss': -22.39893341064453, 'ortho_offdiag': 27.60094451904297, 'q_loss': -760.6536254882812, 'q_mean': 760.6536254882812, 'sp_loss': 1.3604222536087036}
+295000 {'actor_loss': -761.850341796875, 'bc_log_prob': -10.941571235656738, 'bc_loss': -0.0, 'fb_diag': -89.22633361816406, 'fb_loss': 128.78683471679688, 'fb_offdiag': 216.9243927001953, 'ortho_diag': -49.999881744384766, 'ortho_loss': -22.49608612060547, 'ortho_offdiag': 27.503795623779297, 'q_loss': -761.850341796875, 'q_mean': 761.850341796875, 'sp_loss': 1.3137409687042236}
+300000 {'actor_loss': -756.8124389648438, 'bc_log_prob': -10.912385940551758, 'bc_loss': -0.0, 'fb_diag': -88.95685577392578, 'fb_loss': 144.2513885498047, 'fb_offdiag': 232.18057250976562, 'ortho_diag': -50.00006866455078, 'ortho_loss': -22.294466018676758, 'ortho_offdiag': 27.705602645874023, 'q_loss': -756.8124389648438, 'q_mean': 756.8124389648438, 'sp_loss': 1.2506163120269775}
+Saved to /home/adityamohan/git/Factored-FB-seam/exp/exorl-tdj/dmc-walker/rldp_tdj/dmc-walker_rldp_tdj_ddpgbc_seed_2/params_300000.pkl
+305000 {'actor_loss': -771.382568359375, 'bc_log_prob': -11.070804595947266, 'bc_loss': -0.0, 'fb_diag': -89.72940826416016, 'fb_loss': 140.96092224121094, 'fb_offdiag': 229.55001831054688, 'ortho_diag': -49.99983215332031, 'ortho_loss': -22.261404037475586, 'ortho_offdiag': 27.738428115844727, 'q_loss': -771.382568359375, 'q_mean': 771.382568359375, 'sp_loss': 1.3629223108291626}
+310000 {'actor_loss': -771.548828125, 'bc_log_prob': -10.855310440063477, 'bc_loss': -0.0, 'fb_diag': -89.767578125, 'fb_loss': 138.68301391601562, 'fb_offdiag': 227.4939422607422, 'ortho_diag': -50.00022506713867, 'ortho_loss': -22.184415817260742, 'ortho_offdiag': 27.81580924987793, 'q_loss': -771.548828125, 'q_mean': 771.548828125, 'sp_loss': 1.1784954071044922}
+315000 {'actor_loss': -749.2713623046875, 'bc_log_prob': -10.933710098266602, 'bc_loss': -0.0, 'fb_diag': -89.44111633300781, 'fb_loss': 142.77877807617188, 'fb_offdiag': 230.93304443359375, 'ortho_diag': -50.000205993652344, 'ortho_loss': -22.29351043701172, 'ortho_offdiag': 27.706695556640625, 'q_loss': -749.2713623046875, 'q_mean': 749.2713623046875, 'sp_loss': 1.5097752809524536}
+320000 {'actor_loss': -767.8529663085938, 'bc_log_prob': -11.01025390625, 'bc_loss': -0.0, 'fb_diag': -91.38819885253906, 'fb_loss': 124.15252685546875, 'fb_offdiag': 214.61578369140625, 'ortho_diag': -50.0001220703125, 'ortho_loss': -22.435449600219727, 'ortho_offdiag': 27.564672470092773, 'q_loss': -767.8529663085938, 'q_mean': 767.8529663085938, 'sp_loss': 1.1492971181869507}
+325000 {'actor_loss': -763.8934326171875, 'bc_log_prob': -10.852339744567871, 'bc_loss': -0.0, 'fb_diag': -90.47634887695312, 'fb_loss': 157.32469177246094, 'fb_offdiag': 246.7490692138672, 'ortho_diag': -49.99989700317383, 'ortho_loss': -22.423866271972656, 'ortho_offdiag': 27.576030731201172, 'q_loss': -763.8934326171875, 'q_mean': 763.8934326171875, 'sp_loss': 1.2762088775634766}
+330000 {'actor_loss': -766.8341064453125, 'bc_log_prob': -11.255836486816406, 'bc_loss': -0.0, 'fb_diag': -90.15998840332031, 'fb_loss': 127.93601989746094, 'fb_offdiag': 216.9958953857422, 'ortho_diag': -49.99994659423828, 'ortho_loss': -22.398025512695312, 'ortho_offdiag': 27.60192108154297, 'q_loss': -766.8341064453125, 'q_mean': 766.8341064453125, 'sp_loss': 1.3240954875946045}
+335000 {'actor_loss': -770.6494140625, 'bc_log_prob': -10.872468948364258, 'bc_loss': -0.0, 'fb_diag': -86.8219223022461, 'fb_loss': 147.11209106445312, 'fb_offdiag': 232.8185272216797, 'ortho_diag': -49.999794006347656, 'ortho_loss': -22.25853729248047, 'ortho_offdiag': 27.741256713867188, 'q_loss': -770.6494140625, 'q_mean': 770.6494140625, 'sp_loss': 1.3380647897720337}
+340000 {'actor_loss': -761.89892578125, 'bc_log_prob': -11.009971618652344, 'bc_loss': -0.0, 'fb_diag': -91.0711441040039, 'fb_loss': 142.15321350097656, 'fb_offdiag': 232.09994506835938, 'ortho_diag': -49.999916076660156, 'ortho_loss': -22.420528411865234, 'ortho_offdiag': 27.579387664794922, 'q_loss': -761.89892578125, 'q_mean': 761.89892578125, 'sp_loss': 1.348617434501648}
+345000 {'actor_loss': -764.6541137695312, 'bc_log_prob': -10.84091567993164, 'bc_loss': -0.0, 'fb_diag': -92.0408935546875, 'fb_loss': 159.3382568359375, 'fb_offdiag': 250.25271606445312, 'ortho_diag': -49.999935150146484, 'ortho_loss': -22.184181213378906, 'ortho_offdiag': 27.815753936767578, 'q_loss': -764.6541137695312, 'q_mean': 764.6541137695312, 'sp_loss': 1.3482885360717773}
+350000 {'actor_loss': -774.7532958984375, 'bc_log_prob': -10.869146347045898, 'bc_loss': -0.0, 'fb_diag': -90.37760925292969, 'fb_loss': 145.02622985839844, 'fb_offdiag': 234.40838623046875, 'ortho_diag': -49.999916076660156, 'ortho_loss': -22.53665542602539, 'ortho_offdiag': 27.463260650634766, 'q_loss': -774.7532958984375, 'q_mean': 774.7532958984375, 'sp_loss': 1.2208223342895508}
+355000 {'actor_loss': -775.3294677734375, 'bc_log_prob': -10.91928482055664, 'bc_loss': -0.0, 'fb_diag': -90.088134765625, 'fb_loss': 140.6080780029297, 'fb_offdiag': 229.66685485839844, 'ortho_diag': -49.999969482421875, 'ortho_loss': -22.476825714111328, 'ortho_offdiag': 27.523143768310547, 'q_loss': -775.3294677734375, 'q_mean': 775.3294677734375, 'sp_loss': 1.254118800163269}
+360000 {'actor_loss': -768.8997802734375, 'bc_log_prob': -11.042113304138184, 'bc_loss': -0.0, 'fb_diag': -90.44212341308594, 'fb_loss': 147.74862670898438, 'fb_offdiag': 237.15823364257812, 'ortho_diag': -49.99995040893555, 'ortho_loss': -22.500171661376953, 'ortho_offdiag': 27.499778747558594, 'q_loss': -768.8997802734375, 'q_mean': 768.8997802734375, 'sp_loss': 1.257517695426941}
+365000 {'actor_loss': -774.427490234375, 'bc_log_prob': -11.078189849853516, 'bc_loss': -0.0, 'fb_diag': -88.87910461425781, 'fb_loss': 153.27027893066406, 'fb_offdiag': 241.15777587890625, 'ortho_diag': -49.99988555908203, 'ortho_loss': -22.471628189086914, 'ortho_offdiag': 27.528257369995117, 'q_loss': -774.427490234375, 'q_mean': 774.427490234375, 'sp_loss': 1.2163232564926147}
+370000 {'actor_loss': -766.6544189453125, 'bc_log_prob': -10.980960845947266, 'bc_loss': -0.0, 'fb_diag': -91.11549377441406, 'fb_loss': 143.15463256835938, 'fb_offdiag': 233.1140899658203, 'ortho_diag': -49.99996566772461, 'ortho_loss': -22.396759033203125, 'ortho_offdiag': 27.603206634521484, 'q_loss': -766.6544189453125, 'q_mean': 766.6544189453125, 'sp_loss': 1.3799991607666016}
+375000 {'actor_loss': -757.4796752929688, 'bc_log_prob': -11.06038761138916, 'bc_loss': -0.0, 'fb_diag': -91.6651840209961, 'fb_loss': 153.28834533691406, 'fb_offdiag': 244.0579071044922, 'ortho_diag': -50.00022888183594, 'ortho_loss': -22.40546989440918, 'ortho_offdiag': 27.594758987426758, 'q_loss': -757.4796752929688, 'q_mean': 757.4796752929688, 'sp_loss': 1.1196794509887695}
+380000 {'actor_loss': -782.7199096679688, 'bc_log_prob': -10.906257629394531, 'bc_loss': -0.0, 'fb_diag': -90.41039276123047, 'fb_loss': 145.79559326171875, 'fb_offdiag': 235.11354064941406, 'ortho_diag': -49.999961853027344, 'ortho_loss': -22.425474166870117, 'ortho_offdiag': 27.574487686157227, 'q_loss': -782.7199096679688, 'q_mean': 782.7199096679688, 'sp_loss': 1.3166961669921875}
+385000 {'actor_loss': -772.9639282226562, 'bc_log_prob': -10.988937377929688, 'bc_loss': -0.0, 'fb_diag': -88.4661865234375, 'fb_loss': 134.83935546875, 'fb_offdiag': 222.25686645507812, 'ortho_diag': -49.99974060058594, 'ortho_loss': -22.4907169342041, 'ortho_offdiag': 27.509023666381836, 'q_loss': -772.9639282226562, 'q_mean': 772.9639282226562, 'sp_loss': 1.2735894918441772}
+390000 {'actor_loss': -778.0761108398438, 'bc_log_prob': -10.97687816619873, 'bc_loss': -0.0, 'fb_diag': -90.83521270751953, 'fb_loss': 149.31712341308594, 'fb_offdiag': 239.18792724609375, 'ortho_diag': -50.000160217285156, 'ortho_loss': -22.455490112304688, 'ortho_offdiag': 27.54467010498047, 'q_loss': -778.0761108398438, 'q_mean': 778.0761108398438, 'sp_loss': 1.188948392868042}
+395000 {'actor_loss': -767.301513671875, 'bc_log_prob': -11.05093765258789, 'bc_loss': -0.0, 'fb_diag': -88.31504821777344, 'fb_loss': 141.59373474121094, 'fb_offdiag': 228.95909118652344, 'ortho_diag': -50.00021743774414, 'ortho_loss': -22.43305206298828, 'ortho_offdiag': 27.56716537475586, 'q_loss': -767.301513671875, 'q_mean': 767.301513671875, 'sp_loss': 1.1740264892578125}
+400000 {'actor_loss': -769.873779296875, 'bc_log_prob': -11.050796508789062, 'bc_loss': -0.0, 'fb_diag': -91.61129760742188, 'fb_loss': 137.89271545410156, 'fb_offdiag': 228.63880920410156, 'ortho_diag': -49.99989318847656, 'ortho_loss': -22.501937866210938, 'ortho_offdiag': 27.497955322265625, 'q_loss': -769.873779296875, 'q_mean': 769.873779296875, 'sp_loss': 1.0902295112609863}
+Saved to /home/adityamohan/git/Factored-FB-seam/exp/exorl-tdj/dmc-walker/rldp_tdj/dmc-walker_rldp_tdj_ddpgbc_seed_2/params_400000.pkl
+405000 {'actor_loss': -780.7412719726562, 'bc_log_prob': -10.898195266723633, 'bc_loss': -0.0, 'fb_diag': -90.2201919555664, 'fb_loss': 135.80355834960938, 'fb_offdiag': 225.02023315429688, 'ortho_diag': -50.00005340576172, 'ortho_loss': -22.478551864624023, 'ortho_offdiag': 27.521501541137695, 'q_loss': -780.7412719726562, 'q_mean': 780.7412719726562, 'sp_loss': 1.2283093929290771}
+410000 {'actor_loss': -769.4445190429688, 'bc_log_prob': -11.012863159179688, 'bc_loss': -0.0, 'fb_diag': -89.34046936035156, 'fb_loss': 148.5196533203125, 'fb_offdiag': 236.744873046875, 'ortho_diag': -50.000144958496094, 'ortho_loss': -22.564706802368164, 'ortho_offdiag': 27.43543815612793, 'q_loss': -769.4445190429688, 'q_mean': 769.4445190429688, 'sp_loss': 1.3408926725387573}
+415000 {'actor_loss': -775.6741333007812, 'bc_log_prob': -11.061809539794922, 'bc_loss': -0.0, 'fb_diag': -89.33540344238281, 'fb_loss': 150.32183837890625, 'fb_offdiag': 238.5982666015625, 'ortho_diag': -49.9998779296875, 'ortho_loss': -22.629636764526367, 'ortho_offdiag': 27.370241165161133, 'q_loss': -775.6741333007812, 'q_mean': 775.6741333007812, 'sp_loss': 1.2852767705917358}
+420000 {'actor_loss': -801.380859375, 'bc_log_prob': -10.978439331054688, 'bc_loss': -0.0, 'fb_diag': -90.00352478027344, 'fb_loss': 154.45819091796875, 'fb_offdiag': 243.59600830078125, 'ortho_diag': -49.99988555908203, 'ortho_loss': -22.548757553100586, 'ortho_offdiag': 27.451128005981445, 'q_loss': -801.380859375, 'q_mean': 801.380859375, 'sp_loss': 1.0912026166915894}
+425000 {'actor_loss': -789.312744140625, 'bc_log_prob': -10.971796035766602, 'bc_loss': -0.0, 'fb_diag': -91.99198913574219, 'fb_loss': 142.3986358642578, 'fb_offdiag': 233.47801208496094, 'ortho_diag': -49.99997329711914, 'ortho_loss': -22.502283096313477, 'ortho_offdiag': 27.497690200805664, 'q_loss': -789.312744140625, 'q_mean': 789.312744140625, 'sp_loss': 1.137634515762329}
+430000 {'actor_loss': -782.3699340820312, 'bc_log_prob': -10.814401626586914, 'bc_loss': -0.0, 'fb_diag': -92.4118881225586, 'fb_loss': 130.70458984375, 'fb_offdiag': 222.22259521484375, 'ortho_diag': -49.9999885559082, 'ortho_loss': -22.475513458251953, 'ortho_offdiag': 27.52447509765625, 'q_loss': -782.3699340820312, 'q_mean': 782.3699340820312, 'sp_loss': 1.1186450719833374}
+435000 {'actor_loss': -796.627197265625, 'bc_log_prob': -10.92306137084961, 'bc_loss': -0.0, 'fb_diag': -91.05168151855469, 'fb_loss': 139.13897705078125, 'fb_offdiag': 229.3111114501953, 'ortho_diag': -50.000022888183594, 'ortho_loss': -22.458965301513672, 'ortho_offdiag': 27.541057586669922, 'q_loss': -796.627197265625, 'q_mean': 796.627197265625, 'sp_loss': 1.1041427850723267}
+440000 {'actor_loss': -787.4663696289062, 'bc_log_prob': -10.907756805419922, 'bc_loss': -0.0, 'fb_diag': -94.53781127929688, 'fb_loss': 170.8081817626953, 'fb_offdiag': 264.4045715332031, 'ortho_diag': -50.000091552734375, 'ortho_loss': -22.51113510131836, 'ortho_offdiag': 27.488956451416016, 'q_loss': -787.4663696289062, 'q_mean': 787.4663696289062, 'sp_loss': 1.1665327548980713}
+445000 {'actor_loss': -783.732421875, 'bc_log_prob': -10.76231861114502, 'bc_loss': -0.0, 'fb_diag': -89.35458374023438, 'fb_loss': 132.30831909179688, 'fb_offdiag': 220.70668029785156, 'ortho_diag': -49.99977111816406, 'ortho_loss': -22.6118106842041, 'ortho_offdiag': 27.38796043395996, 'q_loss': -783.732421875, 'q_mean': 783.732421875, 'sp_loss': 1.1823400259017944}
+450000 {'actor_loss': -770.0802612304688, 'bc_log_prob': -10.92628288269043, 'bc_loss': -0.0, 'fb_diag': -91.08092498779297, 'fb_loss': 142.67840576171875, 'fb_offdiag': 232.88807678222656, 'ortho_diag': -49.99988555908203, 'ortho_loss': -22.637317657470703, 'ortho_offdiag': 27.362567901611328, 'q_loss': -770.0802612304688, 'q_mean': 770.0802612304688, 'sp_loss': 1.097619891166687}
+455000 {'actor_loss': -797.3026123046875, 'bc_log_prob': -11.056502342224121, 'bc_loss': -0.0, 'fb_diag': -91.67558288574219, 'fb_loss': 147.0849151611328, 'fb_offdiag': 237.80470275878906, 'ortho_diag': -49.99993133544922, 'ortho_loss': -22.354572296142578, 'ortho_offdiag': 27.64535903930664, 'q_loss': -797.3026123046875, 'q_mean': 797.3026123046875, 'sp_loss': 1.1793310642242432}
+460000 {'actor_loss': -792.6561279296875, 'bc_log_prob': -10.988325119018555, 'bc_loss': -0.0, 'fb_diag': -98.03463745117188, 'fb_loss': 142.28125, 'fb_offdiag': 239.40231323242188, 'ortho_diag': -49.999977111816406, 'ortho_loss': -22.631195068359375, 'ortho_offdiag': 27.36878204345703, 'q_loss': -792.6561279296875, 'q_mean': 792.6561279296875, 'sp_loss': 1.1398873329162598}
+465000 {'actor_loss': -801.1609497070312, 'bc_log_prob': -10.939286231994629, 'bc_loss': -0.0, 'fb_diag': -95.62916564941406, 'fb_loss': 149.52272033691406, 'fb_offdiag': 244.31686401367188, 'ortho_diag': -49.9999885559082, 'ortho_loss': -22.623149871826172, 'ortho_offdiag': 27.37683868408203, 'q_loss': -801.1609497070312, 'q_mean': 801.1609497070312, 'sp_loss': 1.0612550973892212}
+470000 {'actor_loss': -798.9815063476562, 'bc_log_prob': -10.945919036865234, 'bc_loss': -0.0, 'fb_diag': -89.43006896972656, 'fb_loss': 144.92633056640625, 'fb_offdiag': 233.45294189453125, 'ortho_diag': -49.999916076660156, 'ortho_loss': -22.53765106201172, 'ortho_offdiag': 27.462265014648438, 'q_loss': -798.9815063476562, 'q_mean': 798.9815063476562, 'sp_loss': 1.1288340091705322}
+475000 {'actor_loss': -795.7079467773438, 'bc_log_prob': -11.014715194702148, 'bc_loss': -0.0, 'fb_diag': -94.19277954101562, 'fb_loss': 154.9165802001953, 'fb_offdiag': 248.15802001953125, 'ortho_diag': -49.99998474121094, 'ortho_loss': -22.796741485595703, 'ortho_offdiag': 27.203243255615234, 'q_loss': -795.7079467773438, 'q_mean': 795.7079467773438, 'sp_loss': 1.1793031692504883}
+480000 {'actor_loss': -789.8598022460938, 'bc_log_prob': -10.968017578125, 'bc_loss': -0.0, 'fb_diag': -88.94300842285156, 'fb_loss': 161.6063690185547, 'fb_offdiag': 249.437744140625, 'ortho_diag': -49.99992370605469, 'ortho_loss': -22.640403747558594, 'ortho_offdiag': 27.359519958496094, 'q_loss': -789.8598022460938, 'q_mean': 789.8598022460938, 'sp_loss': 1.3380441665649414}
+485000 {'actor_loss': -800.0787353515625, 'bc_log_prob': -11.03248405456543, 'bc_loss': -0.0, 'fb_diag': -90.25961303710938, 'fb_loss': 145.97621154785156, 'fb_offdiag': 235.382080078125, 'ortho_diag': -50.00004959106445, 'ortho_loss': -22.63945960998535, 'ortho_offdiag': 27.3605899810791, 'q_loss': -800.0787353515625, 'q_mean': 800.0787353515625, 'sp_loss': 1.0801328420639038}
+490000 {'actor_loss': -790.36279296875, 'bc_log_prob': -10.757807731628418, 'bc_loss': -0.0, 'fb_diag': -92.08244323730469, 'fb_loss': 136.9262237548828, 'fb_offdiag': 227.98484802246094, 'ortho_diag': -49.99995422363281, 'ortho_loss': -22.597246170043945, 'ortho_offdiag': 27.402708053588867, 'q_loss': -790.36279296875, 'q_mean': 790.36279296875, 'sp_loss': 1.2497923374176025}
+495000 {'actor_loss': -800.888671875, 'bc_log_prob': -10.948860168457031, 'bc_loss': -0.0, 'fb_diag': -89.93267059326172, 'fb_loss': 148.83364868164062, 'fb_offdiag': 237.93701171875, 'ortho_diag': -50.000064849853516, 'ortho_loss': -22.516820907592773, 'ortho_offdiag': 27.483243942260742, 'q_loss': -800.888671875, 'q_mean': 800.888671875, 'sp_loss': 1.054485559463501}
+500000 {'actor_loss': -809.2224731445312, 'bc_log_prob': -11.030375480651855, 'bc_loss': -0.0, 'fb_diag': -93.04166412353516, 'fb_loss': 143.08731079101562, 'fb_offdiag': 235.20472717285156, 'ortho_diag': -50.0001220703125, 'ortho_loss': -22.677518844604492, 'ortho_offdiag': 27.322603225708008, 'q_loss': -809.2224731445312, 'q_mean': 809.2224731445312, 'sp_loss': 1.1510286331176758}
+wandb: updating run metadata
+wandb: uploading history steps 99-100, summary, console lines 118-119
+wandb: 
+wandb: Run history:
+wandb:              eval/episode_return ▁
+wandb:               eval/inferred_cond ▁
+wandb:  eval/inferred_cond_action_calls ▁
+wandb:   eval/inferred_cond_cos_neutral ▁
+wandb: eval/inferred_cond_goals_dropped ▁
+wandb:          eval/inferred_cond_norm ▁
+wandb:                 train/actor_loss ██▇▇▇▅▅▄▄▃▃▃▃▃▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                train/bc_log_prob █▇▅▅▄▃▃▂▅▄▂▁▃▄▄▄▃▃▄▅▃▄▃▄▂▂▂▄▄▄▁▂▂▃▂▃▃▂▅▂
+wandb:                    train/bc_loss ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+wandb:                    train/fb_diag █▅▄▄▄▃▃▄▃▃▃▃▃▃▃▂▂▃▃▃▃▃▃▂▁▂▂▂▂▂▂▂▂▃▂▂▂▁▂▂
+wandb:                               +8 ...
+wandb: 
+wandb: Run summary:
+wandb:              eval/episode_return 24.58348
+wandb:               eval/inferred_cond 1
+wandb:  eval/inferred_cond_action_calls 10000
+wandb:   eval/inferred_cond_cos_neutral -0.30933
+wandb: eval/inferred_cond_goals_dropped 0
+wandb:          eval/inferred_cond_norm 7.07107
+wandb:                 train/actor_loss -809.22247
+wandb:                train/bc_log_prob -11.03038
+wandb:                    train/bc_loss 0
+wandb:                    train/fb_diag -93.04166
+wandb:                               +8 ...
+wandb: 
+wandb: 🚀 View run dmc-walker_rldp_tdj_ddpgbc_seed_2 at: https://wandb.ai/al-laq-fb/factored-fb/runs/fc183pqk
+wandb: ⭐️ View project at: https://wandb.ai/al-laq-fb/factored-fb
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260831_184459-fc183pqk/logs
+Saved to /home/adityamohan/git/Factored-FB-seam/exp/exorl-tdj/dmc-walker/rldp_tdj/dmc-walker_rldp_tdj_ddpgbc_seed_2/params_500000.pkl

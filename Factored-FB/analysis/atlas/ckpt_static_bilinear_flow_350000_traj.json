@@ -1,0 +1,8 @@
+{
+  "step": 350000,
+  "critic": "bilinear_flow",
+  "effective_rank": 4.845472898477931,
+  "offref_peak_gap": 4.071904492378235,
+  "offref_win_frac": 0.9875,
+  "n_states": 32
+}

@@ -1,0 +1,24 @@
+[load] exp/cube-single-play-v0_fb_tdj_flowbc_seed_2 epoch 1000000
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+/home/adityamohan/git/Factored-FB-seam/impls/critics/fb.py:88: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_2/params_1000000.pkl (params only)
+[R1_region] T=200 mean/step 0.0190 +- 0.0516 disc 1.087 aux_in_A_mean=0.019 aux_in_B_mean=0.017  (14s)
+[R2_either] T=200 mean/step 0.0405 +- 0.0951 disc 2.330 aux_in_A_mean=0.012 aux_in_B_mean=0.028  (15s)
+[R3_pref_a] T=200 mean/step 0.0401 +- 0.1024 disc 2.969 aux_in_A_mean=0.035 aux_in_B_mean=0.018  (10s)
+[R3_pref_b] T=200 mean/step 0.0241 +- 0.0462 disc 1.410 aux_in_A_mean=0.040 aux_in_B_mean=0.012  (10s)
+[R4_lift] T=200 mean/step 0.4299 +- 0.1314 disc 31.908 aux_lifted_3cm_mean=0.470  (11s)
+[R5_dense_t1] T=200 mean/step -0.2255 +- 0.0585 disc -19.451 aux_dense_mean=-0.225 aux_hit_mean=0.015  (10s)
+[R5_sparse_t1] T=200 mean/step 0.0047 +- 0.0207 disc 0.172 aux_dense_mean=-0.235 aux_hit_mean=0.005  (11s)
+[R5_dense_t2] T=200 mean/step -0.1965 +- 0.0358 disc -16.106 aux_dense_mean=-0.196 aux_hit_mean=0.000  (11s)
+[R5_sparse_t2] T=200 mean/step 0.0008 +- 0.0033 disc 0.047 aux_dense_mean=-0.200 aux_hit_mean=0.001  (11s)
+[R5_dense_t3] T=200 mean/step -0.1777 +- 0.0327 disc -14.955 aux_dense_mean=-0.178 aux_hit_mean=0.002  (10s)
+[R5_sparse_t3] T=200 mean/step 0.0120 +- 0.0523 disc 0.415 aux_dense_mean=-0.197 aux_hit_mean=0.012  (11s)
+[R5_dense_t4] T=200 mean/step -0.3413 +- 0.0718 disc -32.101 aux_dense_mean=-0.341 aux_hit_mean=0.016  (11s)
+[R5_sparse_t4] T=200 mean/step 0.0010 +- 0.0044 disc 0.027 aux_dense_mean=-0.354 aux_hit_mean=0.001  (10s)
+[R5_dense_t5] T=200 mean/step -0.3313 +- 0.0669 disc -31.928 aux_dense_mean=-0.331 aux_hit_mean=0.035  (10s)
+[R5_sparse_t5] T=200 mean/step 0.0040 +- 0.0163 disc 0.273 aux_dense_mean=-0.335 aux_hit_mean=0.004  (11s)
+[done] /home/adityamohan/git/Factored-FB-seam/analysis/reward_families/cube-single-play-v0/bc_seed2.json in 203s

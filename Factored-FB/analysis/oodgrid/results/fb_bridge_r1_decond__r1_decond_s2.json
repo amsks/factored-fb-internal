@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_bridge_r1_decond",
+ "seed": "r1_decond_s2",
+ "dir": "/dev/shm/bridge_knobs_out/r1_decond_s2",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/bridge_knobs_out/r1_decond_s2/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.69,
+  "grasped": 0.96
+ },
+ "C2_zB": {
+  "success": 0.74,
+  "grasped": 0.91
+ },
+ "C3_zB": {
+  "success": 0.6,
+  "grasped": 0.89
+ },
+ "C2_zR": {
+  "success": 0.8,
+  "grasped": 0.93
+ },
+ "C3_zR": {
+  "success": 0.66,
+  "grasped": 0.88
+ },
+ "C4_zB": {
+  "success": 0.43,
+  "grasped": 0.88
+ },
+ "secs": 27.6
+}

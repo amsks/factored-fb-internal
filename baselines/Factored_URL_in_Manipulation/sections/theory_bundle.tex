@@ -1,0 +1,825 @@
+
+% \section{Placeholder below}
+
+% \section{GCRL Objective / CRL Learning objective}
+
+% \paragraph{Notation.} Let the environment be a discounted Markov decision process with state space
+% \(\cS\), action space \(\cA\), transition kernel \(P\), initial distribution
+% \(\mu_0\), and discount \(\gamma\in(0,1)\). A policy is denoted by \(\pi\).
+% Let \(\cB\) denote a replay buffer of transitions \((s_i,a_i,s_i')\). We write
+% \((s,a,s')\sim\cB\) for sampling a replay transition, \((s,a)\sim d_{\cB}(s,a)\)
+% for sampling from its empirical state-action marginal, and \(s\sim d_{\cB}(s)\)
+% for sampling from its empirical state marginal. Let \(g=s_{t+\Delta}\) denote a
+% geometrically sampled future state, where \(\Delta\) has probability
+% \(\Pp(\Delta=k)=(1-\gamma)\gamma^{k-1}\) for \(k\ge 1\). The discounted future
+% occupancy at future state \(g\) conditioned on state-action pair \((s,a)\) is
+% \begin{equation}
+%   \rho^\pi(g\mid s,a)
+%   =
+%   (1-\gamma)
+%   \sum_{k=1}^{\infty}\gamma^{k-1}
+%   p^\pi(s_{t+k}=g\mid s_t=s,a_t=a).
+%   \label{eq:future-occupancy}
+% \end{equation}
+% Let
+% \(g^\star\in\cS\) denote the single target goal. The single-goal control
+% objective is to maximize the discounted occupancy of this target:
+% \begin{equation}
+%   \max_\pi\;\rho_0^\pi(g=g^\star),
+%   \qquad
+%   \rho_0^\pi(g=g^\star)
+%   =
+%   (1-\gamma)\sum_{k=0}^{\infty}\gamma^k
+%   p^\pi(s_k=g^\star).
+%   \label{eq:single-goal-objective}
+% \end{equation}
+
+% \paragraph{Contrastive Reinforcement Learning.}
+% \label{subsec:clearning-energy}
+
+% C-learning \citep{eysenbach2021clearning} turns future-density estimation into binary classification
+% . For a state-action pair \((s,a)\), the positive label
+% means that \(g\) was sampled from the conditional future occupancy
+% \(\rho^\pi(\cdot\mid s,a)\). The negative label means that \(g\) was
+% sampled from the replay future marginal \(\bar\rho^\pi_{\cB}(\cdot)\), induced
+% by first sampling a state-action pair from \(d_{\cB}(s,a)\) and then sampling a
+% discounted future. With equal class priors, the Bayes classifier is
+% \begin{equation}
+%   C^\star(s,a,g)
+%   =
+%   \frac{\rho^\pi(g\mid s,a)}
+%   {\rho^\pi(g\mid s,a)+\bar\rho^\pi_{\cB}(g)}.
+%   \label{eq:bayes-classifier}
+% \end{equation}
+% Therefore the classifier odds recover the future-density ratio:
+% \begin{equation}
+%   \frac{C^\star(s,a,g)}{1-C^\star(s,a,g)}
+%   =
+%   \frac{\rho^\pi(g\mid s,a)}{\bar\rho^\pi_{\cB}(g)}.
+%   \label{eq:classifier-odds}
+% \end{equation}
+% Define the ideal C-learning energy by
+% \begin{equation}
+%   E_C^\star(s,a,g)
+%   =
+%   \log \rho^\pi(g\mid s,a)-\log\bar\rho^\pi_{\cB}(g).
+%   \label{eq:c-energy}
+% \end{equation}
+
+% Given a goal-conditioned setting, contrastive reinforcement learning (CRL) learns a goal-reaching energy that measures how likely a future goal $g$ is reachable from a state-action pair $(s,a)$. Let
+% \[
+% \rho^\pi(g\mid s,a)
+% =
+% (1-\gamma)\sum_{k=1}^{\infty}\gamma^{k-1}
+% p^\pi(s_{t+k}=g\mid s_t=s,a_t=a)
+% \]
+% denote the discounted future occupancy under policy $\pi$. CRL can be viewed as estimating the density ratio between this conditional future occupancy and a replay-marginal future distribution $\bar{\rho}^{\pi}_{\mathcal{B}}(g)$:
+% \begin{equation}
+%     E^\star(s,a,g)
+%     =
+%     \log \rho^\pi(g\mid s,a)
+%     -
+%     \log \bar{\rho}^{\pi}_{\mathcal{B}}(g).
+% \end{equation}
+
+% In practice, CRL parameterizes this energy with an inner product between a state-action encoder and a goal encoder~\citep{eysenbach2022contrastive,liu2025singlegoal}. Let
+% $\phi:\mathcal{S}\times\mathcal{A}\rightarrow\mathbb{R}^d$
+% and
+% $\psi:\mathcal{S}\rightarrow\mathbb{R}^d$.
+% The learned energy is
+% \begin{equation}
+%     E_{\phi,\psi}(s,a,g)=\phi(s,a)^\top\psi(g).
+% \end{equation}
+% For each state-action pair $(s,a)\sim d_{\mathcal{B}}(s,a)$, CRL samples one positive future
+% $g^{(1)}\sim\rho^\pi(\cdot\mid s,a)$
+% and $N-1$ negative futures
+% $g^{(2)},\ldots,g^{(N)}\sim\bar{\rho}^{\pi}_{\mathcal{B}}(\cdot)$.
+% The critic is trained with an InfoNCE-style objective, together with a LogSumExp regularizer:
+% \begin{equation}
+%   \max_{\phi,\psi}\;
+%   \mathbb{E}
+%   \Bigg[
+%   \log
+%   \frac{
+%   \exp(\phi(s,a)^\top\psi(g^{(1)}))
+%   }{
+%   \sum_{j=1}^N \exp(\phi(s,a)^\top\psi(g^{(j)}))
+%   }
+%   -
+%   \beta_{\rm lse}
+%   \left(
+%   \log\sum_{j=1}^N \exp(\phi(s,a)^\top\psi(g^{(j)}))
+%   \right)^2
+%   \Bigg],
+%   \label{eq:sgcrl-critic-objective}
+% \end{equation}
+% where the expectation is over
+% $(s,a)\sim d_{\mathcal{B}}(s,a)$,
+% $g^{(1)}\sim\rho^\pi(\cdot\mid s,a)$, and
+% $g^{(2)},\ldots,g^{(N)}\sim\bar{\rho}^{\pi}_{\mathcal{B}}(\cdot)$.
+
+% The learned energy is then used as an implicit goal-reaching reward for actor learning. Thus, the success of CRL depends on whether the inner-product energy can faithfully represent the reachability structure of the environment. This representation is effective when reachability varies smoothly, but can become insufficient in manipulation domains where interactions induce sharp mode changes and piecewise nonlinear future distributions.
+
+% Given the learned energy, the actor is trained by maximizing that energy on
+% replay goals, with a maximum-entropy actor term as in soft actor-critic
+% \citep{haarnoja2018sac}. Let \(\alpha\ge 0\) denote the entropy coefficient, a
+% compact actor objective over replay states and replay goals is
+% \begin{equation}
+%   \max_\pi
+%   \E_{\substack{s\sim d_{\cB}(s),\;g\sim\bar\rho^\pi_{\cB}\\
+%   a\sim\pi(\cdot\mid s,g)}}
+%   \left[
+%   E_{\phi,\psi}(s,a,g)+\alpha H(\pi(\cdot\mid s,g))
+%   \right].
+%   \label{eq:actor-objective}
+% \end{equation}
+
+% SGCRL \citep{liu2025singlegoal} uses the same critic and actor machinery, but collects online data by
+% commanding a single hard goal \(g^\star\) during rollouts. Thus, SGCRL is single-goal for data collection but
+% multi-goal in the representation and actor updates.
+
+% Unlike traditional RL works, there is no reward function in the Contrastive RL learning objective. The InfoNCE creates an \textbf{implicit reward} to guide unsupervised exploration.
+% Bastankhah et al. \citep{bastankhah2026demystifying} analyzed the implicit reward geometry on simple tabular and navigation tasks
+% with the simple goal setting. The implicit reward would guide the agent to stategically explore the space, instead of random Monte Carlo simulations.
+% After some successful explorations, the policy turns into an exploitation phase, which sharpen the successful signals in the replay buffer.
+
+
+% Under a closed-loop policy assumption (i.e.,
+% \(\phi^\pi(s)=\E_{a\sim\pi_g(\cdot\mid s)}[\phi(s,a)]\)), the state-action
+% critic induces an on-policy state representation and the score
+% \(\phi(s,a)^\top\psi(g)\) induces a state-only temporal score
+% \(\phi^\pi(s)^\top\psi(g)\). Further normalize the representation with
+% \(L_2\)-norm motivates an isotropic Gaussian marginal
+% , and the waypoint
+% mean is the interpolation \citep{eysenbach2024interpolation} in representation space, with a learned rotation matrix \(A\):
+% \begin{equation}
+%   \mu_w\approx(1-\lambda)A\psi(s_0)+\lambda A^\top\psi(s_T).
+%   \label{eq:waypoint-mean}
+% \end{equation}
+% This explains the efficiency in waypoint selection for navigation tasks.
+
+% \section{Proof Roadmap}
+
+% We briefly summarize how the theoretical pieces connect. The goal of this section is not to prove that interaction-weighted resampling solves the full manipulation problem. Rather, we show that the factorized manipulation structure induces a rare but important interaction branch in the contrastive future distribution, and that interaction-weighted resampling directly increases the effective sample size of this branch.
+
+% \paragraph{Step 1: SGCRL learns an endpoint density ratio.}
+% The SGCRL critic estimates the endpoint future-density ratio
+% \begin{equation}
+% E^\star(x,y_f)
+% =
+% \log
+% \frac{\rho(y_f\mid x)}{\rho(y_f)}.
+% \end{equation}
+% Thus, the critic sees only pairs \((x,y_f)\). Any intermediate structure that produces \(y_f\), such as pre-interaction reach, contact, and post-interaction passive motion, is marginalized inside \(\rho(y_f\mid x)\).
+
+% \paragraph{Step 2: Single-mode contrastive geometry induces a Gaussian future model.}
+% Following the Gaussian interpolation view of temporal contrastive representations, assume that the marginal representation distribution is approximately Gaussian and that a quadratic contrastive score represents a density ratio. Then a single-mode temporal process induces a Gaussian conditional distribution in representation space:
+% \begin{equation}
+% p(\psi_{t+n}\mid \psi_t)
+% =
+% \mathcal N(\mu_n(\psi_t),\Sigma_n).
+% \end{equation}
+% In locomotion-like settings, the action affects the same state variable that appears in the future occupancy, so a single temporal operator can often organize the future representation.
+
+% \paragraph{Step 3: Manipulation induces mode-conditioned Gaussian futures.}
+% In manipulation, the target transition is piecewise:
+% \begin{equation}
+% y_{t+1}
+% =
+% \begin{cases}
+% f_0(y_t), & x_t\in\mathcal X_0,\\
+% f_1(u_t,y_t,a_t), & x_t\in\mathcal X_1.
+% \end{cases}
+% \end{equation}
+% Let \(\omega_t=m(x_t)\in\{0,1\}\) denote the passive or interaction mode. Applying the same contrastive-ratio-to-Gaussian argument conditionally on \(\omega_t\) yields a mode-conditioned representation model:
+% \begin{equation}
+% \psi_{t+1}
+% =
+% A_{\omega_t}\psi_t
+% +
+% \omega_t b_t
+% +
+% \epsilon_t.
+% \end{equation}
+% Here \(b_t=B(u_t,y_t,a_t)\) is the interaction residual in representation space. Therefore, interaction does not merely add noise to a single temporal operator; it changes the mode of the representation dynamics.
+
+% \paragraph{Step 4: Marginalizing over modes creates branching futures.}
+% For a fixed mode path \(\boldsymbol{\omega}_{t:n}=(\omega_t,\ldots,\omega_{t+n-1})\), the future representation is Gaussian:
+% \begin{equation}
+% p(\psi_{t+n}\mid x_t,\boldsymbol{\omega}_{t:n})
+% =
+% \mathcal N(\mu_{\boldsymbol{\omega}},\Sigma_{\boldsymbol{\omega}}).
+% \end{equation}
+% However, the mode path is not observed by the monolithic critic. Thus the marginal future distribution is a mixture:
+% \begin{equation}
+% p(\psi_{t+n}\mid x_t)
+% =
+% \sum_{\boldsymbol{\omega}_{t:n}}
+% p(\boldsymbol{\omega}_{t:n}\mid x_t)
+% \mathcal N(\mu_{\boldsymbol{\omega}},\Sigma_{\boldsymbol{\omega}}).
+% \end{equation}
+% In the one-reset setting, the mixture can be indexed by the reset time \(\tau_t\):
+% \begin{equation}
+% p(\psi_{t+n}\mid x_t)
+% =
+% \sum_{\ell}
+% p(\tau_t=\ell\mid x_t)
+% \mathcal N(\mu_\ell,\Sigma_\ell).
+% \end{equation}
+% This latent mixture is the source of the pointwise complexity: SGCRL sees only \((x,y_f)\), while the true future distribution is organized by hidden interaction branches.
+
+% \paragraph{Limitation of CRL: Why it failed?  Which term should we fix?}
+
+% TBD
+
+% \section{Locomotion v.s. Manipulation}
+
+% \subsection{Preliminary}
+
+% Consider a discounted Markov decision process 
+% \(\mathcal M=(\mathcal S,\mathcal A,P,\gamma)\), where \(\mathcal S\) is the state space, \(\mathcal A\) is the action space, \(P:\mathcal S\times\mathcal A\rightarrow\mathcal S\) is the deterministic transition kernel, and \(\gamma\in(0,1)\) is the discount factor.
+
+% Assume the state admits a factorization \(s_t=(u_t,y_t)\in\mathcal S\). Here \(u_t\) is the actuated factor and \(y_t\) is the target factor. For example, in air hockey, \(u_t\) is the paddle state and \(y_t\) is the puck state. In object pushing, \(u_t\) is the gripper state and \(y_t\) is the pushed object state. The state-action anchor is denoted by \(x_t=(u_t,y_t,a_t)\in\mathcal S\times\mathcal A\).
+
+% Let \(\Delta\sim\operatorname{Geom}(1-\gamma)\) be a geometrically distributed future offset. For the target factor, define the sampled future \(y_f=y_{t+\Delta}\). Given an anchor \(x\in\mathcal S\times\mathcal A\), the discounted target-factor future occupancy is
+% \begin{equation}
+% \rho(y_f\mid x)
+% =
+% (1-\gamma)
+% \sum_{k\ge 1}
+% \gamma^{k-1}
+% P(y_{t+k}=y_f\mid x_t=x).
+% \end{equation}
+
+% Let \(\rho(y_f)\) denote the marginal future distribution induced by the replay distribution over anchors. The ideal target-factor contrastive energy is
+% \begin{equation}
+% E^\star(x,y_f)
+% =
+% \log
+% \frac{\rho(y_f\mid x)}{\rho(y_f)}.
+% \end{equation}
+
+% The usual CRL critic directly approximates this density ratio, often through an inner product representation
+% \begin{equation}
+% E_\theta(x,y_f)
+% =
+% \phi_\theta(x)^\top\psi_\theta(y_f).
+% \end{equation}
+
+% \subsection{Locomotion: A Single Control Mode}
+
+% In locomotion, the action directly controls the same state variable that appears in the future occupancy. Let \(z_t\in\mathcal Z\) denote the locomotion state, such as body position, velocity, and pose. A deterministic transition can be written as \(z_{t+1}=f_{\mathrm{loc}}(z_t,a_t)\), where \(f_{\mathrm{loc}}:\mathcal Z\times\mathcal A\rightarrow\mathcal Z\). The sampled future is denoted by \(z_f=z_{t+\Delta}\).
+
+% \begin{assumption}[Persistent action effect in locomotion]
+% \label{assump:locomotion_action_effect}
+% For locomotion, the action affects the next controlled state almost everywhere. Formally,
+% \begin{equation}
+% \left\|
+% \nabla_a f_{\mathrm{loc}}(z,a)
+% \right\| > 0
+% \qquad
+% \text{for a.e. }(z,a)\in\mathcal Z\times\mathcal A.
+% \end{equation}
+% \end{assumption}
+
+% Thus, in locomotion-like systems, the action-to-future dependency is persistent: the action acts on the same controlled state whose future is used as the contrastive target.
+
+% \subsection{Manipulation: Source and Target Timelines}
+
+% In manipulation, the action directly controls the actuated factor \(u_t\), while the sampled future may concern the target factor \(y_t\). Recall that the state-action anchor is \(x_t=(u_t,y_t,a_t)\in\mathcal S\times\mathcal A\). For air hockey, \(u_t\) is the paddle state and \(y_t\) is the puck state; for pushing, \(u_t\) is the gripper state and \(y_t\) is the pushed object state.
+
+% We define an interaction indicator \(m:\mathcal S\times\mathcal A\rightarrow\{0,1\}\). The passive and interaction sets are
+% \[
+% \mathcal X_0=\{x\in\mathcal S\times\mathcal A:m(x)=0\},
+% \qquad
+% \mathcal X_1=\{x\in\mathcal S\times\mathcal A:m(x)=1\}.
+% \]
+
+% Let \(f_u\) denote the actuated-factor transition. We assume the actuated factor is directly controlled by the action,
+% \[
+% u_{t+1}=f_u(u_t,a_t).
+% \]
+% The target factor has two transition maps. The passive target transition is denoted by \(f_0\), and the interaction target transition is denoted by \(f_1\). The target transition is therefore
+% \begin{equation}
+% y_{t+1}
+% =
+% f(x_t)
+% =
+% \begin{cases}
+% f_0(y_t), & x_t\in\mathcal X_0,\\
+% f_1(u_t,y_t,a_t), & x_t\in\mathcal X_1.
+% \end{cases}
+% \end{equation}
+
+% This piecewise transition expresses the dependency switch in manipulation. On the passive region \(\mathcal X_0\), the target evolves autonomously:
+% \begin{equation}
+% y_{t+1}\perp (u_t,a_t)\mid y_t,
+% \qquad x_t\in\mathcal X_0.
+% \end{equation}
+% On the interaction region \(\mathcal X_1\), the target transition generally depends on the actuated factor and the action:
+% \begin{equation}
+% y_{t+1}\not\perp (u_t,a_t)\mid y_t,
+% \qquad x_t\in\mathcal X_1.
+% \end{equation}
+
+% Thus, manipulation differs from locomotion because the action-to-target dependency is not persistent. It is activated only when the state-action anchor enters the interaction region \(\mathcal X_1\).
+
+% \section{Piecewise Nonlinearity: A Gaussian View}
+
+% \subsection{From Contrastive Ratios to Gaussian Futures}
+
+% We first recall the representation-level Gaussian idealization behind temporal interpolation. The goal is not to assume that the physical dynamics are linear-Gaussian. Rather, following the contrastive-ratio view, we consider when the learned representation of future states admits a Gaussian conditional distribution.
+
+% Let \(\psi(y)\in\mathbb R^d\) be a target-factor representation, and let \(\psi'\) denote the representation of a future target state. Suppose the marginal representation distribution is approximately isotropic Gaussian:
+% \begin{equation}
+% p(\psi')
+% =
+% \mathcal N(0,cI),
+% \qquad c>0.
+% \end{equation}
+
+% Assume a quadratic contrastive density-ratio model of the form
+% \begin{equation}
+% \exp\left(
+% -\frac{1}{2}
+% \|\mu(x)-\psi'\|^2
+% \right)
+% \propto
+% \frac{p(\psi'\mid x)}{p(\psi')},
+% \end{equation}
+% where \(\mu(x)\in\mathbb R^d\) is the representation-level prediction mean associated with anchor \(x\). Then
+% \begin{align}
+% p(\psi'\mid x)
+% &\propto
+% \exp\left(
+% -\frac{1}{2}
+% \|\mu(x)-\psi'\|^2
+% \right)
+% p(\psi')
+% \\
+% &\propto
+% \exp\left(
+% -\frac{1}{2}
+% \|\mu(x)-\psi'\|^2
+% -
+% \frac{1}{2c}
+% \|\psi'\|^2
+% \right).
+% \end{align}
+% Completing the square yields
+% \begin{equation}
+% p(\psi'\mid x)
+% =
+% \mathcal N
+% \left(
+% \alpha \mu(x),
+% \alpha I
+% \right),
+% \qquad
+% \alpha=\frac{c}{c+1}.
+% \end{equation}
+
+% Therefore, under a Gaussian marginal representation and a quadratic contrastive ratio, the future representation is conditionally Gaussian. In a single-mode temporal system, one may parameterize the prediction mean by a single temporal operator,
+% \begin{equation}
+% \mu(x_t)=A\psi_t,
+% \end{equation}
+% where \(\psi_t\) is the representation at time \(t\). Absorbing the constant \(\alpha\) into \(A\) and the covariance, this gives the familiar linear-Gaussian abstraction
+% \begin{equation}
+% \psi_{t+1}=A\psi_t+\epsilon_t,
+% \qquad
+% \epsilon_t\sim\mathcal N(0,\Sigma).
+% \end{equation}
+
+% After \(n\) steps,
+% \begin{equation}
+% \psi_{t+n}
+% =
+% A^n\psi_t
+% +
+% \sum_{i=0}^{n-1}
+% A^{n-1-i}\epsilon_{t+i},
+% \end{equation}
+% and hence
+% \begin{equation}
+% p(\psi_{t+n}\mid \psi_t)
+% =
+% \mathcal N
+% \left(
+% A^n\psi_t,\;
+% \sum_{i=0}^{n-1}
+% A^{n-1-i}\Sigma(A^{n-1-i})^\top
+% \right).
+% \end{equation}
+
+% All temporal structure is generated by powers of the same operator \(A\). Thus, in the single-mode case, future uncertainty is organized around one linear-Gaussian timeline.
+
+% \subsection{Mode-Conditioned Gaussian Dynamics in Manipulation}
+
+% We now apply the same ratio-to-Gaussian argument to manipulation. Recall that manipulation induces two target-transition regimes:
+% \begin{equation}
+% y_{t+1}
+% =
+% \begin{cases}
+% f_0(y_t), & x_t\in\mathcal X_0,\\
+% f_1(u_t,y_t,a_t), & x_t\in\mathcal X_1.
+% \end{cases}
+% \end{equation}
+% Let
+% \[
+% \omega_t=m(x_t)\in\{0,1\}
+% \]
+% denote the mode at time \(t\), where \(\omega_t=0\) corresponds to passive target evolution and \(\omega_t=1\) corresponds to interaction.
+
+% Let \(\psi_t=\psi(y_t)\) denote the target-factor representation. For each mode \(\omega\in\{0,1\}\), define the mode-conditioned prediction mean
+% \begin{equation}
+% \mu_\omega(x_t)
+% =
+% \E[\psi(y_{t+1})\mid x_t,\omega_t=\omega].
+% \end{equation}
+
+% Applying the contrastive-ratio Gaussian argument mode-wise, assume
+% \begin{equation}
+% \exp\left(
+% -\frac{1}{2}
+% \|\mu_\omega(x_t)-\psi(y_{t+1})\|^2
+% \right)
+% \propto
+% \frac{p(\psi(y_{t+1})\mid x_t,\omega_t=\omega)}
+% {p(\psi(y_{t+1}))}.
+% \end{equation}
+% Then
+% \begin{equation}
+% p(\psi(y_{t+1})\mid x_t,\omega_t=\omega)
+% =
+% \mathcal N
+% \left(
+% \alpha\mu_\omega(x_t),
+% \alpha I
+% \right).
+% \end{equation}
+
+% We now characterize the two mode-conditioned means. On the passive region \(\mathcal X_0\), the target transition satisfies
+% \[
+% y_{t+1}\perp (u_t,a_t)\mid y_t.
+% \]
+% Hence the passive mean depends only on the target state, and we approximate it by a linear temporal operator:
+% \begin{equation}
+% \mu_0(x_t)
+% =
+% \bar \mu_0(y_t)
+% \approx
+% A_0\psi_t.
+% \end{equation}
+
+% On the interaction region \(\mathcal X_1\), this conditional independence no longer holds. The prediction mean may depend on the actuated factor and the action. We decompose it into a target-only linear part and an interaction residual:
+% \begin{equation}
+% \mu_1(x_t)
+% =
+% A_1\psi_t+b_t,
+% \qquad
+% b_t:=B(u_t,y_t,a_t).
+% \end{equation}
+% Here \(b_t\) is not assumed to be constant. It represents the additional representation-space displacement induced by the actuated factor and action at interaction.
+
+% Equivalently, \(A_1\psi_t\) can be viewed as the best linear target-only approximation to \(\mu_1(x_t)\) on the interaction region, and \(b_t\) is the residual:
+% \begin{equation}
+% A_1
+% \in
+% \arg\min_A
+% \E_{x_t\in\mathcal X_1}
+% \left[
+% \|\mu_1(x_t)-A\psi_t\|^2
+% \right],
+% \qquad
+% b_t=\mu_1(x_t)-A_1\psi_t.
+% \end{equation}
+
+% Absorbing the scalar \(\alpha\) into the operators and allowing the residual covariance to be mode-dependent, we obtain the representation-level switched affine Gaussian system
+% \begin{equation}
+% \psi_{t+1}
+% =
+% A_{\omega_t}\psi_t
+% +
+% \omega_t b_t
+% +
+% \epsilon_t,
+% \qquad
+% \epsilon_t\sim\mathcal N(0,\Sigma_{\omega_t}).
+% \end{equation}
+
+% When \(\omega_t=0\),
+% \begin{equation}
+% \psi_{t+1}=A_0\psi_t+\epsilon_t.
+% \end{equation}
+% When \(\omega_t=1\),
+% \begin{equation}
+% \psi_{t+1}=A_1\psi_t+B(u_t,y_t,a_t)+\epsilon_t.
+% \end{equation}
+
+% Although the environment transition \(P\) is deterministic, this Gaussian model is a representation-level approximation to the distribution of future embeddings induced by replay sampling, finite-dimensional encoding, and contrastive density-ratio learning.
+
+% \subsection{Interaction-Induced Branching over Mode Paths}
+
+% We now show how the switched affine representation creates branching future distributions.
+
+% Ignoring noise for the moment, the one-step update is
+% \begin{equation}
+% \psi_{t+1}
+% =
+% A_{\omega_t}\psi_t+\omega_t b_t.
+% \end{equation}
+% The two-step update is
+% \begin{equation}
+% \psi_{t+2}
+% =
+% A_{\omega_{t+1}}\psi_{t+1}
+% +
+% \omega_{t+1}b_{t+1}.
+% \end{equation}
+% Substituting the one-step update gives
+% \begin{equation}
+% \psi_{t+2}
+% =
+% A_{\omega_{t+1}}A_{\omega_t}\psi_t
+% +
+% A_{\omega_{t+1}}\omega_t b_t
+% +
+% \omega_{t+1}b_{t+1}.
+% \end{equation}
+
+% The interaction residual \(b_t\) is not merely added once. Its future contribution is transformed by the later mode operator \(A_{\omega_{t+1}}\). If the next mode is passive, the contribution is \(A_0b_t\). If the next mode is interaction, the contribution is \(A_1b_t\). Thus the same local interaction residual has different future meaning depending on the subsequent mode sequence.
+
+% For compact notation, for integers \(j\ge i\), define the ordered mode-product
+% \begin{equation}
+% \Pi_{j:i}
+% =
+% A_{\omega_j}A_{\omega_{j-1}}\cdots A_{\omega_i}.
+% \end{equation}
+% If \(j<i\), define \(\Pi_{j:i}=I\).
+
+% For \(n\) steps, repeated substitution gives
+% \begin{equation}
+% \boxed{
+% \psi_{t+n}
+% =
+% \Pi_{t+n-1:t}\psi_t
+% +
+% \sum_{i=0}^{n-1}
+% \Pi_{t+n-1:t+i+1}\,
+% \omega_{t+i}b_{t+i}
+% +
+% \sum_{i=0}^{n-1}
+% \Pi_{t+n-1:t+i+1}\,
+% \epsilon_{t+i}.
+% }
+% \end{equation}
+
+% The key term is
+% \begin{equation}
+% \Pi_{t+n-1:t+i+1}\,
+% \omega_{t+i}b_{t+i}.
+% \end{equation}
+% It shows that an interaction residual at time \(t+i\) is propagated by all later mode operators. Therefore, the future representation depends on the full mode path, the local interaction residuals, and the subsequent propagation operators. This is the combinatorial burden introduced by manipulation.
+
+% \subsection{Mixture over Mode Paths}
+
+% Let
+% \[
+% \boldsymbol{\omega}_{t:n}
+% =
+% (\omega_t,\omega_{t+1},\ldots,\omega_{t+n-1})
+% \in\{0,1\}^n
+% \]
+% denote a length-\(n\) mode path. Let
+% \[
+% \mathbf b_{t:n}
+% =
+% (b_t,b_{t+1},\ldots,b_{t+n-1})
+% \]
+% denote the associated sequence of interaction residuals. Conditioned on \((\boldsymbol{\omega}_{t:n},\mathbf b_{t:n})\), the future representation is Gaussian. Its mean is
+% \begin{equation}
+% \mu(\boldsymbol{\omega}_{t:n},\mathbf b_{t:n})
+% =
+% \Pi_{t+n-1:t}\psi_t
+% +
+% \sum_{i=0}^{n-1}
+% \Pi_{t+n-1:t+i+1}
+% \omega_{t+i}b_{t+i},
+% \end{equation}
+% and its covariance is
+% \begin{equation}
+% \Sigma(\boldsymbol{\omega}_{t:n})
+% =
+% \sum_{i=0}^{n-1}
+% \Pi_{t+n-1:t+i+1}
+% \Sigma_{\omega_{t+i}}
+% \Pi_{t+n-1:t+i+1}^{\top}.
+% \end{equation}
+
+% If the mode path and residual sequence are not observed by the representation model, then the marginal future distribution is a mixture:
+% \begin{equation}
+% p(\psi_{t+n}\mid x_t)
+% =
+% \sum_{\boldsymbol{\omega}_{t:n}\in\{0,1\}^n}
+% \int
+% p(\boldsymbol{\omega}_{t:n},\mathbf b_{t:n}\mid x_t)
+% \,
+% \mathcal N
+% \left(
+% \mu(\boldsymbol{\omega}_{t:n},\mathbf b_{t:n}),
+% \Sigma(\boldsymbol{\omega}_{t:n})
+% \right)
+% \dd \mathbf b_{t:n}.
+% \end{equation}
+
+% There are up to \(2^n\) binary mode paths, and the interaction residuals may vary continuously. Thus, even if every mode-conditioned transition is Gaussian, the marginal future distribution is generally a mixture of Gaussians rather than a single Gaussian. Therefore, the single-mode Gaussian interpolation model is generally invalid for interaction-heavy manipulation.
+
+% \subsection{One-Reset Simplification}
+
+% For air-hockey-style interaction, it is often reasonable to consider a one-reset simplification. Define the first interaction time
+% \begin{equation}
+% \tau_t
+% =
+% \inf\{\ell\ge 0:\omega_{t+\ell}=1\}.
+% \end{equation}
+% In the one-reset case, the target follows passive dynamics, then experiences one interaction reset, and then follows passive dynamics again. The mode path has the form
+% \[
+% 0,0,\ldots,0,1,0,\ldots,0.
+% \]
+
+% Let the reset occur at time \(t+\ell\). Before reset,
+% \begin{equation}
+% \psi_{t+\ell}
+% =
+% A_0^\ell\psi_t.
+% \end{equation}
+% At reset,
+% \begin{equation}
+% \psi_{t+\ell+1}
+% =
+% A_1A_0^\ell\psi_t
+% +
+% b_{t+\ell}.
+% \end{equation}
+% After reset, assuming passive propagation,
+% \begin{equation}
+% \psi_{t+n}
+% =
+% A_0^{n-\ell-1}
+% \left(
+% A_1A_0^\ell\psi_t
+% +
+% b_{t+\ell}
+% \right).
+% \end{equation}
+% Thus the future representation associated with reset time \(\ell\) is
+% \begin{equation}
+% \boxed{
+% \psi_{t+n}^{(\ell)}
+% =
+% A_0^{n-\ell-1}A_1A_0^\ell\psi_t
+% +
+% A_0^{n-\ell-1}b_{t+\ell}.
+% }
+% \end{equation}
+
+% Therefore, the future distribution is a mixture over reset times:
+% \begin{equation}
+% p(\psi_{t+n}\mid x_t)
+% =
+% \sum_{\ell=0}^{n-1}
+% p(\tau_t=\ell\mid x_t)
+% \,
+% \mathcal N
+% \left(
+% \psi_{t+n}^{(\ell)},
+% \Sigma_\ell
+% \right).
+% \end{equation}
+
+% This is simpler than the unrestricted \(2^n\)-component mixture, but it is still not a single Gaussian. The reset time \(\ell\) is latent, and different reset times induce different component means.
+
+
+% \section{Error propagation after interaction.}
+% The second challenge is an \emph{error-propagation challenge}. Even when an interaction-crossing sample is observed, the interaction information is often seen only after it has been propagated through later target dynamics.
+
+% Consider the one-reset case. Let \(\tau_t\) denote the first future interaction offset from anchor \(x_t\). Immediately before interaction,
+% \begin{equation}
+% \psi_{t+\tau_t}
+% \approx
+% A_0^{\tau_t}\psi_t .
+% \end{equation}
+% The passive model would predict the next target representation as \(A_0\psi_{t+\tau_t}\). However, at interaction,
+% \begin{equation}
+% \psi_{t+\tau_t+1}
+% \approx
+% A_1\psi_{t+\tau_t}+b_{t+\tau_t}.
+% \end{equation}
+% We define the interaction bridge shift as
+% \begin{equation}
+% \delta_{t+\tau_t}
+% =
+% (A_1-A_0)\psi_{t+\tau_t}
+% +
+% b_{t+\tau_t}.
+% \end{equation}
+% Thus the interaction update can be written as
+% \begin{equation}
+% \psi_{t+\tau_t+1}
+% \approx
+% A_0\psi_{t+\tau_t}
+% +
+% \delta_{t+\tau_t}.
+% \end{equation}
+
+% Now suppose the sampled future occurs \(k\) passive steps after the interaction, so that
+% \[
+% \Delta=\tau_t+1+k.
+% \]
+% Under the one-reset approximation,
+% \begin{equation}
+% \psi(y_f)
+% =
+% \psi_{t+\Delta}
+% \approx
+% A_0^\Delta\psi_t
+% +
+% A_0^k\delta_{t+\tau_t}.
+% \label{eq:future-with-bridge-shift}
+% \end{equation}
+% The bridge shift is therefore observed directly only when \(k=0\). For later futures, it appears through the propagated term \(A_0^k\delta_{t+\tau_t}\).
+
+% Suppose the learned model estimates the bridge shift with error
+% \begin{equation}
+% e_{t+\tau_t}
+% =
+% \widehat{\delta}_{t+\tau_t}
+% -
+% \delta_{t+\tau_t}.
+% \end{equation}
+% Then the induced future-representation error is
+% \begin{equation}
+% \widehat{\psi}(y_f)-\psi(y_f)
+% \approx
+% A_0^k e_{t+\tau_t}.
+% \label{eq:propagated-bridge-error}
+% \end{equation}
+% Thus, the endpoint error depends not only on the local bridge error \(\|e_{t+\tau_t}\|\), but also on the post-interaction propagation factor \(A_0^k\). If this factor is poorly conditioned, the endpoint CRL signal can be attenuated, rotated, or amplified before it supervises the interaction action.
+
+% Under the Gaussian energy approximation, the score of a future representation is locally quadratic:
+% \begin{equation}
+% E_k(x_t,y_f)
+% \propto
+% -\frac{1}{2}
+% \left\|
+% \psi(y_f)
+% -
+% \left(
+% A_0^\Delta\psi_t
+% +
+% A_0^k\delta_{t+\tau_t}
+% \right)
+% \right\|_{\Sigma_k^{-1}}^2 .
+% \end{equation}
+% Let
+% \begin{equation}
+% r_k
+% =
+% \psi(y_f)
+% -
+% \left(
+% A_0^\Delta\psi_t
+% +
+% A_0^k\delta_{t+\tau_t}
+% \right)
+% \end{equation}
+% be the residual under the correct bridge shift. If the bridge shift is estimated with error \(e_{t+\tau_t}\), then the energy perturbation is
+% \begin{equation}
+% \Delta E_k
+% =
+% r_k^\top \Sigma_k^{-1}A_0^k e_{t+\tau_t}
+% -
+% \frac{1}{2}
+% \left\|
+% A_0^k e_{t+\tau_t}
+% \right\|_{\Sigma_k^{-1}}^2 .
+% \label{eq:energy-perturbation-main}
+% \end{equation}
+% Consequently,
+% \begin{equation}
+% |\Delta E_k|
+% \le
+% \|r_k\|_{\Sigma_k^{-1}}
+% \|\Sigma_k^{-1/2}A_0^k\|
+% \|e_{t+\tau_t}\|
+% +
+% \frac{1}{2}
+% \|\Sigma_k^{-1/2}A_0^k\|^2
+% \|e_{t+\tau_t}\|^2 .
+% \label{eq:energy-error-bound-main}
+% \end{equation}
+
+% Equation~\eqref{eq:energy-error-bound-main} exposes two factors that make interaction difficult for endpoint CRL: the local bridge estimation error \(\|e_{t+\tau_t}\|\), and the propagation factor \(\|\Sigma_k^{-1/2}A_0^k\|\). In pushing or air-hockey-style tasks, after interaction the target factor often evolves passively and cannot be corrected by the robot. Therefore, an inaccurate interaction shift is carried forward by the passive post-interaction dynamics, producing fragile energy estimates and inaccurate actor gradients near contact.
+
+% \paragraph{Implication for interaction-weighted resampling.}
+% The analysis suggests an oracle sampling strategy: if the true interaction time \(\tau_t\) were known, the most informative samples would be drawn from a local window around the bridge \(t+\tau_t\rightarrow t+\tau_t+1\). Such samples observe \(\delta_{t+\tau_t}\) directly or after only short passive propagation. Interaction-Weighted Resampling approximates this oracle strategy using a heuristic interaction center \(\hat\tau_t\) and a soft weight around it. This improves the error bound in two ways. First, it increases the effective number of bridge-centered samples, reducing the local estimation error \(\|e_{t+\tau_t}\|\). Second, it favors futures closer to the interaction bridge, reducing the propagation length \(k\) and hence the factor \(\|\Sigma_k^{-1/2}A_0^k\|\). Thus IWR does not remove the branching structure, but it targets exactly the terms that make endpoint CRL fragile around interaction.

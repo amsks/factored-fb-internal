@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "covbal_prio_wz_a0.5",
+ "seed": "20260525_200708__cube__covbal_prio_wz_a0.5__s0",
+ "dir": "/dev/shm/factored-fb/runs/20260525_200708__cube__covbal_prio_wz_a0.5__s0",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb/runs/20260525_200708__cube__covbal_prio_wz_a0.5__s0/checkpoints/step_400000.pt",
+ "C1_zB": {
+  "success": 0.2,
+  "grasped": 0.99
+ },
+ "C2_zB": {
+  "success": 0.1,
+  "grasped": 0.98
+ },
+ "C3_zB": {
+  "success": 0.05,
+  "grasped": 0.99
+ },
+ "C2_zR": {
+  "success": 0.11,
+  "grasped": 0.98
+ },
+ "C3_zR": {
+  "success": 0.1,
+  "grasped": 0.98
+ },
+ "C4_zB": {
+  "success": 0.17,
+  "grasped": 0.99
+ },
+ "secs": 47.3
+}

@@ -1,0 +1,159 @@
+\documentclass{article}
+
+\usepackage{corl_2026} % Use this for the initial submission.
+% \usepackage[final]{corl_2026} % Uncomment for the camera-ready ``final'' version.
+% \usepackage[preprint]{corl_2026} % Uncomment for pre-prints (e.g., arxiv); This is like ``final'', but will remove the CORL footnote.
+
+\newcommand{\methodname}{Interaction-weighted Resampling}
+\newcommand{\methodshort}{IWR}
+\newcommand{\archname}{Multi-head energy}
+\newcommand{\archshort}{}
+% Include [TODO]: check alignment with submission policy
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsmath,amssymb,amsfonts,amsthm,mathtools}
+\usepackage{enumitem}
+\usepackage{bbm}
+%\newtheorem{proposition}{Proposition}
+\usepackage{minitoc}
+\usepackage{xcolor}         % colors
+\usepackage{csquotes}
+\usepackage{graphicx}
+\usepackage{changepage}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage[table]{xcolor}
+\usepackage{xurl}
+\usepackage{subcaption}
+\definecolor{bluegray}{rgb}{0.4, 0.6, 0.8}
+\definecolor{lightcarminepink}{rgb}{0.9, 0.4, 0.38}
+\definecolor{darkred}{rgb}{0.55, 0.0, 0.0}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=darkred,
+  citecolor=brown,
+  urlcolor=darkred
+}
+
+% Define a nice IDE-like blue for functions and a teal for comments
+\definecolor{funcBlue}{RGB}{43,145,175} 
+\definecolor{commentTeal}{RGB}{110,154,155}
+\setcitestyle{numbers, square, sort&compress, open={[}, close={]}}
+\bibpunct{[}{]}{,}{n}{}{,}
+
+\newcommand{\best}[1]{\cellcolor{lightred}\textbf{\textcolor{darkred}{#1}}}
+\usepackage{microtype}
+\usepackage{xcolor}
+% End include
+\input{math.tex}
+
+\title{Investigating Unsupervised Reinforcement Learning Representations for }
+
+% The \author macro works with any number of authors. There are two
+% commands used to separate the names and addresses of multiple
+% authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to
+% break the lines. Using \AND forces a line break at that point. So,
+% if LaTeX puts 3 of 4 authors names on the first line, and the last
+% on the second line, try using \AND instead of \And before the third
+% author name.
+
+% NOTE: authors will be visible only in the camera-ready and preprint versions (i.e., when using the option 'final' or 'preprint'). 
+% 	For the initial submission the authors will be anonymized.
+
+\author{
+  Jane E.~Doe\\
+  Department of Electrical Engineering and Computer Sciences\\
+  University of California Berkeley 
+  United States\\
+  \texttt{janedoe@berkeley.edu} \\
+  %% examples of more authors
+  %% \And
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+  %% \AND
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+  %% \And
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+  %% \And
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+}
+
+
+\begin{document}
+\maketitle
+
+
+%===============================================================================
+
+\begin{abstract}
+    \input{sections/abstract}
+\end{abstract}
+
+% Two or three meaningful keywords should be added here
+
+\keywords{Object-Centric Manipulation, Contrastive RL, Unsupervised Learning} 
+
+
+%===============================================================================
+
+\input{sections/intro}
+\input{sections/relatedwork}
+\input{sections/preliminaries}
+
+\input{sections/loc2mani}
+\input{sections/method}
+\input{sections/experiments}
+\input{sections/conclusion}
+
+% \input{sections/theory_bundle}
+
+%===============================================================================
+%===============================================================================
+
+\clearpage
+% The acknowledgments are automatically included only in the final and preprint versions of the paper.
+\acknowledgments{If a paper is accepted, the final camera-ready version will (and probably should) include acknowledgments. All acknowledgments go at the end of the paper, including thanks to reviewers who gave useful comments, to colleagues who contributed to the ideas, and to funding agencies and corporate sponsors that provided financial support.}
+
+%===============================================================================
+
+% no \bibliographystyle is required, since the corl style is automatically used.
+\bibliography{main.bib}  % .bib
+
+\newpage
+\appendix
+    \setcounter{figure}{0}
+    \renewcommand{\thefigure}{A\arabic{figure}}
+    \setcounter{table}{0}
+    \renewcommand{\thetable}{A\arabic{table}}
+ %   \setcounter{algocf}{0}
+ %   \renewcommand{\thealgocf}{A\arabic{algocf}}
+    \renewcommand{\thesection}{\Alph{section}}
+    \renewcommand{\theequation}{A\arabic{equation}}
+    \setcounter{equation}{0}
+\input{appendix/theory}
+\input{appendix/related_work}
+\input{appendix/iwr_details}
+\input{appendix/training_setup}
+\input{appendix/simulation_setup}
+\input{appendix/real_setup}
+\input{appendix/energy_visualization}
+\end{document}

@@ -1,0 +1,20 @@
+{
+ "framework": "torch",
+ "group": "psm_state_orthohi__ortho_coef100__lr_phi1e-5",
+ "seed": "psm_state_orthohi__ortho_coef100__lr_phi1e-5__s1",
+ "dir": "/dev/shm/factored-fb_outputs/psm_state_orthohi__ortho_coef100__lr_phi1e-5__s1",
+ "agent_name": "psm_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb_outputs/psm_state_orthohi__ortho_coef100__lr_phi1e-5__s1/checkpoints/final.pt",
+ "zB_note": "psm_flowbc has no backward_map; zB cells (C1/C4) not defined",
+ "C2_zR": {
+  "success": 0.31,
+  "grasped": 0.91
+ },
+ "C3_zR": {
+  "success": 0.28,
+  "grasped": 0.99
+ },
+ "secs": 91.8
+}

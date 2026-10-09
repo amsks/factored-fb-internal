@@ -1,0 +1,1093 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec07/factored-fb/GCIQL-State-Flow-Measure-BallVisit-FrozenPsi-d50/vis_s0",
+    "checkpoint_step": 500000,
+    "d": 50,
+    "actor_cond": "goal",
+    "actor_mode": "goal",
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac",
+      "mixture",
+      "region",
+      "dense",
+      "linear",
+      "reachavoid"
+    ],
+    "gpi": true,
+    "z_weighting": "plain",
+    "renewal_head": null,
+    "episodes": 25,
+    "horizon": 200,
+    "relabel_size": 50000,
+    "match_data_norm": 9.09571454363846,
+    "gamma": 0.99,
+    "eps_obs": 0.4,
+    "sigma_obs": 0.8,
+    "thresh_m": 0.04,
+    "reward_convention": "[0,1] indicator (FP corner), reachavoid in [-1,1]",
+    "goal_xyzs_m": {
+      "t1": [
+        0.425,
+        -0.1,
+        0.02
+      ],
+      "t2": [
+        0.5,
+        0.0,
+        0.02
+      ],
+      "t3": [
+        0.35,
+        0.0,
+        0.02
+      ],
+      "t4": [
+        0.5,
+        0.2,
+        0.02
+      ],
+      "t5": [
+        0.5,
+        -0.2,
+        0.02
+      ]
+    },
+    "regions_m": {
+      "R1": [
+        0.3515,
+        0.172,
+        0.02
+      ],
+      "R2": [
+        0.4251,
+        -0.1708,
+        0.02
+      ],
+      "R3": [
+        0.498,
+        0.0848,
+        0.02
+      ]
+    },
+    "reachavoid": {
+      "A": "R1",
+      "B": "R2"
+    },
+    "seed": 0,
+    "spec": "PAPER/rescuing-fb/specs/07-fp-capability-and-renewal-measure.md item 3"
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "diag": {
+          "n_pos": 1021,
+          "n_neg": 0,
+          "z_raw_norm": 0.13397831692596282,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533434135
+        },
+        "cos_zr_psig": 0.4410456986784861,
+        "goal_proxy": {
+          "proxy_idx": 33443,
+          "proxy_cube_m": [
+            0.417816558573395,
+            -0.08777475357055664,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.014179563585043596
+        },
+        "success": 0.96
+      },
+      "t2": {
+        "diag": {
+          "n_pos": 1087,
+          "n_neg": 0,
+          "z_raw_norm": 0.13440915157190172,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533621482
+        },
+        "cos_zr_psig": 0.5853544591368215,
+        "goal_proxy": {
+          "proxy_idx": 26489,
+          "proxy_cube_m": [
+            0.46858544200658797,
+            -0.02445647120475769,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.039811995430809564
+        },
+        "success": 0.92
+      },
+      "t3": {
+        "diag": {
+          "n_pos": 1205,
+          "n_neg": 0,
+          "z_raw_norm": 0.15528498902847876,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533886467
+        },
+        "cos_zr_psig": 0.27854742993488174,
+        "goal_proxy": {
+          "proxy_idx": 41780,
+          "proxy_cube_m": [
+            0.3110761523246765,
+            0.0053644729778170586,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.03929179342628338
+        },
+        "success": 1.0
+      },
+      "t4": {
+        "diag": {
+          "n_pos": 1155,
+          "n_neg": 0,
+          "z_raw_norm": 0.18579217217834598,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714534520413
+        },
+        "cos_zr_psig": 0.4075003979926213,
+        "goal_proxy": {
+          "proxy_idx": 39754,
+          "proxy_cube_m": [
+            0.48373557925224303,
+            0.1942196488380432,
+            0.05141226574778557
+          ],
+          "dist_to_goal_m": 0.035842353176446226
+        },
+        "success": 0.88
+      },
+      "t5": {
+        "diag": {
+          "n_pos": 1199,
+          "n_neg": 0,
+          "z_raw_norm": 0.17502198332661592,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714532995668
+        },
+        "cos_zr_psig": 0.64104134704074,
+        "goal_proxy": {
+          "proxy_idx": 42225,
+          "proxy_cube_m": [
+            0.531196865439415,
+            -0.2133776843547821,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.033944195297773094
+        },
+        "success": 0.96
+      },
+      "mean": 0.944
+    },
+    "mixture": {
+      "t1-t2": {
+        "diag": {
+          "n_pos": 2108,
+          "n_neg": 0,
+          "z_raw_norm": 0.257299471115309,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714531224354
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.4525256165148824,
+        "cos_zr_gj": 0.5526681778997933,
+        "goal_proxy": {
+          "proxy_idx": 39610,
+          "proxy_cube_m": [
+            0.4238307231105864,
+            -0.06471863389015198,
+            0.01996072567999363
+          ]
+        },
+        "per_variant": {
+          "t1": {
+            "success": 0.96,
+            "switch_rate": 0.6203015075376884,
+            "choice_frac": [
+              0.2952,
+              0.2986,
+              0.4062
+            ],
+            "hit_g1": 0,
+            "hit_g2": 24
+          },
+          "t2": {
+            "success": 0.88,
+            "switch_rate": 0.5454880733531213,
+            "choice_frac": [
+              0.28851899274434484,
+              0.29918907383696114,
+              0.41229193341869397
+            ],
+            "hit_g1": 8,
+            "hit_g2": 14
+          }
+        },
+        "success": 0.92
+      },
+      "t1-t3": {
+        "diag": {
+          "n_pos": 2226,
+          "n_neg": 0,
+          "z_raw_norm": 0.27661962585797967,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714530904177
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.38364809479900847,
+        "cos_zr_gj": 0.33412621098501843,
+        "goal_proxy": {
+          "proxy_idx": 37925,
+          "proxy_cube_m": [
+            0.386584135890007,
+            -0.006858382374048233,
+            0.01996072567999363
+          ]
+        },
+        "per_variant": {
+          "t1": {
+            "success": 0.96,
+            "switch_rate": 0.6301507537688442,
+            "choice_frac": [
+              0.301,
+              0.3354,
+              0.3636
+            ],
+            "hit_g1": 0,
+            "hit_g2": 24
+          },
+          "t3": {
+            "success": 0.96,
+            "switch_rate": 0.5816865890937692,
+            "choice_frac": [
+              0.27769679300291544,
+              0.2791545189504373,
+              0.44314868804664725
+            ],
+            "hit_g1": 0,
+            "hit_g2": 24
+          }
+        },
+        "success": 0.96
+      },
+      "t1-t4": {
+        "diag": {
+          "n_pos": 2176,
+          "n_neg": 0,
+          "z_raw_norm": 0.25883355233175365,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533280086
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.2880777605828004,
+        "cos_zr_gj": 0.34756409244589664,
+        "goal_proxy": {
+          "proxy_idx": 9504,
+          "proxy_cube_m": [
+            0.38596305549144744,
+            -0.1035577654838562,
+            0.01996072567999363
+          ]
+        },
+        "per_variant": {
+          "t1": {
+            "success": 0.84,
+            "switch_rate": 0.613930811464731,
+            "choice_frac": [
+              0.336878612716763,
+              0.33271676300578035,
+              0.33040462427745665
+            ],
+            "hit_g1": 5,
+            "hit_g2": 16
+          },
+          "t4": {
+            "success": 0.84,
+            "switch_rate": 0.5449986881320562,
+            "choice_frac": [
+              0.26270298585646934,
+              0.2653221581980094,
+              0.4719748559455212
+            ],
+            "hit_g1": 11,
+            "hit_g2": 10
+          }
+        },
+        "success": 0.84
+      },
+      "t1-t5": {
+        "diag": {
+          "n_pos": 2220,
+          "n_neg": 0,
+          "z_raw_norm": 0.30137391154079934,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533817745
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.43473345229339816,
+        "cos_zr_gj": 0.6542314893651726,
+        "goal_proxy": {
+          "proxy_idx": 39605,
+          "proxy_cube_m": [
+            0.5057257443666459,
+            -0.22084228694438934,
+            0.01996072567999363
+          ]
+        },
+        "per_variant": {
+          "t1": {
+            "success": 0.88,
+            "switch_rate": 0.6531777894168481,
+            "choice_frac": [
+              0.3263157894736842,
+              0.3724310776942356,
+              0.3012531328320802
+            ],
+            "hit_g1": 22,
+            "hit_g2": 0
+          },
+          "t5": {
+            "success": 0.76,
+            "switch_rate": 0.6464321608040201,
+            "choice_frac": [
+              0.2912,
+              0.3712,
+              0.3376
+            ],
+            "hit_g1": 19,
+            "hit_g2": 0
+          }
+        },
+        "success": 0.82
+      },
+      "t2-t3": {
+        "diag": {
+          "n_pos": 2292,
+          "n_neg": 0,
+          "z_raw_norm": 0.27661019796320335,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714532781104
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.47369191616931855,
+        "cos_zr_gj": 0.34268587238569426,
+        "goal_proxy": {
+          "proxy_idx": 21284,
+          "proxy_cube_m": [
+            0.487853530049324,
+            -0.025975745171308517,
+            0.019960720092058182
+          ]
+        },
+        "per_variant": {
+          "t2": {
+            "success": 1.0,
+            "switch_rate": 0.6279396984924622,
+            "choice_frac": [
+              0.3134,
+              0.3116,
+              0.375
+            ],
+            "hit_g1": 0,
+            "hit_g2": 25
+          },
+          "t3": {
+            "success": 1.0,
+            "switch_rate": 0.641608040201005,
+            "choice_frac": [
+              0.3392,
+              0.3466,
+              0.3142
+            ],
+            "hit_g1": 25,
+            "hit_g2": 0
+          }
+        },
+        "success": 1.0
+      },
+      "t2-t4": {
+        "diag": {
+          "n_pos": 2242,
+          "n_neg": 0,
+          "z_raw_norm": 0.29379728906822283,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533622754
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.44373139899686337,
+        "cos_zr_gj": 0.44093036311079103,
+        "goal_proxy": {
+          "proxy_idx": 39969,
+          "proxy_cube_m": [
+            0.5040813267230988,
+            0.16743773221969604,
+            0.01996072567999363
+          ]
+        },
+        "per_variant": {
+          "t2": {
+            "success": 0.88,
+            "switch_rate": 0.512178392202314,
+            "choice_frac": [
+              0.3553078041686864,
+              0.39069316529326226,
+              0.2539990305380514
+            ],
+            "hit_g1": 20,
+            "hit_g2": 2
+          },
+          "t4": {
+            "success": 0.24,
+            "switch_rate": 0.6395820371699769,
+            "choice_frac": [
+              0.37467018469656993,
+              0.29531154860970166,
+              0.3300182666937284
+            ],
+            "hit_g1": 6,
+            "hit_g2": 0
+          }
+        },
+        "success": 0.56
+      },
+      "t2-t5": {
+        "diag": {
+          "n_pos": 2286,
+          "n_neg": 0,
+          "z_raw_norm": 0.28476885275893327,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714532983507
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.5597655876273994,
+        "cos_zr_gj": 0.6617988023964136,
+        "goal_proxy": {
+          "proxy_idx": 16837,
+          "proxy_cube_m": [
+            0.5327955514192582,
+            -0.19730302691459656,
+            0.01996072567999363
+          ]
+        },
+        "per_variant": {
+          "t2": {
+            "success": 0.76,
+            "switch_rate": 0.6276125060316458,
+            "choice_frac": [
+              0.3088071348940914,
+              0.3754180602006689,
+              0.3157748049052397
+            ],
+            "hit_g1": 15,
+            "hit_g2": 4
+          },
+          "t5": {
+            "success": 0.68,
+            "switch_rate": 0.6411327831687171,
+            "choice_frac": [
+              0.3190436933223413,
+              0.35181368507831823,
+              0.3291426215993405
+            ],
+            "hit_g1": 15,
+            "hit_g2": 2
+          }
+        },
+        "success": 0.72
+      },
+      "t3-t4": {
+        "diag": {
+          "n_pos": 2360,
+          "n_neg": 0,
+          "z_raw_norm": 0.30636441863908975,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533900658
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.18915776464809267,
+        "cos_zr_gj": 0.33739265549269243,
+        "goal_proxy": {
+          "proxy_idx": 39560,
+          "proxy_cube_m": [
+            0.5399245277047158,
+            0.2018851488828659,
+            0.01996072567999363
+          ]
+        },
+        "per_variant": {
+          "t3": {
+            "success": 0.88,
+            "switch_rate": 0.5739452925199524,
+            "choice_frac": [
+              0.36522172396611857,
+              0.3368211260587942,
+              0.2979571499750872
+            ],
+            "hit_g1": 22,
+            "hit_g2": 0
+          },
+          "t4": {
+            "success": 0.32,
+            "switch_rate": 0.6330246102306404,
+            "choice_frac": [
+              0.3528823058446757,
+              0.30924739791833467,
+              0.3378702962369896
+            ],
+            "hit_g1": 8,
+            "hit_g2": 0
+          }
+        },
+        "success": 0.6
+      },
+      "t3-t5": {
+        "diag": {
+          "n_pos": 2404,
+          "n_neg": 0,
+          "z_raw_norm": 0.28983454111525264,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533773783
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.33663202610030996,
+        "cos_zr_gj": 0.6149852718899612,
+        "goal_proxy": {
+          "proxy_idx": 21185,
+          "proxy_cube_m": [
+            0.3616478398442268,
+            0.018184440210461617,
+            0.019960705190896988
+          ]
+        },
+        "per_variant": {
+          "t3": {
+            "success": 0.84,
+            "switch_rate": 0.5897688791525479,
+            "choice_frac": [
+              0.3861136571952337,
+              0.3703024747937672,
+              0.24358386801099907
+            ],
+            "hit_g1": 5,
+            "hit_g2": 16
+          },
+          "t5": {
+            "success": 0.88,
+            "switch_rate": 0.5406575461798028,
+            "choice_frac": [
+              0.27845982142857145,
+              0.29799107142857145,
+              0.42354910714285715
+            ],
+            "hit_g1": 15,
+            "hit_g2": 7
+          }
+        },
+        "success": 0.86
+      },
+      "t4-t5": {
+        "diag": {
+          "n_pos": 2354,
+          "n_neg": 0,
+          "z_raw_norm": 0.2617571125401608,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714535118764
+        },
+        "gpi": true,
+        "cos_zr_gi": 0.29226249026818385,
+        "cos_zr_gj": 0.5348239530668756,
+        "goal_proxy": {
+          "proxy_idx": 29573,
+          "proxy_cube_m": [
+            0.5022402957081795,
+            0.23931188881397247,
+            0.01935228332877159
+          ]
+        },
+        "per_variant": {
+          "t4": {
+            "success": 0.28,
+            "switch_rate": 0.6291457286432162,
+            "choice_frac": [
+              0.3708,
+              0.34,
+              0.2892
+            ],
+            "hit_g1": 0,
+            "hit_g2": 7
+          },
+          "t5": {
+            "success": 0.6,
+            "switch_rate": 0.50595290280409,
+            "choice_frac": [
+              0.29537194087715046,
+              0.2960988611582263,
+              0.4085291979646232
+            ],
+            "hit_g1": 5,
+            "hit_g2": 10
+          }
+        },
+        "success": 0.44
+      },
+      "mean": 0.772
+    },
+    "region": {
+      "R1": {
+        "center_m": [
+          0.3515,
+          0.172,
+          0.02
+        ],
+        "diag": {
+          "n_pos": 1038,
+          "n_neg": 0,
+          "z_raw_norm": 0.16473394064266886,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714534500503
+        },
+        "goal_proxy": {
+          "proxy_idx": 47545,
+          "proxy_cube_m": [
+            0.35176343023777007,
+            0.13568758964538574,
+            0.019784606993198395
+          ],
+          "dist_to_center_m": 0.036314004673120896
+        },
+        "per_variant_final": {
+          "t1": 0.0,
+          "t2": 0.44,
+          "t3": 1.0,
+          "t4": 0.88,
+          "t5": 1.0
+        },
+        "per_variant_any": {
+          "t1": 0.0,
+          "t2": 0.44,
+          "t3": 1.0,
+          "t4": 0.88,
+          "t5": 1.0
+        },
+        "success_final": 0.6639999999999999,
+        "success_any": 0.6639999999999999
+      },
+      "R2": {
+        "center_m": [
+          0.4251,
+          -0.1708,
+          0.02
+        ],
+        "diag": {
+          "n_pos": 988,
+          "n_neg": 0,
+          "z_raw_norm": 0.1394438082152714,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533787689
+        },
+        "goal_proxy": {
+          "proxy_idx": 4279,
+          "proxy_cube_m": [
+            0.40876942612230777,
+            -0.19559189677238464,
+            0.01996072567999363
+          ],
+          "dist_to_center_m": 0.02968715768172411
+        },
+        "per_variant_final": {
+          "t1": 0.96,
+          "t2": 1.0,
+          "t3": 1.0,
+          "t4": 0.0,
+          "t5": 0.96
+        },
+        "per_variant_any": {
+          "t1": 0.96,
+          "t2": 1.0,
+          "t3": 1.0,
+          "t4": 0.0,
+          "t5": 0.96
+        },
+        "success_final": 0.784,
+        "success_any": 0.784
+      },
+      "R3": {
+        "center_m": [
+          0.498,
+          0.0848,
+          0.02
+        ],
+        "diag": {
+          "n_pos": 1093,
+          "n_neg": 0,
+          "z_raw_norm": 0.14643524140051012,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714533787365
+        },
+        "goal_proxy": {
+          "proxy_idx": 28719,
+          "proxy_cube_m": [
+            0.4807337515056133,
+            0.09378908574581146,
+            0.01996072567999363
+          ],
+          "dist_to_center_m": 0.019466086974214238
+        },
+        "per_variant_final": {
+          "t1": 0.04,
+          "t2": 1.0,
+          "t3": 0.92,
+          "t4": 0.92,
+          "t5": 0.88
+        },
+        "per_variant_any": {
+          "t1": 0.04,
+          "t2": 1.0,
+          "t3": 0.92,
+          "t4": 0.92,
+          "t5": 0.88
+        },
+        "success_final": 0.752,
+        "success_any": 0.752
+      },
+      "mean_final": 0.7333333333333334
+    },
+    "dense": {
+      "t1": {
+        "diag": {
+          "n_pos": 50000,
+          "n_neg": 0,
+          "z_raw_norm": 0.8442971711391831,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714534112354
+        },
+        "sigma_obs": 0.8,
+        "reward_stats": {
+          "mean": 0.14122640343879111,
+          "max": 0.9589377946475682
+        },
+        "cos_zr_psig": 0.44433802435644293,
+        "goal_proxy": {
+          "proxy_idx": 31641,
+          "proxy_cube_m": [
+            0.42741954601369797,
+            -0.09767712652683258,
+            0.01996072381734848
+          ],
+          "dist_to_goal_m": 0.0033543235835664935
+        },
+        "success": 0.96
+      },
+      "t2": {
+        "diag": {
+          "n_pos": 50000,
+          "n_neg": 0,
+          "z_raw_norm": 0.7412425478887125,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.09571453402747
+        },
+        "sigma_obs": 0.8,
+        "reward_stats": {
+          "mean": 0.12839898651981727,
+          "max": 0.9670730969533037
+        },
+        "cos_zr_psig": 0.5159710192625256,
+        "goal_proxy": {
+          "proxy_idx": 4464,
+          "proxy_cube_m": [
+            0.5024659737944603,
+            0.0010448741959407926,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.002678494224843506
+        },
+        "success": 1.0
+      },
+      "t3": {
+        "diag": {
+          "n_pos": 50000,
+          "n_neg": 0,
+          "z_raw_norm": 0.7749808200636267,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714535122957
+        },
+        "sigma_obs": 0.8,
+        "reward_stats": {
+          "mean": 0.13158888579948427,
+          "max": 0.9804191784147459
+        },
+        "cos_zr_psig": 0.2970412621804827,
+        "goal_proxy": {
+          "proxy_idx": 15486,
+          "proxy_cube_m": [
+            0.34969533532857894,
+            0.0015518951695412397,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.001582005578836398
+        },
+        "success": 1.0
+      },
+      "t4": {
+        "diag": {
+          "n_pos": 50000,
+          "n_neg": 0,
+          "z_raw_norm": 0.7825248143544322,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.095714534919995
+        },
+        "sigma_obs": 0.8,
+        "reward_stats": {
+          "mean": 0.10951916254989782,
+          "max": 0.9635997885965725
+        },
+        "cos_zr_psig": 0.403714432570665,
+        "goal_proxy": {
+          "proxy_idx": 23104,
+          "proxy_cube_m": [
+            0.49744275510311126,
+            0.20141446590423584,
+            0.019491147249937057
+          ],
+          "dist_to_goal_m": 0.002966335513416482
+        },
+        "success": 0.84
+      },
+      "t5": {
+        "diag": {
+          "n_pos": 50000,
+          "n_neg": 0,
+          "z_raw_norm": 0.7047710675983647,
+          "match_data_norm": 9.09571454363846,
+          "retrieval_n": 1,
+          "z_norm": 9.09571453452677
+        },
+        "sigma_obs": 0.8,
+        "reward_stats": {
+          "mean": 0.10802653776503082,
+          "max": 0.9869101545416238
+        },
+        "cos_zr_psig": 0.6636500051863673,
+        "goal_proxy": {
+          "proxy_idx": 20078,
+          "proxy_cube_m": [
+            0.500900785624981,
+            -0.2005460560321808,
+            0.01996072567999363
+          ],
+          "dist_to_goal_m": 0.0010541036024344728
+        },
+        "success": 0.84
+      },
+      "mean": 0.9279999999999999,
+      "mean_delta_vs_dirac": -0.016000000000000014
+    },
+    "linear": {
+      "note": "achieved discounted reward under rollout vs a random-z control policy (proxy floor; the BC-flow floor needs a separate BC rollout)",
+      "draws": [
+        {
+          "diag": {
+            "n_pos": 31161,
+            "n_neg": 18839,
+            "z_raw_norm": 3.7456848269983505,
+            "match_data_norm": 9.09571454363846,
+            "retrieval_n": 1,
+            "z_norm": 9.095714533472796
+          },
+          "cos_zr_ztilde": 0.33053774333940267,
+          "dataset_reward_stats": {
+            "mean": 0.33879938420293637,
+            "std": 1.2156502111436933
+          },
+          "goal_proxy_z_r": {
+            "proxy_idx": 28617,
+            "proxy_cube_m": [
+              0.4717316024005413,
+              0.09845168888568878,
+              0.31421026587486267
+            ]
+          },
+          "discounted_reward_z_r": -5.79532063876524,
+          "goal_proxy_control_random_z": {
+            "proxy_idx": 49551,
+            "proxy_cube_m": [
+              0.30825945287942885,
+              0.018571965396404266,
+              0.01996072567999363
+            ]
+          },
+          "discounted_reward_control_random_z": -32.65074347910228
+        },
+        {
+          "diag": {
+            "n_pos": 42169,
+            "n_neg": 7831,
+            "z_raw_norm": 9.452830024720644,
+            "match_data_norm": 9.09571454363846,
+            "retrieval_n": 1,
+            "z_norm": 9.09571453460722
+          },
+          "cos_zr_ztilde": 0.33147771449646085,
+          "dataset_reward_stats": {
+            "mean": 1.4857352129923285,
+            "std": 1.3502500272649958
+          },
+          "goal_proxy_z_r": {
+            "proxy_idx": 21967,
+            "proxy_cube_m": [
+              0.5049560546875,
+              0.1107911616563797,
+              0.23419968783855438
+            ]
+          },
+          "discounted_reward_z_r": 206.36695501629373,
+          "goal_proxy_control_random_z": {
+            "proxy_idx": 15243,
+            "proxy_cube_m": [
+              0.3239606946706772,
+              0.19850900769233704,
+              0.01996072567999363
+            ]
+          },
+          "discounted_reward_control_random_z": 205.04149812003118
+        },
+        {
+          "diag": {
+            "n_pos": 35879,
+            "n_neg": 14121,
+            "z_raw_norm": 6.204263140267257,
+            "match_data_norm": 9.09571454363846,
+            "retrieval_n": 1,
+            "z_norm": 9.095714534101372
+          },
+          "cos_zr_ztilde": 0.3653832789610254,
+          "dataset_reward_stats": {
+            "mean": 0.856409819028893,
+            "std": 1.4773569516828395
+          },
+          "goal_proxy_z_r": {
+            "proxy_idx": 14059,
+            "proxy_cube_m": [
+              0.44133569970726966,
+              0.07023720443248749,
+              0.01996072567999363
+            ]
+          },
+          "discounted_reward_z_r": 40.272000862348996,
+          "goal_proxy_control_random_z": {
+            "proxy_idx": 26628,
+            "proxy_cube_m": [
+              0.521469208598137,
+              0.026552602648735046,
+              0.01996072567999363
+            ]
+          },
+          "discounted_reward_control_random_z": 88.61057018447826
+        }
+      ],
+      "mean_discounted_reward_z_r": 80.28121174662583,
+      "mean_discounted_reward_control": 87.00044160846905
+    },
+    "reachavoid": {
+      "A": "R1",
+      "B": "R2",
+      "diag": {
+        "n_pos": 1038,
+        "n_neg": 988,
+        "z_raw_norm": 0.2046216693387653,
+        "match_data_norm": 9.09571454363846,
+        "retrieval_n": 1,
+        "z_norm": 9.09571453460818
+      },
+      "goal_proxy": {
+        "proxy_idx": 44882,
+        "proxy_cube_m": [
+          0.37239529490470885,
+          0.19948406517505646,
+          0.01996072567999363
+        ],
+        "dist_to_A_m": 0.034525189792001386
+      },
+      "per_variant_A": {
+        "t1": {
+          "final": 0.64,
+          "any": 0.68
+        },
+        "t2": {
+          "final": 0.64,
+          "any": 0.64
+        },
+        "t3": {
+          "final": 0.6,
+          "any": 0.6
+        },
+        "t4": {
+          "final": 0.6,
+          "any": 0.6
+        },
+        "t5": {
+          "final": 0.84,
+          "any": 1.0
+        }
+      },
+      "per_variant_frac_B": {
+        "t1": 0.0,
+        "t2": 0.0,
+        "t3": 0.0,
+        "t4": 0.0,
+        "t5": 0.0
+      },
+      "success_at_A": 0.6639999999999999,
+      "success_at_A_any": 0.704,
+      "frac_time_in_B": 0.0
+    }
+  },
+  "summary": {
+    "dirac_mean": 0.944,
+    "mixture_mean": 0.772,
+    "mixture_gpi": true,
+    "region_mean_final": 0.7333333333333334,
+    "dense_mean": 0.9279999999999999,
+    "dense_mean_delta_vs_dirac": -0.016000000000000014,
+    "linear_G_zr": 80.28121174662583,
+    "linear_G_control": 87.00044160846905,
+    "reachavoid_success_at_A": 0.6639999999999999,
+    "reachavoid_frac_time_in_B": 0.0,
+    "bars": {
+      "dirac_ge_0.90": true,
+      "mixture_gpi_ge_0.75": true,
+      "regions_ge_0.672": true,
+      "dense_within_5pts_of_dirac": true
+    }
+  }
+}

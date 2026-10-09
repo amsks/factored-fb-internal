@@ -1,0 +1,72 @@
+[
+  {
+    "nominal": 50,
+    "participation": 42.08847755241992,
+    "stable": 27.475378797942767,
+    "n99": 49,
+    "top1_frac": 0.036396222499937854,
+    "critic": "hilp_cube",
+    "seed": 0,
+    "env": "cube-double-play-v0"
+  },
+  {
+    "nominal": 50,
+    "participation": 22.218480428622794,
+    "stable": 11.738843489979672,
+    "n99": 45,
+    "top1_frac": 0.08518726745557212,
+    "critic": "density_fb",
+    "seed": 0,
+    "env": "cube-double-play-v0"
+  },
+  {
+    "nominal": 50,
+    "participation": 21.103674137528667,
+    "stable": 10.349186642309801,
+    "n99": 45,
+    "top1_frac": 0.09662595086572072,
+    "critic": "density_fb",
+    "seed": 1,
+    "env": "cube-double-play-v0"
+  },
+  {
+    "nominal": 50,
+    "participation": 21.03358954794102,
+    "stable": 10.147772324665183,
+    "n99": 45,
+    "top1_frac": 0.09854379542684448,
+    "critic": "density_fb",
+    "seed": 2,
+    "env": "cube-double-play-v0"
+  },
+  {
+    "nominal": 50,
+    "participation": 21.889974213095112,
+    "stable": 10.829283648922075,
+    "n99": 47,
+    "top1_frac": 0.09234221139821543,
+    "critic": "density_fb_state",
+    "seed": 0,
+    "env": "cube-double-play-v0"
+  },
+  {
+    "nominal": 50,
+    "participation": 22.816129317172688,
+    "stable": 11.416329834332164,
+    "n99": 46,
+    "top1_frac": 0.08759382520577799,
+    "critic": "density_fb_state",
+    "seed": 1,
+    "env": "cube-double-play-v0"
+  },
+  {
+    "nominal": 50,
+    "participation": 22.401491608202246,
+    "stable": 10.364895412949233,
+    "n99": 46,
+    "top1_frac": 0.09647950704361806,
+    "critic": "density_fb_state",
+    "seed": 2,
+    "env": "cube-double-play-v0"
+  }
+]

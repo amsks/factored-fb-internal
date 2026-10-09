@@ -1,0 +1,20 @@
+[phase_probe_crl] seed=1 step=1000000 ckpt_dir=/dev/shm/gciql_outputs/factored-fb/factored-fb-crl-flowbc/sd001_20260525_080819
+[phase_probe_crl] out=/home/adityamohan/git/Factored-FB/analysis/profiles/crl_1m/s1 tasks=5 scenarios=['S0', 'S1', 'S2'] episodes=20
+Restored from /dev/shm/gciql_outputs/factored-fb/factored-fb-crl-flowbc/sd001_20260525_080819/params_1000000.pkl
+[phase_probe_crl] agent restored
+  task=cube-single-play-singletask-task1-v0 scenario=S0: 7/20
+  task=cube-single-play-singletask-task1-v0 scenario=S1: 1/20
+  task=cube-single-play-singletask-task1-v0 scenario=S2: 4/20
+  task=cube-single-play-singletask-task2-v0 scenario=S0: 5/20
+  task=cube-single-play-singletask-task2-v0 scenario=S1: 6/20
+  task=cube-single-play-singletask-task2-v0 scenario=S2: 3/20
+  task=cube-single-play-singletask-task3-v0 scenario=S0: 5/20
+  task=cube-single-play-singletask-task3-v0 scenario=S1: 7/20
+  task=cube-single-play-singletask-task3-v0 scenario=S2: 5/20
+  task=cube-single-play-singletask-task4-v0 scenario=S0: 5/20
+  task=cube-single-play-singletask-task4-v0 scenario=S1: 6/20
+  task=cube-single-play-singletask-task4-v0 scenario=S2: 0/20
+  task=cube-single-play-singletask-task5-v0 scenario=S0: 2/20
+  task=cube-single-play-singletask-task5-v0 scenario=S1: 6/20
+  task=cube-single-play-singletask-task5-v0 scenario=S2: 2/20
+[phase_probe_crl] wrote /home/adityamohan/git/Factored-FB/analysis/profiles/crl_1m/s1/per_episode.parquet: 300 rows; overall_success=0.213

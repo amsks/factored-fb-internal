@@ -1,0 +1,26 @@
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/config.json 1774
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/eval_relabel.csv 21654
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/eval.csv 18538
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl 54667953
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_1/config.json 1774
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_1/eval_relabel.csv 21638
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_1/eval.csv 18635
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_1/params_1000000.pkl 54667953
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_2/config.json 1774
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_2/eval_relabel.csv 21632
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_2/eval.csv 18557
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_2/params_1000000.pkl 54667953
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_0/config.json 1828
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_0/eval_relabel.csv 25250
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_0/eval.csv 22057
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl 55033521
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_1/config.json 1828
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_1/eval_relabel.csv 25228
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_1/eval.csv 22022
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_1/params_1000000.pkl 55033521
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_2/config.json 1828
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_2/eval_relabel.csv 25228
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_2/eval.csv 22083
+got exp/tdjtab/cube-double-play-v0_density_fb_z_flowbc_seed_2/params_1000000.pkl 55033521
+got exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_500000.pkl 54667953
+DONE

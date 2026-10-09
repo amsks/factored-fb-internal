@@ -1,0 +1,35 @@
+{
+  "method": "fb",
+  "n_states": 200,
+  "mu_k": 32,
+  "records": "/home/adityamohan/git/Factored-FB/analysis/value/repsep/cf_records_fb_k0.parquet",
+  "auc": {
+    "U": 0.6901452581714504,
+    "Qpi": 0.6904608026847103,
+    "AdvPi": 0.44774543740223355
+  },
+  "per_task": {
+    "U": [
+      0.696,
+      0.932,
+      0.621,
+      0.536,
+      0.666
+    ],
+    "Qpi": [
+      0.701,
+      0.932,
+      0.62,
+      0.535,
+      0.665
+    ],
+    "AdvPi": [
+      0.361,
+      0.455,
+      0.466,
+      0.469,
+      0.489
+    ]
+  },
+  "qpi_provenance_maxabs": 375.1637690353393
+}

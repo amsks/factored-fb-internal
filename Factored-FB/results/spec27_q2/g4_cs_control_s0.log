@@ -1,0 +1,30 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec18/factored-fb/GCIQL-CubeSingle-Flow-Measure-Density-d50/d18_cs_dens_s0/params_500000.pkl
+[g4] density pool: P=16384
+[g4] restored d18_cs_dens_s0 object=density step=500000 env=cube-single-play-v0 gamma=0.99 double_q=True hit_spec='19:22:0.4' measure_density_z=False
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[g4] 4/24 starts done (6s)
+[g4] 8/24 starts done (11s)
+[g4] 12/24 starts done (16s)
+[g4] 16/24 starts done (20s)
+[g4] 20/24 starts done (25s)
+[g4] 24/24 starts done (29s)
+
+[g4] d18_cs_dens_s0 (density) POOLED spearman(tie-corr)=0.778 (ordinal=0.684) n=864 degenerate_frac=0.61 -> PASS (gate >= 0.65)
+  non-degenerate subset (mc>0): spearman(tie-corr)=0.801 n=340
+  PER-MULTIPLIER (pooling is NOT innocent -- box size drives both variables, so the pooled figure sits above every column except mult=4; read this row, not just the pooled number):
+    mult=1.0 (half-width 0.4): spearman(tie-corr)=0.456 (ordinal=0.276) n=288 degenerate_frac=0.85
+    mult=2.0 (half-width 0.8): spearman(tie-corr)=0.596 (ordinal=0.514) n=288 degenerate_frac=0.71
+    mult=4.0 (half-width 1.6): spearman(tie-corr)=0.848 (ordinal=0.829) n=288 degenerate_frac=0.26
+
+[g4] DONE -> results/spec27_q2/g4_cs_control_s0.json
+
+EXIT=0

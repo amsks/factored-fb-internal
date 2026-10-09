@@ -1,0 +1,11 @@
+[load] exp/cube-double-play-v0_hilp_tdjc_flowbc_seed_2 epoch 1000000
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from exp/cube-double-play-v0_hilp_tdjc_flowbc_seed_2/params_1000000.pkl (params only)
+[R6_move_keep] z norm 7.071 cos1 -0.144 valid True label mean 0.604 pos 0.0704
+[R6_move_keep] T=500 mean/step -0.0158 +- 0.0489 disc 0.730 aux_cube1_in_A_mean=0.005 aux_cube2_in_B0_mean=0.959  (38s)
+[R7_either_cube] z norm 7.071 cos1 0.030 valid True label mean 1.127 pos 0.1273
+[R7_either_cube] T=500 mean/step 0.1491 +- 0.2440 disc 6.040 aux_cube1_in_A_mean=0.108 aux_cube2_in_A_mean=0.079  (33s)
+[done] /home/adityamohan/git/Factored-FB-seam/analysis/reward_families/cube-double-play-v0/hilp_tdjc_seed2.json in 110s

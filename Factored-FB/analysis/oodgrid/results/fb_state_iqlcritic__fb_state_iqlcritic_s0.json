@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_state_iqlcritic",
+ "seed": "fb_state_iqlcritic_s0",
+ "dir": "/dev/shm/factored-fb_outputs/fb_state_iqlcritic_s0",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb_outputs/fb_state_iqlcritic_s0/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.13,
+  "grasped": 1.0
+ },
+ "C2_zB": {
+  "success": 0.1,
+  "grasped": 0.95
+ },
+ "C3_zB": {
+  "success": 0.03,
+  "grasped": 1.0
+ },
+ "C2_zR": {
+  "success": 0.05,
+  "grasped": 0.98
+ },
+ "C3_zR": {
+  "success": 0.0,
+  "grasped": 0.99
+ },
+ "C4_zB": {
+  "success": 0.07,
+  "grasped": 0.99
+ },
+ "secs": 44.7
+}

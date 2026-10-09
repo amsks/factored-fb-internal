@@ -1,0 +1,12 @@
+[select] 1152 (critic, seed, bank, state) rows, 12 candidates each -> PAPER/ICLR/figures/gap_preservation/intervention_selection.csv
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_2/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_2/params_1000000.pkl (params only)
+  [int seed2] carrying 8/64 (153s) FB acto 0.61 crit 0.74 roll 0.78 | Density-FB acto 1.00 crit 1.00 roll 1.00
+  [int seed2] carrying 16/64 (299s) FB acto 0.72 crit 0.69 roll 0.78 | Density-FB acto 1.00 crit 0.99 roll 1.00
+  [int seed2] carrying 24/64 (448s) FB acto 0.72 crit 0.68 roll 0.79 | Density-FB acto 1.00 crit 0.97 roll 1.00
+  [int seed2] carrying 32/64 (600s) FB acto 0.70 crit 0.64 roll 0.78 | Density-FB acto 1.00 crit 0.98 roll 1.00
+  [int seed2] carrying 40/64 (747s) FB acto 0.69 crit 0.66 roll 0.79 | Density-FB acto 1.00 crit 0.98 roll 1.00
+  [int seed2] carrying 48/64 (894s) FB acto 0.68 crit 0.64 roll 0.79 | Density-FB acto 1.00 crit 0.99 roll 1.00
+  [int seed2] carrying 56/64 (1036s) FB acto 0.67 crit 0.62 roll 0.79 | Density-FB acto 1.00 crit 0.99 roll 1.00
+  [int seed2] carrying 64/64 (1179s) FB acto 0.68 crit 0.62 roll 0.79 | Density-FB acto 1.00 crit 0.99 roll 1.00
+[int] seed 2 carrying: 3840 rollout rows in 1179s -> analysis/failure_figs/cube-single-play-v0/intervention/rollouts_seed2_carrying.csv

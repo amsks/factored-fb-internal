@@ -1,0 +1,54 @@
+{
+  "n": 9,
+  "gamma": 0.8,
+  "leak": 0.0,
+  "decision_state": 7,
+  "goal": 8,
+  "q_exact_action0": 2.2,
+  "q_exact_action1": 0.8000000000000002,
+  "gap_exact": 1.4,
+  "singular_values": [
+    1.5862539696192888,
+    1.051693606489795,
+    0.3980540462555242,
+    0.36530430846714923,
+    0.2512422856586878,
+    0.22608610304171586,
+    0.19218904483560934,
+    0.16647192384314863,
+    0.15523631367869337
+  ],
+  "top2_retained_sq_mass": 0.8798001478931178,
+  "diff_sq_frac_outside_top2": 0.9986683017480881,
+  "soft_target_full_rank_gap_ratio": 0.7660318746860983,
+  "soft_sigma": 0.5,
+  "kernel_goal_self_weight": 0.7865707164646372,
+  "closed_form_adam": {
+    "steps": 10000,
+    "lr": 0.01,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  "trained": {
+    "steps": 50000,
+    "tau": 0.005,
+    "rates": [
+      0.001,
+      0.01
+    ],
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "ortho_coef_fb_normsq": 1.0,
+    "sphere": false
+  }
+}

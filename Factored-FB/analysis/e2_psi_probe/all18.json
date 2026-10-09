@@ -1,0 +1,1482 @@
+{
+  "checkpoint_step": 500000,
+  "relabel_size": 50000,
+  "per_checkpoint": {
+    "GCIQL-State-Flow-Bilinear-d50/sd000_20260615_011444": {
+      "means": {
+        "critic.cos_v0": 0.9000698475768101,
+        "critic.auc_exact": 0.9438346582454704,
+        "critic.auc_v0": 0.9631775418466288,
+        "value.cos_v0": 0.897729621450732,
+        "value.auc_exact": 0.9477381914322194,
+        "value.auc_v0": 0.9801700561784742
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 18.314388275146484,
+            "cos_v0": 0.9081932188352753,
+            "auc_exact": 0.9546364980542241,
+            "auc_v0": 0.9709524914023497
+          },
+          "value": {
+            "psi_g_norm": 26.3234806060791,
+            "cos_v0": 0.8948331411189074,
+            "auc_exact": 0.9492895564048628,
+            "auc_v0": 0.9825826131605424
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 19.483171463012695,
+            "cos_v0": 0.9186626314825442,
+            "auc_exact": 0.9351488539852266,
+            "auc_v0": 0.9567058964921009
+          },
+          "value": {
+            "psi_g_norm": 25.694618225097656,
+            "cos_v0": 0.9081540441982748,
+            "auc_exact": 0.9509278124461116,
+            "auc_v0": 0.981544060869351
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 19.333581924438477,
+            "cos_v0": 0.8922652594486169,
+            "auc_exact": 0.9532389035179278,
+            "auc_v0": 0.9766324099964035
+          },
+          "value": {
+            "psi_g_norm": 26.622169494628906,
+            "cos_v0": 0.8944346262810611,
+            "auc_exact": 0.9397605705225175,
+            "auc_v0": 0.9791371091256769
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 18.101394653320312,
+            "cos_v0": 0.8907967437962768,
+            "auc_exact": 0.9496456523434383,
+            "auc_v0": 0.9592388090716534
+          },
+          "value": {
+            "psi_g_norm": 26.91914176940918,
+            "cos_v0": 0.897837144325296,
+            "auc_exact": 0.9530910162900484,
+            "auc_v0": 0.9778625909466475
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 18.726831436157227,
+            "cos_v0": 0.8904313843213373,
+            "auc_exact": 0.9265033833265351,
+            "auc_v0": 0.9523581022706367
+          },
+          "value": {
+            "psi_g_norm": 26.308809280395508,
+            "cos_v0": 0.8933891513301202,
+            "auc_exact": 0.9456220014975569,
+            "auc_v0": 0.9797239067901531
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50/sd001_20260615_011447": {
+      "means": {
+        "critic.cos_v0": 0.8969890449137724,
+        "critic.auc_exact": 0.9502414295985128,
+        "critic.auc_v0": 0.9608266801414302,
+        "value.cos_v0": 0.9022717482393425,
+        "value.auc_exact": 0.9546944001197877,
+        "value.auc_v0": 0.9811580068456351
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 17.7026309967041,
+            "cos_v0": 0.8919520845014622,
+            "auc_exact": 0.9441262269970025,
+            "auc_v0": 0.951637691413812
+          },
+          "value": {
+            "psi_g_norm": 26.277612686157227,
+            "cos_v0": 0.9022122648216703,
+            "auc_exact": 0.9552438562338146,
+            "auc_v0": 0.981992662349306
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 17.479883193969727,
+            "cos_v0": 0.9151369917811133,
+            "auc_exact": 0.9388282635765112,
+            "auc_v0": 0.9416760345544211
+          },
+          "value": {
+            "psi_g_norm": 25.712017059326172,
+            "cos_v0": 0.9148322318533323,
+            "auc_exact": 0.9552091299776422,
+            "auc_v0": 0.9823371536055763
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 18.104398727416992,
+            "cos_v0": 0.8931179993907173,
+            "auc_exact": 0.9448118740834822,
+            "auc_v0": 0.96542142134247
+          },
+          "value": {
+            "psi_g_norm": 25.850343704223633,
+            "cos_v0": 0.905081261238459,
+            "auc_exact": 0.9492433083756165,
+            "auc_v0": 0.9808623593422547
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 19.760833740234375,
+            "cos_v0": 0.8921549214246991,
+            "auc_exact": 0.9581522949815436,
+            "auc_v0": 0.9740452771300594
+          },
+          "value": {
+            "psi_g_norm": 26.310773849487305,
+            "cos_v0": 0.8948789314965995,
+            "auc_exact": 0.9592529088728228,
+            "auc_v0": 0.9810989100150509
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 18.264354705810547,
+            "cos_v0": 0.8925832274708696,
+            "auc_exact": 0.9652884883540246,
+            "auc_v0": 0.9713529762663893
+          },
+          "value": {
+            "psi_g_norm": 26.38439178466797,
+            "cos_v0": 0.8943540517866511,
+            "auc_exact": 0.9545227971390423,
+            "auc_v0": 0.9794989489159867
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50/sd002_20260615_011450": {
+      "means": {
+        "critic.cos_v0": 0.8829677777041551,
+        "critic.auc_exact": 0.8688333571714629,
+        "critic.auc_v0": 0.9411322280626253,
+        "value.cos_v0": 0.8978647794817831,
+        "value.auc_exact": 0.9519708235946387,
+        "value.auc_v0": 0.9806987021565309
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 14.910163879394531,
+            "cos_v0": 0.8601751673255348,
+            "auc_exact": 0.7777213840811547,
+            "auc_v0": 0.9023955158459144
+          },
+          "value": {
+            "psi_g_norm": 24.81435775756836,
+            "cos_v0": 0.8922299475916868,
+            "auc_exact": 0.9528473785333134,
+            "auc_v0": 0.9829806329879048
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 17.88222312927246,
+            "cos_v0": 0.9277263089145402,
+            "auc_exact": 0.9394418297261554,
+            "auc_v0": 0.9608048245349958
+          },
+          "value": {
+            "psi_g_norm": 24.408714294433594,
+            "cos_v0": 0.9071860359908978,
+            "auc_exact": 0.9549801568421706,
+            "auc_v0": 0.9836800219178272
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 15.446022987365723,
+            "cos_v0": 0.8548915289998738,
+            "auc_exact": 0.8172502217217439,
+            "auc_v0": 0.9284726897537334
+          },
+          "value": {
+            "psi_g_norm": 24.50324058532715,
+            "cos_v0": 0.8975421725273613,
+            "auc_exact": 0.9512321470594918,
+            "auc_v0": 0.9818443734115657
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 18.55268096923828,
+            "cos_v0": 0.8885118828338489,
+            "auc_exact": 0.9183059052834136,
+            "auc_v0": 0.9595051186154788
+          },
+          "value": {
+            "psi_g_norm": 26.1733341217041,
+            "cos_v0": 0.899604302708192,
+            "auc_exact": 0.951540335663617,
+            "auc_v0": 0.9766593838729467
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 16.870943069458008,
+            "cos_v0": 0.8835340004469773,
+            "auc_exact": 0.8914474450448467,
+            "auc_v0": 0.9544829915630043
+          },
+          "value": {
+            "psi_g_norm": 24.36366081237793,
+            "cos_v0": 0.8927614385907781,
+            "auc_exact": 0.9492540998746012,
+            "auc_v0": 0.9783290985924107
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l001/cube_single_state_gciql_flow_bilinear_d50_measuremix_l001_s0": {
+      "means": {
+        "critic.cos_v0": 0.8861426589490347,
+        "critic.auc_exact": 0.9353748436651484,
+        "critic.auc_v0": 0.9705358444013564,
+        "value.cos_v0": 0.8944389710817425,
+        "value.auc_exact": 0.9536487121051961,
+        "value.auc_v0": 0.9815050230466241
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 17.523229598999023,
+            "cos_v0": 0.8729268981088112,
+            "auc_exact": 0.9630542954516137,
+            "auc_v0": 0.9765848599008802
+          },
+          "value": {
+            "psi_g_norm": 25.205371856689453,
+            "cos_v0": 0.8906868938337698,
+            "auc_exact": 0.9551990030147243,
+            "auc_v0": 0.9832518519850169
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 18.622652053833008,
+            "cos_v0": 0.8721363913714801,
+            "auc_exact": 0.9118003136245253,
+            "auc_v0": 0.9722278430860503
+          },
+          "value": {
+            "psi_g_norm": 24.896987915039062,
+            "cos_v0": 0.8998324772809807,
+            "auc_exact": 0.9527074848419667,
+            "auc_v0": 0.981860455818082
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 18.665447235107422,
+            "cos_v0": 0.889899806995083,
+            "auc_exact": 0.9288825609900899,
+            "auc_v0": 0.9624318449435226
+          },
+          "value": {
+            "psi_g_norm": 25.293195724487305,
+            "cos_v0": 0.8983844780751089,
+            "auc_exact": 0.9505646113664704,
+            "auc_v0": 0.9820035929853198
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 19.93986701965332,
+            "cos_v0": 0.9076425706003574,
+            "auc_exact": 0.9449123382726211,
+            "auc_v0": 0.9694670789025415
+          },
+          "value": {
+            "psi_g_norm": 26.184585571289062,
+            "cos_v0": 0.8978644005012602,
+            "auc_exact": 0.9557591061591519,
+            "auc_v0": 0.9788844478922646
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 18.203954696655273,
+            "cos_v0": 0.8881076276694417,
+            "auc_exact": 0.9282247099868929,
+            "auc_v0": 0.9719675951737881
+          },
+          "value": {
+            "psi_g_norm": 25.22123908996582,
+            "cos_v0": 0.8854266057175928,
+            "auc_exact": 0.954013355143667,
+            "auc_v0": 0.9815247665524377
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l001/cube_single_state_gciql_flow_bilinear_d50_measuremix_l001_s1": {
+      "means": {
+        "critic.cos_v0": 0.8865111059055302,
+        "critic.auc_exact": 0.9408346192835202,
+        "critic.auc_v0": 0.9514343789745083,
+        "value.cos_v0": 0.8987019011627794,
+        "value.auc_exact": 0.9539528445006432,
+        "value.auc_v0": 0.9807164725829617
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 18.801795959472656,
+            "cos_v0": 0.8987483231769549,
+            "auc_exact": 0.9316139985956923,
+            "auc_v0": 0.9484980660623726
+          },
+          "value": {
+            "psi_g_norm": 26.84673500061035,
+            "cos_v0": 0.8977691512821842,
+            "auc_exact": 0.9540205611715621,
+            "auc_v0": 0.9819844035978641
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 17.911638259887695,
+            "cos_v0": 0.8796487332767291,
+            "auc_exact": 0.9245970824450467,
+            "auc_v0": 0.9228976992026926
+          },
+          "value": {
+            "psi_g_norm": 25.61338996887207,
+            "cos_v0": 0.905615796683017,
+            "auc_exact": 0.952215901931418,
+            "auc_v0": 0.982387761056331
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 17.969436645507812,
+            "cos_v0": 0.8798432590426842,
+            "auc_exact": 0.9438500668058651,
+            "auc_v0": 0.9588986827006458
+          },
+          "value": {
+            "psi_g_norm": 26.530593872070312,
+            "cos_v0": 0.8995625026549758,
+            "auc_exact": 0.9480625698975386,
+            "auc_v0": 0.9797997067143217
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 20.727306365966797,
+            "cos_v0": 0.8938926325550902,
+            "auc_exact": 0.9552030384891216,
+            "auc_v0": 0.9667706992789178
+          },
+          "value": {
+            "psi_g_norm": 26.820091247558594,
+            "cos_v0": 0.8961174826329704,
+            "auc_exact": 0.9605775599500737,
+            "auc_v0": 0.9804251126113436
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 18.811201095581055,
+            "cos_v0": 0.8804225814761925,
+            "auc_exact": 0.9489089100818748,
+            "auc_v0": 0.9601067476279129
+          },
+          "value": {
+            "psi_g_norm": 26.215343475341797,
+            "cos_v0": 0.8944445725607497,
+            "auc_exact": 0.9548876295526241,
+            "auc_v0": 0.9789853789349481
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l001/cube_single_state_gciql_flow_bilinear_d50_measuremix_l001_s2": {
+      "means": {
+        "critic.cos_v0": 0.8915134995758714,
+        "critic.auc_exact": 0.9132964845603622,
+        "critic.auc_v0": 0.9581812407147346,
+        "value.cos_v0": 0.9126371187831355,
+        "value.auc_exact": 0.9590309196784915,
+        "value.auc_v0": 0.9815862582156892
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 15.63135814666748,
+            "cos_v0": 0.9069439392046125,
+            "auc_exact": 0.8944996795384474,
+            "auc_v0": 0.9383696172812594
+          },
+          "value": {
+            "psi_g_norm": 24.7198543548584,
+            "cos_v0": 0.914182385877973,
+            "auc_exact": 0.9615300158921974,
+            "auc_v0": 0.9837466971743212
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 16.61359214782715,
+            "cos_v0": 0.9073962337686651,
+            "auc_exact": 0.9347823533314618,
+            "auc_v0": 0.9638861138743199
+          },
+          "value": {
+            "psi_g_norm": 24.254810333251953,
+            "cos_v0": 0.9169492231293134,
+            "auc_exact": 0.9633685877585535,
+            "auc_v0": 0.9836381310692048
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 15.361862182617188,
+            "cos_v0": 0.8810791686648285,
+            "auc_exact": 0.8934447350248341,
+            "auc_v0": 0.9476442798790679
+          },
+          "value": {
+            "psi_g_norm": 25.094953536987305,
+            "cos_v0": 0.916684860582689,
+            "auc_exact": 0.9588623070463578,
+            "auc_v0": 0.9822592256177881
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 17.896568298339844,
+            "cos_v0": 0.8730195023127691,
+            "auc_exact": 0.9262454005483958,
+            "auc_v0": 0.9722361211843653
+          },
+          "value": {
+            "psi_g_norm": 26.517988204956055,
+            "cos_v0": 0.9093204491675103,
+            "auc_exact": 0.9553890044088924,
+            "auc_v0": 0.9787494540158514
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 16.3834285736084,
+            "cos_v0": 0.8891286539284823,
+            "auc_exact": 0.9175102543586716,
+            "auc_v0": 0.9687700713546604
+          },
+          "value": {
+            "psi_g_norm": 24.74677085876465,
+            "cos_v0": 0.9060486751581911,
+            "auc_exact": 0.9560046832864573,
+            "auc_v0": 0.9795377832012803
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01/cube_single_state_gciql_flow_bilinear_d50_measuremix_l01_s0": {
+      "means": {
+        "critic.cos_v0": 0.8864688751461796,
+        "critic.auc_exact": 0.9377740058096649,
+        "critic.auc_v0": 0.9535567089066278,
+        "value.cos_v0": 0.8950923002050528,
+        "value.auc_exact": 0.9521442809424887,
+        "value.auc_v0": 0.9805111716368671
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 17.368146896362305,
+            "cos_v0": 0.8850751154421611,
+            "auc_exact": 0.9359448738539708,
+            "auc_v0": 0.9650259673742524
+          },
+          "value": {
+            "psi_g_norm": 24.825664520263672,
+            "cos_v0": 0.894129285579283,
+            "auc_exact": 0.9498884958571963,
+            "auc_v0": 0.9816130397406521
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 16.45298957824707,
+            "cos_v0": 0.9003148163818472,
+            "auc_exact": 0.9327881206919227,
+            "auc_v0": 0.9239072312695175
+          },
+          "value": {
+            "psi_g_norm": 24.840988159179688,
+            "cos_v0": 0.8998344898103658,
+            "auc_exact": 0.9520600656133863,
+            "auc_v0": 0.9813555028597932
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 16.8459415435791,
+            "cos_v0": 0.896236240659448,
+            "auc_exact": 0.9398028273219485,
+            "auc_v0": 0.976123219421153
+          },
+          "value": {
+            "psi_g_norm": 24.915203094482422,
+            "cos_v0": 0.902052394733059,
+            "auc_exact": 0.9509448539765671,
+            "auc_v0": 0.9797761478413582
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 18.336061477661133,
+            "cos_v0": 0.8703730820986992,
+            "auc_exact": 0.9405616480900584,
+            "auc_v0": 0.9492114884530832
+          },
+          "value": {
+            "psi_g_norm": 26.131628036499023,
+            "cos_v0": 0.8879306100108402,
+            "auc_exact": 0.9536093101960765,
+            "auc_v0": 0.9789758441737575
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 18.133108139038086,
+            "cos_v0": 0.8803451211487422,
+            "auc_exact": 0.9397725590904237,
+            "auc_v0": 0.9535156380151334
+          },
+          "value": {
+            "psi_g_norm": 25.008106231689453,
+            "cos_v0": 0.8915147208917159,
+            "auc_exact": 0.954218679069217,
+            "auc_v0": 0.980835323568774
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01/cube_single_state_gciql_flow_bilinear_d50_measuremix_l01_s1": {
+      "means": {
+        "critic.cos_v0": 0.8846568729724023,
+        "critic.auc_exact": 0.9458952959357039,
+        "critic.auc_v0": 0.9475897686741137,
+        "value.cos_v0": 0.9040212733692844,
+        "value.auc_exact": 0.9531085335856948,
+        "value.auc_v0": 0.9811820181301633
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 18.562551498413086,
+            "cos_v0": 0.9019638625644083,
+            "auc_exact": 0.9466073419020513,
+            "auc_v0": 0.9621392237921471
+          },
+          "value": {
+            "psi_g_norm": 26.67204475402832,
+            "cos_v0": 0.9077316787565134,
+            "auc_exact": 0.955021739813375,
+            "auc_v0": 0.9826134684958328
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 15.928471565246582,
+            "cos_v0": 0.8805386291627854,
+            "auc_exact": 0.9003510075329545,
+            "auc_v0": 0.8658363621066205
+          },
+          "value": {
+            "psi_g_norm": 26.117156982421875,
+            "cos_v0": 0.9167208726349104,
+            "auc_exact": 0.9571180953590764,
+            "auc_v0": 0.9828477143101578
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 17.887184143066406,
+            "cos_v0": 0.863445808916625,
+            "auc_exact": 0.9516995437825966,
+            "auc_v0": 0.9703996478171393
+          },
+          "value": {
+            "psi_g_norm": 26.552114486694336,
+            "cos_v0": 0.9004891617811317,
+            "auc_exact": 0.9477271988817252,
+            "auc_v0": 0.9819280297006403
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 19.724571228027344,
+            "cos_v0": 0.8917095196531248,
+            "auc_exact": 0.9692650839249195,
+            "auc_v0": 0.9720661122007004
+          },
+          "value": {
+            "psi_g_norm": 27.847776412963867,
+            "cos_v0": 0.8973436334612103,
+            "auc_exact": 0.9572612668815594,
+            "auc_v0": 0.9798106173125545
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 18.801334381103516,
+            "cos_v0": 0.8856265445650682,
+            "auc_exact": 0.9615535025359968,
+            "auc_v0": 0.9675074974539608
+          },
+          "value": {
+            "psi_g_norm": 26.869094848632812,
+            "cos_v0": 0.8978210202126558,
+            "auc_exact": 0.9484143669927377,
+            "auc_v0": 0.9787102608316306
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01/cube_single_state_gciql_flow_bilinear_d50_measuremix_l01_s2": {
+      "means": {
+        "critic.cos_v0": 0.8825314486237911,
+        "critic.auc_exact": 0.8578664412097773,
+        "critic.auc_v0": 0.9433645939646393,
+        "value.cos_v0": 0.8949493534205845,
+        "value.auc_exact": 0.9479471949929122,
+        "value.auc_v0": 0.9792450951219539
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 15.394681930541992,
+            "cos_v0": 0.8507560599696176,
+            "auc_exact": 0.7606169299325328,
+            "auc_v0": 0.9139913427887972
+          },
+          "value": {
+            "psi_g_norm": 25.614992141723633,
+            "cos_v0": 0.8877634475227123,
+            "auc_exact": 0.9458340088145474,
+            "auc_v0": 0.9821327011782359
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 18.58879852294922,
+            "cos_v0": 0.9083978550105857,
+            "auc_exact": 0.9051570133544641,
+            "auc_v0": 0.9522374868355696
+          },
+          "value": {
+            "psi_g_norm": 25.186405181884766,
+            "cos_v0": 0.8995874557180945,
+            "auc_exact": 0.9509828273886893,
+            "auc_v0": 0.9813834235334405
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 16.604591369628906,
+            "cos_v0": 0.8789067264175136,
+            "auc_exact": 0.8613178480324097,
+            "auc_v0": 0.9455595253761554
+          },
+          "value": {
+            "psi_g_norm": 25.176830291748047,
+            "cos_v0": 0.8957151288600579,
+            "auc_exact": 0.9473147642891038,
+            "auc_v0": 0.9795582539857404
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 16.874053955078125,
+            "cos_v0": 0.9047488289378521,
+            "auc_exact": 0.9257445240438121,
+            "auc_v0": 0.959141805324478
+          },
+          "value": {
+            "psi_g_norm": 25.757658004760742,
+            "cos_v0": 0.9106702824523345,
+            "auc_exact": 0.9536537912823742,
+            "auc_v0": 0.9759245173815659
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 16.982622146606445,
+            "cos_v0": 0.8698477727833865,
+            "auc_exact": 0.836495890685667,
+            "auc_v0": 0.9458928094981967
+          },
+          "value": {
+            "psi_g_norm": 25.48835563659668,
+            "cos_v0": 0.8810104525497229,
+            "auc_exact": 0.9419505831898468,
+            "auc_v0": 0.9772265795307864
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01-sgphi/cube_single_state_gciql_flow_bilinear_d50_measuremix_l01_sgphi_s0": {
+      "means": {
+        "critic.cos_v0": 0.8231569811701744,
+        "critic.auc_exact": 0.9132609165983865,
+        "critic.auc_v0": 0.959403482956753,
+        "value.cos_v0": 0.8983333855226435,
+        "value.auc_exact": 0.9529965591578635,
+        "value.auc_v0": 0.9805949863140102
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 25.74073028564453,
+            "cos_v0": 0.8073529428151532,
+            "auc_exact": 0.9358680554673744,
+            "auc_v0": 0.9511935385608403
+          },
+          "value": {
+            "psi_g_norm": 27.378864288330078,
+            "cos_v0": 0.8983348561203341,
+            "auc_exact": 0.9584150868071765,
+            "auc_v0": 0.9831429284520766
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 29.937965393066406,
+            "cos_v0": 0.8950672130400825,
+            "auc_exact": 0.9276979300293359,
+            "auc_v0": 0.9680209118171861
+          },
+          "value": {
+            "psi_g_norm": 27.180938720703125,
+            "cos_v0": 0.9021300133852452,
+            "auc_exact": 0.9526325476428222,
+            "auc_v0": 0.9819481727758832
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 24.517736434936523,
+            "cos_v0": 0.8032616214535468,
+            "auc_exact": 0.8886312406258533,
+            "auc_v0": 0.9446313160691145
+          },
+          "value": {
+            "psi_g_norm": 27.62273597717285,
+            "cos_v0": 0.9070647707702121,
+            "auc_exact": 0.952341617374926,
+            "auc_v0": 0.9797180050915628
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 25.505239486694336,
+            "cos_v0": 0.8220654067246594,
+            "auc_exact": 0.9270351516878066,
+            "auc_v0": 0.9641295288511772
+          },
+          "value": {
+            "psi_g_norm": 28.14041519165039,
+            "cos_v0": 0.8943000574804657,
+            "auc_exact": 0.9504987353902755,
+            "auc_v0": 0.9764731294661955
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 24.950462341308594,
+            "cos_v0": 0.7880377218174298,
+            "auc_exact": 0.887072205181562,
+            "auc_v0": 0.9690421194854469
+          },
+          "value": {
+            "psi_g_norm": 26.961454391479492,
+            "cos_v0": 0.8898372298569605,
+            "auc_exact": 0.9510948085741177,
+            "auc_v0": 0.9816926957843328
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01-sgphi/cube_single_state_gciql_flow_bilinear_d50_measuremix_l01_sgphi_s1": {
+      "means": {
+        "critic.cos_v0": 0.8423227137088147,
+        "critic.auc_exact": 0.9318989095554457,
+        "critic.auc_v0": 0.9657583517289414,
+        "value.cos_v0": 0.907748124365227,
+        "value.auc_exact": 0.9645125863080197,
+        "value.auc_v0": 0.9810623898243082
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 25.74601173400879,
+            "cos_v0": 0.84947978218326,
+            "auc_exact": 0.9425672626812278,
+            "auc_v0": 0.9659115534913432
+          },
+          "value": {
+            "psi_g_norm": 25.137165069580078,
+            "cos_v0": 0.9094429956966237,
+            "auc_exact": 0.9684973625687269,
+            "auc_v0": 0.9826164280484077
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 27.28592300415039,
+            "cos_v0": 0.8551599667785644,
+            "auc_exact": 0.9610156757956054,
+            "auc_v0": 0.9799019159917891
+          },
+          "value": {
+            "psi_g_norm": 24.944580078125,
+            "cos_v0": 0.9101625043616256,
+            "auc_exact": 0.9647079536889093,
+            "auc_v0": 0.9821932411270303
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 21.550004959106445,
+            "cos_v0": 0.7736806717086505,
+            "auc_exact": 0.9212918972651389,
+            "auc_v0": 0.9460938179819871
+          },
+          "value": {
+            "psi_g_norm": 25.452993392944336,
+            "cos_v0": 0.9118720068031893,
+            "auc_exact": 0.9626328326501289,
+            "auc_v0": 0.9818980238580741
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 28.271692276000977,
+            "cos_v0": 0.8645427731680178,
+            "auc_exact": 0.9171219457004396,
+            "auc_v0": 0.9657031532077723
+          },
+          "value": {
+            "psi_g_norm": 26.350004196166992,
+            "cos_v0": 0.9007142758193832,
+            "auc_exact": 0.9619630547345447,
+            "auc_v0": 0.978037702543779
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 27.628145217895508,
+            "cos_v0": 0.8687503747055816,
+            "auc_exact": 0.9174977663348166,
+            "auc_v0": 0.9711813179718152
+          },
+          "value": {
+            "psi_g_norm": 25.027626037597656,
+            "cos_v0": 0.9065488391453139,
+            "auc_exact": 0.9647617278977891,
+            "auc_v0": 0.9805665535442495
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01-sgphi/cube_single_state_gciql_flow_bilinear_d50_measuremix_l01_sgphi_s2": {
+      "means": {
+        "critic.cos_v0": 0.8398783363258173,
+        "critic.auc_exact": 0.9337849511954189,
+        "critic.auc_v0": 0.9682826520751572,
+        "value.cos_v0": 0.8894168828158687,
+        "value.auc_exact": 0.949184885288806,
+        "value.auc_v0": 0.9806204214893303
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 25.537826538085938,
+            "cos_v0": 0.8157118925103662,
+            "auc_exact": 0.958070078965462,
+            "auc_v0": 0.9738916670577742
+          },
+          "value": {
+            "psi_g_norm": 26.30913734436035,
+            "cos_v0": 0.8897349475346504,
+            "auc_exact": 0.9552771412017931,
+            "auc_v0": 0.9834107479631229
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 32.349849700927734,
+            "cos_v0": 0.9066094622253135,
+            "auc_exact": 0.9543524434308263,
+            "auc_v0": 0.9766806100818699
+          },
+          "value": {
+            "psi_g_norm": 26.04215431213379,
+            "cos_v0": 0.902965155943257,
+            "auc_exact": 0.953914478445358,
+            "auc_v0": 0.982515893140046
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 27.226722717285156,
+            "cos_v0": 0.8656210780204394,
+            "auc_exact": 0.9409714777320213,
+            "auc_v0": 0.9749529058300923
+          },
+          "value": {
+            "psi_g_norm": 26.191421508789062,
+            "cos_v0": 0.8946213312210236,
+            "auc_exact": 0.9483690495735098,
+            "auc_v0": 0.9793223909169743
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 27.676084518432617,
+            "cos_v0": 0.8087604478590212,
+            "auc_exact": 0.8949206097352636,
+            "auc_v0": 0.9516039470428056
+          },
+          "value": {
+            "psi_g_norm": 26.964298248291016,
+            "cos_v0": 0.8822784161839758,
+            "auc_exact": 0.9478905246000511,
+            "auc_v0": 0.9799435917801044
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 26.256567001342773,
+            "cos_v0": 0.8026888010139469,
+            "auc_exact": 0.9206101461135214,
+            "auc_v0": 0.9642841303632442
+          },
+          "value": {
+            "psi_g_norm": 25.712360382080078,
+            "cos_v0": 0.8774845631964368,
+            "auc_exact": 0.9404732326233182,
+            "auc_v0": 0.9779094836464037
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1/cube_single_state_gciql_flow_bilinear_d50_measuremix_l1_s0": {
+      "means": {
+        "critic.cos_v0": 0.9029262992539338,
+        "critic.auc_exact": 0.9408968493031964,
+        "critic.auc_v0": 0.9641844439630944,
+        "value.cos_v0": 0.8958161318182842,
+        "value.auc_exact": 0.9505220021612649,
+        "value.auc_v0": 0.9801498732456018
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 17.553119659423828,
+            "cos_v0": 0.8927413995567127,
+            "auc_exact": 0.9550971684100797,
+            "auc_v0": 0.9788657550751477
+          },
+          "value": {
+            "psi_g_norm": 24.209877014160156,
+            "cos_v0": 0.8948785780364957,
+            "auc_exact": 0.9547787865430505,
+            "auc_v0": 0.9826320056933793
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 17.02569580078125,
+            "cos_v0": 0.9149410622872765,
+            "auc_exact": 0.9430438720949021,
+            "auc_v0": 0.9557350480365451
+          },
+          "value": {
+            "psi_g_norm": 23.611989974975586,
+            "cos_v0": 0.9055526180570381,
+            "auc_exact": 0.9538068785835958,
+            "auc_v0": 0.9813964295695793
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 17.814733505249023,
+            "cos_v0": 0.9030788612293924,
+            "auc_exact": 0.9598752271335118,
+            "auc_v0": 0.9810017064751322
+          },
+          "value": {
+            "psi_g_norm": 24.193513870239258,
+            "cos_v0": 0.8983800979296127,
+            "auc_exact": 0.9451281099448364,
+            "auc_v0": 0.9803209853575775
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 19.280397415161133,
+            "cos_v0": 0.9187008203388681,
+            "auc_exact": 0.9214856628732131,
+            "auc_v0": 0.9467291301080789
+          },
+          "value": {
+            "psi_g_norm": 25.202693939208984,
+            "cos_v0": 0.900957896759317,
+            "auc_exact": 0.9509414366922083,
+            "auc_v0": 0.9770638786804065
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 16.741586685180664,
+            "cos_v0": 0.8851693528574192,
+            "auc_exact": 0.924982316004275,
+            "auc_v0": 0.9585905801205681
+          },
+          "value": {
+            "psi_g_norm": 24.191404342651367,
+            "cos_v0": 0.8793114683089576,
+            "auc_exact": 0.9479547990426334,
+            "auc_v0": 0.9793360669270662
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1/cube_single_state_gciql_flow_bilinear_d50_measuremix_l1_s1": {
+      "means": {
+        "critic.cos_v0": 0.8948707777576825,
+        "critic.auc_exact": 0.9136692515118685,
+        "critic.auc_v0": 0.970316944938942,
+        "value.cos_v0": 0.896215150578293,
+        "value.auc_exact": 0.9553401702563017,
+        "value.auc_v0": 0.9807579455357688
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 19.625648498535156,
+            "cos_v0": 0.8927417202254857,
+            "auc_exact": 0.8979732344064225,
+            "auc_v0": 0.9683194694626066
+          },
+          "value": {
+            "psi_g_norm": 25.789825439453125,
+            "cos_v0": 0.8929733077047435,
+            "auc_exact": 0.9553072566489398,
+            "auc_v0": 0.9821147038990645
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 18.27739715576172,
+            "cos_v0": 0.8980699050588083,
+            "auc_exact": 0.9166466952193432,
+            "auc_v0": 0.9703951725686524
+          },
+          "value": {
+            "psi_g_norm": 25.414888381958008,
+            "cos_v0": 0.9072490207417708,
+            "auc_exact": 0.9549846036865993,
+            "auc_v0": 0.9810930996858954
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 19.03101348876953,
+            "cos_v0": 0.904837409393097,
+            "auc_exact": 0.9246625307184814,
+            "auc_v0": 0.9688263986259039
+          },
+          "value": {
+            "psi_g_norm": 25.456167221069336,
+            "cos_v0": 0.9019824713895852,
+            "auc_exact": 0.9510996841242088,
+            "auc_v0": 0.9801339546543134
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 19.395538330078125,
+            "cos_v0": 0.8998806706685416,
+            "auc_exact": 0.9140258853958424,
+            "auc_v0": 0.9688539358864732
+          },
+          "value": {
+            "psi_g_norm": 26.902385711669922,
+            "cos_v0": 0.8904175788511618,
+            "auc_exact": 0.9608372162629126,
+            "auc_v0": 0.9810187106344865
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 18.522306442260742,
+            "cos_v0": 0.87882418344248,
+            "auc_exact": 0.9150379118192538,
+            "auc_v0": 0.9751897481510744
+          },
+          "value": {
+            "psi_g_norm": 25.433048248291016,
+            "cos_v0": 0.8884533742042041,
+            "auc_exact": 0.9544720905588476,
+            "auc_v0": 0.9794292588050845
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1/cube_single_state_gciql_flow_bilinear_d50_measuremix_l1_s2": {
+      "means": {
+        "critic.cos_v0": 0.8909605251616476,
+        "critic.auc_exact": 0.8959277513957336,
+        "critic.auc_v0": 0.9620594953125388,
+        "value.cos_v0": 0.9007162795791585,
+        "value.auc_exact": 0.9506437115151931,
+        "value.auc_v0": 0.9804498631418994
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 16.400312423706055,
+            "cos_v0": 0.8877404709146715,
+            "auc_exact": 0.854936730665058,
+            "auc_v0": 0.9456209410261357
+          },
+          "value": {
+            "psi_g_norm": 24.892230987548828,
+            "cos_v0": 0.901739588792029,
+            "auc_exact": 0.9546134815338617,
+            "auc_v0": 0.9824923668039865
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 18.053937911987305,
+            "cos_v0": 0.9085753943739816,
+            "auc_exact": 0.9431365278047015,
+            "auc_v0": 0.9676100706151025
+          },
+          "value": {
+            "psi_g_norm": 24.320720672607422,
+            "cos_v0": 0.9077171092960651,
+            "auc_exact": 0.9554863002167777,
+            "auc_v0": 0.9832824818964241
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 16.28313636779785,
+            "cos_v0": 0.8926853512040474,
+            "auc_exact": 0.8737863215366077,
+            "auc_v0": 0.9677851615964651
+          },
+          "value": {
+            "psi_g_norm": 24.930423736572266,
+            "cos_v0": 0.9012706426079101,
+            "auc_exact": 0.9459528076681217,
+            "auc_v0": 0.9802557440827406
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 17.873310089111328,
+            "cos_v0": 0.8766150335621996,
+            "auc_exact": 0.8960887926864944,
+            "auc_v0": 0.9581924487631346
+          },
+          "value": {
+            "psi_g_norm": 26.00579833984375,
+            "cos_v0": 0.8947760700519877,
+            "auc_exact": 0.9465167045230701,
+            "auc_v0": 0.9773116889966107
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 16.838600158691406,
+            "cos_v0": 0.889186375753338,
+            "auc_exact": 0.9116903842858062,
+            "auc_v0": 0.9710888545618551
+          },
+          "value": {
+            "psi_g_norm": 24.64788055419922,
+            "cos_v0": 0.8980779871478008,
+            "auc_exact": 0.9506492636341339,
+            "auc_v0": 0.9789070339297353
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1-sgphi/cube_single_state_gciql_flow_bilinear_d50_measuremix_l1_sgphi_s0": {
+      "means": {
+        "critic.cos_v0": 0.8076411475322732,
+        "critic.auc_exact": 0.7384065794742571,
+        "critic.auc_v0": 0.8190548964368949,
+        "value.cos_v0": 0.9083256660389424,
+        "value.auc_exact": 0.9616601459903624,
+        "value.auc_v0": 0.9817102143130108
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 77.755126953125,
+            "cos_v0": 0.8251937405949763,
+            "auc_exact": 0.8871531101928011,
+            "auc_v0": 0.9709284350391908
+          },
+          "value": {
+            "psi_g_norm": 25.703466415405273,
+            "cos_v0": 0.9122268516091178,
+            "auc_exact": 0.9680701971475952,
+            "auc_v0": 0.9840443521748382
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 71.26807403564453,
+            "cos_v0": 0.7932690220917293,
+            "auc_exact": 0.7444767142368833,
+            "auc_v0": 0.8287168988509748
+          },
+          "value": {
+            "psi_g_norm": 25.528085708618164,
+            "cos_v0": 0.9130808538565665,
+            "auc_exact": 0.9612439602604796,
+            "auc_v0": 0.9816922431056005
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 72.21762084960938,
+            "cos_v0": 0.79125292872648,
+            "auc_exact": 0.7049355753127359,
+            "auc_v0": 0.8239068207138047
+          },
+          "value": {
+            "psi_g_norm": 26.147327423095703,
+            "cos_v0": 0.9146694794218495,
+            "auc_exact": 0.9612682526611968,
+            "auc_v0": 0.9814473532489255
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 84.39186096191406,
+            "cos_v0": 0.8420843154374785,
+            "auc_exact": 0.7144498530744823,
+            "auc_v0": 0.7808350345801229
+          },
+          "value": {
+            "psi_g_norm": 26.73558807373047,
+            "cos_v0": 0.9014548842732639,
+            "auc_exact": 0.9583713557671026,
+            "auc_v0": 0.9797654510696782
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 75.6360855102539,
+            "cos_v0": 0.7864057308107018,
+            "auc_exact": 0.6410176445543829,
+            "auc_v0": 0.6908872930003811
+          },
+          "value": {
+            "psi_g_norm": 25.61162757873535,
+            "cos_v0": 0.9001962610339144,
+            "auc_exact": 0.959346964115438,
+            "auc_v0": 0.9816016719660117
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1-sgphi/cube_single_state_gciql_flow_bilinear_d50_measuremix_l1_sgphi_s1": {
+      "means": {
+        "critic.cos_v0": 0.7947666542460283,
+        "critic.auc_exact": 0.8770620235727262,
+        "critic.auc_v0": 0.8987147700069291,
+        "value.cos_v0": 0.889920041702684,
+        "value.auc_exact": 0.9501335933446292,
+        "value.auc_v0": 0.9806248975259988
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 68.74817657470703,
+            "cos_v0": 0.7818951434929411,
+            "auc_exact": 0.8514468782609445,
+            "auc_v0": 0.9579490172675695
+          },
+          "value": {
+            "psi_g_norm": 29.08226203918457,
+            "cos_v0": 0.8846848343964411,
+            "auc_exact": 0.9515697816804055,
+            "auc_v0": 0.9812476549795202
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 77.53805541992188,
+            "cos_v0": 0.8788380931275811,
+            "auc_exact": 0.899200563623758,
+            "auc_v0": 0.8793874908613412
+          },
+          "value": {
+            "psi_g_norm": 28.28055763244629,
+            "cos_v0": 0.9002932848211269,
+            "auc_exact": 0.9546779386695939,
+            "auc_v0": 0.9820202864255785
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 75.02139282226562,
+            "cos_v0": 0.7822828272389817,
+            "auc_exact": 0.9061682067522576,
+            "auc_v0": 0.9131658521509259
+          },
+          "value": {
+            "psi_g_norm": 28.492937088012695,
+            "cos_v0": 0.8780240597677271,
+            "auc_exact": 0.9410483612737738,
+            "auc_v0": 0.9803583297719256
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 66.19487762451172,
+            "cos_v0": 0.7549033649726122,
+            "auc_exact": 0.7806520797432105,
+            "auc_v0": 0.7769274243386549
+          },
+          "value": {
+            "psi_g_norm": 29.155593872070312,
+            "cos_v0": 0.8957848776842615,
+            "auc_exact": 0.9540416169514949,
+            "auc_v0": 0.9803019286706925
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 71.99920654296875,
+            "cos_v0": 0.7759138423980251,
+            "auc_exact": 0.9478423894834604,
+            "auc_v0": 0.9661440654161542
+          },
+          "value": {
+            "psi_g_norm": 28.688268661499023,
+            "cos_v0": 0.8908131518438629,
+            "auc_exact": 0.9493302681478781,
+            "auc_v0": 0.9791962877822777
+          }
+        }
+      }
+    },
+    "GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1-sgphi/cube_single_state_gciql_flow_bilinear_d50_measuremix_l1_sgphi_s2": {
+      "means": {
+        "critic.cos_v0": 0.842117004704731,
+        "critic.auc_exact": 0.8160045646480578,
+        "critic.auc_v0": 0.8387787077244686,
+        "value.cos_v0": 0.9120622822951299,
+        "value.auc_exact": 0.9616829254741963,
+        "value.auc_v0": 0.9811897131522616
+      },
+      "per_task": {
+        "cube-single-play-singletask-task1-v0": {
+          "critic": {
+            "psi_g_norm": 90.4677734375,
+            "cos_v0": 0.8542999759788895,
+            "auc_exact": 0.8370011021733734,
+            "auc_v0": 0.9830465230266489
+          },
+          "value": {
+            "psi_g_norm": 26.976972579956055,
+            "cos_v0": 0.9081883687299307,
+            "auc_exact": 0.9661998599051795,
+            "auc_v0": 0.9842941144157826
+          }
+        },
+        "cube-single-play-singletask-task2-v0": {
+          "critic": {
+            "psi_g_norm": 88.46072387695312,
+            "cos_v0": 0.8862394396246652,
+            "auc_exact": 0.6838930237983307,
+            "auc_v0": 0.7820928368891954
+          },
+          "value": {
+            "psi_g_norm": 26.856494903564453,
+            "cos_v0": 0.923680955997034,
+            "auc_exact": 0.9657864610351357,
+            "auc_v0": 0.9826685812496325
+          }
+        },
+        "cube-single-play-singletask-task3-v0": {
+          "critic": {
+            "psi_g_norm": 82.0615234375,
+            "cos_v0": 0.8187513399387284,
+            "auc_exact": 0.9369295021302004,
+            "auc_v0": 0.7214911360597785
+          },
+          "value": {
+            "psi_g_norm": 27.12163543701172,
+            "cos_v0": 0.91842121577831,
+            "auc_exact": 0.9606680500788939,
+            "auc_v0": 0.980787293297252
+          }
+        },
+        "cube-single-play-singletask-task4-v0": {
+          "critic": {
+            "psi_g_norm": 85.25364685058594,
+            "cos_v0": 0.8591040041427216,
+            "auc_exact": 0.9405150033514074,
+            "auc_v0": 0.7705746525422239
+          },
+          "value": {
+            "psi_g_norm": 27.521987915039062,
+            "cos_v0": 0.9026806080128426,
+            "auc_exact": 0.9588488558110518,
+            "auc_v0": 0.979164442537225
+          }
+        },
+        "cube-single-play-singletask-task5-v0": {
+          "critic": {
+            "psi_g_norm": 85.5634994506836,
+            "cos_v0": 0.7921902638386502,
+            "auc_exact": 0.681684191786977,
+            "auc_v0": 0.9366883901044968
+          },
+          "value": {
+            "psi_g_norm": 26.536632537841797,
+            "cos_v0": 0.9073402629575325,
+            "auc_exact": 0.956911400540721,
+            "auc_v0": 0.9790341342614155
+          }
+        }
+      }
+    }
+  }
+}

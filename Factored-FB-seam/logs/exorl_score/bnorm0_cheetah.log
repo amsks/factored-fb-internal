@@ -1,0 +1,20 @@
+8 cells: 1 domains x 4 tasks x 2 seeds (2 at a time)
+[ok] dmc-cheetah/walk/s0
+[ok] dmc-cheetah/walk/s1
+[ok] dmc-cheetah/walk_backward/s0
+[ok] dmc-cheetah/walk_backward/s1
+[ok] dmc-cheetah/run/s0
+[ok] dmc-cheetah/run/s1
+[ok] dmc-cheetah/run_backward/s0
+[ok] dmc-cheetah/run_backward/s1
+
+critic                   domain                 task                      mean      std  n
+density_fb_z             dmc-cheetah            run                       40.3      6.8  2
+density_fb_z             dmc-cheetah            run_backward              50.3     21.4  2
+density_fb_z             dmc-cheetah            walk                     235.5     49.1  2
+density_fb_z             dmc-cheetah            walk_backward            308.3    197.8  2
+density_fb_z             dmc-walker             run                      127.5      0.0  1
+density_fb_z             dmc-walker             stand                    460.8     78.9  3
+density_fb_z             dmc-walker             walk                     554.3    158.0  3
+
+Compare against RLDP Table 1 in docs/notes/2026-08-28-rldp-paper-eval.md. Gate (spec §4): per-task mean within 1 sigma of the official cell for >= 3 of 4 tasks, and no task below 50% of an official mean > 100.

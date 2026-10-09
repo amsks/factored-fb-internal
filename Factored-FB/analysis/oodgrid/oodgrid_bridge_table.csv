@@ -1,0 +1,114 @@
+block,agent,framework,actor,variant,experiment,n_seeds,z_route,C1_id_start_id_goal,C2_id_start_ood_goal,C4_ood_start_id_goal,C3_eval_ood_start_ood_goal,dGOAL,dSTART,INTER,deltas_cross_route,published_anchor,wandb_group
+summary,GCIQL,jax,flow,bilinear-d512,,3,,0.933,0.927,0.843,0.960,-0.007,-0.090,0.123,no,,GCIQL-State-Flow-Bilinear
+summary,GCIQL,jax,flow,bilinear-d50,,3,,0.867,0.930,0.773,0.947,0.063,-0.093,0.110,no,0.904,GCIQL-State-Flow-Bilinear-d50
+summary,GCIQL,jax,flow,bilinear-d128,,3,,0.890,0.937,0.823,0.933,0.047,-0.067,0.063,no,,GCIQL-State-Flow-Bilinear-d128
+summary,GCIQL,jax,awr_flow,bilinear-d50,,3,,0.883,0.800,0.793,0.903,-0.083,-0.090,0.193,no,,GCIQL-State-AWRFlow-Bilinear-d50
+summary,GCIQL,jax,flow,bilinear-d28,,3,,0.753,0.830,0.647,0.900,0.077,-0.107,0.177,no,,GCIQL-State-Flow-Bilinear-d28
+summary,GCIVL,jax,flow,bilinear-d50,,1,,0.960,0.860,0.840,0.810,-0.100,-0.120,0.070,no,,GCIVL-State-Flow-Bilinear-d50
+summary,GCIQL,jax,flow,mlp,,3,,0.980,0.823,0.787,0.747,-0.157,-0.193,0.117,no,0.717,GCIQL-State-Flow
+summary,GCIQL,jax,ddpgbc,bilinear-d50,,3,,0.673,0.747,0.437,0.557,0.073,-0.237,0.047,no,,GCIQL-State-Flow-Bilinear-d50-ddpgbc
+summary,GCIVL,jax,flow,mlp,,1,,0.990,0.690,0.770,0.520,-0.300,-0.220,0.050,no,,GCIVL-State-Flow-Stock
+summary,PSM,torch,flow,z50-ortho1000-tuned,,2,zR,,0.380,,0.485,,,,yes,,psm_z50_ortho1000
+summary,PSM,torch,flow,tuned-ortho1000,,1,zR,,0.330,,0.420,,,,yes,,psm_state_orthohi__ortho_coef1000__lr_phi1e-5
+summary,HIQL,jax,awr,bilinear-schaul-sg10,,2,,0.710,0.410,0.385,0.390,-0.300,-0.325,0.305,no,,HIQL-State-Native-Bilinear-d50-schaul-sg10
+summary,FB,torch,flow,plain-1.5M,,3,zR,0.373,0.393,0.220,0.323,,,,yes,0.420,fb_state_plain
+summary,FB,torch,ddpgbc,plain,,3,zR,0.323,0.273,0.183,0.310,,,,yes,,fb_state_ddpgbc
+summary,PSM,torch,flow,tuned-ortho100,,2,zR,,0.240,,0.265,,,,yes,,psm_state_orthohi__ortho_coef100__lr_phi1e-5
+summary,PSM,torch,flow,tuned-ortho1,,2,zR,,0.285,,0.225,,,,yes,,psm_state_tuned__ortho_coef1__lr_phi1e-5
+summary,HIQL,jax,flow,mlp-sg10,,1,,0.820,0.310,0.360,0.220,-0.510,-0.460,0.370,no,,HIQL-State-Flow-both-MLP-sg10
+summary,HIQL,jax,flow,bilinear-d50-sg25-mistuned,,2,,0.635,0.265,0.295,0.180,-0.370,-0.340,0.255,no,,HIQL-State-Flow-both-Bilinear-d50
+summary,HIQL,jax,awr,bilinear-d50-sg25-mistuned,,1,,0.500,0.280,0.220,0.170,-0.220,-0.280,0.170,no,,HIQL-State-Bilinear-d50
+summary,HIQL,jax,awr,bilinear-rep50-sg10,,1,,0.780,0.280,0.190,0.170,-0.500,-0.590,0.480,no,,HIQL-State-Native-Bilinear-d50-rep50-sg10
+summary,CRL,jax,ddpgbc,plain,,2,,0.690,0.195,0.305,0.165,-0.495,-0.385,0.355,no,,crl_state_ddpgbc
+summary,GCIQL,jax,flow,bilinear-d5,,3,,0.227,0.180,0.153,0.157,-0.047,-0.073,0.050,no,,GCIQL-State-Flow-Bilinear-d5
+summary,HIQL,jax,awr,bilinear-d50-sg10,,2,,0.670,0.195,0.225,0.155,-0.475,-0.445,0.405,no,,HIQL-State-Native-Bilinear-d50-sg10
+summary,HIQL,jax,flow,bilinear-d50-sg10,,2,,0.770,0.215,0.225,0.155,-0.555,-0.545,0.485,no,,HIQL-State-Flow-both-Bilinear-d50-sg10
+summary,HIQL,jax,flow,bilinear-high-only-sg25-mistuned,,1,,0.470,0.200,0.300,0.150,-0.270,-0.170,0.120,no,,HIQL-State-Flow-high-Bilinear-d50
+summary,HIQL,jax,awr,mlp-sg10,,1,,0.810,0.160,0.200,0.100,-0.650,-0.610,0.550,no,,HIQL-State-Native-MLP-sg10
+bridge,GCIQL,jax,flow,anneal-zero,"control: fine-tune the 0.904 baseline 400k longer, no change",3,,0.883,0.943,0.810,0.953,0.060,-0.073,0.083,no,,GCIQL-State-Flow-Anneal-Zero
+bridge,GCIQL,jax,flow,g4-zcond,actor conditions on the goal embedding instead of the raw goal,3,,0.900,0.953,0.820,0.947,0.053,-0.080,0.073,no,,gciql_g4_zcond
+bridge,GCIQL,jax,flow,E2-mix-l0.01,"reward TD + successor-measure loss, weight 0.01 (shared representation)",3,,0.850,0.870,0.753,0.927,0.020,-0.097,0.153,no,,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l001
+bridge,GCIQL,jax,flow,single-q,single Q head instead of double-Q,3,,0.857,0.890,0.743,0.910,0.033,-0.113,0.133,no,,GCIQL-State-Flow-Bilinear-d50-singleq
+bridge,GCIQL,jax,flow,B4-full-struct,"all representation changes at once, scalar reward TD kept",3,,0.803,0.853,0.680,0.903,0.050,-0.123,0.173,no,,GCIQL-State-Flow-Bilinear-d50-B4-FBstruct
+bridge,GCIQL,jax,flow,tau0.5,IQL expectile 0.5,3,,0.867,0.880,0.773,0.900,0.013,-0.093,0.113,no,,GCIQL-State-Flow-Bilinear-d50-tau05
+bridge,GCIQL,jax,flow,tau0.95,IQL expectile 0.95,3,,0.857,0.887,0.710,0.900,0.030,-0.147,0.160,no,,GCIQL-State-Flow-Bilinear-d50-tau095
+bridge,GCIQL,jax,flow,E2-mix-l10,"reward TD + successor-measure loss, weight 10 (shared representation)",3,,0.857,0.910,0.697,0.887,0.053,-0.160,0.137,no,,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l10
+bridge,GCIQL,jax,flow,B-twotower-projz,above + goal embedding L2-normalised to fixed norm,3,,0.813,0.857,0.683,0.880,0.043,-0.130,0.153,no,,GCIQL-State-Flow-Bilinear-d50-B-TwoTowerProjZ
+bridge,GCIQL,jax,flow,E2-mix-l0.1-sgphi,"as above, weight 0.1, measure gradients blocked from the Q-feature",3,,0.837,0.860,0.727,0.880,0.023,-0.110,0.130,no,,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01-sgphi
+bridge,GCIQL,jax,flow,E2-mix-l0.1,"reward TD + successor-measure loss, weight 0.1 (shared representation)",3,,0.837,0.867,0.733,0.880,0.030,-0.103,0.117,no,,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l01
+bridge,GCIQL,jax,flow,E2-mix-l1,"reward TD + successor-measure loss, weight 1 (shared representation)",3,,0.843,0.867,0.733,0.880,0.023,-0.110,0.123,no,,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1
+bridge,GCIQL,jax,flow,E2-mix-l1-sgphi,"as above, weight 1, measure gradients blocked from the Q-feature",3,,0.833,0.883,0.730,0.867,0.050,-0.103,0.087,no,,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l1-sgphi
+bridge,GCIQL,jax,flow,B1-fbz-iql,"task-conditioned Q-feature, still trained by scalar reward TD",3,,0.807,0.840,0.733,0.860,0.033,-0.073,0.093,no,,GCIQL-State-Flow-Bilinear-d50-B1-FBzIQL
+bridge,GCIQL,jax,flow,two-tower,"Q-feature: separate (s,a)/(s,z) encoder branches",3,,0.793,0.877,0.663,0.850,0.083,-0.130,0.103,no,,GCIQL-State-Flow-Bilinear-d50-TwoTower
+bridge,GCIQL,jax,flow,B-twotower-ortho1,above + orthonormality penalty (coef 1),3,,0.800,0.877,0.660,0.847,0.077,-0.140,0.110,no,,GCIQL-State-Flow-Bilinear-d50-B-TwoTowerOrtho1
+bridge,GCIQL,jax,flow,anneal-sgphi,"warm-start from baseline, ramp measure weight 0→10 (gradients blocked from the Q-feature)",3,,0.823,0.870,0.643,0.843,0.047,-0.180,0.153,no,,GCIQL-State-Flow-Anneal-SgPhi
+bridge,FB,torch,flow,r2-dnorm,above + inner product scaled by 1/sqrt(d),3,zR,0.837,0.673,0.643,0.577,,,,yes,,fb_bridge_r2_dnorm
+bridge,FB,torch,flow,r3-bilinearv,above + bilinear value head (tested as a gap-closer; refuted),3,zR,0.567,0.690,0.353,0.570,,,,yes,,fb_bridge_r3_bilinearv
+bridge,FB,torch,flow,a0-cubexyz,FB given a privileged reward: distance of the cube to its target,3,zR,0.827,0.730,0.683,0.567,,,,yes,,fb_bridge_a0_cubexyz
+bridge,FB,torch,flow,r0-base,FB critic under IQL + goal-matched sampling + GCIQL-style goal mixture,3,zR,0.810,0.723,0.630,0.560,,,,yes,,fb_bridge_r0_base
+bridge,FB,torch,flow,r1-decond,above + Q-feature no longer conditioned on the task vector,3,zR,0.683,0.660,0.410,0.557,,,,yes,,fb_bridge_r1_decond
+bridge,FB,torch,flow,r3-allon,above + both changes together,3,zR,0.623,0.703,0.413,0.550,,,,yes,,fb_bridge_r3_allon
+bridge,GCIQL,jax,flow,simplesf-arch,successor features: normalised base features + linear readout,3,,0.730,0.387,0.653,0.383,-0.343,-0.077,0.073,no,,GCIQL-State-Flow-SimpleSF-Arch
+bridge,FB,torch,flow,iql-ontraj,"FB critic under IQL, goals sampled from the same trajectory",3,zR,0.380,0.320,0.277,0.303,,,,yes,,fb_iql_ontraj_flow
+bridge,ISFB,torch,flow,torch-exp1,"scalar-gated FB (ISFB), faithful reference implementation (torch)",2,zR,0.300,0.360,0.225,0.290,,,,yes,,ISFB-Torch-Exp1-fixed
+bridge,GCIQL,jax,flow,C1-fbz-ortho1000,successor-measure objective + task-conditioned Q-feature + orthonormality 1000,3,,0.457,0.327,0.310,0.257,-0.130,-0.147,0.077,no,,GCIQL-Bil-FBz-O1000
+bridge,FB,torch,flow,z128-ortho1000,FB with a 128-dim task vector + orthonormality 1000,2,zR,0.285,0.230,0.175,0.250,,,,yes,,fb_z128_ortho1000
+bridge,FB,torch,flow,decouple-iql,above + IQL objective,3,zR,0.510,0.303,0.237,0.233,,,,yes,,fb_cube_decouple_iql
+bridge,FB,torch,flow,fb-iql-v0,FB critic trained with the IQL objective instead of the measure loss (first version),3,zR,0.310,0.247,0.170,0.227,,,,yes,,fb_state_iql
+bridge,GCIQL,jax,flow,C-tasknorm,successor-measure residual measured under the task-state distribution instead of the replay distribution,3,,0.577,0.240,0.357,0.223,-0.337,-0.220,0.203,no,,GCIQL-State-Flow-Bilinear-d50-C-TaskNorm
+bridge,FB,torch,flow,decouple,actor no longer shares the critic task vector,3,zR,0.337,0.253,0.250,0.223,,,,yes,,fb_cube_decouple
+bridge,FB,torch,flow,decouple-zher,above + task vector relabelled from future states in the trajectory,3,zR,0.303,0.210,0.193,0.213,,,,yes,,fb_cube_decouple_zher_traj
+bridge,FB,torch,ddpgbc,iql-ontraj,as above with a DDPG+BC actor (actor-isolation control),3,zR,0.420,0.220,0.383,0.213,,,,yes,,fb_iql_ontraj_ddpgbc
+bridge,FB,torch,flow,zher,task vector relabelled from future states (hindsight over tasks),2,zR,0.335,0.270,0.170,0.210,,,,yes,,fb_state_zher
+bridge,FB,torch,flow,learnedB-iql,"learned goal embedding, IQL objective (matched control)",3,zR,0.517,0.267,0.237,0.210,,,,yes,,fb_cube_iql_learnedB_r1
+bridge,FB,torch,flow,fb-iql-critic-fix,"as above, corrected learning rate + orthonormality 1000",3,zR,0.453,0.313,0.223,0.207,,,,yes,,fb_state_iqlcritic_fix
+bridge,GCIQL,jax,flow,D1-actor-z-critic,"actor takes its task vector from the critic goal embedding, under the successor-measure objective",3,,0.430,0.283,0.240,0.203,-0.147,-0.190,0.110,no,,GCIQL-State-Flow-Bilinear-d50-D1-ActorZCritic
+bridge,FB,torch,flow,idnorm-her,"unnormalised goal embedding, hindsight relabelling",3,zR,0.453,0.240,0.373,0.200,,,,yes,,fb_cube_her_idnorm_r1
+bridge,GCIQL,jax,flow,C-fbz-projz-ortho1000,successor-measure + task-conditioned Q-feature + normalised goal embedding + orthonormality 1000,3,,0.573,0.277,0.370,0.187,-0.297,-0.203,0.113,no,,GCIQL-State-Flow-Bilinear-d50-C-FBzProjZ-O1000
+bridge,GCIQL,jax,flow,E2-mix-l3-sgphi,"as above, weight 3, measure gradients blocked from the Q-feature",3,,0.450,0.280,0.330,0.183,-0.170,-0.120,0.023,no,,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l3-sgphi
+bridge,ISFB,jax,flow,coord,scalar-gated FB with a coordinate readout,3,,0.187,0.213,0.253,0.180,0.027,0.067,-0.100,no,,ISFB-State-Coord-d50
+bridge,ISFB,jax,flow,scalargate-hard,"scalar-gated FB, hard gate",3,,0.203,0.213,0.207,0.173,0.010,0.003,-0.043,no,,ISFB-State-ScalarGateHard-d50
+bridge,FB,torch,flow,covbal-prio-wz,"coverage-balanced prioritised replay, task-vector-aware (alpha 0.5)",3,zR,0.247,0.167,0.173,0.160,,,,yes,,covbal_prio_wz_a0.5
+bridge,GCIQL,jax,flow,C-fbz-ortho1,successor-measure + task-conditioned Q-feature + orthonormality 1,3,,0.350,0.183,0.193,0.157,-0.167,-0.157,0.130,no,,GCIQL-State-Flow-Bilinear-d50-C-FBz-O1
+bridge,GCIQL,jax,flow,C5b-zmix-actorz,above + actor conditions on the task vector + task-consistent bootstrap,3,,0.363,0.150,0.233,0.153,-0.213,-0.130,0.133,no,,GCIQL-State-Flow-Bilinear-d50-C5-Zmix-ActorZ
+bridge,GCIQL,jax,flow,C4-fb-rebuild,successor-measure + all representation changes at once (full stack),3,,0.500,0.207,0.263,0.147,-0.293,-0.237,0.177,no,,GCIQL-State-Flow-Bilinear-d50-C4-FBrebuild
+bridge,FB,torch,flow,learnedB-her,"learned goal embedding, hindsight relabelling (matched control)",3,zR,0.317,0.167,0.183,0.140,,,,yes,,fb_cube_her_learnedB_r1
+bridge,ISFB,jax,flow,scalargate-awr,"scalar-gated FB, AWR extraction",3,,0.273,0.157,0.170,0.137,-0.117,-0.103,0.083,no,,ISFB-State-ScalarGateAWR-d50
+bridge,FB,torch,flow,iwr-wz,"above, weights also conditioned on the task vector",3,zR,0.207,0.103,0.153,0.137,,,,yes,,fb_state_iwr_wz
+bridge,GCIQL,jax,flow,sf-joint-ortho1k,"successor-feature vector TD, base features learned jointly; normalised embedding + orthonormality 1000",3,,0.677,0.177,0.503,0.133,-0.500,-0.173,0.130,no,,GCIQL-State-Flow-SF-JointPsi-Ortho1k
+bridge,GCIQL,jax,ddpgbc,sf-td-frozen-cond,"frozen base + task-conditioned Q-feature, DDPG+BC actor (control)",3,,0.607,0.217,0.443,0.123,-0.390,-0.163,0.070,no,,GCIQL-State-Flow-SF-FeatureTD-FrozenCond-DDPGBC
+bridge,GCIQL,jax,flow,measure-only-ortho1000,successor-measure objective only (no reward TD) + orthonormality penalty 1000,3,,0.217,0.153,0.150,0.107,-0.063,-0.067,0.020,no,,GCIQL-Bil-MeasureOnly-O1000
+bridge,GCIQL,jax,flow,sf-joint-ortho1k-absorb,above + absorbing goal (first-hitting Q=γ^T) instead of a visitation density,3,,0.527,0.147,0.400,0.107,-0.380,-0.127,0.087,no,,GCIQL-State-Flow-SF-JointPsi-Ortho1k-Absorb
+bridge,FB,torch,flow,iwr,importance-weighted regression on the actor,3,zR,0.210,0.130,0.183,0.107,,,,yes,,fb_state_iwr
+bridge,GCIQL,jax,flow,sf-td-identity,"successor-feature vector TD, base features = raw state (⚠ confounded, see audit)",3,,0.463,0.120,0.313,0.107,-0.343,-0.150,0.137,no,,GCIQL-State-Flow-SF-FeatureTD-IdentityB
+bridge,GCIQL,jax,flow,sf-td-identity-cond,above (raw-state base) + task-conditioned Q-feature (⚠ confounded),3,,0.280,0.140,0.257,0.097,-0.140,-0.023,-0.020,no,,GCIQL-State-Flow-SF-FeatureTD-IdentityCond
+bridge,GCIQL,jax,flow,sf-td-frozen-cond,above (frozen base) + task-conditioned Q-feature (⚠ confounded),3,,0.373,0.117,0.257,0.093,-0.257,-0.117,0.093,no,,GCIQL-State-Flow-SF-FeatureTD-FrozenCond
+bridge,GCIQL,jax,flow,sf-td-frozen50,"successor-feature vector TD, base features frozen at random init (⚠ confounded)",3,,0.473,0.133,0.363,0.090,-0.340,-0.110,0.067,no,,GCIQL-State-Flow-SF-FeatureTD-Frozen50
+bridge,GCIQL,jax,flow,C5a-zmix,above + task vectors sampled as random unit directions during training,3,,0.280,0.140,0.160,0.073,-0.140,-0.120,0.053,no,,GCIQL-State-Flow-Bilinear-d50-C5-Zmix
+bridge,GCIQL,jax,flow,C2-measure-twotower,"successor-measure + separate (s,a)/(s,z) Q-feature branches",3,,0.227,0.113,0.187,0.070,-0.113,-0.040,-0.003,no,,GCIQL-State-Flow-Bilinear-d50-C2-MeasureTwoTower
+bridge,GCIQL,jax,ddpgbc,sf-td-identity-cond,"raw-state base + task-conditioned Q-feature, DDPG+BC actor (control)",3,,0.443,0.157,0.230,0.070,-0.287,-0.213,0.127,no,,GCIQL-State-Flow-SF-FeatureTD-IdentityCond-DDPGBC
+bridge,OneStepFB,torch,flow,ortho1000,one-step (non-bootstrapped) FB + orthonormality 1000,3,zR,0.037,0.077,0.070,0.057,,,,yes,,cube-single-onestep-ortho1000-lrb1e-4
+bridge,GCIQL,jax,flow,sf-td-rewreg-shift-cond,above + task-conditioned Q-feature,3,,0.220,0.070,0.103,0.053,-0.150,-0.117,0.100,no,,GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Cond
+bridge,GCIQL,jax,flow,iql-ortho1000,orthonormality penalty (coef 1000) on the reward-TD critic,3,,0.640,0.097,0.363,0.053,-0.543,-0.277,0.233,no,,GCIQL-State-Flow-Bilinear-d50-Ortho1000
+bridge,GCIQL,jax,flow,C-taskproj,above + each residual projected onto its own goal embedding (rank-1; fixed point = reward TD with a kernel reward),3,,0.170,0.060,0.110,0.050,-0.110,-0.060,0.050,no,,GCIQL-State-Flow-Bilinear-d50-C-TaskProj
+bridge,GCIQL,jax,flow,frozen-psi-d50,scalar IQL TD + frozen random psi (isolates the vector TD from the frozen readout),3,,0.283,0.087,0.150,0.050,-0.197,-0.133,0.097,no,,GCIQL-State-Flow-Bilinear-d50-FrozenPsi
+bridge,GCIQL,jax,flow,anneal-sgphi-iqlfade,"as above, but also fade reward TD out — endpoint is measure-only: does the good solution survive without it?",3,,0.167,0.070,0.093,0.047,-0.097,-0.073,0.050,no,,GCIQL-State-Flow-Anneal-SgPhi-IQLfade
+bridge,GCIQL,jax,flow,simplesf-anneal,successor-features curriculum: fade true-reward TD out as reward-regression grounding fades in,3,,0.153,0.067,0.100,0.033,-0.087,-0.053,0.020,no,,GCIQL-State-Flow-SimpleSF-Anneal
+bridge,FB,torch,flow,zg-her,"no learned goal embedding, hindsight relabelling",3,zR,0.483,0.057,0.363,0.033,,,,yes,,fb_cube_zg_her
+bridge,GCIQL,jax,flow,E2-mix-l10-sgphi,"as above, weight 10 (⚠ 1 Q-range diagnostic violation)",3,,0.180,0.070,0.100,0.030,-0.110,-0.080,0.040,no,,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l10-sgphi
+bridge,GCIQL,jax,flow,identity-psi-d28,no learned goal embedding: goal used directly,3,,0.420,0.063,0.317,0.023,-0.357,-0.103,0.063,no,,GCIQL-State-Flow-Bilinear-IdentityPsi
+bridge,FB,torch,flow,fb-iql-critic,"as above, earlier hyperparameters",3,zR,0.133,0.073,0.067,0.020,,,,yes,,fb_state_iqlcritic
+bridge,GCIQL,jax,ddpgbc,sf-td-frozen50,"frozen base, DDPG+BC actor (actor-isolation control)",3,,0.050,0.043,0.043,0.013,-0.007,-0.007,-0.023,no,,GCIQL-State-Flow-SF-FeatureTD-Frozen50-DDPGBC
+bridge,FB,torch,flow,zg-iql,"no learned goal embedding, IQL objective",3,zR,0.820,0.050,0.580,0.010,,,,yes,,fb_cube_zg_iql
+bridge,GCIQL,jax,flow,anneal-shared,"warm-start from baseline, ramp measure weight 0→100 (shared representation)",3,,0.273,0.030,0.147,0.007,-0.243,-0.127,0.103,no,,GCIQL-State-Flow-Anneal-Shared
+bridge,GCIQL,jax,ddpgbc,sf-td-identity,"raw-state base, DDPG+BC actor (actor-isolation control) (⚠ confounded)",3,,0.113,0.043,0.070,0.007,-0.070,-0.043,0.007,no,,GCIQL-State-Flow-SF-FeatureTD-IdentityB-DDPGBC
+bridge,GCIQL,jax,flow,sf-td-identity-cond-ortho1k,raw-state base + task-conditioned Q-feature + orthonormality penalty,3,,0.007,0.030,0.023,0.007,0.023,0.017,-0.040,no,,GCIQL-State-Flow-SF-FeatureTD-IdentityCond-Ortho1k
+bridge,FB,torch,flow,idB-decond-dnorm,above + Q-feature not task-conditioned (collapses),3,zR,0.190,0.037,0.077,0.003,,,,yes,,fb_bridge_idB_decond_dnorm
+bridge,FB,torch,flow,idB-dnorm,no learned goal embedding (task vector = the goal) + 1/sqrt(d) scaling,3,zR,0.917,0.020,0.733,0.003,,,,yes,,fb_bridge_idB_dnorm
+bridge,GCIQL,jax,flow,exp4-actor-z-infer,actor conditions on a task vector inferred from reward (⚠ artifact: the inferred vector was ~99% noise),2,,0.030,0.045,0.015,0.000,0.015,-0.015,-0.030,no,,GCIQL-State-Flow-Bilinear-d50-Exp4-ActorZInfer
+bridge,GCIQL,jax,flow,E2-mix-l30-sgphi,"as above, weight 30 (⚠ 3/3 Q-range violations — uninterpretable)",3,,0.067,0.037,0.037,0.000,-0.030,-0.030,-0.007,no,,GCIQL-State-Flow-Bilinear-d50-MeasureMix-l30-sgphi
+bridge,GCIQL,jax,flow,sf-td-frozen-ortho1k,frozen base + orthonormality penalty,3,,0.003,0.037,0.010,0.000,0.033,0.007,-0.043,no,,GCIQL-State-Flow-SF-FeatureTD-Frozen-Ortho1k
+bridge,GCIQL,jax,flow,sf-td-frozen-cond-ortho1k,frozen base + task-conditioned Q-feature + orthonormality penalty,2,,0.035,0.045,0.040,0.000,0.010,0.005,-0.050,no,,GCIQL-State-Flow-SF-FeatureTD-FrozenCond-Ortho1k
+bridge,GCIQL,jax,flow,sf-td-identity-ortho1k,raw-state base + orthonormality penalty (kills the critic),3,,0.010,0.040,0.017,0.000,0.030,0.007,-0.047,no,,GCIQL-State-Flow-SF-FeatureTD-Identity-Ortho1k
+bridge,GCIQL,jax,flow,sf-td-rewreg-shift,successor-feature vector TD with base features learned by reward regression,3,,0.007,0.023,0.010,0.000,0.017,0.003,-0.027,no,,GCIQL-State-Flow-SF-FeatureTD-RewReg-Shift-Fix
+bridge,GCIQL,jax,flow,simplesf-grounded,"above, base features trained only by reward regression",3,,0.180,0.020,0.057,0.000,-0.160,-0.123,0.103,no,,GCIQL-State-Flow-SimpleSF-Grounded

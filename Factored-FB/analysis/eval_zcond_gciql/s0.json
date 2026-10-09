@@ -1,0 +1,33 @@
+{
+  "seed": 0,
+  "value_latent_dim": 512,
+  "mean_success_exact": 0.828,
+  "mean_success_inferred": 0.02,
+  "per_task": {
+    "cube-single-play-singletask-task1-v0": {
+      "success_exact": 0.9,
+      "success_inferred": 0.02,
+      "r_pos_relabel": 0.021963823586702347
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "success_exact": 0.84,
+      "success_inferred": 0.08,
+      "r_pos_relabel": 0.01874633878469467
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "success_exact": 0.76,
+      "success_inferred": 0.0,
+      "r_pos_relabel": 0.026001404970884323
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "success_exact": 0.82,
+      "success_inferred": 0.0,
+      "r_pos_relabel": 0.025920873507857323
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "success_exact": 0.82,
+      "success_inferred": 0.0,
+      "r_pos_relabel": 0.020359281450510025
+    }
+  }
+}

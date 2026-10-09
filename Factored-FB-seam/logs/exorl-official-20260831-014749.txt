@@ -1,0 +1,6 @@
+RESUME rldp_orthoa-walker-s2 from step 500000
+LAUNCHED gpu=2 rldp_orthoa-walker-s2
+== 1 cells; manifest logs/exorl-official-20260831-014749.txt ==
+RESUME rldp_orthob-walker-s0 from step 250000
+LAUNCHED gpu=4 rldp_orthob-walker-s0
+== 1 cells; manifest logs/exorl-official-20260831-014749.txt ==

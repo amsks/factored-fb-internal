@@ -1,0 +1,37 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec18/factored-fb/GCIQL-CubeSingle-Flow-Measure-Density-d50/d18_cs_dens_s0/params_500000.pkl
+[density-z2] restored d18_cs_dens_s0 step=500000 arm=control env=cube-single-play-v0 d=50 gamma=0.99 hit_spec='19:22:0.4' double_q=True temp=1.0 pool_size=16384 retrieval_k=1 H=200
+[density-z2] pool drawn: P=16384 (13s)
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+[density-z2][dirac] t1: succ=0.88 qr0=20.676 (137s)
+[density-z2][dirac] t2: succ=0.84 qr0=22.652 (255s)
+[density-z2][dirac] t3: succ=0.96 qr0=25.626 (370s)
+[density-z2][dirac] t4: succ=0.24 qr0=26.646 (488s)
+[density-z2][dirac] t5: succ=0.6 qr0=26.806 (606s)
+[density-z2][dense] t1: succ=0.88 qr0=33.886 (701s)
+[density-z2][dense] t2: succ=0.76 qr0=36.150 (797s)
+[density-z2][dense] t3: succ=0.8 qr0=38.326 (892s)
+[density-z2][dense] t4: succ=0.28 qr0=33.801 (990s)
+[density-z2][dense] t5: succ=0.48 qr0=35.588 (1086s)
+[density-z2][region] 4/4 hindsight centers (0 rejected)
+[density-z2][region] c0: fin=0.24 any=0.84 (1185s)
+[density-z2][region] c1: fin=0.04 any=0.44 (1285s)
+[density-z2][region] c2: fin=0.32 any=0.88 (1386s)
+[density-z2][region] c3: fin=0.48 any=0.76 (1485s)
+[density-z2] CONTROL GATE vs results/spec18_eval/dzs_d18_cs_dens_s0_RET_k1_P16384.json: PASS
+[density-z2]   dense: mine=0.640 archived=0.640 diff=0.000 ok
+[density-z2]   dirac: mine=0.704 archived=0.704 diff=0.000 ok
+[density-z2]   region_any: mine=0.730 archived=0.730 diff=0.000 ok
+[density-z2]   region_final: mine=0.270 archived=0.270 diff=0.000 ok
+
+[density-z2] DONE (1485s) -> results/spec27_q2/control_gate_cs_s0.json
+[density-z2] family means: {'dirac': 0.704, 'dense': 0.6400000000000001, 'region_final': 0.27, 'region_any': 0.73}
+EXIT=0

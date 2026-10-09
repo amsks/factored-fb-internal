@@ -1,0 +1,20 @@
+{
+ "framework": "torch",
+ "group": "psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5",
+ "seed": "psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5__s1",
+ "dir": "/dev/shm/factored-fb_outputs/psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5__s1",
+ "agent_name": "psm_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb_outputs/psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5__s1/checkpoints/final.pt",
+ "zB_note": "psm_flowbc has no backward_map; zB cells (C1/C4) not defined",
+ "C2_zR": {
+  "success": 0.26,
+  "grasped": 0.92
+ },
+ "C3_zR": {
+  "success": 0.38,
+  "grasped": 1.0
+ },
+ "secs": 88.3
+}

@@ -1,0 +1,13 @@
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_500000.pkl (params only)
+  [density_fb_z_seed0_500000] carrying task 3: 8/16 (33s)
+  [density_fb_z_seed0_500000] carrying task 3: 16/16 (47s)
+  [density_fb_z_seed0_500000] carrying task 4: 8/14 (68s)
+  [density_fb_z_seed0_500000] carrying task 4: 14/14 (82s)
+  [density_fb_z_seed0_500000] carrying task 5: 8/14 (102s)
+  [density_fb_z_seed0_500000] carrying task 5: 14/14 (115s)
+  [density_fb_z_seed0_500000] carrying task 2: 8/9 (129s)
+  [density_fb_z_seed0_500000] carrying task 2: 9/9 (138s)
+  [density_fb_z_seed0_500000] carrying task 1: 8/11 (153s)
+  [density_fb_z_seed0_500000] carrying task 1: 11/11 (166s)
+[predict] density_fb_z_seed0_500000 carrying: TV 0.643 goal-mass pred 0.352 truth 0.473

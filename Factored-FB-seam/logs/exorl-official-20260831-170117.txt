@@ -1,0 +1,12 @@
+LAUNCHED gpu=6 rldp_tdj-walker-s0
+== 1 cells; manifest logs/exorl-official-20260831-170117.txt ==
+LAUNCHED gpu=6 rldp_tdj-walker-s1
+== 1 cells; manifest logs/exorl-official-20260831-170117.txt ==
+LAUNCHED gpu=6 rldp_tdj-walker-s2
+== 1 cells; manifest logs/exorl-official-20260831-170117.txt ==
+LAUNCHED gpu=7 hilp_tdj-walker-s0
+== 1 cells; manifest logs/exorl-official-20260831-170117.txt ==
+LAUNCHED gpu=7 hilp_tdj-walker-s1
+== 1 cells; manifest logs/exorl-official-20260831-170117.txt ==
+LAUNCHED gpu=7 hilp_tdj-walker-s2
+== 1 cells; manifest logs/exorl-official-20260831-170117.txt ==

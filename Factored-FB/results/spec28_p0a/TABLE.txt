@@ -1,0 +1,36 @@
+====================================================================================================
+CONTROL GATE (g-indexed anchors; pre-registered, spec 28 P0). PER-ENVIRONMENT: an anchor licenses only its own domain's z cells.
+====================================================================================================
+g_cd         env=cube-double-play-v0                blocking=PASS
+    CG1_auc_g_traj_vs_unif       0.6621 >= 0.65  PASS
+    CG2a_selfcons_g              0.9430 >= 0.9   PASS
+    CG2b_snr_g                  17.9439 >= 3.0   PASS
+    CG3_delta_over_span_g        0.2676 <= 0.5   PASS  (non-blocking)
+g_cs         env=cube-single-play-v0                blocking=PASS
+    CG1_auc_g_traj_vs_unif       0.6602 >= 0.65  PASS
+    CG2a_selfcons_g              0.9957 >= 0.9   PASS
+    CG2b_snr_g                  69.6267 >= 3.0   PASS
+    CG3_delta_over_span_g        0.2110 <= 0.5   PASS  (non-blocking)
+g_pmm        env=exorl:point_mass_maze_rnd_seed0    blocking=FAIL
+    CG1_auc_g_traj_vs_unif       0.5859 >= 0.65  FAIL
+    CG2a_selfcons_g              0.9988 >= 0.9   PASS
+    CG2b_snr_g                  72.8730 >= 3.0   PASS
+    CG3_delta_over_span_g        0.6024 <= 0.5   FAIL  (non-blocking)
+
+GATE FAILED for ['exorl:point_mass_maze_rnd_seed0'] -- the instrument cannot resolve the question there; those z cells are printed as UNLICENSED and must not be read as evidence.
+
+=================================================================================================================================================================
+P0a READOUT TABLE   (chance: AUC .500, spearman 0; sensCond must beat sensNoise to mean anything)
+=================================================================================================================================================================
+cell           env        z?  lic   rho(qg,qz)   AUC_g   AUC_z  relspan_g  relspan_z  selfc_g   snr_g  D/span_g  D/span_z  sensCond  sensNoise  cos z(g)  cos ref
+g_cd           cube-double g   n/a       -0.184   0.617   0.578      0.132      0.001    0.943    17.9     0.268     0.444     0.079      0.194     0.998    0.002
+g_cs           cube-single g   n/a       -0.026   0.647   0.572      0.129      0.001    0.996    69.6     0.211     0.491     0.090      0.190     0.999    0.002
+g_pmm          pmm        g   n/a        0.370   0.548   0.483      0.143      0.000    0.999    72.9     0.602     0.542     0.013      1.386     1.000    0.003
+z24_cd_s0      cube-double z   yes        0.047   0.708   0.529      1.153      0.002    0.989    29.1     0.400     0.396     0.000      0.188     1.000    0.002
+z24_pmm_s0     pmm        z   NO         0.012   0.640   0.557      0.127      0.000    0.999    67.6     0.521     0.358     0.000      1.386     1.000    0.003
+z25_cs_actor   cube-single z   yes        0.112   0.651   0.604      0.471      0.000    0.999   174.4     0.471     0.356     0.000      0.186     1.000    0.002
+z25_cs_dec     cube-single z   yes        0.307   0.651   0.556      0.478      0.000    0.999   187.8     0.477     0.394     0.000      0.188     1.000    0.002
+z25_cs_full    cube-single z   yes        0.215   0.649   0.509      0.436      0.000    0.999   181.4     0.357     0.415     0.000      0.196     0.999    0.002
+z25_cs_tilt    cube-single z   yes        0.110   0.655   0.542      0.517      0.001    0.999   175.5     0.340     0.449     0.000      0.186     1.000    0.002
+
+uniform-action scale (sensitivity ceiling) = 1.83

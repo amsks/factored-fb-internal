@@ -1,0 +1,55 @@
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_0/params_1000000.pkl (params only)
+[rollouts] fb_tdj_seed0_1000000: 5 tasks x 20 episodes
+  [fb_tdj_seed0_1000000] task 1: success 0.15  (17s)
+  [fb_tdj_seed0_1000000] task 2: success 0.55  (28s)
+  [fb_tdj_seed0_1000000] task 3: success 0.60  (39s)
+  [fb_tdj_seed0_1000000] task 4: success 0.00  (53s)
+  [fb_tdj_seed0_1000000] task 5: success 0.00  (67s)
+[rollouts] fb_tdj_seed0_1000000: approach=0.00 acquisition=0.14 maintain=0.27 transport=0.33 success=0.26
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_1/params_1000000.pkl (params only)
+[rollouts] fb_tdj_seed1_1000000: 5 tasks x 20 episodes
+  [fb_tdj_seed1_1000000] task 1: success 0.25  (13s)
+  [fb_tdj_seed1_1000000] task 2: success 0.85  (22s)
+  [fb_tdj_seed1_1000000] task 3: success 0.80  (32s)
+  [fb_tdj_seed1_1000000] task 4: success 0.35  (44s)
+  [fb_tdj_seed1_1000000] task 5: success 0.50  (55s)
+[rollouts] fb_tdj_seed1_1000000: approach=0.00 acquisition=0.09 maintain=0.20 transport=0.16 success=0.55
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_2/params_1000000.pkl (params only)
+[rollouts] fb_tdj_seed2_1000000: 5 tasks x 20 episodes
+  [fb_tdj_seed2_1000000] task 1: success 0.10  (14s)
+  [fb_tdj_seed2_1000000] task 2: success 0.85  (24s)
+  [fb_tdj_seed2_1000000] task 3: success 0.90  (33s)
+  [fb_tdj_seed2_1000000] task 4: success 0.55  (44s)
+  [fb_tdj_seed2_1000000] task 5: success 0.55  (56s)
+[rollouts] fb_tdj_seed2_1000000: approach=0.00 acquisition=0.09 maintain=0.14 transport=0.18 success=0.59
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_0/params_1000000.pkl (params only)
+[rollouts] density_fb_z_seed0_1000000: 5 tasks x 20 episodes
+  [density_fb_z_seed0_1000000] task 1: success 0.80  (8s)
+  [density_fb_z_seed0_1000000] task 2: success 0.90  (16s)
+  [density_fb_z_seed0_1000000] task 3: success 0.80  (25s)
+  [density_fb_z_seed0_1000000] task 4: success 0.50  (35s)
+  [density_fb_z_seed0_1000000] task 5: success 0.60  (44s)
+[rollouts] density_fb_z_seed0_1000000: approach=0.00 acquisition=0.26 maintain=0.01 transport=0.01 success=0.72
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_1/params_1000000.pkl (params only)
+[rollouts] density_fb_z_seed1_1000000: 5 tasks x 20 episodes
+  [density_fb_z_seed1_1000000] task 1: success 0.80  (8s)
+  [density_fb_z_seed1_1000000] task 2: success 0.70  (17s)
+  [density_fb_z_seed1_1000000] task 3: success 0.95  (25s)
+  [density_fb_z_seed1_1000000] task 4: success 0.90  (33s)
+  [density_fb_z_seed1_1000000] task 5: success 0.70  (42s)
+[rollouts] density_fb_z_seed1_1000000: approach=0.00 acquisition=0.19 maintain=0.00 transport=0.00 success=0.81
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_2/params_1000000.pkl (params only)
+[rollouts] density_fb_z_seed2_1000000: 5 tasks x 20 episodes
+  [density_fb_z_seed2_1000000] task 1: success 0.85  (8s)
+  [density_fb_z_seed2_1000000] task 2: success 1.00  (15s)
+  [density_fb_z_seed2_1000000] task 3: success 0.95  (23s)
+  [density_fb_z_seed2_1000000] task 4: success 0.90  (31s)
+  [density_fb_z_seed2_1000000] task 5: success 0.65  (40s)
+[rollouts] density_fb_z_seed2_1000000: approach=0.01 acquisition=0.11 maintain=0.01 transport=0.00 success=0.87
+PIPELINE DONE cube-single-play-v0

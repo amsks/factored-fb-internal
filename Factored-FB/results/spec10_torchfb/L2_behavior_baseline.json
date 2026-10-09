@@ -1,0 +1,26 @@
+{
+ "ball0.4": {
+  "behavior_mean": 1.2055891966695556,
+  "behavior_sd": 0.8203557780091735
+ },
+ "ball0.8": {
+  "behavior_mean": 5.661211969310574,
+  "behavior_sd": 2.435789691760014
+ },
+ "ball1.6": {
+  "behavior_mean": 25.067783292612777,
+  "behavior_sd": 6.532388475313336
+ },
+ "smooth0.4": {
+  "behavior_mean": 2.7525222676298227,
+  "behavior_sd": 1.2705883647202576
+ },
+ "smooth0.8": {
+  "behavior_mean": 11.98818991383186,
+  "behavior_sd": 3.4138196285830724
+ },
+ "twozone": {
+  "behavior_mean": 2.0406963233028867,
+  "behavior_sd": 0.9304024958262269
+ }
+}

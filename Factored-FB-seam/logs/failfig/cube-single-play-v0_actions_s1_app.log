@@ -1,0 +1,36 @@
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+Restored from exp/cube-single-play-v0_fb_tdj_flowbc_seed_1/params_1000000.pkl (params only)
+Restored from exp/tdjtab/cube-single-play-v0_density_fb_z_flowbc_seed_1/params_1000000.pkl (params only)
+  [seed1_1000000_app] approach 4/64 (191s) fb_tdj: rank 0.14 regret 0.35 density_fb_z: rank -0.00 regret 0.67
+  [seed1_1000000_app] approach 8/64 (394s) fb_tdj: rank 0.03 regret 0.35 density_fb_z: rank 0.02 regret 0.52
+  [seed1_1000000_app] approach 12/64 (570s) fb_tdj: rank -0.01 regret 0.52 density_fb_z: rank -0.05 regret 0.52
+  [seed1_1000000_app] approach 16/64 (752s) fb_tdj: rank -0.04 regret 0.54 density_fb_z: rank 0.00 regret 0.54
+  [seed1_1000000_app] approach 20/64 (938s) fb_tdj: rank -0.02 regret 0.60 density_fb_z: rank -0.00 regret 0.59
+  [seed1_1000000_app] approach 24/64 (1122s) fb_tdj: rank 0.01 regret 0.59 density_fb_z: rank 0.01 regret 0.57
+  [seed1_1000000_app] approach 28/64 (1303s) fb_tdj: rank 0.03 regret 0.62 density_fb_z: rank -0.00 regret 0.54
+  [seed1_1000000_app] approach 32/64 (1495s) fb_tdj: rank 0.05 regret 0.64 density_fb_z: rank 0.01 regret 0.54
+  [seed1_1000000_app] approach 36/64 (1665s) fb_tdj: rank 0.06 regret 0.63 density_fb_z: rank 0.01 regret 0.54
+  [seed1_1000000_app] approach 40/64 (1841s) fb_tdj: rank 0.05 regret 0.64 density_fb_z: rank 0.00 regret 0.54
+  [seed1_1000000_app] approach 44/64 (2018s) fb_tdj: rank 0.06 regret 0.64 density_fb_z: rank 0.01 regret 0.54
+  [seed1_1000000_app] approach 48/64 (2207s) fb_tdj: rank 0.08 regret 0.65 density_fb_z: rank 0.00 regret 0.55
+  [seed1_1000000_app] approach 52/64 (2395s) fb_tdj: rank 0.09 regret 0.62 density_fb_z: rank 0.01 regret 0.57
+  [seed1_1000000_app] approach 56/64 (2575s) fb_tdj: rank 0.09 regret 0.62 density_fb_z: rank 0.01 regret 0.56
+  [seed1_1000000_app] approach 60/64 (2741s) fb_tdj: rank 0.07 regret 0.62 density_fb_z: rank 0.01 regret 0.55
+  [seed1_1000000_app] approach 64/64 (2919s) fb_tdj: rank 0.06 regret 0.62 density_fb_z: rank 0.02 regret 0.55
+  [seed1_1000000_app] inhand 4/64 (3074s) fb_tdj: rank 0.03 regret 0.50 density_fb_z: rank -0.06 regret 0.49
+  [seed1_1000000_app] inhand 8/64 (3236s) fb_tdj: rank 0.11 regret 0.55 density_fb_z: rank 0.04 regret 0.53
+  [seed1_1000000_app] inhand 12/64 (3402s) fb_tdj: rank 0.13 regret 0.62 density_fb_z: rank 0.14 regret 0.47
+  [seed1_1000000_app] inhand 16/64 (3554s) fb_tdj: rank 0.20 regret 0.56 density_fb_z: rank 0.08 regret 0.50
+  [seed1_1000000_app] inhand 20/64 (3740s) fb_tdj: rank 0.18 regret 0.59 density_fb_z: rank 0.12 regret 0.47
+  [seed1_1000000_app] inhand 24/64 (3884s) fb_tdj: rank 0.13 regret 0.58 density_fb_z: rank 0.11 regret 0.51
+  [seed1_1000000_app] inhand 28/64 (4064s) fb_tdj: rank 0.06 regret 0.62 density_fb_z: rank 0.13 regret 0.49
+  [seed1_1000000_app] inhand 32/64 (4238s) fb_tdj: rank 0.05 regret 0.62 density_fb_z: rank 0.14 regret 0.48
+  [seed1_1000000_app] inhand 36/64 (4403s) fb_tdj: rank 0.06 regret 0.64 density_fb_z: rank 0.15 regret 0.46
+  [seed1_1000000_app] inhand 40/64 (4575s) fb_tdj: rank 0.07 regret 0.64 density_fb_z: rank 0.11 regret 0.49
+  [seed1_1000000_app] inhand 44/64 (4723s) fb_tdj: rank 0.09 regret 0.61 density_fb_z: rank 0.14 regret 0.45
+  [seed1_1000000_app] inhand 48/64 (4903s) fb_tdj: rank 0.10 regret 0.62 density_fb_z: rank 0.13 regret 0.44
+  [seed1_1000000_app] inhand 52/64 (5077s) fb_tdj: rank 0.12 regret 0.62 density_fb_z: rank 0.14 regret 0.45
+  [seed1_1000000_app] inhand 56/64 (5242s) fb_tdj: rank 0.12 regret 0.60 density_fb_z: rank 0.15 regret 0.42
+  [seed1_1000000_app] inhand 60/64 (5409s) fb_tdj: rank 0.12 regret 0.60 density_fb_z: rank 0.14 regret 0.40
+  [seed1_1000000_app] inhand 64/64 (5581s) fb_tdj: rank 0.12 regret 0.61 density_fb_z: rank 0.15 regret 0.40

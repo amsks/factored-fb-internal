@@ -1,0 +1,10 @@
+[drq-sweep] 20260522_060306  gpus=3 5 6 7  jobs=10  wandb=online  storage=shm
+[drq-sweep] GPU 3 <- cube_single_visual_drq:0 cube_single_visual_drq:4 cube_single_visual_gcivl_drq:3
+  worker pid=4173496 gpu=3
+[drq-sweep] GPU 5 <- cube_single_visual_drq:1 cube_single_visual_gcivl_drq:0 cube_single_visual_gcivl_drq:4
+  worker pid=4174781 gpu=5
+[drq-sweep] GPU 6 <- cube_single_visual_drq:2 cube_single_visual_gcivl_drq:1
+  worker pid=4176026 gpu=6
+[drq-sweep] GPU 7 <- cube_single_visual_drq:3 cube_single_visual_gcivl_drq:2
+  worker pid=4177278 gpu=7
+[drq-sweep] launched workers on 4 GPUs; manifest=logs/drq_sweep_20260522_060306.manifest

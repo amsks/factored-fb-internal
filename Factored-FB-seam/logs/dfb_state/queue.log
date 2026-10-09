@@ -1,0 +1,10 @@
+11:35:35Z queue start: 6 runs pending, waiting for a free GPU
+11:36:12Z queue start: 6 runs pending, waiting for a free GPU
+13:31:53Z launching scene_play_s0 on GPU 6
+13:44:24Z launching scene_play_s1 on GPU 7
+14:01:56Z launching scene_play_s2 on GPU 2
+17:20:45Z launching puzzle_3x3_s0 on GPU 5
+17:28:15Z launching puzzle_3x3_s1 on GPU 1
+17:40:46Z launching puzzle_3x3_s2 on GPU 0
+17:42:46Z all 6 runs started; waiting for them to finish
+05:44:19Z DFB_STATE_DONE

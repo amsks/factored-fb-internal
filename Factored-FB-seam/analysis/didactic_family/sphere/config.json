@@ -1,0 +1,37 @@
+{
+  "out": "analysis/didactic_family/sphere",
+  "L": 2,
+  "rooms": [
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "ranks": [
+    2,
+    3,
+    4,
+    6
+  ],
+  "methods": [
+    "fb"
+  ],
+  "gamma": 0.8,
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "rates": [
+    0.001,
+    0.01
+  ],
+  "steps": 50000,
+  "tau": 0.005,
+  "sphere": true,
+  "numpy": "2.4.6",
+  "jax": "0.10.2",
+  "optax": "0.2.8",
+  "source_sha256": "d3eae6432b3cf690c8b53bdac1cc2597e5db03b7838647f79de1384819164875"
+}

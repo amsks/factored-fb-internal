@@ -1,0 +1,11 @@
+{
+ "framework": "torch",
+ "group": "rldp_state_sweep__ortho_coef0p1__lr_b1e-5",
+ "seed": "2026-06-08_15-17-34__cube-single-play-v0__rldp_flowbc__s1",
+ "dir": "/dev/shm/factored-fb_outputs/2026-06-08_15-17-34__cube-single-play-v0__rldp_flowbc__s1",
+ "agent_name": "rldp_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb_outputs/2026-06-08_15-17-34__cube-single-play-v0__rldp_flowbc__s1/checkpoints/final.pt",
+ "error": "unsupported torch agent for this harness: rldp_flowbc (no act(obs,z))"
+}

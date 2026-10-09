@@ -1,0 +1,35 @@
+% Fidelity check: our reimplementation of FB, HILP and RLDP against the published numbers, on the
+% four OGBench manipulation tasks, same reward-inference route. The density columns and the
+% goal-conditioned columns were moved out 2026-09-14 -- the density objective now lives in
+% Table~\ref{tab:tdjepa_density}, and the paper's interface is a reward, not a goal.
+\InputIfFileExists{baselines/colors.tex}{}{\input{colors}}
+\begin{table}[t]
+\centering
+\caption{Does our reimplementation reproduce the published baselines? OGBench manipulation (proprioceptive input), success rate (\%), 1M steps, reward-inference evaluation. ``published'' is TD-JEPA Table~1; ``ours'' is our code at the same hyperparameter cell, under the protocol every number in this paper uses. RLDP is also shown at its own default orthonormality coefficient $1.0$, which TD-JEPA's grid did not contain.}
+\label{tab:reimplementation}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrrrr}
+\toprule
+ & \multicolumn{2}{c}{FB} & \multicolumn{2}{c}{HILP} & \multicolumn{3}{c}{RLDP} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-8}
+ & published & ours & published & ours & published & ours (ortho 0.01) & ours (ortho 1) \\
+\midrule
+\textbf{avg} & \paperc{17.5} & \ckptM{15.2} & \paperc{35.2} & \ckptM{30.7} & \paperc{12.5} & \ckptM{8.6} & \ckptM{12.7} \\
+\midrule
+cube-single & \paperc{49.6\pmse{3.8}} & \ckptM{45.6\pmse{5.9}} & \paperc{74.2\pmse{3.5}} & \ckptM{71.1\pmse{5.7}} & \paperc{19.8\pmse{2.4}} & \ckptM{25.0} & \ckptM{27.6\pmse{3.7}} \\
+cube-double & \paperc{2.6\pmse{0.4}} & \ckptM{2.2\pmse{2.7}} & \paperc{20.0\pmse{2.7}} & \ckptM{11.1\pmse{3.3}} & \paperc{3.8\pmse{0.8}} & \ckptM{2.2\pmse{1.1}} & \ckptM{2.7\pmse{1.3}} \\
+scene & \paperc{12.8\pmse{1.6}} & \ckptM{10.2\pmse{4.1}} & \paperc{43.8\pmse{1.9}} & \ckptM{39.3\pmse{5.7}} & \paperc{11.6\pmse{1.6}} & \ckptM{4.7\pmse{1.1}} & \ckptM{10.2\pmse{3.2}} \\
+puzzle-3x3 & \paperc{4.8\pmse{0.7}} & \ckptM{2.7\pmse{0.9}} & \paperc{2.8\pmse{0.7}} & \ckptM{1.3\pmse{0.5}} & \paperc{14.6\pmse{0.9}} & \ckptM{2.4\pmse{1.1}} & \ckptM{10.4\pmse{1.7}} \\
+\bottomrule
+\end{tabular}}
+\par\vspace{2pt}
+\begin{minipage}{\linewidth}\scriptsize\raggedright
+Published columns: 1M steps, 10 seeds, best cell of a 4-cell hyperparameter grid, reward-inference eval ($z$ inferred from $10^4$ relabelled samples); mean $\pm$ s.e. The five antmaze rows of that table are dropped: this paper is about manipulation, and the object variable that motivates the method does not exist in navigation.
+Ours columns: state input, flow actor, same reward-inference eval, last-3-checkpoint estimator, 1M steps, 3 seeds, at the TD-JEPA OGBench sweep cell --- FB ortho\,$=1000$ / lr$_B=10^{-4}$, HILP $\phi$-lr\,$=10^{-4}$ / $p_{\mathrm{rand\text{-}goal}}=0.375$, RLDP ortho\,$=0.01$ / lr$_B=10^{-4}$; mean $\pm$ std. FB and HILP cube cells come from the disjoint 3-site campaign (each cell 3 independent seeds, no shared save-dir). RLDP cube-single at ortho 0.01 is an eval-only rescore with a single value on file.
+RLDP at ortho 1 (exp/ortho1) is the configuration used everywhere else in this paper: it is RLDP's own published default, and it is worth scene $4.7\to10.2$ and puzzle $2.4\to10.4$ over TD-JEPA's grid value. Higher coefficients than 1 are worse on every task.
+Reading: FB and HILP reproduce to within a few points on every task (FB 15.2 vs 17.5 on average, HILP 30.7 vs 35.2); RLDP reproduces only once its own orthonormality coefficient is restored (12.7 vs 12.5), and puzzle-3x3 is where our RLDP stays furthest below the published number (10.4 vs 14.6).
+\textbf{avg} is the mean of the four rows, recomputed per column; no spread is carried through the recomputation.
+On cube-double, reward inference is capped near half of goal-conditioned success for every method: OGBench re-permutes the cube-to-target assignment at every reset, while the reward samples used to infer $z$ encode one fixed assignment.
+The density objective inside each of these backbones is Table~\ref{tab:tdjepa_density}; every retrofit variant is Table~\ref{tab:retrofits}.
+\end{minipage}
+\end{table}

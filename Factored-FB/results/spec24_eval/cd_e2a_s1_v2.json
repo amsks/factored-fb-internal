@@ -1,0 +1,311 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec24/factored-fb/GCIQL-CubeDouble-Flow-Measure-DensityZ-d50/z24_cd_z_s1",
+    "checkpoint_step": 500000,
+    "arm": "e2a",
+    "env": "cube-double-play-v0",
+    "d": 50,
+    "gamma": 0.99,
+    "double_q": true,
+    "temp": 1.0,
+    "hit_spec": "19:22:0.4,28:31:0.4",
+    "pool_size": 16384,
+    "e2b_candidate_size": null,
+    "retrieval_k": 1,
+    "relabel_size": 50000,
+    "ridge": 0.0001,
+    "seed": 0,
+    "episodes": 25,
+    "horizon": 500,
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac",
+      "dense",
+      "region"
+    ],
+    "harness": "THIN WRAPPER over eval_density_zeroshot.py (audited spec-18 harness): build_pool/density_query/compute_density_primary/decode_goal_retrieval_density/batched_goal_rollout_density imported and called end-to-end; identical rng stream order (relabel then pool); env-native success for dirac/dense, region_success_from_obs for region. ONLY the index-selection step differs per --arm. v2 2026-08-13; v1 artifacts (broken instrument, see module docstring) kept without _v2.",
+    "index_selection": "z_r = _sphere( E_pool[r(x) target_density_b(_density_queries(x))] ) -- agent's own scaling/tower/normalization end-to-end, numpy reference cross-checked at runtime",
+    "goal_coords": {
+      "t1": [
+        0.0,
+        6.771073665925486e-20,
+        0.1995989978313446,
+        0.0,
+        1.0,
+        0.1995989978313446
+      ],
+      "t2": [
+        -0.75,
+        1.0,
+        0.1995989978313446,
+        0.75,
+        1.0,
+        0.1995989978313446
+      ],
+      "t3": [
+        0.0,
+        -2.0,
+        0.1995989978313446,
+        0.0,
+        2.0,
+        0.1995989978313446
+      ],
+      "t4": [
+        0.0,
+        1.0,
+        0.1995989978313446,
+        0.0,
+        -1.0,
+        0.1995989978313446
+      ],
+      "t5": [
+        0.0,
+        -6.653067847094124e-18,
+        0.19921377301216125,
+        0.0,
+        -1.1831687906673701e-17,
+        0.5990393161773682
+      ]
+    },
+    "spec": "PAPER/Multistep-FB/specs/24-z-indexed-density.md sec.3-4",
+    "family_means": {
+      "dirac": 0.024,
+      "dense": 0.032,
+      "region_final": 0.0,
+      "region_any": 0.0
+    }
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.0710095153287655,
+          "ref_maxdiff": 1.2148813421930527e-07,
+          "r_pool_mean": 0.000244140625,
+          "r_pool_pos": 4
+        },
+        "success": 0.12,
+        "qr_primary_t0_mean": 0.09554397517901554,
+        "qr_secondary_t0_mean": -0.03223675628611551
+      },
+      "t2": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071029290784106,
+          "ref_maxdiff": 3.163474260325927e-07,
+          "r_pool_mean": 0.0003662109375,
+          "r_pool_pos": 6
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 0.001927854862654079,
+        "qr_secondary_t0_mean": 0.04058155628263806
+      },
+      "t3": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071051647333627,
+          "ref_maxdiff": 2.2488385154062485e-07,
+          "r_pool_mean": 0.00091552734375,
+          "r_pool_pos": 15
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 0.002875974331970144,
+        "qr_secondary_t0_mean": 0.0238521305042046
+      },
+      "t4": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071038772550499,
+          "ref_maxdiff": 1.8756394237762208e-07,
+          "r_pool_mean": 0.00048828125,
+          "r_pool_pos": 8
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 0.01084969014288115,
+        "qr_secondary_t0_mean": 0.09071067306643829
+      },
+      "t5": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071054232153467,
+          "ref_maxdiff": 2.4437919798891983e-07,
+          "r_pool_mean": 0.0010986328125,
+          "r_pool_pos": 18
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 0.020856015344849366,
+        "qr_secondary_t0_mean": 0.16687680386714276
+      },
+      "mean": 0.024
+    },
+    "dense": {
+      "t1": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071067505255145,
+          "ref_maxdiff": 2.0315773863188724e-07,
+          "r_pool_mean": 0.05437723745828344,
+          "r_pool_pos": 16384
+        },
+        "success": 0.12,
+        "qr_primary_t0_mean": 8.011336125097749,
+        "qr_secondary_t0_mean": 6.354866480201087
+      },
+      "t2": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071066657385887,
+          "ref_maxdiff": 2.8360320358800095e-07,
+          "r_pool_mean": 0.04071967577307979,
+          "r_pool_pos": 16384
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 2.7492332093363103,
+        "qr_secondary_t0_mean": 3.537377610204043
+      },
+      "t3": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071066739754077,
+          "ref_maxdiff": 4.7188853224966465e-07,
+          "r_pool_mean": 0.0350716601940521,
+          "r_pool_pos": 16384
+        },
+        "success": 0.04,
+        "qr_primary_t0_mean": 1.9901804484758814,
+        "qr_secondary_t0_mean": 1.6415629412738508
+      },
+      "t4": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071067258293618,
+          "ref_maxdiff": 2.6989285029088705e-07,
+          "r_pool_mean": 0.047477105668935884,
+          "r_pool_pos": 16384
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 3.55031814445343,
+        "qr_secondary_t0_mean": 4.035901708070868
+      },
+      "t5": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071067569055333,
+          "ref_maxdiff": 3.0338249090711145e-07,
+          "r_pool_mean": 0.05758443644026928,
+          "r_pool_pos": 16384
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 3.444751871848531,
+        "qr_secondary_t0_mean": 4.666559271563277
+      },
+      "mean": 0.032
+    },
+    "region": {
+      "n_centers": 4,
+      "centers_rejected": 0,
+      "center_min_pos": 5,
+      "c0": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.0709892060654855,
+          "ref_maxdiff": 1.1445166481216518e-07,
+          "r_pool_mean": 0.00018310546875,
+          "r_pool_pos": 3
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 0.001667333640169106,
+        "qr_secondary_t0_mean": 0.007563158530108987,
+        "center_coord": [
+          -0.14507551491260529,
+          -0.7839939594268799,
+          0.199607253074646,
+          1.131671667098999,
+          1.2365483045578003,
+          0.535377562046051
+        ],
+        "center_n_pos": 14,
+        "success_final": 0.0,
+        "success_any": 0.0
+      },
+      "c1": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.0710507134592,
+          "ref_maxdiff": 2.8108770466772626e-07,
+          "r_pool_mean": 0.0008544921875,
+          "r_pool_pos": 14
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": -0.11363570571057727,
+        "qr_secondary_t0_mean": -0.16565388791457863,
+        "center_coord": [
+          -0.9081528186798096,
+          0.19804082810878754,
+          0.199607253074646,
+          -0.47518113255500793,
+          -0.32575294375419617,
+          0.19904091954231262
+        ],
+        "center_n_pos": 24,
+        "success_final": 0.0,
+        "success_any": 0.0
+      },
+      "c2": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071058501068519,
+          "ref_maxdiff": 2.476027773923306e-07,
+          "r_pool_mean": 0.0015869140625,
+          "r_pool_pos": 26
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 0.09288601284877133,
+        "qr_secondary_t0_mean": -0.11893733954561067,
+        "center_coord": [
+          -0.2127457857131958,
+          -0.4847254753112793,
+          0.199607253074646,
+          0.6542578935623169,
+          2.259143352508545,
+          0.199607253074646
+        ],
+        "center_n_pos": 38,
+        "success_final": 0.0,
+        "success_any": 0.0
+      },
+      "c3": {
+        "decode": {
+          "arm": "e2a",
+          "z_norm": 7.071045974601635,
+          "ref_maxdiff": 2.3492711576089675e-07,
+          "r_pool_mean": 0.00067138671875,
+          "r_pool_pos": 11
+        },
+        "success": 0.0,
+        "qr_primary_t0_mean": 0.017036085400983267,
+        "qr_secondary_t0_mean": 0.043353429529035745,
+        "center_coord": [
+          -0.3395206928253174,
+          -1.1974105834960938,
+          0.199607253074646,
+          0.14022807776927948,
+          0.6516172885894775,
+          0.199607253074646
+        ],
+        "center_n_pos": 35,
+        "success_final": 0.0,
+        "success_any": 0.0
+      },
+      "mean_final": 0.0,
+      "mean_any": 0.0
+    }
+  }
+}

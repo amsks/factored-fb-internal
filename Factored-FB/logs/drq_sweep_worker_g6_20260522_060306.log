@@ -1,0 +1,5 @@
+[worker g6] 06:03:22 START cube_single_visual_drq seed=2 -> logs/gciql_pixel_drq_s2_20260522_060306.log
+[worker g6] 13:41:58 DONE  cube_single_visual_drq seed=2 rc=0
+[worker g6] 13:41:58 START cube_single_visual_gcivl_drq seed=1 -> logs/gcivl_pixel_drq_s1_20260522_060306.log
+[worker g6] 20:26:17 DONE  cube_single_visual_gcivl_drq seed=1 rc=0
+[worker g6] 20:26:17 ALL DONE

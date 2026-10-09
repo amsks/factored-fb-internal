@@ -1,0 +1,8 @@
+Restored from /dev/shm/gciql_outputs/factored-fb/factored-fb-crl-flowbc/sd007_20260525_080831/params_1000000.pkl
+[crl_coverage] seed=7 step=1000000 tasks=5 ref_obs=(5000, 28)
+  task=cube-single-play-singletask-task1-v0: 4/20 success
+  task=cube-single-play-singletask-task2-v0: 5/20 success
+  task=cube-single-play-singletask-task3-v0: 5/20 success
+  task=cube-single-play-singletask-task4-v0: 1/20 success
+  task=cube-single-play-singletask-task5-v0: 4/20 success
+[crl_coverage] wrote /home/adityamohan/git/Factored-FB/analysis/profiles/crl_1m_support/s7/coverage.parquet (18378 rows)

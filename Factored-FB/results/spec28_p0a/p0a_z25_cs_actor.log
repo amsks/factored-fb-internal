@@ -1,0 +1,17 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec25_stage1/factored-fb/GCIQL-CubeSingle-Flow-Measure-DensityZ-C3Actor-d50/z25_cs_actor/params_500000.pkl
+[p0a] restored z25_cs_actor step=500000 env=cube-single-play-v0 z=True d=50 temp=1.0 tilt=0.0 hit_spec='19:22:0.4' P=16384
+[p0a] pool P=16384 (13s)
+[p0a] pair 8/64 (18s)
+[p0a] pair 16/64 (19s)
+[p0a] pair 24/64 (20s)
+[p0a] pair 32/64 (22s)
+[p0a] pair 40/64 (23s)
+[p0a] pair 48/64 (25s)
+[p0a] pair 56/64 (26s)
+[p0a] pair 64/64 (28s)
+[p0a] DONE (29s) -> results/spec28_p0a/p0a_z25_cs_actor.json
+[p0a] spearman(q_g,q_z) med=0.1124545979948947  span_g=8.160e-05 span_z=1.802e-01  snr_g=174.44 snr_z=58.74  AUC_g=0.6513671875 AUC_z=0.603515625 (chance .500)  d/span_g=0.47124456306482243 d/span_z=0.3562254132325438  sens_goal=0.0002327802253603295 (noise floor 0.1864262530580163, unif ceiling 1.83)

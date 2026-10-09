@@ -1,0 +1,303 @@
+{
+  "meta": {
+    "run_dir": "/home/adityamohan/exp_spec24/factored-fb/GCIQL-CubeDouble-Flow-Measure-DensityZ-d50/z24_cd_z_s1",
+    "checkpoint_step": 500000,
+    "arm": "e2a",
+    "env": "cube-double-play-v0",
+    "d": 50,
+    "gamma": 0.99,
+    "double_q": true,
+    "temp": 1.0,
+    "hit_spec": "19:22:0.4,28:31:0.4",
+    "pool_size": 16384,
+    "e2b_candidate_size": 4096,
+    "ridge": 0.0001,
+    "seed": 1,
+    "episodes": 25,
+    "horizon": 500,
+    "tasks": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "families": [
+      "dirac",
+      "dense",
+      "region"
+    ],
+    "tower_convention": "w/kappa readout = ONLINE density_b (build_pool, unchanged from eval_density_zeroshot.py); z_r reward embedding (E2a) and _density_z_encode candidates (E2b) = TARGET target_density_b -- spec 24 sec.1",
+    "readout": {
+      "e2a": "z_r = sqrt(d) * normalize( E_pool[ r(x) B_bar(x_tilde) ] ) -- spec 24 sec.3 E2a, gciql_flow._sphere norm convention",
+      "e2b": "candidates z(u_j) = agent._density_z_encode(u_j) for u_j ~ e2b_candidate_size pool samples; scored by pool PRIMARY Q_r(s0,.) (compute_density_primary/density_weights, imported unchanged); argmax selects z* -- spec 24 sec.3 E2b",
+      "rollout": "plain fixed-z rollout (sample_actions_with_z), no per-step re-scoring -- retrieval-decode-then-rollout shape shared with eval_density_zeroshot.py",
+      "control": "g-indexed retrieval decode (decode_goal_retrieval_density, imported unchanged from eval_density_zeroshot.py) over e2b_candidate_size dataset candidates -- NOT a z-construction at all; requires a measure_density_z=False checkpoint (check_control_consistency). Added 2026-08-13 so E2a/E2b's region_success_from_obs reads have a same-metric, same-families, same-pool g-indexed comparison point (the task's original .315/.242/.235 anchors are native env success, a DIFFERENT metric -- comparing E2 against them is a protocol mismatch).",
+      "success": "region_success_from_obs (imported unchanged) at the family's own reward center, uniformly across dirac/dense/region -- point-mass-maze's native env success is keyed to a DIFFERENT (env-internal task_id) goal, so the manipspace shortcut of using info['success'] does not apply here",
+      "spec": "PAPER/Multistep-FB/specs/24-z-indexed-density.md sec.3"
+    },
+    "role": "E2 arm (z-indexed)",
+    "domain": "cube-double",
+    "family_means": {
+      "dirac": 0.016,
+      "dense": 0.016,
+      "region": 0.0
+    }
+  },
+  "families": {
+    "dirac": {
+      "t1": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.08,
+        "qr_primary_t0_mean": 0.2575936795947733,
+        "qr_secondary_t0_mean": -0.07397936150369909,
+        "success_any": 0.08,
+        "goal_coord": [
+          0.0,
+          -1.4587288097107162e-20,
+          0.1995989978313446,
+          0.0,
+          1.0,
+          0.1995989978313446
+        ]
+      },
+      "t2": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.0018767337809033888,
+        "qr_secondary_t0_mean": 0.03858574920027064,
+        "success_any": 0.0,
+        "goal_coord": [
+          -0.75,
+          1.0,
+          0.1995989978313446,
+          0.75,
+          1.0,
+          0.1995989978313446
+        ]
+      },
+      "t3": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.0028811292817971373,
+        "qr_secondary_t0_mean": 0.005861126864181251,
+        "success_any": 0.0,
+        "goal_coord": [
+          0.0,
+          -2.0,
+          0.1995989978313446,
+          0.0,
+          2.0,
+          0.1995989978313446
+        ]
+      },
+      "t4": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.028744165143684292,
+        "qr_secondary_t0_mean": 0.25930852150935374,
+        "success_any": 0.0,
+        "goal_coord": [
+          0.0,
+          1.0,
+          0.1995989978313446,
+          0.0,
+          -1.0,
+          0.1995989978313446
+        ]
+      },
+      "t5": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.023006587723412037,
+        "qr_secondary_t0_mean": 0.2165313921093901,
+        "success_any": 0.0,
+        "goal_coord": [
+          0.0,
+          -1.2501166535443494e-17,
+          0.19921377301216125,
+          0.0,
+          -2.4596513299284797e-18,
+          0.5990393161773682
+        ]
+      },
+      "mean": 0.016
+    },
+    "dense": {
+      "t1": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.08,
+        "qr_primary_t0_mean": 8.167354368180026,
+        "qr_secondary_t0_mean": 6.50978922752655,
+        "success_any": 0.08,
+        "goal_coord": [
+          0.0,
+          9.048235330094055e-20,
+          0.1995989978313446,
+          0.0,
+          1.0,
+          0.1995989978313446
+        ]
+      },
+      "t2": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 2.918341657246535,
+        "qr_secondary_t0_mean": 3.601312234487571,
+        "success_any": 0.0,
+        "goal_coord": [
+          -0.75,
+          1.0,
+          0.1995989978313446,
+          0.75,
+          1.0,
+          0.1995989978313446
+        ]
+      },
+      "t3": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 1.9970278591836987,
+        "qr_secondary_t0_mean": 1.6916630904133418,
+        "success_any": 0.0,
+        "goal_coord": [
+          0.0,
+          -2.0,
+          0.1995989978313446,
+          0.0,
+          2.0,
+          0.1995989978313446
+        ]
+      },
+      "t4": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 3.596756049920324,
+        "qr_secondary_t0_mean": 4.17055303035585,
+        "success_any": 0.0,
+        "goal_coord": [
+          0.0,
+          1.0,
+          0.1995989978313446,
+          0.0,
+          -1.0,
+          0.1995989978313446
+        ]
+      },
+      "t5": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 3.4457113643676753,
+        "qr_secondary_t0_mean": 4.590517196417958,
+        "success_any": 0.0,
+        "goal_coord": [
+          0.0,
+          -6.817661486150844e-18,
+          0.19921377301216125,
+          0.0,
+          -1.4722335284123188e-18,
+          0.5990393161773682
+        ]
+      },
+      "mean": 0.016
+    },
+    "region": {
+      "n_centers": 4,
+      "centers_rejected": 42,
+      "center_min_pos": 5,
+      "c0": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.006885059478423915,
+        "qr_secondary_t0_mean": -0.0191110115323743,
+        "success_any": 0.0,
+        "center_coord": [
+          0.10274602472782135,
+          -1.9910005331039429,
+          0.199607253074646,
+          0.6148562431335449,
+          -2.165876626968384,
+          0.199607253074646
+        ],
+        "center_n_pos": 5
+      },
+      "c1": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.06364742506834471,
+        "qr_secondary_t0_mean": -0.09335277561213097,
+        "success_any": 0.0,
+        "center_coord": [
+          -0.8683874607086182,
+          1.9907108545303345,
+          0.199607253074646,
+          -0.05997684597969055,
+          -0.45476749539375305,
+          0.199607253074646
+        ],
+        "center_n_pos": 6
+      },
+      "c2": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": -0.16654316845008213,
+        "qr_secondary_t0_mean": -0.15647521403318115,
+        "success_any": 0.0,
+        "center_coord": [
+          0.2649993598461151,
+          0.5034975409507751,
+          0.199607253074646,
+          0.8579463362693787,
+          -0.5930012464523315,
+          0.199607253074646
+        ],
+        "center_n_pos": 5
+      },
+      "c3": {
+        "decode": {
+          "arm": "e2a"
+        },
+        "success_final": 0.0,
+        "qr_primary_t0_mean": 0.0005669831416504777,
+        "qr_secondary_t0_mean": 0.01892297527495926,
+        "success_any": 0.0,
+        "center_coord": [
+          0.7942354083061218,
+          -2.1127188205718994,
+          0.199607253074646,
+          0.509364664554596,
+          3.020920991897583,
+          0.199607253074646
+        ],
+        "center_n_pos": 6
+      },
+      "mean": 0.0
+    }
+  }
+}

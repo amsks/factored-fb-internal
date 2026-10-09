@@ -1,0 +1,188 @@
+[
+  {
+    "seed": 0,
+    "lr": 0.001,
+    "gamma": 0.5,
+    "method": "density",
+    "step": 100000,
+    "start_gap": -0.933323390864761,
+    "true_start_gap": -0.9333333333333333,
+    "svd_start_gap": -0.6000000000000004,
+    "all_state_gaps": [
+      -0.933323390864761,
+      0.13333617359692496,
+      0.26666999816002557,
+      0.5333172191078102
+    ],
+    "true_state_gaps": [
+      -0.9333333333333333,
+      0.13333333333333333,
+      0.26666666666666666,
+      0.5333333333333333
+    ],
+    "wrong_strict_states": 0,
+    "rmse_to_exact": 3.600586759407043e-06,
+    "rmse_to_svd": 0.08333147718619324,
+    "backward_second_moment_error": 0.964284749297339,
+    "contains_constant_error": 1.9892666476060124,
+    "contains_path_fiedler_error": 0.11602615424483445,
+    "gradient_norm": 7.099748090268305e-06,
+    "min_entry": 0.06666661626287601,
+    "max_mass_error": 0.0
+  },
+  {
+    "seed": 0,
+    "lr": 0.01,
+    "gamma": 0.5,
+    "method": "density",
+    "step": 100000,
+    "start_gap": -0.9333404509827434,
+    "true_start_gap": -0.9333333333333333,
+    "svd_start_gap": -0.6000000000000004,
+    "all_state_gaps": [
+      -0.9333404509827434,
+      0.13330426533815573,
+      0.2668305330904288,
+      0.5332056525541586
+    ],
+    "true_state_gaps": [
+      -0.9333333333333333,
+      0.13333333333333333,
+      0.26666666666666666,
+      0.5333333333333333
+    ],
+    "wrong_strict_states": 0,
+    "rmse_to_exact": 3.917793396440148e-05,
+    "rmse_to_svd": 0.08331686533028658,
+    "backward_second_moment_error": 0.982074373273445,
+    "contains_constant_error": 1.9311931420633368,
+    "contains_path_fiedler_error": 0.33743107226892055,
+    "gradient_norm": 7.658167514903339e-05,
+    "min_entry": 0.06666483349852372,
+    "max_mass_error": 0.0
+  },
+  {
+    "seed": 1,
+    "lr": 0.001,
+    "gamma": 0.5,
+    "method": "density",
+    "step": 100000,
+    "start_gap": -0.9333421693147145,
+    "true_start_gap": -0.9333333333333333,
+    "svd_start_gap": -0.6000000000000004,
+    "all_state_gaps": [
+      -0.9333421693147145,
+      0.133332572482537,
+      0.2666671330325266,
+      0.533342463799651
+    ],
+    "true_state_gaps": [
+      -0.9333333333333333,
+      0.13333333333333333,
+      0.26666666666666666,
+      0.5333333333333333
+    ],
+    "wrong_strict_states": 0,
+    "rmse_to_exact": 1.9545384066272832e-06,
+    "rmse_to_svd": 0.08333407475838162,
+    "backward_second_moment_error": 0.8634098443491882,
+    "contains_constant_error": 1.9267171968942733,
+    "contains_path_fiedler_error": 0.11775694355476822,
+    "gradient_norm": 3.3233648201910327e-06,
+    "min_entry": 0.06666645435336183,
+    "max_mass_error": 2.220446049250313e-16
+  },
+  {
+    "seed": 1,
+    "lr": 0.01,
+    "gamma": 0.5,
+    "method": "density",
+    "step": 100000,
+    "start_gap": -0.9333015549517388,
+    "true_start_gap": -0.9333333333333333,
+    "svd_start_gap": -0.6000000000000004,
+    "all_state_gaps": [
+      -0.9333015549517388,
+      0.13332741642586254,
+      0.2667137528362525,
+      0.5332603856896251
+    ],
+    "true_state_gaps": [
+      -0.9333333333333333,
+      0.13333333333333333,
+      0.26666666666666666,
+      0.5333333333333333
+    ],
+    "wrong_strict_states": 0,
+    "rmse_to_exact": 1.3556434635510891e-05,
+    "rmse_to_svd": 0.08332568515899896,
+    "backward_second_moment_error": 0.932697941702884,
+    "contains_constant_error": 1.8713871262961468,
+    "contains_path_fiedler_error": 0.12502834093788576,
+    "gradient_norm": 2.6678360699722746e-05,
+    "min_entry": 0.06666414217126114,
+    "max_mass_error": 2.220446049250313e-16
+  },
+  {
+    "seed": 2,
+    "lr": 0.001,
+    "gamma": 0.5,
+    "method": "density",
+    "step": 100000,
+    "start_gap": -0.9333379357859583,
+    "true_start_gap": -0.9333333333333333,
+    "svd_start_gap": -0.6000000000000004,
+    "all_state_gaps": [
+      -0.9333379357859583,
+      0.13332800092780472,
+      0.2666739426978144,
+      0.5333359921603398
+    ],
+    "true_state_gaps": [
+      -0.9333333333333333,
+      0.13333333333333333,
+      0.26666666666666666,
+      0.5333333333333333
+    ],
+    "wrong_strict_states": 0,
+    "rmse_to_exact": 2.014842292391929e-06,
+    "rmse_to_svd": 0.08333249044024045,
+    "backward_second_moment_error": 0.8006059043694693,
+    "contains_constant_error": 1.9966593163046895,
+    "contains_path_fiedler_error": 0.0017410858763765866,
+    "gradient_norm": 3.6211037925099055e-06,
+    "min_entry": 0.06666625773520407,
+    "max_mass_error": 2.220446049250313e-16
+  },
+  {
+    "seed": 2,
+    "lr": 0.01,
+    "gamma": 0.5,
+    "method": "density",
+    "step": 100000,
+    "start_gap": -0.9335929053870469,
+    "true_start_gap": -0.9333333333333333,
+    "svd_start_gap": -0.6000000000000004,
+    "all_state_gaps": [
+      -0.9335929053870469,
+      0.13336108244034048,
+      0.26622253001608825,
+      0.534009292930618
+    ],
+    "true_state_gaps": [
+      -0.9333333333333333,
+      0.13333333333333333,
+      0.26666666666666666,
+      0.5333333333333333
+    ],
+    "wrong_strict_states": 0,
+    "rmse_to_exact": 0.0003185605198972287,
+    "rmse_to_svd": 0.08346997254648456,
+    "backward_second_moment_error": 0.9442634153712525,
+    "contains_constant_error": 1.987710728794167,
+    "contains_path_fiedler_error": 0.012772572873985633,
+    "gradient_norm": 0.0005757622732208137,
+    "min_entry": 0.06661726635232736,
+    "max_mass_error": 2.220446049250313e-16
+  }
+]

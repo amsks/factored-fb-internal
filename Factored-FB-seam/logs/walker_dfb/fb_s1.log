@@ -1,0 +1,18 @@
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260915_014048-d0qzijw3
+I0915 01:40:57.454120 139929896651648 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0915 01:40:57.463130 139929896651648 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 01:40:57.464790 139929896651648 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0915 01:40:57.473518 139929896651648 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 01:40:57.592690 139929896651648 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 01:40:57.594585 139929896651648 __init__.py:31] MuJoCo library version is: 3.3.0
+I0915 01:40:57.628211 139929896651648 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 01:40:57.630653 139929896651648 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0915 01:40:57.632894 139929896651648 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0915 01:40:57.638504 139929896651648 __init__.py:31] MuJoCo library version is: 3.8.1
+I0915 01:40:58.237011 139929896651648 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+/home/adityamohan/git/Factored-FB-seam/impls/critics/fb.py:88: UserWarning: Explicitly requested dtype float64 requested in zeros is not available, and will be truncated to dtype float32. To enable more dtypes, set the jax_enable_x64 configuration option or the JAX_ENABLE_X64 shell environment variable. See https://github.com/jax-ml/jax#current-gotchas for more.
+  return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
+[auto_resume] no params_*.pkl under exp/walker_dfb/dmc-walker_fb_ddpgbc_seed_1; fresh start

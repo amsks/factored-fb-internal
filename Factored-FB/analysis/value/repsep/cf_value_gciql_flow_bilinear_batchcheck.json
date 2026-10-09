@@ -1,0 +1,20 @@
+{
+  "method": "gciql_flow_bilinear",
+  "n_states": 40,
+  "batched": true,
+  "cf_value_auc_mean": 0.6300432900432901,
+  "cf_value_auc_per_task": [
+    NaN,
+    0.68,
+    NaN,
+    0.5800865800865801,
+    NaN
+  ],
+  "cf_success_rate": [
+    0.95,
+    0.875,
+    1.0,
+    0.825,
+    0.975
+  ]
+}

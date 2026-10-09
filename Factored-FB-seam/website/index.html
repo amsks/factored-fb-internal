@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Density-FB</title>
+<meta name="description" content="Density Matters: Normalized Successor Measures for Zero-Shot Control. Project page with figures and results.">
+<meta property="og:title" content="Density Matters: Normalized Successor Measures for Zero-Shot Control">
+<meta property="og:description" content="Density-FB keeps action-value differences at control bottlenecks that Forward-Backward representations erase.">
+<meta property="og:image" content="https://amsks.github.io/density-fb/static/video/lead_compare_poster.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<script>
+  window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }, svg: { fontCache: 'global' } };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+<style>
+  :root {
+    --ink: #1d1d1f;
+    --muted: #5b5b66;
+    --rule: #e3e3e8;
+    --bg: #ffffff;
+    --panel: #f6f6f8;
+    --fb: #1f77b4;
+    --dfb: #e8641b;
+    --good: #00962a;
+    --bad: #bb2525;
+    --link: #b3470e;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Source Serif 4", Georgia, serif; font-size: 18px; line-height: 1.6;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 0 16px 64px; }
+  h1, h2, h3, .sans { font-family: Inter, system-ui, sans-serif; }
+  header { text-align: center; padding: 56px 0 24px; }
+  header h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); line-height: 1.2; margin: 0 0 8px; font-weight: 600; letter-spacing: -0.01em; }
+  header .name { color: var(--dfb); }
+  .authors { font-family: Inter, sans-serif; color: var(--muted); font-size: 1rem; margin: 16px 0 4px; }
+  .venue { font-family: Inter, sans-serif; color: var(--muted); font-size: 0.95rem; }
+  .buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 22px 0 0; }
+  .btn {
+    font-family: Inter, sans-serif; font-size: 0.92rem; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 18px; border-radius: 999px; background: var(--ink); color: #fff; text-decoration: none;
+  }
+  .btn[aria-disabled="true"] { background: #9a9aa3; pointer-events: none; }
+  h2 { font-size: 1.45rem; font-weight: 600; margin: 56px 0 12px; padding-top: 12px; border-top: 1px solid var(--rule); }
+  h3 { font-size: 1.1rem; font-weight: 600; margin: 32px 0 8px; }
+  p { margin: 0 0 14px; }
+  a { color: var(--link); }
+  figure { margin: 24px 0; }
+  figure video + figcaption { max-width: 860px; margin-left: auto; margin-right: auto; }
+  figure video { display: block; width: 100%; max-width: 860px; margin: 0 auto; height: auto; border-radius: 4px; background: #000; }
+  figure img, .row img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 4px; }
+  .row > * { min-width: 0; }
+  .wide { width: min(1200px, calc(100vw - 32px)); margin-left: 50%; transform: translateX(-50%); }
+  figcaption { font-size: 0.92rem; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+  figcaption b { color: var(--ink); }
+  .row { display: grid; gap: 14px; align-items: start; }
+  .row.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .row.side { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: center; }
+  .row figure { margin: 0; }
+  .sub { font-family: Inter, sans-serif; font-size: 0.85rem; color: var(--muted); text-align: center; margin-top: 4px; }
+  ul.overview { padding-left: 22px; margin: 0 0 14px; }
+  ul.overview li { margin: 8px 0; }
+  .fb { color: var(--fb); font-weight: 600; }
+  .dfb { color: var(--dfb); font-weight: 600; }
+  .eq { overflow-x: auto; padding: 4px 0; }
+  .table-wrap { overflow-x: auto; margin: 16px 0; }
+  table { border-collapse: collapse; width: 100%; font-family: Inter, sans-serif; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 8px; text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { border-bottom: 2px solid var(--ink); font-weight: 600; }
+  tbody tr.group td { font-style: italic; font-weight: 600; background: var(--panel); border-top: 1px solid var(--rule); }
+  tbody tr.task td:first-child { font-family: "JetBrains Mono", monospace; font-size: 0.78rem; padding-left: 18px; }
+  td .se { color: var(--muted); font-size: 0.72rem; }
+  td.best { font-weight: 700; }
+  th.ours, td.ours { background: #fff4ec; }
+  .up { color: var(--good); } .down { color: var(--bad); } .flat { color: var(--muted); }
+  pre { background: var(--panel); padding: 16px; border-radius: 4px; overflow-x: auto; font-family: "JetBrains Mono", monospace; font-size: 0.8rem; line-height: 1.5; }
+  footer { font-family: Inter, sans-serif; font-size: 0.8rem; color: var(--muted); text-align: center; margin-top: 64px; }
+  @media (max-width: 720px) {
+    body { font-size: 16.5px; }
+    .row.three, .row.two, .row.side { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1><span class="name">Density</span> Matters: Normalized Successor Measures for Zero-Shot Control</h1>
+  <div class="authors">
+    Aditya Mohan<sup>1</sup>, Tongle Shen<sup>2</sup>, Fan Feng<sup>2</sup>, Siddhant Agarwal<sup>3</sup>,
+    Caleb Chuck<sup>4</sup>, Benjamin Eysenbach<sup>4</sup>, Amy Zhang<sup>3</sup>
+  </div>
+  <div class="venue">
+    <sup>1</sup>Universit&auml;t Hannover &nbsp; <sup>2</sup>University of California, San Diego &nbsp;
+    <sup>3</sup>University of Texas at Austin &nbsp; <sup>4</sup>Princeton University
+  </div>
+  <div class="buttons">
+    <!-- Replace href with the arXiv abs link and drop aria-disabled once the preprint is live. -->
+    <a class="btn" href="#" aria-disabled="true">arXiv (coming soon)</a>
+    <a class="btn" href="#" aria-disabled="true">Code (coming soon)</a>
+    <a class="btn" href="#bibtex">BibTeX</a>
+  </div>
+</header>
+
+<figure class="wide">
+  <video src="static/video/lead_compare.mp4" poster="static/video/lead_compare_poster.jpg" autoplay muted loop playsinline controls preload="metadata" aria-label="FB and Density-FB side by side on cube-single from the same start, with the stage named above each panel and each critic's predicted future cube positions below."></video>
+  <figcaption>
+    <b>FB vs. Density-FB on <code>cube-single</code>, same start and goal (star).</b>
+    Heat map: where the critic expects the cube to be in the future (darker = more time; FB's negative values set to zero).
+    <span class="fb">FB</span> predicts a future spread over the whole table and carries the cube away from the goal; <span class="dfb">Density-FB</span> predicts the goal and places the cube there.
+    Over 320 such starts with the cube in hand (64 states &times; 5 goals), Density-FB reaches the goal in 78% and FB in 23%.
+  </figcaption>
+</figure>
+
+<h2 id="overview">Overview</h2>
+<ul class="overview">
+  <li>Forward&ndash;Backward (FB) representations give zero-shot policies that do well on locomotion but fail at pick-and-place: the policy reaches the cube, then fails to keep its grasp or to carry the cube to the goal.</li>
+  <li>The cause is <em>control bottlenecks</em>: states where the choice of action decides which futures stay reachable. There, FB's low-rank least-squares fit can give a good and a bad action the same value, even at its optimum.</li>
+  <li>Density-FB turns FB's output into a probability distribution over future states and trains it with a cross-entropy TD target. It beats FB on every manipulation task, with median per-task gains of 63.2 / 30.0 / 8.5 points of success on OGBench / MetaWorld / ManiSkill.</li>
+</ul>
+
+<h2 id="bottleneck">Control bottlenecks</h2>
+<p>
+A successor measure $M^\pi(s,a,\cdot)$ is the discounted distribution of future states when the agent takes action $a$ in state $s$ and then follows policy $\pi$.
+Any reward's action value is an expectation under it: $Q_r^\pi(s,a) = \int r\, dM^\pi(s,a,\cdot)$.
+FB approximates the successor measure with a low-rank product $F(s,a,z)^\top B(s^+)$, fit by least squares.
+The best such fit projects each successor density onto the span of the backward features $B$.
+If two actions' future-state distributions differ only in a direction orthogonal to every feature, their projections coincide, and FB gives both actions the same value.
+</p>
+
+<div class="row side">
+  <figure>
+    <img src="static/img/fig_single_bottleneck_graph.png" alt="Nine-state MDP with a single bottleneck at state 2 leading to cluster A or cluster B, then a shared tail.">
+  </figure>
+  <figure>
+    <figcaption>
+      <b>A control bottleneck.</b>
+      At state 2, action $a_+$ enters state A (3) and $a_-$ enters state B (4); both then step into the shared tail (states 5&ndash;8).
+      Entering A gives reward 1, B gives 0, and every tail state gives 0.5.
+      So $a_+$ has the higher return, although the two actions' futures differ for a single step.
+    </figcaption>
+  </figure>
+</div>
+
+<div class="row three">
+  <div><img src="static/img/fig_61_values.png" alt="Predicted and exact action values at the bottleneck."><div class="sub">(a) action values at state 2</div></div>
+  <div><img src="static/img/fig_61_lemma.png" alt="Differences in discounted future visits: exact, best fit on FB features, Density-FB."><div class="sub">(b) difference in future visits</div></div>
+  <div><img src="static/img/fig_61_prop.png" alt="KL divergence to the exact successor distribution against the preservation threshold."><div class="sub">(c) KL to exact vs. threshold</div></div>
+</div>
+<figure style="margin-top:6px">
+  <figcaption>
+    <b>At the bottleneck, FB's features erase the action-value difference; Density-FB keeps it.</b>
+    (a) Predicted and exact action values with four features (D-FB: Density-FB); mean and 95% interval over ten runs.
+    (b) Differences ($a_+ - a_-$) in discounted future visits. Gray: exact. Orange: best least-squares fit on FB's frozen features. Green: Density-FB at the same dimension.
+    Refitting the forward vectors does not help: the gap is outside the span of the learned backward features.
+    (c) KL divergence from the exact successor distribution to Density-FB's prediction at state 2, against the feature dimension (hollow red: $a_-$ ranked above $a_+$). Below the dashed line $\varepsilon$, the correct ordering is guaranteed; the paper gives the bound.
+  </figcaption>
+</figure>
+
+<h2 id="method">Density-FB</h2>
+<p>
+Density-FB keeps FB's two networks, $F_\theta(s,a,z)$ and $B_\theta(s^+)$, but reads their product as a score instead of a density.
+A softmax over candidate future states, with temperature $\tau$, turns the scores into a probability distribution.
+The low-rank constraint now sits on the log-density, so the prediction is no longer confined to the span of $B$.
+</p>
+
+<h3>Critic</h3>
+<p>
+On a minibatch of $n$ transitions, the next states $s^+_j := s'_j$ serve as the candidate futures.
+The critic predicts the discounted distribution of future states from $(s, a)$ under task $z$, over these candidates:
+</p>
+<div class="eq">
+$$ p_j(s,a,z) = \frac{\exp\!\big(F_\theta(s,a,z)^\top B_\theta(s^+_j)/\tau\big)}{\sum_{\ell=1}^{n} \exp\!\big(F_\theta(s,a,z)^\top B_\theta(s^+_\ell)/\tau\big)}. $$
+</div>
+<p>
+The TD target puts weight $1-\gamma$ on the observed next state and weight $\gamma$ on the target network's prediction $\bar p$ from that next state, with the next action drawn from the current policy.
+The critic fits this target by cross-entropy:
+</p>
+<div class="eq">
+$$ \mathcal{L}_{\text{critic}} = -\frac{1}{n}\sum_{i,j} \Big[(1-\gamma)\,\mathbb{1}[j=i] + \gamma\,\bar p_j(s'_i, a'_i, z_i)\Big] \log p_j(s_i,a_i,z_i), \qquad a'_i \sim \pi(\cdot \mid s'_i, z_i). $$
+</div>
+
+<h3>Actor</h3>
+<p>
+The value of an action is the expected reward under the predicted distribution:
+</p>
+<div class="eq">
+$$ \hat Q_r(s,a,z) = \frac{1}{1-\gamma} \sum_{j=1}^{n} p_j(s,a,z)\, r(s^+_j). $$
+</div>
+<p>
+During pretraining, each task vector $z$ defines its own reward through the backward features, $r_z(s^+) = (B(s^+) - \hat\mu)^\top z / \sqrt{d}$, where $\hat\mu$ is the running mean of $B$ and $d$ the feature dimension.
+The actor $\pi(\cdot \mid s, z)$ maximizes $\hat Q_{r_z}(s,a,z)$ with behavior regularization.
+</p>
+
+<h3>Zero-shot control</h3>
+<p>
+For a new reward, a task vector $z_r$ is inferred from reward-labeled offline states.
+The frozen policy $\pi(\cdot \mid s, z_r)$ is then executed without further training.
+</p>
+
+<h3>Which part matters</h3>
+<p>
+On the bottleneck example above, we swap one ingredient at a time and measure how much of the true action-value difference each critic recovers.
+</p>
+<div class="row side">
+  <figure>
+    <img src="static/img/fig_61_ablation_main.png" alt="Recovered fraction of the action-value difference against feature dimension for FB, Density-FB and variants.">
+  </figure>
+  <figure>
+    <figcaption>
+      <b>Density-FB keeps the action-value difference with fewer features.</b>
+      Predicted value difference at state 2 divided by the exact one, against the feature dimension; mean and 95% interval over ten TD runs. The dashed line is exact recovery.
+      FB-norm (FB with a normalized target) recovers nothing up to six features, like FB. The softmax recovers the full difference from four features whether it is fit by cross-entropy (D-FB) or squared error (SM-sq), so the softmax, not the loss, is what matters. D-FB-soft (Density-FB with a smoothed immediate target) stops at about 71%.
+    </figcaption>
+  </figure>
+</div>
+
+<h2 id="results">Results</h2>
+<p>
+Success rate (%), mean &plusmn; SE over five seeds. Benchmark rows average the tasks. Bold marks the best mean and others within its SE; &Delta; is Density-FB's relative change over the best baseline.
+GCIQL, CRL and QRL are goal-conditioned methods; FB, HILP, RLDP and Density-FB are zero-shot successor-representation methods.
+Density-FB can condition its policy on a goal state or on a task vector inferred from reward samples; the table reports goal conditioning on OGBench and inferred task vectors on MetaWorld, ManiSkill and ExoRL.
+With inferred task vectors on OGBench, Density-FB reaches 82.9 / 31.7 / 54.0 on <code>cube-single</code> / <code>cube-double</code> / <code>scene</code>, still above every successor-representation baseline.
+</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Task / domain</th><th>FB</th><th>HILP</th><th>RLDP</th><th>GCIQL</th><th>CRL</th><th>QRL</th><th class="ours">Density-FB</th><th>&Delta;</th></tr></thead>
+  <tbody id="bench"></tbody>
+</table>
+</div>
+
+<h3>ExoRL (DMC returns)</h3>
+<p>
+On dense-reward locomotion without interaction bottlenecks, Density-FB has the highest mean return, leads on quadruped and point-mass, and trails FB on walker and cheetah.
+</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Task / domain</th><th>FB</th><th>HILP</th><th>RLDP</th><th class="ours">Density-FB</th><th>&Delta;</th></tr></thead>
+  <tbody id="exorl"></tbody>
+</table>
+</div>
+
+<h2 id="bibtex">BibTeX</h2>
+<pre>@article{mohan2026density,
+  title   = {Density Matters: Normalized Successor Measures for Zero-Shot Control},
+  author  = {Mohan, Aditya and Shen, Tongle and Feng, Fan and Agarwal, Siddhant and
+             Chuck, Caleb and Eysenbach, Benjamin and Zhang, Amy},
+  journal = {arXiv preprint arXiv:XXXX.XXXXX},
+  year    = {2026}
+}</pre>
+
+</main>
+
+<script>
+  // [label, [mean, se] per column..., delta, isGroup]; bold indices per row.
+  const bench = [
+    ["OGBench", [[18.7,1.3],[38.3,2.0],[14.0,0.7],[53.0,1.0],[16.0,0.4],[3.7,0.2],[78.4,0.9]], [6], 47.9, true],
+    ["cube-single", [[45.1,2.9],[64.4,4.8],[27.5,1.2],[68.0,2.1],[19.0,0.7],[5.0,0.4],[93.1,0.6]], [6], 36.9],
+    ["cube-double", [[1.7,1.1],[9.2,1.7],[2.8,0.4],[40.0,1.8],[10.0,0.7],[1.0,0.0],[69.5,1.2]], [6], 73.8],
+    ["scene", [[9.3,2.2],[41.3,3.1],[11.6,1.7],[51.0,1.4],[19.0,0.7],[5.0,0.4],[72.5,2.3]], [6], 42.2],
+    ["MetaWorld", [[52.5,5.9],[33.1,3.5],[39.7,5.3],[10.0,3.3],[16.9,2.7],[87.7,0.8],[85.2,2.8]], [5], -2.9, true],
+    ["push", [[29.6,3.4],[17.2,3.8],[57.6,1.7],[4.0,1.5],[18.4,2.6],[80.8,1.1],[91.2,1.9]], [6], 12.9],
+    ["bin-picking", [[62.4,17.4],[49.2,9.1],[19.6,15.4],[0.0,0.0],[0.0,0.0],[98.0,1.0],[92.4,2.4]], [5], -5.7],
+    ["box-close", [[65.6,1.8],[32.8,3.4],[42.0,3.8],[26.0,9.7],[32.4,7.8],[84.4,1.8],[72.0,7.7]], [5], -14.7],
+    ["ManiSkill", [[63.3,1.7],[44.4,2.4],[56.0,1.6],[36.5,1.0],[13.4,1.8],[65.8,0.9],[77.3,1.0]], [6], 17.5, true],
+    ["push-cube", [[88.7,3.4],[49.2,6.3],[40.8,3.5],[68.4,1.9],[29.6,6.9],[96.4,0.4],[97.2,1.2]], [5,6], 0.8],
+    ["pick-cube", [[4.4,0.4],[6.4,1.3],[39.6,2.9],[2.8,0.4],[4.4,0.7],[7.2,1.3],[40.8,3.2]], [2,6], 3.0],
+    ["stack-cube", [[70.4,3.0],[56.8,5.7],[57.2,3.7],[28.0,3.4],[2.4,1.0],[67.6,1.5],[70.8,3.3]], [0,5,6], 0.6],
+    ["poke-cube", [[90.0,1.9],[51.2,5.9],[58.4,5.3],[73.6,1.7],[10.8,1.2],[92.0,2.3],[92.8,1.6]], [5,6], 0.9],
+    ["lift-peg", [[63.2,6.8],[58.4,6.0],[84.0,1.7],[9.6,2.6],[20.0,5.3],[66.0,3.4],[84.7,1.1]], [2,6], 0.8],
+  ];
+  const exorl = [
+    ["ExoRL", [[648.2,2.6],[620.1,4.5],[610.2,7.2],[700.5,10.3]], [3], 8.1, true],
+    ["walker", [[811.5,2.6],[796.4,3.4],[723.9,8.2],[750.2,13.3]], [0], -7.6],
+    ["quadruped", [[595.6,4.1],[694.8,4.9],[665.0,6.2],[760.5,9.1]], [3], 9.5],
+    ["point-mass", [[513.0,8.9],[371.0,16.6],[476.3,17.6],[751.5,33.1]], [3], 46.5],
+    ["cheetah", [[672.7,2.2],[618.3,2.6],[575.6,20.1],[539.9,18.8]], [0], -19.7],
+  ];
+  function fill(id, rows) {
+    const tb = document.getElementById(id);
+    for (const [label, cells, bold, delta, group] of rows) {
+      const tr = document.createElement('tr');
+      tr.className = group ? 'group' : 'task';
+      let html = `<td>${label}</td>`;
+      cells.forEach(([m, s], i) => {
+        const cls = [bold.includes(i) ? 'best' : '', i === cells.length - 1 ? 'ours' : ''].join(' ');
+        html += `<td class="${cls}">${m.toFixed(1)} <span class="se">&plusmn;${s.toFixed(1)}</span></td>`;
+      });
+      const dc = delta >= 5 ? 'up' : delta <= -5 ? 'down' : 'flat';
+      html += `<td class="${dc}">${delta > 0 ? '+' : '&minus;'}${Math.abs(delta).toFixed(1)}%</td>`;
+      tr.innerHTML = html;
+      tb.appendChild(tr);
+    }
+  }
+  fill('bench', bench);
+  fill('exorl', exorl);
+</script>
+</body>
+</html>

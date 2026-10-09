@@ -1,0 +1,30 @@
+{
+  "P3": {
+    "candidates": 303862,
+    "fraction": 0.3035584415584416,
+    "banked": 64,
+    "episodes": 61
+  },
+  "P2": {
+    "candidates": 107180,
+    "fraction": 0.10707292707292708,
+    "banked": 64,
+    "episodes": 63
+  },
+  "P1": {
+    "candidates": 79970,
+    "fraction": 0.07989010989010989,
+    "banked": 32,
+    "episodes": 31
+  },
+  "_meta": {
+    "env": "cube-single-play-v0",
+    "rng_seed": 0,
+    "k_steps": 5,
+    "table_z": 0.02,
+    "lift_thresh": 0.05,
+    "dataset": "/home/adityamohan/.ogbench/data/cube-single-play-v0.npz",
+    "rows": 1001000,
+    "episodes": 1000
+  }
+}

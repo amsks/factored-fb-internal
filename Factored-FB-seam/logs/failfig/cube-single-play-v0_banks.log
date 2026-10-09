@@ -1,0 +1,4 @@
+[banks] cube-single-play-v0: 600 episodes; candidates approach=20981 inhand=4976 carrying=6457
+[banks] cube-single-play-v0 approach: {'candidates': 20981, 'episodes': 600, 'tried': 66, 'banked': 64, 'gate_pass': 0.9696969696969697, 'from_fb': 28, 'from_density': 36}
+[banks] cube-single-play-v0 inhand: {'candidates': 4976, 'episodes': 416, 'tried': 65, 'banked': 64, 'gate_pass': 0.9846153846153847, 'from_fb': 28, 'from_density': 36}
+[banks] cube-single-play-v0 carrying: {'candidates': 6457, 'episodes': 389, 'tried': 64, 'banked': 64, 'gate_pass': 1.0, 'from_fb': 29, 'from_density': 35}

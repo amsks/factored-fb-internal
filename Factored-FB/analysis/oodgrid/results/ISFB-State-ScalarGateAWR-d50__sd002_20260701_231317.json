@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "ISFB-State-ScalarGateAWR-d50",
+ "seed": "sd002_20260701_231317",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/ISFB-State-ScalarGateAWR-d50/sd002_20260701_231317",
+ "step": 500000,
+ "agent_name": "isfb_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "z",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.3,
+  "grasped": 1.0
+ },
+ "C2": {
+  "success": 0.15,
+  "grasped": 0.98
+ },
+ "C4": {
+  "success": 0.21,
+  "grasped": 0.99
+ },
+ "C3": {
+  "success": 0.13,
+  "grasped": 1.0
+ },
+ "secs": 196.6
+}

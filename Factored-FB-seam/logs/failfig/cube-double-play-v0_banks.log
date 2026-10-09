@@ -1,0 +1,4 @@
+[banks] cube-double-play-v0: 600 episodes; candidates approach=54589 inhand=12161 carrying=13655
+[banks] cube-double-play-v0 approach: {'candidates': 54589, 'episodes': 600, 'tried': 69, 'banked': 64, 'gate_pass': 0.927536231884058, 'from_fb': 31, 'from_density': 33}
+[banks] cube-double-play-v0 inhand: {'candidates': 12161, 'episodes': 487, 'tried': 70, 'banked': 64, 'gate_pass': 0.9142857142857143, 'from_fb': 28, 'from_density': 36}
+[banks] cube-double-play-v0 carrying: {'candidates': 13655, 'episodes': 458, 'tried': 64, 'banked': 64, 'gate_pass': 1.0, 'from_fb': 37, 'from_density': 27}

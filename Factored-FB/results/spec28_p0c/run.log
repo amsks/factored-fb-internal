@@ -1,0 +1,13 @@
+[p0c] === z25_cs_actor  gate=results/spec27_q2/e2b_z25_cs_actor.json
+[p0c] z25_cs_actor EXIT=0
+[p0c] === z24_cd_z_s0  gate=results/spec24_eval/cd_e2b_s0_v2.json
+[p0c] z24_cd_z_s0 EXIT=0
+[p0c] === z24_cd_z_s1  gate=results/spec24_eval/cd_e2b_s1_v2.json
+[p0c] z24_cd_z_s1 EXIT=0
+[p0c] === z24_cd_z_s2  gate=results/spec24_eval/cd_e2b_s2_v2.json
+[p0c] z24_cd_z_s2 EXIT=0
+[p0c] === g_cs_dens_s0  gate=none
+[p0c] g_cs_dens_s0 EXIT=0
+[p0c] === g_cd_dens_s0  gate=none
+[p0c] g_cd_dens_s0 EXIT=0
+[p0c] ALL DONE

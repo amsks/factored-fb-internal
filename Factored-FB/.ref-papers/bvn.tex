@@ -1,0 +1,506 @@
+\documentclass[dvipsnames]{article} % For LaTeX2e
+\usepackage{iclr2022_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\usepackage{xcolor}
+\input{math_commands.tex}
+
+\usepackage[english]{babel}
+\usepackage{bbold} % for double 1 (11) indicator
+\usepackage{booktabs}
+\usepackage{breakcites}
+\usepackage{caption}
+\usepackage{enumitem}
+\usepackage[pagebackref=true,breaklinks=true,colorlinks,bookmarks=false,citecolor=blue]{hyperref}
+\usepackage{subcaption}
+\usepackage{svg}
+\usepackage{url}
+\usepackage{wrapfig}
+\usepackage{xspace}
+\usepackage{amsthm}
+\usepackage{multirow}
+
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+\newsavebox{\tempfig}
+\usepackage{subcaption}
+
+\newdimen\figrasterwd
+\figrasterwd\textwidth
+
+\makeatletter
+\newcommand{\printfnsymbol}[1]{%
+  \textsuperscript{\@fnsymbol{#1}}%
+}
+\makeatother
+
+
+% \title{Bilinear Value Networks for Multi-goal Reinforcement Learning}
+\title{Bilinear Value Networks}
+
+% \footnotetext[1]{\fontsize{8}{8} Equal contribution. Authors are also affiliated with Computer Science and Artificial Laboratory (CSAIL), the Laboratory for Information and Decision Systems (LIDS), and the MIT-IBM Watson AI Lab at MIT. Correspondence to {\href{mailto:gmargo@csail.mit.edu,geyang@csail.mit.edu}{\texttt{\{gmargo, geyang\}@csail.mit.edu}}}}
+
+
+\author{Zhang-Wei Hong\thanks{\fontsize{8}{8} Equal contribution, order determined randomly. Authors are also with Computer Science and Artificial Laboratory (CSAIL), and affiliated with the Laboratory for Information and Decision Systems (LIDS). Correspondence to \texttt{\{zwhong,geyang\}@csail.mit.edu}}, ~Ge Yang\printfnsymbol{1}\printfnsymbol{2} \& ~Pulkit Agrawal\printfnsymbol{2}\printfnsymbol{3} \\
+Improbable AI Lab\\ 
+NSF AI Institute for AI and Fundamental Interactions (IAIFI)\printfnsymbol{2}, MIT-IBM Watson AI Lab\printfnsymbol{3} \\
+Massachusetts Institute Technology\\
+}
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+\newcommand{\mono}{\textit{UVFA (Monlithic)}\xspace}
+\newcommand{\bilow}{\textit{UVFA (Bilinear)}\xspace}
+\newcommand{\bifull}{\textit{BVN (Ours)}\xspace}
+\newcommand{\bifullours}{\textit{BVN (Ours)}\xspace}
+\newcommand{\ours}{bilinear value network \xspace}
+\newcommand{\Ours}{Bilinear value network \xspace}
+\newcommand{\fetch}{\textit{Fetch}\xspace}
+\newcommand{\hand}{\textit{Shadow hand}\xspace}
+\newcommand{\iclr}[1]{\textcolor{magenta}{#1}}
+
+\definecolor{es-blue}{rgb}{0,0.4,0.8}
+\providecommand{\ZWH}[1]{{\color{gray}#1 }\textbf{\color{red}- \textbf{ZHW}}}
+\providecommand{\GY}[1]{{\color{gray}#1 }\textbf{\color{es-blue}- \textbf{GY}}}
+\providecommand{\pulkit}[1]{{\color{red}#1 }\textbf{\color{green}- \textbf{PA}}}
+
+\iclrfinalcopy 
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+
+The dominant framework for off-policy multi-goal reinforcement learning involves estimating goal conditioned Q-value function. When learning to achieve multiple goals, data efficiency is intimately connected with generalization of the Q-function to new goals.  The de-facto paradigm is to approximate  \(Q(s, a, g)\) using monolithic neural networks. 
+To improve generalization of the Q-function,
+we propose a bilinear decomposition that represents the Q-value via a low-rank approximation in the form of a dot product between two vector fields. 
+The first vector field, \(f(s, a)\), captures the environment's local dynamics at the state \(s\); whereas the second component, \(\phi(s, g)\), captures the global relationship between the current state and the goal.
+We show that our bilinear decomposition scheme substantially improves data efficiency, and has superior transfer to out-of-distribution goals compared to prior methods. Empirical evidence is provided on the simulated Fetch robot task-suite, and dexterous manipulation with a Shadow hand. The code is available at: \url{https://github.com/Improbable-AI/bvn}.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+Learning a Q-value function~\citep{watkins1992q} is among the core problems in reinforcement learning (RL)~\citep{Sutton2018introduction}. It is often desired to learn a goal-conditioned Q-value function~\citep{Kaelbling1993goals} that estimates rewards for multiple goals. 
+In multi-goal RL, the Q-function takes the form of $Q(s,a,g)$ which indicates the utility of taking action $a$ at state $s$ for approaching the goal $g$. To enable the agent to work across a wide range of goals, it is usual to train 
+$Q(s,a,g)$  for a large set of goals. Such training requires substantially more data than learning a Q-value function for a single goal~\citep{Schaul2015UVFA}.
+
+
+The data efficiency of learning $Q(s,a,g)$ has a close relationship with the generalization of the Q-function to new goals. %generalization of the learned Q-value function affects the sample efficiency of learning a goal-conditioned Q-value function for a large set of goals. 
+To understand why, consider the training process where goals are sampled from a pre-defined training distribution. The target of $Q$-learning is to reduce the error on the $Q$-function for all goals in the training set. At an intermediate point in the training process, the agent would have encountered a subset of training goals. Suppose on these goals the error in approximating the $Q$-function is low. If the learned $Q$-function generalizes to new goals sampled in subsequent training, less data would be required to correct the small errors in Q-function for these goals. Conversely, poor generalization would necessitate collecting a large amount of data. 
+
+
+Currently popular methods~\citep{Schaul2015UVFA,Andrychowicz2017her} represent the $Q(s, a, g)$ with a monolithic neural network, shown in \figref{fig:uvfa_architecture}, whose ability to generalize to new goals is solely derived from the neural network architecture. Because such models jointly process the tuple $(s, a, g)$, the Q-function fails to generalize on new combinations of previously seen individual components. E.g, given training tuples, $(s_A, a_A, g_A)$ and $(s_A, a_B, g_B)$, the monolithic network might fail to generalize to a new data $(s_A, a_A, g_B)$ despite that $s_A$, $a_A$, and $g_B$ have been seen at least once during training.
+
+We proposed \textbf{bilinear value networks (BVN)} to improve such generalization by introducing an \textit{inductive bias} in the neural network architecture that \textit{disentangles} the \textit{local dynamics} from the question of \textit{how to reach the goal}.  
+Concretely, we propose to represent the goal-conditioned Q-value function as interaction between two concerns, $\phi(s,g)$ (\textit{``where to go"}) and $f(s,a)$ (\textit{``what happens next"}), where each concern can be represented as a neural network. The architecture of BVN is illustrated in \figref{fig:bilinear_architecture}. $\phi(s,g)$ models how to change the state to get closer to the goal, while $f(s,a)$ captures where the agent can move from the current state. The Q-function is computed as the alignment between these concerns: $\phi(s,g)^Tf(s,a)$. 
+As the $\phi$-network only requires state-goal $(s, g)$ and $f$-network simply needs state-action $(s, a)$, the learned Q-value function can generalize to the new data $(s_A, a_A, g_B)$ since both $(s_A, a_A)$ and $(s_A, g_B)$ are the seen data for $f$ and $\phi$, respectively.
+Such decomposition is possible because the knowledge of local dynamics ($f$) is independent of where to go ($\phi$) and thus $f(s,a)$ be re-used across goals.
+
+Another intuition about the proposed BVN decomposition is: BVN would predict a high Q-value when the vector representation of the desired future state, $\phi(s,g)$, aligns with the vector representation of the future state, $f(s,a)$, after executing action $a$. We illustrate this intuition with help of a toy example shown in \figref{fig:bvn_decomp}. Here the agent's state $s$ and the goal $g$ are 2D positions, and the task is to get close to $g$ shown as a pink cross. As an analogy to \textit{``what happens next"}, the black arrow originating at state $s$ (shown as the blue circle) denotes the succeeding state after taking an action at state $s$, which is goal-agnostic. Independent of action, the grey arrows can be viewed as the direction to the goal from the current state $s$ (i.e., $\phi(s,g)$ or \textit{``where to go"}). While this illustration was in 2D, we find that the proposed  bilinear value decomposition substantially improves data efficiency (Section~\ref{subsec:sample_efficiency}) and generalization to new goals (Section~\ref{subsec::adapt}) in complex and standard simulated benchmark tasks: (i) dexterous manipulation with a twenty degrees-of-freedom (DoF) shadow hand and (ii) object pick-place tasks using the Fetch manipulator. 
+
+\begin{figure}[t]
+    \begin{subfigure}[b]{0.30\textwidth}
+    \centering
+    \includegraphics[scale=0.33]{illustrations/monolithic_critic.pdf}
+    \vspace{2.2em}
+    \caption{A Monolithic value network}
+    \label{fig:uvfa_architecture}
+    \end{subfigure}\hfill%
+    \begin{subfigure}[b]{0.45\textwidth}
+    \centering
+    \includegraphics[scale=0.33]{illustrations/bilinear_networks.pdf}
+    \vspace{1.7em}
+    \caption{Bilinear value network}\label{fig:bilinear_architecture}
+    \end{subfigure}\hfill%
+    \begin{subfigure}[b]{0.25\textwidth}
+    \includegraphics[width=\textwidth]{illustrations/g_field_b.pdf}
+    \caption{Bilinear decomposition} 
+    \label{fig:bvn_decomp}
+    \end{subfigure}
+    \caption{Illustration of why Bilinear Value Networks (BVNs) improve generalization to new goals. (a) The traditional monolithic goal-conditioned value function jointly models the inputs $(s, a, g)$. (b) Bilinear Value Networks (BVN) introduce an inductive bias in the Q-function computation by disentangling the effect of actions at the current state from how to reach the goal. This is realized by representing $Q(s,a,g) = \phi(s,g)^Tf(s,a)$, where the two vector fields represent ``\textit{what happens next}"\(f(s, a)\) and ``\textit{where to go next}" \(\phi(s, g)\). (c) A 2D navigation toy example, where state $s$ and goal $g$ are both $(x,y)$ positions. The task of this toy example is to reach the goal position $g$. Gray arrows indicate the vector field \(\phi(s, g)\) evaluated at all states. The black arrow indicates the best alignment with \(f(s, a)\).}
+    \label{fig:architecture}
+\end{figure}
+
+\section{Preliminaries}
+\label{sec:preliminary}
+
+We consider the multi-goal reinforcement learning problem \citep{Kaelbling1993goals,plappert2018multi}, formulated as a goal-conditioned Markov Decision Process (MDP). We assume infinite horizon with the discount factor \(\gamma\), and use \(\mathcal S, \mathcal A, \mathcal G\) for the state, action, and goal spaces. At the beginning of each episode, an initial state \(s_0\) and a goal $g$ is sampled according to the distribution \(\rho_\mathcal S\) and \(\rho_\mathcal G\). The goal \(g\) is fixed throughout the episode. At every time step $t$, the agent takes an action according to $a_t \sim \pi(s_t, g)$, and receives the reward $r_{t,g} = R(s_t,a_t,g)$ while transitioning to the next state $s_{t+1}$. The objective of multi-goal RL is to produce a policy \(\pi^*\) that maximizes the expected return \(J\)
+\begin{equation}\label{eq:policy}
+\pi^* = \argmax_\pi  J(\pi)\text{ where   }  J (\pi) = \mathbb{E} \bigg[ \sum^{\infty}_{\tau=t}  \gamma^{\tau - t} r_{\tau,g} | s_t = s\bigg],
+\end{equation}
+where the reward $r_{\tau,g}$ is often structured as the follows:
+\begin{equation}
+    R(s_\tau, a_\tau, g) := \begin{cases}
+        0, &~\text{goal reached}\\
+        -1, &~\text{otherwise}.
+    \end{cases}
+    ~~~\forall \tau \in \mathbb{N}
+\end{equation}
+Note that our proposed parameterization scheme, BVN, does not rely on this reward structure in general. All of the baselines use a discount factor $\gamma =0.98$. 
+
+\subsection{Off-policy RL with Actor-critic Methods}
+\label{sec:offpolicy}
+It is common to use actor-critic algorithms such as \textit{deep deterministic policy gradient} (DDPG)~\citep{Silver2014deterministic}, \textit{twin-delayed DDPG} (TD3)~\citep{Fujimoto2018td3} and \textit{soft actor-critic} (SAC)~\citep{haarnoja2018soft}, to solve multi-goal continuous state-action space tasks considered this paper. In DDPG, the critic \(Q\) is learned by minimizing the temporal-difference (TD) loss:
+\begin{align}
+    \mathcal L(Q) = \mathbb{E}_{(s_t,a_t) \sim \text{Uniform}(\mathcal{D})}(r_{t,g} + \gamma Q(s_{t+1}, \pi(s_{t+1}, g), g) - Q(s_t, a_t, g))^2,
+\end{align}
+where $\mathcal{D}$ is the the replay buffer~\citep{mnih2015human} containing state transition tuples $(s_t,a_t,r_t,s_{t+1},g)$. The actor $\pi$ is trained to maximize the score from the critic, using the deterministic policy gradient:
+\begin{align}\label{eq:pi}
+    \nabla_\pi J(\pi) &= \mathbb{E} [\nabla_a Q(s, a, g) \vert_{a = \pi(s, g)}].
+\end{align}
+In multi-goal RL settings, we refer to the goal-conditioned critic as the \textit{universal value function approximator (UVFA)}~\citep{Schaul2015UVFA} because $Q(s, a, g)$ approximates the expected utility for all goals \(\in \mathcal G\). Because the actor relies on the critic for supervision, the ability for the critic to quickly learn and adapt to unseen goals is a key contributing factor to the overall sample efficiency of the learning procedure. A critic that provides better value estimates using less sample and optimization gradient steps, will lead to faster policy improvement via the gradient in Equation~\ref{eq:pi}. For data efficiency it is common to use off-policy actor-critic methods with hindsight experience replay (HER)~\citep{Andrychowicz2017her}. It is known that
+TD3 and SAC outperform DDPG on single-task continuous control problems. However, in the multi-goal setting when used along with HER, we found DDPG to outperform both TD3 and SAC on the benchmark tasks we considered (see \secref{sec:td3_sac}). We therefore use DDPG for majority of our experiments and report SAC/TD3 results in the appendix. 
+
+\section{Bilinear Value Networks}
+\label{sec:bilinear-value-networks}
+
+\begin{wrapfigure}{r}{0.55\textwidth}
+    \vspace{-3em}
+    \begin{subfigure}[b]{0.25\textwidth}
+    \includegraphics[width=\textwidth]{illustrations/g_field.pdf}
+    \caption{\(f(s, a)^\top\phi({\color{red}g})\)}\label{fig:g_field}
+    \end{subfigure}\hfill%
+    \begin{subfigure}[b]{0.25\textwidth}
+    \includegraphics[width=\textwidth]{illustrations/sg_field.pdf}
+    \caption{\(f(s, a)^\top\phi({\color{es-blue}\bm{s}}, {\color{red}g})\)}\label{fig:gs_field}
+    \end{subfigure}
+    \caption{Comparison between two value decomposition schemes. The task, states, and goals are the same as \figref{fig:bvn_decomp}. The black square indicates obstacles that the agent cannot pass through. {\color{gray}Gray} arrows indicate the vector field \(\phi\) evaluated at a particular goal \({\color{red}g}\), for all states \({\color{es-blue}s}\in \mathcal S\). (a) As in prior work~\cite{Schaul2015UVFA}, the vector field \(\phi({\color{red}g})\) is a constant and does not depend on \({\color{es-blue}{s}}\). (b) BVN parameterizes $\phi$ as a function of both \({\color{es-blue}{s}}\) and \({\color{red}g}\) making it more expressive, but still maintaining the benefit of disentanglement from \(f(s, a)\).}\label{fig:vector_field}
+    % \vspace{-1.7em}
+\end{wrapfigure}%
+Bilinear value network (BVN) factorizes the value function approximator into a bilinear form from two vector representations into a scalar:
+\begin{equation}\label{eq:bilinear_value_networks}
+    Q(s, a, g) = f(s, a)^\top  \phi(s, g),
+\end{equation}
+where $f: \mathcal{S}\times \mathcal{A} \mapsto \mathbb{R}^{d}$ and $\phi: \mathcal{S}\times \mathcal{G} \mapsto \mathbb{R}^{d}$. The first component \(f(s, a)\)  is a \textit{local} field that only concerns the immediate action at the current state \(s\). The second component is more \textit{global} in the sense that \(\phi(s, g)\) captures long-horizon relationship between the current state and the goal. 
+
+
+Closely related to our work is the low-rank bilinear decomposition, $Q(s,a,g) = f(s,a)^\top \phi(g)$, proposed in~\cite{Schaul2015UVFA}. Though \citet{Schaul2015UVFA} showed this decomposition attains better data efficiency in simple environments (e.g., gridworlds), this decomposition is not expressive enough to model value functions in complex environments, which we will show in \secref{subsec::adapt}. 
+Consequently, the majority of multi-goal RL algorithms use a monolithic network shown in \figref{fig:uvfa_architecture} to represent the value function. 
+
+To motivate the design of our factorization, we present a vector analysis perspective on previous value decomposition~\cite{Schaul2015UVFA} and our method in~\figref{fig:vector_field}, where each point on the 2D plane is a state $s$. In~\figref{fig:g_field}, we illustrate the vector field of low-rank bilinear UVFA~\citep{Schaul2015UVFA}, where $f: \mathcal{S}\times \mathcal{A} \mapsto \mathbb{R}^{d}$ and $\phi: \mathcal{G} \mapsto \mathbb{R}^{d}$. It can be seen that $\phi(g)$ is a constant across states since \(\phi(g)\) does not depend on the state \(s\) in ~\figref{fig:g_field}. This makes learning more challenging due to restricted expressivity. The expressivity of low-rank bilinear UVFA is restricted since the such a decomposition can only model linear relationships between states and goals. Consequently, the burden of modeling different Q-values for different states falls completely on \(f\). In contrast, in Figure~\ref{fig:gs_field}, the field \(\phi(s, g)\) produced by BVN is also a function of the state \(s\). This makes \(\phi\) in BVN strictly more expressive than low-rank bilinear UVFA that do not depend on \(s\). 
+
+Bilinear value networks are a drop-in replacement for the monolithic neural networks for approximating universal value function approximator. Our implementation is not specific to a method and be used to learn value function using a variety of methods such as DDPG, SAC, TD3 or even methods that we do not make use of temporal differenceing. 
+
+
+\subsection{A Toy Example: Visualizing $f(s,a)$ And $\phi(s,g)$ }
+
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=\textwidth]{illustrations/maze_bilinear_composite_v2.pdf}
+    % \caption{
+    %  \textbf{Left:} Showing the learned value function \(Q(s, a^*, g)\) over the 2-dimensional state space for a goal indicated by the red circle. Showing overall decrease in value as the agent gets further and further away from the goal. 
+    %  \textbf{Middle:} The actor's actions $a = \pi(s,g)$ increase the alignment (i.e., higher $\cos(\angle f, \vec\phi)$ between $f$ and $\phi$ on the way to the goal. The arrows denote the action $a \in \mathbb{R}^2$, and their colors indicate $\cos(\angle f, \vec\phi)$.
+    %  \textbf{Right:} Showing the latent vectors produced by the agent, projected to a 2D vector space. There is an overall trend for \(\vec\phi\) to decrease in magnitude as one gets closer to the goal. \textbf{Inset:} Compares the \(f\) of a random action versus an optimal action from the policy $\pi$. The latter consistently produces higher value, and is better-aligned to \(\phi\) with a smaller angle. The original vector space was \(\mathbb R^{16}\). \pulkit{This doesn't look polished. Need to span the whole row.}}
+    \caption{
+     \textbf{(a)} The U-maze environment where the states $s$ and goals $g$ are $(x,y)$ on the plane. The task is to reach the goal position (\textcolor{red}{red} circle).
+     \textbf{(b)}  The learned Q-value predictions \(Q(s, a^*, g)\) with the best action $a^*$ over states $s$ in the 2-dimensional state space for a goal $g$ indicated by the \textcolor{red}{red} circle. Overall, values decrease as the agent gets further and further away from the goal.
+     \textbf{(c)} The latent vectors produced by the agent, projected to a 2D vector space. There is an overall trend for \(\phi\) to decrease in magnitude as one gets closer to the goal. \textbf{(c Inset)} Comparing the alignment of vector representation of a random (suboptimal) action produced by the $f$ component, $f(s,a_{rand})$ (pink) against the vector corresponding to the optimal action from the policy $\pi$, $f(s,a^{*})$ (blue) from the $phi$ vector (black). The optimal alignment corresponds to an angle of $90^{\circ}$ because the maximum Q-value in this environment is 0 and not $1$. We find that the optimal action consistently produces a better alignment in comparison to a sub-optimal action.}
+     \label{fig:vec}
+\end{figure}
+
+To examine whether the learned bilinear value decomposition reflect our intuition mentioned in \secref{sec:intro}, we trained a deep deterministic policy gradient (DDPG)~\citep{Lillicrap2015ddpg} with hindsight experience replay (HER)~\citep{Andrychowicz2017her} agent using BVN in a 2D maze shown in \figref{fig:vec} (a), where $s \in \mathbb{R}^2$, $a \in \mathbb{R}^2$,  $g \in \mathbb{R}^2$, and the reward is the negative euclidean distance between states and goals. The output dimensions of $f$ and $\phi$ are both $16$. 
+
+We computed the vectors $z_f^* = f(s,a^*)$ and $z_{\phi} = \phi(s,g)$ densely on a grid of states $(x, y)$ with respect to the fixed goal $g$, where $a^* = \pi(s,g)$ is the optimal action predicted by the learned policy.  For visualization, we used principal component analysis (PCA) to project $z_{\phi}$ to a 2-dimensional vector and is plotted as black arrows in \figref{fig:vec}(c). We cannot use PCA to plot $z_f^*$ on the 2D plane along with $z_{phi}$ because $f(s,a^*)$ and $\phi(s,g)$ live in two different vector spaces. Instead, we plot $f(s, a^*)$ as a rotation from $z_{\phi}$ denoted as $\angle (f(s,a^*), \phi(s,g))$. Specifically, we first plot the 2D projection of $z_{phi}= \phi(s,g)$ as a 2D vector and then plot $z_f^* = f(s,a^*)$ by rotating the plotted $z_{\phi}$ by angle of $\angle (f(s,a^*), \phi(s,g))$. 
+
+Further, \figref{fig:vec}(c) shows that the length of $z_{phi}$ correlates to the distance between the state ($s$) and the goal ($g$), providing further evidence in support of our hypothesis that $\phi(s,g)$ captures proximity to the goal. If $f(s,a)$ indeed captures the dynamics, then $z_f^{*}$ (i.e., vector representation of future state after executing the optimal action $a^*$) should be closely aligned to $z_{phi}$ to produce the maximal Q-value. To test if this is the case, we also plot in pink $z_f^{rand}$ denoting the vector representation of future state after executing a random action $a^{rand}$. 
+We find that in comparison to $f(s, a^{rand})$, $f(s, a^*)$ better aligns with $\phi(s, g)$ validating our hypothesis. Note that the optimal alignment corresponds to an angle of $90^{\circ}$ because the maximum Q-value in this environment is 0 and not $1$. As a result, $f$ for the optimal action will be orthogonal to  $\phi$.
+
+
+\section{Experimental Setup} 
+\label{sec:setup}
+
+\paragraph{Tasks} We evaluate our method in all the multi-goal RL benchmarks in ~\cite{plappert2018multi}, \fetch robot and \hand manipulation tasks, as shown in \figref{fig:renderings}.
+For \fetch robot domain, the robot is required to move the object to a target position. In \hand domain, the agent controls the joints of the hand's fingers and manipulates the objects in hand to a target pose. For all tasks, we set discount factor $\gamma = 0.98$ based on \citet{plappert2018multi}. The details, including the reward functions, of these tasks can be found in the \secref{subsec:task_detail}.
+
+\paragraph{Baselines} We compare with two baselines, \mono ~\citep{Andrychowicz2017her,Schaul2015UVFA} and \bilow proposed in~\cite{Schaul2015UVFA}. \mono is the most common multi-goal value function architecture that parametrizes the Q-function by a monolithic neural network.
+\bilow is a bi-linear value function that decomposes the Q-function as $Q(s,a,g) = f(s,a)^\top \phi(g)$, where $f$ and $\phi$ denote two neural networks respectively. Our method uses a different bilinear decomposition and we refer to it as \bifull. 
+
+\paragraph{Implementation} The baselines and our method are trained by deep deterministic policy gradient (DDPG)~\citep{Lillicrap2015ddpg} with hindsight experience replay (HER)~\citep{Andrychowicz2017her}. We use DDPG with HER as the base algorithm for our method and the baselines because it outperforms other recent Q-learning algorithms~\citep{haarnoja2018soft,Fujimoto2018td3} on the task of learning a goal-conditioned Q-function. Comparison of DDPG against SAC~\citep{haarnoja2018soft} and TD3~\citep{Fujimoto2018td3} is provided in Section~\ref{sec:td3_sac}.  For all baselines, the Q-function is implemented as a three layer neural network with 256 neurons per layer. In our method, $f$ and $\phi$ are both implemented as a 3-layer neural network with 176 neurons to match the total number of parameters of the baselines' Q-function. 
+For \bifull and \bilow, the output dimensions $f$, $\phi(s,g)$, and $\phi(g)$ are set as $16$. The rest of hyperparameters for training are left in \secref{subsec:hype}. 
+
+\paragraph{Evaluation metric} We ran each experiment with $5$ different random seeds and report the mean (solid or dashed line) and 95\%-confidence interval (shaded region) using bootstrapping method~\citep{diciccio1996bootstrap}. Each training plot reports the average success rate over 15 testing rollouts as a function of training epochs, where the goal is sampled in the beginning of each testing rollout. Each epoch consists of a fixed amount of data  (see Section~\ref{subsec:hype} for details). 
+
+\section{Results}
+\label{sec:results}
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/sample_efficiency.pdf} 
+    \vspace{-2em}
+    \caption{Learning curves on the \fetch gym environments, and the \textit{Fetch-extension} (see \secref{subsec:impl_detail}) task suit. BVN attained higher success rates using less data than the baselines in 5 out 8 domains. Also, BVN achieved higher asymptotic performance in \textit{Bin-place}.}
+    \label{fig:sample_efficiency_fetch}
+\end{figure}
+
+Our experiments answer whether BVN improves sample efficiency and generalizes better to unseen goals. In \secref{subsec:ablation}, we provide ablation studies probing the importance of several design decisions.
+
+\subsection{Sample Efficiency and Asymptotic Performance}
+\label{subsec:sample_efficiency}
+\Figref{fig:sample_efficiency_fetch} compares the sample efficiency of our method, \bifull, against baselines on the \fetch tasks. 
+The results show that our method has higher data efficiency in four out of eight tasks and matches the baselines in other tasks. Our method also attains higher asymptotic performance in \textit{Bin-place}. \Figref{fig:sample_efficiency_hand} shows that on the \hand task suite, BVN improves the sample efficiency in six out of the eight tasks and is on-par with the baselines for the other two tasks. These results suggest that BVN consistently improves sample efficiency of learning goal-conditioned policies. 
+
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/sample_efficiency_hand.pdf}
+    \vspace{-2em}
+    \caption{Learning curves on the \hand dexterous manipulation suite. BVN learns faster than the baselines on six out of eight domains.}
+    \label{fig:sample_efficiency_hand}
+\end{figure}
+
+\subsection{Generalization to Unseen Goals}
+\label{subsec::adapt}
+Our central hypothesis is that BVN increases data efficiency by generalizing better to new goals. To test this, we split the training and evaluation goals in two ways in the \fetch robot domain: (1) left-to-right and (2) near-to-far. In near-to-far scenario, all goals within a pre-specifed euclidean distance are used for training (\textit{near}) and goals sampled outside the threshold distance are used for testing (i.e., \textit{far}). The train-test split of goals is illustrated in   \figref{fig:gen_illustration_nearfar} by colors green and pink respectively. For left-to-right scenario, we split the goal space into the left and right half-spaces (see \figref{fig:gen_illustration_leftright}). During training, we disable HER to prevent the Q-function from receiving goals in the testing split due to relabeling. We train the baselines and our method until they achieve similar success rates (see \secref{subsec:hype} for details). For testing, we finetune the learned Q-function and the policy using the weights from the best model over $3$ random seeds from training time. We finetune the Q-function and the policy using HER. 
+
+The fine-tuning performance of the baselines and BVN is reported in \figref{fig:adapt}. We find that BVN (shown in blue) quickly adapts to new goals and outperforms the monolithic UVFA (shown in grey). This result suggests that BVN generalizes better than \mono to new goals. 
+
+Recall that in the BVN formulation, $f(s,a)$ does not encode any goal specific information. We therefore hypothesized that only finetuning $\phi(s,g)$ should be sufficient for generalizing to new goals. We call this version of finetuning as \textit{BVN (freeze $f$)}. Results in \figref{fig:adapt} support our hypothesis as \textit{BVN (freeze $f$)} (orange) indeed outperforms \mono. However, there is a significant performance gap between \textit{BVN (finetune $f$)} and \textit{BVN (freeze $f$)}. This result indicates that while BVN provides an inductive bias to disentangle the local dynamics, $f(s,a)$, from the goal-specific component, $\phi(s,g)$, such disentanglement is not fully learned. This could be due to several reasons such as learning on limited data or because the disentangelment between $f$ and $\phi$ is under-specified upto a scalar factor (i.e., $\lambda f$ and $\frac{1}{\lambda}\phi$ yield the same result for a scalar $\lambda$), etc. Nonetheless, the results convincingly demonstrate that the proposed bilinear decomposition increased data efficiency and improves generalization. The topic of achieving perfect disentanglement is outside the scope of current work and a worthwhile direction for future research. 
+
+
+\captionsetup[figure]{position=top}
+\begin{figure}[t!]
+  \parbox{\textwidth}{
+    \parbox[t]{.24\textwidth}{%
+      \subcaptionbox{Left \& Right\label{fig:gen_illustration_leftright}}{
+        \includegraphics[width=\hsize]{illustrations/fetch_generalization_leftright.pdf}
+      }\vspace{0.9em}
+      \subcaptionbox{Near \& Far\label{fig:gen_illustration_nearfar}}{
+        \includegraphics[width=\hsize]{illustrations/fetch_generalization_nearfar.pdf}
+      }
+    }\hfill%  
+    \parbox[t]{.7\textwidth}{\subcaptionbox{Learning curves of fine-tuning in new goal distributions\label{fig:adapt}}{
+        \includegraphics[width=\hsize]{figures/task_transfer_curve_leftright_nearfar.pdf}
+      }
+    }
+  }
+  \caption{\textbf{(a \& b)} Examples showing (a) how we split the goal distribution into \textcolor{ForestGreen}{left} and \textcolor{red}{right} and (b) according to the radius to the center (\textcolor{ForestGreen}{near} versus \textcolor{red}{far}). We \textcolor{ForestGreen}{pretrain} on the \textcolor{ForestGreen}{green} regions, then \textcolor{red}{finetune} on the \textcolor{red}{red} regions. The state distribution remain identical to the vanilla \fetch environment. \textbf{(c)} Fine-tuning curves on unseen goals. BVN achieves better performance than the \mono on all tasks in both left-to-right and near-to-far adaptation scenarios. Freezing \(f\) causes BVN performance to plateau, indicating that both \(\phi\) and \(f\) are needed for approximating the multi-goal value function.} 
+\end{figure}
+  
+
+
+\subsection{Ablation studies}
+\label{subsec:ablation}
+
+\paragraph{How does latent dimension affect our method?}
+\label{sec::latent_dim}
+Though   the dimensions of the latent space (i.e., output dimension of $f$ and $\phi$) are set as $16$ across all the experiments above, we investigate the effect of the dimensionality of the latent space on the agent performance. \Figref{fig:ablation_dim} shows the learning curve for BVN with \(3\), \(4\), \(8\) and \(16\) dimensional latent spaces. The performance consistently improves as latent dimensions increase, and even a BVN with just a 3-dimensional latent space still outperforms the monolithic UVFA baseline. Hence bilinear value decomposition produces consistent gain with respect to the monolithic UVFA baseline regardless of the latent dimensions, and benefits performance-wise from a larger latent space.
+
+\begin{figure}
+\begin{minipage}{.49\textwidth}
+        \centering
+        \includegraphics[width=1\textwidth]{figures/ablation_dim.pdf}
+        \caption{
+        Increasing the latent dimension of $f$ and $\phi$ improves our method's performance. Despite that, the result shows that a low dimensional latent space ($d=3$) is sufficient to enable our method to outperform the baseline \mono.}
+        \label{fig:ablation_dim}
+\end{minipage}\hfill
+\begin{minipage}{0.49\textwidth}
+        \vspace{-3ex}
+        \centering
+        \includegraphics[width=\textwidth]{figures/metric_and_mlp_head.pdf}
+    \caption{Replacing the dot-product with an \(\ell^2\) norm does not affect the final performance or the sample complexity. The initial performance is affected marginally. Whereas the linear combination is too restrictive.}
+    \label{fig:metric_and_linear_head}
+\end{minipage}
+\end{figure}
+
+\paragraph{Dot product ``\(\cdot\)'' vs \(\ell^2\) Metric \(\Vert \cdot \Vert_2\)}
+\label{sec::dot_ablation}
+
+As it is unclear if the dot-product is the best choice to model the interaction between two vector fields $f$ and $\phi$, we compare two alternative ways to decompose the value function using the same variable grouping as the BVN. In the first variant, we replace the dot-product with an \(\ell^2\) metric \(\Vert \cdot\Vert_2\), and parameterize the Q function via  $Q(s,a,g)=-\Vert f(s,a) - \vec\phi(s,g)\Vert_2$. The negative sign is added because multi-goal RL tasks typically assume the reward is within the range $[-1, 0]$. We set the latent dimension to be \textit{three} as it is the best one found through hyperparameter search (see \secref{subsec:impl_detail}).  In the second variant we linearly combine the two latent vectors: $Q(s,a,g) =  w^i  f_i(s,a) +  v^i \phi_i(s,g)$, where {\(x^i y_i\) implies a sum over the \(i\) indices implicitly. This is the Einstein notation, or ``einsum''.} 
+The results shown in \figref{fig:metric_and_linear_head} shows that both the bilinear and the metric decomposition attain good performance. The \(\ell^2\) metric decomposition is marginally slower during the initial learning phase. The linear combination works poorly, likely due to the restricted expressivity.
+
+
+\paragraph{Alternate Bi-Linear Decomposition}
+Lastly, we investigate if there are other viable ways to decompose the Q-function based on grouping the inputs $s,a,g$. 
+An alternative hypothesis is that any grouping of the inputs arguments (i.e., $s,a,g$) could improve the sample efficiency. 
+To test if this is the case, we compare our bilinear value decomposition scheme against two alternatives, $f(s,a)^\top \phi(a,g)$ and $f(s,a,g)^\top \phi(g)$, as well as the scheme $f(s,a)^\top \phi(g)$ shown in \secref{subsec:sample_efficiency}. The results in \figref{fig:fsag} show that neither matches the performance of the bilinear value network, which suggests correct grouping does play a crucial role. It is important to process \(s\) and \(g\) together and duplicate the state input \(s\) on both branches.
+
+\begin{figure}[thb!]
+    \centering
+    \includegraphics[width=\textwidth]{figures/fsag.pdf}
+    \caption{Comparison between alternative factorizations show that our bilinear value decomposition scheme, $f(s,a)^\top \phi(s,g)$, outperforms these alternatives. This suggests that this particular input grouping is crucial.}
+    \label{fig:fsag}
+\end{figure}
+
+\section{Related works}
+\label{sec:related_works}
+
+A large number of prior works have explored ways to decompose value function to improve sample efficiency of value function approximation. Classic works~\citep{Sutton2018introduction,Littman2001prs,singh2003psr} approximate the value function in a set of linear basis. 
+Successor features~\citep{Dayan1993successor,Kulkarni2016successor,Borsa2018USFA} factorize the value function as the dot product between expectation of state-action feature occupancy and a vector of reward coefficients to the features.r
+Laplacian reinforcement learning~\citep{Mahadevan2006laplacian,Mahadevan2007proto} represents the value function using a set of Fourier basis. The above previous works investigate value function decomposition in single task learning. Instead, bilinear value networks is focused on decomposing a multi-goal value function by disentangling the representations for goals and actions. Also, bilinear value networks use end-to-end training to learn the decomposition instead of separating the basis learning and the value approximation. To summarize prior works and their choice of parameterization, we compile key publications in Table~\ref{tab:linear_value_decomposition_full}, ordered by the year of publication, in the appendix.
+
+
+\section{Conclusion and Discussion}
+
+Our empirical evaluation shows significant sample efficiency gain when bilinear value networks is used with multi-goal RL tasks. Moreover, bilinear value networks does not introduce extra hyperparamters for training, except for the output dimensions of $f$ and $\phi$. Our ablations demonstrate that the benefits of BVN result from faster adaptation of the value function to new goals. An exciting direction for future research  is to facilitate transfer across different robots' morphology and goal spaces. One could keep the state and goal spaces fixed and train a single \(\phi(s, g)\) that is shared between the different morphologies. The difference between morphologies could be accommodated by different $f$ (e.g., different manipulators for the same task). Also, one can pre-train a shared $f$ for the same robot and train $\phi$ for different tasks (i.e., goal spaces). In addition, we further discuss the additional implications of our experimental results in \secref{sec::additional_discussion} of appendix.
+
+
+
+\subsubsection*{Acknowledgments}
+We thank members of Improbable AI Lab for the helpful discussion and feedback. We are grateful to MIT Supercloud and the Lincoln Laboratory Supercomputing Center for providing HPC resources. The research in this paper was supported by the MIT-IBM Watson AI Lab, by Amazon Research Awards, and in part by the Army Research Office and was accomplished under Grant Number W911NF-21-1-0328 and by the National Science Foundation AI Institute for Artificial Intelligence and Fundamental Interactions ( \href{https://iaifi.org/}{https://iaifi.org/}) under Cooperative Agreement PHY-2019786.  The views and conclusions contained in this document are those of the authors and should not be interpreted as representing the official policies, either expressed or implied, of the Army Research Office or the United States Air Force or the U.S. Government. The U.S. Government is authorized to reproduce and distribute reprints for Government purposes notwithstanding any copyright notation herein.
+
+\section{Reproducibility Statement}
+We provide detailed instructions for reproducing the results in this paper in the Appendix. Please refer to Section~\secref{subsec:impl_detail}.
+
+\bibliography{references}
+\bibliographystyle{iclr2022_conference}
+
+\newpage
+
+\appendix
+\section{Appendix}
+
+\subsection{Details On Previous Linear Decomposition Schemes}
+
+We present the comparison of parameterizations in Table~\ref{tab:linear_value_decomposition_full}.
+\begin{table}[tb!]%
+\caption{Comprehensive list of linear value decomposition schemes from the literature.}\label{tab:linear_value_decomposition_full}
+\vspace{-1em}
+\footnotesize\center%
+\begin{tabular}{l|l}\toprule
+    \textbf{Reference} & \textbf{Parameterization} \\
+    \midrule
+    Linear basis (\citeauthor{Sutton2018introduction,Littman2001prs,singh2003psr}) & \hspace{1em}$Q(s,a) = \sum c_i Q^i(s,a)$ \\ 
+    Proto-Value Function \citep{Mahadevan2006laplacian,Mahadevan2007proto} & \hspace{1.7em} $V(s) = \sum \lambda_i V^i(s)$ \\
+    General Value Approximator (GVF/Horde,~\citealt{sutton2011horde}) & \;$Q(s,a, \theta) = \theta^\top \phi(s,a)$ \\
+    Successor Representation (SR, \citealt{Kulkarni2016successor}) & \hspace{1em}\(Q(s, a) = M(s, a, s') R(s')\)  \\
+    \midrule
+    Monolithic MLP UVFA (\citeauthor{Schaul2015UVFA,Andrychowicz2017her}) & $\mathrm{MLP}(s,a,g)$ \\
+    Recurrent UVFA \citep{mirowski2016learning} & $\mathrm{RNN}(z_s, a, z_g)$, \(z_s, z_g\) are embeddings \\
+    Low-rank Bilinear UVFA \citep{Schaul2015UVFA} & $Q(s, a, g) = f(s, a)^\top w(g)$ \\
+    USFA~\citep{Borsa2018USFA} & $Q(s, a, \vec z) = f(s, a, \vec z)^\top \vec w$  \\
+    \midrule
+    Bilinear Value Network (\textbf{ours}) & $Q(s, a, g) = f(s, a)^\top \phi(s, g)$ \\
+    \bottomrule
+\end{tabular}%
+\end{table}
+
+\subsection{Implementation details of tasks}
+\label{subsec:task_detail}
+All experiments in \secref{subsec:sample_efficiency} happen on the standard object and dexterous manipulation tasks from the gym robotics suite~\citep{plappert2018multi}.
+
+We briefly summarize the specifications of the tasks in the list below and illustrate these tasks in \figref{fig:renderings}:
+
+\begin{table}[!ht]
+    \centering\small
+    \caption{Environment Specifications.}\label{tab:env_spec}
+    \vspace{-0.5em}
+    \begin{tabular}{llll|llll}
+    \toprule
+        & \multicolumn{3}{c|}{Fetch Robot}                                   & & \multicolumn{3}{c}{Shadow Hand} \\ 
+        Task & $\mathcal S$ & $\mathcal A$ & $\mathcal G$                    & Task & $\mathcal S$ & $\mathcal A$ & $\mathcal G$ \\
+        \midrule
+        Reach & $\mathbb{R}^{10}$ & $\mathbb{R}^3$ & $\mathbb{R}^3$          & BlockRotateZ & $\mathbb{R}^{61}$ & $\mathbb{R}^{20}$ & $\mathbb{R}^{7}$ \\                      
+        Push & $\mathbb{R}^{25}$ & $\mathbb{R}^3$ & $\mathbb{R}^3$           & BlockRotateParallel & $\mathbb{R}^{61}$ & $\mathbb{R}^{20}$ & $\mathbb{R}^{7}$ \\
+        PickAndPlace & $\mathbb{R}^{25}$ & $\mathbb{R}^4$ & $\mathbb{R}^3$   & BlockRotateXYZ & $\mathbb{R}^{61}$ & $\mathbb{R}^{20}$ & $\mathbb{R}^{7}$ \\
+        Slide & $\mathbb{R}^{25}$ & $\mathbb{R}^3$ & $\mathbb{R}^3$          & BlockRotate & $\mathbb{R}^{61}$ & $\mathbb{R}^{20}$ & $\mathbb{R}^{7}$ \\
+        DrawerOpen & $\mathbb{R}^{25}$ & $\mathbb{R}^3$ & $\mathbb{R}^3$     & Egg & $\mathbb{R}^{61}$ & $\mathbb{R}^{20}$ & $\mathbb{R}^{7}$ \\
+        DrawerClose & $\mathbb{R}^{25}$ & $\mathbb{R}^3$ & $\mathbb{R}^3$    & EggRotate & $\mathbb{R}^{61}$ & $\mathbb{R}^{20}$ & $\mathbb{R}^{7}$ \\
+        \multicolumn{4}{c|}{}                                                & Pen & $\mathbb{R}^{61}$ & $\mathbb{R}^{20}$ & $\mathbb{R}^{7}$ \\ 
+        \multicolumn{4}{c|}{}                                                & PenRotate & $\mathbb{R}^{61}$ & $\mathbb{R}^{20}$ & $\mathbb{R}^{7}$ \\ 
+        \bottomrule
+    \end{tabular}                                                            
+\end{table}
+
+
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=\textwidth]{illustrations/env_illustration.pdf}
+    \caption{Renderings of the \textit{fetch robot} and \textit{shadow hand} domains considered in this work. Left-to-right: (\textbf{top}) Fetch push, pick-and-place, slide, bin-pick, box-open; (\textbf{bottom}) Shadow hand block, egg, pen. For Fetch, the goal is to move the gray object to the red dot by controlling the arm. For Shadow hand, the objective is to reorient the object (e.g., block, egg, and pen) to the desired poses rendered by the transparent object.}
+    \label{fig:renderings}
+\end{figure}
+
+
+In addition to \citep{plappert2018multi}, we also use the tasks from Fetch extension\footnote{https://github.com/geyang/gym-fetch}. For left/right environments used in \secref{subsec::adapt}, the goal $(x,y,z)$ with $x < 0$ are left goals, and $ x \geq 0$ right goals. In near/far environments, we set the distance thresholds as $0.2$ for Slide, $0.2$ for PickAndPlace, $0.1$ for Reach, and $0.15$ for Push. The goals with distance below the threshold are considered as near goals, otherwise far goals.
+
+
+\subsection{Training hyperparameters}
+\label{subsec:hype}
+\paragraph{Fetch} We adapted the hyperparameters in \citep{plappert2018multi} for training in a single desktop. In \cite{plappert2018multi}, the agent is trained by multiple workers collecting data in parallel, where each worker collects rollouts using the same policy with different random seeds. The performances of the agent trained by our hyperparameters match that in \citep{plappert2018multi}. 
+\begin{itemize}
+    \item \texttt{num\_workers}: 2 for Reach, 8 for Push, 16 for Pick \& Place, and 20 for Slide.
+    \item \texttt{Batch size}: 1024
+    \item \texttt{Warm up rollouts}: We collected 100 initial rollouts for prefilling the replay buffer.
+    \item \texttt{Training frequency}: We train the agent per 2 environment steps. Each iteration of training uses the \texttt{num\_workers} batches for training.
+\end{itemize}
+The rest of hyperparameters remain the same as that used in \citep{plappert2018multi}.
+
+\paragraph{Shadow hand} We use the hyperparameters used in \citep{plappert2018multi} and reuse the open source code\footnote{https://github.com/TianhongDai/hindsight-experience-replay}.
+
+\paragraph{Adaptation experiments (\secref{subsec::adapt})} We present the success rates after pretraining in Table~\ref{tab:pretrain_perf}. Note that in the pretraining stage of each method and task, we trained the agents with $5$ different random seeds and took the best-performing models as the initialization at the fine-tuning time.
+\begin{table}[]
+\caption{The success rates of each method in the pretrained tasks used in \secref{subsec::adapt}.}\label{tab:pretrain_perf}
+\centering
+\begin{tabular}{lccc|ccc}
+\toprule
+\multirow{2}{*}{}                      & \multicolumn{3}{c|}{Left}                                                                 & \multicolumn{3}{c}{Near}                                                                 \\
+\cmidrule{2-7}
+                                       & \multicolumn{1}{l}{Push} & \multicolumn{1}{l}{Pick \& Place} & \multicolumn{1}{l|}{Slide} & \multicolumn{1}{l}{Push} & \multicolumn{1}{l}{Pick \& Place} & \multicolumn{1}{l}{Slide} \\ 
+\midrule
+\multicolumn{1}{c}{UVFA (Monolithic)} & 96\%                     & 50\%                              & 81\%                       & 93\%                     & 91\%                              & 96\%                      \\
+\multicolumn{1}{c}{BVN}               & 96\%                     & 59\%                              & 48\%                       & 95\%                     & 96\%                              & 90\%                      \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Implementation details}
+\label{subsec:impl_detail}
+\paragraph{Q-function architecture} The monolithic network baselines in this paper represents the Q-function as a multi-layer perceptron (MLP) network that takes in $s$, $a$, and $g$ concatenated together as a single vector. The bilinear UVFA~\citep{Schaul2015UVFA} uses an MLP $f$ that takes the concatenated $s$ and $a$ as inputs, and an MLP $\phi$ using $g$ as inputs.
+Our biliniear value network on the other hand, concatenate $[s, a]$ together as the input to $f$, and $[s, g]$ as the inputs of $\phi$. 
+
+\paragraph{Policy architecture} We use an MLP as the policy network for all the methods.
+
+For our method and its variants presented in \secref{subsec:ablation} , we use the following nomenclature to denote them:
+\begin{enumerate}[wide, labelwidth=!, labelindent=0pt]
+\item \textbf{Dot product} This is our proposed method. We set the outputs' dimension of $f$ and $\phi$ as $16$.
+\item \textbf{2-norm} We parametrize Q-function as $Q(s,a,g) = \lVert f(s,a) - \phi(s,g) \rVert_2$. We use set the dimension of the outputs from $f$ and $\phi$ as $3$. \Figref{fig:ablation_dim_norm} shows that $d=3$ works the best for 2-norm.
+\item \textbf{concat} We concatenate $f(s,a)$ and $\phi(s,g)$, feed the concatenated vectors to an MLP layer, and take the outputs of this layer as the Q-value $Q(s,a,g)$. The dimensions of the outputs of $f$ and $\phi$ are $16$.
+\end{enumerate}
+
+\begin{figure}[htp!]
+    \centering
+    \includegraphics[width=0.7\textwidth]{figures/ablation_dim_norm.pdf}
+    \caption{3-dimensional latent space works the best for 2-norm variant (see \secref{subsec:impl_detail}).}
+    \label{fig:ablation_dim_norm}
+\end{figure}
+
+
+\subsection{Transferring Across Tasks}
+\label{subsec:trans}
+In multi-goal RL tasks, we observe that most of tasks are identical in terms of high-level goals, but they have different environment dynamics. For instance, the objective of "Push" and "Slide" are all to move the object to the destination. They only differ in the friction coefficient of the table where the agent cannot slide objects in "Push" because of high friction. Because we decouple the state-action and goals into two different functions, $f(s,a)$ and $\phi(s,g)$, one potential benefit on multi-goal RL is reusing $\phi$ for transferring to tasks with the same (or similar) task objectives (i.e., reward specification). Reusing $\phi(s,g)$ exploits the learned reward-specific state-goal relations. Then we simply need to learn a new $f$ to recover the reward-agnostic relations in the new task. 
+To examine this hypothesis, we select three tasks with the same state and action spaces\footnote{If the two tasks have different state/action spaces, we will not be able to use the weights from a task and resume training in another task.}, and measure the performance of transferring amongst these tasks. In transferring an agent from a source task to a target task, we initialize \mono and \textit{BVN (no reset)} agent's policy and Q-function by the neural networks' weights learned in the source task and fine-tune them in the target task. For \textit{BVN (reset f)}, we reinitialize $f$ and fine-tune $\phi$ when training them in the target task. \Figref{fig:task_trans} shows the success rates of transferring from a source task to a target task. For example, "Push to Slide" indicates transferring from "Push" to "Slide". It can be seen that \textit{BVN (reset $f$)} attains higher success rates at convergence than the baselines and \textit{BVN (no reset)} in 4 out 6 tasks (i.e., "Push to Slide", "Pick \& Place to Push", "Push to Pick \& Place", and "Pick \& Place to Slide").
+
+The limited efficiency gain could result from that $\phi$ is dependent on states $s$ and thus $\phi$ cannot be effectively reused in new tasks. Even though the target task's reward function is the same as that in the source task, the relation of states and goals can be affected by the dynamics. For instance, suppose we have a state where the object is near the goal. In "Pick \& Place", because the friction coefficients of the table are high, the $\phi(s,g)$ should direct the agent to lift the object. On the other hand, in "Slide", the $\phi(s,g)$ is expected to guide the agent to push the object to slide. 
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/task_transfer/transfer_curve_wo_reset.pdf}
+    \caption{
+    The two-stream architecture of the BVN allows us to improve transfer by resetting \(f\). 
+    Resetting \(f\) and fine-tuning \(\phi\) achieve higher success rate than the baselines when transferring between push and pick \& place, and to slide.}
+    \label{fig:task_trans}
+\end{figure}
+\pagebreak
+
+\section{Comparison Against SOTA Algorithms}
+\label{sec:td3_sac}
+Bilinear value networks achieves State-Of-The-Art (SOTA) performance in common multi-goal reinforcement learning tasks~\citep{plappert2018multi}. In figure~\ref{fig:sac_td3}, we compare bilinear value networks against two strong baselines: soft actor critic (SAC, see~\citealt{haarnoja2018soft}) and twin-delayed deep deterministic policy gradient (TD3, see~\citealt{Fujimoto2018td3}). We reuse the hyperparameters reported in \citealt{Fujimoto2018td3}) and implement TD3 in our codebase. As for SAC, we use the implementation in this codebase\footnote{https://github.com/spitis/mrl}. \Figref{fig:sac_td3} shows the performance of each baseline algorithm and our method (\textit{DDPG + BVN}). We show that our \textit{DDPG + BVN} outperforms the best baseline, and find that \textit{DDPG} works the best among all the \textit{MLP} variants. Our findings align with \citep{Pitis2020mega} and the documentation in its released code\footnotemark{\value{5}}. \citet{Pitis2020mega} also found that DDPG works better than TD3 and SAC in multi-goal RL domains.
+\begin{figure}
+    \centering
+    \includegraphics[width=\textwidth]{figures/sample_efficiency_sac_td3/sample_efficiency_sac_td3.pdf}
+    \caption{We show that our BVN improves the sample efficiency over the best baseline, \textit{DDPG + MLP}, in 4 commonly used environments in multi-goal RL.}
+    \label{fig:sac_td3}
+\end{figure}
+
+\section{Additional discussion}
+\label{sec::additional_discussion}
+\paragraph{Why does other parameter grouping schemes fail?} In \secref{subsec:ablation}, we showed that $f(s,a,g)^T\phi(g)$ inputs grouping fails to improve sample efficiency. One explanation to this result is that $f(s,a,g)$ cannot prevent negative interference from new goals encountered during training since goals $g$ couple with states-actions $s,a$. As a result, the merit of bi-linear value function decomposition vanishes and even causes extra burden on learning because the number of model parameters is larger than \mono. This preliminary finding shows that to benefit from decomposition, the guideline is to only expose necessary inputs to each component. Redundant inputs in either component could break the decomposition.
+
+\paragraph{How is 2-norm compared with dot product?}
+\Secref{subsec:ablation} demonstrated that using 2-norm to reduce $f(s,a)$ and $\phi(s,g)$ into Q-value matches the performance of our BVN with even lower dimensions of $Z_f$ and $Z_\phi$. However, 2-norm relies on an assumption that the reward function must be non-positive or non-negative since norm is defined as a non-negative value. The $\lVert f(s,a) - \phi(s,g) \rVert$ can only fit to either non-positive or non-negative Q-value by manipulating the sign of norm. On the other hand, dot product is more expressive and free from the reward function assumption.
+
+\paragraph{Can our method facilitate policy transfer?}
+Since our method decomposes the value function into a local (i.e., goal-agnostic) and a global (i.e., goal-specific) component, our BVN might facilitate policy transfer by resetting either one of components and fine-tuning another one. As multi-goal tasks considered in ~\citep{plappert2018multi} have the same objective in nature but different dynamics, one potential advantage of our method is to reuse $\phi(s,g)$ in the new task and re-train $f(s,a)$. The results in \secref{subsec:trans} showed that the agent transferred by BVN converges to the the performance of training from scratch in the target task slightly faster than the baselines. One reason for the limited policy transferring performance is that $\phi(s,g)$ conditions on states $s$. Consequently, environment dynamics shifts could affect the representations of $\phi$. We, nevertheless, showed that states variables are crucial in $\phi$. One exciting avenue is to disentangle the representations for keeping the rich expressivity as well as desired modularity for transferring across tasks.
+
+\end{document}

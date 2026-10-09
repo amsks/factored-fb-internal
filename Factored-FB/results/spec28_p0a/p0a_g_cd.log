@@ -1,0 +1,22 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/exp_spec18x/factored-fb/GCIQL-CubeDouble-Flow-Measure-Density-d50/d18x_cd_dens_s0/params_500000.pkl
+[p0a] restored d18x_cd_dens_s0 step=500000 env=cube-double-play-v0 z=False d=50 temp=1.0 tilt=0.0 hit_spec='19:22:0.4,28:31:0.4' P=16384
+[p0a] pool P=16384 (14s)
+[p0a] pair 8/64 (17s)
+[p0a] pair 16/64 (19s)
+[p0a] pair 24/64 (20s)
+[p0a] pair 32/64 (21s)
+[p0a] pair 40/64 (22s)
+[p0a] pair 48/64 (23s)
+[p0a] pair 56/64 (24s)
+[p0a] pair 64/64 (26s)
+[p0a] CONTROL GATE blocking_pass=True
+    CG1_auc_g_traj_vs_unif: 0.6621 >= 0.65 -> PASS
+    CG2a_selfcons_g: 0.9430 >= 0.9 -> PASS
+    CG2b_snr_g: 17.9439 >= 3.0 -> PASS
+    CG3_delta_over_span_g: 0.2676 <= 0.5 -> PASS  (non-blocking)
+[p0a] DONE (26s) -> results/spec28_p0a/p0a_g_cd.json
+[p0a] spearman(q_g,q_z) med=-0.18372252747252743  span_g=9.062e-04 span_z=3.152e-01  snr_g=17.94 snr_z=21.85  AUC_g=0.6171875 AUC_z=0.578125 (chance .500)  d/span_g=0.26758016775045695 d/span_z=0.44409654150943123  sens_goal=0.07901484239846468 (noise floor 0.1943763503804803, unif ceiling 1.83)

@@ -1,0 +1,9 @@
+[grid] AGENT=psm_flowbc  3 jobs  grid actor_pessimism_penalty{0} x lr_phi{1e-5} x seeds{0 1 2}
+[grid] 3 GPUs x 1/GPU = 3 parallel  steps=500000  logs -> /home/adityamohan/git/Factored-FB/logs/grid_20260609_190511
+[grid] 19:05:11 launch psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5__s0 on GPU2 (slot 0)
+[grid] 19:05:11 launch psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5__s1 on GPU3 (slot 1)
+[grid] 19:05:11 launch psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5__s2 on GPU4 (slot 2)
+[grid] 22:15:19 DONE psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5__s1 rc=0
+[grid] 22:16:24 DONE psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5__s2 rc=0
+[grid] 22:18:27 DONE psm_state_pess0__actor_pessimism_penalty0__lr_phi1e-5__s0 rc=0
+[grid] all done -> /home/adityamohan/git/Factored-FB/logs/grid_20260609_190511 (0 job(s) exited nonzero)

@@ -1,0 +1,17 @@
+{
+ "run": "/home/adityamohan/exp_spec10/torchfb/p2_mcA_s43",
+ "neg_frac": 0.0963578125,
+ "neg_mass_share": 0.014396101081410356,
+ "mag_neg": 0.20149056985790978,
+ "mag_pos": 1.7571100362025698,
+ "neg_frac_by_density_quartile": [
+  0.1299,
+  0.0903,
+  0.0881,
+  0.0773
+ ],
+ "gate_G1": true,
+ "starts": 32,
+ "goals": 20000,
+ "seed": 0
+}

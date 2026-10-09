@@ -1,0 +1,119 @@
+{
+  "scope": "Actual current CE stage methods, tabular towers, fixed continuing deterministic four-cycle, gamma=.8, full candidate support; no neural optimization or control claim.",
+  "exact_distribution": [
+    [
+      0.3387533875338753,
+      0.2710027100271003,
+      0.21680216802168023,
+      0.1734417344173442
+    ],
+    [
+      0.1734417344173442,
+      0.33875338753387535,
+      0.27100271002710025,
+      0.21680216802168023
+    ],
+    [
+      0.21680216802168023,
+      0.17344173441734423,
+      0.3387533875338753,
+      0.2710027100271003
+    ],
+    [
+      0.2710027100271003,
+      0.21680216802168029,
+      0.1734417344173442,
+      0.33875338753387535
+    ]
+  ],
+  "results": {
+    "rldp": {
+      "fixedpoint_ce": 1.3558186389713502,
+      "fixedpoint_max_logit_gradient": 2.7755575615628914e-17,
+      "target_max_gradient": 0.0,
+      "overpredicted_candidate_logit_gradient": 0.011533504803921221,
+      "terminal_target_min": 0.0,
+      "terminal_target_row_mass": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "discount_precedence": {
+        "terminal_priority": [
+          [
+            0.8
+          ],
+          [
+            0.8
+          ],
+          [
+            0.8
+          ],
+          [
+            0.8
+          ]
+        ],
+        "mask_fallback": [
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ]
+        ],
+        "scalar_fallback": 0.8
+      }
+    },
+    "hilp": {
+      "fixedpoint_ce": 1.3558186389713502,
+      "fixedpoint_max_logit_gradient": 2.7755575615628914e-17,
+      "target_max_gradient": 0.0,
+      "overpredicted_candidate_logit_gradient": 0.011533504803921221,
+      "terminal_target_min": 0.0,
+      "terminal_target_row_mass": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "discount_precedence": {
+        "terminal_priority": [
+          [
+            0.8
+          ],
+          [
+            0.8
+          ],
+          [
+            0.8
+          ],
+          [
+            0.8
+          ]
+        ],
+        "mask_fallback": [
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ]
+        ],
+        "scalar_fallback": 0.8
+      }
+    }
+  }
+}

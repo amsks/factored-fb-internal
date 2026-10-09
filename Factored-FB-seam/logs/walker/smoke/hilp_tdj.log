@@ -1,0 +1,54 @@
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260914_015346-xb6vl7n4
+I0914 01:53:55.230081 140445121059712 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0914 01:53:55.239379 140445121059712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.241139 140445121059712 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0914 01:53:55.250163 140445121059712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.364170 140445121059712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.366220 140445121059712 __init__.py:31] MuJoCo library version is: 3.3.0
+I0914 01:53:55.400182 140445121059712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.402911 140445121059712 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0914 01:53:55.405234 140445121059712 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0914 01:53:55.411134 140445121059712 __init__.py:31] MuJoCo library version is: 3.8.1
+I0914 01:53:55.941325 140445121059712 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+[auto_resume] no params_*.pkl under exp/_smoke_walker_20260914/dmc-walker_hilp_tdj_ddpgbc_seed_0; fresh start
+[infer-cond] step 1: evaluating on the inferred conditioning from 1000 rb['next_observations'] rows; the env goal is NOT supplied
+eval 1 task None {'episode_return': 44.108323345191444, 'inferred_cond': 1.0, 'inferred_cond_action_calls': 1000.0, 'inferred_cond_goals_dropped': 0.0, 'inferred_cond_norm': 7.0710673332214355, 'inferred_cond_cos_neutral': 0.05076459422707558}
+100 {'actor_loss': -0.21063865721225739, 'bc_log_prob': -8.594696044921875, 'bc_loss': -0.0, 'hilp_abs_adv_mean': 1.0919747352600098, 'hilp_accept_prob': 0.0302734375, 'hilp_adv_mean': -1.0571589469909668, 'hilp_v_mean': -3.7752010822296143, 'hilp_value_loss': 0.3295268714427948, 'phi_norm': 2.9566149711608887, 'q_loss': -0.21063865721225739, 'q_mean': 0.21063865721225739, 'sf_loss': 0.1205843836069107, 'target_F': -0.09417619556188583, 'z_norm': 7.071067810058594}
+200 {'actor_loss': -0.4961855411529541, 'bc_log_prob': -9.824409484863281, 'bc_loss': -0.0, 'hilp_abs_adv_mean': 1.0748977661132812, 'hilp_accept_prob': 0.0146484375, 'hilp_adv_mean': -1.067478060722351, 'hilp_v_mean': -3.3803863525390625, 'hilp_value_loss': 0.20409420132637024, 'phi_norm': 2.483428955078125, 'q_loss': -0.4961855411529541, 'q_mean': 0.4961855411529541, 'sf_loss': 0.10061943531036377, 'target_F': -0.08749599009752274, 'z_norm': 7.071067810058594}
+300 {'actor_loss': -0.8112722635269165, 'bc_log_prob': -10.056062698364258, 'bc_loss': -0.0, 'hilp_abs_adv_mean': 1.0823496580123901, 'hilp_accept_prob': 0.0087890625, 'hilp_adv_mean': -1.0744140148162842, 'hilp_v_mean': -3.0635716915130615, 'hilp_value_loss': 0.1694604605436325, 'phi_norm': 2.2385520935058594, 'q_loss': -0.8112722635269165, 'q_mean': 0.8112722635269165, 'sf_loss': 0.0892455130815506, 'target_F': -0.07939619570970535, 'z_norm': 7.071067810058594}
+[infer-cond] step 300: evaluating on the inferred conditioning from 1000 rb['next_observations'] rows; the env goal is NOT supplied
+eval 300 task None {'episode_return': 39.8770987269173, 'inferred_cond': 1.0, 'inferred_cond_action_calls': 1000.0, 'inferred_cond_goals_dropped': 0.0, 'inferred_cond_norm': 7.071068286895752, 'inferred_cond_cos_neutral': -0.09901397675275803}
+wandb: 
+wandb: Run history:
+wandb:              eval/episode_return █▁
+wandb:               eval/inferred_cond ▁▁
+wandb:  eval/inferred_cond_action_calls ▁▁
+wandb:   eval/inferred_cond_cos_neutral █▁
+wandb: eval/inferred_cond_goals_dropped ▁▁
+wandb:          eval/inferred_cond_norm ▁█
+wandb:                 train/actor_loss █▅▁
+wandb:                train/bc_log_prob █▂▁
+wandb:                    train/bc_loss ▁▁▁
+wandb:          train/hilp_abs_adv_mean █▁▄
+wandb:                              +10 ...
+wandb: 
+wandb: Run summary:
+wandb:              eval/episode_return 39.8771
+wandb:               eval/inferred_cond 1
+wandb:  eval/inferred_cond_action_calls 1000
+wandb:   eval/inferred_cond_cos_neutral -0.09901
+wandb: eval/inferred_cond_goals_dropped 0
+wandb:          eval/inferred_cond_norm 7.07107
+wandb:                 train/actor_loss -0.81127
+wandb:                train/bc_log_prob -10.05606
+wandb:                    train/bc_loss 0
+wandb:          train/hilp_abs_adv_mean 1.08235
+wandb:                              +10 ...
+wandb: 
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260914_015346-xb6vl7n4
+wandb: Find logs at: ./wandb/offline-run-20260914_015346-xb6vl7n4/logs
+rc=0 hilp_tdj s0

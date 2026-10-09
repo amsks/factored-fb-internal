@@ -1,0 +1,21 @@
+[ 1226.5s] 300 cells done
+
+=== GATE P1-v2 ===
+
+[margin_ratio] (PRIMARY) verdict=FAIL
+  A d2        |slope| norm=0.0078 unnorm=0.0005 ratio=14.707 unnorm!=0=False -> fail
+  A d4        |slope| norm=0.0445 unnorm=0.0021 ratio=20.829 unnorm!=0=False -> fail
+  B tab       |slope| norm=0.0033 unnorm=0.0370 gap=0.0336 vs constrained gap -0.0073 (ratio nan, both-CIs-contain-0=False) -> fail (strict: fail)
+
+[success] verdict=FAIL
+  A d2        |slope| norm=0.0253 unnorm=0.0145 ratio=1.743 unnorm!=0=False -> fail
+  A d4        |slope| norm=0.0458 unnorm=0.0799 ratio=0.573 unnorm!=0=True -> fail
+  B tab       |slope| norm=0.0000 unnorm=0.0000 gap=0.0000 vs constrained gap 0.0341 (ratio 0.000, both-CIs-contain-0=True) -> pass (strict: pass)
+
+[action_gap_ratio] verdict=FAIL
+  A d2        |slope| norm=0.0224 unnorm=0.0030 ratio=7.438 unnorm!=0=False -> fail
+  A d4        |slope| norm=0.0557 unnorm=0.0159 ratio=3.501 unnorm!=0=True -> fail
+  B tab       |slope| norm=0.0017 unnorm=0.0354 gap=0.0337 vs constrained gap -0.0194 (ratio nan, both-CIs-contain-0=False) -> fail (strict: fail)
+
+OVERALL GATE P1-v2 (margin_ratio): FAIL
+summary -> results/spec26_r0a_v2/summary.json

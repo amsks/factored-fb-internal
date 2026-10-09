@@ -1,0 +1,22 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+[phase_probe_gciql] seed=5 step=1000000 ckpt_dir=/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow/sd005_20260609_234419 value_arch=mlp d=512
+[phase_probe_gciql] out=/home/adityamohan/git/Factored-FB/analysis/profiles/gciql_flow_1m/s5 tasks=5 scenarios=['S0', 'S1', 'S2'] episodes=20
+Restored from /dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow/sd005_20260609_234419/params_1000000.pkl
+[phase_probe_gciql] agent restored
+  task=cube-single-play-singletask-task1-v0 scenario=S0: 16/20
+  task=cube-single-play-singletask-task1-v0 scenario=S1: 17/20
+  task=cube-single-play-singletask-task1-v0 scenario=S2: 14/20
+  task=cube-single-play-singletask-task2-v0 scenario=S0: 18/20
+  task=cube-single-play-singletask-task2-v0 scenario=S1: 17/20
+  task=cube-single-play-singletask-task2-v0 scenario=S2: 16/20
+  task=cube-single-play-singletask-task3-v0 scenario=S0: 18/20
+  task=cube-single-play-singletask-task3-v0 scenario=S1: 16/20
+  task=cube-single-play-singletask-task3-v0 scenario=S2: 15/20
+  task=cube-single-play-singletask-task4-v0 scenario=S0: 17/20
+  task=cube-single-play-singletask-task4-v0 scenario=S1: 16/20
+  task=cube-single-play-singletask-task4-v0 scenario=S2: 14/20
+  task=cube-single-play-singletask-task5-v0 scenario=S0: 17/20
+  task=cube-single-play-singletask-task5-v0 scenario=S1: 18/20
+  task=cube-single-play-singletask-task5-v0 scenario=S2: 17/20
+[phase_probe_gciql] wrote /home/adityamohan/git/Factored-FB/analysis/profiles/gciql_flow_1m/s5/per_episode.parquet: 300 rows; overall_success=0.820

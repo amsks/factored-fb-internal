@@ -1,0 +1,19 @@
+[p0b] === z24_cd_z_s0
+[p0b] z24_cd_z_s0 EXIT=0 30 log lines
+[p0b] === z24_cd_z_s1
+[p0b] z24_cd_z_s1 EXIT=0 30 log lines
+[p0b] === z24_cd_z_s2
+[p0b] z24_cd_z_s2 EXIT=0 30 log lines
+[p0b] === z25_cs_tilt
+[p0b] z25_cs_tilt EXIT=0 30 log lines
+[p0b] === z25_cs_dec
+[p0b] z25_cs_dec EXIT=0 30 log lines
+[p0b] === z25_cs_actor
+[p0b] z25_cs_actor EXIT=0 30 log lines
+[p0b] === z25_cs_full
+[p0b] z25_cs_full EXIT=0 30 log lines
+[p0b] === g_cs_dens_s0
+[p0b] g_cs_dens_s0 EXIT=0 30 log lines
+[p0b] === g_cd_dens_s0
+[p0b] g_cd_dens_s0 EXIT=0 30 log lines
+[p0b] ALL DONE

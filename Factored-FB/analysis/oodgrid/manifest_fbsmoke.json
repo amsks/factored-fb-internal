@@ -1,0 +1,30 @@
+{
+ "rows": [
+  {
+   "framework": "torch",
+   "group": "fb_state_plain",
+   "dir": "/dev/shm/factored-fb/runs/20260607_070225__fb_state_plain__s0",
+   "ckpt": "/dev/shm/factored-fb/runs/20260607_070225__fb_state_plain__s0/checkpoints/final.pt",
+   "seed": "20260607_070225__fb_state_plain__s0",
+   "agent_name": "fb_flowbc",
+   "z_dim": 50,
+   "cfg": {
+    "overrides": [
+     "domain=cube_single",
+     "seed=0",
+     "device=cuda",
+     "data_path=/dev/shm/factored-fb/datasets",
+     "save_eval_videos=false",
+     "use_wandb=true",
+     "wandb_entity=amsks",
+     "wandb_group=fb_state_plain",
+     "wandb_run_name=fb_state_plain_s0",
+     "ortho_coef=1000",
+     "lr_b=1e-4",
+     "num_train_steps=1500000",
+     "resume=true"
+    ]
+   }
+  }
+ ]
+}

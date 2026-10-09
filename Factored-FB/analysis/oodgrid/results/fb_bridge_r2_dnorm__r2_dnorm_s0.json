@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_bridge_r2_dnorm",
+ "seed": "r2_dnorm_s0",
+ "dir": "/dev/shm/bridge_knobs_out/r2_dnorm_s0",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/bridge_knobs_out/r2_dnorm_s0/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.85,
+  "grasped": 0.93
+ },
+ "C2_zB": {
+  "success": 0.63,
+  "grasped": 0.87
+ },
+ "C3_zB": {
+  "success": 0.53,
+  "grasped": 0.84
+ },
+ "C2_zR": {
+  "success": 0.8,
+  "grasped": 0.89
+ },
+ "C3_zR": {
+  "success": 0.62,
+  "grasped": 0.82
+ },
+ "C4_zB": {
+  "success": 0.6,
+  "grasped": 0.78
+ },
+ "secs": 22.1
+}

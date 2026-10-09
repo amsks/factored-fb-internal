@@ -1,0 +1,35 @@
+{
+  "z_dim": 128,
+  "bucket_fractions": {
+    "no_contact": 0.3458,
+    "reaching": 0.20242,
+    "grasped": 0.10528,
+    "lifted_or_transport": 0.3465
+  },
+  "participation_ratio": 68.60556424010501,
+  "z_norm_mean": 11.31370735168457,
+  "z_norm_std": 1.1041390735044843e-06,
+  "separability_auc_involved": 0.9245134167278061,
+  "eval_coverage": {
+    "cube-single-play-singletask-task1-v0": {
+      "cos_nn": 0.4964707515617136,
+      "mahalanobis": 20.923293578569
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "cos_nn": 0.47141253553452145,
+      "mahalanobis": 20.40810232473979
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "cos_nn": 0.4923105794578569,
+      "mahalanobis": 20.484483177744305
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "cos_nn": 0.504481725029449,
+      "mahalanobis": 22.0169575814432
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "cos_nn": 0.5943169877139928,
+      "mahalanobis": 20.099196590481622
+    }
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "l2_info": {
+    "cube-single-play-singletask-task1-v0": {
+      "residual_init": 4397.56201171875,
+      "residual_final": 195.39149475097656
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "residual_init": 2845.3740234375,
+      "residual_final": 196.2980499267578
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "residual_init": 3816.110107421875,
+      "residual_final": 202.5352020263672
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "residual_init": 3638.375244140625,
+      "residual_final": 252.22535705566406
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "residual_init": 5204.802734375,
+      "residual_final": 246.89633178710938
+    }
+  },
+  "l2b_info": {
+    "cube-single-play-singletask-task1-v0": {
+      "residual_init": 4634.421875,
+      "residual_final": 186.01885986328125
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "residual_init": 2824.67236328125,
+      "residual_final": 161.6691131591797
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "residual_init": 7338.04833984375,
+      "residual_final": 268.0626525878906
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "residual_init": 6107.06689453125,
+      "residual_final": 271.98492431640625
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "residual_init": 7793.49951171875,
+      "residual_final": 333.626220703125
+    }
+  },
+  "cube-single-play-singletask-task1-v0": {
+    "L0": {
+      "success": 0.45,
+      "value_auc": 0.8273305892944336,
+      "cos_to_L0": 1.0000001192092896
+    },
+    "L1": {
+      "success": 0.4,
+      "value_auc": 0.8348747491836548,
+      "cos_to_L0": 0.9920608401298523
+    },
+    "L2": {
+      "success": 0.1,
+      "value_auc": 0.753379762172699,
+      "cos_to_L0": 0.4817940294742584
+    },
+    "L2b": {
+      "success": 0.25,
+      "value_auc": 0.7047485113143921,
+      "cos_to_L0": 0.5037531852722168
+    }
+  },
+  "cube-single-play-singletask-task2-v0": {
+    "L0": {
+      "success": 0.65,
+      "value_auc": 0.7546162009239197,
+      "cos_to_L0": 0.9999999403953552
+    },
+    "L1": {
+      "success": 0.3,
+      "value_auc": 0.7804707884788513,
+      "cos_to_L0": 0.9944356083869934
+    },
+    "L2": {
+      "success": 0.4,
+      "value_auc": 0.6660943627357483,
+      "cos_to_L0": 0.41769352555274963
+    },
+    "L2b": {
+      "success": 0.35,
+      "value_auc": 0.5541480779647827,
+      "cos_to_L0": 0.34652194380760193
+    }
+  },
+  "cube-single-play-singletask-task3-v0": {
+    "L0": {
+      "success": 0.8,
+      "value_auc": 0.7814317941665649,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.8,
+      "value_auc": 0.7803947329521179,
+      "cos_to_L0": 0.9933406114578247
+    },
+    "L2": {
+      "success": 0.05,
+      "value_auc": 0.669181764125824,
+      "cos_to_L0": 0.4823853075504303
+    },
+    "L2b": {
+      "success": 0.4,
+      "value_auc": 0.7161602973937988,
+      "cos_to_L0": 0.5306490659713745
+    }
+  },
+  "cube-single-play-singletask-task4-v0": {
+    "L0": {
+      "success": 0.05,
+      "value_auc": 0.6931021809577942,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.05,
+      "value_auc": 0.6801970601081848,
+      "cos_to_L0": 0.9930369853973389
+    },
+    "L2": {
+      "success": 0.1,
+      "value_auc": 0.810838520526886,
+      "cos_to_L0": 0.5410760641098022
+    },
+    "L2b": {
+      "success": 0.0,
+      "value_auc": 0.7734211087226868,
+      "cos_to_L0": 0.5277776718139648
+    }
+  },
+  "cube-single-play-singletask-task5-v0": {
+    "L0": {
+      "success": 0.15,
+      "value_auc": 0.6221821308135986,
+      "cos_to_L0": 0.9999999403953552
+    },
+    "L1": {
+      "success": 0.1,
+      "value_auc": 0.6539455652236938,
+      "cos_to_L0": 0.9924460649490356
+    },
+    "L2": {
+      "success": 0.05,
+      "value_auc": 0.7701651453971863,
+      "cos_to_L0": 0.4832513630390167
+    },
+    "L2b": {
+      "success": 0.05,
+      "value_auc": 0.7959176898002625,
+      "cos_to_L0": 0.5296384692192078
+    }
+  }
+}

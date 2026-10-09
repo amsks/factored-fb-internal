@@ -1,0 +1,16 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:231: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/spaces/box.py:297: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Restored from /home/adityamohan/bridge_ckpt_backup/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50/sd000_20260615_011444/params_500000.pkl
+[render] restored gciql_flow from sd000_20260615_011444 @ 500000
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  1.28it/s]100%|██████████| 1/1 [00:00<00:00,  1.28it/s]
+[render] wrote results/videos/GCIQL/task1.gif  ((52, 400, 200, 3))
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  3.57it/s]100%|██████████| 1/1 [00:00<00:00,  3.57it/s]
+[render] wrote results/videos/GCIQL/task2.gif  ((51, 400, 200, 3))
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  3.21it/s]100%|██████████| 1/1 [00:00<00:00,  3.20it/s]
+[render] wrote results/videos/GCIQL/task3.gif  ((54, 400, 200, 3))
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  3.43it/s]100%|██████████| 1/1 [00:00<00:00,  3.42it/s]
+[render] wrote results/videos/GCIQL/task4.gif  ((53, 400, 200, 3))
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:00<00:00,  3.52it/s]100%|██████████| 1/1 [00:00<00:00,  3.51it/s]
+[render] wrote results/videos/GCIQL/task5.gif  ((53, 400, 200, 3))

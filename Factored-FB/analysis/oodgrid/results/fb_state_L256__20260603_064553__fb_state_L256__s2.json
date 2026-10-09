@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_state_L256",
+ "seed": "20260603_064553__fb_state_L256__s2",
+ "dir": "/dev/shm/factored-fb/runs/20260603_064553__fb_state_L256__s2",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb/runs/20260603_064553__fb_state_L256__s2/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.35,
+  "grasped": 1.0
+ },
+ "C2_zB": {
+  "success": 0.08,
+  "grasped": 0.97
+ },
+ "C3_zB": {
+  "success": 0.11,
+  "grasped": 1.0
+ },
+ "C2_zR": {
+  "success": 0.14,
+  "grasped": 0.98
+ },
+ "C3_zR": {
+  "success": 0.08,
+  "grasped": 1.0
+ },
+ "C4_zB": {
+  "success": 0.28,
+  "grasped": 0.96
+ },
+ "secs": 40.4
+}

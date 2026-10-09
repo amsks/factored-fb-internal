@@ -1,0 +1,77 @@
+{
+  "states": [
+    "Left",
+    "Centre",
+    "Right"
+  ],
+  "actions": [
+    "place left",
+    "place centre",
+    "place right"
+  ],
+  "axes": [
+    "action",
+    "current_state",
+    "next_state"
+  ],
+  "transition_probabilities": [
+    [
+      [
+        0.98,
+        0.01,
+        0.01
+      ],
+      [
+        0.08,
+        0.91,
+        0.01
+      ],
+      [
+        0.08,
+        0.01,
+        0.91
+      ]
+    ],
+    [
+      [
+        0.91,
+        0.08,
+        0.01
+      ],
+      [
+        0.01,
+        0.98,
+        0.01
+      ],
+      [
+        0.01,
+        0.08,
+        0.91
+      ]
+    ],
+    [
+      [
+        0.91,
+        0.01,
+        0.08
+      ],
+      [
+        0.01,
+        0.91,
+        0.08
+      ],
+      [
+        0.01,
+        0.01,
+        0.98
+      ]
+    ]
+  ],
+  "uniform_behavior_stationary_distribution": [
+    0.3333333333333333,
+    0.3333333333333333,
+    0.3333333333333333
+  ],
+  "expected_consecutive_steps_at_a_state_under_uniform_behavior": 15,
+  "description": "Proposed MDP only; no training or model-performance claims."
+}

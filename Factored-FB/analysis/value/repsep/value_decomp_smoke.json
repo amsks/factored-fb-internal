@@ -1,0 +1,88 @@
+{
+  "n_states": 20,
+  "baseline_agree_spearman": -0.03378337833783378,
+  "adv_agree_per_task": {
+    "1": 0.16818181818181813,
+    "2": 0.1800586510263929,
+    "3": 0.3052785923753665,
+    "4": 0.10478372434017591,
+    "5": 0.14572947214076243
+  },
+  "adv_agree_mean": 0.18080645161290318,
+  "auc": {
+    "mlp": {
+      "U": 0.9088827838827839,
+      "V": 0.9207875457875458,
+      "Qpi": 0.9088827838827839,
+      "AdvPi": 0.7106227106227105,
+      "cf_success": 0.78,
+      "per_task": {
+        "U": [
+          0.901,
+          null,
+          null,
+          0.917,
+          null
+        ],
+        "V": [
+          0.901,
+          null,
+          null,
+          0.94,
+          null
+        ],
+        "Qpi": [
+          0.901,
+          null,
+          null,
+          0.917,
+          null
+        ],
+        "AdvPi": [
+          0.659,
+          null,
+          null,
+          0.762,
+          null
+        ]
+      }
+    },
+    "bil": {
+      "U": NaN,
+      "V": NaN,
+      "Qpi": NaN,
+      "AdvPi": NaN,
+      "cf_success": 0.9400000000000001,
+      "per_task": {
+        "U": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "V": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "Qpi": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "AdvPi": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    }
+  }
+}

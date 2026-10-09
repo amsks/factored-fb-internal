@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-SF-FeatureTD-IdentityCond-Ortho1k",
+ "seed": "sd000_20260704_203941",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-SF-FeatureTD-IdentityCond-Ortho1k/sd000_20260704_203941",
+ "step": 500000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 28,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.01,
+  "grasped": 0.34
+ },
+ "C2": {
+  "success": 0.02,
+  "grasped": 0.47
+ },
+ "C3": {
+  "success": 0.01,
+  "grasped": 0.38
+ },
+ "C4": {
+  "success": 0.02,
+  "grasped": 0.37
+ },
+ "secs": 32.3
+}

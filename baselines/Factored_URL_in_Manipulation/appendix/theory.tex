@@ -1,0 +1,687 @@
+\section{Theory Details for Proposition~\ref{prop:endpoint-energy-error}}
+\label{app:theory}
+\label{app:one-reset-error}
+
+\newtheorem{corollary}{Corollary}[section]
+
+\subsection{From Factored Dynamics to Local Affine Representation Dynamics}
+\label{subsec:local-affine-dynamics}
+
+We first justify the switched affine representation model used in the main paper.
+The key point is not that manipulation dynamics are globally linear.
+Rather, the claim is that after factorization, the local dependency structure of the target factor changes across passive and interaction modes.
+This change forces us to distinguish the passive operator $A_0$ from the interaction operator $A_1$, and to include an interaction-dependent affine term $b_t$.
+
+Let the state be factored as $s_t=(u_t,y_t)$, where $u_t$ is the actuated factor and $y_t$ is the target factor.
+We write the target representation as
+\[
+    \psi_t \triangleq \psi(y_t).
+\]
+The CRL critic conditions on the anchor through $\phi(s_t,a_t)=\phi(u_t,y_t,a_t)$.
+If the action is produced by a deterministic policy, $a_t=\pi(u_t,y_t,g)$, then the same argument can be viewed as conditioning on $(u_t,y_t)$ under the current policy.
+Thus, for the theory, we only need to study how the anchor variables induce the next target representation $\psi_{t+1}$.
+
+\paragraph{Dependency contrast.}
+In locomotion-like domains, the controlled factor and the goal factor are typically the same state variable.
+If this factor is denoted by $z_t$, the local dynamics have the form
+\[
+    z_{t+1}=f_{\rm loc}(z_t,a_t),
+\]
+and the action affects the goal-relevant state almost everywhere:
+\[
+    \left\|
+    \frac{\partial f_{\rm loc}(z_t,a_t)}{\partial a_t}
+    \right\|
+    >0
+    \quad
+    \text{for a.e. } (z_t,a_t).
+\]
+Under a fixed policy or fixed anchor action, this gives a single smooth closed-loop transition map.
+This is the setting in which a single local temporal operator is a natural approximation for the future representation, consistent with the linear-Gaussian view of temporal contrastive representations~\citep{eysenbach2024inference}.
+
+Manipulation has a different dependency structure.
+The target factor is often not directly actuated.
+Using the notation from the main paper, the target dynamics are
+\[
+y_{t+1}
+=
+\begin{cases}
+f_0(y_t), & \omega_t=0,\\
+f_1(u_t,y_t,a_t), & \omega_t=1,
+\end{cases}
+\]
+where $\omega_t=0$ denotes passive target dynamics and $\omega_t=1$ denotes an interaction.
+Within each smooth mode, the action-to-target derivative is therefore gated by the interaction indicator:
+\[
+    \frac{\partial y_{t+1}}{\partial a_t}
+    =
+    \begin{cases}
+    0, & \omega_t=0,\\
+    \frac{\partial f_1(u_t,y_t,a_t)}{\partial a_t}, & \omega_t=1.
+    \end{cases}
+\]
+Thus, action influence on the target is absent in the passive mode and appears only during interaction.
+This is a structural property of manipulation, not a choice of parameterization.
+
+\begin{assumption}[Mode-dependent target controllability]
+\label{ass:mode-dependent-controllability}
+Let
+\[
+    H_0(y) \triangleq \psi(f_0(y)),
+    \qquad
+    H_1(u,y,a) \triangleq \psi(f_1(u,y,a)).
+\]
+We assume that $H_0$ and $H_1$ are differentiable in the local regions considered.
+In the passive mode, the represented target update has no direct action dependence:
+\[
+    \frac{\partial H_0(y)}{\partial a}=0.
+\]
+In the interaction mode, there exists a local interaction point
+$(\bar u,\bar y,\bar a)$ and an action direction $v$ such that
+\[
+    D_a H_1(\bar u,\bar y,\bar a)v \neq 0.
+\]
+\end{assumption}
+
+Assumption~\ref{ass:mode-dependent-controllability} implies that a target-only predictor is appropriate in the passive mode, but insufficient in the interaction mode.
+The reason is that two anchors can share the same target state $y_t$ while differing in the actuated factor or action.
+During interaction, these two anchors can produce different next target states.
+A predictor depending only on $\psi_t$ would assign the same next representation to both anchors, and therefore cannot represent the interaction update.
+
+\begin{lemma}[Need for an interaction-dependent residual]
+\label{lem:need-affine-residual}
+Suppose Assumption~\ref{ass:mode-dependent-controllability} holds.
+In the passive mode, a first-order local predictor of the represented target update can be written as a target-only linear predictor.
+In the interaction mode, no target-only linear predictor of the form $A\psi(y)$ can approximate the represented target update to first order in the interaction context.
+Therefore, the interaction-mode local predictor requires an additional context-dependent residual, yielding the affine form
+\[
+    \psi_{t+1}
+    =
+    A_1\psi_t+b_t .
+\]
+\end{lemma}
+
+\begin{proof}
+We prove the two claims separately.
+
+\textbf{Passive mode.}
+In the passive mode,
+\[
+    \psi_{t+1}
+    =
+    H_0(y_t)
+    =
+    \psi(f_0(y_t)).
+\]
+Since $H_0$ depends only on $y_t$, its first-order local expansion in representation coordinates around $\bar y$ has the form
+\[
+    H_0(y)
+    =
+    H_0(\bar y)
+    +
+    A_0\bigl(\psi(y)-\psi(\bar y)\bigr)
+    +
+    o\!\left(\|\psi(y)-\psi(\bar y)\|\right).
+\]
+After centering the local coordinates, or equivalently absorbing the affine intercept into an augmented representation coordinate, this becomes
+\[
+    \psi_{t+1}
+    =
+    A_0\psi_t
+    +
+    o\!\left(\|\psi_t-\psi(\bar y)\|\right).
+\]
+Thus, a target-only linear predictor is sufficient to first order in the passive mode.
+
+\textbf{Interaction mode.}
+Assume for contradiction that a target-only linear predictor is first-order sufficient in the interaction mode.
+Then there exists a matrix $A$ such that, for all sufficiently small $h$,
+\[
+    H_1(\bar u,\bar y,\bar a+hv)
+    =
+    A\psi(\bar y)
+    +
+    o(|h|).
+\]
+Evaluating the same expression at $h=0$ gives
+\[
+    H_1(\bar u,\bar y,\bar a)
+    =
+    A\psi(\bar y).
+\]
+Subtracting the two equations yields
+\[
+    H_1(\bar u,\bar y,\bar a+hv)
+    -
+    H_1(\bar u,\bar y,\bar a)
+    =
+    o(|h|).
+\]
+Dividing by $h$ and taking $h\rightarrow 0$ gives
+\[
+    D_aH_1(\bar u,\bar y,\bar a)v
+    =
+    0.
+\]
+This contradicts Assumption~\ref{ass:mode-dependent-controllability}, which states that
+\[
+    D_aH_1(\bar u,\bar y,\bar a)v \neq 0.
+\]
+Therefore, no target-only linear predictor can be first-order sufficient in the interaction mode.
+
+It remains to show the affine form.
+The first-order Taylor expansion of $H_1$ around $(\bar u,\bar y,\bar a)$ is
+\[
+    H_1(u,y,a)
+    =
+    H_1(\bar u,\bar y,\bar a)
+    +
+    A_1\bigl(\psi(y)-\psi(\bar y)\bigr)
+    +
+    D_uH_1(\bar u,\bar y,\bar a)(u-\bar u)
+    +
+    D_aH_1(\bar u,\bar y,\bar a)(a-\bar a)
+    +
+    o(\Delta),
+\]
+where
+\[
+    \Delta
+    =
+    \|\psi(y)-\psi(\bar y)\|
+    +
+    \|u-\bar u\|
+    +
+    \|a-\bar a\|.
+\]
+Rearranging the first-order terms gives
+\[
+    H_1(u,y,a)
+    =
+    A_1\psi(y)
+    +
+    b(u,y,a)
+    +
+    o(\Delta),
+\]
+where
+\[
+    b(u,y,a)
+    =
+    H_1(\bar u,\bar y,\bar a)
+    -
+    A_1\psi(\bar y)
+    +
+    D_uH_1(\bar u,\bar y,\bar a)(u-\bar u)
+    +
+    D_aH_1(\bar u,\bar y,\bar a)(a-\bar a).
+\]
+At time $t$, define
+\[
+    b_t \triangleq b(u_t,y_t,a_t).
+\]
+Therefore, the interaction-mode local predictor has the affine form
+\[
+    \psi_{t+1}
+    =
+    A_1\psi_t+b_t
+    +
+    o(\Delta).
+\]
+Dropping the higher-order local error gives the switched affine approximation used in the main analysis.
+\end{proof}
+
+% \begin{lemma}[Need for an interaction-dependent residual]
+% \label{lem:need-affine-residual}
+% Suppose Assumption~\ref{ass:mode-dependent-controllability} holds.
+% In the passive mode, a local target predictor can be written as a target-only linear predictor.
+% In the interaction mode, a target-only linear predictor is generally insufficient; an additional term depending on the interaction context is required.
+% \end{lemma}
+
+% \begin{proof}
+% In the passive mode, $y_{t+1}=f_0(y_t)$.
+% Therefore, after applying the target representation, the conditional next representation depends locally only on $\psi_t$.
+% A local linear regression in representation space can therefore be written as
+% \[
+%     \psi_{t+1}\approx A_0\psi_t.
+% \]
+
+% In the interaction mode, $y_{t+1}=f_1(u_t,y_t,a_t)$.
+% By Assumption~\ref{ass:mode-dependent-controllability}, changing $a_t$ while keeping $y_t$ fixed can change the next target state.
+% Since $\psi$ is locally non-degenerate on goal-relevant target coordinates, this can also change $\psi_{t+1}$.
+% Thus, two anchors with the same $\psi_t$ but different interaction contexts can require different predictions for $\psi_{t+1}$.
+% No predictor of the form $A\psi_t$ can distinguish these two cases, because its input is identical.
+% Hence, the interaction-mode predictor must include an additional interaction-dependent residual.
+% \end{proof}
+
+We now define the local affine approximation used in the proof.
+The operator $A_0$ is the local linear predictor for passive target evolution.
+The operator $A_1$ is the target-state coefficient in the interaction mode.
+The residual $b_t$ is the part of the interaction update induced by the actuated factor and action after accounting for the target-state term.
+
+\begin{assumption}[Mode-wise local affine representation dynamics]
+\label{ass:mode-wise-linear}
+Along the local trajectory segment analyzed in Appendix~\ref{app:one-reset-error}, the conditional mean dynamics of the target representation satisfy
+\[
+    \psi_{t+1}
+    =
+    A_0\psi_t,
+    \qquad
+    \omega_t=0,
+\]
+and
+\[
+    \psi_{t+1}
+    =
+    A_1\psi_t+b_t,
+    \qquad
+    \omega_t=1.
+\]
+Equivalently, the two cases can be written as the switched affine model
+\[
+    \psi_{t+1}
+    =
+    A_{\omega_t}\psi_t+\omega_t b_t.
+\]
+Here $b_t$ is zero outside interaction because it is multiplied by $\omega_t$.
+\end{assumption}
+
+This assumption is a local regression statement in representation space.
+It does not require the original manipulation dynamics to be globally linear.
+Instead, it says that near a trajectory segment, the passive target update is approximated by a target-only linear operator, while the interaction update requires a separate local operator plus an interaction-dependent residual.
+This is the representation-level form of the dependency change in the factored dynamics.
+The one-reset analysis below studies how an error in this residual is propagated to later endpoint energies.
+
+\subsection{One-Reset Simplification}
+
+We now formalize the one-reset setting used in Proposition~\ref{prop:endpoint-energy-error}.
+Let $\tau$ denote the first future interaction offset after anchor time $t$.
+The one-reset mode sequence is
+\[
+    \underbrace{0,\ldots,0}_{\tau\ \text{passive steps}},
+    1,
+    \underbrace{0,\ldots,0}_{k\ \text{passive steps}},
+\]
+where $k$ is the number of passive steps after the interaction.
+Thus, the endpoint is at time $t+\tau+1+k$.
+
+\begin{definition}[Interaction bridge shift]
+\label{def:bridge-shift}
+The interaction bridge shift is the difference between the actual interaction update and the passive
+update that would have occurred without interaction:
+\begin{equation}
+    \delta_\tau
+    \triangleq
+    (A_1-A_0)\psi_{t+\tau}+b_{t+\tau}.
+    \label{eq:bridge-shift-appendix}
+\end{equation}
+Equivalently,
+\begin{equation}
+    A_1\psi_{t+\tau}+b_{t+\tau}
+    =
+    A_0\psi_{t+\tau}
+    +
+    \delta_\tau .
+    \label{eq:bridge-as-passive-plus-shift}
+\end{equation}
+\end{definition}
+
+The bridge shift isolates the effect of the interaction itself.
+Before the bridge, the target evolves passively.
+At the bridge, the target receives the additional shift $\delta_\tau$.
+After the bridge, this shift is carried forward by passive dynamics.
+
+\begin{definition}[Bridge estimation error]
+\label{def:bridge-error}
+Let $\widehat{\delta}_\tau$ be the bridge shift represented by the learned energy model.
+The local interaction-bridge estimation error is
+\begin{equation}
+    e
+    \triangleq
+    \widehat{\delta}_\tau-\delta_\tau .
+    \label{eq:bridge-error-appendix}
+\end{equation}
+\end{definition}
+
+\subsection{Future Mean Under One Interaction}
+
+\begin{lemma}[One-reset future mean]
+\label{lem:one-reset-future-mean}
+Under Assumption~\ref{ass:mode-wise-linear} and the one-reset setting, the target representation $k$ passive steps after
+the interaction has mean
+\begin{equation}
+    \mu_k
+    =
+    A_0^{\tau+1+k}\psi_t
+    +
+    A_0^k\delta_\tau .
+    \label{eq:one-reset-future-mean}
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+Before the interaction, the target follows passive dynamics for $\tau$ steps:
+\begin{equation}
+    \psi_{t+\tau}
+    =
+    A_0^\tau\psi_t .
+    \label{eq:pre-interaction-passive}
+\end{equation}
+At the interaction step, Definition~\ref{def:bridge-shift} gives
+\begin{equation}
+    \psi_{t+\tau+1}
+    =
+    A_0\psi_{t+\tau}
+    +
+    \delta_\tau .
+    \label{eq:interaction-update-with-shift}
+\end{equation}
+After the interaction, the target follows passive dynamics for $k$ more steps:
+\begin{equation}
+    \psi_{t+\tau+1+k}
+    =
+    A_0^k
+    \left(
+        A_0\psi_{t+\tau}
+        +
+        \delta_\tau
+    \right).
+    \label{eq:post-interaction-passive}
+\end{equation}
+Substituting Eq.~\eqref{eq:pre-interaction-passive} into Eq.~\eqref{eq:post-interaction-passive}
+yields
+\begin{align}
+    \psi_{t+\tau+1+k}
+    &=
+    A_0^k
+    \left(
+        A_0A_0^\tau\psi_t
+        +
+        \delta_\tau
+    \right) \\
+    &=
+    A_0^{\tau+1+k}\psi_t
+    +
+    A_0^k\delta_\tau .
+\end{align}
+This proves Eq.~\eqref{eq:one-reset-future-mean}.
+\end{proof}
+
+Lemma~\ref{lem:one-reset-future-mean} shows the key structure: the interaction bridge shift is
+not observed at the endpoint as $\delta_\tau$, but as the propagated quantity $A_0^k\delta_\tau$.
+
+\subsection{Propagation of Bridge Error}
+
+\begin{lemma}[Propagated bridge error]
+\label{lem:propagated-bridge-error}
+If the learned bridge shift has error $e=\widehat{\delta}_\tau-\delta_\tau$, then the induced endpoint
+mean error after $k$ passive steps is
+\begin{equation}
+    \widehat{\mu}_k-\mu_k
+    =
+    A_0^k e .
+    \label{eq:future-mean-error}
+\end{equation}
+Consequently,
+\begin{equation}
+    \|\widehat{\mu}_k-\mu_k\|
+    \le
+    \|A_0^k\|\|e\|.
+    \label{eq:future-mean-error-bound}
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By Lemma~\ref{lem:one-reset-future-mean}, the true endpoint mean is
+\begin{equation}
+    \mu_k
+    =
+    A_0^{\tau+1+k}\psi_t
+    +
+    A_0^k\delta_\tau .
+    \label{eq:true-endpoint-mean}
+\end{equation}
+Using the learned bridge shift $\widehat{\delta}_\tau$ gives
+\begin{equation}
+    \widehat{\mu}_k
+    =
+    A_0^{\tau+1+k}\psi_t
+    +
+    A_0^k\widehat{\delta}_\tau .
+    \label{eq:learned-endpoint-mean}
+\end{equation}
+Subtracting Eq.~\eqref{eq:true-endpoint-mean} from Eq.~\eqref{eq:learned-endpoint-mean} gives
+\begin{align}
+    \widehat{\mu}_k-\mu_k
+    &=
+    A_0^k
+    \left(
+        \widehat{\delta}_\tau-\delta_\tau
+    \right) \\
+    &=
+    A_0^k e .
+\end{align}
+Taking norms and using submultiplicativity gives Eq.~\eqref{eq:future-mean-error-bound}.
+\end{proof}
+
+\subsection{Energy Error Induced by Bridge Error}
+
+We now translate the propagated endpoint mean error into an energy error.
+For the appendix proof, we use the whitened local Gaussian energy
+\begin{equation}
+    E_k
+    =
+    -\frac{1}{2}
+    \left\|
+        \psi(y_f)-\mu_k
+    \right\|^2
+    +
+    \mathrm{const}.
+    \label{eq:gaussian-energy-appendix}
+\end{equation}
+This is the isotropic form of the local Gaussian score used in the main analysis.
+A non-isotropic covariance only changes the norm and introduces constant conditioning factors, which
+are suppressed in the main-paper proportionality statement.
+
+\begin{assumption}[Normalized local endpoint region]
+\label{ass:normalized-local-region}
+The sampled endpoint lies in the local quadratic region of the correct mean:
+\begin{equation}
+    \left\|
+        \psi(y_f)-\mu_k
+    \right\|
+    \le
+    1 .
+    \label{eq:normalized-local-region}
+\end{equation}
+\end{assumption}
+
+This normalization is only for presentation.
+If the local residual is bounded by a constant other than $1$, the first term in the final bound is
+multiplied by that constant.
+
+\begin{lemma}[Exact energy perturbation]
+\label{lem:exact-energy-perturbation}
+Suppose the propagated bridge-error relation in Lemma~\ref{lem:propagated-bridge-error} holds.
+Then the energy perturbation caused by bridge error is
+\begin{equation}
+    \widehat{E}_k-E_k
+    =
+    \left(
+        \psi(y_f)-\mu_k
+    \right)^\top
+    A_0^k e
+    -
+    \frac{1}{2}
+    \left\|
+        A_0^k e
+    \right\|^2 .
+    \label{eq:energy-perturbation-appendix}
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+By Lemma~\ref{lem:propagated-bridge-error},
+\begin{equation}
+    \widehat{\mu}_k
+    =
+    \mu_k+A_0^k e .
+    \label{eq:mean-with-propagated-error}
+\end{equation}
+Using Eq.~\eqref{eq:gaussian-energy-appendix}, the learned energy is
+\begin{equation}
+    \widehat{E}_k
+    =
+    -\frac{1}{2}
+    \left\|
+        \psi(y_f)-\widehat{\mu}_k
+    \right\|^2
+    +
+    \mathrm{const}.
+\end{equation}
+Substituting Eq.~\eqref{eq:mean-with-propagated-error} gives
+\begin{equation}
+    \widehat{E}_k
+    =
+    -\frac{1}{2}
+    \left\|
+        \psi(y_f)-\mu_k-A_0^k e
+    \right\|^2
+    +
+    \mathrm{const}.
+\end{equation}
+Therefore,
+\begin{align}
+    \widehat{E}_k-E_k
+    &=
+    -\frac{1}{2}
+    \left[
+        \left\|
+            \psi(y_f)-\mu_k-A_0^k e
+        \right\|^2
+        -
+        \left\|
+            \psi(y_f)-\mu_k
+        \right\|^2
+    \right] \\
+    &=
+    \left(
+        \psi(y_f)-\mu_k
+    \right)^\top
+    A_0^k e
+    -
+    \frac{1}{2}
+    \left\|
+        A_0^k e
+    \right\|^2 .
+\end{align}
+This proves Eq.~\eqref{eq:energy-perturbation-appendix}.
+\end{proof}
+
+\begin{corollary}[Endpoint energy-error bound]
+\label{cor:endpoint-energy-error-bound}
+Suppose Lemma~\ref{lem:exact-energy-perturbation} holds and Assumption~\ref{ass:normalized-local-region} holds.
+Then
+\begin{equation}
+    |\widehat{E}_k-E_k|
+    \le
+    \|A_0^k\|\|e\|
+    +
+    \frac{1}{2}
+    \|A_0^k\|^2\|e\|^2 .
+    \label{eq:energy-error-bound-appendix}
+\end{equation}
+\end{corollary}
+
+\begin{proof}
+Starting from Lemma~\ref{lem:exact-energy-perturbation}, apply the triangle inequality:
+\begin{align}
+    |\widehat{E}_k-E_k|
+    &\le
+    \left|
+        \left(
+            \psi(y_f)-\mu_k
+        \right)^\top
+        A_0^k e
+    \right|
+    +
+    \frac{1}{2}
+    \left\|
+        A_0^k e
+    \right\|^2 .
+    \label{eq:triangle-bound}
+\end{align}
+By Cauchy--Schwarz,
+\begin{equation}
+    \left|
+        \left(
+            \psi(y_f)-\mu_k
+        \right)^\top
+        A_0^k e
+    \right|
+    \le
+    \left\|
+        \psi(y_f)-\mu_k
+    \right\|
+    \left\|
+        A_0^k e
+    \right\|.
+\end{equation}
+Using Assumption~\ref{ass:normalized-local-region},
+\begin{equation}
+    \left|
+        \left(
+            \psi(y_f)-\mu_k
+        \right)^\top
+        A_0^k e
+    \right|
+    \le
+    \left\|
+        A_0^k e
+    \right\|.
+\end{equation}
+Finally, by submultiplicativity,
+\begin{equation}
+    \left\|
+        A_0^k e
+    \right\|
+    \le
+    \|A_0^k\|\|e\|.
+\end{equation}
+Substituting these bounds into Eq.~\eqref{eq:triangle-bound} gives
+\begin{equation}
+    |\widehat{E}_k-E_k|
+    \le
+    \|A_0^k\|\|e\|
+    +
+    \frac{1}{2}
+    \|A_0^k\|^2\|e\|^2 .
+\end{equation}
+\end{proof}
+
+Corollary~\ref{cor:endpoint-energy-error-bound} is the formal version of Proposition~\ref{prop:endpoint-energy-error}.
+Removing constants associated with local normalization and whitening gives the main-paper scaling:
+\[
+    \sup |\widehat{E}_k-E_k|
+    \propto
+    \|A_0^k\|\|e\|
+    +
+    \frac{1}{2}
+    \|A_0^k\|^2\|e\|^2 .
+\]
+
+\subsection{Interpretation}
+
+The proof separates the endpoint error into two factors.
+The first factor, $\|e\|$, is the local error in estimating the interaction bridge shift.
+This error becomes large when few training samples directly cover the interaction boundary.
+The second factor, $\|A_0^k\|$, is the passive post-interaction propagation factor.
+Even if the bridge error is small, passive dynamics can rotate, attenuate, or amplify the error before
+the endpoint is used in the contrastive objective.
+
+This explains why endpoint-only CRL can learn fragile energies near contact.
+If the positive future is sampled long after the interaction, CRL supervises the interaction action only
+through the propagated term $A_0^k\delta_\tau$.
+Interaction-weighted resampling targets the two terms in the bound: it increases bridge-centered
+samples, reducing $\|e\|$, and it favors endpoints closer to the interaction, reducing the effective
+post-interaction propagation length $k$.

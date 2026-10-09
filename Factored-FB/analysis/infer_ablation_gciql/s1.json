@@ -1,0 +1,38 @@
+{
+  "seed": 1,
+  "value_latent_dim": 512,
+  "mean_auc_exact": 0.9249665966794751,
+  "mean_auc_inferred": 0.9036079745769019,
+  "per_task": {
+    "cube-single-play-singletask-task1-v0": {
+      "n": 978,
+      "r_pos": 0.030674846842885017,
+      "auc_exact": 0.9186357243319269,
+      "auc_inferred": 0.9042897327707454
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "n": 1255,
+      "r_pos": 0.020717130973935127,
+      "auc_exact": 0.9140326719659511,
+      "auc_inferred": 0.9252988671214871
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "n": 860,
+      "r_pos": 0.03488372266292572,
+      "auc_exact": 0.9496787148594378,
+      "auc_inferred": 0.9065863453815262
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "n": 944,
+      "r_pos": 0.031779661774635315,
+      "auc_exact": 0.9223924142961342,
+      "auc_inferred": 0.8892414296134209
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "n": 1098,
+      "r_pos": 0.025500910356640816,
+      "auc_exact": 0.9200934579439253,
+      "auc_inferred": 0.8926234979973298
+    }
+  }
+}

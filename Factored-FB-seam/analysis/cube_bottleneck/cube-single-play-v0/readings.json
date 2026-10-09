@@ -1,0 +1,68 @@
+[
+  {
+    "name": "FLOOR (density_fb_state loses >0.15 H0->H1 on >=2 seeds)",
+    "fired": false,
+    "detail": "seeds losing >0.15: []",
+    "blocked_by": "fewer than 2 seeds lost >0.15 -- readings stand"
+  },
+  {
+    "name": "R-HELD1 (bottleneck is load-bearing for FB)",
+    "fired": false,
+    "detail": "delta>=0.30 on seeds []; of those within 0.10 of Density-FB: []",
+    "blocked_by": "only 0 seed(s) reach delta>=0.30"
+  },
+  {
+    "name": "R-HELD2 (deficit lives AFTER the bottleneck)",
+    "fired": true,
+    "detail": "delta<=0.10 on seeds [0, 1, 2]; retention<0.6 on []; maintain+dropped>=50% on [0, 1, 2]; Density-FB stable on [0, 1, 2]",
+    "blocked_by": ""
+  },
+  {
+    "name": "R-HELD3 (mixed: FB gains but stays far below)",
+    "fired": false,
+    "detail": "seeds in (0.10, 0.30) with a >0.10 gap: []",
+    "blocked_by": "only 0 seed(s) qualify"
+  },
+  {
+    "name": "G4 (P2 states are decision points)",
+    "fired": true,
+    "detail": "{\"n_states\": 64, \"n_std_above\": 44, \"required\": 40, \"median_std\": 0.274019718170166, \"passes\": true, \"p1_median_std\": 0.04056645929813385, \"p3_median_std\": 0.21636182069778442}",
+    "blocked_by": ""
+  },
+  {
+    "name": "P1 null control",
+    "fired": true,
+    "detail": "degenerate (no securing action at P1, AUC undefined -> null holds by construction): {'fb_ref': [0, 1, 2], 'density_fb_state': [0, 1, 2]}; out-of-band where defined: {'fb_ref': [], 'density_fb_state': []}",
+    "blocked_by": ""
+  },
+  {
+    "name": "R-MEAS1 (misallocation at the bottleneck, shown)",
+    "fired": false,
+    "detail": "FB auc<0.60 on [0]; Density-FB auc>=0.75 on []; FB auc_Q<0.60 on []",
+    "blocked_by": "FB<0.60 on 1 seed(s), Density-FB>=0.75 on 0, FB auc_Q<0.60 on 0 (need >=2 each)"
+  },
+  {
+    "name": "R-MEAS2 (measure sees it, the z-readout loses it)",
+    "fired": false,
+    "detail": "FB auc_heldmass>=0.75 on [1, 2]; FB auc_Q<0.60 on []",
+    "blocked_by": "FB auc>=0.75 on 2 seed(s), auc_Q<0.60 on 0"
+  },
+  {
+    "name": "R-MEAS3 (both estimators resolve it)",
+    "fired": false,
+    "detail": "FB>=0.75 on [1, 2]; Density-FB>=0.75 on []",
+    "blocked_by": "at least one arm is below 0.75 on >=2 seeds"
+  },
+  {
+    "name": "R-MEAS1-3 all silent -- OBSERVED PATTERN (not enumerated by the spec)",
+    "fired": true,
+    "detail": "P2 auc_heldmass: FB [(0, 0.55), (1, 0.7777777777777778), (2, 0.75)], Density-FB [(0, 0.4375), (1, 0.5454545454545454), (2, 0.6363636363636364)]; P2 auc_Q: FB [(0, 0.95), (1, 0.95), (2, 0.9090909090909091)], Density-FB [(0, 0.55), (1, 0.5), (2, 0.5)]. The spec's three readings all presuppose FB is the WEAKER discriminator at the bottleneck; here the ordering is reversed.",
+    "blocked_by": ""
+  },
+  {
+    "name": "R-MEAS4 (unconstrained-scale route is real)",
+    "fired": false,
+    "detail": "FB row_mass_ratio(P3/P2) > 3 on seeds []",
+    "blocked_by": "ratio>3 on 0 seed(s) (need >=2); NOT exclusive with R-MEAS1-3"
+  }
+]

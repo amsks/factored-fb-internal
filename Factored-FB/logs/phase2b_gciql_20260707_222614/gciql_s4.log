@@ -1,0 +1,29 @@
+/dev/shm/.venv-jax/lib/python3.11/site-packages/glfw/__init__.py:917: GLFWError: (65550) b'X11: The DISPLAY environment variable is missing'
+  warnings.warn(message, GLFWError)
+[phase_probe_gciql] seed=4 step=1000000 ckpt_dir=/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow/sd004_20260609_234417 value_arch=mlp d=512
+[phase_probe_gciql] out=/home/adityamohan/git/Factored-FB/analysis/profiles/gciql_flow_1m/s4 tasks=1 scenarios=['S0', 'S1', 'S2'] episodes=20
+Restored from /dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow/sd004_20260609_234417/params_1000000.pkl
+[phase_probe_gciql] agent restored
+Traceback (most recent call last):
+  File "/home/adityamohan/git/Factored-FB/scripts/phase_probe_gciql.py", line 264, in <module>
+    sys.exit(main() or 0)
+             ^^^^^^
+  File "/home/adityamohan/git/Factored-FB/scripts/phase_probe_gciql.py", line 211, in main
+    env = make_env(task)
+          ^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/scripts/phase_probe_gciql.py", line 130, in make_env
+    env = ogbench.make_env_and_datasets(task, env_only=True)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB/third_party/ogbench/ogbench/utils.py", line 182, in make_env_and_datasets
+    env = gymnasium.make(env_name, **env_kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/envs/registration.py", line 682, in make
+    env_spec = _find_spec(id)
+               ^^^^^^^^^^^^^^
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/envs/registration.py", line 527, in _find_spec
+    _check_version_exists(ns, name, version)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/envs/registration.py", line 391, in _check_version_exists
+    _check_name_exists(ns, name)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/gymnasium/envs/registration.py", line 368, in _check_name_exists
+    raise error.NameNotFound(
+gymnasium.error.NameNotFound: Environment `all` doesn't exist.

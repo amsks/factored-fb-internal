@@ -1,0 +1,20 @@
+{
+ "framework": "torch",
+ "group": "psm_flowbc_state",
+ "seed": "20260603_071856__psm_flowbc_state__s2",
+ "dir": "/dev/shm/factored-fb/runs/20260603_071856__psm_flowbc_state__s2",
+ "agent_name": "psm_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb/runs/20260603_071856__psm_flowbc_state__s2/checkpoints/final.pt",
+ "zB_note": "psm_flowbc has no backward_map; zB cells (C1/C4) not defined",
+ "C2_zR": {
+  "success": 0.14,
+  "grasped": 0.9
+ },
+ "C3_zR": {
+  "success": 0.14,
+  "grasped": 0.98
+ },
+ "secs": 96.0
+}

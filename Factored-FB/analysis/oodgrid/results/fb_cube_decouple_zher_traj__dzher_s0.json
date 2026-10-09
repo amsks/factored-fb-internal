@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "fb_cube_decouple_zher_traj",
+ "seed": "dzher_s0",
+ "dir": "/dev/shm/decpl2_out/dzher_s0",
+ "agent_name": "fb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/decpl2_out/dzher_s0/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.32,
+  "grasped": 1.0
+ },
+ "C2_zB": {
+  "success": 0.15,
+  "grasped": 0.96
+ },
+ "C3_zB": {
+  "success": 0.14,
+  "grasped": 0.99
+ },
+ "C2_zR": {
+  "success": 0.25,
+  "grasped": 0.98
+ },
+ "C3_zR": {
+  "success": 0.27,
+  "grasped": 0.98
+ },
+ "C4_zB": {
+  "success": 0.24,
+  "grasped": 0.98
+ },
+ "secs": 41.5
+}

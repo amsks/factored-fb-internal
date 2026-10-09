@@ -1,0 +1,31 @@
+{
+ "framework": "jax",
+ "group": "GCIQL-State-Flow-Bilinear-d50-FrozenPsi",
+ "seed": "cube_single_state_gciql_flow_bilinear_d50_frozen_psi_s0",
+ "dir": "/dev/shm/gciql_outputs/factored-fb/GCIQL-State-Flow-Bilinear-d50-FrozenPsi/cube_single_state_gciql_flow_bilinear_d50_frozen_psi_s0",
+ "step": 500000,
+ "agent_name": "gciql_flow",
+ "value_arch": "bilinear",
+ "value_latent_dim": 50,
+ "actor_kind": "flow",
+ "actor_cond": "goal",
+ "episodes": 100,
+ "H": 200,
+ "C1": {
+  "success": 0.29,
+  "grasped": 0.84
+ },
+ "C2": {
+  "success": 0.08,
+  "grasped": 0.77
+ },
+ "C3": {
+  "success": 0.04,
+  "grasped": 0.75
+ },
+ "C4": {
+  "success": 0.13,
+  "grasped": 0.8
+ },
+ "secs": 35.6
+}

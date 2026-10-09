@@ -1,0 +1,156 @@
+{
+  "l2_info": {
+    "cube-single-play-singletask-task1-v0": {
+      "residual_init": 525.5413818359375,
+      "residual_final": 60.67705535888672
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "residual_init": 646.8590087890625,
+      "residual_final": 55.838905334472656
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "residual_init": 653.5133666992188,
+      "residual_final": 55.983314514160156
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "residual_init": 2805.357177734375,
+      "residual_final": 83.74032592773438
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "residual_init": 2334.859130859375,
+      "residual_final": 118.45443725585938
+    }
+  },
+  "l2b_info": {
+    "cube-single-play-singletask-task1-v0": {
+      "residual_init": 886.3226318359375,
+      "residual_final": 64.66680145263672
+    },
+    "cube-single-play-singletask-task2-v0": {
+      "residual_init": 624.462890625,
+      "residual_final": 47.143550872802734
+    },
+    "cube-single-play-singletask-task3-v0": {
+      "residual_init": 995.4052734375,
+      "residual_final": 44.054630279541016
+    },
+    "cube-single-play-singletask-task4-v0": {
+      "residual_init": 2991.1865234375,
+      "residual_final": 142.9172821044922
+    },
+    "cube-single-play-singletask-task5-v0": {
+      "residual_init": 2072.554443359375,
+      "residual_final": 155.45849609375
+    }
+  },
+  "cube-single-play-singletask-task1-v0": {
+    "L0": {
+      "success": 0.4,
+      "value_auc": 0.936690092086792,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.15,
+      "value_auc": 0.6806840896606445,
+      "cos_to_L0": 0.4557197093963623
+    },
+    "L2": {
+      "success": 0.25,
+      "value_auc": 0.6675385236740112,
+      "cos_to_L0": 0.620735228061676
+    },
+    "L2b": {
+      "success": 0.35,
+      "value_auc": 0.6388132572174072,
+      "cos_to_L0": 0.6478771567344666
+    }
+  },
+  "cube-single-play-singletask-task2-v0": {
+    "L0": {
+      "success": 0.35,
+      "value_auc": 0.8906241059303284,
+      "cos_to_L0": 0.9999999403953552
+    },
+    "L1": {
+      "success": 0.0,
+      "value_auc": 0.5526846647262573,
+      "cos_to_L0": 0.37930604815483093
+    },
+    "L2": {
+      "success": 0.1,
+      "value_auc": 0.5138906240463257,
+      "cos_to_L0": 0.41513592004776
+    },
+    "L2b": {
+      "success": 0.05,
+      "value_auc": 0.5035845637321472,
+      "cos_to_L0": 0.44021108746528625
+    }
+  },
+  "cube-single-play-singletask-task3-v0": {
+    "L0": {
+      "success": 0.5,
+      "value_auc": 0.9060060381889343,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.05,
+      "value_auc": 0.6158505082130432,
+      "cos_to_L0": 0.3788720369338989
+    },
+    "L2": {
+      "success": 0.15,
+      "value_auc": 0.5586248636245728,
+      "cos_to_L0": 0.55643230676651
+    },
+    "L2b": {
+      "success": 0.1,
+      "value_auc": 0.3919549584388733,
+      "cos_to_L0": 0.5223869681358337
+    }
+  },
+  "cube-single-play-singletask-task4-v0": {
+    "L0": {
+      "success": 0.2,
+      "value_auc": 0.758089005947113,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.0,
+      "value_auc": 0.4927651286125183,
+      "cos_to_L0": 0.5318080186843872
+    },
+    "L2": {
+      "success": 0.15,
+      "value_auc": 0.7118231654167175,
+      "cos_to_L0": 0.48346394300460815
+    },
+    "L2b": {
+      "success": 0.2,
+      "value_auc": 0.678081214427948,
+      "cos_to_L0": 0.5810871124267578
+    }
+  },
+  "cube-single-play-singletask-task5-v0": {
+    "L0": {
+      "success": 0.25,
+      "value_auc": 0.722787618637085,
+      "cos_to_L0": 1.0
+    },
+    "L1": {
+      "success": 0.05,
+      "value_auc": 0.6519575119018555,
+      "cos_to_L0": 0.41736385226249695
+    },
+    "L2": {
+      "success": 0.1,
+      "value_auc": 0.7259649038314819,
+      "cos_to_L0": 0.6330824494361877
+    },
+    "L2b": {
+      "success": 0.45,
+      "value_auc": 0.648967981338501,
+      "cos_to_L0": 0.662010908126831
+    }
+  }
+}

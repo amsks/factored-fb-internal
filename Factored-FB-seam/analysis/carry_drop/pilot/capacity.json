@@ -1,0 +1,107 @@
+[
+  {
+    "depth": 3,
+    "persistence": 1,
+    "method": "fb",
+    "max_exact_error": 1.1102230246251565e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 1,
+    "method": "fb_no_ortho",
+    "max_exact_error": 1.1102230246251565e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 1,
+    "method": "density",
+    "max_exact_error": 1.27675647831893e-15,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 1,
+    "method": "normalized_squared",
+    "max_exact_error": 1.1102230246251565e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 1,
+    "method": "direct",
+    "max_exact_error": 5.551115123125783e-17,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 10,
+    "method": "fb",
+    "max_exact_error": 3.3306690738754696e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 10,
+    "method": "fb_no_ortho",
+    "max_exact_error": 3.3306690738754696e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 10,
+    "method": "density",
+    "max_exact_error": 9.992007221626409e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 10,
+    "method": "normalized_squared",
+    "max_exact_error": 2.220446049250313e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 10,
+    "method": "direct",
+    "max_exact_error": 1.1102230246251565e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 50,
+    "method": "fb",
+    "max_exact_error": 3.3306690738754696e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 50,
+    "method": "fb_no_ortho",
+    "max_exact_error": 3.3306690738754696e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 50,
+    "method": "density",
+    "max_exact_error": 2.7755575615628914e-15,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 50,
+    "method": "normalized_squared",
+    "max_exact_error": 2.220446049250313e-16,
+    "matrix_rank": 5
+  },
+  {
+    "depth": 3,
+    "persistence": 50,
+    "method": "direct",
+    "max_exact_error": 6.938893903907228e-18,
+    "matrix_rank": 5
+  }
+]

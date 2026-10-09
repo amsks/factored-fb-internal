@@ -1,0 +1,15 @@
+[grid] AGENT=psm_flowbc  6 jobs  grid ortho_coef{1} x lr_phi{1e-4 1e-5} x seeds{0 1 2}
+[grid] 8 GPUs x 2/GPU = 16 parallel  steps=500000  logs -> /home/adityamohan/git/Factored-FB/logs/grid_20260608_203308
+[grid] 20:33:08 launch psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-4__s0 on GPU0 (slot 0)
+[grid] 20:33:08 launch psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-4__s1 on GPU1 (slot 1)
+[grid] 20:33:08 launch psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-4__s2 on GPU2 (slot 2)
+[grid] 20:33:08 launch psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-5__s0 on GPU3 (slot 3)
+[grid] 20:33:08 launch psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-5__s1 on GPU4 (slot 4)
+[grid] 20:33:08 launch psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-5__s2 on GPU5 (slot 5)
+[grid] 01:36:30 DONE psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-4__s0 rc=0
+[grid] 01:36:46 DONE psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-4__s1 rc=0
+[grid] 01:42:47 DONE psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-5__s0 rc=0
+[grid] 01:45:59 DONE psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-5__s1 rc=0
+[grid] 01:49:38 DONE psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-5__s2 rc=0
+[grid] 01:51:38 DONE psm_state_fbmatch_lrcheck__ortho_coef1__lr_phi1e-4__s2 rc=0
+[grid] all done -> /home/adityamohan/git/Factored-FB/logs/grid_20260608_203308 (0 job(s) exited nonzero)

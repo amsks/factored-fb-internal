@@ -1,0 +1,35 @@
+{
+ "framework": "torch",
+ "group": "ISFB-Torch-Exp1-fixed",
+ "seed": "isfbt2_coord_s1",
+ "dir": "/dev/shm/factored-fb_outputs/isfbt2_coord_s1",
+ "agent_name": "isfb_flowbc",
+ "episodes": 100,
+ "H": 200,
+ "ckpt": "/dev/shm/factored-fb_outputs/isfbt2_coord_s1/checkpoints/final.pt",
+ "C1_zB": {
+  "success": 0.31,
+  "grasped": 0.99
+ },
+ "C2_zB": {
+  "success": 0.2,
+  "grasped": 0.97
+ },
+ "C4_zB": {
+  "success": 0.26,
+  "grasped": 0.98
+ },
+ "C3_zB": {
+  "success": 0.21,
+  "grasped": 1.0
+ },
+ "C2_zR": {
+  "success": 0.33,
+  "grasped": 0.98
+ },
+ "C3_zR": {
+  "success": 0.25,
+  "grasped": 0.99
+ },
+ "secs": 446.8
+}

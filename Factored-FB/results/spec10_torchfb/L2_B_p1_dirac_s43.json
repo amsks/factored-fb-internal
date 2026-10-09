@@ -1,0 +1,1266 @@
+{
+ "run": "/home/adityamohan/exp_spec10/torchfb/p1_dirac_s43",
+ "stage": "B",
+ "discount": 0.99,
+ "horizon": 200,
+ "gamma_H": 0.13397967485796172,
+ "per_family": 8,
+ "nhat_weight": false,
+ "records": [
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_0",
+   "drive": "zr",
+   "ret_mean": 0.0993728726233329,
+   "ret_std": 0.29811861786999866,
+   "time_in": 0.2
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_0",
+   "drive": "zgoal",
+   "ret_mean": 0.11335063929295468,
+   "ret_std": 0.340051917878864,
+   "time_in": 0.2
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_0",
+   "drive": "zrand",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_0",
+   "drive": "zr",
+   "ret_mean": 1.668776395246494,
+   "ret_std": 4.100699762150185,
+   "time_in": 4.7
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_0",
+   "drive": "zgoal",
+   "ret_mean": 0.2693887641643161,
+   "ret_std": 0.8081662924929484,
+   "time_in": 1.8
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_0",
+   "drive": "zrand",
+   "ret_mean": 1.7852527516447025,
+   "ret_std": 5.355758254934108,
+   "time_in": 4.4
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_0",
+   "drive": "zr",
+   "ret_mean": 23.18267836930887,
+   "ret_std": 31.599617433139564,
+   "time_in": 48.2
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_0",
+   "drive": "zgoal",
+   "ret_mean": 24.17017381140055,
+   "ret_std": 30.205116281388182,
+   "time_in": 56.7
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_0",
+   "drive": "zrand",
+   "ret_mean": 22.827694535114684,
+   "ret_std": 22.720769625613595,
+   "time_in": 44.8
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_0",
+   "drive": "zr",
+   "ret_mean": 0.3942516945217221,
+   "ret_std": 0.5091811855042208,
+   "time_in": 0.0
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_0",
+   "drive": "zgoal",
+   "ret_mean": 0.19215694246342194,
+   "ret_std": 0.310503245677779,
+   "time_in": 0.0
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_0",
+   "drive": "zrand",
+   "ret_mean": 2.38922138592491,
+   "ret_std": 4.333326279564108,
+   "time_in": 2.1
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_0",
+   "drive": "zr",
+   "ret_mean": 14.465137108414968,
+   "ret_std": 8.05341807940825,
+   "time_in": 23.3
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_0",
+   "drive": "zgoal",
+   "ret_mean": 6.811474123895581,
+   "ret_std": 7.46684646801984,
+   "time_in": 10.4
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_0",
+   "drive": "zrand",
+   "ret_mean": 13.94713774757887,
+   "ret_std": 10.373879865829846,
+   "time_in": 9.9
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_1",
+   "drive": "zr",
+   "ret_mean": 0.3468182361781432,
+   "ret_std": 1.0404547085344296,
+   "time_in": 0.7
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_1",
+   "drive": "zgoal",
+   "ret_mean": 0.1318247818871347,
+   "ret_std": 0.26915976820970067,
+   "time_in": 0.6
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_1",
+   "drive": "zrand",
+   "ret_mean": 0.10362976717245846,
+   "ret_std": 0.3108893015173754,
+   "time_in": 0.5
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_1",
+   "drive": "zr",
+   "ret_mean": 2.319013553715725,
+   "ret_std": 4.103847014453505,
+   "time_in": 6.0
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_1",
+   "drive": "zgoal",
+   "ret_mean": 1.495506016219458,
+   "ret_std": 2.07146762225506,
+   "time_in": 4.2
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_1",
+   "drive": "zrand",
+   "ret_mean": 0.8737662166375975,
+   "ret_std": 1.9970147893749504,
+   "time_in": 2.7
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_1",
+   "drive": "zr",
+   "ret_mean": 7.922399935272615,
+   "ret_std": 10.894970993562717,
+   "time_in": 22.6
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_1",
+   "drive": "zgoal",
+   "ret_mean": 13.204659636704264,
+   "ret_std": 19.25612315276221,
+   "time_in": 33.4
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_1",
+   "drive": "zrand",
+   "ret_mean": 5.290579186795112,
+   "ret_std": 7.030074593344908,
+   "time_in": 8.6
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_1",
+   "drive": "zr",
+   "ret_mean": 0.7730073497385919,
+   "ret_std": 1.209348171141011,
+   "time_in": 1.7
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_1",
+   "drive": "zgoal",
+   "ret_mean": 1.0486061845850978,
+   "ret_std": 1.2963586986368645,
+   "time_in": 1.9
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_1",
+   "drive": "zrand",
+   "ret_mean": 0.7500077469690741,
+   "ret_std": 1.1618124596132255,
+   "time_in": 0.7
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_1",
+   "drive": "zr",
+   "ret_mean": 4.683274478498016,
+   "ret_std": 4.07445194946791,
+   "time_in": 5.6
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_1",
+   "drive": "zgoal",
+   "ret_mean": 9.39716075924173,
+   "ret_std": 5.7059715586780495,
+   "time_in": 11.1
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_1",
+   "drive": "zrand",
+   "ret_mean": 2.465347150449884,
+   "ret_std": 2.3765075004543474,
+   "time_in": 0.6
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_2",
+   "drive": "zr",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_2",
+   "drive": "zgoal",
+   "ret_mean": 0.19964986949251007,
+   "ret_std": 0.5989496084775302,
+   "time_in": 0.6
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_2",
+   "drive": "zrand",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_2",
+   "drive": "zr",
+   "ret_mean": 1.709078012567608,
+   "ret_std": 4.69062280540178,
+   "time_in": 6.5
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_2",
+   "drive": "zgoal",
+   "ret_mean": 5.2817621158048755,
+   "ret_std": 9.521969091390337,
+   "time_in": 17.8
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_2",
+   "drive": "zrand",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_2",
+   "drive": "zr",
+   "ret_mean": 54.86360421136548,
+   "ret_std": 26.280367885938617,
+   "time_in": 112.5
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_2",
+   "drive": "zgoal",
+   "ret_mean": 40.663400629963874,
+   "ret_std": 31.090702081278906,
+   "time_in": 89.7
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_2",
+   "drive": "zrand",
+   "ret_mean": 24.29466913093844,
+   "ret_std": 26.666628102051707,
+   "time_in": 45.1
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_2",
+   "drive": "zr",
+   "ret_mean": 2.750949193720376,
+   "ret_std": 5.993809637664905,
+   "time_in": 1.5
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_2",
+   "drive": "zgoal",
+   "ret_mean": 1.8264852723051068,
+   "ret_std": 3.3140323923513977,
+   "time_in": 5.0
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_2",
+   "drive": "zrand",
+   "ret_mean": 0.4524703564765976,
+   "ret_std": 0.9661455189421188,
+   "time_in": 0.0
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_2",
+   "drive": "zr",
+   "ret_mean": 16.413567538865085,
+   "ret_std": 7.3563318892033145,
+   "time_in": 10.1
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_2",
+   "drive": "zgoal",
+   "ret_mean": 11.504439449511448,
+   "ret_std": 7.430085084109256,
+   "time_in": 8.1
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_2",
+   "drive": "zrand",
+   "ret_mean": 6.2445417023006184,
+   "ret_std": 9.454783918332117,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_3",
+   "drive": "zr",
+   "ret_mean": 0.7860883071804559,
+   "ret_std": 1.225122862659293,
+   "time_in": 2.6
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_3",
+   "drive": "zgoal",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_3",
+   "drive": "zrand",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_3",
+   "drive": "zr",
+   "ret_mean": 1.2554758869003646,
+   "ret_std": 2.1620208088176422,
+   "time_in": 4.3
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_3",
+   "drive": "zgoal",
+   "ret_mean": 8.116726124627412,
+   "ret_std": 13.308224204596733,
+   "time_in": 24.5
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_3",
+   "drive": "zrand",
+   "ret_mean": 2.4207423983629344,
+   "ret_std": 6.595272889880556,
+   "time_in": 10.0
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_3",
+   "drive": "zr",
+   "ret_mean": 25.668157243855497,
+   "ret_std": 22.50339493693968,
+   "time_in": 52.5
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_3",
+   "drive": "zgoal",
+   "ret_mean": 27.95335995330649,
+   "ret_std": 26.450894946504885,
+   "time_in": 59.1
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_3",
+   "drive": "zrand",
+   "ret_mean": 55.592381301299746,
+   "ret_std": 31.00902806429204,
+   "time_in": 120.3
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_3",
+   "drive": "zr",
+   "ret_mean": 1.991645023160182,
+   "ret_std": 1.8306607755524762,
+   "time_in": 0.0
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_3",
+   "drive": "zgoal",
+   "ret_mean": 1.3937992152640832,
+   "ret_std": 1.5474126214204107,
+   "time_in": 0.0
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_3",
+   "drive": "zrand",
+   "ret_mean": 1.902442969695079,
+   "ret_std": 2.034269285299032,
+   "time_in": 0.0
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_3",
+   "drive": "zr",
+   "ret_mean": 10.361668697602843,
+   "ret_std": 8.070367734649285,
+   "time_in": 13.2
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_3",
+   "drive": "zgoal",
+   "ret_mean": 12.877745989527455,
+   "ret_std": 10.591150656876934,
+   "time_in": 24.5
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_3",
+   "drive": "zrand",
+   "ret_mean": 22.804131936634413,
+   "ret_std": 17.57482007843542,
+   "time_in": 58.2
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_4",
+   "drive": "zr",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_4",
+   "drive": "zgoal",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_4",
+   "drive": "zrand",
+   "ret_mean": 0.308731674941706,
+   "ret_std": 0.926195024825118,
+   "time_in": 1.4
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_4",
+   "drive": "zr",
+   "ret_mean": 8.662399005217228,
+   "ret_std": 12.645362288146933,
+   "time_in": 33.2
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_4",
+   "drive": "zgoal",
+   "ret_mean": 1.1618376064795457,
+   "ret_std": 1.4592123533605303,
+   "time_in": 5.3
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_4",
+   "drive": "zrand",
+   "ret_mean": 1.5310686994170335,
+   "ret_std": 2.393756640686977,
+   "time_in": 5.8
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_4",
+   "drive": "zr",
+   "ret_mean": 38.63922387209039,
+   "ret_std": 23.75722618542271,
+   "time_in": 84.4
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_4",
+   "drive": "zgoal",
+   "ret_mean": 54.66007576342768,
+   "ret_std": 19.823912273741183,
+   "time_in": 118.2
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_4",
+   "drive": "zrand",
+   "ret_mean": 32.31152508167303,
+   "ret_std": 34.078777267049034,
+   "time_in": 66.3
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_4",
+   "drive": "zr",
+   "ret_mean": 6.618520737213281,
+   "ret_std": 5.917453339242327,
+   "time_in": 1.5
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_4",
+   "drive": "zgoal",
+   "ret_mean": 5.182779375714576,
+   "ret_std": 3.7825095079667728,
+   "time_in": 4.1
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_4",
+   "drive": "zrand",
+   "ret_mean": 3.7722910507358685,
+   "ret_std": 3.6578913024790842,
+   "time_in": 0.5
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_4",
+   "drive": "zr",
+   "ret_mean": 21.833178504413848,
+   "ret_std": 17.433118679408057,
+   "time_in": 58.2
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_4",
+   "drive": "zgoal",
+   "ret_mean": 14.38203174580149,
+   "ret_std": 17.133546606621337,
+   "time_in": 36.9
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_4",
+   "drive": "zrand",
+   "ret_mean": 12.346002767981505,
+   "ret_std": 14.666008381733555,
+   "time_in": 27.7
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_5",
+   "drive": "zr",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_5",
+   "drive": "zgoal",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_5",
+   "drive": "zrand",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_5",
+   "drive": "zr",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_5",
+   "drive": "zgoal",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_5",
+   "drive": "zrand",
+   "ret_mean": 3.8623030323714205,
+   "ret_std": 11.58690909711426,
+   "time_in": 10.3
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_5",
+   "drive": "zr",
+   "ret_mean": 4.733722396822001,
+   "ret_std": 12.170772368728327,
+   "time_in": 16.1
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_5",
+   "drive": "zgoal",
+   "ret_mean": 7.73742130215076,
+   "ret_std": 18.652379848721075,
+   "time_in": 20.9
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_5",
+   "drive": "zrand",
+   "ret_mean": 4.9050085441427695,
+   "ret_std": 13.575523631595543,
+   "time_in": 8.6
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_5",
+   "drive": "zr",
+   "ret_mean": 1.5468490721217512,
+   "ret_std": 2.524133493273814,
+   "time_in": 5.6
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_5",
+   "drive": "zgoal",
+   "ret_mean": 1.0347949954150106,
+   "ret_std": 2.2581048346282326,
+   "time_in": 0.0
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_5",
+   "drive": "zrand",
+   "ret_mean": 2.3605205996815686,
+   "ret_std": 3.2997776099547904,
+   "time_in": 2.8
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_5",
+   "drive": "zr",
+   "ret_mean": 7.444873147395744,
+   "ret_std": 11.997606755048423,
+   "time_in": 14.4
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_5",
+   "drive": "zgoal",
+   "ret_mean": 6.731445218804136,
+   "ret_std": 7.980389681096911,
+   "time_in": 8.0
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_5",
+   "drive": "zrand",
+   "ret_mean": 11.031642039060955,
+   "ret_std": 10.949092643162263,
+   "time_in": 4.3
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_6",
+   "drive": "zr",
+   "ret_mean": 0.38535864065210956,
+   "ret_std": 1.1560759219563288,
+   "time_in": 1.8
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_6",
+   "drive": "zgoal",
+   "ret_mean": 0.7046886118985876,
+   "ret_std": 2.114065835695763,
+   "time_in": 1.3
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_6",
+   "drive": "zrand",
+   "ret_mean": 0.7268835966230265,
+   "ret_std": 1.8750598266205643,
+   "time_in": 4.4
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_6",
+   "drive": "zr",
+   "ret_mean": 10.101481843133229,
+   "ret_std": 18.479698563706336,
+   "time_in": 18.1
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_6",
+   "drive": "zgoal",
+   "ret_mean": 8.553721183348939,
+   "ret_std": 11.256867465947282,
+   "time_in": 12.0
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_6",
+   "drive": "zrand",
+   "ret_mean": 10.366232893794214,
+   "ret_std": 25.809621335072656,
+   "time_in": 25.4
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_6",
+   "drive": "zr",
+   "ret_mean": 52.79173947672358,
+   "ret_std": 23.23957050373046,
+   "time_in": 105.5
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_6",
+   "drive": "zgoal",
+   "ret_mean": 46.130664403190245,
+   "ret_std": 21.079493302726604,
+   "time_in": 87.5
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_6",
+   "drive": "zrand",
+   "ret_mean": 51.75521046609568,
+   "ret_std": 26.910558831751022,
+   "time_in": 121.3
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_6",
+   "drive": "zr",
+   "ret_mean": 6.44557512319494,
+   "ret_std": 5.701191499097461,
+   "time_in": 7.0
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_6",
+   "drive": "zgoal",
+   "ret_mean": 5.778435781442798,
+   "ret_std": 7.777905502999247,
+   "time_in": 12.9
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_6",
+   "drive": "zrand",
+   "ret_mean": 5.9211255309559,
+   "ret_std": 7.879974482289266,
+   "time_in": 13.7
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_6",
+   "drive": "zr",
+   "ret_mean": 18.042791277216857,
+   "ret_std": 16.545510665522617,
+   "time_in": 37.2
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_6",
+   "drive": "zgoal",
+   "ret_mean": 29.289768923477123,
+   "ret_std": 18.807478519768722,
+   "time_in": 67.8
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_6",
+   "drive": "zrand",
+   "ret_mean": 9.849561715961869,
+   "ret_std": 8.974070052592069,
+   "time_in": 12.7
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_7",
+   "drive": "zr",
+   "ret_mean": 7.935924628825854,
+   "ret_std": 23.80777388647756,
+   "time_in": 15.7
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_7",
+   "drive": "zgoal",
+   "ret_mean": 9.472969066043419,
+   "ret_std": 20.924993752703223,
+   "time_in": 14.3
+  },
+  {
+   "family": "ball0.4",
+   "name": "ball0.4_7",
+   "drive": "zrand",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_7",
+   "drive": "zr",
+   "ret_mean": 10.263622543220649,
+   "ret_std": 25.619820956665084,
+   "time_in": 24.5
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_7",
+   "drive": "zgoal",
+   "ret_mean": 19.535521014027466,
+   "ret_std": 33.05912771421053,
+   "time_in": 46.7
+  },
+  {
+   "family": "ball0.8",
+   "name": "ball0.8_7",
+   "drive": "zrand",
+   "ret_mean": 12.559978430837806,
+   "ret_std": 26.358628249999256,
+   "time_in": 25.4
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_7",
+   "drive": "zr",
+   "ret_mean": 50.378599371211585,
+   "ret_std": 23.231247625014944,
+   "time_in": 100.7
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_7",
+   "drive": "zgoal",
+   "ret_mean": 69.24154471360855,
+   "ret_std": 15.253285726721018,
+   "time_in": 147.7
+  },
+  {
+   "family": "ball1.6",
+   "name": "ball1.6_7",
+   "drive": "zrand",
+   "ret_mean": 58.27356601358781,
+   "ret_std": 27.061669367717858,
+   "time_in": 127.6
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_7",
+   "drive": "zr",
+   "ret_mean": 12.661668571779895,
+   "ret_std": 22.34939592497145,
+   "time_in": 26.0
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_7",
+   "drive": "zgoal",
+   "ret_mean": 10.620017057304352,
+   "ret_std": 20.730950777832316,
+   "time_in": 23.8
+  },
+  {
+   "family": "smooth0.4",
+   "name": "smooth0.4_7",
+   "drive": "zrand",
+   "ret_mean": 15.439083418923138,
+   "ret_std": 25.034688318705754,
+   "time_in": 36.9
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_7",
+   "drive": "zr",
+   "ret_mean": 15.789703686246387,
+   "ret_std": 10.342950891222003,
+   "time_in": 7.9
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_7",
+   "drive": "zgoal",
+   "ret_mean": 26.32248296199583,
+   "ret_std": 19.708485321228935,
+   "time_in": 24.2
+  },
+  {
+   "family": "smooth0.8",
+   "name": "smooth0.8_7",
+   "drive": "zrand",
+   "ret_mean": 27.818783316303666,
+   "ret_std": 25.37254503742998,
+   "time_in": 41.9
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_0",
+   "drive": "zr",
+   "ret_mean": 7.190815584355467,
+   "ret_std": 20.764200881479134,
+   "time_in": 12.3
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_0",
+   "drive": "zgoal",
+   "ret_mean": 3.8281891940435364,
+   "ret_std": 11.48456758213061,
+   "time_in": 5.1
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_0",
+   "drive": "zrand",
+   "ret_mean": 23.565939778013245,
+   "ret_std": 29.700693241452026,
+   "time_in": 37.4
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_0",
+   "drive": "zgoal_b",
+   "ret_mean": 4.663191143727273,
+   "ret_std": 9.392002709961375,
+   "time_in": 5.5
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_1",
+   "drive": "zr",
+   "ret_mean": 0.3362014273887874,
+   "ret_std": 1.008604282166362,
+   "time_in": 1.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_1",
+   "drive": "zgoal",
+   "ret_mean": 0.10456489051396081,
+   "ret_std": 0.3136946715418824,
+   "time_in": 0.4
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_1",
+   "drive": "zrand",
+   "ret_mean": 0.2696059894650561,
+   "ret_std": 0.8088179683951682,
+   "time_in": 0.4
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_1",
+   "drive": "zgoal_b",
+   "ret_mean": 0.3779105538041204,
+   "ret_std": 0.6836429254111768,
+   "time_in": 0.6
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_2",
+   "drive": "zr",
+   "ret_mean": 0.8284059980092632,
+   "ret_std": 2.2215425673862006,
+   "time_in": 5.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_2",
+   "drive": "zgoal",
+   "ret_mean": 0.5794209598308989,
+   "ret_std": 1.7382628794926969,
+   "time_in": 1.2
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_2",
+   "drive": "zrand",
+   "ret_mean": 0.09930236964173449,
+   "ret_std": 0.2979071089252035,
+   "time_in": 0.3
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_2",
+   "drive": "zgoal_b",
+   "ret_mean": 0.1548834063449907,
+   "ret_std": 0.46465021903497206,
+   "time_in": 0.7
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_3",
+   "drive": "zr",
+   "ret_mean": 0.06390140724294802,
+   "ret_std": 0.19170422172884405,
+   "time_in": 0.4
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_3",
+   "drive": "zgoal",
+   "ret_mean": 0.5846807305449888,
+   "ret_std": 1.2803984497096716,
+   "time_in": 1.5
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_3",
+   "drive": "zrand",
+   "ret_mean": 0.7604321123982475,
+   "ret_std": 1.582577744816676,
+   "time_in": 2.9
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_3",
+   "drive": "zgoal_b",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_4",
+   "drive": "zr",
+   "ret_mean": 5.910006610998915,
+   "ret_std": 17.730019832996746,
+   "time_in": 16.8
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_4",
+   "drive": "zgoal",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_4",
+   "drive": "zrand",
+   "ret_mean": 1.2356155905540067,
+   "ret_std": 2.471645920787464,
+   "time_in": 2.8
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_4",
+   "drive": "zgoal_b",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_5",
+   "drive": "zr",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_5",
+   "drive": "zgoal",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_5",
+   "drive": "zrand",
+   "ret_mean": 0.1673007166017924,
+   "ret_std": 0.5019021498053773,
+   "time_in": 1.1
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_5",
+   "drive": "zgoal_b",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_6",
+   "drive": "zr",
+   "ret_mean": 0.20188508200510627,
+   "ret_std": 0.4934283994687392,
+   "time_in": 0.6
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_6",
+   "drive": "zgoal",
+   "ret_mean": 0.18727972065932777,
+   "ret_std": 0.5618391619779833,
+   "time_in": 0.8
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_6",
+   "drive": "zrand",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_6",
+   "drive": "zgoal_b",
+   "ret_mean": 0.02549097606963092,
+   "ret_std": 0.07647292820889277,
+   "time_in": 0.1
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_7",
+   "drive": "zr",
+   "ret_mean": 0.0,
+   "ret_std": 0.0,
+   "time_in": 0.0
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_7",
+   "drive": "zgoal",
+   "ret_mean": 0.8360682708685031,
+   "ret_std": 1.4760658687491972,
+   "time_in": 2.4
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_7",
+   "drive": "zrand",
+   "ret_mean": 0.3871703160635679,
+   "ret_std": 0.6966954160466501,
+   "time_in": 0.8
+  },
+  {
+   "family": "twozone",
+   "name": "twozone_7",
+   "drive": "zgoal_b",
+   "ret_mean": 0.13737156622400648,
+   "ret_std": 0.34224223103058166,
+   "time_in": 0.4
+  }
+ ],
+ "summary": {
+  "ball0.4": {
+   "zr": 1.1941953356824868,
+   "zgoal": 1.3278103710768256,
+   "zrand": 0.14240562984214886,
+   "gap_frac": 0.8872831947211802
+  },
+  "ball0.8": {
+   "zr": 4.497480905000162,
+   "zgoal": 5.551807853084002,
+   "zrand": 4.174918052883214,
+   "gap_frac": 0.2342691855731009
+  },
+  "ball1.6": {
+   "zr": 32.27251560958125,
+   "zgoal": 35.47016252671905,
+   "zrand": 31.90632928245591,
+   "gap_frac": 0.10275069062639328
+  },
+  "smooth0.4": {
+   "zr": 4.147808345681343,
+   "zgoal": 3.3846343530618057,
+   "zrand": 4.1233953824202665,
+   "gap_frac": 24412963.261076115
+  },
+  "smooth0.8": {
+   "zr": 13.629274304831718,
+   "zgoal": 14.66456864653185,
+   "zrand": 13.313393547033971,
+   "gap_frac": 0.23378225214121656
+  },
+  "twozone": {
+   "zr": 1.8164020137500607,
+   "zgoal": 0.7650254708076519,
+   "zgoal_b": 0.6698559557712527,
+   "zrand": 3.3106708590922063,
+   "gap_frac": -1494268845.3421454
+  }
+ }
+}

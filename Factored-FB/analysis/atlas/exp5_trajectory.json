@@ -1,0 +1,86 @@
+{
+  "bil_dir": "/home/adityamohan/exp5_retrain/factored-fb/GCIQL-State-Flow-Bilinear-d50/exp5_bilinear_sd0",
+  "episodes": 10,
+  "trajectory": [
+    {
+      "step": 50000,
+      "rerank_success": 0.72,
+      "floor": 0.04,
+      "effective_rank": 4.897264983999502,
+      "offref_peak_gap": 7.302684897184372,
+      "offref_win_frac": 1.0
+    },
+    {
+      "step": 100000,
+      "rerank_success": 0.76,
+      "floor": 0.04,
+      "effective_rank": 4.730403900100432,
+      "offref_peak_gap": 5.998476874828339,
+      "offref_win_frac": 1.0
+    },
+    {
+      "step": 150000,
+      "rerank_success": 0.7,
+      "floor": 0.04,
+      "effective_rank": 4.550634504365192,
+      "offref_peak_gap": 4.634856486320496,
+      "offref_win_frac": 1.0
+    },
+    {
+      "step": 200000,
+      "rerank_success": 0.9,
+      "floor": 0.04,
+      "effective_rank": 4.679676771752057,
+      "offref_peak_gap": 4.280578863620758,
+      "offref_win_frac": 1.0
+    },
+    {
+      "step": 250000,
+      "rerank_success": 0.9199999999999999,
+      "floor": 0.04,
+      "effective_rank": 4.521947950071579,
+      "offref_peak_gap": 4.240926790237427,
+      "offref_win_frac": 0.95625
+    },
+    {
+      "step": 300000,
+      "rerank_success": 0.9199999999999999,
+      "floor": 0.04,
+      "effective_rank": 4.717831962678314,
+      "offref_peak_gap": 4.112772929668426,
+      "offref_win_frac": 0.9875
+    },
+    {
+      "step": 350000,
+      "rerank_success": 0.9199999999999999,
+      "floor": 0.04,
+      "effective_rank": 4.845472898477931,
+      "offref_peak_gap": 4.071904492378235,
+      "offref_win_frac": 0.9875
+    },
+    {
+      "step": 400000,
+      "rerank_success": 0.8799999999999999,
+      "floor": 0.04,
+      "effective_rank": 4.931097063075483,
+      "offref_peak_gap": 3.633074164390564,
+      "offref_win_frac": 0.975
+    },
+    {
+      "step": 450000,
+      "rerank_success": 0.9400000000000001,
+      "floor": 0.04,
+      "effective_rank": 5.022849161230878,
+      "offref_peak_gap": 3.4091755032539366,
+      "offref_win_frac": 0.99375
+    },
+    {
+      "step": 500000,
+      "rerank_success": 0.9,
+      "floor": 0.04,
+      "effective_rank": 4.925248236333623,
+      "offref_peak_gap": 3.7278393626213076,
+      "offref_win_frac": 1.0
+    }
+  ]
+}

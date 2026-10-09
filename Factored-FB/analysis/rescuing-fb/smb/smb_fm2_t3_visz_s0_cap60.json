@@ -1,0 +1,466 @@
+{
+  "meta": {
+    "spec": "PAPER/rescuing-fb/specs/11-smb-eval-suite.md",
+    "tasks_json": "/home/adityamohan/git/Factored-FB/analysis/rescuing-fb/smb_cube_single_v1.json",
+    "tasks_version": "smb_cube_single_v1",
+    "run_dir": "/home/adityamohan/exp_spec08/factored-fb/GCIQL-State-Flow-Measure-BallVisit-ZX-d50/visz_s0",
+    "checkpoint_step": 500000,
+    "d": 50,
+    "actor_cond": "z",
+    "actor_mode": "z",
+    "fb_forward_z": true,
+    "measure_only": true,
+    "psi_src": "critic",
+    "tiers": [
+      "t3"
+    ],
+    "episodes": 25,
+    "horizon": 200,
+    "z_inference": "cmoment",
+    "z_select": "measure",
+    "gpi": true,
+    "oracle_z": false,
+    "relabel_size": 50000,
+    "candidate_pool": 50000,
+    "match_data_norm": 1.907228097734654,
+    "gamma": 0.99,
+    "eps_obs": 0.4,
+    "seed": 0,
+    "achieved_reward_def": "sum_t gamma^t r(cube(s_{t+1})) over real steps, obs units, from the recorded rollout track"
+  },
+  "tiers": {
+    "t3": {
+      "note": "oracle = max over the two dedicated single-region arms; chose-correct = larger unweighted discounted dwell in the occupancy-correct region",
+      "pairs": {
+        "pair0": {
+          "variant": 1,
+          "w_S": 1.0,
+          "w_T": 2.0,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -1.16890287399292,
+              2.979377031326294,
+              0.199607253074646
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -1.1652559041976929,
+              2.311915874481201,
+              0.937234103679657
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 6.134164586205404,
+              "dwell_S": 5.861263090947642,
+              "dwell_T": 0.13645074762888118
+            },
+            "dedicated_transient": {
+              "G": 17.632781768473446,
+              "dwell_S": 0.0,
+              "dwell_T": 8.816390884236723
+            },
+            "main": {
+              "diag": {
+                "route": "cmoment",
+                "n_pos": 434,
+                "n_neg": 0,
+                "ess": 121.88431277170169,
+                "z_raw_norm": 2.49043804835439,
+                "match_data_norm": 1.907228097734654
+              },
+              "measure_select": {
+                "chosen": "stable",
+                "scores": {
+                  "stable": 49.28200626617565,
+                  "transient": 5.796296117668836,
+                  "z_r": 24.91026658247744
+                },
+                "details": {
+                  "stable": {
+                    "q": 49.28200626617565,
+                    "n_live": 434,
+                    "n_capped": 174
+                  },
+                  "transient": {
+                    "q": 5.796296117668836,
+                    "n_live": 434,
+                    "n_capped": 174
+                  },
+                  "z_r": {
+                    "q": 24.91026658247744,
+                    "n_live": 434,
+                    "n_capped": 174
+                  }
+                }
+              },
+              "conditioning": "measure_select:stable",
+              "G": 6.134164586205404,
+              "G_over_oracle": 0.34788410965154637,
+              "chose_correct_rate": 0.16,
+              "chosen_frac": {
+                "stable": 0.16,
+                "transient": 0.0,
+                "none": 0.84
+              },
+              "dwell_S": 5.861263090947642,
+              "dwell_T": 0.13645074762888118
+            }
+          },
+          "oracle_G": 17.632781768473446,
+          "oracle_arm": "transient"
+        },
+        "pair1": {
+          "variant": 2,
+          "w_S": 1.0,
+          "w_T": 2.916503534245957,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -1.056196928024292,
+              -0.2273283749818802,
+              0.2023230493068695
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -0.28056347370147705,
+              -2.3460776805877686,
+              0.9863142371177673
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 70.49637119308805,
+              "dwell_S": 70.49637119308805,
+              "dwell_T": 0.0
+            },
+            "dedicated_transient": {
+              "G": 45.40494087512032,
+              "dwell_S": 22.205346441311814,
+              "dwell_T": 7.9545915722014096
+            },
+            "main": {
+              "diag": {
+                "route": "cmoment",
+                "n_pos": 1167,
+                "n_neg": 0,
+                "ess": 234.85759889393634,
+                "z_raw_norm": 5.0746035763135735,
+                "match_data_norm": 1.907228097734654
+              },
+              "measure_select": {
+                "chosen": "stable",
+                "scores": {
+                  "stable": 82.2243154169716,
+                  "transient": 19.26365380665574,
+                  "z_r": 18.734122869110603
+                },
+                "details": {
+                  "stable": {
+                    "q": 82.2243154169716,
+                    "n_live": 1167,
+                    "n_capped": 467
+                  },
+                  "transient": {
+                    "q": 19.26365380665574,
+                    "n_live": 1167,
+                    "n_capped": 467
+                  },
+                  "z_r": {
+                    "q": 18.734122869110603,
+                    "n_live": 1167,
+                    "n_capped": 467
+                  }
+                }
+              },
+              "conditioning": "measure_select:stable",
+              "G": 70.49637119308805,
+              "G_over_oracle": 1.0,
+              "chose_correct_rate": 0.96,
+              "chosen_frac": {
+                "stable": 0.96,
+                "transient": 0.0,
+                "none": 0.04
+              },
+              "dwell_S": 70.49637119308805,
+              "dwell_T": 0.0
+            }
+          },
+          "oracle_G": 70.49637119308805,
+          "oracle_arm": "stable"
+        },
+        "pair2": {
+          "variant": 3,
+          "w_S": 1.0,
+          "w_T": 2.868705334064957,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              0.47709959745407104,
+              -1.9574989080429077,
+              0.199607253074646
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              -0.15097200870513916,
+              1.3056135177612305,
+              0.9815219640731812
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 35.05705998810661,
+              "dwell_S": 35.05705998810661,
+              "dwell_T": 0.0
+            },
+            "dedicated_transient": {
+              "G": 18.593432359580376,
+              "dwell_S": 0.0,
+              "dwell_T": 6.481471672530923
+            },
+            "main": {
+              "diag": {
+                "route": "cmoment",
+                "n_pos": 1238,
+                "n_neg": 0,
+                "ess": 239.77030703976362,
+                "z_raw_norm": 4.149038313488926,
+                "match_data_norm": 1.907228097734654
+              },
+              "measure_select": {
+                "chosen": "stable",
+                "scores": {
+                  "stable": 32.69551278374556,
+                  "transient": 0.17526461388787928,
+                  "z_r": -0.7726005315672132
+                },
+                "details": {
+                  "stable": {
+                    "q": 32.69551278374556,
+                    "n_live": 1238,
+                    "n_capped": 495
+                  },
+                  "transient": {
+                    "q": 0.17526461388787928,
+                    "n_live": 1238,
+                    "n_capped": 495
+                  },
+                  "z_r": {
+                    "q": -0.7726005315672132,
+                    "n_live": 1238,
+                    "n_capped": 495
+                  }
+                }
+              },
+              "conditioning": "measure_select:stable",
+              "G": 35.05705998810661,
+              "G_over_oracle": 1.0,
+              "chose_correct_rate": 0.88,
+              "chosen_frac": {
+                "stable": 0.88,
+                "transient": 0.0,
+                "none": 0.12
+              },
+              "dwell_S": 35.05705998810661,
+              "dwell_T": 0.0
+            }
+          },
+          "oracle_G": 35.05705998810661,
+          "oracle_arm": "stable"
+        },
+        "pair3": {
+          "variant": 4,
+          "w_S": 1.0,
+          "w_T": 2.9943072582598114,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.0122166872024536,
+              0.3856981098651886,
+              0.199607253074646
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.1904343366622925,
+              -1.4501835107803345,
+              0.8902702927589417
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 25.407905303209027,
+              "dwell_S": 25.407905303209027,
+              "dwell_T": 0.0
+            },
+            "dedicated_transient": {
+              "G": 20.786801364563466,
+              "dwell_S": 0.0,
+              "dwell_T": 6.942106995607404
+            },
+            "main": {
+              "diag": {
+                "route": "cmoment",
+                "n_pos": 951,
+                "n_neg": 0,
+                "ess": 122.10526541443242,
+                "z_raw_norm": 3.3086949726129937,
+                "match_data_norm": 1.907228097734654
+              },
+              "measure_select": {
+                "chosen": "stable",
+                "scores": {
+                  "stable": 47.50007595141124,
+                  "transient": -4.969285349851205,
+                  "z_r": 3.155351004780893
+                },
+                "details": {
+                  "stable": {
+                    "q": 47.50007595141124,
+                    "n_live": 951,
+                    "n_capped": 380
+                  },
+                  "transient": {
+                    "q": -4.969285349851205,
+                    "n_live": 951,
+                    "n_capped": 380
+                  },
+                  "z_r": {
+                    "q": 3.155351004780893,
+                    "n_live": 951,
+                    "n_capped": 380
+                  }
+                }
+              },
+              "conditioning": "measure_select:stable",
+              "G": 25.407905303209027,
+              "G_over_oracle": 1.0,
+              "chose_correct_rate": 0.6,
+              "chosen_frac": {
+                "stable": 0.6,
+                "transient": 0.0,
+                "none": 0.4
+              },
+              "dwell_S": 25.407905303209027,
+              "dwell_T": 0.0
+            }
+          },
+          "oracle_G": 25.407905303209027,
+          "oracle_arm": "stable"
+        },
+        "pair4": {
+          "variant": 5,
+          "w_S": 1.0,
+          "w_T": 2.939049837212078,
+          "correct_region": "stable",
+          "validation": "ok",
+          "cand_stable": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.056520938873291,
+              2.731971025466919,
+              0.199607253074646
+            ]
+          },
+          "cand_transient": {
+            "n_in_ball": 8,
+            "fallback_nearest": false,
+            "nearest_cube_ou": [
+              1.3518284559249878,
+              -0.19607524573802948,
+              0.8879906535148621
+            ]
+          },
+          "arms": {
+            "dedicated_stable": {
+              "G": 4.563981289259448,
+              "dwell_S": 4.563981289259448,
+              "dwell_T": 0.0
+            },
+            "dedicated_transient": {
+              "G": 12.57175312999192,
+              "dwell_S": 0.0,
+              "dwell_T": 4.277488925440348
+            },
+            "main": {
+              "diag": {
+                "route": "cmoment",
+                "n_pos": 766,
+                "n_neg": 0,
+                "ess": 116.7839222586108,
+                "z_raw_norm": 4.788806008895627,
+                "match_data_norm": 1.907228097734654
+              },
+              "measure_select": {
+                "chosen": "stable",
+                "scores": {
+                  "stable": 13.972116904540318,
+                  "transient": -13.560916211416902,
+                  "z_r": 2.572819622089675
+                },
+                "details": {
+                  "stable": {
+                    "q": 13.972116904540318,
+                    "n_live": 766,
+                    "n_capped": 306
+                  },
+                  "transient": {
+                    "q": -13.560916211416902,
+                    "n_live": 766,
+                    "n_capped": 306
+                  },
+                  "z_r": {
+                    "q": 2.572819622089675,
+                    "n_live": 766,
+                    "n_capped": 306
+                  }
+                }
+              },
+              "conditioning": "measure_select:stable",
+              "G": 4.563981289259448,
+              "G_over_oracle": 0.36303459366946544,
+              "chose_correct_rate": 0.28,
+              "chosen_frac": {
+                "stable": 0.28,
+                "transient": 0.0,
+                "none": 0.72
+              },
+              "dwell_S": 4.563981289259448,
+              "dwell_T": 0.0
+            }
+          },
+          "oracle_G": 12.57175312999192,
+          "oracle_arm": "transient"
+        }
+      },
+      "mean_G": 28.33189647197371,
+      "mean_G_over_oracle": 0.7421837406642023,
+      "mean_chose_correct": 0.576
+    }
+  }
+}

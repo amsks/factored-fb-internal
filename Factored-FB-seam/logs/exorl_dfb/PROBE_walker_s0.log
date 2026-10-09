@@ -1,0 +1,40 @@
+wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
+wandb: Tracking run with wandb version 0.27.0
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+wandb: Run data is saved locally in /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260916_011522-0gsw2znv
+I0916 01:15:31.335236 140610892499840 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0916 01:15:31.344485 140610892499840 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:15:31.346118 140610892499840 acceleratesupport.py:24] No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+I0916 01:15:31.354969 140610892499840 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:15:31.512187 140610892499840 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:15:31.514080 140610892499840 __init__.py:31] MuJoCo library version is: 3.3.0
+I0916 01:15:31.546138 140610892499840 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:15:31.548524 140610892499840 __init__.py:88] MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+I0916 01:15:31.550654 140610892499840 ctypesloader.py:70] Failed to load library ( 'libOpenGL.so.0' ): libOpenGL.so.0: cannot open shared object file: No such file or directory
+I0916 01:15:31.556318 140610892499840 __init__.py:31] MuJoCo library version is: 3.8.1
+I0916 01:15:32.246481 140610892499840 xla_bridge.py:822] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+wandb: You can sync this run to the cloud by running:
+wandb: wandb sync /home/adityamohan/git/Factored-FB-seam/wandb/offline-run-20260916_011522-0gsw2znv
+wandb: Find logs at: ./wandb/offline-run-20260916_011522-0gsw2znv/logs
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/adityamohan/git/Factored-FB-seam/impls/main.py", line 622, in <module>
+    app.run(main)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 410, in run
+    _run_main(main, args)
+  File "/dev/shm/.venv-jax/lib/python3.11/site-packages/absl/app.py", line 355, in _run_main
+    sys.exit(main(argv))
+             ^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/main.py", line 355, in main
+    agent = Agent.create(FLAGS.critic, FLAGS.actor, FLAGS.seed,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/agents/__init__.py", line 434, in create
+    critic, cparams, targets = critic_cls.build(ex_obs, ex_actions, config)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/critics/density_fb.py", line 1290, in build
+    blocks = parse_hit_spec(config.get("measure_hit_spec", "19:22:0.4"))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/adityamohan/git/Factored-FB-seam/impls/critics/_measure_common.py", line 49, in parse_hit_spec
+    raise AssertionError(
+AssertionError: hit-spec '1455.9' looks like OmegaConf's sexagesimal parse of an UNQUOTED 'a:b:eps' override. Pass it with escaped quotes so the value stays a string: --override 'measure_hit_spec="4:7:0.07"' (launchers: measure_hit_spec=\"...\" inside the OVERRIDE string, `tr` not `xargs`).

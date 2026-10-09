@@ -1,0 +1,48 @@
+sweep d=1 fb: -0.00
+sweep d=1 normsq: +0.00
+sweep d=1 softsq: +0.38
+sweep d=1 density: +0.25
+sweep d=1 density_soft: +0.00
+sweep d=2 fb: -0.00
+sweep d=2 normsq: -0.00
+sweep d=2 softsq: +0.94
+sweep d=2 density: +0.99
+sweep d=2 density_soft: +0.78
+sweep d=3 fb: +0.87
+sweep d=3 normsq: +0.66
+sweep d=3 softsq: +1.00
+sweep d=3 density: +1.00
+sweep d=3 density_soft: +0.79
+sweep d=4 fb: +1.00
+sweep d=4 normsq: +1.00
+sweep d=4 softsq: +1.00
+sweep d=4 density: +1.00
+sweep d=4 density_soft: +0.79
+sweep d=5 fb: +0.99
+sweep d=5 normsq: +1.00
+sweep d=5 softsq: +1.00
+sweep d=5 density: +1.00
+sweep d=5 density_soft: +0.79
+sweep d=6 fb: +1.00
+sweep d=6 normsq: +1.00
+sweep d=6 softsq: +1.00
+sweep d=6 density: +1.00
+sweep d=6 density_soft: +0.79
+(a) exact: Q(a+) 1.67+-0.00  Q(a-) 0.00+-0.00
+(a) FB: Q(a+) 0.86+-0.00  Q(a-) 0.86+-0.00
+(a) Density-FB: Q(a+) 1.72+-0.03  Q(a-) 0.06+-0.02
+(b) max |feature-average difference| over runs 2.0e-13, max |refit| 7.3e-14
+(c) rank 1: KL max-over-actions median 0.3165, below eps 0.0, ordering kept 0.7
+(c) rank 2: KL max-over-actions median 0.0312, below eps 1.0, ordering kept 1.0
+(c) rank 3: KL max-over-actions median 0.0000, below eps 1.0, ordering kept 1.0
+(c) rank 4: KL max-over-actions median 0.0000, below eps 1.0, ordering kept 1.0
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/seven_state/fig_61_main.pdf
+rank sweep FB: 1:-0.00 2:-0.00 3:0.87 4:1.00 5:0.99 6:1.00
+rank sweep Density-FB: 1:0.25 2:0.99 3:1.00 4:1.00 5:1.00 6:1.00
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/seven_state/fig_61_rank.pdf
+ablation FB: 1:-0.00 2:-0.00 3:0.87 4:1.00 5:0.99 6:1.00
+ablation FB, normalized target: 1:0.00 2:-0.00 3:0.66 4:1.00 5:1.00 6:1.00
+ablation softmax + squared error: 1:0.38 2:0.94 3:1.00 4:1.00 5:1.00 6:1.00
+ablation Density-FB: 1:0.25 2:0.99 3:1.00 4:1.00 5:1.00 6:1.00
+ablation Density-FB, soft immediate target: 1:0.00 2:0.78 3:0.79 4:0.79 5:0.79 6:0.79
+wrote /home/adityamohan/git/Factored-FB-seam/PAPER/ICLR/figures/seven_state/fig_61_ablation.pdf
