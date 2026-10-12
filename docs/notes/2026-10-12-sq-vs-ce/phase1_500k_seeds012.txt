@@ -1,0 +1,8 @@
+== goal-conditioned (density_fb, eval.csv)
+  cube-single  squared  39.8 +-  5.1 (n=3)    cross-entropy  90.3 +-  0.9 (n=3)
+  cube-double  squared  18.0 +-  0.4 (n=3)    cross-entropy  58.7 +-  3.7 (n=3)
+  scene        squared  48.3 +-  1.7 (n=3)    cross-entropy  61.4 +-  2.4 (n=3)
+== reward inference (density_fb_z, eval_relabel.csv)
+  cube-single  squared  77.8 +-  1.0 (n=3)    cross-entropy  76.4 +-  3.8 (n=3)
+  cube-double  squared  18.0 +-  2.7 (n=3)    cross-entropy  20.7 +-  1.4 (n=3)
+  scene        squared  47.8 +-  3.5 (n=3)    cross-entropy  49.1 +-  2.4 (n=3)

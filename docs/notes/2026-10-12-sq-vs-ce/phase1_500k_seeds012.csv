@@ -1,0 +1,19 @@
+model,critic,env,seed,squared,cross_entropy
+goal-conditioned,density_fb,cube-single,0,29.666666666666664,89.0
+goal-conditioned,density_fb,cube-single,1,45.33333333333333,90.0
+goal-conditioned,density_fb,cube-single,2,44.333333333333336,92.0
+goal-conditioned,density_fb,cube-double,0,17.333333333333336,61.66666666666667
+goal-conditioned,density_fb,cube-double,1,18.0,51.33333333333334
+goal-conditioned,density_fb,cube-double,2,18.666666666666668,63.0
+goal-conditioned,density_fb,scene,0,51.66666666666667,64.66666666666666
+goal-conditioned,density_fb,scene,1,46.0,56.666666666666664
+goal-conditioned,density_fb,scene,2,47.333333333333336,63.0
+reward inference,density_fb_z,cube-single,0,76.0,72.0
+reward inference,density_fb_z,cube-single,1,79.33333333333333,73.33333333333334
+reward inference,density_fb_z,cube-single,2,78.0,84.0
+reward inference,density_fb_z,cube-double,0,23.333333333333332,22.666666666666668
+reward inference,density_fb_z,cube-double,1,14.666666666666666,21.333333333333336
+reward inference,density_fb_z,cube-double,2,16.0,18.0
+reward inference,density_fb_z,scene,0,47.333333333333336,44.666666666666664
+reward inference,density_fb_z,scene,1,42.00000000000001,50.0
+reward inference,density_fb_z,scene,2,54.0,52.66666666666667
