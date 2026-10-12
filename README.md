@@ -196,11 +196,48 @@ names appear in run directories), `hilp_tdjc` and `rldp`. A yaml may start with
 uv venv --python 3.11 .venv && uv pip install -e '.[exorl,figures,dev]'   # see pyproject.toml extras
 ```
 
-- OGBench datasets download on first use.
-- ExoRL RND datasets are read from `$EXORL_DATA_ROOT` (default
-  `~/exorl_data/exorl/datasets`).
-- If the installed `mujoco` is too old for `dm_control`'s reward re-simulation, point
-  `FB_MUJOCO_SITE_PACKAGES` at a newer one (see `env/exorl_env.py`).
+If the installed `mujoco` is too old for `dm_control`'s reward re-simulation, point
+`FB_MUJOCO_SITE_PACKAGES` at a newer one (see `env/exorl_env.py`).
+
+### Datasets
+
+**OGBench** (cube-single, cube-double, scene play data). The `ogbench` package downloads
+each dataset to `~/.ogbench/data/` on first use; nothing to do by hand.
+
+**ExoRL** (walker, quadruped, cheetah, point-mass maze; RND exploration data). Use the
+download script of the ExoRL repository; each domain lands in
+`<root>/<domain>/rnd/buffer/episode_*.npz`, the layout `env/exorl_env.py` reads.
+
+```bash
+git clone https://github.com/denisyarats/exorl && cd exorl
+for d in walker quadruped cheetah point_mass_maze; do ./download.sh $d rnd; done
+export EXORL_DATA_ROOT=$PWD/datasets              # default: ~/exorl_data/exorl/datasets
+export EXORL_CACHE_ROOT=~/exorl_data/relabel_cache   # where relabelled task rewards are cached
+```
+
+**MetaWorld and ManiSkill** (packed offline datasets, one `.npz` per task). They are in the
+gated Hugging Face dataset `TommyShen/Factor-FB-Offline`: request access on its page, then
+log in (`huggingface-cli login`). The launchers read `$FB_DATA_ROOT/data/<metaworld|maniskill>/<task>.npz`.
+
+```bash
+huggingface-cli download TommyShen/Factor-FB-Offline --repo-type dataset \
+    --include 'manifest.json' 'data/metaworld/*' 'data/maniskill/*' --local-dir Factor-FB-Offline
+export FB_DATA_ROOT=$PWD/Factor-FB-Offline
+```
+
+The runs behind the paper's MetaWorld and ManiSkill cells were made on another machine, and
+which version of these files they used is not recorded here.
+
+**Other datasets used during the project** (not needed to reproduce the paper):
+
+```bash
+huggingface-cli download TommyShen/Factor-FB-Offline-tdmpc2 --local-dir Factor-FB-Offline-tdmpc2   # model repo
+huggingface-cli download TommyShen/factored-fb-play --repo-type dataset --revision 2af2725 --local-dir factored-fb-play
+huggingface-cli download amsks/factoredfb-metaworld-play --repo-type dataset --revision 137ecb8 --local-dir factoredfb-metaworld-play
+```
+
+The two play datasets have grown since these revisions (to about 188 GB and 756 MB); the
+revisions pin the versions used on the training box.
 
 Run directories, evaluation CSVs and checkpoints for every reported run are on the Hugging
 Face repo `amsks/factored-fb-checkpoints`, branch `iclr2027`. `paper_inventory.json` there
