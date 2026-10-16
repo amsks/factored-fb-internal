@@ -1,0 +1,7 @@
+[bridge] kmeans 26s
+[bridge] successor matrices 28s; val rows with data 512/512
+[bridge] rank 8: lin_lsif lsif tr/va 0.827/0.837 TVva 0.524 | log_lsif lsif tr/va 0.030/0.086 TVva 0.339 | log_ce lsif tr/va 0.141/0.185 TVva 0.280  (44s)
+[bridge] rank 16: lin_lsif lsif tr/va 0.734/0.749 TVva 0.471 | log_lsif lsif tr/va 0.008/0.066 TVva 0.220 | log_ce lsif tr/va 0.025/0.078 TVva 0.218  (54s)
+[bridge] rank 32: lin_lsif lsif tr/va 0.607/0.636 TVva 0.418 | log_lsif lsif tr/va 0.003/0.063 TVva 0.200 | log_ce lsif tr/va 0.005/0.064 TVva 0.196  (64s)
+[bridge] rank 64: lin_lsif lsif tr/va 0.453/0.504 TVva 0.379 | log_lsif lsif tr/va 0.001/0.063 TVva 0.196 | log_ce lsif tr/va 0.002/0.063 TVva 0.193  (74s)
+[bridge] rank 128: lin_lsif lsif tr/va 0.277/0.336 TVva 0.342 | log_lsif lsif tr/va 0.000/0.063 TVva 0.196 | log_ce lsif tr/va 0.003/0.067 TVva 0.194  (87s)

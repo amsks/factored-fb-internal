@@ -1,0 +1,13 @@
+[scene-play-v0_full_g0.995] N=1001000 D=40 episodes=1000 mean_len=1001 max_len=1001
+[scene-play-v0_full_g0.995] kmeans done 13s; occupied clusters=512
+[scene-play-v0_full_g0.995] successor matrix done 14s
+[scene-play-v0_full_g0.995] linear SVD done 41s
+[scene-play-v0_full_g0.995] log rank 2: tv 0.393 kl 0.568 | lin tv 0.520 kl 2.786  (45s)
+[scene-play-v0_full_g0.995] log rank 4: tv 0.252 kl 0.270 | lin tv 0.543 kl 1.726  (47s)
+[scene-play-v0_full_g0.995] log rank 8: tv 0.139 kl 0.087 | lin tv 0.523 kl 0.984  (50s)
+[scene-play-v0_full_g0.995] log rank 16: tv 0.096 kl 0.044 | lin tv 0.486 kl 0.825  (52s)
+[scene-play-v0_full_g0.995] log rank 32: tv 0.065 kl 0.022 | lin tv 0.369 kl 0.583  (54s)
+[scene-play-v0_full_g0.995] log rank 64: tv 0.040 kl 0.010 | lin tv 0.197 kl 0.448  (57s)
+[scene-play-v0_full_g0.995] log rank 128: tv 0.020 kl 0.003 | lin tv 0.114 kl 0.245  (60s)
+[scene-play-v0_full_g0.995] log rank 256: tv 0.015 kl 0.001 | lin tv 0.051 kl 0.095  (65s)
+[scene-play-v0_full_g0.995] stats: gamma=0.995, H_rho=6.14, H_M_mean=5.05, H_P1_mean=0.967, concentration=2.98, ess_mean=108, ess_median=90.6, ess_over_K=0.211, maxR_median=18.6, maxR_p90=181, frac_rows_maxR_gt10=0.824, frac_rows_maxR_gt100=0.0482, diag_mass=0.0596, P1_self=0.777, P1_maxprob=0.785

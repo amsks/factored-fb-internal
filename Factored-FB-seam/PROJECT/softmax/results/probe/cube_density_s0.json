@@ -1,0 +1,17 @@
+{
+ "run_dir": "exp/cube-single-play-v0_density_fb_flowbc_seed_0",
+ "epoch": 500000,
+ "critic": "density_fb",
+ "kind": "density",
+ "n_rows": 4089,
+ "n_cand": 1024,
+ "tv_mean": 0.7878125222047524,
+ "tv_median": 0.8108994538331606,
+ "top1": 0.0983125458547322,
+ "spearman_mean": 0.23234956169765827,
+ "goal_value_relerr_median": 3.1295369300394316,
+ "goal_value_rank_corr": 0.10923494936409485,
+ "neg_mass_mean": 0.0,
+ "truth_ess_mean": 25.06054740945875,
+ "pred_ess_mean": 6.910912990570068
+}

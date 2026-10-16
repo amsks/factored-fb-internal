@@ -1,0 +1,19 @@
+[droid100_full_K128_hm] N=32212 D=7 episodes=100 mean_len=322 max_len=1627
+[droid100_full_K128_hm] kmeans done 6s; occupied clusters=128
+[droid100_full_K128_hm] successor matrix done 6s
+[droid100_full_K128_hm] linear SVD done 6s
+[droid100_full_K128_hm] log rank 2: tv 0.579 kl 1.235 | lin tv 0.531 kl 2.714  (9s)
+[droid100_full_K128_hm] log rank 4: tv 0.360 kl 0.592 | lin tv 0.602 kl 2.228  (11s)
+[droid100_full_K128_hm] log rank 8: tv 0.165 kl 0.198 | lin tv 0.755 kl 1.917  (13s)
+[droid100_full_K128_hm] log rank 16: tv 0.056 kl 0.043 | lin tv 0.725 kl 1.451  (18s)
+[droid100_full_K128_hm] log rank 32: tv 0.011 kl 0.002 | lin tv 0.650 kl 1.060  (25s)
+[droid100_full_K128_hm] log rank 64: tv 0.009 kl 0.000 | lin tv 0.410 kl 0.828  (32s)
+[droid100_full_K128_hm] log rank 128: tv 0.008 kl 0.000 | lin tv 0.000 kl 0.000  (36s)
+[droid100_full_K128_hm] nmf rank 2: tv 0.710 kl 1.870  (40s)
+[droid100_full_K128_hm] nmf rank 4: tv 0.663 kl 1.537  (44s)
+[droid100_full_K128_hm] nmf rank 8: tv 0.587 kl 1.152  (47s)
+[droid100_full_K128_hm] nmf rank 16: tv 0.488 kl 0.777  (50s)
+[droid100_full_K128_hm] nmf rank 32: tv 0.350 kl 0.436  (53s)
+[droid100_full_K128_hm] nmf rank 64: tv 0.193 kl 0.168  (55s)
+[droid100_full_K128_hm] nmf rank 128: tv 0.046 kl 0.027  (56s)
+[droid100_full_K128_hm] stats: gamma=0.987, H_rho=4.67, H_M_mean=2.51, H_P1_mean=0.263, concentration=8.71, ess_mean=8.66, ess_median=5.94, ess_over_K=0.0677, maxR_median=49.4, maxR_p90=175, frac_rows_maxR_gt10=0.939, frac_rows_maxR_gt100=0.0877, diag_mass=0.34, P1_self=0.956, P1_maxprob=0.956

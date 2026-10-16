@@ -1,0 +1,5 @@
+09:13 launched puzzle_density_g0.99_1M on gpu 0
+09:13 launched puzzle_density_g0.995_1M on gpu 1
+09:14 launched puzzle_density_g0.998_1M on gpu 2
+09:14 launched puzzle_gcivl_1M on gpu 3
+QUEUE_DONE

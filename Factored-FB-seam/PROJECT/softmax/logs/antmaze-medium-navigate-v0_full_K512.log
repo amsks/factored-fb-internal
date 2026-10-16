@@ -1,0 +1,21 @@
+[antmaze-medium-navigate-v0_full_K512] N=1001000 D=29 episodes=1000 mean_len=1001 max_len=1001
+[antmaze-medium-navigate-v0_full_K512] kmeans done 13s; occupied clusters=512
+[antmaze-medium-navigate-v0_full_K512] successor matrix done 14s
+[antmaze-medium-navigate-v0_full_K512] linear SVD done 50s
+[antmaze-medium-navigate-v0_full_K512] log rank 2: tv 0.206 kl 0.204 | lin tv 0.554 kl 0.855  (56s)
+[antmaze-medium-navigate-v0_full_K512] log rank 4: tv 0.112 kl 0.055 | lin tv 0.327 kl 0.422  (59s)
+[antmaze-medium-navigate-v0_full_K512] log rank 8: tv 0.050 kl 0.014 | lin tv 0.300 kl 0.334  (62s)
+[antmaze-medium-navigate-v0_full_K512] log rank 16: tv 0.034 kl 0.007 | lin tv 0.285 kl 0.281  (64s)
+[antmaze-medium-navigate-v0_full_K512] log rank 32: tv 0.026 kl 0.004 | lin tv 0.215 kl 0.187  (67s)
+[antmaze-medium-navigate-v0_full_K512] log rank 64: tv 0.020 kl 0.002 | lin tv 0.035 kl 0.021  (70s)
+[antmaze-medium-navigate-v0_full_K512] log rank 128: tv 0.013 kl 0.001 | lin tv 0.019 kl 0.004  (74s)
+[antmaze-medium-navigate-v0_full_K512] log rank 256: tv 0.007 kl 0.000 | lin tv 0.010 kl 0.001  (80s)
+[antmaze-medium-navigate-v0_full_K512] nmf rank 2: tv 0.279 kl 0.420  (82s)
+[antmaze-medium-navigate-v0_full_K512] nmf rank 4: tv 0.244 kl 0.324  (85s)
+[antmaze-medium-navigate-v0_full_K512] nmf rank 8: tv 0.196 kl 0.247  (87s)
+[antmaze-medium-navigate-v0_full_K512] nmf rank 16: tv 0.126 kl 0.127  (89s)
+[antmaze-medium-navigate-v0_full_K512] nmf rank 32: tv 0.076 kl 0.060  (92s)
+[antmaze-medium-navigate-v0_full_K512] nmf rank 64: tv 0.048 kl 0.035  (94s)
+[antmaze-medium-navigate-v0_full_K512] nmf rank 128: tv 0.022 kl 0.006  (98s)
+[antmaze-medium-navigate-v0_full_K512] nmf rank 256: tv 0.012 kl 0.001  (101s)
+[antmaze-medium-navigate-v0_full_K512] stats: gamma=0.99, H_rho=6.16, H_M_mean=5.44, H_P1_mean=2.38, concentration=2.05, ess_mean=283, ess_median=323, ess_over_K=0.553, maxR_median=4.48, maxR_p90=20.6, frac_rows_maxR_gt10=0.136, frac_rows_maxR_gt100=0.101, diag_mass=0.0857, P1_self=0.148, P1_maxprob=0.328

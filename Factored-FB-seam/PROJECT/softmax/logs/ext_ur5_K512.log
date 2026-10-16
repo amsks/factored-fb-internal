@@ -1,0 +1,12 @@
+[ur5_full_K512] N=97939 D=8 episodes=1000 mean_len=98 max_len=164
+[ur5_full_K512] kmeans done 6s; occupied clusters=512
+[ur5_full_K512] successor matrix done 6s
+[ur5_full_K512] linear SVD done 6s
+[ur5_full_K512] log rank 2: tv 0.627 kl 1.489 | lin tv 0.532 kl 4.049  (10s)
+[ur5_full_K512] log rank 4: tv 0.456 kl 0.895 | lin tv 0.607 kl 3.267  (14s)
+[ur5_full_K512] log rank 8: tv 0.274 kl 0.431 | lin tv 0.622 kl 2.912  (20s)
+[ur5_full_K512] log rank 16: tv 0.156 kl 0.197 | lin tv 0.761 kl 2.206  (25s)
+[ur5_full_K512] log rank 32: tv 0.062 kl 0.052 | lin tv 0.736 kl 1.824  (31s)
+[ur5_full_K512] log rank 64: tv 0.018 kl 0.002 | lin tv 0.711 kl 1.410  (38s)
+[ur5_full_K512] log rank 128: tv 0.016 kl 0.001 | lin tv 0.661 kl 0.997  (43s)
+[ur5_full_K512] stats: gamma=0.99, H_rho=6.02, H_M_mean=3.36, H_P1_mean=0.607, concentration=14.4, ess_mean=31.3, ess_median=13.8, ess_over_K=0.0611, maxR_median=105, maxR_p90=680, frac_rows_maxR_gt10=0.941, frac_rows_maxR_gt100=0.325, diag_mass=0.195, P1_self=0.874, P1_maxprob=0.874

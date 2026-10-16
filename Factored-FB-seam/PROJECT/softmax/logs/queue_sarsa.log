@@ -1,0 +1,6 @@
+11:35 launched puzzle_density_sarsa_g0.99_1M_s1 on gpu 0
+11:35 launched puzzle_density_sarsa_g0.99_1M_s2 on gpu 1
+11:35 launched cube_density_sarsa_1M on gpu 2
+11:36 launched scene_density_sarsa_1M on gpu 3
+11:36 launched cubedouble_density_sarsa_1M on gpu 4
+QUEUE_DONE

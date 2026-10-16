@@ -1,0 +1,13 @@
+[puzzle-3x3-play-v0_full_K1024] N=1001000 D=55 episodes=1000 mean_len=1001 max_len=1001
+[puzzle-3x3-play-v0_full_K1024] kmeans done 15s; occupied clusters=1024
+[puzzle-3x3-play-v0_full_K1024] successor matrix done 16s
+[puzzle-3x3-play-v0_full_K1024] linear SVD done 36s
+[puzzle-3x3-play-v0_full_K1024] log rank 2: tv 0.305 kl 0.419 | lin tv 0.498 kl 4.681  (40s)
+[puzzle-3x3-play-v0_full_K1024] log rank 4: tv 0.295 kl 0.375 | lin tv 0.317 kl 0.467  (43s)
+[puzzle-3x3-play-v0_full_K1024] log rank 8: tv 0.276 kl 0.300 | lin tv 0.318 kl 0.464  (45s)
+[puzzle-3x3-play-v0_full_K1024] log rank 16: tv 0.238 kl 0.210 | lin tv 0.310 kl 0.620  (48s)
+[puzzle-3x3-play-v0_full_K1024] log rank 32: tv 0.193 kl 0.137 | lin tv 0.307 kl 0.848  (51s)
+[puzzle-3x3-play-v0_full_K1024] log rank 64: tv 0.155 kl 0.090 | lin tv 0.293 kl 0.930  (54s)
+[puzzle-3x3-play-v0_full_K1024] log rank 128: tv 0.112 kl 0.051 | lin tv 0.256 kl 0.905  (58s)
+[puzzle-3x3-play-v0_full_K1024] log rank 256: tv 0.067 kl 0.021 | lin tv 0.189 kl 0.671  (62s)
+[puzzle-3x3-play-v0_full_K1024] stats: gamma=0.99, H_rho=6.87, H_M_mean=6.38, H_P1_mean=1.47, concentration=1.63, ess_mean=305, ess_median=265, ess_over_K=0.297, maxR_median=37.6, maxR_p90=63, frac_rows_maxR_gt10=0.804, frac_rows_maxR_gt100=0.00323, diag_mass=0.0444, P1_self=0.644, P1_maxprob=0.665

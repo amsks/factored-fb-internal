@@ -1,0 +1,175 @@
+diff --git a/impls/critics/hilp.py b/impls/critics/hilp.py
+index 31c8ac5..76fdd5c 100644
+--- a/impls/critics/hilp.py
++++ b/impls/critics/hilp.py
+@@ -204,6 +204,13 @@ class HILPCritic:
+     # exists only when the td_jepa left encoder is on, so every HILP checkpoint written
+     # before this knob keeps exactly the param keys it was saved with and stays restorable
+     # under the strict `restore_agent` path.
++    # td_jepa's training-z WHITENING (sf/agent.py:138, sf/model.py:87,127): the goal-derived
++    # half of the z mix is phi(s') @ inv(C + 1e-6 I), C an EMA (0.005, init I) of the
++    # UNCENTERED phi phi^T of the pre-step tower on batch observations. Off (default) keeps
++    # official HILP's per-batch pinv of the 256-row covariance, which is noisy at d=50 and
++    # mis-rotates those z by ~27 deg against td_jepa's on cube-double (audit 2026-10-16).
++    # A field so that `cov` exists in hilp_stats only when on: older checkpoints restore.
++    whiten_ema: bool = False
+     GROUPS: tuple = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats")
+     STAGES = ("phi", "sf")
+     PROVIDES_V = False
+@@ -426,8 +433,12 @@ class HILPCritic:
+         phi = jax.lax.stop_gradient(self._feature_net(
+             net["hilp_phi1"].params, net["hilp_stats"].params,
+             nobs[jax.random.permutation(r_perm, B)]))              # [B, d]
+-        cov = (phi.T @ phi) / phi.shape[0]
+-        inv_cov = jnp.linalg.pinv(cov)
++        if self.whiten_ema:
++            C = net["hilp_stats"].params["cov"]
++            inv_cov = jnp.linalg.inv(C + 1e-6 * jnp.eye(C.shape[0], dtype=C.dtype))
++        else:
++            cov = (phi.T @ phi) / phi.shape[0]
++            inv_cov = jnp.linalg.pinv(cov)
+         new_z = project_z(phi @ inv_cov, self.norm_z)
+         # A boolean mask, not an index gather: the count must be static under jit, and
+         # upstream's `np.where(uniform < mix_ratio)` is exactly a per-row Bernoulli draw.
+@@ -456,9 +467,11 @@ class HILPCritic:
+         p = net["hilp_stats"].params
+         phi1 = self._phi(pre_net["hilp_phi1"].params, batch["observations"])
+         net = dict(net)
+-        net["hilp_stats"] = net["hilp_stats"].replace(params={
+-            "mean": p["mean"] * (1.0 - m) + jnp.mean(phi1, axis=0) * m,
+-            "std": p["std"] * (1.0 - m) + jnp.std(phi1, axis=0) * m})
++        new = {"mean": p["mean"] * (1.0 - m) + jnp.mean(phi1, axis=0) * m,
++               "std": p["std"] * (1.0 - m) + jnp.std(phi1, axis=0) * m}
++        if self.whiten_ema:
++            new["cov"] = p["cov"] * (1.0 - m) + (phi1.T @ phi1 / phi1.shape[0]) * m
++        net["hilp_stats"] = net["hilp_stats"].replace(params=new)
+         return net
+ 
+ 
+@@ -477,11 +490,14 @@ class _HILPStats(nn.Module):
+     matches what the reference stores."""
+     dim: int
+     dtype: Any = jnp.float32
++    with_cov: bool = False   # td_jepa's _z_cov buffer (init identity), only when whiten_ema
+ 
+     @nn.compact
+     def __call__(self):
+         mean = self.param("mean", lambda _k: jnp.zeros((self.dim,), self.dtype))
+         std = self.param("std", lambda _k: jnp.ones((self.dim,), self.dtype))
++        if self.with_cov:
++            self.param("cov", lambda _k: jnp.eye(self.dim, dtype=self.dtype))
+         return mean, std
+ 
+ 
+@@ -560,7 +576,9 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
+                     hidden_layers=int(le_cfg["hidden_layers"]),
+                     norm=bool(le_cfg.get("norm", True)))
+         ex_sf_in = jnp.zeros((ex_obs.shape[0], L_dim), ex_obs.dtype)
+-    stats_mod = _HILPStats(dim=feature_dim, dtype=jnp.zeros((), ex_obs.dtype).dtype)
++    whiten_ema = bool(config.get("hilp_whiten_ema", False))
++    stats_mod = _HILPStats(dim=feature_dim, dtype=jnp.zeros((), ex_obs.dtype).dtype,
++                           with_cov=whiten_ema)
+ 
+     r1, r2, rs, rst = jr.split(jr.PRNGKey(config["seed"]), 4)
+     ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
+@@ -590,7 +608,7 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
+         actor_head_reduce=str(config.get("hilp_actor_head_reduce", "min")),
+         sf_loss_scale=float(config.get("hilp_sf_loss_scale", 1.0)),
+         backward_input=backward_input, blocks=blocks,
+-        hilp_le=le, le_on=le_on, GROUPS=groups,
++        hilp_le=le, le_on=le_on, GROUPS=groups, whiten_ema=whiten_ema,
+     )
+     targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
+     if bool(config.get("hilp_independent_target_init", False)):
+diff --git a/impls/main.py b/impls/main.py
+index ff3dbb5..539f1c5 100644
+--- a/impls/main.py
++++ b/impls/main.py
+@@ -550,6 +550,21 @@ def main(_):
+                     n_relabel_tasks = (len(_task_infos) if _task_infos is not None
+                                        else len(adapter.eval_tasks(env, cfg)))
+                     n_relabel_eps = int(cfg.get("eval_relabel_episodes", 10))
++                    # SINGLE-TASK ROLLOUTS (td_jepa's protocol). td_jepa rolls this eval out in
++                    # OGBench's `*-singletask-task{N}-v0` envs: permute_blocks=False,
++                    # success_timing='pre' (ogbench/manipspace/__init__.py:9-12). Our env is
++                    # the goal-conditioned one, which swaps the cubes' start AND goal slots
++                    # on ~half of cube-double resets (cube_env.py:593-599) while the relabelled
++                    # reward samples describe the unswapped assignment, so the inferred task
++                    # vector asks for the wrong pairing in those episodes. Off by default so
++                    # existing launches are unchanged; restored after this route because the
++                    # goal-conditioned eval above shares the env.
++                    _u = getattr(env, "unwrapped", env)
++                    _singletask = (bool(cfg.get("eval_relabel_singletask"))
++                                   and hasattr(_u, "_permute_blocks"))
++                    if _singletask:
++                        _saved = (_u._permute_blocks, _u._success_timing)
++                        _u._permute_blocks, _u._success_timing = False, "pre"
+                     for tid in range(1, n_relabel_tasks + 1):
+                         relabel_obs, relabel_rewards = relabel_fn(
+                             train_ds, env, tid, cfg["eval_relabel_size"],
+@@ -591,6 +606,8 @@ def main(_):
+                             _append_agg(FLAGS.agg_dir, f"{agg_group}_relabel", FLAGS.seed, i,
+                                         row, cfg.get("task", cfg.get("env_name")))
+                         print("eval_relabel", i, "task", tid, row, flush=True)
++                    if _singletask:
++                        _u._permute_blocks, _u._success_timing = _saved
+             if i % FLAGS.save_interval == 0:
+                 save_agent(agent, run_dir, i)
+                 if online is not None:
+diff --git a/scripts/relabel_rescore.py b/scripts/relabel_rescore.py
+index 88270df..cc1995d 100644
+--- a/scripts/relabel_rescore.py
++++ b/scripts/relabel_rescore.py
+@@ -56,7 +56,8 @@ if _REPO not in sys.path:
+ import numpy as np
+ 
+ 
+-def rescore_run(run_dir: Path, epoch: int, relabel_size: int, episodes: int, shift: float):
++def rescore_run(run_dir: Path, epoch: int, relabel_size: int, episodes: int, shift: float,
++                singletask_env: bool = False):
+     """One checkpoint -> a list of per-task rows."""
+     import jax.numpy as jnp
+ 
+@@ -75,6 +76,15 @@ def rescore_run(run_dir: Path, epoch: int, relabel_size: int, episodes: int, shi
+ 
+     adapter = get_adapter(cfg)
+     env, train_ds, _val = adapter.make_env_and_datasets(cfg)
++    if singletask_env:
++        # td_jepa rolls out in OGBench's `*-singletask-task{N}-v0` envs, registered with
++        # permute_blocks=False and success_timing='pre' (ogbench/manipspace/__init__.py:9-12).
++        # The goal-conditioned env we build swaps the cubes' start AND goal slots on ~half of
++        # cube-double resets (cube_env.py:593-599), while the relabelled reward samples always
++        # describe the unswapped assignment, so the inferred task vector is wrong for those
++        # episodes. Same task set, same positions; only the swap is turned off.
++        env.unwrapped._permute_blocks = False
++        env.unwrapped._success_timing = "pre"
+     if not hasattr(adapter, "relabel_infer_batch"):
+         raise NotImplementedError(f"{type(adapter).__name__} has no relabel_infer_batch")
+     ex = make_dataset(train_ds, cfg).sample(1)
+@@ -94,6 +104,7 @@ def rescore_run(run_dir: Path, epoch: int, relabel_size: int, episodes: int, shi
+                "actor": meta["actor"], "seed": meta["seed"], "epoch": epoch,
+                "env_name": cfg["env_name"], "relabel_size": relabel_size,
+                "episodes": episodes, "run_dir": str(run_dir),
++               "singletask_env": singletask_env,
+                "reward_frac_positive": float(np.mean(np.asarray(rewards) > 0))}
+         rows.append(row)
+         print(f"    task {tid}: success={row.get('success'):.3f} "
+@@ -113,6 +124,9 @@ def main() -> int:
+     ap.add_argument("--shift", type=float, default=1.0)
+     ap.add_argument("--exp-root", default="exp")
+     ap.add_argument("--out", default="analysis/relabel_rescore.jsonl")
++    ap.add_argument("--singletask-env", action="store_true",
++                    help="roll out like OGBench's singletask envs (no cube swap at reset), "
++                         "as td_jepa does")
+     args = ap.parse_args()
+ 
+     out = Path(args.out)
+@@ -127,7 +141,7 @@ def main() -> int:
+             print(f"[rescore] {d.name}", flush=True)
+             try:
+                 rows = rescore_run(d, args.epoch, args.relabel_size, args.episodes,
+-                                   args.shift)
++                                   args.shift, args.singletask_env)
+             except Exception as e:                       # one bad arm must not kill the sweep
+                 print(f"[FAIL] {d.name}: {type(e).__name__}: {e}", flush=True)
+                 continue

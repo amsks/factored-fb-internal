@@ -1,0 +1,4 @@
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files:  20%|██        | 1/5 [00:00<00:00,  6.45it/s]Fetching 5 files:  60%|██████    | 3/5 [00:00<00:00,  5.50it/s]Fetching 5 files: 100%|██████████| 5/5 [00:00<00:00,  8.98it/s]
+lerobot/berkeley_autolab_ur5: 1 parquet shards
+  0/1
+wrote data/ur5.npz: obs (97939, 8), episodes 1000, mean len 97.9

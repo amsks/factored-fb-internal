@@ -1,0 +1,21 @@
+[exorl_cheetah_full_K512] N=1001000 D=17 episodes=1000 mean_len=1001 max_len=1001
+[exorl_cheetah_full_K512] kmeans done 6s; occupied clusters=512
+[exorl_cheetah_full_K512] successor matrix done 7s
+[exorl_cheetah_full_K512] linear SVD done 7s
+[exorl_cheetah_full_K512] log rank 2: tv 0.352 kl 0.474 | lin tv 0.492 kl 0.842  (10s)
+[exorl_cheetah_full_K512] log rank 4: tv 0.282 kl 0.300 | lin tv 0.424 kl 0.743  (12s)
+[exorl_cheetah_full_K512] log rank 8: tv 0.196 kl 0.147 | lin tv 0.410 kl 0.767  (14s)
+[exorl_cheetah_full_K512] log rank 16: tv 0.131 kl 0.067 | lin tv 0.373 kl 0.855  (16s)
+[exorl_cheetah_full_K512] log rank 32: tv 0.086 kl 0.031 | lin tv 0.272 kl 0.739  (18s)
+[exorl_cheetah_full_K512] log rank 64: tv 0.053 kl 0.013 | lin tv 0.173 kl 0.550  (21s)
+[exorl_cheetah_full_K512] log rank 128: tv 0.028 kl 0.005 | lin tv 0.090 kl 0.216  (24s)
+[exorl_cheetah_full_K512] log rank 256: tv 0.016 kl 0.001 | lin tv 0.045 kl 0.069  (28s)
+[exorl_cheetah_full_K512] nmf rank 2: tv 0.415 kl 0.699  (29s)
+[exorl_cheetah_full_K512] nmf rank 4: tv 0.353 kl 0.497  (31s)
+[exorl_cheetah_full_K512] nmf rank 8: tv 0.310 kl 0.370  (32s)
+[exorl_cheetah_full_K512] nmf rank 16: tv 0.262 kl 0.249  (34s)
+[exorl_cheetah_full_K512] nmf rank 32: tv 0.191 kl 0.141  (36s)
+[exorl_cheetah_full_K512] nmf rank 64: tv 0.121 kl 0.058  (37s)
+[exorl_cheetah_full_K512] nmf rank 128: tv 0.068 kl 0.019  (40s)
+[exorl_cheetah_full_K512] nmf rank 256: tv 0.037 kl 0.007  (43s)
+[exorl_cheetah_full_K512] stats: gamma=0.99, H_rho=6.17, H_M_mean=5.24, H_P1_mean=1.9, concentration=2.51, ess_mean=125, ess_median=136, ess_over_K=0.244, maxR_median=20.6, maxR_p90=45.2, frac_rows_maxR_gt10=0.95, frac_rows_maxR_gt100=0.00583, diag_mass=0.0632, P1_self=0.624, P1_maxprob=0.624

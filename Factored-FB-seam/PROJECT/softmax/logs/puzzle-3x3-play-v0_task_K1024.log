@@ -1,0 +1,7 @@
+[puzzle-3x3-play-v0_task_K1024] N=1001000 D=18 episodes=1000 mean_len=1001 max_len=1001
+Traceback (most recent call last):
+  File "/home/adityamohan/git/Factored-FB-seam/PROJECT/softmax/scripts/occupancy_rank.py", line 67, in <module>
+    c = sub[rng.choice(len(sub), p=p)]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "numpy/random/_generator.pyx", line 887, in numpy.random._generator.Generator.choice
+ValueError: Probabilities contain NaN

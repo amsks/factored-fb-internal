@@ -1,0 +1,27 @@
+| tag | step | goal_success | reward_success | status |
+|---|---|---|---|---|
+| gamma_cube_density_g0.95 | 500000 | 0.860 | - | done |
+| gamma_cube_density_g0.995 | 500000 | 0.880 | - | done |
+| gamma_cube_fb_g0.95 | 500000 | 0.160 | 0.120 | done |
+| gamma_cube_fb_g0.995 | 500000 | 0.320 | 0.380 | done |
+| puzzle_density_r0.1_t0.5 | 500000 | 0.180 | - | done |
+| puzzle_density_r0.1_t1.0 | 500000 | 0.160 | - | done |
+| puzzle_density_r0.1_t2.0 | 500000 | 0.220 | - | done |
+| puzzle_density_r0.25_t0.5 | 500000 | 0.200 | - | done |
+| puzzle_density_r0.25_t1.0 | 500000 | 0.160 | - | done |
+| puzzle_density_r0.25_t2.0 | 500000 | 0.180 | - | done |
+| puzzle_density_r0.5_t0.5 | 500000 | 0.140 | - | done |
+| puzzle_density_r0.5_t1.0 | 500000 | 0.220 | - | done |
+| puzzle_density_r0.5_t2.0 | 500000 | 0.180 | - | done |
+| rank_ant_density_d16 | 500000 | 0.660 | - | done |
+| rank_ant_density_d50 | 500000 | 0.840 | - | done |
+| rank_ant_density_d8 | 500000 | 0.780 | - | done |
+| rank_ant_fb_d200 | 500000 | 0.360 | 0.320 | done |
+| rank_ant_fb_d50 | 500000 | 0.520 | 0.660 | done |
+| rank_ant_fb_d800 | 500000 | 0.180 | 0.020 | done |
+| rank_cube_density_d16 | 500000 | 0.960 | - | done |
+| rank_cube_density_d50 | 500000 | 0.980 | - | done |
+| rank_cube_density_d8 | 500000 | 0.880 | - | done |
+| rank_cube_fb_d200 | 500000 | 0.160 | 0.240 | done |
+| rank_cube_fb_d50 | 500000 | 0.120 | 0.480 | done |
+| rank_cube_fb_d800 | 500000 | 0.140 | 0.420 | done |

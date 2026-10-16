@@ -1,0 +1,21 @@
+[puzzle-3x3-play-v0_task_K512] N=1001000 D=18 episodes=1000 mean_len=1001 max_len=1001
+[puzzle-3x3-play-v0_task_K512] kmeans done 12s; occupied clusters=512
+[puzzle-3x3-play-v0_task_K512] successor matrix done 13s
+[puzzle-3x3-play-v0_task_K512] linear SVD done 50s
+[puzzle-3x3-play-v0_task_K512] log rank 2: tv 0.654 kl 1.616 | lin tv 0.705 kl 1.999  (56s)
+[puzzle-3x3-play-v0_task_K512] log rank 4: tv 0.581 kl 1.181 | lin tv 0.731 kl 1.941  (59s)
+[puzzle-3x3-play-v0_task_K512] log rank 8: tv 0.300 kl 0.417 | lin tv 0.782 kl 1.615  (62s)
+[puzzle-3x3-play-v0_task_K512] log rank 16: tv 0.196 kl 0.238 | lin tv 0.812 kl 1.557  (64s)
+[puzzle-3x3-play-v0_task_K512] log rank 32: tv 0.151 kl 0.172 | lin tv 0.822 kl 1.757  (67s)
+[puzzle-3x3-play-v0_task_K512] log rank 64: tv 0.097 kl 0.100 | lin tv 0.783 kl 1.870  (70s)
+[puzzle-3x3-play-v0_task_K512] log rank 128: tv 0.041 kl 0.032 | lin tv 0.665 kl 1.950  (74s)
+[puzzle-3x3-play-v0_task_K512] log rank 256: tv 0.020 kl 0.003 | lin tv 0.459 kl 1.518  (80s)
+[puzzle-3x3-play-v0_task_K512] nmf rank 2: tv 0.683 kl 1.841  (82s)
+[puzzle-3x3-play-v0_task_K512] nmf rank 4: tv 0.657 kl 1.610  (85s)
+[puzzle-3x3-play-v0_task_K512] nmf rank 8: tv 0.621 kl 1.370  (87s)
+[puzzle-3x3-play-v0_task_K512] nmf rank 16: tv 0.575 kl 1.119  (89s)
+[puzzle-3x3-play-v0_task_K512] nmf rank 32: tv 0.513 kl 0.865  (92s)
+[puzzle-3x3-play-v0_task_K512] nmf rank 64: tv 0.436 kl 0.614  (94s)
+[puzzle-3x3-play-v0_task_K512] nmf rank 128: tv 0.347 kl 0.385  (98s)
+[puzzle-3x3-play-v0_task_K512] nmf rank 256: tv 0.223 kl 0.185  (101s)
+[puzzle-3x3-play-v0_task_K512] stats: gamma=0.99, H_rho=6.23, H_M_mean=4.19, H_P1_mean=0.204, concentration=7.71, ess_mean=21.1, ess_median=21.2, ess_over_K=0.0413, maxR_median=92.9, maxR_p90=111, frac_rows_maxR_gt10=1, frac_rows_maxR_gt100=0.249, diag_mass=0.181, P1_self=0.969, P1_maxprob=0.969

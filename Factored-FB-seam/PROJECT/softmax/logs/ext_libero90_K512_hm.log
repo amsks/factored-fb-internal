@@ -1,0 +1,19 @@
+[libero90_full_K512_hm] N=569249 D=8 episodes=3921 mean_len=145 max_len=344
+[libero90_full_K512_hm] kmeans done 10s; occupied clusters=512
+[libero90_full_K512_hm] successor matrix done 10s
+[libero90_full_K512_hm] linear SVD done 10s
+[libero90_full_K512_hm] log rank 2: tv 0.508 kl 1.008 | lin tv 0.541 kl 5.396  (16s)
+[libero90_full_K512_hm] log rank 4: tv 0.263 kl 0.368 | lin tv 0.534 kl 4.909  (24s)
+[libero90_full_K512_hm] log rank 8: tv 0.105 kl 0.095 | lin tv 0.636 kl 2.488  (31s)
+[libero90_full_K512_hm] log rank 16: tv 0.043 kl 0.025 | lin tv 0.625 kl 1.784  (38s)
+[libero90_full_K512_hm] log rank 32: tv 0.017 kl 0.004 | lin tv 0.586 kl 1.485  (46s)
+[libero90_full_K512_hm] log rank 64: tv 0.011 kl 0.001 | lin tv 0.561 kl 1.199  (52s)
+[libero90_full_K512_hm] log rank 128: tv 0.011 kl 0.001 | lin tv 0.456 kl 0.863  (56s)
+[libero90_full_K512_hm] nmf rank 2: tv 0.808 kl 2.572  (59s)
+[libero90_full_K512_hm] nmf rank 4: tv 0.735 kl 2.017  (61s)
+[libero90_full_K512_hm] nmf rank 8: tv 0.679 kl 1.617  (63s)
+[libero90_full_K512_hm] nmf rank 16: tv 0.586 kl 1.184  (65s)
+[libero90_full_K512_hm] nmf rank 32: tv 0.478 kl 0.785  (67s)
+[libero90_full_K512_hm] nmf rank 64: tv 0.346 kl 0.456  (69s)
+[libero90_full_K512_hm] nmf rank 128: tv 0.230 kl 0.234  (73s)
+[libero90_full_K512_hm] stats: gamma=0.99, H_rho=5.93, H_M_mean=2.88, H_P1_mean=0.409, concentration=21.2, ess_mean=18.9, ess_median=8.36, ess_over_K=0.0368, maxR_median=148, maxR_p90=608, frac_rows_maxR_gt10=0.93, frac_rows_maxR_gt100=0.469, diag_mass=0.231, P1_self=0.914, P1_maxprob=0.914

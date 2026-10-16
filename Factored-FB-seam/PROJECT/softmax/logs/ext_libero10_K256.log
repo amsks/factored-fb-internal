@@ -1,0 +1,12 @@
+[libero10_full_K256] N=101469 D=8 episodes=379 mean_len=268 max_len=505
+[libero10_full_K256] kmeans done 6s; occupied clusters=256
+[libero10_full_K256] successor matrix done 6s
+[libero10_full_K256] linear SVD done 6s
+[libero10_full_K256] log rank 2: tv 0.402 kl 0.620 | lin tv 0.574 kl 2.397  (9s)
+[libero10_full_K256] log rank 4: tv 0.227 kl 0.248 | lin tv 0.611 kl 1.690  (12s)
+[libero10_full_K256] log rank 8: tv 0.104 kl 0.076 | lin tv 0.586 kl 1.470  (18s)
+[libero10_full_K256] log rank 16: tv 0.039 kl 0.017 | lin tv 0.518 kl 1.097  (24s)
+[libero10_full_K256] log rank 32: tv 0.010 kl 0.001 | lin tv 0.472 kl 0.909  (29s)
+[libero10_full_K256] log rank 64: tv 0.013 kl 0.001 | lin tv 0.392 kl 0.756  (34s)
+[libero10_full_K256] log rank 128: tv 0.013 kl 0.001 | lin tv 0.197 kl 0.398  (41s)
+[libero10_full_K256] stats: gamma=0.99, H_rho=5.32, H_M_mean=2.93, H_P1_mean=0.349, concentration=11, ess_mean=15.5, ess_median=11.9, ess_over_K=0.0607, maxR_median=57.4, maxR_p90=222, frac_rows_maxR_gt10=0.912, frac_rows_maxR_gt100=0.138, diag_mass=0.177, P1_self=0.924, P1_maxprob=0.924

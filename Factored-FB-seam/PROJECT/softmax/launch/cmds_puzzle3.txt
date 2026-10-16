@@ -1,0 +1,2 @@
+puzzle_density_sarsa_g0.99_1M|--actor flowbc --critic density_fb --domain puzzle_3x3 --override measure_density_hard=true --override 'measure_hit_spec="19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5"' --override discount=0.99 --override measure_density_bootstrap=sarsa
+puzzle_density_g0.95_1M|--actor flowbc --critic density_fb --domain puzzle_3x3 --override measure_density_hard=true --override 'measure_hit_spec="19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5"' --override discount=0.95

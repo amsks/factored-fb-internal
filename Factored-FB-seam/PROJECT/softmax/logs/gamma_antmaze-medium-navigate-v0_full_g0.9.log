@@ -1,0 +1,13 @@
+[antmaze-medium-navigate-v0_full_g0.9] N=1001000 D=29 episodes=1000 mean_len=1001 max_len=1001
+[antmaze-medium-navigate-v0_full_g0.9] kmeans done 11s; occupied clusters=512
+[antmaze-medium-navigate-v0_full_g0.9] successor matrix done 12s
+[antmaze-medium-navigate-v0_full_g0.9] linear SVD done 41s
+[antmaze-medium-navigate-v0_full_g0.9] log rank 2: tv 0.385 kl 0.581 | lin tv 0.560 kl 1.252  (45s)
+[antmaze-medium-navigate-v0_full_g0.9] log rank 4: tv 0.225 kl 0.217 | lin tv 0.579 kl 1.063  (47s)
+[antmaze-medium-navigate-v0_full_g0.9] log rank 8: tv 0.145 kl 0.086 | lin tv 0.593 kl 0.986  (50s)
+[antmaze-medium-navigate-v0_full_g0.9] log rank 16: tv 0.096 kl 0.039 | lin tv 0.579 kl 0.931  (52s)
+[antmaze-medium-navigate-v0_full_g0.9] log rank 32: tv 0.062 kl 0.018 | lin tv 0.498 kl 0.810  (54s)
+[antmaze-medium-navigate-v0_full_g0.9] log rank 64: tv 0.038 kl 0.008 | lin tv 0.203 kl 0.464  (57s)
+[antmaze-medium-navigate-v0_full_g0.9] log rank 128: tv 0.018 kl 0.003 | lin tv 0.124 kl 0.317  (60s)
+[antmaze-medium-navigate-v0_full_g0.9] log rank 256: tv 0.010 kl 0.001 | lin tv 0.065 kl 0.141  (65s)
+[antmaze-medium-navigate-v0_full_g0.9] stats: gamma=0.9, H_rho=6.16, H_M_mean=4.75, H_P1_mean=2.38, concentration=4.11, ess_mean=93.2, ess_median=98.8, ess_over_K=0.182, maxR_median=18.9, maxR_p90=99.9, frac_rows_maxR_gt10=0.967, frac_rows_maxR_gt100=0.109, diag_mass=0.103, P1_self=0.148, P1_maxprob=0.328

@@ -1,0 +1,26 @@
+11:18 launched rank_cube_density_d8 on gpu 0
+11:18 launched rank_cube_density_d16 on gpu 1
+11:19 launched rank_cube_density_d50 on gpu 2
+11:19 launched rank_cube_fb_d50 on gpu 3
+11:19 launched rank_cube_fb_d200 on gpu 4
+11:20 launched rank_cube_fb_d800 on gpu 5
+11:20 launched rank_ant_density_d8 on gpu 6
+11:20 launched rank_ant_density_d16 on gpu 7
+11:21 launched rank_ant_density_d50 on gpu 0
+11:21 launched rank_ant_fb_d50 on gpu 1
+11:21 launched rank_ant_fb_d200 on gpu 2
+11:22 launched rank_ant_fb_d800 on gpu 3
+11:22 launched gamma_cube_density_g0.95 on gpu 4
+11:22 launched gamma_cube_density_g0.995 on gpu 5
+11:23 launched gamma_cube_fb_g0.95 on gpu 6
+11:23 launched gamma_cube_fb_g0.995 on gpu 7
+11:23 launched puzzle_density_r0.1_t0.5 on gpu 0
+11:24 launched puzzle_density_r0.1_t1.0 on gpu 1
+11:24 launched puzzle_density_r0.1_t2.0 on gpu 2
+11:24 launched puzzle_density_r0.25_t0.5 on gpu 3
+11:25 launched puzzle_density_r0.25_t1.0 on gpu 4
+11:25 launched puzzle_density_r0.25_t2.0 on gpu 5
+11:25 launched puzzle_density_r0.5_t0.5 on gpu 6
+11:26 launched puzzle_density_r0.5_t1.0 on gpu 7
+12:21 launched puzzle_density_r0.5_t2.0 on gpu 0
+QUEUE_DONE

@@ -1,0 +1,21 @@
+[exorl_point_mass_maze_full_K512] N=1001000 D=4 episodes=1000 mean_len=1001 max_len=1001
+[exorl_point_mass_maze_full_K512] kmeans done 5s; occupied clusters=512
+[exorl_point_mass_maze_full_K512] successor matrix done 6s
+[exorl_point_mass_maze_full_K512] linear SVD done 6s
+[exorl_point_mass_maze_full_K512] log rank 2: tv 0.530 kl 1.074 | lin tv 0.547 kl 3.617  (9s)
+[exorl_point_mass_maze_full_K512] log rank 4: tv 0.337 kl 0.483 | lin tv 0.609 kl 2.674  (11s)
+[exorl_point_mass_maze_full_K512] log rank 8: tv 0.182 kl 0.175 | lin tv 0.859 kl 1.773  (13s)
+[exorl_point_mass_maze_full_K512] log rank 16: tv 0.095 kl 0.068 | lin tv 0.857 kl 1.374  (15s)
+[exorl_point_mass_maze_full_K512] log rank 32: tv 0.044 kl 0.023 | lin tv 0.720 kl 1.072  (17s)
+[exorl_point_mass_maze_full_K512] log rank 64: tv 0.018 kl 0.006 | lin tv 0.609 kl 1.029  (20s)
+[exorl_point_mass_maze_full_K512] log rank 128: tv 0.013 kl 0.001 | lin tv 0.430 kl 0.947  (23s)
+[exorl_point_mass_maze_full_K512] log rank 256: tv 0.016 kl 0.001 | lin tv 0.236 kl 0.588  (26s)
+[exorl_point_mass_maze_full_K512] nmf rank 2: tv 0.769 kl 2.231  (28s)
+[exorl_point_mass_maze_full_K512] nmf rank 4: tv 0.697 kl 1.724  (29s)
+[exorl_point_mass_maze_full_K512] nmf rank 8: tv 0.605 kl 1.256  (31s)
+[exorl_point_mass_maze_full_K512] nmf rank 16: tv 0.517 kl 0.895  (32s)
+[exorl_point_mass_maze_full_K512] nmf rank 32: tv 0.408 kl 0.573  (34s)
+[exorl_point_mass_maze_full_K512] nmf rank 64: tv 0.303 kl 0.331  (36s)
+[exorl_point_mass_maze_full_K512] nmf rank 128: tv 0.198 kl 0.159  (39s)
+[exorl_point_mass_maze_full_K512] nmf rank 256: tv 0.101 kl 0.052  (42s)
+[exorl_point_mass_maze_full_K512] stats: gamma=0.99, H_rho=6.13, H_M_mean=3.4, H_P1_mean=0.555, concentration=15.4, ess_mean=19, ess_median=16.1, ess_over_K=0.0371, maxR_median=88.7, maxR_p90=216, frac_rows_maxR_gt10=1, frac_rows_maxR_gt100=0.324, diag_mass=0.205, P1_self=0.884, P1_maxprob=0.884

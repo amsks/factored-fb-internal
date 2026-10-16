@@ -1,0 +1,21 @@
+[cube-single-play-v0_task_K512] N=1001000 D=3 episodes=1000 mean_len=1001 max_len=1001
+[cube-single-play-v0_task_K512] kmeans done 12s; occupied clusters=512
+[cube-single-play-v0_task_K512] successor matrix done 12s
+[cube-single-play-v0_task_K512] linear SVD done 51s
+[cube-single-play-v0_task_K512] log rank 2: tv 0.395 kl 0.785 | lin tv 0.407 kl 0.972  (56s)
+[cube-single-play-v0_task_K512] log rank 4: tv 0.397 kl 0.665 | lin tv 0.412 kl 1.078  (59s)
+[cube-single-play-v0_task_K512] log rank 8: tv 0.369 kl 0.467 | lin tv 0.426 kl 1.278  (62s)
+[cube-single-play-v0_task_K512] log rank 16: tv 0.256 kl 0.252 | lin tv 0.445 kl 1.653  (64s)
+[cube-single-play-v0_task_K512] log rank 32: tv 0.162 kl 0.122 | lin tv 0.436 kl 1.740  (67s)
+[cube-single-play-v0_task_K512] log rank 64: tv 0.094 kl 0.047 | lin tv 0.386 kl 1.435  (70s)
+[cube-single-play-v0_task_K512] log rank 128: tv 0.038 kl 0.008 | lin tv 0.332 kl 1.207  (74s)
+[cube-single-play-v0_task_K512] log rank 256: tv 0.012 kl 0.001 | lin tv 0.021 kl 0.028  (80s)
+[cube-single-play-v0_task_K512] nmf rank 2: tv 0.399 kl 0.866  (83s)
+[cube-single-play-v0_task_K512] nmf rank 4: tv 0.397 kl 0.772  (85s)
+[cube-single-play-v0_task_K512] nmf rank 8: tv 0.385 kl 0.657  (87s)
+[cube-single-play-v0_task_K512] nmf rank 16: tv 0.361 kl 0.538  (90s)
+[cube-single-play-v0_task_K512] nmf rank 32: tv 0.331 kl 0.419  (92s)
+[cube-single-play-v0_task_K512] nmf rank 64: tv 0.260 kl 0.265  (95s)
+[cube-single-play-v0_task_K512] nmf rank 128: tv 0.111 kl 0.084  (98s)
+[cube-single-play-v0_task_K512] nmf rank 256: tv 0.022 kl 0.005  (101s)
+[cube-single-play-v0_task_K512] stats: gamma=0.99, H_rho=6, H_M_mean=5.06, H_P1_mean=0.756, concentration=2.56, ess_mean=52.1, ess_median=61.2, ess_over_K=0.102, maxR_median=21.6, maxR_p90=69, frac_rows_maxR_gt10=0.916, frac_rows_maxR_gt100=0.00258, diag_mass=0.161, P1_self=0.805, P1_maxprob=0.805

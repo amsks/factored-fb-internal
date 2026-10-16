@@ -1,0 +1,7 @@
+[cube_task] kmeans 27s
+[cube_task] successor matrices 28s; val rows with data 512/512
+[cube_task] rank 8: lin_lsif lsif tr/va 0.832/0.857 TVva 0.550 | log_lsif lsif tr/va 0.054/0.135 TVva 0.479 | log_ce lsif tr/va 0.518/0.569 TVva 0.513  (51s)
+[cube_task] rank 16: lin_lsif lsif tr/va 0.757/0.799 TVva 0.543 | log_lsif lsif tr/va 0.026/0.120 TVva 0.394 | log_ce lsif tr/va 0.103/0.190 TVva 0.424  (63s)
+[cube_task] rank 32: lin_lsif lsif tr/va 0.627/0.701 TVva 0.530 | log_lsif lsif tr/va 0.013/0.118 TVva 0.376 | log_ce lsif tr/va 0.021/0.122 TVva 0.378  (73s)
+[cube_task] rank 64: lin_lsif lsif tr/va 0.413/0.532 TVva 0.507 | log_lsif lsif tr/va 0.004/0.118 TVva 0.373 | log_ce lsif tr/va 0.006/0.119 TVva 0.372  (83s)
+[cube_task] rank 128: lin_lsif lsif tr/va 0.087/0.218 TVva 0.427 | log_lsif lsif tr/va 0.001/0.118 TVva 0.373 | log_ce lsif tr/va 0.004/0.122 TVva 0.376  (96s)

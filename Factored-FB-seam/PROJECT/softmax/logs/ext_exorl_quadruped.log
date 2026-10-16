@@ -1,0 +1,21 @@
+[exorl_quadruped_full_K512] N=1001000 D=78 episodes=1000 mean_len=1001 max_len=1001
+[exorl_quadruped_full_K512] kmeans done 10s; occupied clusters=512
+[exorl_quadruped_full_K512] successor matrix done 11s
+[exorl_quadruped_full_K512] linear SVD done 11s
+[exorl_quadruped_full_K512] log rank 2: tv 0.233 kl 0.313 | lin tv 0.656 kl 1.059  (14s)
+[exorl_quadruped_full_K512] log rank 4: tv 0.149 kl 0.131 | lin tv 0.642 kl 1.040  (16s)
+[exorl_quadruped_full_K512] log rank 8: tv 0.093 kl 0.051 | lin tv 0.312 kl 0.573  (18s)
+[exorl_quadruped_full_K512] log rank 16: tv 0.065 kl 0.026 | lin tv 0.297 kl 0.471  (20s)
+[exorl_quadruped_full_K512] log rank 32: tv 0.046 kl 0.013 | lin tv 0.239 kl 0.351  (22s)
+[exorl_quadruped_full_K512] log rank 64: tv 0.031 kl 0.006 | lin tv 0.125 kl 0.243  (25s)
+[exorl_quadruped_full_K512] log rank 128: tv 0.018 kl 0.002 | lin tv 0.060 kl 0.106  (28s)
+[exorl_quadruped_full_K512] log rank 256: tv 0.009 kl 0.001 | lin tv 0.030 kl 0.055  (31s)
+[exorl_quadruped_full_K512] nmf rank 2: tv 0.297 kl 0.571  (33s)
+[exorl_quadruped_full_K512] nmf rank 4: tv 0.261 kl 0.421  (34s)
+[exorl_quadruped_full_K512] nmf rank 8: tv 0.215 kl 0.276  (36s)
+[exorl_quadruped_full_K512] nmf rank 16: tv 0.171 kl 0.169  (37s)
+[exorl_quadruped_full_K512] nmf rank 32: tv 0.125 kl 0.094  (39s)
+[exorl_quadruped_full_K512] nmf rank 64: tv 0.078 kl 0.043  (41s)
+[exorl_quadruped_full_K512] nmf rank 128: tv 0.042 kl 0.014  (44s)
+[exorl_quadruped_full_K512] nmf rank 256: tv 0.020 kl 0.003  (46s)
+[exorl_quadruped_full_K512] stats: gamma=0.99, H_rho=6.01, H_M_mean=4.99, H_P1_mean=2.7, concentration=2.79, ess_mean=145, ess_median=223, ess_over_K=0.284, maxR_median=12.7, maxR_p90=122, frac_rows_maxR_gt10=0.574, frac_rows_maxR_gt100=0.0856, diag_mass=0.0822, P1_self=0.431, P1_maxprob=0.436

@@ -1,0 +1,4 @@
+puzzle_density_g0.99_1M|--actor flowbc --critic density_fb --domain puzzle_3x3 --override measure_density_hard=true --override 'measure_hit_spec="19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5"' --override discount=0.99
+puzzle_density_g0.995_1M|--actor flowbc --critic density_fb --domain puzzle_3x3 --override measure_density_hard=true --override 'measure_hit_spec="19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5"' --override discount=0.995
+puzzle_density_g0.998_1M|--actor flowbc --critic density_fb --domain puzzle_3x3 --override measure_density_hard=true --override 'measure_hit_spec="19:21:0.5,23:25:0.5,27:29:0.5,31:33:0.5,35:37:0.5,39:41:0.5,43:45:0.5,47:49:0.5,51:53:0.5"' --override discount=0.998
+puzzle_gcivl_1M|--actor awr --critic gcivl --domain puzzle_3x3 --override actor.alpha=10.0

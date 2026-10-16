@@ -1,0 +1,21 @@
+[antmaze-large-navigate-v0_task_K512] N=1001000 D=2 episodes=1000 mean_len=1001 max_len=1001
+[antmaze-large-navigate-v0_task_K512] kmeans done 12s; occupied clusters=512
+[antmaze-large-navigate-v0_task_K512] successor matrix done 12s
+[antmaze-large-navigate-v0_task_K512] linear SVD done 41s
+[antmaze-large-navigate-v0_task_K512] log rank 2: tv 0.415 kl 0.790 | lin tv 0.500 kl 4.148  (52s)
+[antmaze-large-navigate-v0_task_K512] log rank 4: tv 0.288 kl 0.399 | lin tv 0.615 kl 1.428  (56s)
+[antmaze-large-navigate-v0_task_K512] log rank 8: tv 0.190 kl 0.174 | lin tv 0.603 kl 1.309  (58s)
+[antmaze-large-navigate-v0_task_K512] log rank 16: tv 0.111 kl 0.067 | lin tv 0.577 kl 1.099  (61s)
+[antmaze-large-navigate-v0_task_K512] log rank 32: tv 0.059 kl 0.022 | lin tv 0.483 kl 1.041  (64s)
+[antmaze-large-navigate-v0_task_K512] log rank 64: tv 0.029 kl 0.006 | lin tv 0.376 kl 0.924  (67s)
+[antmaze-large-navigate-v0_task_K512] log rank 128: tv 0.013 kl 0.001 | lin tv 0.218 kl 0.587  (71s)
+[antmaze-large-navigate-v0_task_K512] log rank 256: tv 0.009 kl 0.000 | lin tv 0.038 kl 0.061  (76s)
+[antmaze-large-navigate-v0_task_K512] nmf rank 2: tv 0.530 kl 1.294  (78s)
+[antmaze-large-navigate-v0_task_K512] nmf rank 4: tv 0.448 kl 0.962  (80s)
+[antmaze-large-navigate-v0_task_K512] nmf rank 8: tv 0.367 kl 0.683  (82s)
+[antmaze-large-navigate-v0_task_K512] nmf rank 16: tv 0.312 kl 0.500  (85s)
+[antmaze-large-navigate-v0_task_K512] nmf rank 32: tv 0.257 kl 0.339  (88s)
+[antmaze-large-navigate-v0_task_K512] nmf rank 64: tv 0.197 kl 0.215  (90s)
+[antmaze-large-navigate-v0_task_K512] nmf rank 128: tv 0.112 kl 0.087  (94s)
+[antmaze-large-navigate-v0_task_K512] nmf rank 256: tv 0.032 kl 0.014  (97s)
+[antmaze-large-navigate-v0_task_K512] stats: gamma=0.99, H_rho=6.15, H_M_mean=4.47, H_P1_mean=0.706, concentration=5.34, ess_mean=49.9, ess_median=41.4, ess_over_K=0.0975, maxR_median=51.1, maxR_p90=242, frac_rows_maxR_gt10=0.951, frac_rows_maxR_gt100=0.226, diag_mass=0.165, P1_self=0.821, P1_maxprob=0.821

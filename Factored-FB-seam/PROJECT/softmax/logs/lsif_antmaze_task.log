@@ -1,0 +1,7 @@
+[antmaze_task] kmeans 28s
+[antmaze_task] successor matrices 30s; val rows with data 510/512
+[antmaze_task] rank 8: lin_lsif lsif tr/va 0.801/0.782 TVva 0.541 | log_lsif lsif tr/va 0.011/0.574 TVva 0.383 | log_ce lsif tr/va 0.070/0.551 TVva 0.285  (51s)
+[antmaze_task] rank 16: lin_lsif lsif tr/va 0.645/0.800 TVva 0.535 | log_lsif lsif tr/va 0.004/0.564 TVva 0.276 | log_ce lsif tr/va 0.015/0.558 TVva 0.253  (63s)
+[antmaze_task] rank 32: lin_lsif lsif tr/va 0.433/0.642 TVva 0.416 | log_lsif lsif tr/va 0.001/0.559 TVva 0.246 | log_ce lsif tr/va 0.003/0.560 TVva 0.238  (74s)
+[antmaze_task] rank 64: lin_lsif lsif tr/va 0.202/0.622 TVva 0.339 | log_lsif lsif tr/va 0.001/0.557 TVva 0.235 | log_ce lsif tr/va 0.001/0.561 TVva 0.232  (86s)
+[antmaze_task] rank 128: lin_lsif lsif tr/va 0.030/0.602 TVva 0.271 | log_lsif lsif tr/va 0.000/0.560 TVva 0.233 | log_ce lsif tr/va 0.000/0.560 TVva 0.232  (100s)
