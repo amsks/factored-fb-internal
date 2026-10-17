@@ -1,9 +1,6 @@
-"""Single-panel alignment figure for the cube subsection, phases matched to the failure-phase diagram.
-Data: figures/gap_preservation/alignment_by_phase_{cell5cm,per_seed}.csv (separation probe,
-2026-09-19). Cosine between the critic's predicted difference of future cube-position distributions
-(a+ minus a-) and the rollout estimate, at restored states from the approach, maintain (in-hand) and
-transport (carrying) phases; mean +- s.e. over states pooled over three seeds, small markers = per seed.
-    python scripts/probes/cube_bottleneck/fig_alignment_main.py
+"""Per-phase alignment figure: cosine between predicted and rollout action-contrast of future cube positions.
+
+Reads figures/gap_preservation/alignment_by_phase_*.csv from separation_preservation.py.
 """
 import pathlib
 import pandas as pd
@@ -40,7 +37,7 @@ for sp in ("top", "right"):
 ax.legend(fontsize=7, frameon=False, loc="upper left", handlelength=1.0)
 fig.tight_layout(pad=0.3)
 for ext in ("pdf", "png"):
-    fig.savefig(D / f"fig_alignment_by_phase_main.{ext}", dpi=300)   # exact figsize, matches fig_failure_where
+    fig.savefig(D / f"fig_alignment_by_phase_main.{ext}", dpi=300)
 print("wrote", D / "fig_alignment_by_phase_main.pdf")
 for critic in STYLE:
     print(critic, {p[1]: round(float(pooled[(pooled.critic == critic) & (pooled.bank == p[0])].align_mean.iloc[0]), 3) for p in PHASES})

@@ -1,15 +1,4 @@
-"""Episode boundaries and masks on the UNIFIED (MetaWorld / ManiSkill packed npz) layout.
-
-The unified adapter flattens [N, T, ...] packs and marks each episode's LAST row in
-`terminals` (env/unified.py::load_packed). The two baseline samplers that read rows AHEAD
-of the anchor -- HILP's geometric hindsight future (HILPFutureDataset) and RLDP's h-step
-self-prediction window (WindowedDataset) -- must clamp to that boundary, or a future drawn
-past it is the next episode's reset frame. Also pinned here: the goal-mask union those
-samplers apply, and the unified reward-relabel batch (Route B) that
-scripts/launch_mwms_baselines.sh switches on for every critic.
-
-Pure numpy + a tiny synthetic pack; no env, no jax compilation.
-"""
+"""Episode boundaries, goal masks and reward relabelling on the unified MetaWorld/ManiSkill layout."""
 import numpy as np
 import pytest
 
@@ -22,8 +11,7 @@ N_EP, T, OBS, ACT = 6, 25, 8, 3
 
 @pytest.fixture
 def packed(tmp_path):
-    """A pack in the HF layout: obs[..., 0] = episode id, obs[..., 1] = step index, so a row's
-    episode is readable off the observation itself; success fires from step 10 on."""
+    """Pack with episode id in obs[..., 0] and step in obs[..., 1]; success from step 10."""
     ep = np.repeat(np.arange(N_EP, dtype=np.float32)[:, None], T, axis=1)
     t = np.repeat(np.arange(T, dtype=np.float32)[None, :], N_EP, axis=0)
     obs = np.zeros((N_EP, T, OBS), np.float32)
@@ -61,13 +49,13 @@ def test_hilp_future_never_leaves_the_anchor_episode(packed):
     ds = make_dataset(_base(packed), dict(dataset_class="HILPFutureDataset", goal_future=0.99,
                                            p_randomgoal=0.0))
     assert isinstance(ds, HILPFutureDataset)
-    # p = 0.01 => the geometric offset is > T for most draws: every one must clamp.
+    # p = 0.01: most geometric offsets exceed T and must clamp.
     for _ in range(20):
         b = ds.sample(256)
         fut = b["hilp_future_observations"]
         assert np.array_equal(fut[:, 0], b["observations"][:, 0]), "future from another episode"
         assert (fut[:, 1] >= b["observations"][:, 1]).all(), "future behind the anchor"
-    # and the clamp lands on the episode's own last row, not the next reset frame
+    # Clamp to the episode's last row, not the next reset frame.
     b = ds.sample(4096)
     assert (b["hilp_future_observations"][:, 1] == T - 1).mean() > 0.5
 
@@ -96,7 +84,7 @@ def test_hilp_future_dataset_applies_the_goal_mask_union(packed):
     for k in ("observations", "next_observations", "hilp_future_observations"):
         assert (b[k][:, [5, 6, 7]] == 0.0).all(), f"{k} not blanked"
         assert (b[k][:, 2:5] != 0.0).any(), f"{k} over-blanked"
-    # the same union WindowedDataset already applied
+    # same union as WindowedDataset
     w = make_dataset(_base(packed), dict(dataset_class="WindowedDataset", horizon=3,
                                           obs_mask_dims=[5, 6], goal_mask_dims=[6, 7]))
     bw = w.sample(64)
@@ -110,23 +98,22 @@ class _Cfg(dict):
 def test_unified_relabel_batch_is_a_masked_zero_one_task_signal(packed):
     np.random.seed(0)
     ad = UnifiedAdapter()
-    ad._cfg = dict(obs_mask_dims=[5, 6], goal_mask_dims=[6, 7])   # what make_env_and_datasets stashes
+    ad._cfg = dict(obs_mask_dims=[5, 6], goal_mask_dims=[6, 7])   # as set by make_env_and_datasets
     base = _base(packed)
     wrapped = make_dataset(base, dict(dataset_class="HILPFutureDataset", goal_future=0.99))
     obs, r = ad.relabel_infer_batch(wrapped, env=None, task_id=1, num_samples=500,
                                     shift_reward=1.0)
     assert obs.shape == (500, OBS) and r.shape == (500,)
     assert set(np.unique(r).tolist()) <= {0.0, 1.0}
-    # r == 1 exactly on rows whose stored success flag fires (anchor step >= 10). The returned
-    # frame is the NEXT observation: step t+1, or the reset frame (step 0) after the last row.
+    # r == 1 on rows whose stored success flag fires (anchor step >= 10).
     assert np.array_equal(r == 1.0, (obs[:, 1] >= 11) | (obs[:, 1] == 0))
     assert (obs[:, [5, 6, 7]] == 0.0).all() and (obs[:, 2:5] != 0.0).any()
     assert 0.4 < r.mean() < 0.8                       # 15/25 steps succeed
-    # dense mode: the stored reward + shift
+    # Dense mode: stored reward + shift
     ad._cfg["eval_relabel_reward"] = "dense"
     _, rd = ad.relabel_infer_batch(base, None, 1, 100, shift_reward=1.0)
     assert rd.min() >= 1.0 and rd.max() <= 2.0
-    # success mode refuses a pack without the flag instead of relabelling with garbage
+    # Success mode raises on a pack without the success flag
     ad._cfg["eval_relabel_reward"] = "success"
     d = load_packed(packed); d.pop("success")
     with pytest.raises(ValueError, match="success"):

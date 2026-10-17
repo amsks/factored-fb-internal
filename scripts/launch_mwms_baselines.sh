@@ -1,21 +1,11 @@
 #!/usr/bin/env bash
-# MetaWorld / ManiSkill baseline table: {fb_tdj, hilp_tdjc, rldp@ortho_coef=1} x 8 tasks x seeds,
-# the protocol of PAPER/ICLR tab:manipulation's MetaWorld/ManiSkill blocks (1M steps, eval every
-# 100k, 50 goal-conditioned episodes, plus the reward-inference route) with the SAME per-task
-# protocol overrides for every critic. Handoff: docs/notes/2026-09-13-mwms-baselines-handoff.md.
+# Train FB, HILP and RLDP on MetaWorld and ManiSkill (1M steps, goal and reward-inference eval).
 #
 #   FB_DATA_ROOT=/path/to/Factor-FB-Offline bash scripts/launch_mwms_baselines.sh            # dry run
 #   MODE=tmux  GPUS="0 1 2 3" FB_DATA_ROOT=... bash scripts/launch_mwms_baselines.sh           # local
 #   MODE=slurm ALLOC=ASC26008 FB_DATA_ROOT=... bash scripts/launch_mwms_baselines.sh          # array job
-#   MODE=tmux DRYRUN=1 ...   /   MODE=slurm DRYRUN=1 ...     print every command line, launch nothing
 #
-# Selection: CRITICS="fb_tdj hilp_tdjc rldp"  TASKS="mw-push ... ms-lift-peg"  SEEDS="0 1 2"
-# Budget:    TRAIN_STEPS=1000000 EVAL_INTERVAL=100000 SAVE_INTERVAL=250000 EVAL_EPISODES=50
-#            RELABEL_SIZE=10000 RELABEL_SHIFT=1.0 RELABEL_EPISODES=10  (Route B, eval_relabel.csv)
-# Extras:    EXTRA_OV="k=v k2=v2" appended to every run; LOG_INTERVAL=5000
-# Layout:    exp/mwms_baselines/<critic>/<task>_<critic>_flowbc_seed_<s>/{eval.csv,eval_relabel.csv,
-#            config.json,train.csv}; logs under logs/mwms_baselines/<task>/<critic>/s<seed>.log
-# A run whose params_<TRAIN_STEPS>.pkl already exists is skipped; partial runs resume (--auto_resume).
+# Select with CRITICS, TASKS, SEEDS. Finished runs are skipped; partial runs resume.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -47,23 +37,17 @@ MAX_PARALLEL="${MAX_PARALLEL:-20}"          # slurm: array throttle (%N)
 VENV="${VENV:-${SCRATCH:-$HOME}/.venv-jax-fb}"   # slurm only: vista_train.slurm's venv
 mkdir -p "$LOGROOT"
 
-# ---- per-task PROTOCOL overrides (not tuning): identical for every critic ------------------
-# MetaWorld: target dims 36:39 blanked from obs and goal (goal-observable envs), synth per-episode
-# eval goal frames; p_randomgoal=0's mass moves to trajgoal (GCDataset sum-to-1). These GC keys are
-# read only by goal-sampling dataset classes; FBDataset/WindowedDataset/HILPFutureDataset ignore
-# them, and the masks are applied by all three (scripts/launch_density_table.sh MW_PROTO).
+# Per-task protocol overrides, identical for every critic
+# MetaWorld: target position dims 36:39 masked from observation and goal
 MW_PROTO="obs_mask_dims=[36,37,38] goal_mask_dims=[36,37,38] value_p_randomgoal=0.0 value_p_trajgoal=0.8 eval_goal_mode=synth"
-# ManiSkill: goal_pos dims per task (launch_density_table.sh MS_MASK; pick-cube also carries
-# obj_to_goal_pos at 39:42). stack/poke/lift-peg carry no goal position in the observation and
-# have no goal-in-obs layout in env/unified.py::_GOAL_LAYOUT, so: no mask, eval_goal_mode=fixed.
+# ManiSkill: goal position dims masked; stack/poke/lift-peg have no goal in the observation
 declare -A PROTO=(
   [mw-push]="$MW_PROTO" [mw-bin-picking]="$MW_PROTO" [mw-box-close]="$MW_PROTO"
   [ms-push-cube]="obs_mask_dims=[25,26,27] goal_mask_dims=[25,26,27] value_p_randomgoal=0.0 value_p_trajgoal=0.8 eval_goal_mode=synth"
   [ms-pick-cube]="obs_mask_dims=[26,27,28,39,40,41] goal_mask_dims=[26,27,28,39,40,41] value_p_randomgoal=0.0 value_p_trajgoal=0.8 eval_goal_mode=synth"
   [ms-stack-cube]="" [ms-poke-cube]="" [ms-lift-peg]=""
 )
-# ---- per-critic overrides: RLDP at its own default orthonormality coefficient (OGBench finding:
-# ortho_coef=1 beats the transcribed 0.01). fb_tdj / hilp_tdjc run their yamls unchanged.
+# Per-critic overrides
 declare -A CRITIC_OV=( [fb_tdj]="" [hilp_tdjc]="" [rldp]="ortho_coef=1.0" )
 RELABEL="eval_relabel_size=$RELABEL_SIZE eval_relabel_shift=$RELABEL_SHIFT eval_relabel_episodes=$RELABEL_EPISODES"
 
@@ -75,7 +59,7 @@ overrides_for() {  # <critic> <task> -> space-separated k=v list
 }
 run_dir() { echo "$SAVE_ROOT/$1/${2}_${1}_${ACTOR}_seed_$3"; }   # critic task seed
 
-# ---- enumerate ----------------------------------------------------------------------------
+# Enumerate runs
 IDS=(); CMDS=(); JOBLINES=()
 ENVBASE="XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_FLAGS=--xla_gpu_enable_command_buffer= WANDB_MODE=offline MUJOCO_GL=egl FB_DATA_ROOT=$FB_DATA_ROOT FB_HF_EXPORT=$FB_DATA_ROOT"
 n_skip=0
@@ -89,7 +73,7 @@ for t in $TASKS; do for c in $CRITICS; do for s in $SEEDS; do
   cmd+=" --eval_episodes $EVAL_EPISODES --log_interval $LOG_INTERVAL --auto_resume"
   cmd+=" --save_dir $SAVE_ROOT/$c$ovflags"
   IDS+=("$t/$c/s$s"); CMDS+=("$cmd")
-  # slurm job line: the vista_train.slurm env-var contract, one run per line (read by mwms_array.slurm)
+  # Slurm job line, read by mwms_array.slurm
   JOBLINES+=("CRITIC=$c ACTOR=$ACTOR DOMAIN=$t SEED=$s TRAIN_STEPS=$TRAIN_STEPS EVAL_INTERVAL=$EVAL_INTERVAL SAVE_INTERVAL=$SAVE_INTERVAL EVAL_EPISODES=$EVAL_EPISODES AUTO_RESUME=1 SAVE_DIR=$SAVE_ROOT/$c FB_DATA_ROOT=$FB_DATA_ROOT FB_HF_EXPORT=$FB_DATA_ROOT VENV=$VENV OVERRIDE=$(printf '%q' "$ov")")
 done; done; done
 N=${#IDS[@]}
@@ -118,7 +102,7 @@ if [ "$MODE" = "slurm" ]; then
   exit 0
 fi
 
-# ---- tmux: one window per GPU, its runs sequential (scripts/launch_tdjtab.sh convention) ----
+# tmux: one window per GPU, its runs sequential
 [ "$MODE" = "tmux" ] || { echo "MODE must be dry, tmux or slurm (got $MODE)" >&2; exit 2; }
 [ -x "$PY" ] || { echo "missing $PY (volatile venv; recreate)" >&2; exit 1; }
 read -r -a GPU_LIST <<< "$GPUS"; NG=${#GPU_LIST[@]}

@@ -1,10 +1,4 @@
-"""Build + restore a trained arm exactly the way the eval path does (spec section 4, "Loader").
-
-One helper, `load_arm`, following `scripts/probe_eval_interface.py:120-145`: read the run's
-own `config.json`, rebuild the adapter/env/dataset it trained on, construct `Agent.create`
-from a real batch's shapes, then `restore_agent` at the requested epoch. Nothing here
-reimplements a critic; the probes drive the shipped interface.
-"""
+"""Rebuild and restore trained agents from run directories, as the eval path does."""
 import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -92,21 +86,14 @@ def discover(exp_root, env_name: str, critics, seeds, epoch: int = 500000) -> Li
     return out
 
 
-# ── reward-inference (Route B) loading for the tdjtab 1M arms ───────────────────────────
-#
-# The failure figures (scripts/probes/cube_bottleneck/failure_figs.py) compare `fb_tdj` and
-# `density_fb_z` under EXACTLY the eval_relabel conditioning impls/main.py rolls: 10k
-# relabelled dataset transitions per task, shift 1.0, `infer_eval_cond`, and the
-# InferredCondAgent wrapper that drops the env goal. Nothing below reimplements a critic.
+# Reward-inference loading: task z inferred from relabelled dataset rewards, as in impls/main.py
 
 DEFAULT_ROOTS = ("exp", "exp/tdjtab")
 
 
 def discover_roots(env_name: str, critics, seeds, epoch: int,
                    roots=DEFAULT_ROOTS) -> List[Dict]:
-    """Like `discover`, but over several exp roots (the tdjtab campaign left cube-single
-    fb_tdj under exp/ and the rest under exp/tdjtab/). First root that has the checkpoint
-    wins, so a run present in both is read once."""
+    """Like `discover`, over several exp roots; the first root holding the checkpoint wins."""
     out = []
     for critic in critics:
         for seed in seeds:
@@ -119,8 +106,7 @@ def discover_roots(env_name: str, critics, seeds, epoch: int,
 
 
 def load_arm_eval(run_dir, epoch: int) -> Arm:
-    """`load_arm` with `params_only=True`: the tdjtab checkpoints carry an optimizer state
-    from the campaign's optax chain, which an eval never steps."""
+    """`load_arm` restoring parameters only (no optimizer state)."""
     import jax.numpy as jnp
 
     from env import get_adapter
@@ -143,15 +129,9 @@ def load_arm_eval(run_dir, epoch: int) -> Arm:
 
 
 def relabel_cond_agents(arm: Arm, tasks, *, seed: int = 20260912) -> Dict[int, Any]:
-    """{task_id: InferredCondAgent} -- the Route B conditioning of impls/main.py's
-    eval_relabel block, one wrapper per task.
+    """Return {task_id: InferredCondAgent}, z inferred from 10k relabelled rows per task.
 
-    The 10k relabel rows are drawn through `adapter.relabel_infer_batch`, whose row draw
-    comes from the global NumPy RNG (`Dataset.get_random_idxs`). The RNG is re-seeded per
-    task from `seed`, so every arm infers its task index from the SAME 10k rows -- in the
-    training runs the rows differed per eval point, which is noise this probe does not want
-    between the two methods. The no-op guard from impls/main.py is applied: the conditioning
-    must have changed and must have a non-zero norm.
+    The global NumPy RNG is reseeded per task from `seed`, so all agents use the same rows.
     """
     import jax.numpy as jnp
 
@@ -159,13 +139,7 @@ def relabel_cond_agents(arm: Arm, tasks, *, seed: int = 20260912) -> Dict[int, A
     from impls.utils.eval_cond import InferredCondAgent
 
     class BatchedInferredCondAgent(InferredCondAgent):
-        """InferredCondAgent for LOCKSTEP rollouts: the inferred z is a flat [d] vector
-        (impls/main.py rolls one observation at a time), and the flow actor concatenates it
-        onto the observation without broadcasting. Batched observations therefore get the
-        SAME z tiled to [B, d], handed through the `goals` dict channel of
-        `Agent.sample_actions` -- which, with no "goal" key present, both critics'
-        `map_eval_cond` pass through untouched (fb.py:94, density_fb.py:936). Goal frames
-        are still dropped and counted, exactly as the parent does."""
+        """InferredCondAgent for batched rollouts: tiles the [d] z to [B, d] and passes it via `goals`."""
 
         def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
             self.action_calls += 1

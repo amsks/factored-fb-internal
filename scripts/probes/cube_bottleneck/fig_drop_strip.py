@@ -1,7 +1,7 @@
-"""Companion to fig_carry_strip_v2: the same strip on a rollout of plain FB's OWN policy
-from a held start, choosing an episode in which FB drops the cube. Both critics are read
-on the same rollout states, so the maps stay a paired comparison; the frames themselves
-are FB's behaviour. Output dict matches fig_carry_strip_v2.render's contract."""
+"""Carry-strip figure on a rollout of one policy from a held start in which the cube is dropped.
+
+Both critics are read on the same rollout states; rendering is fig_carry_strip_v2.render.
+"""
 import argparse, os
 os.environ.setdefault("MUJOCO_GL", "egl")
 from pathlib import Path
@@ -16,7 +16,7 @@ from scripts.probes.cube_bottleneck.fig_carry_strip import b_embed, fit_probe, p
 from scripts.probes.cube_bottleneck.phases import PhaseThresholds
 
 ROOT = V2.ROOT
-CACHE = ROOT / "drop_strip_cache.npz"   # overridden by --cache-tag
+CACHE = ROOT / "drop_strip_cache.npz"   # suffixed by --cache-tag
 
 
 def rollout(arm, actor_fn, qpos, qvel, task_id, max_steps, thr):
@@ -76,7 +76,7 @@ def main():
     pol = arms[args.policy]; R.ensure_cube_env(pol.env)
     actor_fn = supply_rng(pol.agent.sample_actions, rng=jax.random.PRNGKey(0))
     hb = np.load(ROOT / "held_bank.npz")
-    # candidates ordered by initial cube-goal distance (far first), so the drop follows a real carry
+    # Candidate starts, farthest from the goal first
     g_tmp = task_goals(pol, args.task, args.goal_draws, 20260904)
     gxy = V2.world_to_plot(np.mean([g[V2.CUBE_OBS][:2] for g in g_tmp], axis=0) * CM)
     start_xy = V2.world_to_plot(np.asarray(hb["obs"])[:, V2.CUBE_OBS][:, :2] * CM)

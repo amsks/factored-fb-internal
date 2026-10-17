@@ -53,27 +53,18 @@ figures = [
     "pandas",
 ]
 dev = [
-    "black>=24.0",
+    "isort>=5.13",
     "ruff>=0.4",
     "pytest>=8.0",
 ]
 
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-exclude = '''
-/(
-    \.git
-  | \.venv
-  | outputs
-  | multirun
-  | __pycache__
-)/
-'''
-
 [tool.ruff]
-line-length = 100
 target-version = "py311"
+extend-exclude = ["ogbench"]
+
+[tool.isort]
+profile = "black"
+skip = ["ogbench"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

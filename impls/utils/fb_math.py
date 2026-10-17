@@ -1,9 +1,9 @@
-"""Task-vector normalisation shared by the FB-family critics."""
+"""Task-vector normalization."""
 import jax.numpy as jnp
 
 
 def project_z(z, norm_z):
-    """Scale z onto the sphere of radius sqrt(d) (when norm_z)."""
+    """Project z onto the sphere of radius sqrt(d) if norm_z."""
     if not norm_z:
         return z
     d = z.shape[-1]

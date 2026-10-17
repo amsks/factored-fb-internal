@@ -1,15 +1,4 @@
-"""Figures for the cube bottleneck probe (spec deliverable 2).
-
-  (a) success H0 vs H1 per arm, per-seed points  -> fig_a_held_start.pdf/png
-  (b) held_mass vs p_secure at P2, panel per arm -> fig_b_measure_scatter.pdf/png
-  (c) FB row mass by phase                       -> fig_c_row_mass.pdf/png
-
-Colour: the categorical slots of the validated reference palette, assigned to arms in a
-FIXED order and never cycled -- an arm keeps its hue in every panel of every figure, so a
-reader who learns "blue = plain FB" once is never repainted. Identity is never carried by
-colour alone: each arm is also direct-labelled or named on its own panel. Print/paper
-figures, so the light surface is the only one built.
-"""
+"""Cube bottleneck probe figures: held-start success, predicted held mass vs p_secure, and FB row mass by phase."""
 import argparse
 from pathlib import Path
 
@@ -19,12 +8,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-# Fixed categorical slots (references/palette.md), in slot order 1..4.
+# Fixed colour per method
 ARM_COLOR = {
-    "fb_ref": "#2a78d6",            # slot 1 blue   -- primary A, plain FB (Touati parity)
-    "density_fb_state": "#eb6834",  # slot 2 orange -- primary B, Density-FB, state input
-    "density_fb": "#1baf7a",        # slot 3 aqua   -- secondary, the paper's method
-    "fb": "#eda100",                # slot 4 yellow -- reference, repo FB (ortho 1.0)
+    "fb_ref": "#2a78d6",            # plain FB
+    "density_fb_state": "#eb6834",  # Density-FB, state input
+    "density_fb": "#1baf7a",        # Density-FB
+    "fb": "#eda100",                # FB with orthonormality loss
 }
 ARM_LABEL = {
     "fb_ref": "FB (plain)",
@@ -52,7 +41,7 @@ def _arms(df):
 
 
 def fig_a(per_seed: pd.DataFrame, out: Path):
-    """Paired slope chart: the job is CHANGE between two conditions, per seed."""
+    """Paired slope chart of success from H0 to H1, per seed."""
     arms = _arms(per_seed)
     fig, axes = plt.subplots(1, len(arms), figsize=(2.1 * len(arms), 3.0), sharey=True)
     axes = np.atleast_1d(axes)
@@ -61,8 +50,7 @@ def fig_a(per_seed: pd.DataFrame, out: Path):
         _style(ax)
         sub = per_seed[per_seed.critic == arm].sort_values("seed")
         c = ARM_COLOR[arm]
-        # Seeds often land on top of each other at H1; stagger the labels vertically so
-        # they stay readable instead of overprinting.
+        # Stagger overlapping seed labels
         ends = sorted(float(r["H1"]) for _, r in sub.iterrows() if not pd.isna(r.get("H1")))
         for i, (_, r) in enumerate(sub.iterrows()):
             if pd.isna(r.get("H0")) or pd.isna(r.get("H1")):
@@ -88,12 +76,9 @@ def fig_a(per_seed: pd.DataFrame, out: Path):
 
 
 def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
-    """held_mass vs p_secure at P2, one panel per arm; the P1 null as a faint inset.
+    """held_mass vs p_secure at P2, one panel per arm, with the P1 null as an inset.
 
-    Each panel keeps its OWN y-scale: `held_mass` is a normalized positive-part share for
-    FB and a softmax probability for Density-FB, so a shared axis would imply a comparison
-    between quantities that are not the same thing. The comparable number is the AUC, which
-    is printed on each panel.
+    Panels have separate y-scales; the within-state AUC printed on each is the comparable number.
     """
     arms = _arms(t2)
     fig, axes = plt.subplots(1, len(arms), figsize=(2.5 * len(arms), 3.0))
@@ -113,8 +98,7 @@ def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
         ax.set_title(ARM_LABEL[arm], fontsize=9, color=INK, pad=8)
         ax.set_xlim(-0.05, 1.05)
 
-        # The scatter pools states; the quantity actually read is the WITHIN-STATE AUC, so
-        # state it on the panel rather than leaving the reader to infer it from a cloud.
+        # Within-state AUC
         if auc_by_arm and arm in auc_by_arm:
             ax.annotate(f"within-state AUC {auc_by_arm[arm]:.2f}", xy=(0.03, 0.04),
                         xycoords="axes fraction", fontsize=7.5, color=INK, va="bottom",
@@ -124,8 +108,7 @@ def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
 
         p1 = t2[(t2.critic == arm) & (t2.phase == "P1")]
         if len(p1):
-            # Top-right: the data cloud fills the lower band, so an inset there sat on top
-            # of it.
+            # Inset top-right
             ins = ax.inset_axes([0.60, 0.60, 0.36, 0.30])
             ins.scatter(p1["p_secure"], p1["held_mass"], s=3, color=c, alpha=0.14,
                         linewidths=0)
@@ -145,8 +128,7 @@ def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
 
 
 def fig_c(t2: pd.DataFrame, out: Path):
-    """FB's predicted row mass by phase. The truth is 1/(1-gamma) at EVERY phase, so any
-    slope here is the unconstrained-scale route (spec R-MEAS4)."""
+    """FB's predicted row mass by phase; the true value is 1/(1-gamma) at every state."""
     phases = ["P1", "P2", "P3"]
     arms = [a for a in _arms(t2) if a.startswith("fb")]
     if not arms:
@@ -154,8 +136,7 @@ def fig_c(t2: pd.DataFrame, out: Path):
     fig, ax = plt.subplots(figsize=(4.6, 3.0))
     fig.patch.set_facecolor(SURFACE)
     _style(ax)
-    # The true total discounted occupancy is 1/(1-gamma) at EVERY state, so the reference
-    # line is the quantity FB's row mass should equal, not merely be flat at.
+    # Reference line at 1/(1-gamma)
     truth = 1.0 / (1.0 - 0.99)
     ax.axhline(truth, color=INK2, lw=1, ls=(0, (4, 3)), zorder=2)
     ax.annotate(r"truth $1/(1-\gamma) = 100$", xy=(0.02, truth), xycoords=("axes fraction", "data"),

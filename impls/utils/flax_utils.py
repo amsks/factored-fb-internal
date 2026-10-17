@@ -1,8 +1,4 @@
-"""Flax train-state primitives for the factored impls/ tree.
-
-Ported from OGBench upstream impls/utils/flax_utils.py (pinned 1d41409), minus the
-unused `apply_loss_fn`, plus `soft_update` (Polyak averaging).
-"""
+"""Flax train state, target updates and checkpointing."""
 import functools
 import glob
 import os
@@ -91,8 +87,7 @@ class TrainState(flax.struct.PyTreeNode):
     def __call__(self, *args, params=None, method=None, **kwargs):
         """Forward pass.
 
-        When `params` is None the stored params are used and gradients are stopped; pass the
-        traced params to flow gradients.
+        Uses the stored params if `params` is None; pass params to get gradients.
         """
         if params is None:
             params = self.params
@@ -122,16 +117,12 @@ class TrainState(flax.struct.PyTreeNode):
 
 
 def soft_update(online_params, target_params, tau):
-    """Polyak: target <- tau*online + (1-tau)*target. """
+    """Polyak update: target <- tau * online + (1 - tau) * target."""
     return jax.tree_util.tree_map(lambda o, t: o * tau + t * (1 - tau), online_params, target_params)
 
 
 def save_agent(agent, save_dir, epoch):
-    """Save the agent to a pickle under save_dir/params_{epoch}.pkl.
-
-    Written atomically (tmp file + rename): checkpoints are also written on SIGUSR1/SIGTERM
-    right before a walltime kill, and --auto_resume picks the latest N, so a half-written
-    file must never exist under the final name."""
+    """Save the agent to save_dir/params_{epoch}.pkl (atomic write)."""
     save_dict = dict(agent=flax.serialization.to_state_dict(agent))
     save_path = os.path.join(save_dir, f'params_{epoch}.pkl')
     tmp_path = save_path + '.tmp'
@@ -149,10 +140,7 @@ def resolve_run_dir(path_glob):
 
 
 def _keep_fresh_opt_state(fresh_sd, loaded):
-    """Return `loaded` with every 'opt_state' subtree replaced by the fresh agent's.
-
-    Deliberately NOT a shape check: the point is to ignore the optimizer entirely, whatever
-    it looks like on either side."""
+    """Replace every 'opt_state' subtree in `loaded` with the fresh agent's."""
     if not isinstance(loaded, dict) or not isinstance(fresh_sd, dict):
         return loaded
     out = {}
@@ -169,11 +157,8 @@ def _keep_fresh_opt_state(fresh_sd, loaded):
 def restore_agent(agent, restore_path, restore_epoch, params_only=False):
     """Restore the agent from restore_path (glob) / params_{restore_epoch}.pkl.
 
-    params_only=True keeps the freshly-built optimizer state and restores everything else,
-    which is what evaluation wants: an eval never steps the optimizer, so it should not
-    depend on the optimizer chain matching the one the checkpoint was trained with.
-
-    Params stay strict under this flag: a shape or key mismatch in the weights raises."""
+    :param params_only: Keep the fresh optimizer state; restore everything else.
+    """
     restore_path = resolve_run_dir(restore_path) + f'/params_{restore_epoch}.pkl'
     with open(restore_path, 'rb') as f:
         load_dict = pickle.load(f)

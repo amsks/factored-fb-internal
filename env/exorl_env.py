@@ -1,38 +1,7 @@
-"""env/exorl_env.py — the ExoRL (dm_control) family behind the same backend surface as
-`env/metaworld_env.py` / `env/maniskill_env.py`.
+"""ExoRL (dm_control) envs and datasets.
 
-ExoRL tasks are reward-specified: `walker run`, `cheetah run_backward`,
-`point_mass_maze reach_top_left` are dense reward functions, not goals. The successor-measure
-critics handle them zero-shot via `Critic.infer_cond(net, obs, rewards)` -> a task vector z.
-
-THE STORED REWARD IS NOT THE TASK REWARD. ExoRL's episode buffers carry a `reward` array for
-the one task the data was collected under, not the task being asked about (on
-`point_mass_maze/rnd` it is four copies of the `reach_top_left` reward). Passing it through
-would be right on one task per domain and silently wrong on the others.
-
-ExoRL's own offline protocol never reads that column at all —
-`exorl/utils.py::relabel_episode` replays each stored `physics` state into the *target
-task's* env and calls `task.get_reward(physics)`. `relabel_rewards` below reproduces that
-exactly, which is also what makes numbers from this tree comparable with published ExoRL
-results.
-
-DATA LAYOUT. ExoRL ships `<root>/<domain>/<algo>/buffer/episode_<idx>_<T>.npz` with
-
-    observation [T+1, obs_dim]   -- observation[0] is the true reset obs
-    action      [T+1, act_dim]   -- action[0] is a DUMMY zero padding row
-    reward      [T+1, ...]       -- see above; not used
-    discount    [T+1, 1]
-    physics     [T+1, state_dim] -- mujoco qpos|qvel, the relabelling input
-
-so the T real transitions are `(observation[t], action[t+1], observation[t+1])` for
-t = 0..T-1 (the "dummy first transition" convention of `exorl/replay_buffer.py`). We emit
-`next_observations` explicitly rather than inferring them at sample time.
-
-MUJOCO OVERLAY. When the interpreter's `mujoco` is a version its `dm_control` cannot drive
-(`MjModel has no attribute 'B_colind'`), `_mujoco_overlay()` finds a site-packages directory
-whose mujoco dm_control can drive, imports under it, and drops the path again. It probes by
-compiling a model rather than comparing versions. Override with `FB_MUJOCO_SITE_PACKAGES`
-(colon-separated). Nothing is installed.
+Rewards are relabeled for the requested task from the stored physics states, as in ExoRL;
+the stored reward column is not used. Episode files hold T+1 rows with a dummy first action.
 """
 import glob
 import hashlib
@@ -41,56 +10,35 @@ import re
 import sys
 from pathlib import Path
 
-# Import position is load-bearing: numpy must resolve and cache from THIS interpreter's own
-# site-packages before _mujoco_overlay() ever prepends another one to sys.path, or a later
-# import could pull numpy from the overlay venv too. (Verified empirically: with numpy
-# imported first, only the mujoco extension comes from the overlay.)
+# Import numpy before any mujoco overlay is put on sys.path
 import numpy as np
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-# exorl_dmc_tasks lives under env/ now; the repo root is what must be importable.
 _TASKS_ROOT = str(_REPO_ROOT)
 
-# ExoRL exploration algorithm whose buffers are used by default.
+# Default ExoRL exploration buffer
 DEFAULT_ALGO = "rnd"
 
-# Where the raw ExoRL `<domain>/<algo>/buffer` trees live. Overridable so a box that keeps
-# them elsewhere needs no code edit.
 DATA_ROOT = os.environ.get("EXORL_DATA_ROOT", os.path.expanduser("~/exorl_data/exorl/datasets"))
-# Relabelled-reward cache (one .npy per domain x algo x task x episode-set).
+# Relabeled-reward cache
 CACHE_ROOT = os.environ.get("EXORL_CACHE_ROOT", os.path.expanduser("~/exorl_data/relabel_cache"))
 
-EPISODE_LEN = 1000  # every domain, action_repeat 1
+EPISODE_LEN = 1000
 
-# task slug -> (dm_control domain, default reward task, all scored reward tasks).
-# The task lists are ExoRL's own benchmark tasks for each domain (README table); the
-# default is the one a domain yaml gets if it names no `exorl_task`.
+# task slug -> (dm_control domain, default reward task, all reward tasks)
 TASKS = {
     "dmc-point-mass-maze": ("point_mass_maze", "reach_top_left",
                             ("reach_top_left", "reach_top_right",
                              "reach_bottom_left", "reach_bottom_right")),
-    # `spin` is TD-JEPA's fourth walker task; ExoRL's and RLDP's is `flip` (a different
-    # reward, see env/exorl_dmc_tasks/walker.py::spin). Both are registered.
     "dmc-walker":          ("walker", "walk", ("stand", "walk", "run", "flip", "spin")),
-    # cheetah: `run` is the dm_control suite task; the others are additions in
-    # env/exorl_dmc_tasks/cheetah.py. walk/walk_backward (speed threshold 2) come from
-    # Touati et al.'s controllable_agent fork, NOT the exorl repo — they are the tasks the
-    # paper's cheetah rows report alongside run/run_backward (its Table 2 has no cheetah flip).
     "dmc-cheetah":         ("cheetah", "run", ("run", "run_backward", "walk",
                                                "walk_backward", "flip", "flip_backward")),
-    # quadruped: `walk` and `run` are dm_control suite tasks; `stand` and `jump` exist only
-    # in ExoRL's custom_dmc_tasks, vendored in env/exorl_dmc_tasks (see PROVENANCE.md).
     "dmc-quadruped":       ("quadruped", "walk", ("stand", "walk", "run", "jump")),
 }
 
 
 def _overlay_candidates():
-    """site-packages directories that might hold a usable mujoco, in probe order.
-
-    `FB_MUJOCO_SITE_PACKAGES` (colon-separated, like PATH) wins outright. Otherwise we look
-    for a `.venv*` beside the repo AND beside each of its ancestors -- a git worktree lives
-    at `<checkout>/.claude/worktrees/<id>` and has no `.venv` of its own, so searching only
-    `_REPO_ROOT` would fail on exactly the trees this gets developed in."""
+    """site-packages directories that may hold a usable mujoco, in probe order."""
     env = os.environ.get("FB_MUJOCO_SITE_PACKAGES")
     if env:
         return [p for p in env.split(os.pathsep) if p]
@@ -102,7 +50,7 @@ def _overlay_candidates():
 
 
 def domain_of(task):
-    """-> the dm_control domain name for a `dmc-*` task slug."""
+    """Return the dm_control domain for a `dmc-*` task slug."""
     if task not in TASKS:
         raise ValueError(f"unknown ExoRL task {task!r} (known: {sorted(TASKS)})")
     return TASKS[task][0]
@@ -117,9 +65,7 @@ def default_reward_task(task):
 
 
 def resolve_reward_task(task, reward_task=None):
-    """Validate + default the reward task for a domain slug. A typo must fail loudly: a
-    silently-defaulted reward task would relabel the whole dataset for the WRONG task and
-    every downstream number would be a number for a task nobody asked about."""
+    """Validate the reward task, or return the domain's default."""
     known = reward_tasks(task)
     if reward_task is None:
         return default_reward_task(task)
@@ -135,15 +81,7 @@ def _purge(*prefixes):
 
 
 def _dm_control_works():
-    """Can dm_control build ANY model against the currently-resolved mujoco?
-
-    A version floor is not the right test and quietly picks the wrong venv. dm_control's
-    `index.struct_indexer` walks a hardcoded list of `MjModel` field names, so it breaks
-    against a mujoco that is too OLD (`'MjModel' object has no attribute 'B_colind'`,
-    mujoco 3.3.0) AND against one that is too NEW (`... has no attribute
-    'flex_bandwidth'`, mujoco 3.10.0) -- both of which are installed in venvs next to this
-    repo. The only criterion that is actually true-or-false is "does a Physics compile",
-    so that is what we test, on the smallest possible model."""
+    """Whether dm_control can compile a model with the current mujoco."""
     try:
         from dm_control import mujoco as dm_mujoco
         dm_mujoco.Physics.from_xml_string("<mujoco/>")
@@ -153,18 +91,10 @@ def _dm_control_works():
 
 
 def _mujoco_overlay():
-    """Make `import mujoco` resolve to a build dm_control can actually use, via a temporary
-    sys.path overlay.
+    """Import a mujoco that dm_control can use, from another site-packages if needed.
 
-    Why an overlay at all: `/dev/shm/.venv-jax` (the interpreter this repo's JAX code runs
-    under) has a mujoco that its own dm_control cannot drive. Upgrading it venv-wide was
-    rejected -- it is a shared venv with live training on it. So we prepend a site-packages
-    directory that has a workable mujoco, import under it, and drop the path again. numpy
-    is imported at the top of this module, before any overlay, so it (and everything else)
-    keeps resolving to the running venv; only the mujoco C-extension comes from elsewhere.
-    Nothing is installed and nothing on disk changes.
-
-    Idempotent, and a no-op when the running venv is already fine."""
+    Set FB_MUJOCO_SITE_PACKAGES to choose the directories. No-op if the current one works.
+    """
     if _dm_control_works():
         return
     tried = []
@@ -185,7 +115,7 @@ def _mujoco_overlay():
         if ok:
             return
         tried.append(f"{sp} (mujoco {ver})")
-    _purge("mujoco", "dm_control")                                 # leave no half-overlay
+    _purge("mujoco", "dm_control")
     raise RuntimeError(
         "no usable mujoco/dm_control pairing found: the running interpreter's own mujoco "
         "cannot compile a dm_control model, and no overlay site-packages could "
@@ -195,11 +125,7 @@ def _mujoco_overlay():
 
 
 def _load_dmc(domain, reward_task, seed=0):
-    """Build the raw dm_control `control.Environment` for (domain, reward_task).
-
-    Resolution order is ExoRL's own (`exorl/dmc.py`): the dm_control suite first, its
-    vendored custom tasks second. Getting this backwards would silently pick a different
-    reward function for `walker walk` than the benchmark uses."""
+    """Build the dm_control env, preferring suite tasks over ExoRL custom tasks."""
     os.environ.setdefault("MUJOCO_GL", "egl")
     _mujoco_overlay()
     if _TASKS_ROOT not in sys.path:
@@ -212,28 +138,16 @@ def _load_dmc(domain, reward_task, seed=0):
 
 
 def _flat_obs(observation):
-    """Flatten a dm_control observation the way ExoRL's collector did.
-
-    ExoRL builds its envs with `flat_observation=True`, which concatenates the task's
-    OrderedDict in emission order; doing the same concatenation here is what makes the eval
-    observation the SAME vector as the stored `observation` arrays (verified per domain:
-    point_mass_maze 4, walker 24, cheetah 17). Order therefore comes from the task, not from
-    a list here -- the three domains do not share one (walker emits orientations, height,
-    velocity; the other two emit position, velocity)."""
+    """Concatenate observation entries in emission order, as ExoRL stores them."""
     return np.concatenate([np.asarray(v, np.float64).ravel()
                            for v in observation.values()]).astype(np.float32)
 
 
 class ExoRLWrapper:
-    """Gym-like single-env numpy adapter over a dm_control `control.Environment`, matching
-    the surface `env/unified.py::evaluate` consumes: `reset(seed=)` -> (obs, info) and
-    `step(a)` -> (obs, reward, terminated, truncated, info).
+    """Gym-style wrapper over a dm_control env.
 
-    `info["reward"]` carries the task reward and `info["success"]` is present only where
-    the domain HAS a binary success rule (point_mass_maze: within `GOAL_EPS` of the target
-    at any point). For walker/cheetah there is no such rule — the benchmark metric is
-    episode return — so no `success` key is emitted rather than a fabricated 0.0 that
-    would read as "the policy failed" in eval.csv."""
+    info["success"] is reported only for point_mass_maze (target reached at any step).
+    """
 
     def __init__(self, env, domain, reward_task, seed=0):
         self.env = env
@@ -248,10 +162,7 @@ class ExoRLWrapper:
             from env.exorl_dmc_tasks import point_mass_maze as _pmm
             self._target = np.asarray(
                 dict(_pmm.TASKS)[reward_task][:2], np.float64)
-            # MazeMultiGoal's `target_size` in the published zero-shot-RL maze protocol
-            # (controllable_agent @ 5a9950b, url_benchmark/goals.py). Binary success is a
-            # DERIVED metric reusing that full-credit radius; the benchmark itself scores
-            # the dense reward, which is what `episode_return` reports.
+            # Maze target size
             self._eps = 0.03
 
     def _check(self, obs):
@@ -266,17 +177,10 @@ class ExoRLWrapper:
         return info
 
     def reset(self, seed=None, **_kw):
-        """A given seed => a fixed initial state, WITHOUT recompiling the model.
+        """Reset to the initial state fixed by `seed`.
 
-        Two RNGs have to be pinned, not one: dm_control tasks draw from `task.random` (the
-        RandomState handed to the constructor), but `point_mass_maze`'s own
-        `initialize_episode` reaches for the GLOBAL `np.random.uniform` for the start qpos
-        (upstream quirk, env/exorl_dmc_tasks/point_mass_maze.py). Seeding only the
-        first would leave that domain's initial state uncontrolled, i.e. two checkpoints
-        scored on different start states. The global state is restored afterwards for the
-        same reason env/unified.py::_global_np_seed restores it: the dataset classes draw
-        every batch index from that same global RNG, and leaving it pinned would make the
-        post-eval batch stream a pure function of the last episode index."""
+        Seeds both the task RNG and the global np.random, then restores the global state.
+        """
         if seed is not None:
             self._seed = int(seed)
         state = np.random.get_state()
@@ -299,7 +203,7 @@ class ExoRLWrapper:
         obs = _flat_obs(ts.observation)
         self._check(obs)
         reward = float(np.asarray(ts.reward if ts.reward is not None else 0.0).mean())
-        # dm_control episodes end only by time limit; `evaluate` runs the fixed horizon.
+        # Episodes end only at the time limit
         return obs, reward, False, bool(ts.last()), self._info({"reward": reward})
 
     def render(self, *_a, **_k):
@@ -316,24 +220,16 @@ class ExoRLWrapper:
 
 
 def make_exorl_env(task, reward_task=None, seed=0):
-    """-> (env, horizon) for a `dmc-*` task slug. `reward_task` names WHICH reward function
-    the env scores; it must match the one the dataset was relabelled with, or training and
-    eval are on two different tasks."""
+    """Return (env, horizon) for a `dmc-*` task slug scored by `reward_task`."""
     domain = domain_of(task)
     rt = resolve_reward_task(task, reward_task)
     return ExoRLWrapper(_load_dmc(domain, rt, seed=seed), domain, rt, seed=seed), EPISODE_LEN
 
 
-# --------------------------------------------------------------------------------------
 # Dataset
-# --------------------------------------------------------------------------------------
 
 def _ep_index(p):
-    """Sort key: the EPISODE index out of `episode_<idx>_<length>.npz`, not the length.
-
-    Sorting on the wrong number (or lexicographically, once indices pass 6 digits) would
-    reorder episodes, which silently changes both the train/val split boundary and which
-    prefix `max_episodes` selects."""
+    """Episode index from `episode_<idx>_<length>.npz`."""
     nums = re.findall(r"\d+", Path(p).stem)
     if not nums:
         raise ValueError(f"cannot read an episode index out of {p!r}")
@@ -348,16 +244,10 @@ def episode_files(buffer_dir, max_episodes=None):
 
 
 def read_episode(path):
-    """-> (observations, actions, next_observations, physics) for one ExoRL episode file.
+    """Read one episode file.
 
-    The first three are the T REAL transitions under the dummy-first-transition convention:
-    `observation[t]`, `action[t+1]`, `observation[t+1]` for t = 0..T-1. `physics` is
-    returned UNSLICED, all T+1 stored states, because it is the relabeller's input and the
-    caller chooses the alignment: `relabel_rewards(physics)[1:]` is the reward at s_{t+1}
-    (what `load_exorl` emits) and `[:-1]` is the reward at s_t. The `[1:]` choice matters --
-    the successor-measure family's index is solved against the NEXT-state marginal (see the
-    "WHICH ROWS" paragraph in `impls/critics/density_fb.py::infer_cond`), so the reward has
-    to be the reward of the state the measure is over.
+    :return: (observations, actions, next_observations) for the T transitions, and all
+        T+1 physics states.
     """
     with np.load(path) as f:
         obs = np.asarray(f["observation"])
@@ -379,17 +269,7 @@ def _ep_index_len(path):
 
 
 def relabel_rewards(physics, domain, reward_task, env=None):
-    """ExoRL's `relabel_episode`, for ONE episode's stored physics states.
-
-    `physics` is the raw `[T+1, state_dim]` array. Returns `[T+1]` float32 rewards, one per
-    stored state; the caller slices `[1:]` to align with `next_observations` (reward at
-    s_{t+1}) or `[:-1]` to align with `observations`.
-
-    Faithfulness note: upstream sets ONLY the physics state, so `physics.control()` is
-    whatever `reset_context` leaves it (zeros). For `point_mass_maze` that makes the
-    `small_control` factor exactly 1.0, i.e. the relabelled reward is the pure
-    `near_target` term. We reproduce upstream rather than "fixing" it: a different control
-    term would make our numbers incomparable with every published ExoRL result."""
+    """Task reward of each stored physics state, [T+1]; control is left at zero as in ExoRL."""
     if env is None:
         env = _load_dmc(domain, reward_task)
     physics = np.asarray(physics)
@@ -410,19 +290,11 @@ def _cache_key(files, domain, reward_task, algo):
 
 def load_exorl(buffer_dir, task, reward_task=None, algo=DEFAULT_ALGO, max_episodes=None,
                cache_dir=None, use_cache=True):
-    """Flatten an ExoRL `<domain>/<algo>/buffer` tree into the flat dataset dict
-    `env/unified.py` builds an `FBDataset` from.
+    """Flatten an ExoRL buffer into a dataset dict with relabeled rewards.
 
-    Returns keys `observations, actions, next_observations, rewards, terminals` with
-    `rewards` the RELABELLED task reward at the NEXT state (see `read_episode`), and
-    `terminals` marking each episode's LAST row -- the trajectory split every dataset class
-    in `impls/utils/datasets.py` reads, not an absorbing-state flag (dm_control episodes end
-    on the time limit and never terminate).
-
-    Relabelling is one mujoco `set_state` + `get_reward` per stored state, so it is cached
-    to `<cache_dir>/<domain>_<algo>_<reward_task>_<hash>.npy`. The hash covers the episode
-    COUNT and the first/last filenames, so pointing `max_episodes` at a different prefix
-    gets its own cache entry rather than silently reusing another one's rewards."""
+    `rewards` is the task reward at the next state; `terminals` marks each episode's last
+    row. Relabeled rewards are cached under `cache_dir`.
+    """
     domain = domain_of(task)
     rt = resolve_reward_task(task, reward_task)
     files = episode_files(buffer_dir, max_episodes)
@@ -455,9 +327,9 @@ def load_exorl(buffer_dir, task, reward_task=None, algo=DEFAULT_ALGO, max_episod
                     f"right on one task per domain and silently wrong on the rest.")
             if env is None:
                 env = _load_dmc(domain, rt)
-            r = relabel_rewards(phys, domain, rt, env=env)[1:]      # reward at s_{t+1}
+            r = relabel_rewards(phys, domain, rt, env=env)[1:]      # reward at the next state
         t = np.zeros(T, np.float32)
-        t[-1] = 1.0                                                # trajectory boundary
+        t[-1] = 1.0
         obs.append(o)
         act.append(np.clip(a, -1.0, 1.0))
         nobs.append(no)
@@ -475,9 +347,7 @@ def load_exorl(buffer_dir, task, reward_task=None, algo=DEFAULT_ALGO, max_episod
 
 
 def load_domain_data(cfg):
-    """Offline ExoRL data for a domain config. `data_dir` may point at either the
-    `<domain>/<algo>/buffer` directory or its parent; `exorl_task` selects the reward
-    function, `exorl_max_episodes` bounds the relabelling cost."""
+    """Load offline ExoRL data for a domain config."""
     task = cfg["task"]
     algo = str(cfg.get("exorl_algo") or DEFAULT_ALGO)
     d = cfg.get("data_dir") or os.path.join(DATA_ROOT, domain_of(task), algo)

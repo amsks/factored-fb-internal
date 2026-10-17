@@ -1,40 +1,25 @@
-"""Calibrate a `goal_spec` radius.
+"""Calibrate the goal kernel radius eps for an observation block.
 
-Two modes.
+Default: eps so the hit rate of random state pairs matches cube-single's (0.0133).
+With --target_support: eps so the softmax goal kernel over 1024 candidate next states has a
+given effective support exp(entropy).
 
-HIT-RATE mode (default, the original procedure recorded in env/domains/dmc-walker.yaml): pick
-eps so the fraction of RANDOM observation pairs inside the block's L2 ball matches cube-single's
-own hit rate under its published spec (19:22:0.4 -> 0.0133).
-
-SUPPORT mode (`--target_support`, 2026-09-17): pick eps so the actor's TRAINING-TASK REWARD has a
-given concentration. That reward is the Gaussian bump around a sampled goal, softmax-normalised
-over the batch's 1024 candidate next-states (`_delta_phi` in impls/critics/density_fb.py). Its
-effective support is exp(entropy), in candidates. The 2026-09-17 ExoRL audit found the hit-rate
-radius gives a support of 277/1024 on walker and 879/1024 on quadruped (vs ~60 on cube-single):
-in 17-78 dimensions the pairwise-distance distribution is so concentrated that its 1.3% quantile
-is only 1.5-3x below the median, so the bump is nearly flat and the encoded rows carry no task
-signal. Matching the SUPPORT instead matches what the actor actually sees.
-
-    PY=python
-    # cube-single's own support under its published spec (the target):
-    $PY scripts/calibrate_hit_spec.py --ogbench_npz ~/.ogbench/data/cube-single-play-v0.npz \
+    python scripts/calibrate_hit_spec.py --ogbench_npz ~/.ogbench/data/cube-single-play-v0.npz \
         --block 19:22 --report_eps 0.4
-    # an ExoRL domain at that target:
-    $PY scripts/calibrate_hit_spec.py --data_dir ~/exorl_data/exorl/datasets/walker/rnd \
+    python scripts/calibrate_hit_spec.py --data_dir ~/exorl_data/exorl/datasets/walker/rnd \
         --block 0:24 --target_support 60
 """
 import argparse, glob, os
 import numpy as np
 
-TARGET = 0.0133   # cube-single 19:22:0.4, the reference hit rate
+TARGET = 0.0133   # cube-single hit rate at radius 0.4
 
 
 def effective_support(block, eps, n_cand=1024, n_goals=64, seed=0):
-    """Mean over `n_goals` random goals of exp(entropy) of the softmax bump
-    softmax_j(-0.5 ||u_j - g||^2 / eps^2) over `n_cand` random candidates from `block`."""
+    """Mean exp(entropy) of softmax_j(-0.5 ||u_j - g||^2 / eps^2) over random goals g."""
     rng = np.random.default_rng(seed)
     block = np.asarray(block, np.float64)
-    u = block[rng.choice(len(block), n_cand, replace=False)]   # a batch of DISTINCT next-states
+    u = block[rng.choice(len(block), n_cand, replace=False)]   # distinct candidates
     g = block[rng.integers(0, len(block), n_goals)]
     d2 = ((g[:, None, :] - u[None, :, :]) ** 2).sum(-1)          # [G, M]
     logits = -0.5 * d2 / (float(eps) ** 2)
@@ -46,7 +31,7 @@ def effective_support(block, eps, n_cand=1024, n_goals=64, seed=0):
 
 
 def calibrate_support(block, target, n_cand=1024, n_goals=64, seed=0, iters=60):
-    """Bisect eps (log-scale) so effective_support == target. Support is monotone in eps."""
+    """Bisect log eps so effective_support matches target."""
     block = np.asarray(block, np.float64)
     rng = np.random.default_rng(seed)
     i, j = rng.integers(0, len(block), 20000), rng.integers(0, len(block), 20000)

@@ -1,8 +1,4 @@
-"""DensityFBCritic on the goal-conditioned arm: the cross-entropy loss and its TD target
-against a direct reconstruction, the eps-scaling convention (the hit kernel takes raw
-columns, the B tower eps-scaled ones), which towers the loss and the actor's Q read, the
-bootstrap action at the value goal, and a real update through the agent.
-"""
+"""Goal-conditioned DensityFBCritic: loss, TD target, eps-scaling, target towers, and bootstrap actions."""
 import jax
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
@@ -48,19 +44,13 @@ def _batch(seed=1, b=B):
 
 
 def _boot(b=B, seed=2):
-    """Two DISTINCT bootstrap actions, as FlowBCActor.sample_bootstrap now emits them:
-    `next_action` at the ACTOR goal (the policy-improvement draw) and `next_action_vgoal`
-    at the VALUE goal (the only valid bootstrap for a target taken at value_goals — the
-    bridge's `a_plus = actor(nobs, batch['value_goals'], noise)`). They differ so a test
-    that reads the wrong one fails."""
+    """Two distinct bootstrap actions, at the actor goal and at the value goal."""
     rng = np.random.default_rng(seed)
     return {"next_action": jnp.asarray(np.tanh(rng.standard_normal((b, ACT)))),
             "next_action_vgoal": jnp.asarray(np.tanh(rng.standard_normal((b, ACT))))}
 
 
-# --------------------------------------------------------------------------
-# 1. eps-scaling contract: kernel gets RAW cols, B tower gets pre-scaled queries
-# --------------------------------------------------------------------------
+# Kernel takes raw columns, B takes eps-scaled queries
 def test_query_scaling_matches_delta_phi_internal_convention():
     blocks = parse_hit_spec("19:22:0.4,28:31:0.8")
     rng = np.random.default_rng(3)
@@ -84,14 +74,12 @@ def test_query_scaling_matches_delta_phi_internal_convention():
     k = np.asarray(_delta_phi(nobs_j, u_raw, blocks))
     assert k.shape == (9, 9)
     assert np.allclose(k.sum(-1), 1.0, atol=1e-5)
-    # free self-coverage: row i's nearest query is query i itself.
+    # Row i's nearest query is query i.
     assert (np.argmax(k, axis=-1) == np.arange(9)).all()
 
 
 def test_softmax_is_over_the_query_axis():
-    """The wrong axis (batch, not query) also runs and also looks plausible — pin the
-    convention directly: rows of `w` (and of the kernel `k`) must sum to 1 over the LAST
-    (query) axis, not the batch axis."""
+    """The softmax rows of w and k sum to 1 over the query axis."""
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
     b = _batch()
@@ -107,9 +95,6 @@ def test_softmax_is_over_the_query_axis():
         "test cannot discriminate the axis convention on this batch"
 
 
-# --------------------------------------------------------------------------
-# 2. target towers: init mirror + soft update, BOTH towers (via a real Agent.update)
-# --------------------------------------------------------------------------
 def test_target_towers_init_mirror_and_soft_update():
     from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
@@ -135,8 +120,7 @@ def test_target_towers_init_mirror_and_soft_update():
 
         b2 = _batch(seed=1, b=16)
         a2, info2 = a1.update(b2)
-        # Agent.apply_update EMAs with the POST-gradient-step params of the same update
-        # (impls/agents/__init__.py: soft_update(net[g].params, ...) after apply_gradients).
+        # The EMA uses the post-step params of the same update.
         onl2 = jax.tree_util.tree_leaves(a2.net[tower].params)
         tgt1 = jax.tree_util.tree_leaves(a1.target[tower])
         tgt2 = jax.tree_util.tree_leaves(a2.target[tower])
@@ -145,19 +129,8 @@ def test_target_towers_init_mirror_and_soft_update():
             np.testing.assert_allclose(np.asarray(new), expected, atol=1e-6)
 
 
-# --------------------------------------------------------------------------
-# 3. grad hygiene
-# --------------------------------------------------------------------------
 def test_stage_loss_reads_the_TARGET_towers_and_not_the_online_ones():
-    """The bootstrap w_bar must come from the POLYAK targets. Swapping
-    `target["density_f"]/["density_b"]` for `params[...]` in stage_loss survives this whole
-    file, test_density_fb_reward_index.py and the 60-pair byte-identity gate (verified by
-    mutation), because `build()` initialises each target as an exact COPY of its tower and
-    no test evaluates the loss at a target that has drifted away from it.
-
-    test_target_towers_init_mirror_and_soft_update pins the polyak RECURSION; this pins that
-    the loss actually READS its output. Perturb the targets away from the online towers and
-    require the loss to respond."""
+    """The TD target reads the target towers, not the online ones."""
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
     b, boot = _batch(), _boot()
@@ -170,8 +143,7 @@ def test_stage_loss_reads_the_TARGET_towers_and_not_the_online_ones():
         "the density loss is INVARIANT to its target towers -- it is bootstrapping off the "
         "online towers")
 
-    # control: it also depends on the online towers, so the check above is about WHICH
-    # tower the target slot reaches, not about a dead loss
+    # The loss also depends on the online towers.
     p_drift = jax.tree_util.tree_map(lambda x: x + 0.25, params)
     assert not np.isclose(base, float(c.stage_loss("density", p_drift, targets, b, cond,
                                                    boot)[0]), rtol=1e-9, atol=1e-9)
@@ -194,8 +166,7 @@ def test_stage_loss_grad_touches_only_the_two_towers():
 
 
 def test_actor_q_term_reads_frozen_towers():
-    """q_fn must not backprop into density_f/density_b: the actor's -Q.mean() term reads
-    the towers at stop-gradient params."""
+    """q_fn passes no gradient into density_f or density_b."""
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
     b = _batch()
@@ -214,9 +185,6 @@ def test_actor_q_term_reads_frozen_towers():
             np.testing.assert_array_equal(np.asarray(leaf), np.zeros_like(leaf))
 
 
-# --------------------------------------------------------------------------
-# 4. registry / combo
-# --------------------------------------------------------------------------
 def test_registered():
     assert CRITICS["density_fb"] is DensityFBCritic
 
@@ -237,8 +205,7 @@ def test_combo_builds_and_updates(actor):
 
 
 def test_q_fn_returns_q_and_its_batch_centered_copy():
-    """The actor maximises the first return and divides by mean |second|. Centering the
-    first would make -Q.mean() identically zero and leave a pure behaviour-cloning actor."""
+    """q_fn returns Q and its batch-centered copy."""
     ex_obs, ex_act = _ex()
     c, params, _ = DensityFBCritic.build(ex_obs, ex_act, _cfg())
     b = _batch()
@@ -252,12 +219,8 @@ def test_q_fn_returns_q_and_its_batch_centered_copy():
     assert not np.allclose(float(q.mean()), 0.0, atol=1e-6)
 
 
-# --------------------------------------------------------------------------
-# 5. the TD target: one-hot at the row's own next state + gamma * target distribution
-# --------------------------------------------------------------------------
 def test_ce_and_ess_match_a_direct_reconstruction():
-    """The immediate term is one-hot at the row's own next state (candidate j = b, valid
-    because the candidates are this batch's next states)."""
+    """Cross-entropy and ESS match a direct reconstruction with a one-hot immediate term."""
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
     b = _batch(seed=11, b=6)
@@ -273,7 +236,7 @@ def test_ce_and_ess_match_a_direct_reconstruction():
     f_emb = c.density_f.apply({"params": params["density_f"]}, jnp.concatenate([obs, acts, g], -1))
     logits = jnp.einsum('hbd,md->hbm', f_emb, b_emb) / c.temp
     logp = np.asarray(jax.nn.log_softmax(logits, -1))
-    a_plus = boot["next_action_vgoal"]   # the VALUE-goal bootstrap (bridge density_loss)
+    a_plus = boot["next_action_vgoal"]   # value-goal bootstrap
     tb = c.density_b.apply({"params": targets["density_b"]}, u_sc)
     tf = c.density_f.apply({"params": targets["density_f"]}, jnp.concatenate([nobs, a_plus, g], -1))
     w_bar = np.asarray(jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / c.temp, -1))
@@ -299,18 +262,18 @@ def test_stage_loss_bootstraps_at_the_value_goal_action():
     cond = {"value_goal": b["value_goals"], "goal": b["actor_goals"]}
     boot = _boot()
     l0, _ = c.stage_loss("density", params, targets, b, cond, boot)
-    # perturbing the ACTOR-goal bootstrap must NOT move the loss ...
+    # The actor-goal bootstrap does not affect the loss
     boot_a = {**boot, "next_action": jnp.zeros_like(boot["next_action"])}
     l1, _ = c.stage_loss("density", params, targets, b, cond, boot_a)
     np.testing.assert_allclose(float(l1), float(l0), atol=0)
-    # ... perturbing the VALUE-goal bootstrap MUST.
+    # The value-goal bootstrap does
     boot_v = {**boot, "next_action_vgoal": jnp.zeros_like(boot["next_action_vgoal"])}
     l2, _ = c.stage_loss("density", params, targets, b, cond, boot_v)
     assert not np.allclose(float(l2), float(l0), atol=1e-9)
 
 
 def test_stage_loss_refuses_a_boot_without_the_value_goal_action():
-    """No silent fallback to boot['next_action'] — that fallback is the bug."""
+    """stage_loss raises when the value-goal bootstrap action is missing."""
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg())
     b = _batch()
@@ -321,10 +284,7 @@ def test_stage_loss_refuses_a_boot_without_the_value_goal_action():
 
 
 def test_flowbc_bootstrap_draws_the_value_goal_action():
-    """FlowBCActor emits BOTH bootstraps off the SAME noise draw: `next_action` at
-    _cvec(cond) (the actor goal, what the policy-improvement term uses) and
-    `next_action_vgoal` at cond['value_goal']. Same noise => every critic that reads
-    `next_action` is bit-identical to before the fix."""
+    """FlowBCActor draws both bootstrap actions from the same noise."""
     from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
     cfg = load_config("density_fb", "flowbc", "cube_single")
@@ -348,8 +308,7 @@ def test_flowbc_bootstrap_draws_the_value_goal_action():
 
 
 def test_flowbc_drift_instrumentation_does_not_change_the_update():
-    """A4 logs Q(s,a_data)-Q(s,a_actor) and ||a_actor-a_data|| in flowbc.loss info. It is
-    reporting only: the resulting parameters must be bit-identical with it stubbed out."""
+    """FlowBC drift logging does not change the update."""
     from impls.actors.flowbc import FlowBCActor
     ex_obs, ex_act = _ex()
     from impls.utils.config_utils import load_config
@@ -364,10 +323,7 @@ def test_flowbc_drift_instrumentation_does_not_change_the_update():
         FlowBCActor._policy_drift = staticmethod(lambda *a, **k: {})
         a_stub, _ = Agent.create("density_fb", "flowbc", 0, ex_obs, ex_act, cfg).update(b)
     finally:
-        # staticmethod(...) is REQUIRED: `orig` is the underlying function, and assigning
-        # it back plainly rebinds it as an INSTANCE method, so every subsequent
-        # FlowBCActor.loss in the same process dies with "takes 7 positional arguments but
-        # 8 were given".
+        # Restore as a staticmethod, or loss becomes an instance method.
         FlowBCActor._policy_drift = staticmethod(orig)
 
     for g in a_real.net:
@@ -377,8 +333,7 @@ def test_flowbc_drift_instrumentation_does_not_change_the_update():
 
 
 def test_removed_config_keys_are_ignored():
-    """Run configs written before the cleanup carry keys for settings that no longer exist.
-    build must ignore them, not raise, and not change behaviour."""
+    """Density-FB ignores config keys removed in the cleanup."""
     ex_obs, ex_act = _ex()
     old = dict(measure_density_hard=False, measure_density_loss="sq",
                measure_density_bootstrap="sarsa", measure_density_actor_temp=5.0,

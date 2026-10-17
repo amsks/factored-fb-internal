@@ -1,24 +1,7 @@
-"""Fig: before the grasp, where does the critic think the gripper goes?
+"""Reach-map figure: each critic's predicted future gripper position relative to the cube, at pre-grasp states.
 
-The outcome map (fig_outcome_map.py) has a hole a referee will find: at a HELD state,
-Density-FB's predicted mass lands on the goal -- but its prediction is CONDITIONED on that
-goal, so a degenerate critic that always answered "the cube ends up exactly where you asked"
-would draw the same picture. Concentration is demonstrated there; correctness is not.
-
-This figure closes that hole without needing rollouts. At a PRE-GRASP state (P1: cube on the
-table, untouched, arm away) the necessary next event is not the goal -- it is the gripper
-reaching the CUBE. That is a prediction with a known right answer which the critic cannot
-produce by echoing its conditioning, because the cube is not where the goal is.
-
-Frame. Everything is plotted in gripper-MINUS-cube coordinates, so the cube sits at the
-origin of every panel and the 32 pre-grasp states share one frame. That is what makes it
-honest to average over all of them rather than choosing three columns: no state is picked.
-"Sharp at the origin" = "predicts the gripper arrives at the cube".
-
-The null panel is not decoration. The pool is play data, so a large share of its rows
-already have the gripper near the cube; uniform weights over the pool therefore ALREADY
-concentrate somewhat at the origin. Any method must be read against that prior, not against
-a flat map, or the prior gets credited to the method.
+Maps are averaged over the P1 bank in gripper-minus-cube coordinates and shown next to the
+uniform-pool prior.
 """
 import argparse
 from pathlib import Path
@@ -37,15 +20,13 @@ ANALYSIS = Path("analysis/cube_bottleneck")
 CUBE_OBS = slice(19, 22)
 EFF_OBS = slice(12, 15)
 ORDER = ["fb_ref", "density_fb_state"]
-NEAR_CM = 5.0          # "the gripper is at the cube" radius used for the headline number
+NEAR_CM = 5.0          # radius for "gripper at the cube"
 
 
 def batched_mass(arm, obs_row, act_row, goals, pool_obs):
-    """[G, M] predicted pool mass for one state under G goal rows, in ONE call.
+    """Return [G, M] predicted pool mass for one state under G goals, and FB's negative fraction.
 
-    Both readouts are batched over rows, so the goal draws go through together rather than
-    one forward pass each. FB's signed measure is clipped and renormalised per row -- the
-    same treatment fig_outcome_map documents, and the clipped fraction is returned.
+    FB's signed measure is clipped at zero and renormalised per row.
     """
     import jax.numpy as jnp
 
@@ -56,8 +37,7 @@ def batched_mass(arm, obs_row, act_row, goals, pool_obs):
     obs = np.repeat(np.asarray(obs_row, np.float32)[None], G, axis=0)
     acts = np.repeat(np.asarray(act_row, np.float32)[None], G, axis=0)
     if arm.critic.startswith("density_fb"):
-        # density_readout takes ONE goal and broadcasts it, so the goal draws are looped;
-        # the pool tower work is the same either way.
+        # density_readout takes one goal at a time
         m = np.stack([density_readout(c, net, obs[:1], acts[:1], g, pool_obs)[0][0]
                       for g in goals])
         neg = 0.0
@@ -91,7 +71,7 @@ def main() -> int:
     act_b = banks[f"{args.phase}_action"]
     pool_obs = dict(np.load(root / "pool.npz"))["obs"]
 
-    # THE frame: each pool row's gripper position relative to ITS OWN cube.
+    # Gripper position relative to the cube, per pool row
     off = (pool_obs[:, EFF_OBS][:, :2] - pool_obs[:, CUBE_OBS][:, :2]) * CM     # [M, 2] cm
     lim = float(np.percentile(np.abs(off), 98))
     xe = np.linspace(-lim, lim, args.bins + 1)
@@ -103,7 +83,7 @@ def main() -> int:
         g, _, _ = np.histogram2d(off[:, 0], off[:, 1], bins=[xe, ye], weights=w)
         return g
 
-    # Null panel: uniform over the pool -- the concentration the DATA already has.
+    # Prior panel: uniform weight over the pool
     prior = np.full(len(pool_obs), 1.0 / len(pool_obs))
     panels = {"prior": to_grid(prior)}
     summary = {"prior": (float(prior[near].sum()),

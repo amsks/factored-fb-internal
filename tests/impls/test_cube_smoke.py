@@ -8,5 +8,5 @@ def test_cube_single_dataset_batch():
     assert batch["observations"].shape[0] == 16
     assert batch["actions"].shape[0] == 16
     assert batch["next_observations"].shape == batch["observations"].shape
-    # always-gamma: terminals forced to 0
+    # terminals are forced to 0
     assert float(jnp.asarray(batch["terminals"]).sum()) == 0.0

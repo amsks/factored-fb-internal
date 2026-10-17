@@ -1,5 +1,4 @@
-"""Aggregator of the gap-preservation figure (no simulator, no checkpoints): per-state gaps,
-the per-checkpoint calibration slope, the ratio, quantile binning and the standard error."""
+"""Gap-preservation aggregator: per-state gaps, calibration slope, ratio, binning and standard error."""
 import numpy as np
 import pandas as pd
 import pytest
@@ -8,9 +7,7 @@ from scripts.probes.cube_bottleneck import gap_preservation as GP
 
 
 def _long(n_states=20, n_cand=6, scale=3.0, seed=0, critic="fb_tdj", flip_state=None, tie_state=None):
-    """Synthetic probe rows: q = scale * r + per-state offset (a critic that keeps every gap
-    exactly, up to one global affine map). `flip_state` gets its q reversed; `tie_state`
-    gets constant returns."""
+    """Synthetic probe rows with q = scale * r + per-state offset, plus one flipped and one tied state."""
     rng = np.random.default_rng(seed)
     rows = []
     for i in range(n_states):

@@ -1,9 +1,6 @@
-"""Simulator-backed restore tests: they pin the facts the probe's validity rests on.
+"""Simulator-backed checks of cube state restore and the gripper command convention.
 
-These are the regression form of the two determinations the spec demanded be made
-empirically rather than guessed (spec section 2.2): which gripper command actually closes,
-and whether a restored state is the state that was recorded. They need MuJoCo and the
-OGBench play dataset, and skip cleanly without them.
+Needs MuJoCo and the OGBench play dataset; skips without them.
 """
 import os
 
@@ -29,22 +26,14 @@ def held_rows():
     obs = np.asarray(d["observations"][:SCAN_ROWS])
     qpos = np.asarray(d["qpos"][:SCAN_ROWS])
     qvel = np.asarray(d["qvel"][:SCAN_ROWS])
-    # The SAME criterion the real bank uses, persistence included. Without the k_steps
-    # filter this fixture picks up transients and marginal lifts (a cube at lift 0.0301
-    # settles to 0.0288 and is then correctly not `held`), which would make these tests
-    # assert something the probe never relies on.
+    # Same held criterion as the real bank, persistence included.
     held = ((obs[:, BK.CONTACT_IDX] > BK.CONTACT_THRESH)
             & (qpos[:, BK.CUBE_QPOS_Z] > BK.LIFT_THRESH))
     episode = (np.arange(len(obs)) // 1001).astype(np.int32)
     m = np.flatnonzero(BK._persists(held, episode, BK.K_STEPS))
     if len(m) < 4:
         pytest.skip("no persistently-held rows in the scanned prefix")
-    # Sample the way `banks.sample_bank` does rather than taking a deterministic slice: an
-    # evenly-spaced pick lands on the first candidate row, which sits exactly at the lift
-    # boundary (0.0301 against delta_lift 0.030) and settles just below it. G2 rejecting
-    # such a row is CORRECT -- it is a marginal grasp, not a restore failure -- but it is
-    # not the behaviour these tests are about, and the real 64-row bank (lift p5 = 0.084)
-    # does not contain one.
+    # Sample like banks.sample_bank; a fixed slice hits a marginal lift at the boundary.
     sel = np.random.default_rng(BK.RNG_SEED).choice(m, size=4, replace=False)
     return [dict(obs=obs[i], qpos=qpos[i], qvel=qvel[i]) for i in sel]
 
@@ -59,8 +48,7 @@ def env():
 
 
 def test_set_state_reproduces_every_obs_channel_except_contact(env, held_rows):
-    """The 28-dim state observation is a pure function of (qpos, qvel) -- except obs[18],
-    whose contact force also depends on `data.ctrl`, which no dataset records."""
+    """Restoring (qpos, qvel) reproduces every obs channel except contact force obs[18]."""
     for r in held_rows:
         env.reset(options=dict(task_id=1, render_goal=False))
         ob = R.set_state(env, r["qpos"], r["qvel"])
@@ -71,11 +59,7 @@ def test_set_state_reproduces_every_obs_channel_except_contact(env, held_rows):
 
 
 def test_settling_rebuilds_the_contact_channel(env, held_rows):
-    """N_SETTLE steps of a commanded close restore contact to the recorded magnitude.
-
-    Without it the restored state claims a lifted cube with no grip force on it -- a
-    combination the dataset essentially never contains.
-    """
+    """N_SETTLE steps of a close command restore the recorded contact force."""
     for r in held_rows:
         env.reset(options=dict(task_id=1, render_goal=False))
         R.set_state(env, r["qpos"], r["qvel"])
@@ -83,19 +67,13 @@ def test_settling_rebuilds_the_contact_channel(env, held_rows):
         R.settle(env)
         after = R.observation(env)[R.CONTACT_IDX]
         assert after > 0.5, f"contact only reached {after:.3f} after settling"
-        # Monotonicity only where there was something to rebuild: a few restored rows
-        # already read full contact from `mj_rnePostConstraint` alone.
+        # Check only rows that start without full contact.
         if before < 0.5:
             assert after > before
 
 
 def test_positive_gripper_action_closes_and_negative_drops(env, held_rows):
-    """THE gripper-convention fact, measured rather than assumed.
-
-    `ctrl = 255 * target_gripper_opening` over a driver joint that rises as the Robotiq
-    CLOSES, so +1 is the closing command. `[torch] counterfactual_value_probe.py:165`
-    commands 0.0 to "establish the grasp", which is the open extreme.
-    """
+    """A positive gripper action closes the gripper and a negative one drops the cube."""
     held_pos, held_neg = [], []
     for r in held_rows:
         for a_grip, sink in ((+1.0, held_pos), (-1.0, held_neg)):
@@ -106,11 +84,7 @@ def test_positive_gripper_action_closes_and_negative_drops(env, held_rows):
 
 
 def test_g2_rejects_a_latent_drop(env, held_rows):
-    """Raw `ctrl = 0` leaves the cube momentarily in place with the fingers slack.
-
-    It passes the purely geometric `held` test, so G2's contact conjunct is what keeps such
-    a row out of the bank.
-    """
+    """G2's contact check rejects a ctrl = 0 row that still passes the geometric held test."""
     import mujoco
 
     slack_passes, slack_held = [], []

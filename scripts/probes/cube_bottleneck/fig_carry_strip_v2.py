@@ -1,17 +1,6 @@
-"""Lead figure, v2: the critic's predicted future cube position, frame by frame, during a
-recorded carry. Same content as fig_carry_strip.py (see its docstring for the design and
-the stated deviation on task specification), re-rendered for print:
+"""Carry-strip figure: each critic's predicted future cube position, frame by frame, during a recorded carry.
 
-  * critic outputs are CACHED (carry_strip_cache.npz) so the render can be iterated
-    without reloading the checkpoints; --recompute forces the compute pass;
-  * the pool-row masses are smoothed with a weighted Gaussian kernel on a fine grid
-    instead of an 18x18 histogram (1024 pool rows cannot fill 324 bins);
-  * the panel extent is the table workspace plus the cube path and goal, so no marker
-    can fall outside a panel;
-  * a data-prior reference panel (uniform weight over the same pool) is drawn once, so
-    "FB reproduces the prior" is visible, not asserted;
-  * markers: filled cube-now, decoded-cube cross, goal star; one legend, no long subtitle.
-Per-panel max normalisation is kept: the figure is about position, not sharpness.
+Critic outputs are cached in carry_strip_cache.npz; pass --recompute to rebuild them.
 """
 import argparse, os
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -43,7 +32,7 @@ def world_to_plot(xy):
     return np.stack([xy[..., 1], xy[..., 0]], axis=-1)
 
 
-# ------------------------------------------------------------------ compute (cached)
+# Compute (cached)
 def compute(args):
     from scripts.probes.cube_bottleneck import agents as A
     from scripts.probes.cube_bottleneck import banks as BK
@@ -58,7 +47,7 @@ def compute(args):
     true_xy = world_to_plot(obs_f[:, CUBE_OBS][:, :2] * CM)
     lifted = (np.asarray(raw["qpos"])[rows][:, BK.CUBE_QPOS_Z] > BK.LIFT_THRESH) & \
              (obs_f[:, BK.CONTACT_IDX] > BK.CONTACT_THRESH)
-    # full cube path over the segment, for the faint trail
+    # Full cube path over the segment
     seg = np.arange(args.start, args.end)
     path_xy = world_to_plot(np.asarray(raw["observations"][seg], np.float32)[:, CUBE_OBS][:, :2] * CM)
 
@@ -104,7 +93,7 @@ def compute(args):
     return out
 
 
-# ------------------------------------------------------------------ render
+# Render
 def kde_grid(pts, w, xs, ys, bw):
     """Weighted Gaussian KDE of 2-D points on a grid; returns [len(xs), len(ys)]."""
     w = np.asarray(w, float); w = w / max(w.sum(), 1e-12)
@@ -123,7 +112,7 @@ def render(d, args):
     rows = d["rows"]; n = len(rows)
     true_xy, lifted, path_xy, pool_xy, goal_xy, imgs = (d["true_xy"], d["lifted"], d["path_xy"],
                                                         d["pool_xy"], d["goal_xy"], d["imgs"])
-    # extent: pool 0.5-99.5 pct, union cube path and goal, + margin
+    # Extent: pool 0.5-99.5 percentile, cube path and goal, plus margin
     lo = np.minimum(np.percentile(pool_xy, 0.5, axis=0), np.minimum(path_xy.min(0), goal_xy)) - 3.0
     hi = np.maximum(np.percentile(pool_xy, 99.5, axis=0), np.maximum(path_xy.max(0), goal_xy)) + 3.0
     xs = np.linspace(lo[0], hi[0], 140); ys = np.linspace(lo[1], hi[1], 70)
@@ -133,7 +122,7 @@ def render(d, args):
     grids = {a: [kde_grid(pool_xy, d[f"mass_{a}"][i], xs, ys, args.bw) for i in range(n)] for a in critics}
     prior = kde_grid(pool_xy, np.ones(len(pool_xy)), xs, ys, args.bw)
 
-    # crop the renders: drop the sky
+    # Crop the sky from the renders
     H = imgs.shape[1]; crop = slice(int(0.18 * H), int(0.97 * H))
     imgs_c = imgs[:, crop]
     img_hw = imgs_c.shape[1] / imgs_c.shape[2]
@@ -171,13 +160,13 @@ def render(d, args):
         ax.set_xticks([]); ax.set_yticks([])
         for sp in ax.spines.values(): sp.set_color("#cfcfcb")
 
-    # left column: the data prior (top, same panel geometry as the maps), legend below it
+    # Left column: data prior and legend
     axp = fig.add_subplot(gs[0, 0])
     axp.set_anchor("S")
     draw_panel(axp, prior, CMAPS["prior"])
     axp.set_aspect(aspect_hw / (axp.get_position().height / axp.get_position().width) if False else "auto")
     axp.set_title("data prior", fontsize=7.5, color=INK, pad=2.5)
-    # shrink the prior axis to the map aspect (it lives in the taller render row)
+    # Match the prior axis to the map aspect
     bb = axp.get_position(); mh = bb.width * aspect_hw * (fig.get_figwidth() / fig.get_figheight())
     axp.set_position([bb.x0, bb.y0, bb.width, min(bb.height, mh)])
 

@@ -13,7 +13,7 @@ ACTOR_CONFIGS = sorted(f[:-5] for f in os.listdir(os.path.join(CONFIG_ROOT, "act
 
 
 def test_main_has_no_get_config():
-    """The config groups replace get_config(); a leftover would silently shadow them."""
+    """impls/main.py defines no get_config()."""
     assert not hasattr(m, "get_config")
 
 
@@ -26,8 +26,7 @@ def test_every_config_name_is_registered():
 @pytest.mark.parametrize("critic", CRITIC_CONFIGS)
 @pytest.mark.parametrize("actor", ACTOR_CONFIGS)
 def test_every_config_pair_builds_from_the_real_yamls(critic, actor):
-    """Every (critic yaml, actor yaml) pair composes and builds an Agent -- never a bare
-    KeyError/AttributeError deep inside construction."""
+    """Every (critic yaml, actor yaml) pair builds an Agent."""
     from impls.agents import Agent
 
     cfg = load_config(critic, actor, "cube_single")

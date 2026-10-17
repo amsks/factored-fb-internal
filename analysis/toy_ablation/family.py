@@ -1,44 +1,6 @@
-"""The toy ablation on a family of programmatically generated bottleneck MDPs.
+"""Toy ablation over a family of randomly generated nine-state bottleneck processes: gap tables and figures.
 
-`run.py` runs the six arms on the single hand-drawn nine-state process of
-scripts/didactic/graph_bottleneck_td.py.  This script answers the obvious
-objection to that -- that the graph was drawn until FB broke -- by sampling
-bottleneck processes at random and aggregating the same measurements over them.
-
-Sampling (one process per seed, n = 9 states so that the rank axis means the same
-thing in every process):
-
-  * the states split into a first group of 3-5 states, one cut state, and a second
-    group holding the rest (3-5 states);
-  * each state has two actions and each action leads deterministically to one state;
-  * inside the first group the actions are wired along a random order of its states,
-    the last of which reaches the cut; the second action of every state goes to a
-    random other state of the same group;
-  * the cut's first action enters a random state of the second group, its second
-    action falls back into the first group.  This is the only edge from the first
-    group to the second, and no edge returns, so every path to the goal passes the cut;
-  * inside the second group the actions are wired along a random order of its states,
-    the last of which is the goal; the state before it is the decision state, whose
-    first action enters the goal and whose second action goes to a random other state
-    of the group that is not the goal;
-  * the fixed continuation policy is NOT uniform: the probability of the first action
-    is drawn per state from U(0.25, 0.75), so every process has its own action
-    probabilities (the single-process ablation uses 1/2 everywhere);
-  * a sample is kept only if the exact action gap at the decision state is at least
-    0.5, i.e. the decision is a real one.
-
-Everything else matches run.py: discount 0.8, reward 1 on arrival at the goal,
-uniform reference weight 1/n, exact population expectations, ranks 2..9, the same
-six arms A-F, closed-form fits and TD-trained fits with a bootstrapped target.
-
-Run (CPU, ~15 min):
-    JAX_PLATFORMS=cpu python analysis/toy_ablation/family.py
-    JAX_PLATFORMS=cpu python analysis/toy_ablation/family.py --figures-only
-Outputs: analysis/toy_ablation/family_{closed,trained}.csv, family_mdps.json,
-         family_log.txt,
-         figures/bottleneck_family/fig_family_ablation.{pdf,png} (+ panels),
-         figures/bottleneck_family/fig_family_graph_{k}.{pdf,png} (the graphs),
-         figures/bottleneck_family/fig_family_per_mdp.{pdf,png}.
+Run: JAX_PLATFORMS=cpu python analysis/toy_ablation/family.py [--figures-only]
 """
 
 import os
@@ -59,10 +21,10 @@ import optax
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(REPO / "scripts" / "didactic"))
-import bottleneck_family_td as bf      # noqa: E402  (sets jax x64)
+import bottleneck_family_td as bf      # noqa: E402
 
 sys.path.insert(0, str(HERE))
-import run as single                   # noqa: E402  (arm styles, t_interval, figure style)
+import run as single                   # noqa: E402
 
 FIG_DIR = REPO / "figures" / "bottleneck_family"
 
@@ -71,10 +33,7 @@ N = 9
 RANKS = list(range(2, N + 1))
 SEEDS = [0, 1, 2, 3, 4]
 RATES = [0.001, 0.01]
-# The paper's family: five single-cut processes.  The generator also builds two-cut
-# layouts ("series", "parallel"); those were measured on 2026-09-14 (see the note) and are
-# not part of the reported family, because at nine states a second cut forces the group
-# sizes, so layout and group size cannot be varied independently.
+# Reported family: five single-cut processes ("series"/"parallel" are also supported)
 PROCESSES = [(0, "single"), (1, "single"), (2, "single"), (3, "single"), (4, "single")]
 SOFT_SIGMA = 0.5
 CLOSED_STEPS, CLOSED_LR = 10000, 1e-2
@@ -89,9 +48,7 @@ def log(msg):
     LOG_LINES.append(str(msg))
 
 
-# ----------------------------------------------------------------------------
-# 1. Sampling a bottleneck process.
-# ----------------------------------------------------------------------------
+# Sampling a bottleneck process
 def graph_distance(edges, n):
     adj = [set() for _ in range(n)]
     for s, (t0, t1) in enumerate(edges):
@@ -113,8 +70,7 @@ def graph_distance(edges, n):
 
 
 def _wire_group(rng, edges, states, exit_to):
-    """Wire one group: action 0 follows a random ordering whose last state leaves the
-    group through `exit_to`; action 1 goes to a random other state of the group."""
+    """Wire a group: action 0 along a random order ending at `exit_to`, action 1 within the group."""
     order = [int(x) for x in rng.permutation(states)]
     for i, s in enumerate(order):
         edges[s, 0] = order[i + 1] if i + 1 < len(order) else exit_to
@@ -125,8 +81,7 @@ def _wire_group(rng, edges, states, exit_to):
 
 
 def _wire_last_group(rng, edges, states):
-    """The group holding the goal: the ordering ends at the goal, the state before it is
-    the decision state (action 0 into the goal, action 1 elsewhere in the group)."""
+    """Wire the goal group; the state before the goal is the decision state."""
     order = [int(x) for x in rng.permutation(states)]
     goal, decision = order[-1], order[-2]
     for i, s in enumerate(order):
@@ -159,13 +114,13 @@ def _finish(seed, variant, n, gamma, edges, pi, groups, cuts, goal, decision, at
 
 
 def sample_mdp(seed, variant="single", n=N, gamma=GAMMA):
-    """One bottleneck process; see the module docstring for the three variants."""
+    """Sample one bottleneck process ("single", "series" or "parallel")."""
     rng = np.random.default_rng(1000 + seed)
     for attempt in range(1000):
         edges = np.zeros((n, 2), int)
 
         if variant == "single":
-            # [group A][cut][group B]: the cut is the only way from A into B.
+            # [group A][cut][group B]
             n_a = int(rng.integers(3, 6))
             if n - 1 - n_a < 3:
                 continue
@@ -179,8 +134,8 @@ def sample_mdp(seed, variant="single", n=N, gamma=GAMMA):
             groups, cuts = [group_a, group_b], [cut]
 
         elif variant == "series":
-            # [G0][cut 1][G1][cut 2][G2]: two cuts in series, both on the only path.
-            n_0 = int(rng.integers(2, n - 2 - 3 - 2 + 1))     # leaves >= 2 for G1, >= 3 for G2
+            # [G0][cut 1][G1][cut 2][G2]
+            n_0 = int(rng.integers(2, n - 2 - 3 - 2 + 1))
             n_1 = int(rng.integers(2, n - 2 - n_0 - 3 + 1))
             n_2 = n - 2 - n_0 - n_1
             if n_2 < 3:
@@ -200,8 +155,7 @@ def sample_mdp(seed, variant="single", n=N, gamma=GAMMA):
             groups, cuts = [g0, g1, g2], [c1, c2]
 
         else:
-            # [group A][cut 1][cut 2][group B]: two cuts in parallel, so the passage into
-            # B is redundant -- removing either one still leaves a way in.
+            # [group A][cut 1][cut 2][group B], cuts in parallel
             n_a = int(rng.integers(2, n - 2 - 3 + 1))
             n_b = n - 2 - n_a
             if n_b < 3:
@@ -210,7 +164,7 @@ def sample_mdp(seed, variant="single", n=N, gamma=GAMMA):
             c1, c2 = n_a, n_a + 1
             group_b = list(range(n_a + 2, n))
             _wire_group(rng, edges, group_a, c1)
-            second = int(rng.choice(group_a))                 # a second state of A reaches c2
+            second = int(rng.choice(group_a))
             edges[second, 1] = c2
             for c in (c1, c2):
                 edges[c, 0] = int(rng.choice(group_b))
@@ -226,9 +180,7 @@ def sample_mdp(seed, variant="single", n=N, gamma=GAMMA):
     raise RuntimeError("no valid sample")
 
 
-# ----------------------------------------------------------------------------
-# 2. Readouts and metrics (same definitions as run.py, per process).
-# ----------------------------------------------------------------------------
+# Readouts and metrics
 def gap_stats(mdp, Q):
     row0, row1 = 2 * mdp["decision"], 2 * mdp["decision"] + 1
     gap = float(Q[row0] - Q[row1])
@@ -263,9 +215,7 @@ def e_arm_rows(mdp, F, B, base):
                 gap_ratio_calibrated=cal["gap_ratio"], calib_scale=a, corr_with_exact=corr)
 
 
-# ----------------------------------------------------------------------------
-# 3. Closed-form fits.
-# ----------------------------------------------------------------------------
+# Closed-form fits
 def svd_fit(X, d):
     U, s, Vt = np.linalg.svd(X, full_matrices=False)
     return U[:, :d] * s[:d][None, :], Vt[:d].T
@@ -304,7 +254,7 @@ def softmax_fit(target, n, d, seed, loss_kind, steps=CLOSED_STEPS, lr=CLOSED_LR)
 
 
 def _ranks_for(mdp, ranks):
-    """`ranks` may be None (the module's RANKS), a list, or a callable of the process."""
+    """Ranks for a process: None (RANKS), a list, or a callable of the process."""
     if ranks is None:
         return RANKS
     return list(ranks(mdp)) if callable(ranks) else list(ranks)
@@ -344,9 +294,7 @@ def run_closed_form(mdps, ranks=None):
     return rows
 
 
-# ----------------------------------------------------------------------------
-# 4. TD-trained fits (bootstrapped target, exact population expectations).
-# ----------------------------------------------------------------------------
+# TD-trained fits
 TRAIN_METHODS = ["fb", "normsq", "softsq", "density", "density_soft"]
 ARM_OF = {"fb": "A", "normsq": "B", "softsq": "C", "density": "D", "density_soft": "F"}
 
@@ -422,9 +370,7 @@ def run_trained(mdps, ranks=None):
     return rows
 
 
-# ----------------------------------------------------------------------------
-# 5. Figures.
-# ----------------------------------------------------------------------------
+# Figures
 ARMS = single.ARMS
 ARM_COLOR, ARM_MARKER, ARM_LABEL = single.ARM_COLOR, single.ARM_MARKER, single.ARM_LABEL
 GAP_YLIM = single.GAP_YLIM
@@ -441,14 +387,14 @@ def agg(rows, arm, key="gap_ratio", ranks=RANKS):
 
 def draw_panel(ax, rows, hollow, key="gap_ratio", ylabel="fraction of the exact action gap",
                ylim=GAP_YLIM, ranks=None):
-    """One line per arm, mean over runs with a light band; hollow markers = TD-trained."""
+    """One line per arm with a band over runs; hollow markers for TD-trained."""
     RANKS = list(ranks) if ranks is not None else globals()["RANKS"]
     for arm in ARMS:
         a = agg(rows, arm, key, ranks=RANKS)
         y = np.array([a[d][0] for d in RANKS])
         lo = np.array([a[d][1] for d in RANKS])
         hi = np.array([a[d][2] for d in RANKS])
-        if arm != "E":          # E's raw scale is arbitrary, so its band is not shown
+        if arm != "E":          # E's scale is arbitrary
             ax.fill_between(RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2)
         shown = np.where((y > ylim[1]) | (y < ylim[0]), np.nan, y) if ylim is not None else y
         ax.plot(RANKS, shown, color=ARM_COLOR[arm], marker=ARM_MARKER[arm],
@@ -457,7 +403,7 @@ def draw_panel(ax, rows, hollow, key="gap_ratio", ylabel="fraction of the exact 
                 markeredgecolor=ARM_COLOR[arm] if hollow else "white",
                 markeredgewidth=1.1 if hollow else 0.6,
                 linewidth=1.5, linestyle="-", zorder=3 + (arm == "A"))
-        if ylim is not None:          # points off the axis are labelled at the edge instead
+        if ylim is not None:          # label off-axis points at the edge
             for xi, yi in zip(RANKS, y):
                 if yi > ylim[1] or yi < ylim[0]:
                     up = yi > ylim[1]
@@ -475,8 +421,7 @@ VALUES_RANK = 3
 
 
 def values_rows(trained_rows, mdps, d=VALUES_RANK, arms=("A", "D")):
-    """Action values at the decision state, put on a common scale: each process's values are
-    mapped so that its exact pair is (1, 0).  Returns {arm: {action: (mean, lo, hi)}}."""
+    """Decision-state action values, rescaled so the exact pair is (1, 0); {arm: {action: (mean, lo, hi)}}."""
     qx = {m["seed"]: (m["q_exact"][2 * m["decision"]], m["q_exact"][2 * m["decision"] + 1])
           for m in mdps}
     out = {}
@@ -494,7 +439,7 @@ def values_rows(trained_rows, mdps, d=VALUES_RANK, arms=("A", "D")):
 
 
 def make_two_arm_figure(trained_rows, arms=("A", "D")):
-    """FB against Density-FB only: the capacity panel of the main text."""
+    """FB vs Density-FB figure."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -604,7 +549,7 @@ def make_figures(closed_rows, trained_rows, mdps):
     save(fig, "fig_family_ablation")
     plt.close(fig)
 
-    # standalone panels carry their own legend: each is used on its own in the paper
+    # Standalone panels with their own legend
     for stem, rows, hollow in (("fig_family_ablation_closed", closed_rows, False),
                                ("fig_family_ablation_trained", trained_rows, True)):
         fig, ax = plt.subplots(figsize=(3.4, 2.5))
@@ -625,7 +570,7 @@ def make_figures(closed_rows, trained_rows, mdps):
     save(fig, "fig_family_mass")
     plt.close(fig)
 
-    # per-process trained panels, five to a row
+    # Per-process trained panels
     ncol = 5
     nrow = int(np.ceil(len(mdps) / ncol))
     fig, axes = plt.subplots(nrow, ncol, figsize=(2.2 * ncol, 2.35 * nrow),
@@ -684,9 +629,7 @@ def graph_layout(mdp):
 
 def draw_graph(mdp, layout=None, node_style=None, stem=None, title=None, fig_dir=None,
                figsize=None, xlim=None):
-    """`layout(mdp) -> (pos, out)` and `node_style(mdp, s) -> (face, edge, text colour)` default
-    to the family's own layout and colouring; `stem`/`title`/`fig_dir` override the file name,
-    the title and the output folder."""
+    """Draw a process graph; layout and node_style default to the family's own."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -745,9 +688,7 @@ def draw_graph(mdp, layout=None, node_style=None, stem=None, title=None, fig_dir
     plt.close(fig)
 
 
-# ----------------------------------------------------------------------------
-# 6. Tables and IO.
-# ----------------------------------------------------------------------------
+# Tables and IO
 def print_tables(closed_rows, trained_rows, mdps):
     def line(rows, arm, key="gap_ratio"):
         a = agg(rows, arm, key)
@@ -827,11 +768,11 @@ def label(mdp):
 
 
 def check(mdp):
-    """The structural facts the generator promises."""
+    """Assert the generator's structural guarantees."""
     edges, n = mdp["edges"], mdp["n"]
     assert float(np.max(np.abs(mdp["t_exact"].sum(1) - 1))) < 1e-10
     last = mdp["groups"][-1]
-    for s in last:                                     # the goal's group is closed
+    for s in last:                                     # goal group is closed
         assert all(int(t) in last for t in edges[s]), "last group leaks back"
     into_last = [(s, a) for s in range(n) for a in (0, 1)
                  if s not in last and int(edges[s, a]) in last]
@@ -839,12 +780,12 @@ def check(mdp):
     want = ([(cuts[0], 0), (cuts[1], 0)] if mdp["variant"] == "parallel"
             else [(cuts[-1], 0)])
     assert sorted(into_last) == sorted(want), (into_last, want)
-    if mdp["variant"] == "series":                     # the middle group has one way in too
+    if mdp["variant"] == "series":                     # middle group has one entry
         mid = mdp["groups"][1] + [cuts[1]]
         into_mid = [(s, a) for s in range(n) for a in (0, 1)
                     if s not in mid and int(edges[s, a]) in mid]
         assert into_mid == [(cuts[0], 0)], into_mid
-    if mdp["variant"] == "parallel":                   # both cuts are reachable from A
+    if mdp["variant"] == "parallel":                   # both cuts reachable from A
         for c in cuts:
             assert any(int(edges[s, a]) == c for s in mdp["groups"][0] for a in (0, 1)), c
 
@@ -879,7 +820,7 @@ if __name__ == "__main__":
     mdps = [sample_mdp(k, v) for k, v in PROCESSES]
     describe(mdps)
     if "--figures-only" in sys.argv:
-        keep = {k for k, _ in PROCESSES}   # a CSV may hold processes no longer in the family
+        keep = {k for k, _ in PROCESSES}
         closed_rows = [r for r in read_csv("family_closed.csv") if int(r["mdp"]) in keep]
         trained_rows = [r for r in read_csv("family_trained.csv") if int(r["mdp"]) in keep]
     else:

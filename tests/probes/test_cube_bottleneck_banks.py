@@ -27,7 +27,7 @@ def test_persists_requires_k_consecutive_within_one_episode():
 
 
 def test_persists_does_not_bridge_an_episode_boundary():
-    """A run must not be completed by rows belonging to the NEXT episode."""
+    """A persistence run does not extend into the next episode."""
     episode = np.array([0, 0, 1, 1])
     mask = np.array([1, 1, 1, 1], bool)
     assert BK._persists(mask, episode, 3).tolist() == [False, False, False, False]
@@ -73,7 +73,7 @@ def test_sample_bank_is_deterministic_for_a_fixed_seed():
 
 
 def test_sample_bank_raises_rather_than_shrinking_a_short_bank():
-    """A silently undersized bank would make two arms' 'paired' comparison unpaired."""
+    """sample_bank raises on a short bank instead of shrinking it."""
     raw = _raw()
     mask = np.zeros(len(raw["observations"]), bool)
     mask[:3] = True
@@ -82,6 +82,6 @@ def test_sample_bank_raises_rather_than_shrinking_a_short_bank():
 
 
 def test_lift_threshold_matches_the_delta_lift_the_phase_code_uses():
-    """LIFT_THRESH is an ABSOLUTE cube height; it must equal table_z + delta_lift."""
+    """LIFT_THRESH equals table_z + delta_lift."""
     from scripts.probes.cube_bottleneck.phases import PhaseThresholds
     assert BK.LIFT_THRESH == pytest.approx(BK.TABLE_Z + PhaseThresholds().delta_lift)

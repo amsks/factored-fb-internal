@@ -1,21 +1,9 @@
 #!/usr/bin/env bash
-# Goal-conditioned Density-FB on MetaWorld / ManiSkill (the tab:main / density-fb.tex readout,
-# NOT the reward-inference route the current tab:benchmarks cells use).
-#
-# The only change from the z-conditioned MW/MS runs is the critic and the eval route:
-#   critic  density_fb   (infer_z: false -- the policy conditions on the raw goal)
-#   eval    native goal-conditioned (eval.csv); NO eval_relabel_* / reward-inference flags
-# Everything else -- flowbc actor, per-task goal masks, per-task hit spec, data root, discount
-# 0.99, budget -- is identical to the z runs. Protocol masks copied from
-# scripts/launch_mwms_baselines.sh; object slices from env/unified.py::_GOAL_LAYOUT.
+# Train goal-conditioned Density-FB on the five goal-observable MetaWorld / ManiSkill tasks.
 #
 #   FB_DATA_ROOT=/path bash scripts/launch_mwms_gc.sh                 # dry run (print commands)
 #   MODE=tmux GPUS="0 1 2 3" FB_DATA_ROOT=/path bash scripts/launch_mwms_gc.sh
 #   JOBS_ONLY=1 FB_DATA_ROOT=/path bash scripts/launch_mwms_gc.sh     # one command per line
-#
-# SCOPE: only the 5 GOAL-OBSERVABLE tasks. ms-stack-cube / ms-poke-cube / ms-lift-peg have no
-# goal in the observation (env/unified.py::_GOAL_LAYOUT has no entry; eval_goal_mode=fixed), so
-# goal-conditioned Density-FB is not defined for them and they are deliberately omitted here.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -35,16 +23,14 @@ PY="${PY:-python}"
 SESSION="${SESSION:-mwms_gc}"
 GPUS="${GPUS:-0}"
 
-# per-task goal-channel masks (scripts/launch_mwms_baselines.sh); native synth eval goals.
+# Per-task goal masks
 MW_PROTO="obs_mask_dims=[36,37,38] goal_mask_dims=[36,37,38] value_p_randomgoal=0.0 value_p_trajgoal=0.8 eval_goal_mode=synth"
 declare -A PROTO=(
   [mw-push]="$MW_PROTO" [mw-bin-picking]="$MW_PROTO" [mw-box-close]="$MW_PROTO"
   [ms-push-cube]="obs_mask_dims=[25,26,27] goal_mask_dims=[25,26,27] value_p_randomgoal=0.0 value_p_trajgoal=0.8 eval_goal_mode=synth"
   [ms-pick-cube]="obs_mask_dims=[26,27,28,39,40,41] goal_mask_dims=[26,27,28,39,40,41] value_p_randomgoal=0.0 value_p_trajgoal=0.8 eval_goal_mode=synth"
 )
-# per-task hit spec = object slice (env/unified.py::_GOAL_LAYOUT) + env success radius.
-# CONFIRM/FILL the two marked REQUIRED before launching; the object slice for both is the
-# MetaWorld generic 4:7, the radius is the task's own success tolerance (mw-push used 0.05).
+# Per-task goal kernel: object slice and success radius; fill REQUIRED before launching
 declare -A HIT=(
   [mw-push]="4:7:0.05"
   [mw-bin-picking]="4:7:REQUIRED"

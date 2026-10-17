@@ -1,11 +1,11 @@
-"""Logging utilities for the impls/ tree: experiment naming, CSV logging, and wandb."""
+"""Experiment naming, CSV logging and wandb."""
 import csv
 import os
 import warnings
 
 
 def get_exp_name(seed, critic=None, actor=None, env_name=None):
-    """Compose a run/experiment name. Time-free (deterministic)."""
+    """Compose a deterministic experiment name."""
     parts = [p for p in (env_name, critic, actor) if p]
     parts.append(f'seed_{seed}')
     return '_'.join(parts)
@@ -14,18 +14,8 @@ def get_exp_name(seed, critic=None, actor=None, env_name=None):
 class CsvLogger:
     """Append rows to a CSV, writing a header on first use.
 
-    If `path` already contains a non-empty file when the first row is logged (e.g. a
-    --auto_resume into the same run directory), rows are appended to it using the
-    existing file's header rather than truncating it: a resume must not destroy the
-    pre-resume history. A fresh/missing/empty path still gets a freshly written header.
-
-    A row key that is NOT in the frozen header is dropped -- csv.DictWriter has no other
-    option once a header is on disk -- but it is WARNED about, once per key. Silence there
-    is a real failure mode: two arms sharing a --save_dir (run-dir names encode
-    domain/critic/actor/seed but not `--override`) inherit the first arm's header, and the
-    second arm's extra columns vanish. The `inferred_cond_*` witness columns are the worst
-    case, since they are the only positive evidence in eval.csv that a run rolled a
-    reward-inferred index rather than the env goal (impls/main.py::InferredCondAgent).
+    An existing file is appended to with its own header. Keys missing from the header are
+    dropped with a warning.
     """
 
     def __init__(self, path):
@@ -71,8 +61,7 @@ class CsvLogger:
 
 
 def setup_wandb(config, project='factored-fb', group=None, name=None, mode=None):
-    """Initialise wandb. Returns None when disabled or unavailable, so callers can
-    unconditionally call this and guard only on the return value."""
+    """Initialize wandb. Returns None when disabled or unavailable."""
     mode = mode or os.environ.get('WANDB_MODE')
     if mode == 'disabled':
         return None

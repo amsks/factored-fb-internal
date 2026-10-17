@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ============================================================================
-"""Quadruped Domain."""
+"""Quadruped domain with ExoRL tasks (from ExoRL custom_dmc_tasks)."""
 
 import collections
 
@@ -71,9 +71,6 @@ def make(task,
 
 def get_model_and_assets():
     """Returns a tuple containing the model XML string and a dict of assets."""
-    # PATCHED for the Factored-FB vendor layout (PROVENANCE.md), same patch as walker.py
-    # and cheetah.py: upstream walked dirname(dirname(__file__)) and rejoined the hardcoded
-    # package name, which does not exist when vendored under env/exorl_dmc_tasks/.
     xml = resources.GetResource(
         os.path.join(os.path.dirname(__file__), 'quadruped.xml'))
     return xml, common.ASSETS
@@ -84,7 +81,6 @@ def make_model(floor_size=None,
                rangefinders=False,
                walls_and_ball=False):
     """Returns the model XML string."""
-    # PATCHED for the vendor layout, as in get_model_and_assets above.
     xml_string = common.read_model(
         os.path.join(os.path.dirname(__file__), 'quadruped.xml'))
     parser = etree.XMLParser(remove_blank_text=True)
@@ -143,7 +139,7 @@ def multitask(time_limit=_DEFAULT_TIME_LIMIT,
 def stand(time_limit=_DEFAULT_TIME_LIMIT,
           random=None,
           environment_kwargs=None):
-    """Returns the Walk task."""
+    """Returns the stand task."""
     xml_string = make_model(floor_size=_DEFAULT_TIME_LIMIT * _WALK_SPEED)
     physics = Physics.from_xml_string(xml_string, common.ASSETS)
     task = Stand(random=random)
@@ -157,7 +153,7 @@ def stand(time_limit=_DEFAULT_TIME_LIMIT,
 
 @SUITE.add()
 def jump(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
-    """Returns the Walk task."""
+    """Returns the jump task."""
     xml_string = make_model(floor_size=_DEFAULT_TIME_LIMIT * _WALK_SPEED)
     physics = Physics.from_xml_string(xml_string, common.ASSETS)
     task = Jump(desired_height=_JUMP_HEIGHT, random=random)
@@ -171,7 +167,7 @@ def jump(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
 
 @SUITE.add()
 def roll(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
-    """Returns the Walk task."""
+    """Returns the roll task."""
     xml_string = make_model(floor_size=_DEFAULT_TIME_LIMIT * _WALK_SPEED)
     physics = Physics.from_xml_string(xml_string, common.ASSETS)
     task = Roll(desired_speed=_WALK_SPEED, random=random)
@@ -187,7 +183,7 @@ def roll(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
 def roll_fast(time_limit=_DEFAULT_TIME_LIMIT,
               random=None,
               environment_kwargs=None):
-    """Returns the Walk task."""
+    """Returns the roll_fast task."""
     xml_string = make_model(floor_size=_DEFAULT_TIME_LIMIT * _WALK_SPEED)
     physics = Physics.from_xml_string(xml_string, common.ASSETS)
     task = Roll(desired_speed=_RUN_SPEED, random=random)
@@ -244,9 +240,7 @@ class Physics(mujoco.Physics):
             sensor_names = self._sensor_types_to_names[sensor_types]
         except KeyError:
             [sensor_ids
-             # PATCHED: np.in1d was removed in NumPy 2.0 (this box runs 2.4.6) and
-            # np.isin is its documented 1-D replacement, identical semantics here
-            # since both operands are 1-D integer arrays.
+             # np.isin replaces np.in1d, removed in NumPy 2.0
             ] = np.where(np.isin(self.model.sensor_type, sensor_types))
             sensor_names = [
                 self.model.id2name(s_id, 'sensor') for s_id in sensor_ids
@@ -346,16 +340,7 @@ class Physics(mujoco.Physics):
 
 
 def _find_non_contacting_height(physics, orientation, x_pos=0.0, y_pos=0.0):
-    """Find a height with no contacts given a body orientation.
-  Args:
-    physics: An instance of `Physics`.
-    orientation: A quaternion.
-    x_pos: A float. Position along global x-axis.
-    y_pos: A float. Position along global y-axis.
-  Raises:
-    RuntimeError: If a non-contacting configuration has not been found after
-    10,000 attempts.
-  """
+    """Find a height with no contacts given a body orientation."""
     z_pos = 0.0  # Start embedded in the floor.
     num_contacts = 1
     num_attempts = 0
@@ -389,13 +374,7 @@ def _common_observations(physics):
 
 
 def _upright_reward(physics, deviation_angle=0):
-    """Returns a reward proportional to how upright the torso is.
-  Args:
-    physics: an instance of `Physics`.
-    deviation_angle: A float, in degrees. The reward is 0 when the torso is
-      exactly upside-down and 1 when the torso's z-axis is less than
-      `deviation_angle` away from the global z-axis.
-  """
+    """Returns a reward proportional to how upright the torso is."""
     deviation = np.cos(np.deg2rad(deviation_angle))
     return rewards.tolerance(physics.torso_upright(),
                              bounds=(deviation, float('inf')),
@@ -405,24 +384,13 @@ def _upright_reward(physics, deviation_angle=0):
 
 
 class MultiTask(base.Task):
-    """A quadruped task solved by moving forward at a designated speed."""
+    """A quadruped task with stand, walk, run and jump rewards."""
     def __init__(self, random=None):
-        """Initializes an instance of `Move`.
-    Args:
-      desired_speed: A float. If this value is zero, reward is given simply
-        for standing upright. Otherwise this specifies the horizontal velocity
-        at which the velocity-dependent reward component is maximized.
-      random: Optional, either a `numpy.random.RandomState` instance, an
-        integer seed for creating a new `RandomState`, or None to select a seed
-        automatically (default).
-    """
+        """Initializes an instance of `MultiTask`."""
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-    Args:
-      physics: An instance of `Physics`.
-    """
+        """Sets the state of the environment at the start of each episode."""
         # Initial configuration.
         orientation = self.random.randn(4)
         orientation /= np.linalg.norm(orientation)
@@ -478,23 +446,12 @@ class MultiTask(base.Task):
 class Move(base.Task):
     """A quadruped task solved by moving forward at a designated speed."""
     def __init__(self, desired_speed, random=None):
-        """Initializes an instance of `Move`.
-    Args:
-      desired_speed: A float. If this value is zero, reward is given simply
-        for standing upright. Otherwise this specifies the horizontal velocity
-        at which the velocity-dependent reward component is maximized.
-      random: Optional, either a `numpy.random.RandomState` instance, an
-        integer seed for creating a new `RandomState`, or None to select a seed
-        automatically (default).
-    """
+        """Initializes an instance of `Move`."""
         self._desired_speed = desired_speed
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-    Args:
-      physics: An instance of `Physics`.
-    """
+        """Sets the state of the environment at the start of each episode."""
         # Initial configuration.
         orientation = self.random.randn(4)
         orientation /= np.linalg.norm(orientation)
@@ -520,24 +477,13 @@ class Move(base.Task):
 
 
 class Stand(base.Task):
-    """A quadruped task solved by moving forward at a designated speed."""
+    """A quadruped task solved by standing upright."""
     def __init__(self, random=None):
-        """Initializes an instance of `Move`.
-    Args:
-      desired_speed: A float. If this value is zero, reward is given simply
-        for standing upright. Otherwise this specifies the horizontal velocity
-        at which the velocity-dependent reward component is maximized.
-      random: Optional, either a `numpy.random.RandomState` instance, an
-        integer seed for creating a new `RandomState`, or None to select a seed
-        automatically (default).
-    """
+        """Initializes an instance of `Stand`."""
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-    Args:
-      physics: An instance of `Physics`.
-    """
+        """Sets the state of the environment at the start of each episode."""
         # Initial configuration.
         orientation = self.random.randn(4)
         orientation /= np.linalg.norm(orientation)
@@ -555,25 +501,14 @@ class Stand(base.Task):
 
 
 class Jump(base.Task):
-    """A quadruped task solved by moving forward at a designated speed."""
+    """A quadruped task solved by jumping to a designated height."""
     def __init__(self, desired_height, random=None):
-        """Initializes an instance of `Move`.
-    Args:
-      desired_speed: A float. If this value is zero, reward is given simply
-        for standing upright. Otherwise this specifies the horizontal velocity
-        at which the velocity-dependent reward component is maximized.
-      random: Optional, either a `numpy.random.RandomState` instance, an
-        integer seed for creating a new `RandomState`, or None to select a seed
-        automatically (default).
-    """
+        """Initializes an instance of `Jump`."""
         self._desired_height = desired_height
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-    Args:
-      physics: An instance of `Physics`.
-    """
+        """Sets the state of the environment at the start of each episode."""
         # Initial configuration.
         orientation = self.random.randn(4)
         orientation /= np.linalg.norm(orientation)
@@ -599,25 +534,14 @@ class Jump(base.Task):
 
 
 class Roll(base.Task):
-    """A quadruped task solved by moving forward at a designated speed."""
+    """A quadruped task solved by rolling at a designated speed."""
     def __init__(self, desired_speed, random=None):
-        """Initializes an instance of `Move`.
-    Args:
-      desired_speed: A float. If this value is zero, reward is given simply
-        for standing upright. Otherwise this specifies the horizontal velocity
-        at which the velocity-dependent reward component is maximized.
-      random: Optional, either a `numpy.random.RandomState` instance, an
-        integer seed for creating a new `RandomState`, or None to select a seed
-        automatically (default).
-    """
+        """Initializes an instance of `Roll`."""
         self._desired_speed = desired_speed
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-    Args:
-      physics: An instance of `Physics`.
-    """
+        """Sets the state of the environment at the start of each episode."""
         # Initial configuration.
         orientation = self.random.randn(4)
         orientation /= np.linalg.norm(orientation)
@@ -644,10 +568,7 @@ class Roll(base.Task):
 class Escape(base.Task):
     """A quadruped task solved by escaping a bowl-shaped terrain."""
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-    Args:
-      physics: An instance of `Physics`.
-    """
+        """Sets the state of the environment at the start of each episode."""
         # Get heightfield resolution, assert that it is square.
         res = physics.model.hfield_nrow[_HEIGHTFIELD_ID]
         assert res == physics.model.hfield_ncol[_HEIGHTFIELD_ID]
@@ -704,10 +625,7 @@ class Escape(base.Task):
 class Fetch(base.Task):
     """A quadruped task solved by bringing a ball to the origin."""
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-    Args:
-      physics: An instance of `Physics`.
-    """
+        """Sets the state of the environment at the start of each episode."""
         # Initial configuration, random azimuth and horizontal position.
         azimuth = self.random.uniform(0, 2 * np.pi)
         orientation = np.array(

@@ -6,7 +6,7 @@ spec=importlib.util.spec_from_file_location("sb_run",HERE/"run.py"); sb=importli
 argv=sys.argv; sys.argv=[argv[0]]; spec.loader.exec_module(sb); sys.argv=argv
 fam,bf=sb.fam,sb.bf; G=0.8
 mdp=sb.fixed_processes()[1]; n=mdp['n']; b=mdp['decision']; rho=mdp['rho']; r=mdp['r']
-T=mdp['t_exact']                      # rows = (1-g)M, probability over future states
+T=mdp['t_exact']                      # rows of (1-gamma) M
 Qtrue=T@r/(1-G); gap=Qtrue[2*b]-Qtrue[2*b+1]; R=r.max()-r.min()
 eps=(1-G)**2*gap**2/(2*R**2)
 print(f"n={n} b={b} Q(a+)={Qtrue[2*b]:.3f} Q(a-)={Qtrue[2*b+1]:.3f} gap={gap:.3f} eps={eps:.4f}")
@@ -16,9 +16,9 @@ for d in (2,3):
     cfg,pred,F,B=fam.train_group(mdp,d,'fb')
     for i in range(len(cfg)):
         P=bf.readout(pred[i],'fb',G,n); q=P@r/(1-G)
-        Bi=np.asarray(B[i],float); mom=Bi.T@(rho*dm)       # feature-average difference (lemma condition)
+        Bi=np.asarray(B[i],float); mom=Bi.T@(rho*dm)       # lemma condition
         proj=Bi@np.linalg.lstsq(W*Bi,np.sqrt(rho)*dm,rcond=None)[0]
-        ghat=float(np.sum(rho*proj*r))/(1-G)*(1-G)          # refit value gap (visit units)
+        ghat=float(np.sum(rho*proj*r))/(1-G)*(1-G)          # refit value gap
         print(f"FB d={d} {cfg[i]} Q+={q[2*b]:.2f} Q-={q[2*b+1]:.2f} |B-moment diff|={np.linalg.norm(mom):.2e} refit gap={ghat:.3f}")
     cfg,pred,F,B=fam.train_group(mdp,d,'density')
     for i in range(len(cfg)):

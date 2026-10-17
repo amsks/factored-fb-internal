@@ -1,21 +1,9 @@
-"""env/maniskill_env.py — ManiSkill3 envs behind the same surface the collected offline data
-was recorded through, without newt's `envs.maniskill` backend (which needs newt's `/raid`
-checkout + its multitask vectorized wrapper).
-
-The offline data was recorded through newt's wrapper: `gym.make(<id>, obs_mode='state',
-control_mode=<per-task>, num_envs=1)` then `CPUGymWrapper`. Reproducing exactly that here is
-what makes the eval env's 42/35/48-dim state match the dataset — verified per task in the
-parity probe (env obs/act == dataset obs/act on all of pick/push/stack/lift/poke).
-
-CPUGymWrapper(ignore_terminations=True) runs the full fixed horizon and returns single-env
-numpy, so the unified eval loop consumes it exactly like the Metaworld envs.
-"""
+"""ManiSkill3 state-observation envs, built as the offline data was collected."""
 import os
 
 import numpy as np
 
-# task slug -> (env id, control mode, horizon). Control modes are newt's, and are load-bearing:
-# they set the action dim, which must match the recorded data (probe-verified).
+# task slug -> (env id, control mode, horizon); control mode sets the action dim of the data
 TASKS = {
     "ms-pick-cube":  ("PickCube-v1",       "pd_ee_delta_pos",  25),
     "ms-push-cube":  ("PushCube-v1",       "pd_ee_delta_pose", 25),
@@ -26,8 +14,7 @@ TASKS = {
 
 
 class ManiSkillWrapper:
-    """Thin single-env numpy adapter over CPUGymWrapper — reset/step/render/close and a
-    numpy float32 obs, matching what the unified eval loop expects."""
+    """Single-env numpy wrapper over CPUGymWrapper."""
 
     def __init__(self, env, horizon):
         self.env = env
@@ -64,13 +51,9 @@ class ManiSkillWrapper:
 
 
 def make_maniskill_env(task, render_size=128, max_episode_steps=None):
-    """-> (env, horizon). SAPIEN needs its Vulkan ICD pointed at explicitly on Vista (its
-    auto-probe misses /etc/vulkan/icd.d/nvidia_icd.aarch64.json).
+    """Return (env, horizon) for an `ms-<name>` task slug.
 
-    `max_episode_steps` raises the registered 50-step gymnasium TimeLimit, which the
-    play-resample collector needs (its trajectories are longer) and nothing else does: the
-    returned `horizon` -- what eval runs for -- is unaffected. Leave it None for eval and the
-    parity probe so they see exactly the env the offline data was recorded through.
+    :param max_episode_steps: Overrides the env's 50-step time limit; leave None for eval.
     """
     if task not in TASKS:
         raise ValueError(f"unknown ManiSkill task {task!r} (known: {sorted(TASKS)})")
@@ -90,5 +73,5 @@ def make_maniskill_env(task, render_size=128, max_episode_steps=None):
                    sensor_configs=dict(width=render_size, height=render_size),
                    human_render_camera_configs=dict(width=render_size, height=render_size),
                    reconfiguration_freq=None, sim_backend="auto", **limit)
-    env = CPUGymWrapper(env, ignore_terminations=True)   # full fixed horizon, single-env numpy
+    env = CPUGymWrapper(env, ignore_terminations=True)
     return ManiSkillWrapper(env, horizon), horizon

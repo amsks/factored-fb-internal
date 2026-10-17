@@ -1,22 +1,10 @@
 #!/usr/bin/env bash
-# Train one ExoRL run of Density-FB with reward inference (1M steps on the RND dataset).
+# Train one ExoRL run of Density-FB with reward inference (1M steps, RND dataset).
 #
 #   bash scripts/launch_exorl.sh <domain> <seed> [extra impls.main flags]
 #   domain  walker | quadruped | point-mass | cheetah
 #
-# Each domain's settings are those of the runs reported in the ExoRL table (read from their
-# config.json). All four use Meta Motivo's network shapes, B normalised onto the sqrt(d)
-# sphere, lr 1e-4, and the DDPG+BC actor with alpha 0 (actor/ddpgbc.yaml). Per domain:
-#   hit spec     which observation columns define the training goals' reward, and how close
-#                counts as reaching them (radius calibrated by scripts/calibrate_hit_spec.py)
-#   walker, cheetah  z always drawn uniformly on the sphere (rand_frac 1), F width 1024,
-#                    target rate 0.001, actor Q normalised
-#   quadruped, point-mass  half the z inferred from hindsight goals, default F, Q unnormalised
-#
-# Runs land in exp/exorl/<dmc-domain>/density_fb_z/, the layout scripts/exorl_paper_eval.py
-# scores. Evaluation during training infers z from 50k reward samples of the domain's default
-# task; the table numbers come from scripts/exorl_paper_eval.py after training.
-# PY selects the interpreter; EXORL_DATA_ROOT the dataset root; DRY=1 prints the command.
+# Runs land in exp/exorl/<dmc-domain>/density_fb_z/. PY sets the interpreter, DRY=1 prints the command.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 DOM=${1:?usage: launch_exorl.sh <domain> <seed>}

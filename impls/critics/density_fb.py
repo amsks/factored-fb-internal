@@ -1,45 +1,9 @@
-"""DensityFBCritic: a forward-backward critic whose successor measure is a categorical
-distribution over the batch's next states.
+"""Density-FB critic: a successor measure over the batch's next states.
 
-Critic. For a state s, action a and task (a goal g, or a latent task vector z) the critic
-predicts a softmax distribution over the M = B next states u_j of the current batch,
-
-    w(s, a, g, u_j) = softmax_j( F(s, a, g)^T B(u_j) / temp ),
-
-two F heads, one B tower. It is trained by cross-entropy to the TD target
-
-    t = (1 - gamma) * onehot(own next state) + gamma * w_target(s', a+, g, .),
-
-where a+ is the actor's action at s' for the same task and w_target uses the polyak target
-towers. There is no orthonormality loss, mass anchor or other regulariser on F or B.
-
-Actor. The actor maximises the reward averaged under the predicted distribution,
-Q(s, a, g) = sum_j w(s, a, g, u_j) r(u_j), with the critic frozen and the smaller of the
-two heads taken. The reward depends on the task interface:
-  * goal-conditioned (`infer_z` false): r(u) is the hit kernel
-    softmax_j(-0.5 ||(u_j - g) / eps||^2) over the observation blocks and radii named by
-    `goal_spec`;
-  * reward inference (`infer_z` true): the task is a latent z and
-    r(u) = (B_slow(u) - mu)^T z / sqrt(d), the linear reward z encodes.
-`actor_value: linear_fz` replaces the softmax average by FB's linear
-readout F(s, a, z)^T z (with z = B(g) on the goal arm), leaving the critic unchanged.
-
-Inferring z from reward samples {(u_j, r_j)}: ridge regression of the reward on the
-centered slow backward features,
-
-    m   = (1/M) sum_j (B_slow(u_j) - mu)(r_j - rbar)
-    c   = (C + lam I)^-1 m,      lam = lambda_mult * tr(C) / d
-    z   = sqrt(d) * c / ||c||    (the all-ones vector when ||c|| < const_eps)
-
-B_slow is a slow polyak copy of B and (mu, C) are running estimates of its mean and
-covariance over next states. z is unchanged by adding a constant to, or positively
-rescaling, the reward. During training each row's z is inferred from the hit-kernel
-reward of its hindsight goal, or with probability `z_random_frac` replaced
-by a uniform draw on the sqrt(d) sphere. A goal given at evaluation goes through the same
-regression, on a pool of next states frozen at the first update.
-
-B_slow, (mu, C) and the frozen pool are parameter groups that serialise with the
-checkpoint; `update_stats` is their only writer and no optimiser touches them.
+w(s, a, g, u_j) = softmax_j(F(s, a, g)^T B(u_j) / temp), trained by cross-entropy to
+(1 - gamma) * onehot(next state) + gamma * w_target(s', a', g). The actor maximises the
+reward averaged under w; on the reward-inference arm z is a ridge regression of reward
+samples on centered slow-B features.
 """
 import copy
 import dataclasses
@@ -76,13 +40,9 @@ class _MLP(nn.Module):
         return x
 
 
-# ── Meta Motivo's network shapes (metamotivo/nn_models.py), `archi: motivo`.
-# F is two embedding branches, over (obs, cond) and (obs, action), each narrowing to
-# hidden_dim // 2 and concatenated back to hidden_dim, then a trunk. The hidden-dims lists
-# are read as (hidden_dim, n_layers): [1024, 1024] is width 1024 with 2 trunk layers.
+# Meta Motivo network shapes; hidden-dims lists are read as (width, n_layers).
 class _MotivoEmbed(nn.Module):
-    """`simple_embedding`: Dense(h) + LayerNorm + Tanh, layers-2 ReLU layers of width h,
-    then Dense(h // 2) + ReLU."""
+    """Embedding branch with output width hidden_dim // 2."""
     hidden_dim: int
     layers: int = 2
 
@@ -95,8 +55,7 @@ class _MotivoEmbed(nn.Module):
 
 
 class _MotivoF(nn.Module):
-    """`ForwardMap`. Takes the concatenated [obs, action, cond] row and splits it by width,
-    so it has the same call shape as the MLP F."""
+    """Forward map on a concatenated [obs, action, cond] row."""
     obs_dim: int
     act_dim: int
     hidden_dim: int
@@ -118,8 +77,7 @@ class _MotivoF(nn.Module):
 
 
 class _MotivoB(nn.Module):
-    """`BackwardMap`: Dense(h) + LayerNorm + Tanh, layers-1 ReLU layers, Dense(out). The
-    sqrt(d) output normalisation is applied in `DensityFBCritic._B`."""
+    """Backward map; output normalisation is applied in `DensityFBCritic._B`."""
     hidden_dim: int
     out_dim: int
     layers: int = 1
@@ -138,8 +96,7 @@ def _sphere(x, d):
 
 
 def _sphere_or_neutral(x, d, eps):
-    """Exact sqrt(d) normalisation, falling back to the all-ones vector (norm sqrt(d)) when
-    ||x|| < eps, i.e. when the reward was constant on the samples and carries no task."""
+    """Project onto the sqrt(d) sphere; the all-ones vector when ||x|| < eps."""
     nrm = jnp.linalg.norm(x, axis=-1, keepdims=True)
     degenerate = nrm < eps
     safe = jnp.where(degenerate, jnp.ones_like(nrm), nrm)
@@ -147,10 +104,10 @@ def _sphere_or_neutral(x, d, eps):
 
 
 class _ZStatsState(nn.Module):
-    """Running feature mean mu [d], covariance C [d, d], the frozen evaluation pool
-    [M, d_c] of raw hit-spec columns, and its `filled` flag. Stored as parameters so they
-    serialise; written only by `update_stats`. C starts at the identity so the first
-    regression is well posed."""
+    """Feature mean mu [d], covariance C [d, d], frozen eval pool [M, d_c] and its flag.
+
+    Stored as parameters so they are checkpointed; written only by `update_stats`.
+    """
     dim: int
     pool_m: int
     d_c: int
@@ -166,21 +123,20 @@ class _ZStatsState(nn.Module):
         return mu, cov, pool, filled
 
 
-# ── hit-spec columns and the hit kernel ─────────────────────────────────────────────────
-# `_delta_phi` scales by eps itself, so it takes RAW columns (`_raw_block_cols`); the B tower
-# takes the eps-scaled columns (`_density_queries`). Mixing the two scales twice.
+# Hit-spec columns and the hit kernel
+# `_delta_phi` takes raw columns; the B tower takes eps-scaled columns.
 def _density_queries(nobs, blocks):
-    """[M, d_c] eps-scaled hit-spec columns: the B tower's input rows."""
+    """Eps-scaled hit-spec columns [M, d_c], the B tower input."""
     return jnp.concatenate([nobs[:, a:b] / e for (a, b, e) in blocks], axis=-1)
 
 
 def _raw_block_cols(obs_rows, blocks):
-    """[N, d_c] raw (unscaled) hit-spec columns: `_delta_phi`'s `protos` argument."""
+    """Raw hit-spec columns [N, d_c]."""
     return jnp.concatenate([obs_rows[:, a:b] for (a, b, e) in blocks], axis=-1)
 
 
 def _scale_block_cols(raw_cols, blocks):
-    """`_density_queries` applied to already-sliced raw columns (the frozen pool)."""
+    """Eps-scale already-sliced raw columns."""
     parts, off = [], 0
     for (a, b, e) in blocks:
         w = b - a
@@ -190,9 +146,10 @@ def _scale_block_cols(raw_cols, blocks):
 
 
 def _delta_phi(obs_rows, protos, blocks):
-    """Hit-kernel reward softmax_j(-0.5 sum_blocks ||(x_blk - u_j,blk) / eps_blk||^2),
-    normalised over the candidate axis (last). `obs_rows` [N, obs_dim] raw rows, `protos`
-    [M, d_c] raw hit-spec columns."""
+    """Hit-kernel reward [N, M], a softmax over candidates of -0.5 ||(x - u_j) / eps||^2.
+
+    `obs_rows` are raw observations [N, obs_dim], `protos` raw hit-spec columns [M, d_c].
+    """
     protos = jnp.asarray(protos, jnp.float32)
     parts_x, parts_p, off = [], [], 0
     for (a, b, e) in blocks:
@@ -212,39 +169,35 @@ class DensityFBCritic:
     density_f: Any
     density_b: Any
     obs_dim: int
-    blocks: tuple           # parsed goal_spec: ((start, stop, eps), ...)
+    blocks: tuple           # ((start, stop, eps), ...)
     discount: float
     temp: float
     tau: float
-    # 'softmax': the actor maximises the reward averaged under the predicted distribution.
-    # 'linear_fz': it maximises F(s,a,z)^T z instead (z = B(g) on the goal arm).
+    # 'softmax' or 'linear_fz' (F^T z, z = B(g) on the goal arm)
     actor_value: str = "softmax"
-    archi: str = "mlp"      # 'mlp' | 'motivo' network shapes
+    archi: str = "mlp"      # 'mlp' or 'motivo'
     b_norm: bool = False    # project B's output onto the sqrt(d) sphere
-    # 'hit_spec': B reads the eps-scaled hit-spec columns. 'state': B reads the full
-    # observation (goal arm only); the hit kernel still uses the hit-spec columns.
+    # 'hit_spec' or 'state' (full observation, goal arm only)
     backward_input: str = "hit_spec"
-    # reward-inference arm (infer_z); the z_* fields are read only when z_on
+    # Reward-inference arm
     z_on: bool = False
     z_dim: int = 0
-    z_rand_frac: float = 0.5        # fraction of rows whose z is a sqrt(d)-sphere draw
+    z_rand_frac: float = 0.5        # fraction of rows with a random sphere z
     z_ridge_lambda_mult: float = 0.01   # lam = mult * tr(C)/d
-    z_cov_eig_floor: float = 1e-6   # eigenvalue floor on C, a multiple of tr(C)/d
-    z_const_eps: float = 1e-6       # ||c|| below which the reward counts as constant
+    z_cov_eig_floor: float = 1e-6   # eigenvalue floor, times tr(C)/d
+    z_const_eps: float = 1e-6       # ||c|| below this means a constant reward
     z_enc_tau: float = 0.0005       # polyak rate of B_slow
     z_sigma_tau: float = 0.005      # running-average rate of mu and C
-    z_eval_pool_m: int = 256        # size of the frozen evaluation pool
+    z_eval_pool_m: int = 256        # frozen eval pool size
     density_b_zenc: Any = None
     density_zstats: Any = None
 
-    # Instance fields: `build` adds the reward-inference groups and the "z" cond key.
+    # Instance fields; `build` extends them on the reward-inference arm.
     GROUPS: tuple = ("density_f", "density_b")
     PROVIDES_COND: frozenset = frozenset({"value_goal", "goal"})
     STAGES = ("density",)
-    # infer_cond's reward samples are drawn on next states, the candidates the critic
-    # predicts over.
     INFER_COND_MARGINAL = "next_observations"
-    # F is task-indexed, so the TD target's next action must be drawn for the value goal.
+    # The TD target's next action is drawn for the value goal.
     BOOT_COND = "value_goal"
 
     @property
@@ -253,7 +206,7 @@ class DensityFBCritic:
 
     @property
     def cvec_dim(self):
-        """Width of the actor's conditioning vector: z, or the raw goal."""
+        """Width of the actor's conditioning vector."""
         return self.z_dim if self.z_on else self.obs_dim
 
     def stage_groups(self, stage):
@@ -278,17 +231,16 @@ class DensityFBCritic:
             return rows
         return _density_queries(rows, self.blocks)
 
-    # ── reward inference: reward samples -> z ─────────────────────────────────────────
+    # Reward inference
     def _zstats(self, net):
         return net["density_zstats"].params
 
     def _zenc(self, net):
-        """Parameters of B_slow, the slow polyak copy of B used to encode z."""
+        """Parameters of B_slow, the slow polyak copy of B."""
         return net["density_b_zenc"].params
 
     def _z_centered_moment(self, zenc_params, u_sc, mu, r):
-        """m = (1/M) sum_j (B_slow(u_j) - mu)(r_j - rbar). `u_sc` [M, d_c], `r` [B, M] or
-        [M] -> [B, d]. Raises at M = 1, where m is identically zero."""
+        """Centered moment m = mean_j (B_slow(u_j) - mu)(r_j - rbar) -> [B, d]."""
         r2 = jnp.atleast_2d(r)
         m_samples = int(r2.shape[-1])
         if m_samples < 2:
@@ -301,31 +253,27 @@ class DensityFBCritic:
         return jnp.einsum('bm,md->bd', dr, db) / m_samples
 
     def _z_centered_coef(self, m_c, cov):
-        """c = (C + lam I)^-1 m. C's eigenvalues are floored at z_cov_eig_floor * tr(C)/d
-        because the feature covariance has near-null directions whose inverse would amplify
-        noise; lam uses the unfloored trace."""
+        """Ridge solve c = (C + lam I)^-1 m with floored eigenvalues of C."""
         d = float(self.z_dim)
         cov = 0.5 * (cov + cov.T)
         tr = jnp.trace(cov)
         ev, vec = jnp.linalg.eigh(cov)
-        # the absolute floor makes a zero covariance give c = 0 rather than a singular solve
         ev = jnp.maximum(ev, jnp.maximum(self.z_cov_eig_floor * tr / d, 1e-12))
         lam = self.z_ridge_lambda_mult * tr / d
         return ((m_c @ vec) / (ev + lam)[None, :]) @ vec.T
 
     def _z_index(self, zenc_params, zstats, u_sc, r):
-        """Reward samples -> z. Training rows, goal evaluation and `infer_cond` all use it."""
+        """Reward samples -> z."""
         m_c = self._z_centered_moment(zenc_params, u_sc, zstats["mu"], r)
         c = self._z_centered_coef(m_c, zstats["cov"])
         return jax.lax.stop_gradient(_sphere_or_neutral(c, float(self.z_dim), self.z_const_eps))
 
     def z_from_reward_samples(self, net, u_sc, r):
-        """`u_sc` [M, d_c] B-tower inputs, `r` [B, M] or [M] rewards on them -> z [B, d]."""
+        """B inputs [M, d_c] and rewards [B, M] or [M] -> z [B, d]."""
         return self._z_index(self._zenc(net), self._zstats(net), u_sc, r)
 
     def _z_mix(self, z_g, rng):
-        """Keep each row's inferred z with probability 1 - z_rand_frac, else a uniform draw
-        on the sqrt(d) sphere."""
+        """Replace a z_rand_frac fraction of rows by random sphere draws."""
         d, n = int(self.z_dim), z_g.shape[0]
         rng_sphere, rng_mix = jax.random.split(rng)
         z_rand = _sphere(jax.random.normal(rng_sphere, (n, d)), d)
@@ -333,8 +281,7 @@ class DensityFBCritic:
         return jax.lax.stop_gradient(jnp.where(use_rand, z_rand, z_g))
 
     def update_stats(self, net, pre_net, batch):
-        """After each gradient step: polyak B_slow toward the pre-step B, update (mu, C) at
-        the previous B_slow, and freeze the evaluation pool on the first update."""
+        """Update B_slow, (mu, C) and, on the first call, the eval pool."""
         if not self.z_on:
             return net
         nobs = batch["next_observations"]
@@ -362,7 +309,7 @@ class DensityFBCritic:
                 f"({raw.shape[0]} next states) the evaluation pool is drawn from.")
         pool_new = jnp.where(st["filled"] > 0.5, st["pool"], raw[:self.z_eval_pool_m])
 
-        # keep the stored dtypes, or `update` retraces every step
+        # Keep stored dtypes to avoid retracing
         cast = lambda new, old: jnp.asarray(new, old.dtype)
         net = dict(net)
         net["density_b_zenc"] = net["density_b_zenc"].replace(params=zenc_new)
@@ -373,9 +320,7 @@ class DensityFBCritic:
         return net
 
     def map_eval_cond(self, net, cond, observations=None):
-        """Evaluation with a goal. On the reward-inference arm the goal's hit-kernel reward
-        on the frozen pool is regressed into z, exactly as for training rows. A given goal
-        overrides a z set earlier by `infer_cond`."""
+        """Map an evaluation goal to z via its hit-kernel reward on the frozen pool."""
         del observations
         if not self.z_on or "goal" not in cond:
             return cond
@@ -383,17 +328,16 @@ class DensityFBCritic:
         unbatched = g.ndim == 1
         g2 = g[None] if unbatched else g
         st = self._zstats(net)
-        pool_raw = st["pool"]                                        # [M, d_c] raw
+        pool_raw = st["pool"]                                        # [M, d_c]
         u_sc = _scale_block_cols(pool_raw, self.blocks)
         kg = jax.lax.stop_gradient(_delta_phi(g2, pool_raw, self.blocks))   # [B, M]
         z = self._z_index(self._zenc(net), st, u_sc, kg)
         return {**cond, "z": z[0] if unbatched else z}
 
-    # ── critic loss ─────────────────────────────────────────────────────────────────────
+    # Critic loss
     def stage_loss(self, stage, params, target, batch, cond, boot):
         assert stage == "density"
         obs, nobs, acts = batch["observations"], batch["next_observations"], batch["actions"]
-        # the task at the value goal: the raw goal, or its z on the reward-inference arm
         g = cond["_cvec_vgoal"] if self.z_on else cond["value_goal"]
         tau = self.temp
         u_sc = self._b_query(nobs)                                        # candidates u_j
@@ -404,8 +348,7 @@ class DensityFBCritic:
         w = jax.nn.softmax(logits, -1)
         logp = jax.nn.log_softmax(logits, -1)
 
-        # Next action for the TD target: the actor's action at s' for the VALUE goal.
-        # boot["next_action"] is drawn for the actor goal, a different task.
+        # Next action is drawn for the value goal, not the actor goal
         if "next_action_vgoal" not in boot:
             raise KeyError("density_fb needs boot['next_action_vgoal'], the actor's next "
                            "action drawn at cond['_cvec_vgoal'].")
@@ -414,12 +357,12 @@ class DensityFBCritic:
         tf = self._F(target["density_f"], nobs, a_plus, g)
         w_bar = jax.nn.softmax(jnp.einsum('hbd,md->hbm', tf, tb) / tau, -1)  # [2, B, M]
 
-        # TD target: (1-gamma) on the row's own next state (candidate j = b) + gamma * w_bar
+        # TD target
         k = jnp.eye(nobs.shape[0])
         t = jax.lax.stop_gradient((1.0 - self.discount) * k[None] + self.discount * w_bar)
         ce = -jnp.mean(jnp.sum(t * logp, axis=-1))
 
-        # effective number of candidates the prediction spreads over
+        # Effective sample size of w
         ess_rows = 1.0 / jnp.sum(w ** 2, axis=-1)                          # [2, B]
         info = {
             "density_ce": ce,
@@ -430,28 +373,26 @@ class DensityFBCritic:
         }
         return ce, info
 
-    # ── actor readout ───────────────────────────────────────────────────────────────────
+    # Actor readout
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
-        """Q(s, a) for the actor: the reward averaged under the predicted distribution over
-        this batch's next states, at frozen critic parameters, smaller head.
+        """Actor Q: reward averaged under w, min over heads, critic frozen.
 
-        Returns (q, q - mean(q)). The actor maximises the first and divides by the mean
-        absolute value of the second; centering the first would remove the gradient."""
+        Returns (q, centered q); the second is used only for scale normalisation.
+        """
         del stop_encoder_grad
         f_p = jax.lax.stop_gradient(params["density_f"])
         b_p = jax.lax.stop_gradient(params["density_b"])
         g = cond["z"] if self.z_on else cond["goal"]
         f_emb = self._F(f_p, obs, actions, g)
         if self.actor_value == "linear_fz":
-            # FB's linear readout F(s,a,z)^T z / sqrt(d), with z = B(g) on the goal arm
             zvec = g if self.z_on else self._B(b_p, self._b_query(g))
             q1, q2 = jnp.einsum('hbd,bd->hb', f_emb, zvec) / jnp.sqrt(float(f_emb.shape[-1]))
         else:
             if self.z_on:
-                # r(u) = (B_slow(u) - mu)^T z / sqrt(d), the linear reward z was regressed from
+                # Linear reward (B_slow(u) - mu)^T z / sqrt(d)
                 r = jnp.einsum('md,bd->bm', cond["_density_zenc_u"], g) / jnp.sqrt(float(self.z_dim))
             else:
-                r = _delta_phi(g, cond["_density_u_raw"], self.blocks)      # hit-kernel reward
+                r = _delta_phi(g, cond["_density_u_raw"], self.blocks)
             r = jax.lax.stop_gradient(r)                                    # [B, M]
             b_emb = self._B(b_p, cond["_density_u_sc"])
             w = jax.nn.softmax(jnp.einsum('hbd,md->hbm', f_emb, b_emb) / self.temp, -1)
@@ -460,13 +401,11 @@ class DensityFBCritic:
         return q, (q - q.mean())[None]
 
     def cond_vec(self, cond):
-        """The actor's conditioning vector: z, or the raw actor goal."""
+        """Actor conditioning vector: z or the raw goal."""
         return cond["z"] if self.z_on else cond["goal"]
 
     def sample_cond(self, net, batch, rng):
-        """Training conditioning. The candidates are this batch's next states. On the
-        reward-inference arm every row gets a z for its actor goal and one for its value
-        goal, each regressed from that goal's hit-kernel reward and mixed with sphere draws."""
+        """Training goals, or z for actor and value goals on the reward-inference arm."""
         nobs = batch["next_observations"]
         u_raw = _raw_block_cols(nobs, self.blocks)
         u_sc = self._b_query(nobs)
@@ -484,21 +423,17 @@ class DensityFBCritic:
         return {"value_goal": batch["value_goals"], "goal": batch["actor_goals"],
                 "z": _z_at(batch["actor_goals"], r_a),
                 "_cvec_vgoal": _z_at(batch["value_goals"], r_v),
-                # centered B_slow features of the candidates: the actor's reward basis
                 "_density_zenc_u": jax.lax.stop_gradient(
                     self._B(zenc_p, u_sc) - st["mu"][None]),
                 "_density_u_raw": u_raw, "_density_u_sc": u_sc}
 
     def eval_cond0(self, ex_obs, config):
         if self.z_on:
-            # placeholder until infer_cond or a goal supplies z
             return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
         return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
 
     def infer_cond(self, net, obs, rewards):
-        """Reward inference: `obs` [M, obs_dim] next states and `rewards` [M] (or [B, M])
-        their task rewards -> z. The goal-conditioned arm has no reward interface and
-        returns the zero-goal placeholder."""
+        """Next states [M, obs_dim] and rewards [M] or [B, M] -> z; zero goal on the goal arm."""
         if not self.z_on:
             return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
         z = self.z_from_reward_samples(net, self._b_query(obs), rewards)
@@ -512,7 +447,7 @@ class DensityFBCritic:
                              f"{tuple(jnp.shape(ex_obs))}")
         hd = tuple(config["value_hidden_dims"])
         _hb = config.get("backward_hidden_dims") or None
-        hd_b = tuple(_hb) if _hb else hd                     # null: same as F
+        hd_b = tuple(_hb) if _hb else hd
         ln = bool(config["layer_norm"])
         d = int(config["z_dim"])
         blocks = parse_hit_spec(config.get("goal_spec", "19:22:0.4"))
@@ -555,7 +490,6 @@ class DensityFBCritic:
 
         rf, rb, rz = jr.split(jr.PRNGKey(config["seed"] + 6000), 3)
         if archi == "motivo":
-            # hidden dims read as (width, n_layers), so every entry must be equal
             if len(set(hd)) != 1 or len(set(hd_b)) != 1:
                 raise ValueError(
                     f"archi='motivo' needs equal hidden-dim entries; got "
@@ -567,7 +501,6 @@ class DensityFBCritic:
         else:
             density_f = _ensemblize(_MLP, 2)((*hd, d), activate_final=False, layer_norm=ln)
             density_b = _MLP((*hd_b, d), activate_final=False, layer_norm=ln)
-        # F's task input is z (width d) or the raw goal
         ex_f = jnp.concatenate(
             [ex_obs, ex_actions,
              jnp.zeros((ex_obs.shape[0], d), ex_obs.dtype) if z_on else ex_obs], -1)
@@ -580,7 +513,6 @@ class DensityFBCritic:
                    "density_b": copy.deepcopy(params["density_b"])}
         zstats_mod = None
         if z_on:
-            # B_slow starts as a copy of B
             params["density_b_zenc"] = copy.deepcopy(params["density_b"])
             d_c = int(sum(b - a for (a, b, _e) in blocks))
             zstats_mod = _ZStatsState(dim=d, pool_m=z_pool_m, d_c=d_c,
@@ -594,7 +526,6 @@ class DensityFBCritic:
                   z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac,
                   z_ridge_lambda_mult=z_lam, z_cov_eig_floor=z_floor, z_const_eps=z_eps,
                   z_enc_tau=z_enc_tau, z_sigma_tau=z_sigma_tau, z_eval_pool_m=z_pool_m,
-                  # B_slow shares B's module definition; only the parameters differ
                   density_b_zenc=(density_b if z_on else None),
                   density_zstats=zstats_mod,
                   GROUPS=(("density_f", "density_b", "density_b_zenc", "density_zstats")

@@ -1,17 +1,6 @@
-"""Design exploration: a bottleneck process with ONE decision state whose two actions lead to two
-clusters, measured only at that state. Which layouts make the linear (FB) fit lose the action gap at
-low rank while the normalized fit keeps it?
+"""Printed comparison of action-gap recovery by linear and softmax fits on single-bottleneck layouts.
 
-Layouts (all deterministic edges, two actions per state, uniform continuation policy, gamma 0.8,
-uniform reference 1/n):
-  disjoint : entry group -> bottleneck b; a+ -> cluster A (closed cycle), a- -> cluster B (closed cycle).
-  merge    : as disjoint, but every cluster state's second action exits into a shared closed tail T,
-             so the two futures diverge for a while and then coincide.
-Knobs: entry size, cluster size, tail size. Rewards measured at b: unit reward on the first state
-of A (the "goal"), the indicator of cluster A, and unit rewards on every state (reported as the
-fraction of |gap| kept, averaged over rewards with |gap| > 0.05).
-
-    JAX_PLATFORMS=cpu python analysis/lemma_check/design_single_bottleneck.py
+Run: JAX_PLATFORMS=cpu python analysis/lemma_check/design_single_bottleneck.py
 """
 import os
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
@@ -31,24 +20,24 @@ GAMMA = 0.8
 
 
 def build(entry=4, cluster=3, tail=0, merge=False, mutual=False):
-    """Returns edges (n, 2), bottleneck index, cluster A states, cluster B states, tail states."""
+    """Return edges (n, 2), bottleneck index, and the A, B and tail states."""
     E = list(range(entry)); b = entry
     A = list(range(b + 1, b + 1 + cluster)); B = list(range(A[-1] + 1, A[-1] + 1 + cluster))
     T = list(range(B[-1] + 1, B[-1] + 1 + tail)) if merge else []
     n = (T[-1] + 1) if T else (B[-1] + 1)
     edges = np.zeros((n, 2), int)
-    # entry group: a chain 0 -> 1 -> ... -> b with a second action stepping back / looping
+    # Entry chain to b; second action steps back
     for i, s in enumerate(E):
         edges[s, 0] = E[i + 1] if i + 1 < len(E) else b
         edges[s, 1] = E[i - 1] if i > 0 else E[0]
     edges[b, 0], edges[b, 1] = A[0], B[0]
     for C, other in ((A, B), (B, A)):
         for i, s in enumerate(C):
-            edges[s, 0] = C[(i + 1) % len(C)]                                  # cycle
+            edges[s, 0] = C[(i + 1) % len(C)]
             if mutual:
-                edges[s, 1] = other[0]                                          # leak into the other cluster
+                edges[s, 1] = other[0]
             else:
-                edges[s, 1] = (T[0] if (merge and T) else C[(i + 2) % len(C)])  # exit to tail / skip
+                edges[s, 1] = (T[0] if (merge and T) else C[(i + 2) % len(C)])
     for i, s in enumerate(T):
         edges[s, 0] = T[(i + 1) % len(T)]
         edges[s, 1] = T[(i - 1) % len(T)]
@@ -59,7 +48,7 @@ def exact_ratio(edges):
     n = len(edges)
     kernel = np.eye(n)[edges].reshape(-1, n)
     t = bf.exact(kernel, np.full((n, 2), 0.5), GAMMA)      # (1-gamma) M
-    return t / (1 - GAMMA) * n, t                            # X = n M (density ratio), and (1-gamma)M
+    return t / (1 - GAMMA) * n, t                            # density ratio n M, and (1-gamma) M
 
 
 def linear_fraction(X, b, r, d):
@@ -88,13 +77,13 @@ def report(name, edges, b, A, B, T):
         tg = (X[2 * b] - X[2 * b + 1]) @ r / n
         lin = " ".join(f"d{d}:{linear_fraction(X, b, r, d)[0]:+.2f}" for d in range(2, min(7, n)))
         print(f"  reward {rn:10s} true gap {tg:+.3f} | linear kept: {lin}")
-    # all unit rewards with a real gap, mean |fraction kept| at d=2,3 for linear and softmax
+    # Mean fraction kept over unit rewards with a nonzero gap
     units = [np.eye(n)[k] for k in range(n) if abs((X[2 * b] - X[2 * b + 1]) @ np.eye(n)[k] / n) > 0.05]
     for d in (2, 3):
         lin = np.mean([linear_fraction(X, b, r, d)[0] for r in units])
         sm = np.mean([softmax_fraction(t, b, r, d, seeds=(0,)) for r in units])
         print(f"  d={d}: mean fraction kept over {len(units)} unit rewards: linear {lin:+.2f}  softmax(CE) {sm:+.2f}")
-    # spectrum: share of ||dv||^2 inside the top-d span of the ORDINARY rows
+    # Share of the gap row inside the top-d span of the other rows
     dv = X[2 * b] - X[2 * b + 1]
     Xo = np.delete(X, [2 * b, 2 * b + 1], axis=0)
     _, _, Vt = np.linalg.svd(Xo, full_matrices=False)
@@ -114,10 +103,7 @@ if __name__ == "__main__":
 
 
 def build_passthrough(entry=2, tail=4):
-    """Pass-through bottleneck (2026-09-25): entry chain -> b; a+ -> A, a- -> B (single states);
-    A and B each step straight into the shared tail (action 0 -> T[0], action 1 -> T[1]), no dwell;
-    the tail is a ring (action 0 -> next, action 1 -> skip one). The A-vs-B difference then lives
-    only in the two bottleneck rows, so FB's rank-d fit discards it until d = n - 2."""
+    """Pass-through bottleneck: entry chain to b, b to A or B, both into a shared tail ring."""
     E = list(range(entry)); b = entry; A = [b + 1]; B = [b + 2]
     T = list(range(b + 3, b + 3 + tail)); n = T[-1] + 1
     edges = np.zeros((n, 2), int)

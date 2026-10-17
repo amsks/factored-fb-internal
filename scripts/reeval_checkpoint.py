@@ -1,14 +1,4 @@
-"""Evaluate an existing checkpoint without retraining.
-
-Uses impls.main's own path (adapter, Agent.create, restore_agent, adapter.evaluate), so an
-evaluation here and one inside a training run build and score the agent the same way.
-
-The critic is trained without task rewards; rewards are only read when the task vector is
-inferred. One checkpoint per (domain, seed) therefore serves every reward task of that
-domain, and scoring another task is a re-evaluation: `--override exorl_task=<task>` relabels
-the dataset rewards and builds the env for that task together. With --infer_cond_episodes N
-and --eval_on_inferred_cond, z is inferred from N relabelled transitions and the policy is
-rolled on z with no goal given.
+"""Evaluate a saved checkpoint without retraining.
 
     python -m scripts.reeval_checkpoint --critic density_fb_z --actor ddpgbc \
         --domain dmc-walker --seed 0 --restore_path <run dir> --restore_epoch 1000000 \
@@ -31,9 +21,7 @@ from impls.utils.datasets import make_dataset
 from env import get_adapter, make_config
 from impls.utils.flax_utils import resolve_run_dir, restore_agent
 from impls.critics.base import infer_cond_rows
-# NOT from impls.main: that module defines absl flags at import time, and this script defines
-# its own --critic/--actor/--domain, so importing it raises DuplicateFlagError before main()
-# ever runs. The class lives in a flag-free module for exactly this reason.
+# Not from impls.main, whose absl flags would clash with these.
 from impls.utils.eval_cond import InferredCondAgent
 
 FLAGS = flags.FLAGS
@@ -72,15 +60,14 @@ flags.DEFINE_bool("eval_on_inferred_cond", False,
 
 
 def _recorded_config_overrides(run_dir):
-    """Dotlist overrides reproducing the config a run recorded, minus the keys that are
-    properties of THIS eval rather than of the trained networks."""
+    """Dotlist overrides for the run's recorded config, minus eval-only keys."""
     path = os.path.join(resolve_run_dir(run_dir), "config.json")
     if not os.path.isfile(path):
         print(f"[config_from_run] no config.json at {path}; using yaml defaults")
         return []
     with open(path) as f:
         recorded = json.load(f).get("config", {})
-    # Keys the eval sets for itself. Everything else describes the trained agent.
+    # Set by the eval itself
     skip = {"seed", "save_dir", "restore_path", "restore_epoch", "train_steps",
             "eval_episodes", "eval_interval", "save_interval", "log_interval",
             "exorl_task", "wandb", "run_group", "online"}
@@ -103,7 +90,7 @@ def _recorded_config_overrides(run_dir):
 
 
 def main(_):
-    # Recorded config first, CLI --override last, so an explicit override still wins.
+    # CLI --override wins over the recorded config
     base = (_recorded_config_overrides(FLAGS.restore_path)
             if FLAGS.config_from_run and FLAGS.restore_path else [])
     cfg = make_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, base + list(FLAGS.override))
@@ -115,17 +102,12 @@ def main(_):
     ex = train_ds.sample(1)
     agent = Agent.create(FLAGS.critic, FLAGS.actor, FLAGS.seed,
                          jnp.asarray(ex["observations"]), jnp.asarray(ex["actions"]), cfg)
-    # params_only: an eval never steps the optimizer, so a checkpoint written under a
-    # different optax chain must still score. See restore_agent's docstring.
     agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch, params_only=True)
 
     if FLAGS.eval_on_inferred_cond and FLAGS.infer_cond_episodes <= 0:
         raise ValueError("--eval_on_inferred_cond needs --infer_cond_episodes>0: it "
                          "evaluates on an index nothing has inferred otherwise.")
-    # Mirrors impls/main.py's eval block exactly, including WHICH rows feed infer_cond (the
-    # critic's own INFER_COND_MARGINAL, not a hard-coded column) and the wrapper that stops
-    # a goal frame overwriting the index. Kept as the same two calls in the same order so a
-    # re-eval and a training-time eval cannot disagree about what was conditioned on.
+    # Task inference, as in impls/main.py
     eval_agent = agent
     if FLAGS.infer_cond_episodes > 0:
         rb = train_ds.sample(FLAGS.infer_cond_episodes)
@@ -143,7 +125,7 @@ def main(_):
         if hasattr(eval_agent, "witness"):
             row.update(eval_agent.witness())
             eval_agent.reset_counts()
-        per_episode = row.pop("_per_episode", None)   # kept out of the printed line either way
+        per_episode = row.pop("_per_episode", None)
         print(f"REEVAL tag={FLAGS.tag} task={task_id} epoch={FLAGS.restore_epoch} "
               f"episodes={FLAGS.eval_episodes} {row}", flush=True)
         if FLAGS.out_jsonl:
@@ -156,10 +138,7 @@ def main(_):
                 rec["_per_episode"] = per_episode
             with open(FLAGS.out_jsonl, "a") as f:
                 f.write(json.dumps(rec, default=float) + "\n")
-    # Return NOTHING. absl does `sys.exit(main(argv))`, so a returned list becomes the exit
-    # status: Python prints it to stderr and exits 1. Returning the row list made every re-eval
-    # look like a failure to the calling slurm script (job 903390 reported "12 failure(s)"
-    # while all 12 checkpoints had in fact evaluated and written their records).
+    # Return None: absl passes the return value to sys.exit.
 
 
 if __name__ == "__main__":

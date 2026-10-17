@@ -1,19 +1,4 @@
-"""ExoRL (dm_control) family: registry resolution, domain configs, and the loader.
-
-The load-bearing assertion in this file is REWARDS. ExoRL is the only reward-specified
-family in the tree -- its tasks are dense reward functions, not goals -- and it is where
-`Critic.infer_cond(net, obs, rewards)` is tested on something that was never a
-goal-reaching problem. Two ways that silently dies, both covered here:
-
-  * the ExoRL episode files' own `reward` column is the reward of the task the data was
-    COLLECTED under, not the one you asked for (on point_mass_maze/rnd: four identical
-    copies of `reach_top_left`), so the loader must relabel from the stored `physics`;
-  * `GCDataset` overwrites `batch['rewards']` with its goal-reaching reward, which is what
-    `impls/main.py` hands to `infer_cond`. `keep_dataset_rewards` is the opt-out.
-
-Asserting the KEY is present is not enough for either: a zeroed or clobbered reward column
-is present and the right dtype. Every reward assertion below is on the VALUES.
-"""
+"""ExoRL (dm_control) registry, domain configs, loader reward relabelling, and env wrapper."""
 import os
 
 import numpy as np
@@ -46,14 +31,11 @@ needs_real_data = pytest.mark.skipif(
     reason=f"ExoRL point_mass_maze/rnd buffer not downloaded at {REAL_BUFFER}")
 
 
-# --------------------------------------------------------------------------------------
-# 1. registry
-# --------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("task", ["dmc-point-mass-maze", "dmc-walker", "dmc-cheetah"])
 def test_prefix_resolves_family_and_horizon(task):
     assert registry.family(task) == "exorl"
-    assert registry.horizon(task) == 1000        # ExoRL episode length, action_repeat 1
+    assert registry.horizon(task) == 1000        # ExoRL episode length
 
 
 def test_data_dir_uses_the_exorl_family_folder():
@@ -63,7 +45,7 @@ def test_data_dir_uses_the_exorl_family_folder():
 
 
 def test_other_families_are_untouched():
-    """The prefix table is shared; the other families keep their own entries."""
+    """Other families keep their own registry entries."""
     assert (registry.family("mw-push"), registry.horizon("mw-push")) == ("metaworld", 100)
     assert (registry.family("ms-push-cube"), registry.horizon("ms-push-cube")) == ("maniskill", 25)
 
@@ -73,15 +55,11 @@ def test_unknown_prefix_still_raises():
         registry.family("nope-whatever")
 
 
-# --------------------------------------------------------------------------------------
-# 2. task table + domain configs
-# --------------------------------------------------------------------------------------
 
 def test_reward_task_defaults_and_validates():
     assert E.resolve_reward_task("dmc-walker") == "walk"
     assert E.resolve_reward_task("dmc-walker", "run") == "run"
-    # A typo must NOT quietly fall back to the default: it would relabel the whole dataset
-    # for a task nobody asked about and every number downstream would be for that task.
+    # An unknown task raises instead of falling back to the default
     with pytest.raises(ValueError, match="unknown reward task"):
         E.resolve_reward_task("dmc-walker", "sprint")
     with pytest.raises(ValueError, match="unknown ExoRL task"):
@@ -94,7 +72,7 @@ def test_domain_yaml_composes(domain, monkeypatch):
     cfg = make_config("fb", "flowbc", domain)
     assert cfg["adapter"] == "unified"
     assert cfg["task"] == domain
-    # the yaml's reward task must be one this domain actually has
+    # The yaml's reward task belongs to this domain
     assert cfg["exorl_task"] in E.reward_tasks(domain)
     assert cfg["data_dir"].startswith("/tmp/exorl-root/")
     assert E.domain_of(domain) in cfg["data_dir"]
@@ -102,9 +80,7 @@ def test_domain_yaml_composes(domain, monkeypatch):
 
 
 def test_domain_yaml_reaches_the_exorl_loader(monkeypatch):
-    """env/unified.py must route dmc- tasks to the ExoRL loader, not the collected-npz one
-    (whose <data_dir>/buffer/episode_*.npz layout happens to look similar and whose
-    `reward` field is the trap this family exists to avoid)."""
+    """env/unified.py routes dmc- tasks to the ExoRL loader."""
     from env import unified
     seen = {}
     monkeypatch.setattr(E, "load_domain_data", lambda cfg: seen.setdefault("cfg", cfg))
@@ -112,22 +88,16 @@ def test_domain_yaml_reaches_the_exorl_loader(monkeypatch):
     assert seen["cfg"]["task"] == "dmc-walker"
 
 
-# --------------------------------------------------------------------------------------
-# 3. the loader, on a synthetic ExoRL-shaped buffer
-# --------------------------------------------------------------------------------------
 
 def _write_fake_buffer(tmp_path, n_ep=3, T=7, obs_dim=4, act_dim=2, seed=0):
-    """An ExoRL buffer with the dummy-first-transition convention and a `reward` column of
-    the real shape (T+1, 4) whose values are a DIFFERENT, clearly identifiable signal from
-    the relabeller's. Anything that reads the stored column instead of relabelling shows up
-    below as the wrong values, not merely as a missing key."""
+    """Write an ExoRL-shaped buffer whose stored reward column differs from the relabelled one."""
     rs = np.random.RandomState(seed)
     d = tmp_path / "buffer"
     d.mkdir()
     for e in range(n_ep):
         obs = rs.randn(T + 1, obs_dim).astype(np.float32)
-        act = rs.randn(T + 1, act_dim).astype(np.float32) * 3.0   # out of [-1,1], to test clip
-        act[0] = 0.0                                              # the dummy padding row
+        act = rs.randn(T + 1, act_dim).astype(np.float32) * 3.0   # out of [-1, 1] to test clipping
+        act[0] = 0.0                                              # dummy padding row
         np.savez(d / f"episode_{e:06d}_{T}.npz",
                  observation=obs, action=act,
                  reward=np.tile(rs.rand(T + 1, 1).astype(np.float32) * 0.01, (1, 4)),
@@ -137,8 +107,7 @@ def _write_fake_buffer(tmp_path, n_ep=3, T=7, obs_dim=4, act_dim=2, seed=0):
 
 
 def _fake_relabel(physics, domain, reward_task, env=None):
-    """Stand-in for the mujoco relabeller: a deterministic, clearly non-constant function of
-    the physics state, so "did the REAL reward survive" is checkable without mujoco."""
+    """Deterministic stand-in for the mujoco relabeller."""
     return (np.asarray(physics)[:, 0] * 10.0).astype(np.float32)
 
 
@@ -169,7 +138,7 @@ def test_loader_drops_the_dummy_action_and_aligns_next_observations(fake_data):
     z = np.load(buf / "episode_000000_7.npz")
     np.testing.assert_allclose(data["observations"][:7], z["observation"][:-1])
     np.testing.assert_allclose(data["next_observations"][:7], z["observation"][1:])
-    # actions are act[1:] (act[0] is padding), clipped to the env's own bounds
+    # Actions are act[1:], clipped to the env bounds
     np.testing.assert_allclose(data["actions"][:7], np.clip(z["action"][1:], -1.0, 1.0))
     assert not np.allclose(data["actions"][:7], np.clip(z["action"][:-1], -1.0, 1.0))
 
@@ -180,9 +149,7 @@ def test_loader_marks_episode_boundaries_not_absorbing_states(fake_data):
 
 
 def test_loader_relabels_and_does_not_pass_through_the_stored_reward_column(fake_data):
-    """The whole point. The emitted rewards must be the RELABELLED task reward at the next
-    state, not the stored column (which is the collection task's reward, right for at most
-    one task per domain and silently wrong for every other)."""
+    """The loader emits the relabelled reward at the next state, not the stored column."""
     buf, data = fake_data
     r = data["rewards"]
     z = np.load(buf / "episode_000000_7.npz")
@@ -201,7 +168,7 @@ def test_loader_refuses_to_fall_back_when_physics_is_missing(tmp_path):
     np.savez(d / f"episode_000000_{T}.npz",
              observation=np.zeros((T + 1, 4), np.float32),
              action=np.zeros((T + 1, 2), np.float32),
-             reward=np.ones((T + 1, 4), np.float32))   # tempting, and wrong
+             reward=np.ones((T + 1, 4), np.float32))
     with pytest.raises(ValueError, match="physics"):
         E.load_exorl(d, "dmc-walker", use_cache=False)
 
@@ -224,9 +191,6 @@ def test_reward_cache_round_trips(tmp_path, monkeypatch):
     np.testing.assert_array_equal(a["rewards"], b["rewards"])
 
 
-# --------------------------------------------------------------------------------------
-# 4. real rewards through make_dataset -> batch["rewards"]
-# --------------------------------------------------------------------------------------
 
 def _fb_cfg():
     return dict(z_dim=50)
@@ -242,7 +206,7 @@ def _gc_cfg(**over):
 
 
 def test_fbdataset_carries_the_real_rewards(fake_data):
-    """fb / psm read the base FBDataset, which passes `rewards` straight through."""
+    """FBDataset passes the relabelled rewards through."""
     _, data = fake_data
     ds = make_dataset(FBDataset.create(**data), _fb_cfg())
     idxs = np.array([0, 3, 9, 15])
@@ -255,9 +219,7 @@ def test_fbdataset_carries_the_real_rewards(fake_data):
 
 
 def test_gcdataset_clobbers_the_real_rewards_by_default(fake_data):
-    """Regression guard on the DEFAULT, and the reason `keep_dataset_rewards` exists: the
-    goal-reaching reward is in {-1, 0}, has nothing to do with the ExoRL task, and nothing
-    in impls/main.py warns (infer_cond_noop_reason only flags an ALL-ZERO vector)."""
+    """GCDataset replaces rewards with the goal-reaching reward by default."""
     _, data = fake_data
     ds = make_dataset(FBDataset.create(**data), _gc_cfg())
     b = ds.sample(16)
@@ -266,8 +228,7 @@ def test_gcdataset_clobbers_the_real_rewards_by_default(fake_data):
 
 
 def test_gcdataset_keep_dataset_rewards_restores_them(fake_data):
-    """density_fb / td_fb are GCDataset critics; this is the only path by which a real task
-    reward reaches their `infer_cond`."""
+    """keep_dataset_rewards makes GCDataset return the task rewards."""
     _, data = fake_data
     ds = make_dataset(FBDataset.create(**data), _gc_cfg(keep_dataset_rewards=True))
     idxs = np.array([1, 4, 8, 12, 19])
@@ -293,8 +254,7 @@ def test_keep_dataset_rewards_fails_loudly_on_unlabeled_data():
 
 
 def test_keep_dataset_rewards_off_is_a_no_op_on_the_draw(fake_data):
-    """Default-off must change nothing, including the np.random call sequence -- every
-    existing goal-conditioned run is scored against recorded numbers."""
+    """keep_dataset_rewards off leaves the sampled batch unchanged."""
     _, data = fake_data
     base = FBDataset.create(**data)
     out = []
@@ -305,32 +265,18 @@ def test_keep_dataset_rewards_off_is_a_no_op_on_the_draw(fake_data):
         np.testing.assert_array_equal(out[0][k], out[1][k], err_msg=k)
 
 
-# --------------------------------------------------------------------------------------
-# 5. against the REAL downloaded buffer (skipped when absent)
-# --------------------------------------------------------------------------------------
 
 @needs_dmc
 @needs_real_data
 def test_real_exorl_rewards_are_the_task_reward_not_the_stored_column():
-    """End-to-end on real ExoRL data. Two claims:
-
-    (a) the stored `reward` column is NOT usable as `batch['rewards']` -- it is (T+1, 4),
-        not a scalar per transition, so there is no column to take without choosing one;
-    (b) the relabelled reward IS the point_mass_maze `near_target` reward: bounded in
-        [0, 1] and peaking exactly at the closest approach to the requested target.
-
-    Note what (a) does NOT say: on `point_mass_maze/rnd` those four columns happen to be
-    the `reach_top_left` reward, so a passthrough would look fine for THAT target and be
-    wrong for the other three. That is the whole hazard, and it is why (b) is asserted
-    against the target's own geometry rather than against the stored column."""
+    """On real point_mass_maze data the relabelled reward is the target's reach reward."""
     files = E.episode_files(REAL_BUFFER, 200)
     stored = np.load(files[0])["reward"]
     assert stored.ndim == 2 and stored.shape[1] == 4, (
         f"the premise changed: stored reward is {stored.shape}, no longer the 4-wide "
         f"collection-task column this family's loader refuses to read")
 
-    # Pick episodes that actually visit the target, or the (correct) reward is ~0 everywhere
-    # and the assertion below would be testing nothing.
+    # Use episodes that reach the target so the reward is not ~0
     tgt = np.array([-0.15, 0.15])
     hits = []
     for f in files:
@@ -365,9 +311,6 @@ def test_real_loader_reaches_a_batch(tmp_path):
     assert b["rewards"][0] > 0.0
 
 
-# --------------------------------------------------------------------------------------
-# 6. the env
-# --------------------------------------------------------------------------------------
 
 @needs_dmc
 def test_env_rolls_out_and_matches_the_dataset_obs_layout():
@@ -375,8 +318,8 @@ def test_env_rolls_out_and_matches_the_dataset_obs_layout():
     env, horizon = make_task_env("dmc-point-mass-maze", reward_task="reach_top_left")
     assert horizon == 1000
     obs, info = env.reset(seed=0)
-    assert obs.shape == (4,) and obs.dtype == np.float32     # [x, y, vx, vy], as the buffers
-    assert "success" in info                                 # point_mass_maze has a goal rule
+    assert obs.shape == (4,) and obs.dtype == np.float32     # [x, y, vx, vy]
+    assert "success" in info
     total = 0.0
     for _ in range(5):
         obs, r, term, trunc, info = env.step(np.array([0.5, -0.5], np.float32))
@@ -388,8 +331,7 @@ def test_env_rolls_out_and_matches_the_dataset_obs_layout():
 
 @needs_dmc
 def test_env_reset_is_seed_deterministic():
-    """Two checkpoints must be scored on the SAME initial states. point_mass_maze draws its
-    start qpos from the GLOBAL np.random, so this fails if only task.random is seeded."""
+    """Env reset with the same seed gives the same initial state."""
     from env.unified import make_task_env
     env, _ = make_task_env("dmc-point-mass-maze")
     a, _ = env.reset(seed=3)
@@ -402,9 +344,7 @@ def test_env_reset_is_seed_deterministic():
 
 @needs_dmc
 def test_env_reset_restores_the_global_rng():
-    """Eval must not perturb training: every dataset class draws its batch indices from the
-    global np.random, so a reset that leaves it seeded makes the post-eval batch stream a
-    pure function of the last episode index."""
+    """Env reset leaves the global numpy RNG state unchanged."""
     from env.unified import make_task_env
     env, _ = make_task_env("dmc-point-mass-maze")
     np.random.seed(123)
@@ -418,11 +358,7 @@ def test_env_reset_restores_the_global_rng():
 @pytest.mark.parametrize("slug,reward_task", [(s, t) for s in E.TASKS
                                               for t in E.TASKS[s][2]])
 def test_every_registered_reward_task_builds_and_steps(slug, reward_task):
-    """All 12 (domain, reward task) pairs, including the ones that are ExoRL ADDITIONS
-    rather than dm_control suite tasks (walker flip, cheetah run_backward/flip/
-    flip_backward, all four maze targets) -- those resolve through
-    third_party/exorl_dmc_tasks and are exactly the ones a wrong suite-first/custom-second
-    resolution order would silently mis-load."""
+    """Every registered (domain, reward task) pair builds and steps."""
     env, horizon = E.make_exorl_env(slug, reward_task=reward_task)
     assert horizon == 1000
     obs, _info = env.reset(seed=0)
@@ -438,10 +374,7 @@ def test_every_registered_reward_task_builds_and_steps(slug, reward_task):
 @needs_dmc
 @pytest.mark.parametrize("slug,phys_dim", [("dmc-walker", 18), ("dmc-cheetah", 18)])
 def test_relabeller_runs_for_the_locomotion_domains(slug, phys_dim):
-    """walker/cheetah RND buffers are not downloaded on this box, so this is the furthest
-    the relabelling path can be exercised for them: real mujoco `set_state` + the real
-    `task.get_reward`, on physics states drawn from the env itself (NOT random vectors,
-    which can be non-physical and would test the wrong thing)."""
+    """The relabeller runs on env-generated physics states for walker and cheetah."""
     env, _ = E.make_exorl_env(slug)
     env.reset(seed=0)
     states = []
@@ -458,22 +391,17 @@ def test_relabeller_runs_for_the_locomotion_domains(slug, phys_dim):
 
 @needs_dmc
 def test_walker_has_no_success_key():
-    """A fabricated success=0.0 would read as "the policy failed" in eval.csv; walker's
-    benchmark metric is episode return, which env/unified.py reports as episode_return."""
+    """Walker info has no success key."""
     from env.unified import make_task_env
     env, _ = make_task_env("dmc-walker", reward_task="walk")
     obs, info = env.reset(seed=0)
     assert "success" not in info
-    assert obs.shape == (24,)                    # walker flat obs: 14 position + 9 velocity...
+    assert obs.shape == (24,)                    # 14 orientation + 1 height + 9 velocity
     env.close()
 
 
-# --------------------------------------------------------------------------------------
-# The OTHER half of "walker has no success key": the ADAPTER must not invent one.
-# No mujoco needed -- the wrapper's info contract is all this exercises.
-# --------------------------------------------------------------------------------------
 class _NoSuccessEnv:
-    """ExoRLWrapper's surface for walker/cheetah: dense reward, and NO 'success' in info."""
+    """Env with a dense reward and no success key in info."""
 
     def __init__(self, obs_dim=24, horizon=10):
         self.obs_dim, self.horizon, self.t = obs_dim, horizon, 0
@@ -500,8 +428,7 @@ class _ZAgent:
 
 
 def test_evaluate_does_not_fabricate_a_success_metric():
-    """On walker / cheetah (no binary success rule) a `success: 0.0` column would read as
-    "the policy failed every episode" in eval.csv; the row must carry episode_return only."""
+    """evaluate reports no success metric when the env has none."""
     from env.unified import UnifiedAdapter
     ad = UnifiedAdapter()
     ad._horizon = 10
@@ -513,7 +440,7 @@ def test_evaluate_does_not_fabricate_a_success_metric():
 
 
 def test_evaluate_still_reports_success_when_the_env_has_a_success_rule():
-    """The guard must not cost the families that DO have one (MW / MS / point-mass maze)."""
+    """evaluate reports success when the env provides it."""
     from env.unified import UnifiedAdapter
 
     class _WithSuccess(_NoSuccessEnv):

@@ -1,5 +1,4 @@
-"""Edge cases of the Density-FB critic: its loss is the cross-entropy, and the z regression
-on a degenerate feature covariance."""
+"""Density-FB edge cases: cross-entropy loss and the z regression on a degenerate covariance."""
 import jax.numpy as jnp, numpy as np
 from impls.critics.density_fb import (DensityFBCritic, _raw_block_cols, _density_queries,
                                       _sphere_or_neutral)
@@ -22,8 +21,7 @@ def test_loss_is_the_cross_entropy():
 
 
 def test_degenerate_covariance_gives_neutral_index_not_nan():
-    """tr(C_hat) = 0 (constant backward features): the ridge and relative floor are both zero;
-    the absolute floor must make the solve return c = 0 and the neutral index, never NaN."""
+    """A zero-trace feature covariance gives the neutral index, not NaN."""
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg(infer_z=True, eval_pool_size=8))
     d = int(c.z_dim)

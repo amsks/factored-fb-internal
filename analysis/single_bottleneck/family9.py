@@ -1,18 +1,6 @@
-"""Appendix policy family on the nine-state pass-through process (2026-09-25).
+"""Gap-recovery table and graph figures for a policy family on the nine-state pass-through process.
 
-P9: build_passthrough(entry=2, tail=4), uniform continuation policy (the Section 6.1 process).
-R1-R5: same transitions, the probability of the first action at every state drawn from U(0.25, 0.75)
-(rng seed 2000 + k); a draw is kept iff the exact action-value gap at the bottleneck is > 0.5 and
-FB's closed-form rank-2 fit reads < 0.5 of it (the rule of run.py::draw_random).
-Reward: 1 for entering A, TAIL_REWARD (0.5) on every tail state, 0 elsewhere.
-For every process: the five arms of analysis/toy_ablation/family.py (fb, normsq, softsq, density,
-density_soft), TD-trained at d = 1..8 (5 seeds x 2 learning rates, 50k steps), one worker process per
-policy setting. P9's rows are taken from paper_figs_61_p9_cache.npz (the Section 6.1 run).
-
-Outputs: family9_trained.csv, family9_processes.json,
-         figures/nine_state/fig_family_{P9,R1..R5}.{pdf,png}.
-    JAX_PLATFORMS=cpu python analysis/single_bottleneck/family9.py
-    ... --figures-only
+Run: JAX_PLATFORMS=cpu python analysis/single_bottleneck/family9.py [--figures-only]
 """
 import csv, importlib.util, json, os, pathlib, sys
 os.environ.setdefault("JAX_PLATFORMS", "cpu")

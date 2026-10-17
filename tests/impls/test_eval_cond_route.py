@@ -1,26 +1,8 @@
-"""The reward-inferred conditioning: is it REACHABLE, is it OBSERVABLY used, and is it
-solved against the right marginal?
+"""Reward-inferred eval conditioning: it reaches the evaluator, is logged, and uses next states.
 
-Run this file on its own, on CPU (running all of tests/impls in one process core-dumps):
+Run on CPU, in its own process:
 
-    PYTHONPATH=$PWD JAX_PLATFORMS=cpu python -m pytest tests/impls/test_eval_cond_route.py -q \
-        -p no:cacheprovider
-
-Two separate defects are covered here, and tests/impls/test_infer_eval_cond.py covers
-neither of them (it tests `infer_eval_cond` in isolation, which always worked):
-
-  GAP 1 -- unreachable. `Agent.sample_actions` merges a supplied goal over `cond_eval`, and
-  both evaluators supply one for every goal-capable critic. For the critics with a
-  `map_eval_cond` hook (fb, psm, rldp, density_fb) that goal is then re-encoded INTO the
-  conditioning, so `--infer_cond_episodes` produced a vector that the very next action draw
-  discarded. `--eval_on_inferred_cond` routes eval through `InferredCondAgent`, which never
-  forwards a goal, and publishes counters that PROVE which conditioning was rolled.
-
-  GAP 2 -- wrong marginal. impls/main.py fed `rb["observations"]` to every critic's
-  `infer_cond`. The FB family's backward/index tower is trained on `next_observations`
-  (`goal = next_obs` in stage_loss; density_fb's rho_phi is "the next-state query
-  marginal"), so the readout was being solved against a different measure than the one it
-  integrates -- silently, since nothing downstream can tell.
+    PYTHONPATH=$PWD JAX_PLATFORMS=cpu python -m pytest tests/impls/test_eval_cond_route.py -q
 """
 import os
 
@@ -60,16 +42,14 @@ def _fb_agent(cfg=None):
 
 
 def _inferred(agent, n=16, seed=5):
-    """An agent whose cond_eval came from real (non-degenerate) reward samples."""
+    """Agent whose cond_eval was inferred from non-degenerate reward samples."""
     rng = np.random.default_rng(seed)
     obs = jnp.asarray(rng.standard_normal((n, OBS_DIM)), jnp.float32)
     rew = jnp.asarray(rng.standard_normal((n,)), jnp.float32)
     return agent.infer_eval_cond(obs, rew)
 
 
-# ======================================================================================
-# GAP 1a. The wrapper itself: a goal handed to it is dropped, not merged.
-# ======================================================================================
+# Inferred-cond wrapper drops a supplied goal
 def test_the_wrapper_drops_a_supplied_goal_and_counts_it():
     import impls.main as m
 
@@ -83,8 +63,7 @@ def test_the_wrapper_drops_a_supplied_goal_and_counts_it():
     want = np.asarray(agent.sample_actions(obs, goals=None, seed=key, temperature=0))
     np.testing.assert_array_equal(with_goal, want)
 
-    # ... and it is NOT what the unwrapped agent would have done with that goal: fb's
-    # map_eval_cond re-derives z from the goal frame, which is the whole defect.
+    # The unwrapped agent would re-derive z from the goal.
     goal_driven = np.asarray(agent.sample_actions(obs, goals=goal, seed=key, temperature=0))
     assert not np.allclose(goal_driven, want), \
         "test premise: for fb, a supplied goal must change the action (map_eval_cond)"
@@ -96,27 +75,24 @@ def test_the_wrapper_drops_a_supplied_goal_and_counts_it():
 
 
 def test_witness_cos_neutral_separates_the_constant_reward_fallback():
-    """`inferred_cond_norm` cannot tell density_fb's neutral fallback from a real index --
-    both are projected onto the sqrt(d) sphere -- so the witness carries cos(cond, 1_d),
-    which is 1.0 for the fallback and strictly below it for anything else."""
+    """cos(cond, 1_d) is 1 for the neutral fallback and below 1 for a real index."""
     import impls.main as m
 
     agent = _inferred(_fb_agent())
     w = m.InferredCondAgent(agent)
     d = int(jnp.asarray(w.cond_eval["z"]).ravel().shape[0])
 
-    # the fallback density_fb returns at ||c|| < z_const_eps: 1_d on the sqrt(d) sphere.
+    # Neutral fallback: 1_d on the sqrt(d) sphere.
     w.cond_eval = {"z": jnp.ones((d,))}
     assert w.witness()["inferred_cond_cos_neutral"] == pytest.approx(1.0, abs=1e-6)
 
-    # a reward-informed index is not parallel to 1_d.
+    # A reward-informed index is not parallel to 1_d.
     v = jnp.asarray(np.linspace(-1.0, 1.0, d), dtype=jnp.float32)
     w.cond_eval = {"z": jnp.sqrt(jnp.array(float(d))) * v / jnp.linalg.norm(v)}
     cos = w.witness()["inferred_cond_cos_neutral"]
     assert abs(cos) < 0.99, f"a non-neutral index must not read as the fallback (cos={cos})"
 
-    # norm alone cannot make the distinction -- the point of the extra scalar. Both vectors
-    # below sit on the sqrt(d) sphere; only one of them is the fallback.
+    # Both vectors lie on the sqrt(d) sphere; only one is the fallback.
     root_d = float(np.sqrt(d))
     for z in (jnp.ones((d,)), w.cond_eval["z"]):
         w.cond_eval = {"z": jnp.sqrt(jnp.array(float(d))) * z / jnp.linalg.norm(z)}
@@ -133,9 +109,7 @@ def test_the_wrapper_carries_the_inferred_cond_not_the_placeholder():
         "the wrapper must expose the INFERRED cond, not eval_cond0"
 
 
-# ======================================================================================
-# GAP 1b. The evaluators stop building a goal for it.
-# ======================================================================================
+# Evaluators build no goal under the wrapper
 def test_needs_goal_frame_is_false_for_an_agent_that_rolls_an_inferred_cond():
     import impls.main as m
     from env.base import needs_goal_frame
@@ -146,9 +120,7 @@ def test_needs_goal_frame_is_false_for_an_agent_that_rolls_an_inferred_cond():
 
 
 def test_unified_evaluate_does_not_even_synthesise_a_goal_for_the_wrapper():
-    """The strongest available proof that the goal path is skipped rather than merely
-    overridden: `eval_goal_mode=synth` on a task with no goal-in-obs layout RAISES when a
-    goal frame is required. Under the wrapper it must not, because no frame is built."""
+    """The unified evaluator builds no goal frame for the inferred-cond wrapper."""
     import impls.main as m
     from env.unified import UnifiedAdapter
 
@@ -174,12 +146,9 @@ def test_unified_evaluate_does_not_even_synthesise_a_goal_for_the_wrapper():
     assert "success" in row
 
 
-# ======================================================================================
-# GAP 1c. End to end through impls/main.py, and OBSERVABLE in the run's own outputs.
-# ======================================================================================
+# End to end through impls/main.py
 class _RecordingAdapter:
-    """Stub adapter whose `evaluate` drives sample_actions exactly as the real ones do --
-    with a goal -- and records what came back."""
+    """Stub adapter that calls sample_actions with a goal and records the result."""
 
     name = "unified"
 
@@ -196,9 +165,7 @@ class _RecordingAdapter:
         term = np.zeros((n_ep, ep_len), np.float32)
         term[:, -1] = 1.0
         rng = np.random.default_rng(0)
-        # DISJOINT ranges: observations are strictly negative, next_observations strictly
-        # positive, so "which column did infer_cond receive" is decidable from the values
-        # alone, without knowing which row indices were drawn.
+        # observations < 0 and next_observations > 0, so the column is identifiable.
         data = dict(
             observations=(-1.0 - np.abs(rng.standard_normal((n, OBS_DIM)))).astype(np.float32),
             actions=np.tanh(rng.standard_normal((n, ACT_DIM))).astype(np.float32),
@@ -240,8 +207,7 @@ def _run_main(tmp_path, monkeypatch, cfg, adapter, critic, actor, steps, **over)
 
 
 def test_eval_on_inferred_cond_reaches_the_evaluator_and_is_logged(tmp_path, monkeypatch):
-    """The whole point: with the flag ON, the action the evaluator gets back is the one the
-    INFERRED cond produces, even though the evaluator passed a goal -- and eval.csv says so."""
+    """With eval_on_inferred_cond the evaluator rolls the inferred cond and eval.csv records it."""
     adapter = _RecordingAdapter()
     run_dir = _run_main(tmp_path, monkeypatch, _fb_cfg(), adapter, "fb", "flowbc", 2,
                         infer_cond_episodes=16, eval_on_inferred_cond=True)
@@ -256,15 +222,14 @@ def test_eval_on_inferred_cond_reaches_the_evaluator_and_is_logged(tmp_path, mon
     cols = header.strip().split(",")
     rec = dict(zip(cols, rows[0].split(",")))
     assert float(rec["inferred_cond"]) == 1.0
-    # POSITIVE evidence, not just an absence: the goal path was live and was intercepted.
+    # The goal path was live and intercepted.
     assert float(rec["inferred_cond_goals_dropped"]) == 1.0
     assert float(rec["inferred_cond_action_calls"]) == 1.0
     assert float(rec["inferred_cond_norm"]) > 0.0
 
 
 def test_without_the_flag_the_env_goal_still_wins(tmp_path, monkeypatch):
-    """The regression guard on the other side: --infer_cond_episodes alone must NOT change
-    goal-conditioned evaluation, and the action must be the goal-driven one."""
+    """Without eval_on_inferred_cond the env goal still conditions the policy."""
     a_off = _RecordingAdapter()
     run_dir = _run_main(tmp_path, monkeypatch, _fb_cfg(), a_off, "fb", "flowbc", 2,
                         infer_cond_episodes=16, eval_on_inferred_cond=False)
@@ -285,8 +250,7 @@ def test_the_flag_is_refused_without_anything_to_infer(tmp_path, monkeypatch):
 
 
 def test_the_noop_detector_now_names_the_goal_override():
-    """Before --eval_on_inferred_cond existed, this case was invisible: inference changed
-    cond_eval, so the detector said "fine", and the goal then discarded it anyway."""
+    """The no-op detector reports when the env goal overrides the inferred cond."""
     import impls.main as m
 
     agent = _inferred(_fb_agent())
@@ -297,13 +261,11 @@ def test_the_noop_detector_now_names_the_goal_override():
     wrapped = m.InferredCondAgent(agent)
     assert m.infer_cond_noop_reason(pre, wrapped.cond_eval, jnp.ones((8,)),
                                     agent=wrapped) is None
-    # The pre-existing 3-argument call must keep working (test_infer_eval_cond.py uses it).
+    # The 3-argument call still works.
     assert m.infer_cond_noop_reason(pre, agent.cond_eval, jnp.ones((8,))) is None
 
 
-# ======================================================================================
-# GAP 2. infer_cond is fed the marginal the critic declares.
-# ======================================================================================
+# infer_cond input marginal
 def test_every_registered_critic_declares_a_valid_marginal():
     for name, critic in sorted(CRITICS.items()):
         m = infer_cond_marginal(critic)
@@ -312,9 +274,7 @@ def test_every_registered_critic_declares_a_valid_marginal():
 
 @pytest.mark.parametrize("name", ["fb", "rldp", "density_fb"])
 def test_the_fb_family_is_solved_against_the_next_state_marginal(name):
-    """Each of these builds its backward/index tower on next_observations -- `goal =
-    next_obs` in stage_loss, `B(next_observations)` in sample_cond, density_fb's pinned
-    rho_phi. Asserted PER CRITIC rather than as one global rule."""
+    """FB-family critics infer the task from next observations."""
     assert infer_cond_marginal(CRITICS[name]) == "next_observations"
     assert infer_cond_rows(CRITICS[name]) == "next_observations"
 
@@ -334,9 +294,7 @@ def test_an_undeclared_marginal_is_refused_by_name():
 
 
 def test_main_feeds_infer_cond_the_next_state_column(tmp_path, monkeypatch):
-    """End to end: patch FBCritic.infer_cond to record its `obs`, and check the recorded
-    rows against the DISJOINT value ranges the stub dataset uses (observations < 0,
-    next_observations > 0). Before the fix this recorded the negative column."""
+    """impls/main.py passes next_observations to infer_cond."""
     from impls.critics.fb import FBCritic
 
     seen = []

@@ -1,10 +1,7 @@
-"""Meta Motivo's policy network (metamotivo/nn_models.py: `simple_embedding`, `Actor`).
+"""Meta Motivo policy network.
 
-Two embedding branches, one over (obs, cond) and one over obs alone, each narrowing to
-hidden_dim // 2 and concatenated back to hidden_dim, then a ReLU trunk and a tanh mean.
-The reference samples from a TruncatedNormal around the mean; here the policy returns a
-unit-scale Gaussian and truncation happens at the call sites (ddpgbc.py clips the action
-noise and every action is clipped to [-1, 1]).
+Embeddings of (obs, cond) and of obs, a ReLU trunk and a tanh mean. Returns a unit-scale
+Gaussian; callers clip noise and actions.
 """
 import distrax
 import flax.linen as nn
@@ -14,8 +11,7 @@ _DEFAULT_INIT = nn.initializers.variance_scaling(1.0, 'fan_avg', 'uniform')
 
 
 class MotivoEmbed(nn.Module):
-    """Dense(h) + LayerNorm + tanh, then layers-2 ReLU layers of width h, then
-    Dense(h // 2) + ReLU."""
+    """Dense + LayerNorm + tanh, ReLU layers, then a ReLU layer of width h // 2."""
     hidden_dim: int
     layers: int = 2
 
@@ -28,7 +24,7 @@ class MotivoEmbed(nn.Module):
 
 
 class MotivoPolicy(nn.Module):
-    """Takes the concatenated [obs, cond] row and splits it at `obs_dim`."""
+    """Policy over the concatenated [obs, cond] input, split at `obs_dim`."""
     obs_dim: int
     action_dim: int
     hidden_dim: int

@@ -1,41 +1,6 @@
-"""The paper's tabular bottleneck suite, rebuilt on the single-bottleneck process family.
+"""Tabular bottleneck suite on the single-bottleneck process family: rank sweep, rarity sweep, lemma check, mitigations.
 
-The process (analysis/lemma_check/design_single_bottleneck.py, `build`): an entry chain, ONE
-bottleneck state b whose two actions enter cluster A and cluster B, and either a mutual leak
-between the clusters (tail 0) or a shared closed tail every cluster state can exit into.  The
-decision is at b, the reward is the INDICATOR OF CLUSTER A (no goal state), and the quantity
-measured everywhere is the fraction of the exact action gap at b that a fit reads,
-(Q_hat(b, a0) - Q_hat(b, a1)) / (Q(b, a0) - Q(b, a1)).  Discount 0.8, uniform reference 1/n,
-exact population expectations, float64.
-
-Processes
-  P6   build(entry=1, cluster=2, tail=0, mutual=True): 6 states, uniform policy (the lemma figure)
-  P11  build(entry=2, cluster=2, tail=4, merge=True): 11 states, uniform policy (the rank sweep)
-  R1-5 random draws from the template entry in {1,2,3}, cluster in {2,3}, tail in {0,2,4} (tail 0
-       => mutual leak), action probabilities U(0.25, 0.75) per state; kept iff FB's closed-form
-       rank-2 fit reads < 0.5 of the exact gap and the exact gap is > 0.5.
-
-Measurements (every harness call is the existing code: analysis/toy_ablation/family.py for the six
-arms A-F, closed-form and TD-trained; analysis/rare_bottleneck/run.py for the row-reweighting
-sweep; analysis/lemma_check/run.py for the projection lemma)
-  1. rank sweep + six-arm ablation on P11 + R1-R5, ranks 2..n, closed-form and TD-trained
-     (5 seeds x 2 learning rates, 50k steps, bootstrapped target, EMA 0.005);
-  2. rarity sweep on P6 at ranks 2 and 3: the two bottleneck rows carry weight w in
-     {1/2, 1/4, 1/6 (= uniform), 1/8, 1/16, ..., 1/128, 0}; arms A, C, D closed form, TD-trained
-     for w >= 1/128;
-  3. lemma check on P11 + R1-R5: projection prediction from the trained B vs FB's readout at every
-     rank and run; residual direction appended; reward sweep at rank 2;
-  4. mitigation measurements, closed form on P11 + R1-R5 at ranks 2..5: readout swap (FB's SVD
-     features with per-row maximum-likelihood softmax rows; Density-FB's features with per-row
-     least-squares linear rows), the linear-separability margin of cluster A in feature space,
-     and the moment identity B^T (row_fit - row_true) = 0 of both per-row optima.
-
-Run (CPU, ~40 min):
-    JAX_PLATFORMS=cpu python analysis/single_bottleneck/run.py
-    ... --figures-only      (rebuild figures + tables from the CSVs)
-    ... --smoke             (tiny budget, for a quick check)
-Outputs: analysis/single_bottleneck/sb_*.csv, sb_processes.json, sb_summary.json, sb_log.txt,
-         figures/single_bottleneck/fig_sb_*.{pdf,png}.
+Run: JAX_PLATFORMS=cpu python analysis/single_bottleneck/run.py [--figures-only | --smoke]
 """
 
 import os
@@ -55,13 +20,13 @@ REPO = HERE.parent.parent
 sys.path.insert(0, str(REPO / "scripts" / "didactic"))
 sys.path.insert(0, str(REPO / "analysis" / "toy_ablation"))
 sys.path.insert(0, str(REPO / "analysis" / "lemma_check"))
-import bottleneck_family_td as bf          # noqa: E402  (sets jax x64)
-import family as fam                       # noqa: E402  (arms, fits, TD harness, figure style)
-import design_single_bottleneck as dsb     # noqa: E402  (the process builder)
+import bottleneck_family_td as bf          # noqa: E402
+import family as fam                       # noqa: E402
+import design_single_bottleneck as dsb     # noqa: E402
 
 
 def _load(name, path):
-    """Both companion scripts are called run.py; load them under distinct module names."""
+    """Load a script under a distinct module name."""
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -79,9 +44,9 @@ SEEDS = [0] if SMOKE else list(fam.SEEDS)
 RATES = [0.01] if SMOKE else list(fam.RATES)
 TRAIN_STEPS = 300 if SMOKE else fam.TRAIN_STEPS
 N_RANDOM = 1 if SMOKE else 5
-TEMPLATE = dict(entry=[2], cluster=[2], tail=[4])   # 2026-09-20: the eleven-state template only (paper decision)
-MIN_GAP, MAX_LIN2 = 0.5, 0.5                  # keep a draw iff exact gap > 0.5 and FB rank-2 fraction < 0.5
-W_UNIFORM = 1.0 / 6.0                          # P6 has 6 states: uniform row weight = 1/n on the bottleneck pair
+TEMPLATE = dict(entry=[2], cluster=[2], tail=[4])
+MIN_GAP, MAX_LIN2 = 0.5, 0.5                  # keep: exact gap > 0.5, FB rank-2 fraction < 0.5
+W_UNIFORM = 1.0 / 6.0                          # uniform row weight on P6
 W_SWEEP = [1 / 2, 1 / 6, 1 / 64, 0.0] if SMOKE else [1 / 2, 1 / 4, 1 / 6, 1 / 8, 1 / 16, 1 / 32, 1 / 64, 1 / 128, 0.0]
 RARITY_RANKS = [2, 3]
 MIT_RANKS = [2, 3] if SMOKE else [2, 3, 4, 5]
@@ -100,12 +65,9 @@ def ranks_of(mdp):
     return [2, 3] if SMOKE else list(range(2, mdp["n"] + 1))
 
 
-# ----------------------------------------------------------------------------
-# 1. Processes.
-# ----------------------------------------------------------------------------
+# Processes
 def finish(pid, name, spec, edges, pi, b, A, B, T, attempts=1):
-    """The family.py process dict (so its fits, readouts and metrics apply unchanged), with the
-    reward = indicator of cluster A, the decision at b, and the rare_bottleneck keys added."""
+    """Process dict in family.py format, reward = indicator of cluster A, decision at b."""
     n = len(edges)
     E = list(range(b))
     kernel = np.eye(n)[edges].reshape(-1, n)                 # (2n, n), row 2s+a
@@ -123,7 +85,7 @@ def finish(pid, name, spec, edges, pi, b, A, B, T, attempts=1):
                 m_exact=m_exact, r=r, q_exact=q, gap=gap, k_soft=k_soft, t_soft=t_exact @ k_soft,
                 rho=np.full(n, 1.0 / n), attempts=attempts, spec=spec, entry=E, clusterA=list(A),
                 clusterB=list(B), tail=list(T),
-                # keys the rare_bottleneck functions read
+                # keys used by rare_bottleneck
                 N=0, T=t_exact, M=m_exact, X=n * m_exact, Q=q, rows=(2 * b, 2 * b + 1))
 
 
@@ -138,7 +100,7 @@ def fixed_processes():
 
 
 def linear_fraction(mdp, d):
-    """FB's closed-form rank-d fit: fraction of the exact gap it reads (projection lemma)."""
+    """Fraction of the exact gap read by FB's closed-form rank-d fit."""
     _, B = fam.svd_fit(mdp["X"], d)
     return lc.lemma_gap(mdp, B, mdp["r"]) / mdp["gap"]
 
@@ -166,17 +128,17 @@ def draw_random(k):
 
 
 def check(mdp):
-    """Structure and exact quantities the builder promises."""
+    """Assert the builder's structural guarantees."""
     n, b, E, A, B, T = mdp["n"], mdp["decision"], mdp["entry"], mdp["clusterA"], mdp["clusterB"], mdp["tail"]
     edges = mdp["edges"]
-    assert float(np.max(np.abs(mdp["t_exact"].sum(1) - 1))) < 1e-10          # rows of (1-gamma)M sum to 1
+    assert float(np.max(np.abs(mdp["t_exact"].sum(1) - 1))) < 1e-10
     assert np.all(mdp["t_exact"] >= -1e-12)
     assert abs(mdp["gap"] - (mdp["q_exact"][2 * b] - mdp["q_exact"][2 * b + 1])) < 1e-12
     assert int(edges[b, 0]) == A[0] and int(edges[b, 1]) == B[0]
     inside = set(A) | set(B) | set(T)
     into = [(s, a) for s in range(n) for a in (0, 1) if s not in inside and int(edges[s, a]) in inside]
-    assert sorted(into) == [(b, 0), (b, 1)], into                             # b is the only way in
-    assert all(int(t) in set(E) | {b} for s in E for t in edges[s])           # the entry chain only reaches b
+    assert sorted(into) == [(b, 0), (b, 1)], into                             # b is the only entry
+    assert all(int(t) in set(E) | {b} for s in E for t in edges[s])           # entry chain only reaches b
     for s in list(A) + list(B) + list(T):
         assert all(int(t) in inside for t in edges[s]), "cluster/tail leaks back"
     if mdp["spec"].get("mutual"):
@@ -216,11 +178,9 @@ def describe(mdps):
     log("")
 
 
-# ----------------------------------------------------------------------------
-# 2. Rank sweep + lemma check (one training pass; FB's trained B feeds the lemma rows).
-# ----------------------------------------------------------------------------
+# Rank sweep + lemma check
 def run_closed(mdps):
-    """The six arms in closed form (family.py) plus the closed-form lemma / constructive rows."""
+    """Six arms in closed form plus closed-form lemma rows."""
     closed = fam.run_closed_form(mdps, ranks=ranks_of)
     lemma_rows, construct_rows = [], []
     for mdp in mdps:
@@ -231,7 +191,7 @@ def run_closed(mdps):
             assert abs(g_svd - g_lem) < 1e-9, (mdp["variant"], d, g_svd, g_lem)
             assert abs(g_lem + lc.discarded_gap(mdp, Bs, r) - mdp["gap"]) < 1e-9
             a_row = [x for x in closed if x["arm"] == "A" and x["mdp"] == mdp["seed"] and x["d"] == d][0]
-            assert abs(a_row["gap_ratio"] - g_lem / mdp["gap"]) < 1e-9          # arm A == the lemma's projection
+            assert abs(a_row["gap_ratio"] - g_lem / mdp["gap"]) < 1e-9          # arm A equals the projection
             lemma_rows.append(dict(mdp=mdp["seed"], d=d, kind="closed", seed=-1, lr=0.0,
                                    lemma=g_lem / mdp["gap"], read=g_svd / mdp["gap"],
                                    discarded=lc.discarded_gap(mdp, Bs, r) / mdp["gap"]))
@@ -246,7 +206,7 @@ def run_closed(mdps):
 
 
 def run_trained(mdps):
-    """family.run_trained's loop, with FB's trained (F, B) also fed to the lemma check."""
+    """TD-trained arms; FB's trained (F, B) also feed the lemma check."""
     abl, lemma_rows, reward_rows = [], [], []
     t0 = time.time()
     for mdp in mdps:
@@ -265,7 +225,7 @@ def run_trained(mdps):
                     if method == "fb":
                         F, B = F_all[i], B_all[i]
                         g_read, g_lem = lc.trained_gap(mdp, F, B, r), lc.lemma_gap(mdp, B, r)
-                        assert abs(g_read - abl[-1]["gap"]) < 1e-9                  # same readout as arm A
+                        assert abs(g_read - abl[-1]["gap"]) < 1e-9
                         lemma_rows.append(dict(mdp=k, d=d, kind="trained", seed=c["seed"], lr=c["lr"],
                                                lemma=g_lem / mdp["gap"], read=g_read / mdp["gap"],
                                                discarded=lc.discarded_gap(mdp, B, r) / mdp["gap"]))
@@ -286,9 +246,7 @@ def run_trained(mdps):
     return abl, lemma_rows, reward_rows
 
 
-# ----------------------------------------------------------------------------
-# 3. Rarity sweep on P6 (rare_bottleneck functions with the process's own rows).
-# ----------------------------------------------------------------------------
+# Rarity sweep on P6
 def run_rarity(p6):
     closed, trained = [], []
     t0 = time.time()
@@ -299,9 +257,9 @@ def run_rarity(p6):
             assert np.allclose(wts, 1.0 / (2 * p6["n"]))
         for d in RARITY_RANKS:
             a = rb.run_arm_A(p6, wts, d, "reweight", w)
-            assert abs(a[1]["gap_ratio"] - 1.0) < 1e-8                       # A+ keeps the gap by construction
+            assert abs(a[1]["gap_ratio"] - 1.0) < 1e-8
             if w == 0.0:
-                assert abs(a[0]["gap_ratio"] - a[0]["limit_gap_ratio"]) < 1e-8   # weighted SVD at w=0 == the limit formula
+                assert abs(a[0]["gap_ratio"] - a[0]["limit_gap_ratio"]) < 1e-8   # weighted SVD at w = 0 matches the limit
             closed += a
             closed += rb.run_arms_CD(p6, wts, d, "reweight", w)
         g = lambda arm, d: np.mean([x["gap_ratio"] for x in closed if x["w"] == w and x["d"] == d and x["arm"] == arm])
@@ -309,7 +267,7 @@ def run_rarity(p6):
                                                         for d in RARITY_RANKS) + f"  ({time.time() - t0:.0f}s)")
     for w in W_SWEEP:
         if w == 0.0:
-            continue                                                        # TD needs every row to receive gradient
+            continue                                                        # TD needs w > 0
         wts = rb.row_weights(p6, w)
         for d in RARITY_RANKS:
             trained += rb.run_trained(p6, wts, "reweight", w, d=d)
@@ -319,25 +277,21 @@ def run_rarity(p6):
     return closed, trained
 
 
-# ----------------------------------------------------------------------------
-# 4. Mitigation measurements (closed form).
-# ----------------------------------------------------------------------------
+# Mitigation measurements
 def orthonormal(B):
-    """A canonical basis of span(B): the fit F B^T only depends on the span, so all feature-space
-    quantities below are computed on this representative."""
+    """Orthonormal basis of span(B)."""
     Q, _ = np.linalg.qr(B)
     return Q
 
 
 def ls_rows(mdp, B):
-    """Per-row least squares of X = nM given orthonormal B: F = X B, fit = X P_B."""
+    """Per-row least squares of X = n M given orthonormal B."""
     F = mdp["X"] @ B
     return F, F @ B.T
 
 
 def ml_rows(B, T):
-    """Per-row maximum likelihood of the target rows T in the softmax family {softmax(B f)}: each
-    row's cross-entropy is convex in f, solved by L-BFGS with the analytic gradient B^T (p - t)."""
+    """Per-row maximum-likelihood softmax(B f) fit to the rows of T, by L-BFGS."""
     from scipy.optimize import minimize
     n, d = B.shape
     F = np.zeros((T.shape[0], d))
@@ -361,9 +315,7 @@ def ml_rows(B, T):
 
 
 def separability_margin(B, A_idx, n_dirs=20000, seed=0):
-    """max over unit u of  min_{a in A} b_a.u - max_{s not in A} b_s.u  on the rows of B.
-    Random search on the sphere followed by SLSQP refinement (||u|| = 1) from the best directions;
-    positive iff cluster A is linearly separable from the other states in feature space."""
+    """Linear-separability margin of cluster A among the rows of B (positive iff separable)."""
     from scipy.optimize import minimize
     n, d = B.shape
     inA = np.zeros(n, bool)
@@ -402,7 +354,7 @@ def run_mitigation(mdps):
         for d in MIT_RANKS:
             feats = [("fb", -1, fam.svd_fit(X, d)[1], None)]
             for sd in SEEDS:
-                sseed = 1000 * sd + 17 * d + 101 * k                     # the same fits as arm D's closed form
+                sseed = 1000 * sd + 17 * d + 101 * k                     # same seeds as arm D
                 F, B, P, _ = fam.softmax_fit(T, n, d, sseed, "ce")
                 feats.append(("density", sd, B, P))
             for fname, sd, B_raw, P_joint in feats:
@@ -421,19 +373,17 @@ def run_mitigation(mdps):
                            retained_linear=fam.retained_mass(mdp, (1 - GAMMA) * fit / n),
                            retained_softmax=fam.retained_mass(mdp, P),
                            ce_softmax=float(-np.mean(np.sum(T * np.log(np.maximum(P, 1e-300)), axis=1))))
-                if P_joint is not None:                                     # arm D's joint Adam fit, before the per-row polish
+                if P_joint is not None:                                     # arm D's joint fit
                     row["gap_softmax_joint"] = fam.gap_stats(mdp, P_joint @ r / (1 - GAMMA))["gap_ratio"]
                     row["ce_softmax_joint"] = float(-np.mean(np.sum(T * np.log(np.maximum(P_joint, 1e-300)), axis=1)))
-                    assert row["ce_softmax"] <= row["ce_softmax_joint"] + 1e-9   # the per-row optimum is at least as good
+                    assert row["ce_softmax"] <= row["ce_softmax_joint"] + 1e-9
                 rows.append(row)
         log(f"  [mitigation] {mdp['variant']} done ({time.time() - t0:.0f}s)")
     return rows
 
 
-# ----------------------------------------------------------------------------
-# 5. Figures.
-# ----------------------------------------------------------------------------
-COL_B = "#0173B2"          # cluster B: blue; bottleneck orange and cluster A green as in family.py
+# Figures
+COL_B = "#0173B2"          # cluster B
 ARM_COLOR, ARM_MARKER = single.ARM_COLOR, single.ARM_MARKER
 INK = single.INK
 
@@ -452,8 +402,7 @@ def save(fig, stem):
 
 
 def sb_layout(mdp):
-    """Entry chain on the left, the bottleneck in the middle, cluster A above and cluster B below
-    on the right, the shared tail (if any) at the far right."""
+    """Node positions: entry left, bottleneck middle, clusters right, tail far right."""
     E, A, B, T, b = mdp["entry"], mdp["clusterA"], mdp["clusterB"], mdp["tail"], mdp["decision"]
     pos, out = {}, {}
     xs = np.linspace(-2.3, -1.1, len(E)) if len(E) > 1 else [-1.7]
@@ -515,7 +464,7 @@ def make_ablation_figures(closed, trained, mdps):
     plt.close(fig)
     for stem, rows, hollow in (("fig_sb_ablation_closed", closed, False), ("fig_sb_ablation_trained", trained, True)):
         fig, ax = plt.subplots(figsize=(3.4, 2.5))
-        fam.draw_panel(ax, [r for r in rows if r["arm"] != "E"], hollow=hollow, ranks=ranks)   # E has no meaningful scale
+        fam.draw_panel(ax, [r for r in rows if r["arm"] != "E"], hollow=hollow, ranks=ranks)
         ax.set_ylim(-0.05, 1.12)
         ax.set_xlim(ranks[0] - 0.25, ranks[-1] + 0.25); ax.set_xticks(ranks)
         ax.set_ylabel("recovery", fontsize=9)
@@ -549,7 +498,7 @@ def make_ablation_figures(closed, trained, mdps):
     fig.tight_layout(pad=0.3)
     save(fig, "fig_sb_gap_two_arm")
     plt.close(fig)
-    # per-process panels, three to a row, each up to its own n
+    # Per-process panels
     ncol = 3
     nrow = int(np.ceil(len(mdps) / ncol))
     fig, axes = plt.subplots(nrow, ncol, figsize=(2.3 * ncol, 2.35 * nrow), sharey=True, squeeze=False)
@@ -567,7 +516,7 @@ def make_ablation_figures(closed, trained, mdps):
     fig.tight_layout(pad=0.3, w_pad=0.8, h_pad=1.2)
     save(fig, "fig_sb_per_mdp")
     plt.close(fig)
-    # values at the bottleneck at ranks 2 and 3
+    # Bottleneck values at ranks 2 and 3
     for d in (2, 3):
         fam.make_values_figure(trained, mdps, d=d, stem=f"fig_sb_values_d{d}", fig_dir=FIG_DIR,
                                action_labels=("action into cluster A", "action into cluster B"))
@@ -735,9 +684,7 @@ def make_mitigation_figures(mit):
     save(fig, "fig_sb_margin"); plt.close(fig)
 
 
-# ----------------------------------------------------------------------------
-# 6. Tables and summary.
-# ----------------------------------------------------------------------------
+# Tables and summary
 def _corr(a, b):
     a, b = np.asarray(a, float), np.asarray(b, float)
     return float(np.corrcoef(a, b)[0, 1]) if a.std() > 0 and b.std() > 0 else float("nan")
@@ -755,7 +702,7 @@ def summarize(mdps, closed, trained, rare_closed, rare_trained, lemma_rows, rewa
     ranks = common_ranks(sweep)
     names = {m["seed"]: m["variant"] for m in mdps}
 
-    # --- rank sweep
+    # Rank sweep
     log("\n=== 1. rank sweep: fraction of the exact gap vs rank, mean over P11 + R1-R5 (ranks all six share) ===")
     log("closed form:  arm | " + " | ".join(f"d={d}" for d in ranks))
     S["rank_sweep"] = {}
@@ -801,7 +748,7 @@ def summarize(mdps, closed, trained, rare_closed, rare_trained, lemma_rows, rewa
             f"Density-FB {v['D'][0][0]:.2f} / {v['D'][1][0]:.2f}")
     S["values"] = vals
 
-    # --- rarity
+    # Rarity
     log(f"\n=== 2. rarity sweep on P6 (gap {p6['gap']:.2f}): fraction of the exact gap vs bottleneck weight w ===")
     S["rarity"] = {}
     for d in RARITY_RANKS:
@@ -823,7 +770,7 @@ def summarize(mdps, closed, trained, rare_closed, rare_trained, lemma_rows, rewa
             if tr:
                 line += " || " + " | ".join(f"{tr[k_][0]:.3f} [{tr[k_][1]:.2f},{tr[k_][2]:.2f}]" for k_ in ("A", "C", "D"))
             log(line)
-        # crossover: the largest w at which FB's closed-form fraction is below 0.5
+        # Largest w with FB's closed-form fraction below 0.5
         ws = [w for w in W_SWEEP if w > 0]
         fr = {w: float(rb.sel(rare_closed, construction="reweight", w=float(w), d=d, arm="A")[0]["gap_ratio"]) for w in ws}
         below = [w for w in ws if fr[w] < 0.5]
@@ -831,7 +778,7 @@ def summarize(mdps, closed, trained, rare_closed, rare_trained, lemma_rows, rewa
         log(f"  FB closed form at rank {d} reads < 0.5 of the gap for every w <= {rb.fmt_w(max(below), W_UNIFORM) if below else 'never'}; "
             f"w -> 0 limit {fr[ws[-1]]:.3f} -> {float(rb.sel(rare_closed, construction='reweight', w=0.0, d=d, arm='A')[0]['limit_gap_ratio']):.3f}")
 
-    # --- lemma check
+    # Lemma check
     log("\n=== 3. lemma check on P11 + R1-R5 ===")
     tr = [x for x in lemma_rows if x["kind"] == "trained"]
     a, b = np.array([x["lemma"] for x in tr]), np.array([x["read"] for x in tr])
@@ -869,7 +816,7 @@ def summarize(mdps, closed, trained, rare_closed, rare_trained, lemma_rows, rewa
         S["construct"][d] = dict(gap_rank_d=float(g), gap_aug=float(ga), rel_cost=float(cost))
         log(f"    d={d:2d}: {g:6.3f} | {ga:6.3f} | {cost:+.3f}")
 
-    # --- mitigation
+    # Mitigation
     log("\n=== 4. mitigation measurements, closed form on P11 + R1-R5, ranks 2..5 ===")
     log("(i) readout swap: fraction of the exact gap (mean over processes [x seeds]); rows = features, columns = readout")
     S["swap"] = {}
@@ -916,9 +863,7 @@ def summarize(mdps, closed, trained, rare_closed, rare_trained, lemma_rows, rewa
     return S
 
 
-# ----------------------------------------------------------------------------
-# 7. IO.
-# ----------------------------------------------------------------------------
+# IO
 def write_csv(rows, name):
     keys = []
     for r in rows:

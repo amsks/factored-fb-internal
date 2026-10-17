@@ -1,16 +1,4 @@
-"""Dataset utilities.
-
-`Dataset` is ported from OGBench upstream impls/utils/datasets.py (the compact-dataset
-FrozenDict with idx+1 next-observation inference). The samplers on top of it produce the
-training batch each critic needs:
-
-  FBDataset          -- observations/actions/next_observations, reward 0 for unlabeled play
-                        data, terminals 0 (always bootstrap). fb.
-  GCDataset          -- adds hindsight value/actor goals and the goal-reaching reward.
-                        density_fb.
-  WindowedDataset    -- the FB batch plus an h-step window of future actions/states. rldp.
-  HILPFutureDataset  -- the FB batch plus one geometrically-sampled future state. hilp.
-"""
+"""Datasets and the batch samplers each critic trains on."""
 import dataclasses
 from typing import Any
 
@@ -28,9 +16,7 @@ def get_size(data):
 
 
 class Dataset(FrozenDict):
-    """Compact dataset: stores observations (and optionally next_observations). If
-    next_observations is absent it is inferred by shifting indices by 1; `valids` masks
-    trajectory-boundary transitions."""
+    """Compact dataset; next_observations default to the next row."""
 
     @classmethod
     def create(cls, freeze=True, **fields):
@@ -58,7 +44,6 @@ class Dataset(FrozenDict):
 
     def get_subset(self, idxs):
         result = jax.tree_util.tree_map(lambda arr: arr[idxs], self._dict)
-        # The row's identity in the dataset (HILPFutureDataset draws its future from it).
         result['index'] = np.asarray(idxs).reshape(-1)
         if 'next_observations' not in result:
             result['next_observations'] = self._dict['observations'][np.minimum(idxs + 1, self.size - 1)]
@@ -66,12 +51,9 @@ class Dataset(FrozenDict):
 
 
 class FBDataset(Dataset):
-    """Dataset yielding the FB training batch. goal=next_obs is handled inside the critic,
-    so no goal machinery is needed here."""
+    """Transition batches for FB, with zero reward on unlabeled data."""
 
-    # Set by make_dataset from obs_mask_dims|goal_mask_dims. FB's goal is next_observations,
-    # so blanking both frames is the whole mask protocol for this dataset; eval blanks the
-    # same dims (env/unified.py::evaluate).
+    # Observation dims zeroed in both frames; set by make_dataset.
     mask_dims = None
 
     def sample(self, batch_size, idxs=None):
@@ -82,7 +64,7 @@ class FBDataset(Dataset):
         if 'rewards' in sub:
             rewards = np.asarray(sub['rewards'], np.float32).reshape(B, -1)
         else:
-            rewards = np.zeros((B, 1), np.float32)  # play data is unlabeled
+            rewards = np.zeros((B, 1), np.float32)
         obs = np.asarray(sub['observations'], np.float32)
         nobs = np.asarray(sub['next_observations'], np.float32)
         if self.mask_dims:
@@ -93,16 +75,14 @@ class FBDataset(Dataset):
             'actions': np.asarray(sub['actions'], np.float32),
             'next_observations': nobs,
             'rewards': rewards,
-            'terminals': np.zeros((B,), np.float32),  # always bootstrap
+            'terminals': np.zeros((B,), np.float32),
             'index': np.asarray(sub['index']).reshape(-1),
         }
 
 
 @dataclasses.dataclass
 class GCDataset:
-    """Goal-conditioned dataset, ported from OGBench utils/datasets.py:GCDataset.
-    Produces value_goals, actor_goals, the goal-reaching reward and masks. The np.random
-    call order matches the OGBench source for seeded determinism."""
+    """Goal-conditioned dataset with hindsight value/actor goals and goal-reaching reward."""
     dataset: Dataset
     config: Any
 
@@ -132,16 +112,12 @@ class GCDataset:
         batch['masks'] = 1.0 - successes
         batch['rewards'] = successes - (1.0 if c['gc_negative'] else 0.0)
         self._maybe_keep_dataset_rewards(batch, idxs)
-        # Goal masking: zero the listed dims in the emitted goals only (e.g. the target
-        # coordinates embedded in goal-observable MetaWorld/ManiSkill observations).
+        # Goal masking
         mask_dims = c.get('goal_mask_dims')
         if mask_dims:
             batch['value_goals'][:, list(mask_dims)] = 0.0
             batch['actor_goals'][:, list(mask_dims)] = 0.0
-        # Observation masking: on goal-observable envs the target is inside the agent's own
-        # observation, so an unconditioned actor could read "go here" off its input. Blanking
-        # the same dims in observations forces all goal information through the conditioning
-        # vector. Eval blanks the same dims (env/unified.py::evaluate).
+        # Observation masking, so goal information enters only through the conditioning
         obs_mask_dims = c.get('obs_mask_dims')
         if obs_mask_dims:
             batch['observations'][:, list(obs_mask_dims)] = 0.0
@@ -149,13 +125,7 @@ class GCDataset:
         return batch
 
     def _maybe_keep_dataset_rewards(self, batch, idxs):
-        """Reward-specified domains (ExoRL): put the dataset's own task reward back into
-        `batch['rewards']`, replacing the goal-reaching reward. The critic's reward-weighted
-        task inference (`infer_cond(net, obs, rewards)`) reads these rewards, so without this
-        it would infer the goal-reaching task instead of the one asked for.
-
-        `masks` goes to 1: dm_control episodes end on a time limit, never on an absorbing
-        state, so the TD target always bootstraps. Off by default (no-op, no randomness)."""
+        """If keep_dataset_rewards, use the dataset's task reward and always bootstrap."""
         if not self.config.get('keep_dataset_rewards'):
             return
         if 'rewards' not in self.dataset:
@@ -189,20 +159,10 @@ class GCDataset:
 
 @dataclasses.dataclass
 class WindowedDataset:
-    """h-step windowed batches for RLDP: the FB batch plus, for every sampled index, the
-    rest of the h-step self-predictive rollout's (action, next-state) columns.
+    """FB batch plus an h-step window of future actions and states, for RLDP.
 
-    RLDP's self-predictive head rolls a learned predictor forward h steps from B(obs) and
-    matches step k against the target backward map at s_{t+k}. After the critic prepends
-    the one-step pair (a_t -> s_{t+1}), zipping actions with states gives the rollout
-    (a_{t+k-1} -> s_{t+k}); this class emits the rest of it:
-
-      * future_observations -- [B, h-1, obs_dim],    column k = row min(idx + 2 + k, traj_end)
-      * future_actions      -- [B, h-1, action_dim], column k = row min(idx + 1 + k, traj_end)
-
-    Column k of future_observations is the state reached by column k of future_actions.
-    Windows are clamped to the anchor row's own trajectory end, so a window never reads
-    into the next episode. h == 1 emits no future keys: the batch is exactly an FB batch.
+    future_actions [B, h-1, act_dim] and future_observations [B, h-1, obs_dim]; column k of
+    the states is reached by column k of the actions. Windows stop at the trajectory end.
     """
     dataset: Dataset
     config: Any
@@ -211,7 +171,6 @@ class WindowedDataset:
         self.size = self.dataset.size
         (self.terminal_locs,) = np.nonzero(np.asarray(self.dataset['terminals']) > 0)
         assert self.terminal_locs[-1] == self.size - 1
-        # obs_mask_dims | goal_mask_dims, unioned as for FBDataset: the goal is the next state.
         dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
                       set(self.config.get('goal_mask_dims') or ()))
         self.mask_dims = list(dims) or None
@@ -240,13 +199,13 @@ class WindowedDataset:
         if 'rewards' in sub:
             rewards = np.asarray(sub['rewards'], np.float32).reshape(B, -1)
         else:
-            rewards = np.zeros((B, 1), np.float32)  # play data is unlabeled
+            rewards = np.zeros((B, 1), np.float32)
         batch = {
             'observations': obs,
             'actions': np.asarray(sub['actions'], np.float32),
             'next_observations': nobs,
             'rewards': rewards,
-            'terminals': np.zeros((B,), np.float32),  # always bootstrap, as FBDataset
+            'terminals': np.zeros((B,), np.float32),
         }
 
         if h > 1:
@@ -269,13 +228,10 @@ class WindowedDataset:
 
 @dataclasses.dataclass
 class HILPFutureDataset:
-    """The FB batch plus one geometrically-sampled hindsight future state, for HILP.
+    """FB batch plus one future state per row, for HILP.
 
-    HILP's phi objective takes `hilp_future_observations` as the goal. Following the HILP
-    reference buffer, the future is `step + Geometric(1 - goal_future)` clipped to the
-    anchor's own trajectory end (mean offset 100 steps at 0.99), then replaced by a uniformly
-    random dataset state with probability `p_randomgoal`. The clip can make obs == goal,
-    which is the row HILP's indicator reward is written for.
+    The future is a geometric offset clipped to the trajectory end, replaced by a random
+    state with probability p_randomgoal.
     """
     dataset: Any
     config: Any
@@ -287,7 +243,6 @@ class HILPFutureDataset:
         assert 0.0 < self.p <= 1.0, (
             f"goal_future must be in [0, 1); got {self.config.get('goal_future')}")
         self.p_randomgoal = float(self.config.get('p_randomgoal', 0.0))
-        # obs_mask_dims | goal_mask_dims, unioned as for FBDataset.
         dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
                       set(self.config.get('goal_mask_dims') or ()))
         self.mask_dims = list(dims) or None
@@ -318,8 +273,7 @@ _DATASET_CLASSES = {'GCDataset': GCDataset, 'WindowedDataset': WindowedDataset,
 
 
 def make_dataset(base, config):
-    """Wrap a base Dataset per the critic's `dataset_class`. With none set (fb), the base
-    FBDataset is used directly, with the obs/goal mask dims attached."""
+    """Wrap a base dataset in the critic's `dataset_class`, or return it with mask dims set."""
     config = upgrade_config(config)
     cls = _DATASET_CLASSES.get(config.get('dataset_class'))
     if cls is not None:

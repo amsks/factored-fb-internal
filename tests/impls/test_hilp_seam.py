@@ -1,12 +1,4 @@
-"""HILP critic, checked against independent numpy reconstructions of its two losses.
-
-The phi value loss is re-derived in numpy from the tower outputs and must agree at 1e-10
-under x64. Three details are pinned so a drift fails loudly: the advantage uses the min
-of the target heads for Q but their mean for the baseline while each head regresses its
-own target (test_reductions_are_not_interchangeable); the distance clamp sits inside the
-sqrt, so V floors at -1e-3 (test_clamp_is_inside_the_sqrt...); at expectile 0.5 the
-weight is constant (test_shipped_expectile_is_inert).
-"""
+"""HILP critic losses against numpy reconstructions."""
 import jax
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
@@ -35,14 +27,14 @@ def _fixture(seed=0):
     rng = np.random.default_rng(seed)
     obs = rng.standard_normal((B, OBS))
     goals = rng.standard_normal((B, OBS))
-    goals[2] = obs[2]                       # force one exact obs == goal row
+    goals[2] = obs[2]                       # one obs == goal row
     nobs = rng.standard_normal((B, OBS))
     ps = {k: _mlp_params(rng, OBS, D) for k in ("p1", "p2", "t1", "t2")}
     return obs, goals, nobs, ps
 
 
 def _np_reference(obs, goals, nobs, ps, discount=DISC, expectile=EXP):
-    """The phi value loss re-derived in numpy, reading only the parameter arrays."""
+    """phi value loss in numpy, from the parameter arrays."""
     v = lambda p, a, b: -np.sqrt(np.clip(((_np_apply(p, a) - _np_apply(p, b)) ** 2).sum(-1), 1e-6, None))
     same = (np.linalg.norm(obs - goals, axis=-1) < 1e-6).astype(np.float64)
     masks = 1.0 - same
@@ -82,16 +74,13 @@ def test_phi_loss_matches_across_expectiles(expectile):
 
 
 def test_clamp_is_inside_the_sqrt_so_identical_inputs_floor_at_1e_3():
-    """`-sqrt(clamp(sq, min=1e-6))`, not `-clamp(sqrt(sq), ...)`. At phi(a)==phi(b)
-    the value is -1e-3, not 0, and the gradient stays finite -- which matters because
-    hindsight relabelling makes obs == goal a common row."""
+    """The clamp is inside the sqrt, so V(s, s) = -1e-3."""
     x = jnp.zeros((3, D))
     assert np.allclose(np.asarray(hilp_value(x, x)), -1e-3)
 
 
 def test_shipped_expectile_is_inert():
-    """At expectile 0.5 the weight does not depend on adv at all, so the loss is
-    plain 0.5*diff^2."""
+    """At expectile 0.5 the loss is 0.5 * diff^2."""
     adv = jnp.asarray([-3.0, -1e-9, 0.0, 1e-9, 5.0])
     diff = jnp.ones_like(adv)
     w = np.asarray(expectile_loss(adv, diff, 0.5))
@@ -101,19 +90,7 @@ def test_shipped_expectile_is_inert():
 
 
 def test_reductions_are_not_interchangeable():
-    """Three reductions in one loss. The robust invariant is that swapping the
-    adv baseline (MEAN of target heads -> min) or the per-head q1/q2 (-> the shared
-    min-based q) changes the computation.
-
-    The shared-q swap changes the LOSS directly. The baseline swap changes `adv` -- by
-    0.4-1.0 on these fixtures -- but often NOT the loss, and that is a property of the
-    objective worth stating rather than a weak test: HILP's reward is -1 on every row
-    where the hindsight goal is not reached, so `q` sits near -1 while the values sit near
-    0, and `adv` is negative on essentially every row. The only rows with adv >= 0 are the
-    degenerate obs == goal ones (q = 0, v_t = -1e-3 => adv = +1e-3). Since the expectile
-    weight depends only on sign(adv), a baseline change that shifts adv without flipping
-    its sign is invisible to the loss -- at ANY expectile, not just the shipped 0.5.
-    """
+    """Swapping the advantage baseline changes adv, and swapping the per-head q changes the loss."""
     obs, goals, nobs, ps = _fixture(5)
     v = lambda p, a, b: -np.sqrt(np.clip(((_np_apply(p, a) - _np_apply(p, b)) ** 2).sum(-1), 1e-6, None))
     same = (np.linalg.norm(obs - goals, axis=-1) < 1e-6).astype(np.float64)
@@ -127,27 +104,23 @@ def test_reductions_are_not_interchangeable():
 
     adv = q - (tv1 + tv2) / 2.0
     adv_minbase = q - np.minimum(tv1, tv2)
-    # the baseline choice always moves adv itself, which is what gets logged as
-    # accept_prob / adv_mean even when the loss is insensitive to it
+    # The baseline swap moves adv, which is logged.
     assert np.abs(adv - adv_minbase).max() > 1e-6
 
-    # the shared-q swap changes the loss outright
+    # The shared-q swap changes the loss.
     wrong_sharedq = float((w(adv) * (q - v1) ** 2).mean() + (w(adv) * (q - v2) ** 2).mean())
     assert abs(wrong_sharedq - ref) > 1e-8, "shared-q variant indistinguishable; fixture too weak"
 
 
 def test_advantage_is_almost_always_negative():
-    """Records the structural fact the test above rests on, so a future change that makes
-    adv straddle zero shows up as a failure here rather than as a silent shift in what the
-    expectile is doing. Across fixtures, at most a small minority of rows have adv >= 0,
-    and those are the degenerate obs == goal rows."""
+    """adv >= 0 only on a small minority of rows, the obs == goal ones."""
     for seed in range(4):
         obs, goals, nobs, ps = _fixture(seed)
         _, info = _run(obs, goals, nobs, ps)
         assert float(info["hilp_accept_prob"]) <= 0.35, (seed, info["hilp_accept_prob"])
 
 
-# ── SF stage: build + an independent numpy reconstruction of the successor-feature loss ──
+# Successor-feature stage
 from impls.critics.hilp import HILPCritic  # noqa: E402
 
 SB, SOBS, SACT, SZ, SH, SL = 6, 5, 3, 4, 8, 3
@@ -183,19 +156,18 @@ def test_build_produces_the_declared_groups_and_targets():
     critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
     assert set(params) == set(critic.GROUPS)
     assert set(targets) == set(critic.TARGETS)
-    # the stats slot must never polyak -- it is written by update_stats
+    # The stats slot is never polyak-averaged; update_stats writes it.
     assert critic.TARGETS["hilp_stats"] == 0.0
-    # phi is trained ONLY by the phi stage and sf ONLY by the sf stage
+    # phi is trained only by the phi stage, sf only by the sf stage.
     assert set(critic.stage_groups("phi")) == {"hilp_phi1", "hilp_phi2"}
     assert set(critic.stage_groups("sf")) == {"hilp_sf", "hilp_le"}
-    # init reads the raw tower: mean 0, std 1
+    # Init stats: mean 0, std 1.
     assert np.allclose(np.asarray(params["hilp_stats"]["mean"]), 0.0)
     assert np.allclose(np.asarray(params["hilp_stats"]["std"]), 1.0)
 
 
 def test_sf_loss_matches_numpy_reconstruction():
-    """The successor-feature loss re-derived in numpy from the tower outputs: vector TD
-    onto phi(s') - mean + gamma * mean_heads F_target, scaled by 0.5."""
+    """The successor-feature TD loss matches a numpy reconstruction."""
     critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
     batch = _sf_batch()
     rng = np.random.default_rng(9)
@@ -206,7 +178,7 @@ def test_sf_loss_matches_numpy_reconstruction():
     nle = critic._le(targets, batch["next_observations"])
     tF = np.asarray(critic._sf(targets["hilp_sf"], nle, z, boot["next_action"]))   # [P,B,d]
     phi = np.asarray(critic._phi(params["hilp_phi1"], batch["next_observations"]))
-    target_phi = phi - np.asarray(params["hilp_stats"]["mean"])          # feature_net
+    target_phi = phi - np.asarray(params["hilp_stats"]["mean"])          # centered phi
     target_F = target_phi + 0.98 * tF.mean(axis=0)
     le = critic._le(params, batch["observations"])
     F = np.asarray(critic._sf(params["hilp_sf"], le, z, batch["actions"]))
@@ -215,8 +187,7 @@ def test_sf_loss_matches_numpy_reconstruction():
 
 
 def test_sf_target_reads_the_ONLINE_phi_not_the_target_phi():
-    """The SF target's immediate term is the ONLINE phi: perturbing the target phi must
-    leave the SF loss untouched; perturbing the online phi must change it."""
+    """The SF TD target uses the online phi, not the target phi."""
     critic, params, targets = HILPCritic.build(*_sf_ex(), _sf_cfg())
     batch = _sf_batch()
     rng = np.random.default_rng(9)
@@ -235,7 +206,7 @@ def test_sf_target_reads_the_ONLINE_phi_not_the_target_phi():
 
 
 def test_running_mean_arithmetic():
-    """The EMA rule `update_stats` applies: new = (1-m)*old + m*batch_stat, m = 0.005."""
+    """update_stats applies new = (1 - m) * old + m * batch_stat with m = 0.005."""
     m = 0.005
     old_mean, old_std = np.zeros(SZ), np.ones(SZ)
     phi = np.random.default_rng(2).standard_normal((SB, SZ))

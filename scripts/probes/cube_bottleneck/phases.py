@@ -1,21 +1,7 @@
-"""Phase machinery, VENDORED VERBATIM from the [torch] worktree (branch
-`feat/cube-analysis-pipeline`, merged to main) so this jax-side probe labels phases with
-exactly the code that produced the published phase diagnostic.
+"""Cube-manipulation phase labels (reach, secure, transport) per episode.
 
-Sources, extracted by AST source-segment (see tests/probes/test_cube_bottleneck_phases.py,
-which re-extracts and asserts byte-identity):
-
-  [torch] evals/phase_probe.py            -- Thresholds, _max_true_run, classify_phases,
-                                             step_signals, _target_block, episode_goal,
-                                             episode_table_z
-  [torch] evals/_profile_core.py          -- transport_mask
-  [torch] scripts/probes/phase_probe_transport_buckets.py -- bucket_row
-
-DO NOT EDIT the vendored block by hand: the byte-identity test is the whole point of the
-copy. If the torch source changes, regenerate.
-
-The two worktrees share one repo but not one branch, so an import across them is not
-available; a copy under test is the honest alternative.
+The block between the begin/end markers is a copy of the torch-side phase code and is
+checked byte-for-byte by tests/probes/test_cube_bottleneck_phases.py; do not edit it.
 """
 from dataclasses import dataclass
 from typing import Any, Dict
@@ -23,15 +9,11 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 
-# Restated from [torch] evals/phase_probe.py:1-30 -- module-level state the vendored
-# `_ensure_mujoco`/`apply_scenario` close over. `mujoco = None` is the source's own lazy
-# import sentinel (a test may monkeypatch it with a fake), and `SCENARIOS`/`N_SETTLE` are
-# module constants rather than defs, so they are restated rather than AST-extracted. The
-# test pins N_SETTLE and SCENARIOS against the source.
+# Module state used by the copied block; mujoco is imported lazily
 mujoco = None
 SCENARIOS = ["S0", "S1", "S2"]
 
-# ── BEGIN VENDORED ──────────────────────────────────────────────────────────────────────
+# Begin copied block
 @dataclass
 class Thresholds:
     eps_reach: float = 0.06   # m, hand-to-cube distance for "reached"
@@ -209,14 +191,9 @@ def bucket_row(row: pd.Series, delta_lift: float, eps_near: float) -> str:
     if row["final_cube_goal_dist"] <= eps_near:
         return "near_goal"
     return "far_goal"
-# ── END VENDORED ────────────────────────────────────────────────────────────────────────
+# End copied block
 
-# The spec (section 2.3) names the thresholds class `PhaseThresholds`; the vendored source
-# calls it `Thresholds`. Alias rather than rename, so byte-identity holds.
 PhaseThresholds = Thresholds
 
-# `N_SETTLE` is a module constant in the torch source (phase_probe.py:29) rather than a
-# function, so it is restated here rather than extracted; the test pins it against source.
-# NOTE this is the S2 clamp's settle count (H2). H1's own restore uses restore.N_SETTLE = 2,
-# which is a different, measured quantity -- see restore.py. Do not unify them.
+# Settle steps for the S2 clamp; differs from restore.N_SETTLE
 N_SETTLE = 5

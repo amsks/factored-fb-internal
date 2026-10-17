@@ -1,38 +1,7 @@
-"""Fixed-policy TD on a bottleneck family, sweeping rank and task sparsity.
+"""Tabular fixed-policy TD for rank-d successor measures on a bottleneck chain.
 
-The family is a left chain of L states, a bottleneck b, and a right room of R
-states whose last state is the goal. Crossing at b is the only way into the
-room, and the room is closed. The decision the diagnostic reads is at the state
-one step from the goal inside the room: advance to the goal, or retreat.
-
-Three critics share the factorization F(s,a) B(u)^T at rank d, one head, exact
-population expectations, a fixed uniform continuation policy, and float64.
-
-  fb       predicts the density ratio m = M/rho with FB's squared Bellman
-           residual minus the immediate linear term, plus the second-moment
-           penalty at coefficient 1. Optional spherical backward rows.
-  normsq   predicts the normalized measure (1-gamma)M directly with an ordinary
-           squared Bellman residual, same factorization and same penalty. This
-           is the amplitude control: it removes FB's density-ratio scale and
-           loss form while keeping squared error.
-  density  predicts softmax(F B^T) against the categorical target
-           (1-gamma)e_{s'} + gamma * target-policy-average, no penalty, matching
-           the density_fb defaults.
-  softsq   the same softmax output class and the same target as density, scored
-           with squared error instead of cross entropy, no penalty.
-  expsq    exp(F B^T) with no normalization, squared error against the same
-           target, no penalty. Positive and rank-d in log space but not a
-           distribution, so it separates normalization from log-space rank.
-
-fb and normsq carry the penalty, density and softsq do not; that follows the
-shipped configs and is stated rather than equalized. The four arms form a two by
-two over output class and loss: normsq and softsq are squared error on a linear
-and a softmax output, density is cross entropy on the softmax output. normsq
-against softsq isolates the output class at fixed loss; softsq against density
-isolates the loss at fixed output class.
-
-All differences from production -- single critic, no actor, full expectations,
-tabular factors, fixed policy, known reward -- are deliberate.
+Arms: fb (FB loss), normsq (squared error on the normalized measure), softsq and expsq
+(squared error on softmax / exp outputs), density (cross entropy on softmax outputs).
 """
 
 import argparse, hashlib, json, time
@@ -48,24 +17,25 @@ jax.config.update("jax_enable_x64", True)
 
 
 def build(L: int, R: int):
-    """Transition map, goal index, bottleneck index, near-goal decision index."""
+    """Return the (n, 2, n) kernel, n, bottleneck, goal and near-goal decision state."""
     n = L + 1 + R
     b = L
     nx = np.zeros((n, 2), int)
+    # Action 0 advances, action 1 retreats
     for i in range(L):
-        nx[i, 0] = i + 1 if i + 1 < L else b     # advance
-        nx[i, 1] = max(i - 1, 0)                 # retreat
-    nx[b, 0] = L + 1                             # cross into the room
-    nx[b, 1] = L - 1                             # slip back
+        nx[i, 0] = i + 1 if i + 1 < L else b
+        nx[i, 1] = max(i - 1, 0)
+    nx[b, 0] = L + 1
+    nx[b, 1] = L - 1
     for j in range(R):
         s = L + 1 + j
-        nx[s, 0] = L + 1 + min(j + 1, R - 1)     # advance toward the goal
-        nx[s, 1] = L + 1 + max(j - 1, 0)         # retreat inside the room
+        nx[s, 0] = L + 1 + min(j + 1, R - 1)
+        nx[s, 1] = L + 1 + max(j - 1, 0)
     return np.eye(n)[nx], n, b, n - 1, L + 1 + R - 2
 
 
 def exact(kernel2d, pi, gamma):
-    """Normalized successor measure: rows are (1-gamma) sum_t gamma^t P(s_{t+1})."""
+    """Exact normalized successor measure (1-gamma) sum_t gamma^t P(s_{t+1})."""
     n = kernel2d.shape[1]
     T = np.sum(pi[:, :, None] * kernel2d.reshape(n, 2, n), axis=1)
     return kernel2d @ ((1 - gamma) * np.linalg.inv(np.eye(n) - gamma * T))
@@ -104,13 +74,13 @@ def loss_fn(params, target, kernel, pi, gamma, method, sphere):
     ortho = 0.5 * jnp.mean((b @ b.T) ** 2) - jnp.mean(jnp.sum(b * b, axis=-1))
     if method == "normsq":
         return 0.5 * jnp.mean((p - ((1 - gamma) * kernel + boot)) ** 2) + ortho
-    # fb: squared residual against the bootstrap, minus the immediate linear term
+    # FB loss
     td = 0.5 * jnp.mean((p - boot) ** 2) - jnp.mean(jnp.sum(kernel * p, axis=-1))
     return td + ortho
 
 
 def readout(pred, method, gamma, n):
-    """Put every critic on the normalized-measure scale of `exact`."""
+    """Map predictions to the scale of `exact`."""
     if method == "fb":
         return (1 - gamma) * pred / n
     return pred
@@ -145,15 +115,14 @@ def metrics(pred, method, gamma, P, goal, b, near):
 
 
 def run_group(L, R, d, method, gamma, seeds, rates, steps, tau, sphere):
-    """One (graph, rank, method) group; seeds x rates are vmapped."""
+    """Train one (graph, rank, method) group, vmapped over seeds and rates."""
     p, n, b, goal, near = build(L, R)
     rows = run_kernel(p, b, goal, near, d, method, gamma, seeds, rates, steps, tau, sphere)
     return [dict(r, L=L, R=R) for r in rows]
 
 
 def run_kernel(p, b, goal, near, d, method, gamma, seeds, rates, steps, tau, sphere):
-    """Train one (transition kernel, rank, method) group. `p` is (n, 2, n) and
-    each row is a distribution over next states, so stochastic graphs are fine."""
+    """Train one (kernel, rank, method) group; `p` is an (n, 2, n) transition kernel."""
     n = p.shape[0]
     kernel_np = p.reshape(-1, n)
     P = exact(kernel_np, np.full((n, 2), 0.5), gamma)

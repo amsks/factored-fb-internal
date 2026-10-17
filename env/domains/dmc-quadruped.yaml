@@ -1,10 +1,5 @@
-# ExoRL quadruped (RND exploration buffer). Reward-specified: no binary success rule; eval
-# reports `episode_return`. obs 78 / act 12, episode length 1000. `stand` and `jump` are
-# ExoRL custom tasks vendored in env/exorl_dmc_tasks/quadruped.{py,xml}; `walk` and `run`
-# come from the dm_control suite.
-#
-# Hit spec for this layout: passed as an override (quote it), with the value the ExoRL
-# launchers pass (scripts/launch_exorl_*.sh); see dmc-cheetah.yaml.
+# ExoRL quadruped, RND exploration data, reward-specified tasks scored by episode return.
+# goal_spec is passed by scripts/launch_exorl_*.sh, calibrated by scripts/calibrate_hit_spec.py.
 adapter: unified
 env_name: dmc-quadruped        # run naming only
 task: dmc-quadruped

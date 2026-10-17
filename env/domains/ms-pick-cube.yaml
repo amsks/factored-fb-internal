@@ -1,5 +1,4 @@
-# ms-pick-cube: ManiSkill3 state observations, horizon 25, env built by env/maniskill_env.py.
-# FB_DATA_ROOT points at the data root holding data/<family>/<task>.npz.
+# ManiSkill3 PickCube, state observations, horizon 25.
 adapter: unified
 env_name: ms-pick-cube          # run naming only
 task: ms-pick-cube

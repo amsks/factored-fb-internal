@@ -1,5 +1,4 @@
-"""Separation-preservation aggregator (no simulator, no checkpoints): the 3-D cell histogram,
-TV distance, the per-state D_true / D_pred / R row and the per-phase table."""
+"""Separation-preservation aggregator: cell histogram, TV distance, D_true / D_pred / R, and per-phase table."""
 import numpy as np
 import pandas as pd
 import pytest

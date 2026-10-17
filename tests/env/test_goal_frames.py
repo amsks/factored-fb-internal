@@ -1,18 +1,14 @@
-"""Synthesised per-episode eval goal frames (env/unified.py::synth_goal_frame) and
-per-episode goal distances (env/unified.py::goal_distance) for MetaWorld/ManiSkill.
-
-Pure-array unit tests: no env, no dataset download, no JAX compilation.
-"""
+"""Synthesised eval goal frames and goal distances for MetaWorld and ManiSkill."""
 import numpy as np
 import pytest
 
 from env.unified import goal_distance, goal_layout, synth_goal_frame
 
 
-# ── synth goal frames ──────────────────────────────────────────────────────────────
+# Synth goal frames
 
 def test_mw_synth_frame_moves_hand_and_object_onto_the_target():
-    """End effector and object (and their previous-frame copies) are moved onto the target."""
+    """End effector and object, and their previous-frame copies, move onto the target."""
     rng = np.random.RandomState(0)
     obs = rng.randn(39).astype(np.float32)
 
@@ -23,8 +19,7 @@ def test_mw_synth_frame_moves_hand_and_object_onto_the_target():
 
     got = synth_goal_frame("mw-push", obs)
     np.testing.assert_array_equal(got, expect)
-    # The target dims themselves stay the episode's own: that is what makes (s, g) a
-    # context-consistent pair rather than a frame from some other episode.
+    # Target dims stay the episode's own.
     np.testing.assert_array_equal(got[36:39], obs[36:39])
     assert got is not obs and not np.shares_memory(got, obs)
 
@@ -49,33 +44,26 @@ def test_ms_push_cube_synth_frame():
 
 
 def test_ms_pick_cube_synth_frame_is_self_consistent():
-    """PickCube (42) carries two DERIVED channels, tcp_to_obj_pos (36:39) and obj_to_goal_pos
-    (39:42). Real success frames never have tcp == obj (grasp offset mean/median 0.021/0.018,
-    the same scale as the ~0.02-0.025 success radius), so the synth frame keeps the base
-    frame's own tcp-to-obj offset rather than collapsing tcp onto the target; only obj_to_goal
-    (target == object) is algebraically zero. is_grasped (18) is 1.0 on 100% of success frames
-    in the collected data, because ManiSkill's success rule requires a grasp."""
+    """PickCube synth frame keeps the base tcp-to-obj offset, zeroes obj_to_goal and sets is_grasped."""
     obs = np.random.RandomState(2).randn(42).astype(np.float32)
     got = synth_goal_frame("ms-pick-cube", obs)
     tgt = obs[26:29]
-    base_offset = obs[19:22] - obs[29:32]   # the base frame's own (pre-synth) tcp-to-obj offset
-    if np.linalg.norm(base_offset) > 0.1:   # degenerate -> dataset-median grasp fallback
+    base_offset = obs[19:22] - obs[29:32]   # base frame's tcp-to-obj offset
+    if np.linalg.norm(base_offset) > 0.1:   # degenerate: median grasp fallback
         base_offset = np.array([0.0, 0.0, 0.018], np.float32)
     np.testing.assert_allclose(got[19:22], tgt + base_offset, atol=1e-6)   # tcp position
     np.testing.assert_array_equal(got[29:32], tgt)          # object position
     np.testing.assert_array_equal(got[39:42], np.zeros(3, np.float32))   # obj_to_goal
     assert got[18] == 1.0                                   # is_grasped
-    # ManiSkill's own algebra reproduced by the frame: tcp_to_obj = obj - tcp, no longer 0.
+    # tcp_to_obj = obj - tcp
     np.testing.assert_allclose(got[36:39], got[29:32] - got[19:22], atol=1e-6)
     np.testing.assert_allclose(got[39:42], got[26:29] - got[29:32], atol=1e-6)
 
 
 def test_ms_pick_cube_synth_frame_falls_back_on_degenerate_base_offset():
-    """A base frame whose tcp is far from its object (not a grasp pose) must not propagate
-    that nonsense offset into the synth goal frame; it falls back to the dataset-median grasp,
-    straight above the object."""
+    """A non-grasp base offset falls back to the dataset-median grasp above the object."""
     obs = np.random.RandomState(4).randn(42).astype(np.float32)
-    obs[19:22] = obs[29:32] + np.array([5.0, -3.0, 2.0], np.float32)   # degenerate: norm >> 0.1
+    obs[19:22] = obs[29:32] + np.array([5.0, -3.0, 2.0], np.float32)   # norm >> 0.1
     got = synth_goal_frame("ms-pick-cube", obs)
     tgt = obs[26:29]
     np.testing.assert_allclose(got[19:22], tgt + np.array([0.0, 0.0, 0.018], np.float32),
@@ -89,7 +77,7 @@ def test_synth_frame_rejects_tasks_with_no_goal_in_obs():
         synth_goal_frame("ms-lift-peg", np.zeros(12, np.float32))
 
 
-# ── per-episode goal distance ──────────────────────────────────────────────────────
+# Goal distance
 
 def test_goal_distance_uses_each_env_success_metric():
     obs = np.zeros(35, np.float32)
@@ -115,8 +103,7 @@ def test_goal_distance_is_none_without_a_layout():
 
 
 def test_synth_frame_is_at_zero_goal_distance():
-    """A synthesised goal frame is, by construction, a state that satisfies its own goal —
-    the property that makes it a legitimate goal to condition on."""
+    """A synthesised goal frame has zero goal distance."""
     for task, dim in (("mw-push", 39), ("ms-push-cube", 35), ("ms-pick-cube", 42)):
         obs = np.random.RandomState(3).randn(dim).astype(np.float32)
         assert goal_distance(task, synth_goal_frame(task, obs)) == pytest.approx(0.0, abs=1e-6)

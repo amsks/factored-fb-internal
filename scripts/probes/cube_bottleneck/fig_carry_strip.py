@@ -1,30 +1,7 @@
-"""Fig: the critic's belief drifting away from reality, frame by frame, during a carry.
+"""Carry-strip figure (first version): FB and Density-FB predicted future cube position on recorded play frames.
 
-A play segment in which the arm picks the cube up and carries it. Six recorded frames.
-
-    row 1   the rendered dataset frames -- recorded states, identical for both critics
-    row 2   FB's predicted future cube position, as a blob on the table
-    row 3   Density-FB's, same frames, same goal
-
-Nothing here is a rollout and nothing is a policy: the critic reads the DATASET's own
-observation and the DATASET's own action at each frame, so there is no behaviour to argue
-about. The only thing that differs between rows 2 and 3 is the estimator.
-
-Each blob is normalised to its OWN maximum. That is deliberate: Density-FB's measure is
-sharper (N_eff ~31 vs ~335) and this figure is not about sharpness, it is about POSITION --
-a blob in the wrong place is wrong at any temperature. Per-panel normalisation removes the
-sharpness advantage from the comparison entirely.
-
-Markers: the true cube position, and the cube position DECODED from the critic's backward
-embedding by a linear probe fit on dataset rows. The decoded marker is the representation
-speaking for itself -- if it lags the true cube once the carry starts, the cube factor is
-not being tracked.
-
-DEVIATION from the brief, stated because it matters: the task cannot be given to both
-methods as reward samples. FB has `infer_cond` (z = sum r*B), but these Density-FB
-checkpoints were trained goal-conditioned (`infer_z: false`) and the config notes
-a checkpoint trained with it off cannot be restored with it on. So both critics get the
-IDENTICAL goal observations instead -- same rows, same draws, same everything else.
+Both critics read the dataset's own observations and actions and are conditioned on the same
+goal observations. Markers show the true cube and the cube decoded linearly from B(s).
 """
 import argparse, os
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -43,12 +20,7 @@ from scripts.probes.cube_bottleneck.figures import ARM_COLOR, ARM_LABEL, INK, IN
 
 ROOT = Path("analysis/cube_bottleneck/cube-single-play-v0")
 
-# TOP-DOWN VIEW. The env's x is DEPTH (workspace bounds 0.25-0.60 m, ~35 cm) and y is
-# LATERAL (-0.35 to 0.35 m, ~70 cm), so a plot with x across the page draws the table
-# tall-and-narrow when it is physically wide-and-shallow. `world_to_plot` puts lateral
-# across and depth up -- the standard overhead view, matching the rendered frames -- and
-# every position on these panels goes through it so the blobs and the markers cannot
-# disagree about the frame.
+# Top-down view: env y (lateral) across, env x (depth) up
 def world_to_plot(xy):
     xy = np.asarray(xy)
     return np.stack([xy[..., 1], xy[..., 0]], axis=-1)
@@ -57,7 +29,7 @@ ORDER = ["fb_ref", "density_fb_state"]
 
 
 def b_embed(arm, obs):
-    """The backward tower's embedding of a batch of observations, per critic."""
+    """Backward embedding B(s) of a batch of observations."""
     import jax.numpy as jnp
     c, net = arm.agent.critic, arm.agent.net
     x = jnp.asarray(obs)
@@ -67,7 +39,7 @@ def b_embed(arm, obs):
 
 
 def fit_probe(arm, obs_pool, target, ridge=1e-3):
-    """Least-squares probe B(s) -> target, with a held-out R^2 so the marker is honest."""
+    """Fit a ridge probe B(s) -> target; return weights and held-out R^2."""
     E = b_embed(arm, obs_pool)
     E = np.concatenate([E, np.ones((len(E), 1), np.float32)], 1)
     n = len(E) * 4 // 5
@@ -115,7 +87,7 @@ def main() -> int:
     ye = np.linspace(lo[1], hi[1], args.bins + 1)
     ext = [xe[0], xe[-1], ye[0], ye[-1]]
 
-    # ---- render the recorded frames (physics only; the critic never sees these) ----
+    # Render the recorded frames
     import ogbench
     env = ogbench.make_env_and_datasets(args.env, env_only=True, render_mode="rgb_array")
     env.reset(seed=0, options=dict(task_id=args.task, render_goal=False))
@@ -151,10 +123,8 @@ def main() -> int:
         print(f"  {a:20s} probe R2 {r2:+.3f} | decode error per frame (cm) "
               f"{np.round(err, 1).tolist()}")
 
-    # ---- draw ----
+    # Draw
     nrow, ncol = 1 + len(args.critics), len(rows)
-    # The heat panels are now ~59x25 cm with aspect="equal", i.e. 2.4:1 wide, so they need
-    # far less height than the square render row; without the ratio they float in whitespace.
     fig, axes = plt.subplots(nrow, ncol, figsize=(1.55 * ncol, 1.62 + 0.80 * len(args.critics)),
                              gridspec_kw=dict(height_ratios=[1.9] + [1.0] * len(args.critics)))
     fig.patch.set_facecolor(SURFACE)
@@ -165,8 +135,7 @@ def main() -> int:
             sp.set_color("#d6d5d1")
         ax.set_title(f"frame {c + 1}" + ("  (carrying)" if lifted[c] else ""),
                      fontsize=8, color=INK if lifted[c] else INK2, pad=4)
-    # Row labels sit HORIZONTALLY in the left margin: rotated labels are taller than these
-    # short wide panels and ran into each other.
+    # Row labels in the left margin
     axes[0][0].text(-0.10, 0.5, "recorded\nplay data", transform=axes[0][0].transAxes,
                     ha="right", va="center", fontsize=9, color=INK2)
 
@@ -175,7 +144,7 @@ def main() -> int:
             ax = axes[r][c]
             ax.set_facecolor(SURFACE)
             z = grids[a][c]
-            # per-panel normalisation: this figure is about position, not sharpness
+            # Per-panel max normalisation
             ax.imshow((z / max(z.max(), 1e-12)).T, origin="lower", extent=ext,
                       aspect="equal", cmap=MASS_CMAP, vmin=0, vmax=1,
                       interpolation="nearest")

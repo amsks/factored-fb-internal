@@ -1,7 +1,4 @@
-"""Phase 0 gate: every (critic config, actor) pair trains for a few steps from its
-composed config on the real cube-single dataset, with a finite actor loss. A ConfigError
-from load_config() is a hard failure here, not a skip: it means a config yaml is broken.
-"""
+"""Every (critic config, actor) pair trains a few steps on cube-single with a finite actor loss."""
 import jax
 import jax.numpy as jnp
 import pytest
@@ -18,8 +15,7 @@ PAIRS = [(c, a) for c in CRITIC_CONFIGS for a in ACTORS]
 
 @pytest.fixture(autouse=True)
 def _drop_compilation_caches():
-    """Every pair jits its own `Agent.update`; drop the process-global compilation cache
-    between pairs so a long session does not accumulate executables."""
+    """Clear the jax compilation cache between pairs."""
     yield
     jax.clear_caches()
 

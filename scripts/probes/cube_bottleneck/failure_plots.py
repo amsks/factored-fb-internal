@@ -1,12 +1,6 @@
-"""Figures A/B/C from the failure_figs.py outputs (docs/notes/2026-09-12-failure-figures.md).
+"""Failure figures from failure_figs.py outputs: outcome fractions, TV error per state type, and TV error vs success.
 
-  A  fig_failure_where     one stacked bar per (env, method): outcome fractions
-  B  fig_failure_why       grouped bars, TV error per state type, one panel per env
-  A+B fig_failure_where_why  the two side by side (one paper figure)
-  C  fig_failure_tracks    TV error at carrying states vs success, per checkpoint
-
-All numbers behind the panels are written next to the figures as CSV, and the Spearman
-correlation of C is printed (and written to figc_stats.json), never drawn on the figure.
+Panel data are written next to each figure as CSV.
 """
 import argparse
 import json
@@ -31,11 +25,10 @@ OUTCOME_LABEL = {"approach": "approach failure", "acquisition": "acquisition fai
 BANKS = ["approach", "inhand", "carrying"]
 BANK_LABEL = {"approach": "approach", "inhand": "in hand", "carrying": "carrying"}
 
-# seaborn's "colorblind" palette (sns.color_palette("colorblind")), hardcoded: the JAX venv
-# has no seaborn. Okabe-Ito-derived, CVD-safe.
+# seaborn "colorblind" palette
 CB = ["#0173B2", "#DE8F05", "#029E73", "#D55E00", "#CC78BC", "#CA9161", "#FBAFE4", "#949494",
       "#ECE133", "#56B4E9"]
-# stack order chosen so no two adjacent segments are the palette's weakest CVD pair
+# Outcome stack order
 OUTCOME_COLOR = {"approach": CB[4], "acquisition": CB[1], "maintain": CB[0],
                  "transport": CB[3], "success": CB[2]}
 METHOD_COLOR = {"fb_tdj": CB[7], "density_fb_z": CB[2]}      # grey vs green
@@ -52,8 +45,7 @@ plt.rcParams.update({
 
 
 def save(fig, name, tight=True):
-    # tight=False keeps the exact figsize (no content crop), so two figures built at the same
-    # figsize produce byte-for-byte equal-dimension PDFs that align in side-by-side minipages.
+    # tight=False keeps the exact figsize
     FIG.mkdir(parents=True, exist_ok=True)
     bbox = "tight" if tight else None
     fig.savefig(FIG / f"{name}.pdf", bbox_inches=bbox)
@@ -61,11 +53,11 @@ def save(fig, name, tight=True):
     print(f"[fig] {FIG / name}.pdf/.png")
 
 
-# Shared canvas for the two fig:failure panels so they align in a minipage layout.
+# Shared canvas size for the two failure panels
 FAILURE_FIGSIZE = (3.3, 3.7)
 
 
-# ── A ───────────────────────────────────────────────────────────────────────────────────
+# Figure A: outcome fractions
 
 def load_episodes(epoch=1000000):
     dfs = []
@@ -85,8 +77,7 @@ def outcome_table(ep):
 
 
 def draw_a(ax, mean, legend=True):
-    # Vertical stacked columns (one per env x method) so the panel is tall rather than wide and
-    # fills the height next to the 2x2 "why" panel instead of leaving white space beside it.
+    # One stacked column per (env, method)
     rows = [(env, m) for env in ENVS for m in METHODS]
     x = np.arange(len(rows))
     for xi, (env, m) in zip(x, rows):
@@ -110,7 +101,7 @@ def draw_a(ax, mean, legend=True):
                   handlelength=1.0, columnspacing=1.0)
 
 
-# ── B ───────────────────────────────────────────────────────────────────────────────────
+# Figure B: TV error per state type
 
 def load_pred(epoch=None, banks=BANKS):
     dfs = []
@@ -128,8 +119,7 @@ def load_pred(epoch=None, banks=BANKS):
 
 
 def tv_table(pred):
-    """Per (env, bank, method): the TV error averaged over seeds within each state, then
-    mean and standard error across the states."""
+    """Per (env, bank, method): TV error averaged over seeds per state, then mean and s.e. over states."""
     st = pred.groupby(["env", "bank", "critic", "state"]).agg(
         tv=("tv", "mean"), goal_mass_pred=("goal_mass_pred", "mean"),
         goal_mass_truth=("goal_mass_truth", "mean"), tv_pred_prior=("tv_pred_prior", "mean"),
@@ -172,16 +162,13 @@ def draw_b(axes, tab, legend=False):
 
 
 
-# ── B, action-conditioned probe (ranking panel) ────────────────────────────────────────
+# Figure B, action-ranking panel
 
 ACTION_METRICS = ["tv_action", "gap_error", "rank_spearman", "regret", "sign_bestworst"]
 
 
 def load_sign(epoch=1000000):
-    """Per-state sign agreement of the widest control-critical action gap (true-best vs
-    true-worst): 1[ sign(q_pred gap) == sign(return_true gap) ], from the cached per-candidate
-    long CSVs. This is the tight tie to Eq. action-gap / Lemma rare-bottleneck: it is 0.5 (coin
-    flip) exactly when the reconstructed gap has lost the sign of the true gap."""
+    """Per-state agreement between the predicted and true sign of the best-vs-worst action gap."""
     rows = []
     for env in ENVS:
         for f in sorted((ROOT / env / "actions").glob(f"actions_long_seed*_{epoch}_*.csv")):
@@ -221,9 +208,10 @@ def load_actions(epoch=1000000):
 
 
 def action_table(act):
-    """Per (env, bank, method): each metric averaged over seeds within a state (NaN rows --
-    a state where every candidate has the same true return -- dropped), then mean and
-    standard error across states."""
+    """Per (env, bank, method): metrics averaged over seeds per state, then mean and s.e. over states.
+
+    States where every candidate has the same true return (NaN) are dropped.
+    """
     st = act.groupby(["env", "bank", "critic", "state"])[ACTION_METRICS].mean().reset_index()
     agg = {}
     for m in ACTION_METRICS:
@@ -246,7 +234,7 @@ def draw_rank(axes, tab, metric="sign_bestworst", ylabel="sign agreement",
                    label=METHOD_LABEL[m] if (legend and ax is axes[0]) else None)
             ax.errorbar(x + (j - 0.5) * w, r[f"{metric}_mean"].values, yerr=r[f"{metric}_sem"].values,
                         fmt="none", ecolor="#333333", elinewidth=0.6, capsize=1.5, capthick=0.6)
-        # reference line: 0.5 for the sign metric = coin flip / gap lost (Lemma floor)
+        # Chance level for the sign metric
         ax.axhline(ref, color="#999999", linewidth=0.5, ls="--", zorder=0)
         ax.set_xticks(x)
         ax.set_xticklabels([BANK_LABEL[b] for b in BANKS])
@@ -257,13 +245,13 @@ def draw_rank(axes, tab, metric="sign_bestworst", ylabel="sign agreement",
     if legend:
         axes[0].legend(loc="upper left", frameon=False, handlelength=1.0)
 
-# ── C ───────────────────────────────────────────────────────────────────────────────────
+# Figure C: TV error vs success
 
 def success_at(env, critic, seed, step):
-    """The run's own eval_relabel success at `step`, mean over tasks 1-5 (mean within a
-    task first: two cube-single FB runs logged their 1M eval twice). The runs evaluated at
-    multiples of 100k only, so a 250k/750k checkpoint takes the mean of the two neighbouring
-    eval points (200k+300k, 700k+800k). Returns (success, number of eval rows used)."""
+    """Return (success, eval rows used): the run's logged success at `step`, mean over tasks.
+
+    Steps between eval points average the two neighbouring evals.
+    """
     for root in ("exp", "exp/tdjtab"):
         f = Path(root) / f"{env}_{critic}_flowbc_seed_{seed}" / "eval_relabel.csv"
         if not f.exists():
@@ -337,7 +325,7 @@ def draw_c(ax, g):
     return out
 
 
-# ── main ────────────────────────────────────────────────────────────────────────────────
+# Main
 
 def main():
     ap = argparse.ArgumentParser()
@@ -356,7 +344,7 @@ def main():
         mean.to_csv(FIG / "figA_outcomes_mean.csv", index=False)
         print(mean.round(3).to_string())
         fig, ax = plt.subplots(figsize=FAILURE_FIGSIZE)
-        draw_a(ax, mean, legend=False)   # colours are keyed in the caption instead
+        draw_a(ax, mean, legend=False)
         fig.tight_layout(pad=0.3)
         save(fig, "fig_failure_where", tight=False)
         plt.close(fig)
@@ -385,8 +373,8 @@ def main():
             draw_rank(axes[1], atab)
             for ax in axes[0]:
                 ax.set_xlabel("")
-            fig.tight_layout(rect=[0, 0.06, 1, 1])   # reserve a bottom strip for the legend
-            method_legend(fig, y=0.01)               # placed inside that strip, not below the canvas
+            fig.tight_layout(rect=[0, 0.06, 1, 1])   # leave a strip for the legend
+            method_legend(fig, y=0.01)
         save(fig, "fig_failure_why", tight=False)
         plt.close(fig)
 

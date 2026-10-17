@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Train one OGBench run of the paper (1M steps, evaluation every 100k).
+# Train one OGBench run (1M steps, evaluation every 100k).
 #
 #   bash scripts/launch_ogbench.sh <method> <domain> <seed> [extra impls.main flags]
 #
@@ -7,16 +7,8 @@
 #           | density_fb_linear | density_fb_z_linear | density_fb_500k | density_fb_z_500k
 #   domain  cube_single | cube_double | scene_play
 #
-# The table columns: fb, hilp, rldp are scored on eval_relabel.csv (task vector inferred from
-# 10k reward samples); density_fb is scored on eval.csv (goal-conditioned); density_fb_z is the
-# in-text reward-inference number. *_linear is the actor-readout ablation (the actor ascends
-# F(s,a,z)^T z instead of the reward averaged under the predicted next-state distribution),
-# trained for 500k steps; *_500k is its same-length baseline on cube_single (on cube_double and
-# scene the ablation table reads the 1M runs at 300k-500k). density_fb_state and fb_ref
-# (cube_single, seed 0, params_500000.pkl) are the two agents behind the lead figure.
-#
-# Runs land in exp/<env>_<critic>_flowbc_seed_<seed>. PY selects the interpreter (default
-# python); CUDA_VISIBLE_DEVICES selects the GPU. DRY=1 prints the command instead of running it.
+# fb, hilp, rldp, density_fb_z are scored on eval_relabel.csv (reward inference), density_fb on
+# eval.csv (goal-conditioned). PY sets the interpreter, DRY=1 prints the command.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 METHOD=${1:?usage: launch_ogbench.sh <method> <domain> <seed>}
@@ -25,8 +17,7 @@ SEED=${3:?seed}
 shift 3
 PY=${PY:-python}
 
-# Hit spec of the Density-FB critics: which observation columns define the task and how close
-# counts as reaching it (the env's own success rule in observation units).
+# Goal kernel: task observation columns and success radius
 case $DOMAIN in
   cube_single) HIT='"19:22:0.4"' ;;
   cube_double) HIT='"19:22:0.4,28:31:0.4"' ;;
@@ -54,9 +45,7 @@ case $METHOD in
 esac
 case $CRITIC in density_fb*) EXTRA+=(--override "goal_spec=$HIT") ;; esac
 
-# Reward-sample evaluation (writes eval_relabel.csv). It draws dataset rows, which moves the
-# random stream of later training batches, so it is left off for the runs that were trained
-# without it: fb_ref and the two cube_single goal-conditioned ablation runs.
+# Reward-inference eval; it draws dataset samples, so it stays off for runs trained without it
 RELABEL=(--override eval_relabel_size=10000 --override eval_relabel_shift=1.0
          --override eval_relabel_episodes=10)
 case $METHOD/$DOMAIN in

@@ -9,7 +9,7 @@ from impls.actors.flowbc import FlowBCActor
 
 
 class _ScalarPolicy(FlowBCActor):
-    """Linear policy and zero flow isolate the production actor objective."""
+    """Linear policy with zero flow, to isolate the actor objective."""
 
     def _actor(self, parameter, obs, z, noise):
         return jnp.full((len(obs), 1), parameter)
@@ -72,7 +72,6 @@ def test_action_dependent_value_scale_is_detached_from_the_policy_gradient():
         lambda p: _loss(p, [0., 0.], value_model=value_model)
     )(jnp.array(.1))
     # Q=(a,2a): scale=.05 depends on a, but the normalizer is detached.
-    # Differentiating the normalizer would instead leave only the BC gradient .6.
     np.testing.assert_allclose(value, -2.97, atol=1e-12, rtol=0)
     np.testing.assert_allclose(gradient, -29.4, atol=1e-12, rtol=0)
 

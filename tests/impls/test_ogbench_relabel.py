@@ -1,15 +1,4 @@
-"""OGBench reward-relabel + reward-inference eval (TD-JEPA's OGBench protocol).
-
-Pinned here:
-  1. `cube_relabel_reward` against a hand-computed case, single and double cube.
-  2. `OGBenchAdapter.relabel_infer_batch` reads the NEXT observation's stored qpos (never the
-     dataset's own zeroed 'rewards' column) against the requested task's goal_xyzs.
-  3. `evaluate(..., any_step_success=True)` scores a flickering success trajectory correctly,
-     and is a no-op when left at its default False.
-  4. End to end through impls/main.py: the eval_relabel/task<N> route runs alongside the
-     goal-conditioned route, infers a per-task z, and is absent when
-     cfg['eval_relabel_size'] is unset.
-"""
+"""OGBench reward relabelling and the reward-inference eval route."""
 import csv
 import os
 import types
@@ -25,9 +14,7 @@ from impls.utils.evaluation import evaluate as ogbench_evaluate
 OBS_DIM, ACT_DIM = 6, 2
 
 
-# ======================================================================================
-# 1. cube_relabel_reward -- hand computed.
-# ======================================================================================
+# cube_relabel_reward
 def test_single_cube_hand_computed():
     goal = np.array([[0.5, 0.0, 0.02]])
     qpos = np.zeros((3, 17))
@@ -78,15 +65,13 @@ def test_rejects_unsupported_cube_count():
         cube_relabel_reward(np.zeros((1, 50)), np.zeros((5, 3)))
 
 
-# ======================================================================================
-# 2. OGBenchAdapter.relabel_infer_batch -- reads the NEXT obs's stored qpos, per task.
-# ======================================================================================
+# OGBenchAdapter.relabel_infer_batch
 def _fake_train_ds(n=24, obs_dim=OBS_DIM, qpos_dim=24, seed=0):
     rng = np.random.default_rng(seed)
     observations = rng.standard_normal((n, obs_dim)).astype(np.float32)
     qpos = rng.uniform(-0.5, 0.5, size=(n, qpos_dim)).astype(np.float64)
     valids = np.ones(n, np.float32)
-    valids[-1] = 0.0   # trajectory boundary, so get_random_idxs never draws the last row
+    valids[-1] = 0.0   # trajectory end; never drawn
     return FBDataset.create(
         observations=observations, actions=np.zeros((n, ACT_DIM), np.float32),
         qpos=qpos, valids=valids, terminals=1.0 - valids,
@@ -109,7 +94,7 @@ def test_relabel_infer_batch_reads_next_obs_qpos_against_the_task_goal():
     observations = np.asarray(ds["observations"])
     qpos = np.asarray(ds["qpos"])
     for row, r in zip(next_obs, rewards):
-        # Recover which dataset row this came from (unique random rows -> exact match).
+        # Recover the dataset row (rows are unique).
         idx = int(np.nonzero((observations == row).all(axis=1))[0][0])
         want = float(cube_relabel_reward(qpos[idx:idx + 1], goal_xyzs)[0]) + 1.0
         assert r == pytest.approx(want, abs=1e-5), (
@@ -118,35 +103,29 @@ def test_relabel_infer_batch_reads_next_obs_qpos_against_the_task_goal():
 
 
 def test_relabel_infer_batch_differs_by_task_goal(monkeypatch):
-    """With random qpos and threshold 0.04, an UNMATCHED sample draw looks identical
-    regardless of which goal it is scored against (every row just reads -1). So this pins a
-    draw that is FORCED to include one deliberately-placed at-goal row per task, at an index
-    each task's goal can actually reach (relabel reads qpos at idx+1, so a row placed at
-    dataset row 0 can NEVER be read -- only rows 1..size-1 can)."""
+    """relabel_infer_batch scores the next observation against each task's own goal."""
     ds = _fake_train_ds(n=24)
     goal1 = np.array([[0.1, 0.2, 0.3]])
     goal2 = np.array([[-0.4, 0.5, 0.02]])
     qpos = np.asarray(ds["qpos"]).copy()
-    qpos[1, 14:17] = goal1[0]   # reachable via idx=0 -> next_idx=1; matches ONLY task 1
-    qpos[2, 14:17] = goal2[0]   # reachable via idx=1 -> next_idx=2; matches ONLY task 2
+    qpos[1, 14:17] = goal1[0]   # read at idx=0; matches task 1 only
+    qpos[2, 14:17] = goal2[0]   # read at idx=1; matches task 2 only
     ds2 = FBDataset.create(observations=np.asarray(ds["observations"]),
                            actions=np.asarray(ds["actions"]), qpos=qpos,
                            valids=np.asarray(ds["valids"]), terminals=np.asarray(ds["terminals"]),
                            rewards=np.asarray(ds["rewards"]))
-    # Deterministic draw that is guaranteed to include idx 0 and 1 -- no dependence on the
-    # global RNG state or on a large enough sample to make a miss improbable.
+    # Deterministic draw that includes idx 0 and 1.
     monkeypatch.setattr(ds2, "get_random_idxs", lambda n: np.arange(min(n, ds2.size - 1)))
     env = _fake_env([{"goal_xyzs": goal1}, {"goal_xyzs": goal2}])
 
     _, r1 = OGBenchAdapter().relabel_infer_batch(ds2, env, 1, 8, shift_reward=1.0)
     _, r2 = OGBenchAdapter().relabel_infer_batch(ds2, env, 2, 8, shift_reward=1.0)
     assert not np.array_equal(r1, r2)
-    # idxs = [0, 1, ...] -> next_idxs = [1, 2, ...]: reward[0] reads dataset row 1 (task 1's
-    # exact match), reward[1] reads dataset row 2 (task 2's exact match).
-    assert r1[0] == pytest.approx(1.0)   # next_obs row 1 IS task 1's goal (shift_reward=1)
-    assert r2[0] == pytest.approx(0.0)   # ... but not task 2's (unmatched: -1 + shift 1 = 0)
-    assert r2[1] == pytest.approx(1.0)   # next_obs row 2 IS task 2's goal
-    assert r1[1] == pytest.approx(0.0)   # ... but not task 1's
+    # reward[i] reads dataset row i + 1.
+    assert r1[0] == pytest.approx(1.0)   # row 1 is task 1's goal
+    assert r2[0] == pytest.approx(0.0)   # not task 2's: -1 + shift 1
+    assert r2[1] == pytest.approx(1.0)   # row 2 is task 2's goal
+    assert r1[1] == pytest.approx(0.0)   # not task 1's
 
 
 def test_relabel_infer_batch_requires_qpos():
@@ -159,24 +138,20 @@ def test_relabel_infer_batch_requires_qpos():
 
 def test_relabel_infer_batch_requires_goal_xyzs_on_the_task():
     ds = _fake_train_ds()
-    # A task_info from no supported family must fail loudly, naming the cube key.
+    # An unsupported task_info raises, naming the cube key.
     env = _fake_env([{"goal_foo": np.zeros(2)}])
     with pytest.raises(AssertionError, match="goal_xyzs"):
         OGBenchAdapter().relabel_infer_batch(ds, env, 1, 4)
 
 
-# ======================================================================================
-# 3. any-step success accounting.
-# ======================================================================================
+# Any-step success
 class _ZeroActionAgent:
     def sample_actions(self, observations, goals=None, seed=None, temperature=1.0):
         return np.zeros(ACT_DIM, np.float32)
 
 
 class _FlickerEnv:
-    """success flips True at step 2 of 4, then False again -- final-step success is False,
-    any-step success is True. terminate_at_goal=False semantics (episode runs to the end),
-    which is the case the any-step reducer exists for."""
+    """Env whose success is True only at step 2 of 4."""
 
     def __init__(self):
         self.t = 0
@@ -201,22 +176,19 @@ def test_any_step_success_catches_a_mid_episode_flicker():
 
 def test_final_step_success_is_the_default_and_misses_the_flicker():
     stats, _ = ogbench_evaluate(_ZeroActionAgent(), _FlickerEnv(), config={},
-                                   num_eval_episodes=1)  # any_step_success defaults False
+                                   num_eval_episodes=1)  # any_step_success defaults to False
     assert stats["success"] == 0.0
 
 
 def test_any_step_success_off_is_bit_identical_to_no_such_parameter():
-    """The parameter must not perturb the stats dict in any way when left at its default --
-    this is the regression guard for 'the goal-conditioned route is unaffected'."""
+    """any_step_success=False leaves the stats unchanged."""
     a = ogbench_evaluate(_ZeroActionAgent(), _FlickerEnv(), config={}, num_eval_episodes=1)
     b = ogbench_evaluate(_ZeroActionAgent(), _FlickerEnv(), config={}, num_eval_episodes=1,
                          any_step_success=False)
     assert dict(a[0]) == dict(b[0])
 
 
-# ======================================================================================
-# 4. add_info gating on cfg['eval_relabel_size'].
-# ======================================================================================
+# add_info gating on eval_relabel_size
 def test_make_env_and_datasets_forces_add_info_when_eval_relabel_size_is_set(monkeypatch):
     import env.ogbench as ogb
 
@@ -237,9 +209,7 @@ def test_make_env_and_datasets_forces_add_info_when_eval_relabel_size_is_set(mon
     assert calls == [True]
 
 
-# ======================================================================================
-# 5. End to end through impls/main.py: a new mode ALONGSIDE the goal-conditioned route.
-# ======================================================================================
+# End to end through impls/main.py
 def _fb_cfg(**extra):
     cfg = dict(
         env_name="tiny", task="ms-tiny", adapter="unified", batch_size=16,
@@ -258,10 +228,7 @@ def _fb_cfg(**extra):
 
 
 class _RelabelWiringAdapter:
-    """Stub OGBench-shaped adapter: real cube-relabel math (delegates to the real
-    OGBenchAdapter.relabel_infer_batch), fake env/dataset. Records every `evaluate()` call's
-    (task, any_step_success, z) so the test can prove the two eval routes are DISTINCT and
-    BOTH ran, without needing a real OGBench install."""
+    """Stub OGBench adapter with real cube relabelling that records each evaluate call."""
 
     name = "ogbench"
 
@@ -272,8 +239,7 @@ class _RelabelWiringAdapter:
         self._env = _fake_env(self.task_infos)
         qpos = rng.uniform(-0.5, 0.5, size=(n_rows, 24)).astype(np.float64)
         for t, info in enumerate(self.task_infos):
-            # relabel reads qpos at idx+1 (the NEXT observation), so a row placed at index 0
-            # is never reachable -- offset by 1 so every task's exact-match row can be drawn.
+            # Relabelling reads row idx + 1, so place exact-match rows from index 1.
             qpos[t + 1, 14:17] = info["goal_xyzs"][0]
         observations = rng.standard_normal((n_rows, OBS_DIM)).astype(np.float32)
         valids = np.ones(n_rows, np.float32)
@@ -282,9 +248,7 @@ class _RelabelWiringAdapter:
             observations=observations, actions=np.zeros((n_rows, ACT_DIM), np.float32),
             qpos=qpos, valids=valids, terminals=1.0 - valids,
             rewards=np.zeros(n_rows, np.float32))
-        # Deterministic draw (no dependence on global RNG state or a large-enough sample to
-        # make missing a specific placed row improbable): every relabel_infer_batch call
-        # reads idx 0..num_samples-1, which is exactly where the exact-match rows above land.
+        # Deterministic draw over idx 0..num_samples-1, where the exact-match rows are.
         self._train_ds.get_random_idxs = lambda n: np.arange(min(n, self._train_ds.size - 1))
         self.evaluate_calls = []
         self.relabel_calls = []
@@ -338,34 +302,28 @@ def test_eval_relabel_route_runs_alongside_the_goal_conditioned_route(tmp_path, 
     assert {c["task"] for c in normal} == {1, 2}, "the existing goal-conditioned route must still run"
     assert {c["task"] for c in relabel} == {1, 2}, "the new relabel route must run for every task"
 
-    # The relabel route's z is genuinely PER TASK (different goal_xyzs -> different reward
-    # relabel -> different inferred z); the normal route's z is eval_cond0 (zero) for both,
-    # since --infer_cond_episodes is off.
+    # Relabel route: per-task z. Normal route: eval_cond0 for both tasks.
     z1 = next(c["z"] for c in relabel if c["task"] == 1)
     z2 = next(c["z"] for c in relabel if c["task"] == 2)
     assert not np.allclose(z1, z2), "relabel z must differ by task"
     for c in normal:
         assert np.allclose(c["z"], 0.0), "the goal-conditioned route's z must be untouched (eval_cond0)"
 
-    # The two routes land in SEPARATE files (CsvLogger freezes its header on the first row,
-    # so a shared file would silently drop the relabel route's extra witness columns -- see
-    # impls/main.py).
+    # The routes write separate files; CsvLogger fixes its header on the first row.
     with open(os.path.join(run_dir, "eval.csv")) as f:
         normal_rows = list(csv.DictReader(f))
     with open(os.path.join(run_dir, "eval_relabel.csv")) as f:
         relabel_rows = list(csv.DictReader(f))
-    assert len(normal_rows) == 2    # step 1, two tasks (eval_interval huge -> one eval point)
+    assert len(normal_rows) == 2    # one eval point, two tasks
     assert len(relabel_rows) == 2
     assert all(r.get("inferred_cond") not in (None, "") for r in relabel_rows)
     assert all("inferred_cond" not in r for r in normal_rows)
 
 
 def test_eval_relabel_absent_when_the_key_is_unset(tmp_path, monkeypatch):
-    """Regression guard: with eval_relabel_size unset, relabel_infer_batch must never be
-    called and no eval_relabel row must appear -- the new mode must be truly OFF, not just
-    zero-sized."""
+    """Without eval_relabel_size the relabel route never runs."""
     adapter = _RelabelWiringAdapter(n_tasks=2)
-    cfg = _fb_cfg()   # no eval_relabel_size key at all
+    cfg = _fb_cfg()
     run_dir = _run_main(tmp_path, monkeypatch, cfg, adapter)
 
     assert adapter.relabel_calls == []
@@ -373,7 +331,7 @@ def test_eval_relabel_absent_when_the_key_is_unset(tmp_path, monkeypatch):
 
     with open(os.path.join(run_dir, "eval.csv")) as f:
         rows = list(csv.DictReader(f))
-    assert len(rows) == 2   # one row per task, goal-conditioned route only
+    assert len(rows) == 2   # one row per task
 
     relabel_path = os.path.join(run_dir, "eval_relabel.csv")
     assert not os.path.exists(relabel_path) or os.path.getsize(relabel_path) == 0, (
@@ -389,8 +347,7 @@ def test_eval_relabel_size_zero_is_also_off(tmp_path, monkeypatch):
 
 
 def test_unsupported_adapter_raises_a_named_error(tmp_path, monkeypatch):
-    """An adapter without relabel_infer_batch must fail loudly, not silently skip the
-    requested relabel eval."""
+    """An adapter without relabel_infer_batch raises."""
     class _NoRelabelAdapter(_RelabelWiringAdapter):
         relabel_infer_batch = None
 
@@ -401,9 +358,7 @@ def test_unsupported_adapter_raises_a_named_error(tmp_path, monkeypatch):
 
 
 def test_relabel_unwraps_a_per_critic_dataset_wrapper():
-    """`impls/main.py` hands the eval the dataset after `make_dataset` wraps it in the
-    critic's sampler, which implements `sample` but not column access. `_column_backed` walks
-    `.dataset` down to the real columns."""
+    """_column_backed unwraps .dataset to reach the column-backed dataset."""
     import numpy as np
 
     from env.ogbench import OGBenchAdapter
@@ -416,7 +371,7 @@ def test_relabel_unwraps_a_per_critic_dataset_wrapper():
         def __getitem__(self, k):
             return self._cols[k]
 
-    class _Wrapper:                      # no __contains__, exactly like HILPFutureDataset
+    class _Wrapper:                      # no __contains__, like HILPFutureDataset
         def __init__(self, base):
             self.dataset = base
 
@@ -427,7 +382,7 @@ def test_relabel_unwraps_a_per_critic_dataset_wrapper():
 
 
 def test_column_backed_terminates_on_a_self_referential_wrapper():
-    """It must not spin if a wrapper points at itself."""
+    """_column_backed terminates on a self-referential wrapper."""
     from env.ogbench import OGBenchAdapter
 
     class _Loop:

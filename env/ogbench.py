@@ -1,31 +1,22 @@
-"""OGBench adapter: OGBench play datasets, per-task goal-conditioned eval, and the
-reward-relabel protocol for reward-inference eval.
+"""OGBench adapter with goal-conditioned eval and reward relabeling for reward-inference eval.
 
-Reward-inference eval relabels a sample of train transitions by their next state's simulator
-state against a task's goal, feeds (next_observations, rewards) to `agent.infer_eval_cond`,
-and rolls the inferred task vector. The reward functions follow the TD-JEPA OGBench
-protocol: cube counts the cubes within 0.04 m of their goal; scene checks five conditions
-(cube, two buttons, drawer, window). Both are dispatched on the task_info's goal key.
+Relabel rewards follow the TD-JEPA OGBench protocol.
 """
 import numpy as np
 
 from impls.utils.env_utils import make_env_and_datasets
 from impls.utils.evaluation import evaluate as ogbench_evaluate
 
-# Cube free joint `object_joint_<i>` is 7 qpos wide (3 position + 4 quaternion); cube 0
-# starts at qpos column 14.
+# First qpos column of each cube's 7-wide free joint
 CUBE_QPOS_OFFSETS = (14, 21, 28, 35)
 
 
 def cube_relabel_reward(qpos, goal_xyzs, threshold=0.04):
-    """TD-JEPA's OGBench cube reward: the number of cubes within `threshold` metres of their
-    goal position, minus the number of cubes -- 0 when every cube is placed, down to
-    -num_cubes. Callers add `shift_reward` (1.0 in the paper's protocol), which makes it a
-    0/1 "cube placed" indicator on cube-single.
+    """Cube reward: number of cubes within `threshold` of their goal, minus the number of cubes.
 
-    qpos: [N, D] raw simulator qpos rows (the dataset's 'qpos' field; add_info=True).
-    goal_xyzs: [num_cubes, 3] target cube positions (task_infos[task_id - 1]['goal_xyzs']).
-    Returns: [N] float64, unshifted.
+    :param qpos: [N, D] simulator qpos rows.
+    :param goal_xyzs: [num_cubes, 3] goal cube positions.
+    :return: [N] unshifted rewards.
     """
     qpos = np.asarray(qpos, np.float64)
     goal_xyzs = np.asarray(goal_xyzs, np.float64).reshape(-1, 3)
@@ -43,25 +34,16 @@ def cube_relabel_reward(qpos, goal_xyzs, threshold=0.04):
     return successes - num_cubes
 
 
-# ogbench scene_env.py: `task_info['goal'].values()` flattens in this order into the 7-vector
-# target (cube xyz, button 1, button 2, drawer, window).
+# Flattening order of the scene goal: cube xyz, button 1, button 2, drawer, window
 SCENE_GOAL_KEYS = ("block_xyzs", "button_states", "drawer_pos", "window_pos")
 
 
 def scene_relabel_reward(physics, goal, threshold=0.04):
-    """TD-JEPA's OGBench scene reward: five conditions on the physics row --
-    cube `physics[14:17]` within `threshold` of the goal cube xyz (inclusive), buttons
-    `physics[-2]`, `physics[-1]` EQUAL to the goal button states, drawer `physics[-4]` and
-    window `physics[-3]` within `threshold` of their goal positions (inclusive) -- minus 5.
+    """Scene reward: number of satisfied conditions (cube, two buttons, drawer, window) minus 5.
 
-    physics: [N, D] "physics" rows = qpos ++ button_states (see `_physics_rows`).
-        On scene-play-v0 that is qpos (25: arm 0:14, cube 14:21, fingers 21:23, drawer 23,
-        window 24) ++ button_states (2), so -4/-3 are drawer/window and -2/-1 the buttons.
-    goal: either `task_infos[t]['goal']` (dict in SCENE_GOAL_KEYS order) or the flattened
-        7-vector.
-    Returns: [N] float64, unshifted. With a shift of 1.0 the shifted reward is
-        (#satisfied - 4): 1 only when all five hold, 0 for one miss, negative below -- a
-        graded count, not a 0/1 success indicator.
+    :param physics: [N, D] qpos rows with the two button states appended.
+    :param goal: Goal dict in SCENE_GOAL_KEYS order, or the flattened 7-vector.
+    :return: [N] unshifted rewards.
     """
     physics = np.asarray(physics, np.float64)
     if isinstance(goal, dict):
@@ -83,8 +65,7 @@ def scene_relabel_reward(physics, goal, threshold=0.04):
     return cube + button1 + button2 + drawer + window - 5.0
 
 
-# Family dispatch: (task_info goal key, needs button_states, reward fn), keyed on what
-# ogbench's task_infos carry: cube -> 'goal_xyzs', scene -> 'goal' (a dict).
+# (task_info goal key, needs button_states, reward fn) per task family
 _RELABEL_FAMILIES = (
     ("goal_xyzs", False, lambda info, phys, thr: cube_relabel_reward(phys, info["goal_xyzs"], threshold=thr)),
     ("goal", True, lambda info, phys, thr: scene_relabel_reward(phys, info["goal"], threshold=thr)),
@@ -102,8 +83,7 @@ def _relabel_family(task_info):
 
 
 def relabel_reward_for_task(task_info, physics, threshold=0.04):
-    """Unshifted relabel reward of `physics` rows under `task_info`'s family. `threshold` is
-    the cube/scene distance tolerance."""
+    """Unshifted relabel reward of `physics` rows for this task."""
     _, _, fn = _relabel_family(task_info)
     return fn(task_info, physics, threshold)
 
@@ -112,11 +92,10 @@ class OGBenchAdapter:
     name = "ogbench"
 
     def make_env_and_datasets(self, cfg):
-        # The npz's raw 'qpos' column is loaded only when reward-inference eval needs it,
-        # so other runs keep their exact batch keys.
+        # Load qpos only for reward-inference eval
         env, train_ds, val_ds = make_env_and_datasets(
             cfg["env_name"], add_info=bool(cfg.get("eval_relabel_size")))
-        # Episode length for env/base.py::episode_horizon, from the TimeLimit wrapper.
+        # Episode length from the TimeLimit wrapper
         self._horizon = int(getattr(env, "_max_episode_steps", None)
                             or (env.spec.max_episode_steps if env.spec is not None else 0)
                             or 0) or None
@@ -135,8 +114,7 @@ class OGBenchAdapter:
 
     @staticmethod
     def _column_backed(ds):
-        """The raw column-backed dataset under any per-critic sampler wrapper (each wrapper
-        keeps its base in `.dataset`)."""
+        """Return the column-backed dataset under any sampler wrapper."""
         cur = ds
         for _ in range(8):
             try:
@@ -152,8 +130,7 @@ class OGBenchAdapter:
 
     @staticmethod
     def _physics_rows(train_ds, idxs, needs_buttons):
-        """The "physics" row for dataset rows `idxs`: the npz `qpos`, concatenated with
-        `button_states` when the family needs it (scene). Cube reads plain qpos."""
+        """qpos rows, with button states appended for scene."""
         qpos = np.asarray(train_ds["qpos"][idxs], np.float64)
         if not needs_buttons:
             return qpos
@@ -165,14 +142,9 @@ class OGBenchAdapter:
 
     def relabel_infer_batch(self, train_ds, env, task_id, num_samples, shift_reward=1.0,
                             threshold=0.04):
-        """(next_observations, rewards) ready for `agent.infer_eval_cond`. Draws
-        `num_samples` random transitions from the train dataset and relabels each by its
-        next observation's stored simulator state against task `task_id`'s goal -- never the
-        dataset's own 'rewards' column, which is zero for unlabeled play data.
+        """Sample transitions and relabel their next states with the task reward.
 
-        `shift_reward` is added verbatim: with 1.0 the shifted reward is (#conditions
-        satisfied - k + 1), a 0/1 success indicator on cube-single and a graded count on
-        cube-double (k=2) and scene (k=5).
+        :return: (next_observations, rewards + shift_reward) for `agent.infer_eval_cond`.
         """
         train_ds = self._column_backed(train_ds)
         assert "qpos" in train_ds, (

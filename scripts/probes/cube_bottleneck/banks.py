@@ -1,27 +1,7 @@
-"""Frozen, deterministic state banks for the cube bottleneck probe (spec sections 2.1, 3.1).
+"""Fixed state banks for the cube probes, drawn once per env from the OGBench play dataset (qpos/qvel included).
 
-ONE bank per env, built once and reused by every arm, seed, task and start condition, so
-every comparison in the probe is paired. Nothing here touches a checkpoint.
-
-**Source.** The banks are drawn from the very npz the seam arms trained on --
-`~/.ogbench/data/<env>.npz`, loaded by `ogbench.make_env_and_datasets` inside
-`impls/utils/env_utils.py`. It ships `qpos` (21) and `qvel` (20) beside `observations`, so
-a recorded row can be put back into the simulator exactly; `add_info=True` is what surfaces
-them to the training path, and we read the file directly for the same columns.
-
-**Geometry, measured not assumed** (1,001,000 rows of cube-single-play-v0):
-the cube rests at `qpos[16] ~ 0.0200` (p1 0.0195, p50 0.0200), so table_z = 0.02 and
-"lifted" (`lift > delta_lift = 0.03`) is `qpos[16] > 0.05`. That is bit-for-bit the test
-`[torch] scripts/atlas/banks.py:_phase_label` uses, and it agrees with the
-`obs[21]/10 > 0.05` criterion of `[torch] scripts/value/counterfactual_value_probe.py`
-`sample_grasps` -- `obs[19:22]` is `(cube_pos - [0.425, 0, 0]) * 10`, so `obs[21]/10` IS the
-absolute cube height (verified: max |obs[21]/10 - qpos[16]| = 0.0 over the whole dataset).
-
-Phases follow `[torch] scripts/atlas/banks.py`:
-  P1 pre-contact   -- contact <= 0.5 and effector-cube xy distance > 0.10
-  P2 at-contact    -- contact >  0.5, cube NOT lifted, xy distance < 0.06   (the bottleneck)
-  P3 held          -- contact >  0.5, cube lifted                           (past it)
-P3 doubles as the Test 1 held-start bank.
+Phases: P1 pre-contact (contact <= 0.5, effector-cube xy > 0.10), P2 at-contact (contact > 0.5,
+not lifted, xy < 0.06), P3 held (contact > 0.5, lifted). P3 is also the held-start bank.
 """
 import os
 
@@ -34,19 +14,19 @@ from typing import Dict
 
 import numpy as np
 
-# obs layout (cube_env.compute_observation, state branch)
+# Observation layout
 CONTACT_IDX = 18
 EFF_OBS = slice(12, 15)
 CUBE_OBS = slice(19, 22)
 XYZ_SCALER = 10.0
 CUBE_QPOS_Z = 16
 
-TABLE_Z = 0.02          # measured; see module docstring
-LIFT_THRESH = 0.05      # absolute cube z == lift > delta_lift (0.03)
+TABLE_Z = 0.02          # cube resting height
+LIFT_THRESH = 0.05      # absolute cube z, i.e. lift > delta_lift (0.03)
 CONTACT_THRESH = 0.5
 P2_XY_MAX = 0.06        # eps_reach
 P1_XY_MIN = 0.10
-K_STEPS = 5             # PhaseThresholds.k_steps -- a held state must not be a transient
+K_STEPS = 5             # PhaseThresholds.k_steps
 
 N_HELD = 64
 N_P2 = 64
@@ -73,8 +53,7 @@ def load_raw(env_name: str) -> Dict[str, np.ndarray]:
             raise KeyError(f"{env_name}.npz lacks {k!r}; add_info columns are required")
     obs = np.asarray(d["observations"], np.float32)
     term = np.asarray(d["terminals"], bool)
-    # Compact OGBench datasets are fixed-length episodes; derive the boundaries rather
-    # than assuming a length.
+    # Episode boundaries
     ends = np.flatnonzero(term)
     starts = np.concatenate([[0], ends[:-1] + 1])
     episode = np.zeros(len(obs), np.int32)
@@ -114,7 +93,7 @@ def phase_masks(raw: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
     in_contact = contact > CONTACT_THRESH
     held = in_contact & lifted
     return dict(
-        # A held state must persist k_steps so we bank a grasp, not a transient.
+        # Held states must persist k_steps
         P3=_persists(held, raw["episode"], K_STEPS),
         P2=in_contact & ~lifted & (dxy < P2_XY_MAX),
         P1=(~in_contact) & (dxy > P1_XY_MIN),
@@ -141,7 +120,7 @@ def build(env_name: str, out_dir: Path) -> Dict[str, dict]:
     out_dir.mkdir(parents=True, exist_ok=True)
     stats = {}
     banks = {}
-    # Fixed draw order (P3, P2, P1) off ONE rng so the banks are reproducible as a set.
+    # Fixed draw order (P3, P2, P1) from one rng
     for phase in ("P3", "P2", "P1"):
         bank = sample_bank(raw, masks[phase], sizes[phase], rng)
         banks[phase] = bank
@@ -149,7 +128,7 @@ def build(env_name: str, out_dir: Path) -> Dict[str, dict]:
                             fraction=float(masks[phase].mean()),
                             banked=int(len(bank["row"])),
                             episodes=int(len(np.unique(bank["episode"]))))
-    # The Test 1 held bank is P3 under the name the spec gives it.
+    # Held-start bank is P3
     np.savez(out_dir / "held_bank.npz",
              **{k: v for k, v in banks["P3"].items()})
     np.savez(out_dir / "phase_banks.npz",

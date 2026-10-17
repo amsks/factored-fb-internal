@@ -1,11 +1,4 @@
-"""RLDPCritic: the FB critic whose backward map is trained by multi-step latent prediction.
-
-The latent-prediction loss is checked against an independent numpy reconstruction
-(`_np_phi` for the backward tower, `_np_predictor` per predictor head, `_np_sp` for the
-rollout and its squared-error accumulation) at 1e-10 under x64. The numpy code reads only
-the flax parameter arrays, so a wrong module or a wrong reduction, stop-gradient or
-pairing all show up as a mismatch.
-"""
+"""RLDPCritic: FB critic whose backward map is trained by multi-step latent prediction."""
 import jax
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
@@ -51,7 +44,7 @@ def _batch(seed=1, b=B, h=HOR):
         next_observations=jnp.asarray(rng.standard_normal((b, OBS))),
         rewards=jnp.asarray(np.zeros((b, 1))),
         terminals=jnp.asarray(np.zeros((b,))),
-        # GC keys so the batch also satisfies actors that reach for them.
+        # GC keys for actors that read them.
         value_goals=jnp.asarray(rng.standard_normal((b, OBS))),
         actor_goals=jnp.asarray(rng.standard_normal((b, OBS))),
         masks=jnp.asarray(np.ones((b,))),
@@ -67,9 +60,7 @@ def _boot(b=B, seed=2):
     return {"next_action": jnp.asarray(np.tanh(rng.standard_normal((b, ACT))))}
 
 
-# ==========================================================================
-# 1. the SP loss against an independent numpy reconstruction
-# ==========================================================================
+# SP loss against a numpy reconstruction
 def _np_layernorm(x, scale, bias, eps=1e-5):
     m = x.mean(-1, keepdims=True)
     v = ((x - m) ** 2).mean(-1, keepdims=True)
@@ -81,7 +72,7 @@ def _np_relu(x):
 
 
 def _np_phi(p, x, hidden_layers, norm):
-    """impls/utils/networks.py::PhiMap, in numpy."""
+    """PhiMap in numpy."""
     d = p["Dense_0"]
     x = x @ np.asarray(d["kernel"]) + np.asarray(d["bias"])
     ln = p["LayerNorm_0"]
@@ -98,11 +89,7 @@ def _np_phi(p, x, hidden_layers, norm):
 
 
 def _np_predictor(p, x, action, hidden_layers):
-    """impls/utils/networks.py::PredictorMap, in numpy, head by head.
-
-    Reconstructed from nn_models.VForwardMap directly: embed_z sees [x, action],
-    embed_s sees x ALONE, and the trunk consumes concat([s_embedding, z_embedding]).
-    `x` is [P, B, in], `action` is [B, adim] and is shared across heads."""
+    """PredictorMap in numpy; x is [P, B, in], action is [B, adim]."""
     def g(k, h):
         return (np.asarray(p["tower"][k]["kernel"][h], np.float64),
                 np.asarray(p["tower"][k]["bias"][h], np.float64))
@@ -138,9 +125,7 @@ def _np_predictor(p, x, action, hidden_layers):
 
 
 def _np_sp(critic, params, target, batch, cfg):
-    """The latent-prediction loss in numpy: prepend the one-step pair, then zip the window
-    columns 1:1 (a_{t+k-1} -> s_{t+k}). The alignment of the window itself is pinned by
-    `test_sp_pairs_on_a_real_window_have_the_right_alignment` below."""
+    """Latent-prediction loss in numpy."""
     obs = np.asarray(batch["observations"])
     hl_b, norm_b = cfg["backward"]["hidden_layers"], cfg["backward"]["norm"]
     hl_p = cfg["predictor"]["hidden_layers"]
@@ -174,9 +159,7 @@ def test_sp_loss_matches_the_numpy_reconstruction(h):
 
 
 def test_sp_loss_reads_every_window_column():
-    """Perturbing ANY future column must move the SP loss. A rollout that silently
-    stopped after the first step (or that indexed only column 0) would pass the shape
-    tests and this is what catches it."""
+    """Every future window column affects the SP loss."""
     cfg = _cfg()
     critic, params, target = RLDPCritic.build(*_ex(), cfg)
     batch = _batch()
@@ -192,11 +175,7 @@ def test_sp_loss_reads_every_window_column():
 
 
 def test_sp_pairs_on_a_real_window_have_the_right_alignment():
-    """End to end: run _sp_pairs on a batch served by the real WindowedDataset over
-    row-tagged data and check that step k applies a_{t+k-1} and targets s_{t+k}:
-
-        actions = [a_t, a_{t+1}, ..., a_{t+h-1}]
-        targets = [s_{t+1}, s_{t+2}, ..., s_{t+h}]"""
+    """_sp_pairs on a WindowedDataset batch pairs a_{t+k-1} with target s_{t+k}."""
     h = HOR
     critic, _, _ = RLDPCritic.build(*_ex(), _cfg())
     T, n_traj = 10, 3
@@ -210,7 +189,7 @@ def test_sp_pairs_on_a_real_window_have_the_right_alignment():
     acts[:, 0] = np.arange(n)                         # row tag
     ds = make_dataset(Dataset.create(observations=obs, actions=acts, terminals=terminals),
                       _cfg())
-    idxs = np.array([0, 3, 12, 2 * T + 5])            # interior: idx + h <= traj end
+    idxs = np.array([0, 3, 12, 2 * T + 5])            # idx + h <= trajectory end
     batch = ds.sample(len(idxs), idxs=idxs)
     actions, targets = critic._sp_pairs(batch)
     assert len(actions) == len(targets) == h
@@ -222,8 +201,7 @@ def test_sp_pairs_on_a_real_window_have_the_right_alignment():
 
 
 def test_sp_targets_come_from_the_TARGET_backward_map():
-    """Every prediction target is the target backward map, stop-gradient: perturbing the
-    target params must move the loss."""
+    """SP targets come from the target backward map."""
     cfg = _cfg()
     critic, params, target = RLDPCritic.build(*_ex(), cfg)
     batch = _batch()
@@ -233,16 +211,13 @@ def test_sp_targets_come_from_the_TARGET_backward_map():
 
 
 def test_horizon_mismatch_between_critic_and_dataset_is_a_named_error():
-    """A critic built for h=5 handed 2-column windows would quietly train a shorter
-    rollout. That must be an error naming both numbers."""
+    """A critic/dataset horizon mismatch raises an error naming both."""
     critic, params, target = RLDPCritic.build(*_ex(), _cfg(horizon=5))
     with pytest.raises(AssertionError, match="horizon"):
         critic._sp_loss(params, target, _batch(h=3))
 
 
-# ==========================================================================
-# 2. what RLDP changes relative to FB
-# ==========================================================================
+# Differences from FB
 def test_predictor_has_no_target_network():
     """Only forward / backward / left_encoder have target networks."""
     critic, params, target = RLDPCritic.build(*_ex(), _cfg())
@@ -256,9 +231,6 @@ def test_predictor_rides_the_backward_learning_rate():
     assert _LR_KEY["predictor"] == "lr_b"
 
 
-# ==========================================================================
-# 3. registry / config
-# ==========================================================================
 def test_registered():
     assert CRITICS["rldp"] is RLDPCritic
 
@@ -277,8 +249,7 @@ def test_required_keys_are_enforced(key):
 
 
 def test_windowed_dataset_feeds_the_critic_the_columns_it_expects():
-    """End-to-end on the composed config: make_dataset(horizon=h) must produce exactly
-    the h-1 columns rldp.py::_sp_pairs asserts on."""
+    """make_dataset(horizon=h) yields the h-1 window columns _sp_pairs expects."""
     cfg = load_config("rldp", "flowbc", "cube_single")
     cfg["horizon"] = 3
     rng = np.random.default_rng(0)
@@ -294,13 +265,11 @@ def test_windowed_dataset_feeds_the_critic_the_columns_it_expects():
     assert b["future_actions"].shape == (8, 2, ACT)
 
 
-# ==========================================================================
-# 4. the seam: builds and runs a real update with each actor family
-# ==========================================================================
+# Full update with each actor
 @pytest.mark.parametrize("actor", ACTOR_FAMILIES)
 def test_builds_and_updates_with_each_actor_family(actor):
     cfg = load_config("rldp", actor, "cube_single")
-    cfg.update(_cfg())            # small nets so this runs on CPU in seconds
+    cfg.update(_cfg())
     ex_obs, ex_act = _ex()
     agent = Agent.create("rldp", actor, 0, ex_obs, ex_act, cfg)
     assert set(agent.net) >= {"forward", "backward", "left_encoder", "predictor"}
@@ -331,8 +300,7 @@ def test_three_updates_stay_finite(actor):
 
 
 def test_the_sp_term_is_what_trains_the_predictor():
-    """The predictor appears in no other term, so zeroing the window must still move it
-    (one-step pair survives) while the FB residual alone must leave it untouched."""
+    """Only the SP term trains the predictor."""
     cfg = _cfg()
     critic, params, target = RLDPCritic.build(*_ex(), cfg)
     batch = _batch()
@@ -342,9 +310,7 @@ def test_the_sp_term_is_what_trains_the_predictor():
 
 
 def test_stage_loss_is_the_sum_of_its_reported_parts():
-    """fb_loss is reported as the TOTAL (matching impls/critics/fb.py's convention); pin
-    that it really is offdiag + diag + sp + ortho_coef * ortho, so a term cannot be
-    dropped from the objective while still being logged."""
+    """fb_loss equals offdiag + diag + sp + ortho_coef * ortho."""
     cfg = _cfg()
     critic, params, target = RLDPCritic.build(*_ex(), cfg)
     batch, boot = _batch(), _boot()
@@ -356,13 +322,8 @@ def test_stage_loss_is_the_sum_of_its_reported_parts():
     np.testing.assert_allclose(float(info["fb_loss"]), float(loss), atol=0)
 
 
-# ==========================================================================
-# 5. the successor loss does not train B
-# ==========================================================================
 def test_stage_loss_itself_sends_no_backward_gradient_through_the_fb_residual():
-    """With ortho off, `stage_loss = fb + sp`. B(goal) is stop-gradient inside the
-    successor loss, so all of the backward map's gradient must come from the latent
-    prediction term: grad_B(stage_loss) == grad_B(_sp_loss), exactly."""
+    """With ortho off, B's gradient comes only from the SP loss."""
     cfg = _cfg(ortho_coef=0.0)
     critic, params, target = RLDPCritic.build(*_ex(), cfg)
     batch, boot = _batch(), _boot()
@@ -380,8 +341,7 @@ def test_stage_loss_itself_sends_no_backward_gradient_through_the_fb_residual():
     for a, b in zip(jax.tree_util.tree_leaves(g_full), jax.tree_util.tree_leaves(g_sp)):
         np.testing.assert_allclose(np.asarray(a), np.asarray(b), rtol=0, atol=0)
 
-    # vacuity guards: the residual is live (it trains the forward map), and the backward
-    # map is not simply gradient-free (the SP term does reach it).
+    # The residual trains F, and the SP term reaches B.
     g_fwd = jax.grad(full)({"forward": params["forward"]})["forward"]
     assert any(float(np.abs(np.asarray(l)).sum()) > 0
                for l in jax.tree_util.tree_leaves(g_fwd)), "the FB residual is dead"

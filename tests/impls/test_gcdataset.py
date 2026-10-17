@@ -39,7 +39,7 @@ def test_seeded_determinism():
 
 
 def test_trajgoal_stays_in_trajectory():
-    # actor goals are pure trajgoal (p_trajgoal=1): must be within the same trajectory, >= idx.
+    # p_trajgoal=1: goals lie in the same trajectory at or after idx.
     ds = GCDataset(dataset=_toy(), config=_CFG)
     np.random.seed(1)
     idxs = np.array([0, 2, 5])  # all in traj 0 (indices 0..9)
@@ -48,16 +48,7 @@ def test_trajgoal_stays_in_trajectory():
 
 
 def test_the_trajgoal_branch_is_renormalised_by_one_minus_p_curgoal():
-    """vendored: the traj-vs-random coin is `rand < p_trajgoal / (1 - p_curgoal)`, because
-    the current-goal draw is applied AFTERWARDS as a second, independent coin. Dropping the
-    `/(1 - p_curgoal)` leaves every shape and dtype intact and only shifts the MIXTURE, so
-    the checks above cannot see it -- `test_trajgoal_stays_in_trajectory` calls the sampler
-    at p_curgoal=0, where the two spellings are numerically identical (verified by mutation).
-
-    Pinned as a hard 0/1 property rather than a proportion: at p_curgoal = p_trajgoal = 0.5
-    and p_randomgoal = 0 the renormalised coin is `rand < 1.0`, i.e. ALWAYS the trajectory
-    goal, so no goal may leave the anchor's own trajectory. Without the renormalisation the
-    coin is `rand < 0.5` and about half the rows fall through to the random draw."""
+    """The trajectory-goal coin is rand < p_trajgoal / (1 - p_curgoal)."""
     ds = GCDataset(dataset=_toy(), config=_CFG)
     np.random.seed(7)
     idxs = np.zeros(400, np.int64) + np.random.randint(0, 10, size=400)   # all in traj 0

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ============================================================================
-"""Planar Walker Domain."""
+"""Planar walker domain with ExoRL tasks (from ExoRL custom_dmc_tasks)."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -45,7 +45,7 @@ _WALK_SPEED = 1
 _RUN_SPEED = 8
 _SPIN_SPEED = 5
 
-# td_jepa's `spin` task threshold; their walker.py uses a literal 10, not _SPIN_SPEED.
+# Angular momentum threshold of the TD-JEPA spin task
 _TDJEPA_SPIN_THRESHOLD = 10
 
 SUITE = containers.TaggedTasks()
@@ -66,9 +66,6 @@ def make(task,
 
 def get_model_and_assets():
     """Returns a tuple containing the model XML string and a dict of assets."""
-    # PATCHED for the Factored-FB vendor layout (see PROVENANCE.md): upstream walked
-    # dirname(dirname(__file__)) and rejoined the hardcoded 'custom_dmc_tasks' package
-    # name; vendored directly under env/exorl_dmc_tasks/ that path does not exist.
     xml = resources.GetResource(
         os.path.join(os.path.dirname(__file__), 'walker.xml'))
     return xml, common.ASSETS
@@ -76,7 +73,7 @@ def get_model_and_assets():
 
 @SUITE.add('benchmarking')
 def flip(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
-    """Returns the Run task."""
+    """Returns the flip task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
     task = PlanarWalker(move_speed=_RUN_SPEED, flip=True, random=random)
     environment_kwargs = environment_kwargs or {}
@@ -89,18 +86,7 @@ def flip(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
 
 @SUITE.add('benchmarking')
 def spin(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
-    """Returns the Spin task.
-
-    NOT a synonym for `flip`, despite both rewarding angular momentum. Ported from
-    td_jepa (metamotivo/envs/dmc_tasks/walker.py) so their walker column can be compared
-    cell-for-cell: their ALL_TASKS['walker'] is (stand, walk, run, SPIN) where ExoRL's --
-    and RLDP Table 1's -- fourth task is `flip`.
-
-    spin: tolerance(angmomentum, bounds=(10, inf), margin=10), returned ALONE.
-    flip: tolerance(angmomentum, bounds=( 5, inf), margin= 5), multiplied into standing.
-
-    So spin needs twice the angular momentum and carries no standing requirement.
-    """
+    """Returns the TD-JEPA spin task: angular momentum above 10, no standing term."""
     physics = Physics.from_xml_string(*get_model_and_assets())
     task = PlanarWalker(move_speed=_RUN_SPEED, spin=True, random=random)
     environment_kwargs = environment_kwargs or {}
@@ -115,7 +101,7 @@ def spin(time_limit=_DEFAULT_TIME_LIMIT, random=None, environment_kwargs=None):
 def multitask(time_limit=_DEFAULT_TIME_LIMIT,
               random=None,
               environment_kwargs=None):
-    """Returns the Run task."""
+    """Returns the multitask task with stand, walk, run and flip rewards."""
     physics = Physics.from_xml_string(*get_model_and_assets())
     task = MultiTaskPlanarWalker(random=random)
     environment_kwargs = environment_kwargs or {}
@@ -145,38 +131,21 @@ class Physics(mujoco.Physics):
         return self.named.data.xmat[1:, ['xx', 'xz']].ravel()
 
     def angmomentum(self):
-        """Returns the angular momentum of torso of the Cheetah about Y axis."""
+        """Returns the angular momentum of the torso about the Y axis."""
         return self.named.data.subtree_angmom['torso'][1]
 
 
 class PlanarWalker(base.Task):
     """A planar walker task."""
     def __init__(self, move_speed, flip=False, spin=False, random=None):
-        """Initializes an instance of `PlanarWalker`.
-
-    Args:
-      move_speed: A float. If this value is zero, reward is given simply for
-        standing up. Otherwise this specifies a target horizontal velocity for
-        the walking task.
-      random: Optional, either a `numpy.random.RandomState` instance, an
-        integer seed for creating a new `RandomState`, or None to select a seed
-        automatically (default).
-    """
+        """Initializes an instance of `PlanarWalker`."""
         self._move_speed = move_speed
         self._flip = flip
         self._spin = spin
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-
-    In 'standing' mode, use initial orientation and small velocities.
-    In 'random' mode, randomize joint angles and let fall to the floor.
-
-    Args:
-      physics: An instance of `Physics`.
-
-    """
+        """Sets the state of the environment at the start of each episode."""
         randomizers.randomize_limited_and_rotational_joints(
             physics, self.random)
         super().initialize_episode(physics)
@@ -198,8 +167,6 @@ class PlanarWalker(base.Task):
         stand_reward = (3 * standing + upright) / 4
 
         if self._spin:
-            # td_jepa returns the spin term ALONE -- no stand_reward factor, and a
-            # threshold of 10 rather than flip's _SPIN_SPEED (5).
             return rewards.tolerance(physics.angmomentum(),
                                      bounds=(_TDJEPA_SPIN_THRESHOLD, float('inf')),
                                      margin=_TDJEPA_SPIN_THRESHOLD,
@@ -226,28 +193,11 @@ class PlanarWalker(base.Task):
 class MultiTaskPlanarWalker(base.Task):
     """A planar walker task."""
     def __init__(self, random=None):
-        """Initializes an instance of `PlanarWalker`.
-
-    Args:
-      move_speed: A float. If this value is zero, reward is given simply for
-        standing up. Otherwise this specifies a target horizontal velocity for
-        the walking task.
-      random: Optional, either a `numpy.random.RandomState` instance, an
-        integer seed for creating a new `RandomState`, or None to select a seed
-        automatically (default).
-    """
+        """Initializes an instance of `PlanarWalker`."""
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-
-    In 'standing' mode, use initial orientation and small velocities.
-    In 'random' mode, randomize joint angles and let fall to the floor.
-
-    Args:
-      physics: An instance of `Physics`.
-
-    """
+        """Sets the state of the environment at the start of each episode."""
         randomizers.randomize_limited_and_rotational_joints(
             physics, self.random)
         super().initialize_episode(physics)

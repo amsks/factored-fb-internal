@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ============================================================================
-"""Point-mass domain."""
+"""Point-mass maze domain (from ExoRL custom_dmc_tasks)."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -56,16 +56,7 @@ def make(task,
 
 
 def get_model_and_assets(task):
-    """Returns a tuple containing the model XML string and a dict of assets.
-
-    PATCHED for the Factored-FB vendor layout (see PROVENANCE.md in this
-    directory): upstream assumed this file lives at
-    `<root>/custom_dmc_tasks/point_mass_maze.py` and re-derived
-    `<root>/custom_dmc_tasks/point_mass_maze_{task}.xml` by walking two
-    dirname()s up and back down through a hardcoded 'custom_dmc_tasks'
-    package name. We vendor this file directly under
-    `env/exorl_dmc_tasks/`, so the XML is simply __file__-relative.
-    """
+    """Returns a tuple containing the model XML string and a dict of assets."""
     xml = resources.GetResource(
         os.path.join(os.path.dirname(__file__), f'point_mass_maze_{task}.xml'))
     return xml, common.ASSETS
@@ -76,7 +67,7 @@ def get_model_and_assets(task):
 def reach_top_left(time_limit=_DEFAULT_TIME_LIMIT,
               random=None,
               environment_kwargs=None):
-    """Returns the Run task."""
+    """Returns the reach_top_left task."""
     physics = Physics.from_xml_string(*get_model_and_assets('reach_top_left'))
     task = MultiTaskPointMassMaze(target_id=0, random=random)
     environment_kwargs = environment_kwargs or {}
@@ -89,7 +80,7 @@ def reach_top_left(time_limit=_DEFAULT_TIME_LIMIT,
 def reach_top_right(time_limit=_DEFAULT_TIME_LIMIT,
               random=None,
               environment_kwargs=None):
-    """Returns the Run task."""
+    """Returns the reach_top_right task."""
     physics = Physics.from_xml_string(*get_model_and_assets('reach_top_right'))
     task = MultiTaskPointMassMaze(target_id=1, random=random)
     environment_kwargs = environment_kwargs or {}
@@ -102,7 +93,7 @@ def reach_top_right(time_limit=_DEFAULT_TIME_LIMIT,
 def reach_bottom_left(time_limit=_DEFAULT_TIME_LIMIT,
               random=None,
               environment_kwargs=None):
-    """Returns the Run task."""
+    """Returns the reach_bottom_left task."""
     physics = Physics.from_xml_string(*get_model_and_assets('reach_bottom_left'))
     task = MultiTaskPointMassMaze(target_id=2, random=random)
     environment_kwargs = environment_kwargs or {}
@@ -115,7 +106,7 @@ def reach_bottom_left(time_limit=_DEFAULT_TIME_LIMIT,
 def reach_bottom_right(time_limit=_DEFAULT_TIME_LIMIT,
               random=None,
               environment_kwargs=None):
-    """Returns the Run task."""
+    """Returns the reach_bottom_right task."""
     physics = Physics.from_xml_string(*get_model_and_assets('reach_bottom_right'))
     task = MultiTaskPointMassMaze(target_id=3, random=random)
     environment_kwargs = environment_kwargs or {}
@@ -137,32 +128,16 @@ class Physics(mujoco.Physics):
 class MultiTaskPointMassMaze(base.Task):
     """A point_mass `Task` to reach target with smooth reward."""
     def __init__(self, target_id, random=None):
-        """Initialize an instance of `PointMassMaze`.
-
-    Args:
-      randomize_gains: A `bool`, whether to randomize the actuator gains.
-      random: Optional, either a `numpy.random.RandomState` instance, an
-        integer seed for creating a new `RandomState`, or None to select a seed
-        automatically (default).
-    """
+        """Initialize an instance of `PointMassMaze`."""
         self._target = TASKS[target_id][1]
         super().__init__(random=random)
 
     def initialize_episode(self, physics):
-        """Sets the state of the environment at the start of each episode.
-
-       If _randomize_gains is True, the relationship between the controls and
-       the joints is randomized, so that each control actuates a random linear
-       combination of joints.
-
-    Args:
-      physics: An instance of `mujoco.Physics`.
-    """
+        """Sets the state of the environment at the start of each episode."""
         randomizers.randomize_limited_and_rotational_joints(
             physics, self.random)
         physics.data.qpos[0] = np.random.uniform(-0.29, -0.15)
         physics.data.qpos[1] = np.random.uniform(0.15, 0.29)
-        #import ipdb; ipdb.set_trace()
         physics.named.data.geom_xpos['target'][:] = self._target
         
 

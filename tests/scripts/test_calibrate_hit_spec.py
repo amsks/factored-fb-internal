@@ -1,6 +1,4 @@
-"""The concentration-based radius calibration: the actor's training-task reward is a
-Gaussian bump around a goal, softmax-normalised over a batch of candidate next-states. Its
-effective support (exp of the entropy, in candidates) is what the radius must set."""
+"""Hit-spec radius calibration from the effective support of the softmax-normalised goal reward."""
 import numpy as np
 import pytest
 
@@ -13,9 +11,9 @@ def _blob(n, d, seed=0):
 
 def test_support_limits():
     x = _blob(4096, 8)
-    # a huge radius flattens the bump: every candidate gets 1/1024
+    # Huge radius: every candidate gets 1/1024.
     assert effective_support(x, eps=1e6, n_cand=1024, n_goals=16, seed=0) == pytest.approx(1024.0, rel=1e-3)
-    # a tiny radius puts all the mass on the nearest candidate
+    # Tiny radius: all mass on the nearest candidate.
     assert effective_support(x, eps=1e-6, n_cand=1024, n_goals=16, seed=0) == pytest.approx(1.0, abs=1e-6)
 
 

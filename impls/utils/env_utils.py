@@ -1,15 +1,12 @@
-"""OGBench environment + dataset construction, ported from OGBench upstream
-impls/utils/env_utils.py. Uses the compact dataset and wraps it in FBDataset."""
+"""OGBench environment and dataset construction."""
 import ogbench
 from impls.utils.datasets import FBDataset
 
 
 def make_env_and_datasets(dataset_name, add_info=False):
-    """Make the OGBench environment and FB datasets (compact, unlabeled).
+    """Make the OGBench environment and train/val datasets.
 
-    `add_info` asks OGBench's loader for the raw simulator state columns ('qpos', 'qvel',
-    and 'button_states' on scene) that ship in every npz but are dropped by default. The
-    reward-relabel eval needs them; off otherwise, so the batch keys stay unchanged.
+    :param add_info: Also load the simulator state columns (qpos, qvel, button_states).
     """
     env, train_dataset, val_dataset = ogbench.make_env_and_datasets(
         dataset_name, compact_dataset=True, add_info=add_info)

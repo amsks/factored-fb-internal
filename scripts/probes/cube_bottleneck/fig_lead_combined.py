@@ -1,13 +1,6 @@
-"""Lead figure: two policies from the SAME recorded held state, same goal.
+"""Lead figure: FB and Density-FB rollouts from the same held state, with each critic's predicted cube position.
 
-    row 1  frames of plain FB's rollout            (it drops the cube)
-    row 2  FB's predicted future cube position on those frames
-    row 3  Density-FB's predicted future cube position on ITS frames
-    row 4  frames of Density-FB's rollout          (it carries the cube to the goal)
-
-Left column: the data prior of cube positions and the legend, vertically centred.
-Inputs: drop_strip_cache.npz (FB policy, bank row 21) and drop_strip_cache_density.npz
-(Density-FB policy, same row), both produced by fig_drop_strip.py.
+Inputs are the two caches written by fig_drop_strip.py (FB policy and Density-FB policy).
 """
 import argparse
 import matplotlib
@@ -36,7 +29,7 @@ def main():
     n = len(F["rows"]); assert len(D["rows"]) == n
     pool_xy = F["pool_xy"]; goal_xy = F["goal_xy"]
 
-    # shared extent over both rollouts
+    # Shared extent over both rollouts
     allpath = np.concatenate([F["path_xy"], D["path_xy"]])
     lo = np.minimum(np.percentile(pool_xy, 0.5, axis=0), np.minimum(allpath.min(0), goal_xy)) - 3.0
     hi = np.maximum(np.percentile(pool_xy, 99.5, axis=0), np.maximum(allpath.max(0), goal_xy)) + 3.0
@@ -107,7 +100,7 @@ def main():
                   D["true_xy"][c], D["dec_density_fb_state"][c])
     frame_row(3, imD, phD, D["rows"], title_top=False)
 
-    # left column: prior + legend, stacked and centred vertically
+    # Left column: prior and legend
     sub = gs[:, 0].subgridspec(4, 1, height_ratios=[1.0, 1.15, 1.6, 1.0], hspace=0.05)
     axp = fig.add_subplot(sub[1]); axp.set_anchor("C")
     map_panel(axp, prior, V2.CMAPS["prior"], None)

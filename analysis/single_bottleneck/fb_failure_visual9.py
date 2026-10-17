@@ -1,10 +1,6 @@
-"""Appendix figure fig:fb-features on the nine-state pass-through process (2026-09-25).
+"""Figure of FB's rank-2 backward features on the nine-state pass-through process.
 
-(a) FB's learned backward features B(s) at rank 2, one run: the rewarded state A (3) and the unrewarded
-    state B (4) get IDENTICAL features (to machine precision, every run), so the average feature vector
-    of the future after a+ equals that after a- (Lemma 1's condition).
-(the predicted-futures panel was dropped 2026-09-25: it duplicated Fig. 3b of the paper)
-    JAX_PLATFORMS=cpu python analysis/single_bottleneck/fb_failure_visual9.py [run]
+Run: JAX_PLATFORMS=cpu python analysis/single_bottleneck/fb_failure_visual9.py [run]
 """
 import importlib.util, os, pathlib, sys
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
@@ -39,8 +35,8 @@ q = lambda P: (P[2 * b] @ r / (1 - GAMMA), P[2 * b + 1] @ r / (1 - GAMMA))
 print(f"run {RUN} {cfg[RUN]}: |E+[B]-E-[B]| = {np.linalg.norm(mp - mm):.1e}")
 
 pf.style()
-fig, ax = plt.subplots(figsize=(3.3, 2.5))          # single panel (the predicted-futures panel duplicated Fig. 3b)
-# (a) feature plane
+fig, ax = plt.subplots(figsize=(3.3, 2.5))
+# Feature plane
 for s in range(n):
     if s in (3, 4):
         continue

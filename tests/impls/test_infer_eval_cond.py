@@ -1,18 +1,4 @@
-"""infer_eval_cond / --infer_cond_episodes tests.
-
-Two things are true and both need to be visible, not just the first one:
-  1. infer_eval_cond's *machinery* works -- given a non-degenerate reward signal, it
-     changes z (test_infer_eval_cond_changes_z below uses synthetic rewards to exercise
-     that code path in isolation).
-  2. On the domain this repo actually trains on (cube-single-play-v0), that machinery is
-     currently a no-op: FBDataset zeroes every reward for unlabeled play data, so FB's
-     z = (rewards^T B)/N is exactly 0 and project_z(0) is exact zeros -- bit-identical to
-     eval_cond0. test_infer_eval_cond_is_noop_on_real_cube_single_data documents that
-     limitation with real data instead of hiding it behind a synthetic reward fixture.
-
-main.infer_cond_noop_reason() is what impls/main.py uses to detect case 2 at runtime and
-warn instead of silently running a no-op; it's exercised directly here too.
-"""
+"""infer_eval_cond and the no-op inference detector."""
 import jax.numpy as jnp
 import numpy as np
 from impls.agents import Agent
@@ -33,9 +19,7 @@ def _fb_cfg():
 
 
 def test_infer_eval_cond_changes_z():
-    """Synthetic, non-degenerate rewards: infer_eval_cond's math actually moves z. This
-    isolates the code path from the fact that no currently-supported dataset feeds it a
-    real non-zero reward (see test_infer_eval_cond_is_noop_on_real_cube_single_data)."""
+    """Non-degenerate rewards move the inferred z."""
     agent = Agent.create("fb", "flowbc", 0, jnp.zeros((2, 8)), jnp.zeros((2, 5)), _fb_cfg())
     before = np.asarray(agent.cond_eval["z"])
     rng = np.random.default_rng(0)
@@ -46,10 +30,7 @@ def test_infer_eval_cond_changes_z():
 
 
 def test_infer_eval_cond_is_noop_on_real_cube_single_data():
-    """Documents the real-data limitation instead of hiding it: cube-single-play-v0 is
-    unlabeled play data, so every sampled reward is exactly 0 (impls/utils/datasets.py
-    zeroes rewards for FBDataset), which makes FB's inferred z exactly the eval_cond0
-    zero z -- bit-identical, not just close."""
+    """On cube-single play data, rewards are zero and the inferred z equals eval_cond0."""
     from impls.utils.config_utils import load_config
     from impls.utils.datasets import make_dataset
     from impls.utils.env_utils import make_env_and_datasets
@@ -87,8 +68,8 @@ def test_infer_cond_noop_reason_detects_all_zero_rewards():
 
 def test_infer_cond_noop_reason_detects_unchanged_cond():
     pre = {"goal": jnp.zeros((4,))}
-    post = {"goal": jnp.zeros((4,))}  # e.g. GCIQLCritic.infer_cond's fixed placeholder
-    rewards = jnp.ones((8, 1))  # non-zero, so this isolates the "cond unchanged" branch
+    post = {"goal": jnp.zeros((4,))}  # fixed placeholder
+    rewards = jnp.ones((8, 1))  # non-zero rewards; only the cond is unchanged
     reason = m.infer_cond_noop_reason(pre, post, rewards)
     assert reason is not None
 

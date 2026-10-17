@@ -1,22 +1,6 @@
-"""RLDPCritic — Forward-Backward with a self-predictive backward representation (RLDP).
+"""RLDP critic: forward-backward with a self-predictive backward representation.
 
-The forward map is trained exactly as in FB (impls/critics/fb.py): F(s, a, z)^T B(s')
-regresses the successor measure with TD target 1{s' = next state} +
-gamma * F_target(s', a', z)^T B_target. What changes is how B is learned:
-
-1. B is stop-gradient inside the successor loss, so the TD error trains F only.
-2. B is trained by a multi-step latent prediction loss. A predictor P rolls the embedding
-   forward along the dataset actions and is matched to the target B at each reached state:
-
-       curr_0 = B(s_t)
-       curr_k = P(curr_{k-1}, a_{t+k-1})                          k = 1..h
-       sp     = (1/h) sum_k mean_batch || curr_k - sg[B_target(s_{t+k})] ||^2
-
-3. The orthonormality term regularises B(s_t), the start of the rollout.
-
-The predictor rides the backward learning rate and has no target network. The actor
-maximises Q(s, a, z) = F(s, a, z)^T z; z is inferred from reward samples as
-z = mean_i r_i B(s_i), normalised, and from a goal as z = B(goal).
+F is trained by the FB loss with B frozen; B by multi-step latent prediction.
 """
 import copy
 import dataclasses
@@ -47,8 +31,7 @@ class RLDPCritic:
 
     GROUPS = ("forward", "backward", "left_encoder", "predictor")
     STAGES = ("fb",)
-    PROVIDES_COND = frozenset({"z"})  # sample_cond() produces {"z": ...}
-    # B is trained on next states, so z is inferred from rewards on next states.
+    PROVIDES_COND = frozenset({"z"})
     INFER_COND_MARGINAL = "next_observations"
 
     @property
@@ -64,7 +47,7 @@ class RLDPCritic:
         return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
 
     def map_eval_cond(self, net, cond, observations=None):
-        """Goal-conditioned evaluation: z = B(goal), normalised like the training z."""
+        """Map an evaluation goal to z = B(goal)."""
         if "goal" not in cond:
             return cond
         z = project_z(self._B(net["backward"].params, cond["goal"]), self.norm_z)
@@ -86,17 +69,9 @@ class RLDPCritic:
     def _P(self, p, x, action):
         return self.predictor.apply({"params": p}, x, action)
 
-    # --- the self-predictive loss ---
+    # Self-predictive loss
     def _sp_pairs(self, batch):
-        """The (action, reached state) pairs of the rollout: step k applies a_{t+k-1} and
-        is matched against s_{t+k}, k = 1..h.
-
-            actions = [a_t]     + [a_{t+1}, ..., a_{t+h-1}]
-            targets = [s_{t+1}] + [s_{t+2}, ..., s_{t+h}]
-
-        WindowedDataset delivers the window aligned: future_actions column i is a_{t+1+i}
-        and future_observations column i is s_{t+2+i}.
-        """
+        """Actions a_t..a_{t+h-1} and reached states s_{t+1}..s_{t+h}."""
         fo, fa = batch["future_observations"], batch["future_actions"]
         assert fo.shape[1] == fa.shape[1] == self.horizon - 1, (
             f"windowed batch has {fo.shape[1]} future columns but the critic was built "
@@ -106,13 +81,12 @@ class RLDPCritic:
         return actions, targets
 
     def _sp_loss(self, params, target, batch):
-        """Returns the self-predictive loss and B(s_t), which the ortho term also uses."""
+        """Self-predictive loss and B(s_t)."""
         actions, targets = self._sp_pairs(batch)
         P = self.num_parallel
         ys = [jax.lax.stop_gradient(self._B(target["backward"], s)) for s in targets]
 
-        # The rollout starts at the ONLINE B(s_t), which carries the gradient into B; the
-        # predictor is an ensemble, so the start is broadcast over its heads.
+        # Rollout from the online B(s_t), broadcast over predictor heads
         B_pred = self._B(params["backward"], batch["observations"])
         curr = jnp.broadcast_to(B_pred[None], (P,) + B_pred.shape)
 
@@ -132,13 +106,13 @@ class RLDPCritic:
         off = 1.0 - jnp.eye(B)
         off_sum = off.sum()
 
-        # TD target: target networks at (s', a'), averaged over the F heads.
+        # TD target
         nle = self._le(target["left_encoder"], next_obs)
         tFs = self._F(target["forward"], nle, z, next_action)
         tB = self._B(target["backward"], goal)
         target_M = jax.lax.stop_gradient(jnp.einsum("pbz,cz->pbc", tFs, tB).mean(axis=0))
 
-        # Successor loss with B(goal) stop-gradient: it trains F only.
+        # Successor loss trains F only
         le = self._le(params["left_encoder"], obs)
         Fs = self._F(params["forward"], le, z, action)
         Bg = jax.lax.stop_gradient(self._B(params["backward"], goal))
@@ -150,7 +124,7 @@ class RLDPCritic:
 
         sp, B_pred = self._sp_loss(params, target, batch)
 
-        # Orthonormality at B(s_t).
+        # Orthonormality on B(s_t)
         cov = B_pred @ B_pred.T
         orth_off = 0.5 * jnp.sum((cov * off) ** 2) / off_sum
         orth_diag = -jnp.mean(jnp.diagonal(cov))
@@ -175,8 +149,7 @@ class RLDPCritic:
         return cond["z"]
 
     def sample_cond(self, net, batch, rng):
-        """Training z: a train_goal_ratio fraction are B(s') at shuffled batch next-states,
-        the rest random directions on the sphere."""
+        """Mix B(s') at shuffled next states with random sphere directions."""
         next_obs = batch["next_observations"]
         B = next_obs.shape[0]
         r_z, r_mask, r_perm = jax.random.split(rng, 3)
@@ -210,7 +183,6 @@ class RLDPCritic:
         left_encoder = PhiMap(z_dim=L_dim, hidden_dim=config["left_encoder"]["hidden_dim"],
                               hidden_layers=config["left_encoder"]["hidden_layers"],
                               norm=config["left_encoder"]["norm"])
-        # The predictor maps (embedding, action) to the next embedding, in B's space.
         predictor = PredictorMap(out_dim=z_dim, hidden_dim=config["predictor"]["hidden_dim"],
                                  num_parallel=P,
                                  hidden_layers=config["predictor"]["hidden_layers"],

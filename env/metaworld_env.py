@@ -1,21 +1,7 @@
-"""env/metaworld_env.py — Metaworld's goal-observable envs behind the same surface the
-collected offline data was recorded through.
+"""MetaWorld goal-observable envs, wrapped as the offline data was collected.
 
-The demonstrations in the unified Metaworld datasets were produced through newt's
-`envs.metaworld.MetaWorldWrapper`, so the eval env has to reproduce that wrapper *exactly*
-or the policy sees a different observation/timescale than it was trained on. The three
-things that matter for parity:
-
-    * `_freeze_rand_vec = False`  -- every reset redraws the task's random vector, so the
-      eval distribution matches how the data was collected.
-    * reset = env.reset() followed by ONE zero-action step, whose obs is what is returned.
-      Metaworld's raw reset obs leaves the `prev_obs` half of the 39-dim vector stale; the
-      zero step fills it. The dataset's first transition is that post-zero-step obs.
-    * step = action repeat 2 with the rewards summed. A "step" in the dataset is two
-      simulator steps, so the horizon of 100 is 200 raw MuJoCo steps.
-
-We re-implement it here rather than importing newt because newt's module pulls in torch +
-torchvision at import time (only for its `render`), and this repo is JAX-only.
+Reset takes one zero-action step to fill the previous-observation half of the obs.
+A step is two simulator steps with rewards summed.
 """
 import numpy as np
 from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
@@ -25,7 +11,7 @@ HORIZON = 100
 
 
 class MetaWorldWrapper:
-    """newt's MetaWorldWrapper, torch-free. Obs is the raw 39-dim state, actions are 4-dim."""
+    """MetaWorld wrapper with 39-dim state obs and 4-dim actions."""
 
     def __init__(self, env):
         self.env = env
@@ -60,7 +46,6 @@ class MetaWorldWrapper:
                 self._info(info, terminated, truncated))
 
     def render(self, *_args, **_kwargs):
-        # The vertical flip makes the frame right-side up.
         return np.flipud(np.asarray(self.env.render()))
 
     @property
@@ -80,10 +65,7 @@ class MetaWorldWrapper:
 
 
 def make_metaworld_env(task, seed=0):
-    """-> (env, horizon) for a `mw-<name>` task slug, e.g. `mw-bin-picking`.
-
-    `render_mode='rgb_array'` unconditionally, as in the collection env — it only enables
-    `render()`, it does not render during `step`."""
+    """Return (env, horizon) for a `mw-<name>` task slug."""
     env_id = task.split("-", 1)[-1] + "-v2-goal-observable"
     if env_id not in ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE:
         raise ValueError(f"unknown Metaworld task {task!r} (no env {env_id!r})")

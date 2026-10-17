@@ -1,25 +1,6 @@
-"""Failure figures for the Density-FB paper (docs/notes/2026-09-12-failure-figures.md).
+"""Failure-figure data: rollouts with per-episode failure phase, restored state banks, and predicted vs rollout cube futures.
 
-Three stages, one CLI, all on REAL OGBench rollouts of the tdjtab 1M arms (`fb_tdj` vs
-`density_fb_z`) under the reward-inference conditioning impls/main.py rolls for
-eval_relabel (see agents.relabel_cond_agents):
-
-  rollouts   Figure A. 20 episodes x 5 tasks per (env, method, seed). Each episode gets
-             exactly one outcome by the first unmet phase: approach / acquisition /
-             maintain / transport / success. Trajectories (qpos, qvel, obs, signals) are
-             kept, because the banks below are cut from them.
-  banks      Figure B input. From the POOLED rollouts of both methods, three banks of 64
-             recorded simulator states per env -- approach, in-hand, carrying -- each
-             restored with the verified restore (restore.py) and its fidelity gate.
-  predict    Figure B / C. For every bank state and every arm: the critic's predicted
-             distribution over the future cube position (measure over a fixed 1024-row
-             dataset pool, projected onto the cube's xy and binned on a 20x20 workspace
-             grid) against the rollout truth (K=10 continuations of THAT arm's own policy,
-             discounted, first 100 steps, same grid). Error = total variation distance.
-  plot       The figures + the CSVs behind them.
-
-Every job is deterministic given (env, arm, bank): rollout rngs, bank draws and relabel
-rows are all seeded from constants in this file.
+Stages: rollouts, banks, predict, actionprobe, plot. All rngs are seeded from constants in this file.
 """
 import os
 
@@ -51,33 +32,32 @@ METHOD_LABEL = {"fb_tdj": "FB", "density_fb_z": "Density-FB"}
 OUTCOMES = ["approach", "acquisition", "maintain", "transport", "success"]
 RANK = {o: i for i, o in enumerate(OUTCOMES)}
 
-TABLE_Z = BK.TABLE_Z            # 0.02, measured (banks.py)
+TABLE_Z = BK.TABLE_Z
 XYZ_CENTER = np.array([0.425, 0.0, 0.0])
 EPS_NEAR = 0.05                 # transport: final cube within 5 cm of its goal
-MOVING_MIN = 0.02               # a cube whose goal is >2 cm from its start has to move
+MOVING_MIN = 0.02               # cube must move if its goal is farther than this
 CARRY_WINDOW = 10               # carrying: cube-to-goal distance fell over the last 10 steps
 CARRY_MIN_DROP = 0.02
-GOAL_RADIUS = 0.05              # figure B "mass within 5 cm of the goal"
+GOAL_RADIUS = 0.05              # radius for predicted mass near the goal
 N_BANK = 64
-N_CANDIDATES = 160              # candidate draws per bank; the first 64 passing the gate stay
+N_CANDIDATES = 160              # candidate draws per bank; first 64 passing the gate are kept
 POOL_SIZE = 1024
 POOL_SEED = 0
 GRID_N = 20
-GRID_X = (0.25, 0.60)           # object sampling bounds [0.30,0.55]x[-0.30,0.30], padded
+GRID_X = (0.25, 0.60)           # workspace bounds, padded
 GRID_Y = (-0.35, 0.35)
 K_CONT = 10
 HORIZON = 100
 N_PRED_ACTIONS = 8              # policy draws the prediction is averaged over
-STATES_PER_BATCH = 8            # truth: 8 states x K_CONT envs stepped in lockstep
+STATES_PER_BATCH = 8            # states per lockstep batch of K_CONT envs each
 ROLLOUT_SEED = 0
 BANK_SEED = 20260912
 
 
-# ── geometry helpers ────────────────────────────────────────────────────────────────────
+# Geometry helpers
 
 def cube_xy_from_obs(obs: np.ndarray, c: int) -> np.ndarray:
-    """Cube `c`'s absolute xy from the state observation (block c occupies 9 columns
-    starting at 19: pos3, quat4, cos, sin)."""
+    """Absolute xy of cube `c` from the observation (9 columns per cube starting at 19)."""
     lo = 19 + 9 * c
     return obs[..., lo:lo + 2] / BK.XYZ_SCALER + XYZ_CENTER[:2]
 
@@ -87,7 +67,7 @@ def n_cubes(env) -> int:
 
 
 def cube_goals(env) -> np.ndarray:
-    """[C, 3] the mocap targets the env scores success against (permuted per reset)."""
+    """Return [C, 3] cube goal positions from the env's mocap targets."""
     u = env.unwrapped
     return np.asarray(u._data.mocap_pos[u._cube_target_mocap_ids], np.float64).copy()
 
@@ -112,12 +92,10 @@ def signals_now(env) -> Dict[str, Any]:
     )
 
 
-# ── phase ladder ────────────────────────────────────────────────────────────────────────
+# Phase ladder
 
 def cube_ladder(eff, cube_c, grip, goal_c, thr: PhaseThresholds) -> Dict[str, Any]:
-    """Milestones of ONE cube over one episode. Same three conditions as the vendored
-    `classify_phases` (phases.py): reached = min hand-cube distance < 6 cm; secured = lifted
-    > 3 cm AND gripper closed AND hand over the cube, for 5 consecutive steps."""
+    """Reach/secure milestones of one cube over one episode, with the thresholds of phases.classify_phases."""
     d = np.linalg.norm(eff - cube_c, axis=1)
     dxy = np.linalg.norm(eff[:, :2] - cube_c[:, :2], axis=1)
     lift = cube_c[:, 2] - TABLE_Z
@@ -131,26 +109,20 @@ def cube_ladder(eff, cube_c, grip, goal_c, thr: PhaseThresholds) -> Dict[str, An
 
 
 def cube_outcome(l: Dict[str, Any], thr: PhaseThresholds) -> str:
-    """The first unmet phase for one cube that was NOT delivered."""
+    """First unmet phase for an undelivered cube."""
     if l["final_goal_dist"] <= EPS_NEAR:
-        return "transport"          # placed next to the goal but outside the 4 cm tolerance
+        return "transport"          # placed near the goal but outside 4 cm
     if l["final_lift"] >= thr.delta_lift and l["secured"]:
-        return "transport"          # still holding it at the end, away from the goal
+        return "transport"          # still held at the end, away from the goal
     if l["secured"]:
-        return "maintain"           # acquired, then dropped away from the goal
+        return "maintain"           # acquired, then dropped
     if l["reached"]:
         return "acquisition"
     return "approach"
 
 
 def episode_outcome(ep: Dict[str, Any], thr: PhaseThresholds) -> Dict[str, Any]:
-    """One outcome per episode.
-
-    cube-single: the ladder of the cube. cube-double: the ladder of every cube that has to
-    move (goal > 2 cm from its start); cubes delivered to their goal are done, and the
-    episode's outcome is the FURTHEST phase reached on an undelivered cube -- i.e. the
-    phase the policy failed at on the cube it was working on. Success is the env's own
-    flag (all cubes within 4 cm)."""
+    """One outcome per episode: success, or the furthest phase reached on an undelivered cube."""
     ladders = []
     for c in np.flatnonzero(ep["moving"]):
         l = cube_ladder(ep["eff"], ep["cube"][:, c], ep["grip"], ep["goal"][c], thr)
@@ -160,23 +132,21 @@ def episode_outcome(ep: Dict[str, Any], thr: PhaseThresholds) -> Dict[str, Any]:
         return dict(outcome="success", ladders=ladders)
     undelivered = [l for l in ladders if not l["delivered"]]
     if not undelivered:
-        # every moving cube ends within 4 cm of its goal yet the env never flagged
-        # success (a cube knocked off its goal and back, or the non-moving cube displaced)
+        # All moving cubes near their goals but no env success flag
         return dict(outcome="transport", ladders=ladders)
     outs = [cube_outcome(l, thr) for l in undelivered]
     best = max(outs, key=lambda o: RANK[o])
     return dict(outcome=best, ladders=ladders)
 
 
-# ── stage 1: rollouts (figure A) ────────────────────────────────────────────────────────
+# Stage 1: rollouts
 
 def make_env_pool(env_name: str, n: int) -> List[Any]:
     return [R.make_env(env_name, seed=1000 + i) for i in range(n)]
 
 
 def rollout_task(cond_agent, envs, task_id: int, n_episodes: int, rng_key) -> List[Dict[str, Any]]:
-    """`n_episodes` episodes of one task in lockstep under the inferred-z agent. Goals are
-    never passed (InferredCondAgent drops them anyway). Returns full trajectories."""
+    """Roll `n_episodes` episodes of one task in lockstep with the inferred-z agent; return trajectories."""
     from impls.utils.evaluation import supply_rng
 
     actor_fn = supply_rng(cond_agent.sample_actions, rng=rng_key)
@@ -264,10 +234,10 @@ def stage_rollouts(env_name: str, run: Dict, n_episodes: int, out_dir: Path,
     return out_dir / f"traj_{label}.npz"
 
 
-# ── stage 2: banks ──────────────────────────────────────────────────────────────────────
+# Stage 2: banks
 
 def _persist(mask: np.ndarray, k: int) -> np.ndarray:
-    """True at t when mask holds at t..t+k-1 (within one episode array)."""
+    """True at t when mask holds at t..t+k-1."""
     out = mask.copy()
     for j in range(1, k):
         sh = np.zeros_like(mask); sh[:-j] = mask[j:]
@@ -297,7 +267,7 @@ def episode_candidates(e: Dict[str, np.ndarray], thr: PhaseThresholds) -> Dict[s
         acq = np.flatnonzero(hp)
         first_acq = int(acq[0]) if len(acq) else T1
         first_acq_any = min(first_acq_any, first_acq)
-        # carrying: held throughout the last CARRY_WINDOW steps and the goal distance fell
+        # Carrying: held over the last CARRY_WINDOW steps and goal distance fell
         carry = np.zeros(T1, bool)
         for t in range(CARRY_WINDOW, T1):
             if hp[t] and held[t - CARRY_WINDOW:t + 1, c].all() \
@@ -310,7 +280,7 @@ def episode_candidates(e: Dict[str, np.ndarray], thr: PhaseThresholds) -> Dict[s
         per_cube[c] = dict(first_acq=first_acq, carry=carry, inhand=inhand)
         out["carrying"] += [(int(t), c) for t in np.flatnonzero(carry)]
         out["inhand"] += [(int(t), c) for t in np.flatnonzero(inhand)]
-    # approach: before ANY acquisition in the episode; the nearest moving, undelivered cube
+    # Approach: before any acquisition, nearest moving undelivered cube
     for t in range(1, min(first_acq_any, T1 - 1)):
         cands = [c for c in range(C) if moving[c] and not delivered[t, c]]
         if not cands or contact[t] > BK.CONTACT_THRESH:
@@ -322,9 +292,7 @@ def episode_candidates(e: Dict[str, np.ndarray], thr: PhaseThresholds) -> Dict[s
 
 
 def restore_full(env, rec: Dict[str, Any]) -> np.ndarray:
-    """The verified restore (restore.py), plus the cube goal targets of the recorded episode
-    (cube-double permutes them per reset; they live in mocap, outside qpos). The gripper is
-    settled toward the state it was recorded in: closed for held states, open otherwise."""
+    """Restore a recorded state and its cube goals; settle the gripper closed if held, else open."""
     env.reset(options=dict(task_id=int(rec["task"]), render_goal=False))
     set_cube_goals(env, np.asarray(rec["goal"]))
     R.set_state(env, rec["qpos"], rec["qvel"])
@@ -333,10 +301,7 @@ def restore_full(env, rec: Dict[str, Any]) -> np.ndarray:
 
 
 def fidelity_gate(env, rec: Dict[str, Any], bank: str, thr: PhaseThresholds) -> Dict[str, Any]:
-    """Held banks: restore.g2_check's criteria on the recorded cube -- contact at hand-over
-    > 0.5, then after one zero-action step still lifted + gripped, cube drift < 4 cm.
-    Approach bank: cube drift < 4 cm, still on the table, hand drift < 4 cm, gripper
-    opening within 0.2 of the recorded one."""
+    """Check a restored state: restore.g2_check for held banks; small cube/hand/gripper drift for approach."""
     c = int(rec["cube"])
     s0 = signals_now(env)
     contact = s0["contact"]
@@ -392,8 +357,7 @@ def stage_banks(env_name: str, traj_files: Sequence[Path], out_dir: Path,
             stats[bank] = dict(candidates=0, banked=0)
             banks[bank] = []
             continue
-        # one state per episode where possible: group by (file, task, episode), draw
-        # episodes without replacement, then a random step inside each
+        # One state per episode where possible
         groups: Dict[tuple, list] = {}
         for x in cl:
             groups.setdefault((x["file"], x["task"], x["episode"]), []).append(x)
@@ -453,10 +417,10 @@ def stage_banks(env_name: str, traj_files: Sequence[Path], out_dir: Path,
     return stats
 
 
-# ── stage 3: predictions vs rollout truth ───────────────────────────────────────────────
+# Stage 3: predictions vs rollout truth
 
 def build_pool(env_name: str, out_dir: Path) -> Dict[str, np.ndarray]:
-    """1024 dataset NEXT-states, fixed by POOL_SEED; the same rows reach both critics."""
+    """Sample 1024 dataset next-states, fixed by POOL_SEED."""
     f = out_dir / "pool.npz"
     if f.exists():
         return dict(np.load(f))
@@ -473,8 +437,7 @@ def build_pool(env_name: str, out_dir: Path) -> Dict[str, np.ndarray]:
 
 
 def hist_xy(xy: np.ndarray, w: Optional[np.ndarray] = None) -> np.ndarray:
-    """[GRID_N, GRID_N] normalized histogram on the workspace grid; points outside are
-    clipped to the border cell."""
+    """[GRID_N, GRID_N] normalised histogram on the workspace grid; outside points go to the border."""
     x = np.clip(xy[..., 0].ravel(), GRID_X[0], GRID_X[1] - 1e-9)
     y = np.clip(xy[..., 1].ravel(), GRID_Y[0], GRID_Y[1] - 1e-9)
     h, _, _ = np.histogram2d(x, y, bins=GRID_N, range=[GRID_X, GRID_Y],
@@ -488,8 +451,7 @@ def tv(p: np.ndarray, q: np.ndarray) -> float:
 
 
 def predict_density(arm, obs_rep, acts, z, pool_obs) -> np.ndarray:
-    """Density-FB z arm: w = mean_h softmax_j F(s,a,z).B(u_j)/tau -- the distribution the
-    actor's readout ascends (density_fb.q_fn, z_on branch), on the fixed pool."""
+    """Density-FB weights w = mean_h softmax_j F(s,a,z).B(u_j)/tau over the pool."""
     import jax
     import jax.numpy as jnp
 
@@ -504,8 +466,7 @@ def predict_density(arm, obs_rep, acts, z, pool_obs) -> np.ndarray:
 
 
 def predict_fb(arm, obs_rep, acts, z, pool_obs):
-    """FB: M = min_h F(s,a,z).B(u) (the training target's head convention), clipped at zero
-    and normalized over the pool. Returns ([B, M] distribution, fraction of negative mass)."""
+    """FB measure min_h F(s,a,z).B(u), clipped at zero and normalised; returns ([B, M], negative fraction)."""
     from scripts.probes.cube_bottleneck.measure_probe import fb_readout
 
     M, _q = fb_readout(arm.agent.critic, arm.agent.net, obs_rep, acts, z, pool_obs)
@@ -517,8 +478,7 @@ def predict_fb(arm, obs_rep, acts, z, pool_obs):
 
 
 def truth_batch(cond_agent, envs, recs: List[Dict[str, Any]], discount: float, rng_key):
-    """K_CONT continuations x len(recs) states in lockstep. Returns per-state
-    ([HORIZON, K, 2] cube-c xy, success-any flag) and the discount weights."""
+    """Roll K_CONT policy continuations from each state; return per-state cube xy, success flag, and discount weights."""
     from impls.utils.evaluation import supply_rng
 
     actor_fn = supply_rng(cond_agent.sample_actions, rng=rng_key)
@@ -584,7 +544,7 @@ def stage_predict(env_name: str, run: Dict, bank_file: Path, bank_names: Sequenc
                              grip=float(bk[f"{bank}_grip"][i]), cube=int(bk[f"{bank}_cube"][i]),
                              source_critic=str(bk[f"{bank}_critic"][i]),
                              source_seed=int(bk[f"{bank}_seed"][i])))
-        # group by task: one inferred z per batch
+        # Group by task: one inferred z per batch
         by_task: Dict[int, list] = {}
         for r in recs:
             by_task.setdefault(r["task"], []).append(r)
@@ -598,7 +558,7 @@ def stage_predict(env_name: str, run: Dict, bank_file: Path, bank_names: Sequenc
                 for rec, (xy_t, succ) in zip(chunk, truths):
                     c = rec["cube"]
                     goal_xy = np.asarray(rec["goal"])[c, :2]
-                    # prediction at the RESTORED observation, averaged over policy draws
+                    # Prediction at the restored observation, averaged over policy draws
                     ob = restore_full(envs[0], rec)
                     obs_rep = np.repeat(ob[None], N_PRED_ACTIONS, axis=0)
                     acts = np.asarray(ag.sample_actions(obs_rep, goals=None,
@@ -642,18 +602,8 @@ def stage_predict(env_name: str, run: Dict, bank_file: Path, bank_names: Sequenc
 
 
 
-# ── stage 4: action-conditioned probe (figure B, ranking panel) ─────────────────────────
-#
-# At every bank state both methods score the SAME 12 candidate actions: the FB policy's
-# action, the Density-FB policy's action (same seed), a "secure" action (arm held, gripper
-# channel +1 = close), a "release" action (gripper -1 = open), and 4 Gaussian perturbations
-# (sigma 0.3, clipped) of each policy action. For each candidate and each method:
-#   (i)  the critic's own value q(s, a, z) -- FB: F(s,a,z).z through fb.q_fn; Density-FB:
-#        sum_j w_j(s,a,z) r_z(u_j) through density_fb.q_fn with the actor's own reward rows
-#        (latent_centered basis of the fixed pool), i.e. exactly what the actor ascends;
-#   (ii) the truth: execute a for one step, then K=10 continuations of THAT method's own
-#        policy; discounted cube-position occupancy on the grid, and the discounted
-#        goal-reaching return sum_t gamma^t 1[cube within 4 cm of its goal], t < 100.
+# Stage 4: action probe. Both critics score the same 12 candidate actions per state against
+# the Monte-Carlo goal-reaching return of each method's own policy.
 
 N_PERTURB = 4
 PERTURB_SIGMA = 0.3
@@ -676,7 +626,7 @@ CANDIDATE_NAMES = (["fb_policy", "density_policy", "secure", "release"]
 
 
 def q_values(arm, obs_rep, acts, z, pool_obs) -> np.ndarray:
-    """The critic's own actor readout q(s, a, z) for a batch of actions at one state."""
+    """Critic value q(s, a, z) used by the actor, for a batch of actions at one state."""
     import jax
     import jax.numpy as jnp
 
@@ -698,8 +648,7 @@ def q_values(arm, obs_rep, acts, z, pool_obs) -> np.ndarray:
 
 
 def truth_actions(cond_agent, envs, rec, acts, cidx, goal_xyz, discount, rng_key):
-    """Execute each candidate once, then K_CONT own-policy continuations. Returns
-    ([n_acts, HORIZON, K, 2] cube xy, [n_acts] discounted goal-reaching return)."""
+    """Apply each candidate once, then K_CONT policy continuations; return cube xy and discounted return."""
     from impls.utils.evaluation import supply_rng
 
     actor_fn = supply_rng(cond_agent.sample_actions, rng=rng_key)
@@ -838,7 +787,7 @@ def stage_actionprobe(env_name: str, seed: int, bank_file: Path, bank_names, out
     pd.DataFrame(long_rows).to_csv(out_dir / f"actions_long_{label}.csv", index=False)
     return f
 
-# ── CLI ─────────────────────────────────────────────────────────────────────────────────
+# CLI
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)

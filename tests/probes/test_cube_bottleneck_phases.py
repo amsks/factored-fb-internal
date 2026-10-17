@@ -1,11 +1,6 @@
-"""The vendored phase machinery must stay byte-identical to its [torch] source.
+"""The vendored phase-labelling code matches its torch source exactly.
 
-The probe's whole claim to comparability with the published phase diagnostic is that it
-labels phases with the SAME code. A silent drift here would move every phase number without
-failing anything, so the copy is asserted, not trusted.
-
-Skips (loudly) when the sibling torch worktree is absent -- the two worktrees share a repo
-but not a branch, so the source is not guaranteed present on every checkout.
+Skips when the sibling torch worktree is absent.
 """
 import ast
 import inspect
@@ -19,7 +14,7 @@ from scripts.probes.cube_bottleneck import phases
 TORCH_ROOT = pathlib.Path(
     os.environ.get("FACTORED_FB_TORCH_WORKTREE", "/home/adityamohan/git/Factored-FB"))
 
-# (source file, symbol) for every vendored name, in the order phases.py concatenates them.
+# (source file, symbol) per vendored name, in phases.py order.
 VENDORED = [
     ("evals/phase_probe.py", "Thresholds"),
     ("evals/phase_probe.py", "_max_true_run"),
@@ -37,7 +32,7 @@ VENDORED = [
 
 
 def _source_segment(path: pathlib.Path, name: str) -> str:
-    """The exact source text of a top-level def/class, decorators included."""
+    """Source text of a top-level def or class, decorators included."""
     src = path.read_text()
     tree = ast.parse(src)
     for node in tree.body:
@@ -67,7 +62,7 @@ def test_vendored_symbol_is_byte_identical(rel, name):
 
 
 def test_n_settle_matches_source():
-    """N_SETTLE is a module constant, not a def, so it is restated -- pin it too."""
+    """N_SETTLE matches the source constant."""
     src = _require("evals/phase_probe.py").read_text()
     tree = ast.parse(src)
     found = [n.value.value for n in tree.body
@@ -91,6 +86,6 @@ def test_alias_is_the_vendored_class():
 
 
 def test_thresholds_defaults_are_the_published_ones():
-    """A second, source-independent guard: the numbers the phase diagnostic published."""
+    """Phase thresholds have their published default values."""
     thr = phases.PhaseThresholds()
     assert (thr.eps_reach, thr.delta_lift, thr.k_steps, thr.tau_grip) == (0.06, 0.03, 5, 0.5)

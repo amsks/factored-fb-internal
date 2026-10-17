@@ -1,8 +1,4 @@
-"""env/config.py — compose a run config whose domain group lives in env/domains/.
-
-Critic and actor groups come from impls/configs/ via config_utils. Domains not found under
-env/domains/ (the OGBench ones, e.g. cube_single) fall back to impls/configs/domain/.
-"""
+"""Run config composition with domains from env/domains/ (fallback impls/configs/domain/)."""
 import os
 
 from omegaconf import OmegaConf
@@ -14,21 +10,19 @@ from impls.utils.config_utils import (
 
 DOMAINS_ROOT = os.path.join(os.path.dirname(__file__), "domains")
 
-# Override spellings that are valid dotlist but name nothing this tree reads; both merge
-# cleanly and change nothing. Mapped to the key that is read.
+# Override keys that are read nowhere, mapped to the key that is read
 _INERT_ALIASES = {"actor.lr": "lr_actor", "critic.lr": "lr"}
 
 
 def _load_domain(name):
     path = os.path.join(DOMAINS_ROOT, f"{name}.yaml")
     if os.path.exists(path):
-        return OmegaConf.load(path)              # env-owned domain
-    return _load_group("domain", name)           # fall back to impls/configs/domain (unchanged)
+        return OmegaConf.load(path)
+    return _load_group("domain", name)
 
 
 def make_config(critic, actor, domain, overrides=None):
-    """Compose critic + actor (from impls/configs) + domain (from env/domains) -> plain dict.
-    Same semantics as impls.config_utils.load_config, only the domain source differs."""
+    """Compose critic, actor and domain configs into a plain dict."""
     cfg = OmegaConf.merge(
         _load_domain(domain),
         _load_group("critic", critic),
@@ -47,9 +41,7 @@ def make_config(critic, actor, domain, overrides=None):
             del node[leaf]
     out = upgrade_config(OmegaConf.to_container(cfg, resolve=True))
 
-    # An override naming a key this tree does not read is silent: OmegaConf creates
-    # `actor.lr` next to the real `lr_actor` and the run trains at the default. Fail loudly
-    # on the known aliases.
+    # Reject overrides of keys that are never read
     for alias, real in _INERT_ALIASES.items():
         value, present = _get_dotted(out, alias)
         if present:

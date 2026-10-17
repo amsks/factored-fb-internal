@@ -1,11 +1,7 @@
-"""DDPGBCActor — deterministic TD3-style actor, the policy used for the ExoRL runs.
+"""Deterministic TD3-style actor.
 
-The policy is Meta Motivo's actor network (impls/actors/_motivo_nets.py) with a unit
-standard deviation; it acts at its mean. It maximises the critic's Q(s, pi(s, c), c),
-optionally divided by the batch |Q|, with c the critic's conditioning vector. Following
-the published FB recipe (Touati et al., Table 1), clipped Gaussian noise is added both to
-the action inside the actor loss and to the bootstrap action a' in the critic's TD target
-(target policy smoothing).
+Maximizes Q(s, pi(s, c), c), optionally scaled by the batch |Q|. Clipped Gaussian noise
+is added to the actor-loss action and to the bootstrap action (target policy smoothing).
 """
 import dataclasses
 from typing import Any
@@ -17,7 +13,7 @@ from impls.actors.base import cond_vector
 
 
 def _smooth(a, rng, std, clip):
-    """a + eps, eps ~ N(0, std) clipped to +-clip, then clipped to the action range."""
+    """Add clipped Gaussian noise and clip to [-1, 1]."""
     eps = jnp.clip(std * jax.random.normal(rng, a.shape), -clip, clip)
     return jnp.clip(a + eps, -1.0, 1.0)
 
@@ -29,8 +25,7 @@ class DDPGBCActor:
     boot_noise_clip: float = 0.3
     q_noise_std: float = 0.2
     q_noise_clip: float = 0.3
-    # Divide the Q term by sg[mean |Q|], which makes the actor's step size independent of
-    # the scale of the critic's values.
+    # Divide the Q term by sg(mean |Q|)
     q_normalize: bool = True
 
     GROUPS = ("actor",)
@@ -57,11 +52,8 @@ class DDPGBCActor:
         boot = {"next_action": _smooth(
             jnp.clip(self._dist(p, next_obs, cond_vector(cond)).mode(), -1, 1),
             rng, self.boot_noise_std, self.boot_noise_clip),
-                # fold_in derives the actor-loss noise key without consuming `rng`.
                 "actor_q_rng": jax.random.fold_in(rng, 7)}
-        # A critic whose TD target is taken at a different goal than the actor's publishes
-        # that goal's conditioning vector as cond["_cvec_vgoal"] (Density-FB); the
-        # bootstrap action there reuses the same noise draw.
+        # Bootstrap action at the TD-target goal, if the critic uses a separate one
         if "_cvec_vgoal" in cond:
             boot["next_action_vgoal"] = _smooth(
                 jnp.clip(self._dist(p, next_obs, cond["_cvec_vgoal"]).mode(), -1, 1),
@@ -78,8 +70,7 @@ class DDPGBCActor:
         from impls.actors._motivo_nets import MotivoPolicy
         a_cfg = config["actor"]
         odim = int(ex_obs.shape[-1])
-        # `hidden_dims` is read as (width, number of trunk layers), so every entry must be
-        # equal: [1024] is one trunk layer of width 1024.
+        # hidden_dims gives width and number of trunk layers; entries must be equal.
         hd = tuple(a_cfg["hidden_dims"])
         if len(set(hd)) != 1:
             raise ValueError(f"actor.hidden_dims is read as (width, n_layers) and needs "

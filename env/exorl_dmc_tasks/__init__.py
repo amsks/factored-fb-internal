@@ -1,15 +1,7 @@
-"""exorl_dmc_tasks — ExoRL's `custom_dmc_tasks`, vendored.
+"""Custom DMC tasks from ExoRL (https://github.com/denisyarats/exorl, MIT).
 
-Upstream: https://github.com/denisyarats/exorl @ a3fb07a (MIT). See PROVENANCE.md for the
-exact scope and the two deliberate patches.
-
-`make(domain, task)` mirrors upstream's dispatcher. Note that it only covers the tasks
-ExoRL ADDS on top of the dm_control suite (cheetah run_backward/flip/flip_backward,
-walker flip, quadruped stand/jump, all four point_mass_maze reach targets); the standard suite tasks
-(walker stand/walk/run, cheetah run) still come from `dm_control.suite.load`, exactly as
-ExoRL's own `dmc.py` resolves them (`suite.ALL_TASKS` first, custom tasks second).
-Sub-modules are imported LAZILY: importing this package must not pull in dm_control /
-mujoco, because env/registry.py's prefix table is read by processes that have neither.
+Covers only the tasks ExoRL adds to the dm_control suite. Domain modules are imported
+lazily so this package does not require dm_control.
 """
 import importlib
 

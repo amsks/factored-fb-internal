@@ -1,6 +1,6 @@
 import os
 
-# x64 MUST be enabled before jax is first used anywhere in the test session.
+# Enable x64 before jax is first used.
 os.environ.setdefault("JAX_ENABLE_X64", "1")
 import jax
 jax.config.update("jax_enable_x64", True)

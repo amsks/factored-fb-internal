@@ -1,18 +1,6 @@
-"""Final ExoRL evaluation of Density-FB for the paper's ExoRL table.
+"""ExoRL evaluation of Density-FB from reward-inferred task vectors.
 
-For every (domain, task, seed) this runs scripts/reeval_checkpoint.py once: draw 50,000
-transitions from the offline dataset, relabel their rewards for the task by re-simulating
-MuJoCo (env/exorl_env.py), infer the task vector z from those reward samples, then roll the
-frozen policy on z for 10 episodes with no goal given. Each cell appends one row to --out.
-The agent is rebuilt from the config.json the run recorded, so the evaluation uses exactly
-the networks and hit spec it was trained with; only the task is set here.
-
-Tasks per domain: TD-JEPA's task set for walker, cheetah and quadruped, and the four maze
-corners for point-mass. The table cell is the mean over seeds of each seed's task-mean
-return (scripts/score_tables.py).
-
-Run directories are <root>/<domain>/density_fb_z/<domain>_density_fb_z_ddpgbc_seed_<s>
-(the layout scripts/launch_exorl.sh writes).
+Runs scripts/reeval_checkpoint.py per (domain, task, seed) and appends one row to --out.
 
     python -m scripts.exorl_paper_eval --root exp/exorl --domains dmc-walker \
         --out exp/paper_eval_exorl_walker.jsonl
@@ -41,7 +29,7 @@ CRITIC, ACTOR = "density_fb_z", "ddpgbc"
 
 
 def _check_tasks():
-    """The task names must be the env layer's, or a typo would score a different task."""
+    """Check every task name exists in env/exorl_env.py."""
     for dom, tasks in TASKS.items():
         missing = [t for t in tasks if t not in set(exorl_env.reward_tasks(dom))]
         assert not missing, f"{dom}: {missing} not in env/exorl_env.py TASKS"
@@ -67,8 +55,7 @@ def run_cell(args, domain, task, seed):
         return
     env = dict(os.environ)
     env.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
-    # Reward relabelling re-simulates MuJoCo. If this environment's mujoco is too old for
-    # dm_control, point FB_MUJOCO_SITE_PACKAGES at a newer one (env/exorl_env.py).
+    # Set FB_MUJOCO_SITE_PACKAGES if the local mujoco is too old for dm_control
     r = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if r.returncode != 0:
         print(f"[FAIL] {domain}/{task}/s{seed} rc={r.returncode}\n{r.stderr[-2000:]}", flush=True)
@@ -77,8 +64,7 @@ def run_cell(args, domain, task, seed):
 
 
 def report(out_path):
-    """Per (domain, task): mean and sd of the episode return over seeds. A cell re-scored
-    later in the append-only file keeps its last row, so a seed is never counted twice."""
+    """Print mean and sd of the return over seeds per (domain, task); last row per seed wins."""
     cells = {}
     for line in open(out_path):
         if not line.strip():
@@ -116,7 +102,6 @@ def main():
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     todo = [(d, t, s) for d in args.domains for t in TASKS[d] for s in args.seeds]
     print(f"{len(todo)} cells ({args.jobs} at a time)", flush=True)
-    # Each cell is its own subprocess; the threads only wait on them.
     with ThreadPoolExecutor(max_workers=args.jobs) as ex:
         list(ex.map(lambda t: run_cell(args, *t), todo))
     if not args.dry_run:

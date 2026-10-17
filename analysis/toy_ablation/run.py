@@ -1,42 +1,6 @@
-"""
-Toy ablation of Density-FB's three changes to FB, on the paper's nine-state
-bottleneck MDP (scripts/didactic/graph_bottleneck_td.py, leak 0, gamma 0.8).
+"""Toy ablation of Density-FB's changes to FB on the nine-state bottleneck process: gap tables and fig_toy_ablation.
 
-Arms (same MDP, same exact transitions, same rank d, same fixed uniform
-continuation policy, uniform reference weight rho = 1/n on candidate states):
-
-  A  fb            linear F.B fits the ratio M/rho = n M with squared error;
-                   value read as F.z, z = E_rho[B r].            (FB as shipped)
-  B  fb_norm       linear F.B fits the normalized measure (1-gamma) M with
-                   squared error; same readout (scaled by the known constant).
-  C  softsq        softmax(F.B) fitted to (1-gamma) M with 0.5 sum_j (p_j - t_j)^2;
-                   value read as sum_j p_j r_j / (1-gamma).
-  D  density       softmax(F.B) fitted to (1-gamma) M with cross-entropy;
-                   same integration readout.                   (Density-FB)
-  E  density_lin   the model of D, but the value read as F.z with z = E_rho[B r]
-                   (FB's linear shortcut applied to the softmax model).
-  F  density_soft  D with the immediate one-hot replaced by a narrow kernel over
-                   graph distance (sigma = 0.5 edges), i.e. the target is
-                   (1-gamma) M K instead of (1-gamma) M.
-
-Closed form: A and B are truncated SVDs (exact optimum); C, D, F are Adam fits
-of the population objective against the exact target (5 seeds, single init
-each); E reuses D's fit.  Trained: the didactic TD harness
-(scripts/didactic/bottleneck_family_td.py: exact population expectations,
-bootstrapped target network, Adam, 50k steps, tau 0.005, learning rates
-{0.001, 0.01}), 5 seeds, methods fb / normsq / softsq / density / density_soft;
-E is read from the trained density parameters.
-
-Metric: fraction of the exact action gap at state 7 (action 0 -> goal minus
-action 1 -> back into the group) preserved by the fit, plus whether the fit
-still prefers action 0, plus the retained squared mass of the fit on the
-normalized-measure scale, 1 - ||P_hat - (1-gamma)M||_F^2 / ||(1-gamma)M||_F^2.
-
-Run (CPU, ~3 min):
-    JAX_PLATFORMS=cpu python analysis/toy_ablation/run.py
-    JAX_PLATFORMS=cpu python analysis/toy_ablation/run.py --figures-only
-Outputs: analysis/toy_ablation/{closed.csv,trained.csv,exact.json,run_log.txt},
-         figures/toy_ablation/fig_toy_ablation.{pdf,png} (+ per-panel files).
+Run: JAX_PLATFORMS=cpu python analysis/toy_ablation/run.py [--figures-only]
 """
 
 import os
@@ -57,7 +21,7 @@ import optax
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(REPO / "scripts" / "didactic"))
-import bottleneck_family_td as bf      # noqa: E402  (sets jax x64)
+import bottleneck_family_td as bf      # noqa: E402
 import graph_bottleneck_td as gb       # noqa: E402
 
 FIG_DIR = REPO / "figures" / "toy_ablation"
@@ -69,23 +33,21 @@ def log(msg):
     LOG_LINES.append(str(msg))
 
 
-# ----------------------------------------------------------------------------
-# 1. The MDP and its exact successor measure (verbatim from the didactic scripts).
-# ----------------------------------------------------------------------------
+# The MDP and its exact successor measure
 GAMMA = 0.8
 LEAK = 0.0
 P3 = gb.build_graph(LEAK)                 # (n, 2, n)
 N = P3.shape[0]
 KERNEL = P3.reshape(-1, N)                # (2n, n), row 2s+a
 PI = np.full((N, 2), 0.5)                 # fixed uniform continuation policy
-T_EXACT = bf.exact(KERNEL, PI, GAMMA)     # (1-gamma) M, rows sum to 1
+T_EXACT = bf.exact(KERNEL, PI, GAMMA)     # (1-gamma) M
 M_EXACT = T_EXACT / (1.0 - GAMMA)
-RHO = np.full(N, 1.0 / N)                 # uniform reference weight (didactic convention)
+RHO = np.full(N, 1.0 / N)                 # uniform reference weight
 GOAL, DECISION = gb.GOAL, gb.DECISION
 R_GOAL = np.zeros(N); R_GOAL[GOAL] = 1.0
 Q_EXACT = M_EXACT @ R_GOAL                # (2n,)
 ROW0, ROW1 = 2 * DECISION, 2 * DECISION + 1
-GAP_EXACT = Q_EXACT[ROW0] - Q_EXACT[ROW1]  # action 0 (to goal) minus action 1 (back)
+GAP_EXACT = Q_EXACT[ROW0] - Q_EXACT[ROW1]  # action 0 minus action 1
 RANKS = list(range(2, N + 1))
 SEEDS = [0, 1, 2, 3, 4]
 SOFT_SIGMA = 0.5                          # kernel width in graph edges for arm F
@@ -114,9 +76,7 @@ K_SOFT = K_SOFT / K_SOFT.sum(axis=1, keepdims=True)       # row-stochastic smoot
 T_SOFT = T_EXACT @ K_SOFT                                  # fixed point of the soft-target TD
 
 
-# ----------------------------------------------------------------------------
-# 2. Readouts and metrics shared by closed-form and trained arms.
-# ----------------------------------------------------------------------------
+# Readouts and metrics shared by closed-form and trained arms
 def gap_stats(Q):
     gap = float(Q[ROW0] - Q[ROW1])
     return dict(q0=float(Q[ROW0]), q1=float(Q[ROW1]), gap=gap,
@@ -128,14 +88,13 @@ def retained_mass(P_hat, T=T_EXACT):
 
 
 def linear_readout(F, B, r=R_GOAL):
-    """FB's shortcut: z = E_rho[B r], value = F.z (uniform rho)."""
+    """FB readout: z = E_rho[B r], value = F.z."""
     z = B.T @ (RHO * r)
     return F @ z
 
 
 def calibrate(v, Q=Q_EXACT):
-    """Best scalar a (least squares over all 18 rows) so that a*v + b ~ Q; returns a
-    and the Pearson correlation.  Used only for arm E, whose scale is arbitrary."""
+    """Least-squares scale a with a*v + b ~ Q, and the correlation (arm E only)."""
     vc = v - v.mean(); qc = Q - Q.mean()
     a = float(vc @ qc / max(vc @ vc, 1e-300))
     corr = float(vc @ qc / max(np.sqrt((vc @ vc) * (qc @ qc)), 1e-300))
@@ -154,17 +113,14 @@ def e_arm_rows(F, B, base):
                 gap_ratio_calibrated=cal["gap_ratio"], calib_scale=a, corr_with_exact=corr)
 
 
-# ----------------------------------------------------------------------------
-# 3. Closed-form fits.
-# ----------------------------------------------------------------------------
+# Closed-form fits
 def svd_fit(X, d):
     U, s, Vt = np.linalg.svd(X, full_matrices=False)
     return U[:, :d] * s[:d][None, :], Vt[:d].T
 
 
 def _softmax_fit(target, d, seed, loss_kind, steps, lr):
-    """Rank-d softmax model fitted to `target` (rows are distributions) by Adam from a
-    single normal(0, 0.1) init.  loss_kind: 'ce' or 'sq' (0.5 * sum_j (p_j - t_j)^2)."""
+    """Rank-d softmax model fitted to `target` by Adam; loss_kind is 'ce' or 'sq'."""
     rng = np.random.default_rng(seed)
     params = {"f": jnp.array(rng.normal(0, 0.1, (2 * N, d))),
               "b": jnp.array(rng.normal(0, 0.1, (N, d)))}
@@ -204,36 +160,36 @@ def run_closed_form():
     rows = []
     t0 = time.time()
     for d in RANKS:
-        # --- A: FB, ratio target n M, squared error, linear readout ---
+        # A: FB
         F, B = svd_fit(N * M_EXACT, d)
-        Q = linear_readout(F, B)                       # (1/n) F B^T r = M_hat r
+        Q = linear_readout(F, B)
         P_hat = (1 - GAMMA) * (F @ B.T) / N
         rows.append(dict(arm="A", method="fb", d=d, seed=-1, **gap_stats(Q),
                          retained_mass=retained_mass(P_hat),
                          own_loss=float(0.5 * np.mean((F @ B.T - N * M_EXACT) ** 2))))
-        # --- B: FB with the normalized target (1-gamma) M, same readout ---
+        # B: FB with normalized target
         F, B = svd_fit(T_EXACT, d)
-        Q = linear_readout(F, B) * N / (1 - GAMMA)     # known constant puts F.z on Q's scale
+        Q = linear_readout(F, B) * N / (1 - GAMMA)
         P_hat = F @ B.T
         rows.append(dict(arm="B", method="fb_norm", d=d, seed=-1, **gap_stats(Q),
                          retained_mass=retained_mass(P_hat),
                          own_loss=float(0.5 * np.mean((P_hat - T_EXACT) ** 2))))
         for sd in SEEDS:
             seed = 1000 * sd + 17 * d
-            # --- C: softmax + squared error ---
+            # C: softmax + squared error
             F, B, P_hat, loss = _softmax_fit(T_EXACT, d, seed, "sq", CLOSED_STEPS, CLOSED_LR)
             Q = P_hat @ R_GOAL / (1 - GAMMA)
             rows.append(dict(arm="C", method="softsq", d=d, seed=sd, **gap_stats(Q),
                              retained_mass=retained_mass(P_hat), own_loss=loss))
-            # --- D: softmax + cross-entropy (Density-FB) ---
+            # D: Density-FB
             F, B, P_hat, loss = _softmax_fit(T_EXACT, d, seed, "ce", CLOSED_STEPS, CLOSED_LR)
             Q = P_hat @ R_GOAL / (1 - GAMMA)
             rows.append(dict(arm="D", method="density", d=d, seed=sd, **gap_stats(Q),
                              retained_mass=retained_mass(P_hat), own_loss=loss))
-            # --- E: D's model, FB's linear readout ---
+            # E: D's model, FB's linear readout
             rows.append(e_arm_rows(F, B, dict(d=d, seed=sd, retained_mass=retained_mass(P_hat),
                                               own_loss=loss)))
-            # --- F: D with the soft immediate target ---
+            # F: D with soft immediate target
             F, B, P_hat, loss = _softmax_fit(T_SOFT, d, seed, "ce", CLOSED_STEPS, CLOSED_LR)
             Q = P_hat @ R_GOAL / (1 - GAMMA)
             rows.append(dict(arm="F", method="density_soft", d=d, seed=sd, **gap_stats(Q),
@@ -244,10 +200,7 @@ def run_closed_form():
     return rows
 
 
-# ----------------------------------------------------------------------------
-# 4. Trained arms: the didactic TD harness, extended with the soft-target method and
-#    with predictions/parameters returned so E and the retained mass can be computed.
-# ----------------------------------------------------------------------------
+# Trained arms
 TRAIN_STEPS = 50000
 TRAIN_TAU = 0.005
 TRAIN_RATES = [0.001, 0.01]
@@ -271,8 +224,7 @@ def loss_any(params, target, kernel, pi, gamma, method, sphere, ksoft):
 
 
 def train_group(d, method, seeds, rates, steps=TRAIN_STEPS, tau=TRAIN_TAU):
-    """Mirror of bottleneck_family_td.run_kernel (same init, optimizer, target EMA,
-    vmapped seeds x rates) returning predictions and final parameters."""
+    """TD-train seeds x rates; return predictions and final parameters."""
     kernel, jp, ks = jnp.array(KERNEL), jnp.array(PI), jnp.array(K_SOFT)
     cfg = [{"seed": s, "lr": r} for s in seeds for r in rates]
 
@@ -313,7 +265,7 @@ def run_trained():
         for method in TRAIN_METHODS:
             cfg, pred, F_all, B_all = train_group(d, method, SEEDS, TRAIN_RATES)
             for i, c in enumerate(cfg):
-                P_hat = bf.readout(pred[i], _base_method(method), GAMMA, N)  # normalized scale
+                P_hat = bf.readout(pred[i], _base_method(method), GAMMA, N)
                 Q = P_hat @ R_GOAL / (1 - GAMMA)
                 base = dict(d=d, seed=c["seed"], lr=c["lr"])
                 extra = {}
@@ -333,9 +285,7 @@ def run_trained():
     return rows
 
 
-# ----------------------------------------------------------------------------
-# 5. Sanity checks and exact facts.
-# ----------------------------------------------------------------------------
+# Sanity checks and exact facts
 def run_sanity():
     log("=== sanity ===")
     err = float(np.max(np.abs(T_EXACT.sum(1) - 1)))
@@ -373,9 +323,7 @@ def run_sanity():
     return facts
 
 
-# ----------------------------------------------------------------------------
-# 6. Aggregation and figure.
-# ----------------------------------------------------------------------------
+# Aggregation and figure
 def t_interval(values, confidence=0.95):
     values = np.asarray(values, dtype=float); n = len(values); m = float(values.mean())
     if n < 2:
@@ -395,8 +343,7 @@ ARM_LABEL = {
     "E": "E  Density-FB model, linear readout",
     "F": "F  Density-FB, soft immediate target",
 }
-# seaborn "colorblind" palette (Wong 2011); blue (slot 1) is kept for the exact reference
-# as in the FourRooms / corridor figures, FB keeps orange, Density-FB keeps green.
+# Colorblind palette: exact blue, FB orange, Density-FB green
 ARM_COLOR = {"A": "#DE8F05", "B": "#CC78BC", "C": "#D55E00", "D": "#029E73",
              "E": "#56B4E9", "F": "#CA9161"}
 ARM_MARKER = {"A": "o", "B": "s", "C": "^", "D": "D", "E": "v", "F": "P"}
@@ -429,10 +376,9 @@ def draw_closed_panel(ax, closed_rows, key="gap_ratio", ylabel="fraction of the 
     for arm in ARMS:
         a = agg(closed_rows, arm, key)
         y = [a[d][0] for d in RANKS]; lo = [a[d][1] for d in RANKS]; hi = [a[d][2] for d in RANKS]
-        if arm in ("C", "D", "F"):        # E's raw scale is arbitrary, so its seed band is not shown
+        if arm in ("C", "D", "F"):        # E's scale is arbitrary
             ax.fill_between(RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.18, linewidth=0, zorder=2)
-        # B coincides with A by construction: drawn underneath with a larger square so its
-        # corners stay visible around A's circles.
+        # B equals A; draw it underneath with a larger marker
         ax.plot(RANKS, y, color=ARM_COLOR[arm], marker=ARM_MARKER[arm],
                 markersize=6.0 if arm == "B" else 4,
                 markeredgecolor="white", markeredgewidth=0.6, linewidth=1.5,
@@ -441,13 +387,12 @@ def draw_closed_panel(ax, closed_rows, key="gap_ratio", ylabel="fraction of the 
 
 
 def draw_trained_panel(ax, trained_rows, key="gap_ratio", ylabel="fraction of the exact action gap"):
-    """Same line style as the closed-form panel, hollow markers and a light band for the
-    spread over runs; points outside the axis are labelled at the edge."""
+    """Trained-arm panel: hollow markers and a band over runs."""
     for arm in ARMS:
         a = agg(trained_rows, arm, key)
         y = np.array([a[d][0] for d in RANKS])
         lo = np.array([a[d][1] for d in RANKS]); hi = np.array([a[d][2] for d in RANKS])
-        if arm != "E":        # E's raw scale is arbitrary, so its band is not shown
+        if arm != "E":        # E's scale is arbitrary
             ax.fill_between(RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2)
         shown = np.where((y > GAP_YLIM[1]) | (y < GAP_YLIM[0]), np.nan, y) \
             if key == "gap_ratio" else y
@@ -455,7 +400,7 @@ def draw_trained_panel(ax, trained_rows, key="gap_ratio", ylabel="fraction of th
                 markersize=6.0 if arm == "B" else 4.2, markerfacecolor="none",
                 markeredgecolor=ARM_COLOR[arm], markeredgewidth=1.1, linewidth=1.5,
                 linestyle="-", zorder=3 + (arm == "A"))
-        if key == "gap_ratio":        # points off the axis are labelled at the edge instead
+        if key == "gap_ratio":        # label off-axis points at the edge
             for xi, yi in zip(RANKS, y):
                 if yi > GAP_YLIM[1] or yi < GAP_YLIM[0]:
                     up = yi > GAP_YLIM[1]
@@ -491,7 +436,7 @@ def make_figures(closed_rows, trained_rows):
     import matplotlib.pyplot as plt
     plt.rcParams.update({"font.family": "sans-serif", "font.size": 8.5, "text.color": INK,
                          "axes.labelcolor": INK, "pdf.fonttype": 42, "svg.fonttype": "none"})
-    # main: gap vs rank, closed form (left) and TD-trained (right)
+    # Gap vs rank, closed form and TD-trained
     fig, axes = plt.subplots(1, 2, figsize=(5.5, 2.35), sharey=True)
     draw_closed_panel(axes[0], closed_rows)
     draw_trained_panel(axes[1], trained_rows)
@@ -502,21 +447,21 @@ def make_figures(closed_rows, trained_rows):
     fig.tight_layout(pad=0.3, w_pad=1.0)
     save(fig, "fig_toy_ablation"); plt.close(fig)
 
-    # per-panel files
+    # Per-panel files
     for stem, fn, rows in (("fig_toy_ablation_closed", draw_closed_panel, closed_rows),
                            ("fig_toy_ablation_trained", draw_trained_panel, trained_rows)):
         fig, ax = plt.subplots(figsize=(2.75, 2.35))
         fn(ax, rows); ax.set_ylim(*GAP_YLIM)
         fig.tight_layout(pad=0.3); save(fig, stem); plt.close(fig)
 
-    # retained squared mass, closed form (lines) and trained (hollow markers), one panel
+    # Retained squared mass
     fig, ax = plt.subplots(figsize=(2.75, 2.35))
     draw_closed_panel(ax, closed_rows, key="retained_mass", ylabel="retained squared mass")
     draw_trained_panel(ax, trained_rows, key="retained_mass", ylabel="retained squared mass")
     ax.set_ylim(0.8, 1.02)
     fig.tight_layout(pad=0.3); save(fig, "fig_toy_ablation_mass"); plt.close(fig)
 
-    # arm E with its scale calibrated (supplement)
+    # Arm E, scale-calibrated
     fig, ax = plt.subplots(figsize=(2.75, 2.35))
     for rows, hollow in ((closed_rows, False), (trained_rows, True)):
         a = agg(rows, "E", "gap_ratio_calibrated")
@@ -530,16 +475,14 @@ def make_figures(closed_rows, trained_rows):
     _style_axis(ax, "fraction of the exact gap, E scale-calibrated")
     fig.tight_layout(pad=0.3); save(fig, "fig_toy_ablation_E_calibrated"); plt.close(fig)
 
-    # legend-only file
+    # Legend-only file
     fig = plt.figure(figsize=(5.5, 0.7))
     fig.legend(handles=legend_handles(), loc="center", ncol=2, fontsize=7.6, frameon=False,
                handlelength=1.8, columnspacing=1.2)
     save(fig, "fig_toy_ablation_legend"); plt.close(fig)
 
 
-# ----------------------------------------------------------------------------
-# 7. Summary tables (printed; the note copies them).
-# ----------------------------------------------------------------------------
+# Summary tables
 def print_tables(closed_rows, trained_rows):
     def line(arm, rows, key, fmt="{:.3f}"):
         a = agg(rows, arm, key)
@@ -602,5 +545,5 @@ if __name__ == "__main__":
     make_figures(closed_rows, trained_rows)
     print_tables(closed_rows, trained_rows)
     log(f"\ntotal wall time {time.time() - t0:.0f}s")
-    if "--figures-only" not in sys.argv:      # keep the full run log from the real run
+    if "--figures-only" not in sys.argv:
         (HERE / "run_log.txt").write_text("\n".join(LOG_LINES) + "\n")

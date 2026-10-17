@@ -1,9 +1,4 @@
-"""env/registry.py — task registry for the unified adapter.
-
-A task's family (which backend builds it), its default offline data_dir and its eval horizon
-are resolved from the task slug's prefix; per-task overrides live in `EXPLICIT`. A domain
-yaml then only needs `adapter: unified` + `task: <slug>`.
-"""
+"""Task registry for the unified adapter, keyed by task-slug prefix."""
 import os
 
 COLLECTED = os.environ.get("FB_COLLECTED", "/raid/tongle/rl/fb-data/collected")
@@ -12,12 +7,11 @@ COLLECTED = os.environ.get("FB_COLLECTED", "/raid/tongle/rl/fb-data/collected")
 _PREFIX = {
     "mw":  ("metaworld", 100, "Metaworld"),
     "ms":  ("maniskill", 25, "ManiSkill"),
-    # ExoRL / dm_control: reward-specified tasks, 1000-step episodes. ExoRL ships its own
-    # `<domain>/<algo>/buffer` trees, so the domain yamls set `data_dir` explicitly.
+    # ExoRL domain yamls set data_dir explicitly
     "dmc": ("exorl", 1000, "ExoRL"),
 }
 
-# per-task overrides (data_dir / horizon / family), for anything the prefix rule doesn't cover
+# Per-task overrides of data_dir, horizon or family
 EXPLICIT = {}
 
 

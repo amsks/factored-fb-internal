@@ -1,5 +1,4 @@
-"""HILP's left encoder: the successor features read an embedding of the observation,
-trained by the SF stage and tracked by a target at the SF rate."""
+"""HILP left encoder: an observation embedding for the successor features, with its own target."""
 import jax.numpy as jnp
 import pytest
 import yaml

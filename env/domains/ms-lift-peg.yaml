@@ -1,7 +1,4 @@
-# ms-lift-peg: ManiSkill3 state observations, horizon 25, env built by env/maniskill_env.py.
-# FB_DATA_ROOT points at the data root holding data/<family>/<task>.npz. No goal-in-obs layout
-# is registered for this task (env/unified.py::_GOAL_LAYOUT), so goal-conditioned eval uses
-# the default fixed goal (the highest-reward next observation in the data).
+# ManiSkill3 LiftPegUpright, state observations, horizon 25; eval uses the fixed data goal.
 adapter: unified
 env_name: ms-lift-peg          # run naming only
 task: ms-lift-peg

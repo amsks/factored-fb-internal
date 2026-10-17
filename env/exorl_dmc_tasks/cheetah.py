@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ============================================================================
-"""Cheetah Domain."""
+"""Cheetah domain with ExoRL tasks (from ExoRL custom_dmc_tasks)."""
 
 import collections
 import os
@@ -51,9 +51,6 @@ def make(task,
 
 def get_model_and_assets():
     """Returns a tuple containing the model XML string and a dict of assets."""
-    # PATCHED for the Factored-FB vendor layout (see PROVENANCE.md): upstream walked
-    # dirname(dirname(__file__)) and rejoined the hardcoded 'custom_dmc_tasks' package
-    # name; vendored directly under env/exorl_dmc_tasks/ that path does not exist.
     xml = resources.GetResource(
         os.path.join(os.path.dirname(__file__), 'cheetah.xml'))
     return xml, common.ASSETS
@@ -64,7 +61,7 @@ def get_model_and_assets():
 def run_backward(time_limit=_DEFAULT_TIME_LIMIT,
                  random=None,
                  environment_kwargs=None):
-    """Returns the run task."""
+    """Returns the run_backward task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
     task = Cheetah(forward=False, flip=False, random=random)
     environment_kwargs = environment_kwargs or {}
@@ -78,7 +75,7 @@ def run_backward(time_limit=_DEFAULT_TIME_LIMIT,
 def walk(time_limit=_DEFAULT_TIME_LIMIT,
          random=None,
          environment_kwargs=None):
-    """Returns the walk task (Touati et al. controllable_agent: speed threshold 2)."""
+    """Returns the walk task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
     task = Cheetah(move_speed=_WALK_SPEED, forward=True, flip=False, random=random)
     environment_kwargs = environment_kwargs or {}
@@ -106,7 +103,7 @@ def walk_backward(time_limit=_DEFAULT_TIME_LIMIT,
 def flip(time_limit=_DEFAULT_TIME_LIMIT,
                  random=None,
                  environment_kwargs=None):
-    """Returns the run task."""
+    """Returns the flip task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
     task = Cheetah(forward=True, flip=True, random=random)
     environment_kwargs = environment_kwargs or {}
@@ -120,7 +117,7 @@ def flip(time_limit=_DEFAULT_TIME_LIMIT,
 def flip_backward(time_limit=_DEFAULT_TIME_LIMIT,
                   random=None,
                   environment_kwargs=None):
-    """Returns the run task."""
+    """Returns the flip_backward task."""
     physics = Physics.from_xml_string(*get_model_and_assets())
     task = Cheetah(forward=False, flip=True, random=random)
     environment_kwargs = environment_kwargs or {}

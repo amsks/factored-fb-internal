@@ -1,9 +1,6 @@
-"""The goal-conditioned evaluation route must reach every z-conditioned critic.
+"""Goal-conditioned eval reaches every z-conditioned critic through map_eval_cond.
 
-`Agent.sample_actions` merges the env's goal into cond and calls `critic.map_eval_cond`.
-A z-conditioned critic without that hook would act on the zero z of `eval_cond0` and be
-goal-blind. HILP's map is z = sqrt(d) * normalize(phi(g) - phi(s)), with phi the centred
-feature and s the current observation, recomputed every step.
+HILP maps a goal to z = sqrt(d) * normalize(phi(g) - phi(s)) with centered phi.
 """
 import inspect
 
@@ -21,8 +18,7 @@ def _reads_z(cls):
 
 
 def test_every_z_conditioned_critic_resolves_map_eval_cond():
-    """Every critic whose cond_vec reads cond["z"] must own the eval hook, or the
-    goal-conditioned route rolls it on z = 0."""
+    """Every critic whose cond_vec reads z defines map_eval_cond."""
     missing = [name for name, cls in CRITICS.items()
                if _reads_z(cls) and not hasattr(cls, "map_eval_cond")]
     assert not missing, (
@@ -39,8 +35,7 @@ def _built(critic, overrides=()):
 
 
 def _reference_z(ag, goal, obs):
-    """The goal->z map rebuilt without the critic's helpers: the raw flax phi1 tower,
-    centred by the stats slot."""
+    """Goal-to-z map from the raw phi1 tower, centered by the stats slot."""
     cr = ag.critic
     p = ag.net["hilp_phi1"].params
     mean = ag.net["hilp_stats"].params["mean"]
@@ -52,8 +47,7 @@ def _reference_z(ag, goal, obs):
 def test_hilp_goal_maps_to_the_reference_z():
     ag, obs, _, _ = _built("hilp_tdjc")
     cr = ag.critic
-    # A stats mean that is NOT zero, so a hook that forgets the centering is caught
-    # (it cancels in the difference only if applied to BOTH terms).
+    # Non-zero stats mean, so a missing centering is caught.
     stats = ag.net["hilp_stats"]
     ag = ag.replace(net={**ag.net, "hilp_stats": stats.replace(
         params={**stats.params, "mean": jnp.full((cr.z_dim,), 0.3)})})
@@ -68,17 +62,16 @@ def test_hilp_goal_maps_to_the_reference_z():
     np.testing.assert_allclose(np.linalg.norm(z), np.sqrt(cr.z_dim), rtol=1e-5)
     np.testing.assert_allclose(z, _reference_z(ag, goal, s), rtol=1e-5, atol=1e-6)
 
-    # A batch of observations against one goal: one z per row, each the reference.
+    # Batch of observations, one goal: one z per row.
     mb = cr.map_eval_cond(ag.net, {**cond0, "goal": goal}, observations=obs)
     np.testing.assert_allclose(np.asarray(mb["z"]), _reference_z(ag, goal, obs),
                                rtol=1e-5, atol=1e-6)
-    # No goal in cond: the hook is a no-op (the reward-sample route keeps its z).
+    # No goal in cond: the hook is a no-op.
     assert cr.map_eval_cond(ag.net, cond0, observations=s) is cond0
 
 
 def test_hilp_actor_is_not_goal_blind_on_the_goal_route():
-    """Through Agent.sample_actions -- the path the evaluator drives -- two different goals
-    must give two different actions."""
+    """Two goals give two different HILP actions through Agent.sample_actions."""
     ag, obs, _, _ = _built("hilp_tdjc")
     s = obs[0]
     g1, g2 = obs[1].at[19:22].add(0.5), obs[2].at[19:22].add(-0.5)

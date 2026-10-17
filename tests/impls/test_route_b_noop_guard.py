@@ -1,24 +1,8 @@
-"""Route B (the eval_relabel reward-inference eval in impls/main.py) must not SCORE a rollout
-whose inference was a no-op.
+"""The reward-inference eval route in impls/main.py refuses to score a no-op inference.
 
-Run on its own, on CPU (running all of tests/impls in one process core-dumps):
+Run on CPU, in its own process:
 
-    JAX_PLATFORMS=cpu python -m pytest tests/impls/test_route_b_noop_guard.py -q -p no:cacheprovider
-
-THE BUG. Route B calls `agent.infer_eval_cond(obs, rewards)`, wraps the result in
-`InferredCondAgent` and evaluates, but never asked whether inference did anything. For the
-goal-conditioned density_fb critic (infer_z off) `infer_cond` returns the zero-goal
-PLACEHOLDER, so the policy was rolled on goal=0 and the success rate landed in
-eval_relabel.csv as if it were a zero-shot number (hub rows carried inferred_cond_norm=0.0).
-`infer_cond_noop_reason` already detects exactly this, but was only wired into the
---infer_cond_episodes route.
-
-Pinned here:
-  1. A no-op inference is REFUSED as a score: the row is written with success=NaN,
-     route_b_valid=0 and an `invalid_reason` naming the critic; a loud warning fires; no
-     rollout is scored.
-  2. A live inference (fb, whose z genuinely changes) passes through unchanged: success is
-     whatever evaluate() returned, route_b_valid=1, invalid_reason empty.
+    JAX_PLATFORMS=cpu python -m pytest tests/impls/test_route_b_noop_guard.py -q
 """
 import csv
 import math
@@ -33,10 +17,9 @@ from impls.utils.config_utils import load_config
 from impls.utils.datasets import FBDataset
 
 ACT_DIM = 2
-# density_fb's default hit spec is obs[19:22], so the stub observation must be at least
-# that wide; the FB half of the file uses the same width so the two stubs are identical.
+# density_fb's default hit spec is obs[19:22].
 OBS_DIM = 40
-SUCCESS_FROM_EVALUATE = 0.75    # a recognisable, non-zero score the stub evaluator returns
+SUCCESS_FROM_EVALUATE = 0.75
 
 
 def _fake_env(task_infos):
@@ -44,8 +27,7 @@ def _fake_env(task_infos):
 
 
 class _RelabelAdapter:
-    """OGBench-shaped stub: the REAL relabel math, a fake env/dataset, and an `evaluate`
-    that returns a fixed non-zero success so a scored-vs-refused row is unmistakable."""
+    """Stub OGBench adapter with real relabelling and a fixed non-zero success."""
 
     name = "ogbench"
 
@@ -56,7 +38,7 @@ class _RelabelAdapter:
         self._env = _fake_env(self.task_infos)
         qpos = rng.uniform(-0.5, 0.5, size=(n_rows, 24)).astype(np.float64)
         for t, info in enumerate(self.task_infos):
-            qpos[t + 1, 14:17] = info["goal_xyzs"][0]     # relabel reads qpos at idx+1
+            qpos[t + 1, 14:17] = info["goal_xyzs"][0]     # relabelling reads row idx + 1
         observations = rng.standard_normal((n_rows, OBS_DIM)).astype(np.float32)
         valids = np.ones(n_rows, np.float32)
         valids[-1] = 0.0
@@ -84,10 +66,9 @@ class _RelabelAdapter:
 
 
 def _density_fb_cfg(**extra):
-    """The shipped goal-conditioned density_fb (index OFF), shrunk to test size, with Route B
-    switched on. Mirrors tests/impls/test_density_fb_reward_index.py::_agent."""
+    """Small goal-conditioned density_fb config with the reward-inference eval on."""
     cfg = load_config("density_fb", "flowbc", "cube_single")
-    # env_name names the run dir (impls/main.py::get_exp_name); the adapter is stubbed.
+    # env_name names the run dir; the adapter is stubbed.
     cfg = {**cfg, "env_name": "tiny",
            "batch_size": 16, "z_dim": 8, "value_hidden_dims": [32, 32],
            "infer_z": False, "eval_pool_size": 8,
@@ -141,9 +122,7 @@ def _relabel_rows(run_dir):
     return rows
 
 
-# ======================================================================================
-# 1. density_fb with the index OFF: inference is a placeholder -> the row must be refused.
-# ======================================================================================
+# density_fb with the index off: the row is refused
 def test_route_b_refuses_to_score_a_noop_inference(tmp_path, monkeypatch):
     adapter = _RelabelAdapter(n_tasks=2)
     with pytest.warns(UserWarning, match="DensityFBCritic"):
@@ -158,18 +137,15 @@ def test_route_b_refuses_to_score_a_noop_inference(tmp_path, monkeypatch):
         assert "DensityFBCritic" in r["invalid_reason"], r["invalid_reason"]
         assert math.isnan(float(r["success"])), \
             f"a goal=0 rollout was SCORED as success={r['success']}"
-        # the goal-conditioned placeholder is the zero vector; the witness must say so
+        # The placeholder is the zero vector.
         assert float(r["inferred_cond_norm"]) == 0.0
 
-    # The refused rows must never have been rolled: only the goal-conditioned route
-    # (any_step_success=False) reached the evaluator.
+    # Only the goal-conditioned route reached the evaluator.
     assert all(not c["any_step_success"] for c in adapter.evaluate_calls), \
         "Route B still rolled the policy on a no-op conditioning"
 
 
-# ======================================================================================
-# 2. fb: inference is live -> the row passes through exactly as before.
-# ======================================================================================
+# fb: inference is live and the row is scored
 def test_route_b_passes_a_live_inference_through_unchanged(tmp_path, monkeypatch):
     adapter = _RelabelAdapter(n_tasks=2)
     run_dir = _run_main(tmp_path, monkeypatch, _fb_cfg(), adapter, "fb")
@@ -184,10 +160,7 @@ def test_route_b_passes_a_live_inference_through_unchanged(tmp_path, monkeypatch
     assert {c["task"] for c in adapter.evaluate_calls if c["any_step_success"]} == {1, 2}
 
 
-# ======================================================================================
-# 3. The detector itself, in isolation (no main loop): zero-norm cond is refused even when
-#    the noop detector's bit-identity check is not tripped.
-# ======================================================================================
+# Detector alone: a zero-norm cond is refused
 def test_route_b_invalid_reason_flags_a_zero_norm_cond():
     import jax.numpy as jnp
     import impls.main as m
@@ -200,7 +173,7 @@ def test_route_b_invalid_reason_flags_a_zero_norm_cond():
         cond_eval = {"z": jnp.zeros((8,))}
 
     wrapped = m.InferredCondAgent(_Agent())
-    pre = {"z": jnp.ones((8,))}      # cond DID change, so the bit-identity check passes...
+    pre = {"z": jnp.ones((8,))}      # cond changed, so only the norm check can refuse it
     reason = m.route_b_invalid_reason(pre, wrapped, jnp.ones((8,)))
     assert reason is not None and "_Critic" in reason and "norm" in reason
 

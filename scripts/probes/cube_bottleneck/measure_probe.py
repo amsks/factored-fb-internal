@@ -1,29 +1,7 @@
-"""Test 2 -- phase-conditioned measure probe at the bottleneck (spec section 3).
+"""Measure probe at P2 states: does predicted successor mass on held futures track p_secure(s, a)?
 
-At grasp-adjacent states (P2: in contact, cube still on the table), do the two estimators
-put successor mass on HELD futures for the actions that actually secure the cube, and on
-free futures for the ones that do not?
-
-Structure, and why it is split in two passes:
-
-  Pass A (`ground_truth`)  -- policy rollouts that define `p_secure(s, a)`: restore s, apply
-      a once, continue under the BC flow actor for H = 25 steps, 8 independent
-      continuations, and score the fraction that end with the phase label `held`.
-      This is a property of the ENVIRONMENT and the behaviour policy, not of the estimator
-      under test, so it is computed ONCE per env and reused by every arm. That is what the
-      spec means by "any arm -- it is not the quantity under test", and it is also what
-      makes the arm comparison paired down to the individual (state, action) pair.
-
-      The continuation is conditioned on the 5 task goals CYCLED across the 8 draws, so
-      `p_secure` is a goal-MARGINAL quantity. It has to be: the AUC in section 3.4 scores
-      one `p_secure` per (state, action) against a `held_mass` computed per goal, so a
-      p_secure tied to a single goal would silently make the label a function of that goal.
-
-  Pass B (`readouts`)      -- the two estimators evaluated on the same (s, a) pairs against
-      the same 1024-row pool, per arm and per goal. No rollouts, so it is cheap.
-
-Both estimators are driven through the SHIPPED critic methods (`_le/_F/_B` for FB,
-`_b_query/_B/_F` for Density-FB); nothing here reimplements a tower.
+Pass A rolls out the BC actor to label p_secure per (state, action); Pass B reads both critics
+on the same (state, action) pairs against a shared pool.
 """
 import os
 
@@ -59,14 +37,10 @@ G4_STD_MIN = 0.20
 G4_MIN_STATES = 40
 
 
-# ── the shared pool U ───────────────────────────────────────────────────────────────────
+# Shared pool
 
 def build_pool(env_name: str, out_dir: Path) -> Dict[str, np.ndarray]:
-    """1024 dataset states with phase labels, fixed forever by `POOL_SEED`.
-
-    The SAME pool and the SAME label vector must reach both estimators (spec 3.3), so it is
-    built once, written to disk, and asserted on load.
-    """
+    """Build and cache 1024 dataset states with phase labels, fixed by `POOL_SEED`."""
     f = out_dir / "pool.npz"
     if f.exists():
         return dict(np.load(f))
@@ -81,15 +55,13 @@ def build_pool(env_name: str, out_dir: Path) -> Dict[str, np.ndarray]:
     return pool
 
 
-# ── the action set ──────────────────────────────────────────────────────────────────────
+# Action set
 
 def action_set(actor_fn, obs: np.ndarray, goal, dataset_action: np.ndarray,
                rng: np.random.Generator, action_dim: int) -> np.ndarray:
-    """12 actions at one state (spec 3.2): the dataset's own, 6 policy draws, the dataset
-    action with the gripper channel forced to each extreme, and 3 uniform-random."""
+    """12 actions: dataset action, 6 policy draws, dataset action with gripper at each extreme, 3 uniform."""
     acts = [np.asarray(dataset_action, np.float32)]
-    # The 6 policy draws come from ONE batched call: the actor is stochastic, so a batch of
-    # 6 copies of the same observation gives 6 independent samples at ~1/6 the cost.
+    # Policy draws in one batched call
     draws = np.asarray(actor_fn(observations=np.repeat(np.asarray(obs)[None], 6, axis=0),
                                 goals=np.repeat(np.asarray(goal)[None], 6, axis=0),
                                 temperature=1.0))
@@ -105,25 +77,17 @@ def action_set(actor_fn, obs: np.ndarray, goal, dataset_action: np.ndarray,
     return out
 
 
-# ── Pass A: ground truth ────────────────────────────────────────────────────────────────
+# Pass A: ground truth
 
 def make_env_pool(env_name: str, n: int) -> List[Any]:
-    """`n` independent envs, stepped in lockstep so one batched actor call serves them all.
-
-    This is the tractability trick `[torch] scripts/atlas/oracle.py` uses for the same
-    reason: the flow actor costs ~30 ms for a batch of 96 and ~26-230 ms for a single
-    observation, so a per-rollout loop pays 96 calls where a pooled one pays 1. Measured on
-    this box: 131x (density_fb_state) to 703x fewer actor-seconds.
-    """
+    """Make `n` envs to step in lockstep with one batched actor call."""
     return [R.make_env(env_name, seed=i) for i in range(n)]
 
 
 def p_secure_for_state(actor_fn, envs, qpos, qvel, acts, goals, thr) -> np.ndarray:
-    """`p_secure` for each action: the fraction of `N_CONT` continuations ending `held`.
+    """Return p_secure per action: fraction of N_CONT continuations ending held.
 
-    All len(acts) x N_CONT rollouts advance together; a rollout that terminates early
-    (OGBench ends the episode the instant success fires) stops being stepped and keeps its
-    final state, which is the state the phase label is read from.
+    Rollouts that terminate early keep their final state.
     """
     n_acts = len(acts)
     assert len(envs) >= n_acts * N_CONT, "env pool too small for the action set"
@@ -168,13 +132,9 @@ def p_secure_for_state(actor_fn, envs, qpos, qvel, acts, goals, thr) -> np.ndarr
 def ground_truth(arm, banks: Dict[str, Dict[str, np.ndarray]], out_dir: Path,
                  thr: PhaseThresholds, tag: str = "",
                  state_slice: Optional[slice] = None) -> Dict[str, Any]:
-    """Pass A over P2 (the decision points) and the P1/P3 null controls.
+    """Pass A over P2 states and the P1/P3 controls, for one slice of states.
 
-    Pass A is bound by sequential flow-actor calls (states x 12 actions x 8 continuations x
-    25 steps), so it is sliced across STATES and run as several processes, exactly the way
-    Test 1 is run per arm. Each worker writes its own part; `merge_ground_truth` assembles
-    them. The action rng is re-seeded PER STATE from a fixed base, so a state's action set
-    does not depend on which slice it was computed in.
+    The action rng is seeded per state, so results do not depend on slicing.
     """
     import jax
     from impls.utils.evaluation import supply_rng
@@ -210,13 +170,9 @@ def ground_truth(arm, banks: Dict[str, Dict[str, np.ndarray]], out_dir: Path,
         acts_all = np.zeros((n, N_ACTIONS, action_dim), np.float32)
         psec_all = np.zeros((n, N_ACTIONS), np.float32)
         for slot, i in enumerate(idxs):
-            # Per-state rng: the action set for state i is the same in every slicing.
-            # zlib.crc32, NOT hash(): str hashing is salted per process (PYTHONHASHSEED),
-            # so hash() would give each worker a DIFFERENT action set for the same state
-            # and quietly break the pairing this probe depends on.
+            # Per-state rng; crc32 because str hash() is salted per process
             rng = np.random.default_rng([ACTION_SEED, zlib.crc32(phase.encode()), i])
-            # The action set is drawn at the RESTORED observation, not the recorded one, so
-            # the policy draws are conditioned on the state the probe actually evaluates.
+            # Actions drawn at the restored observation
             env.reset(options=dict(task_id=goals[0][0], render_goal=False))
             R.set_state(env, bank["qpos"][i], bank["qvel"][i])
             R.settle(env)
@@ -239,11 +195,7 @@ def ground_truth(arm, banks: Dict[str, Dict[str, np.ndarray]], out_dir: Path,
 
 
 def merge_ground_truth(out_dir: Path, phases, sizes: Dict[str, int], tag: str = "") -> Dict[str, Any]:
-    """Assemble the sliced Pass A parts into one ground_truth.npz.
-
-    Raises if any state is missing: a silently short ground truth would drop states from
-    the AUC medians and from gate G4's count without anything failing.
-    """
+    """Merge sliced Pass A parts into ground_truth.npz; raise if any state is missing."""
     parts = sorted((out_dir / "gt_parts").glob(f"gt{tag}_*.npz"))
     if not parts:
         raise FileNotFoundError(f"no Pass A parts under {out_dir / 'gt_parts'}")
@@ -271,15 +223,14 @@ def merge_ground_truth(out_dir: Path, phases, sizes: Dict[str, int], tag: str = 
     return store
 
 
-# ── Pass B: estimator readouts ──────────────────────────────────────────────────────────
+# Pass B: critic readouts
 
 def fb_readout(critic, net, obs, acts, z, pool_obs):
-    """Plain FB: M(s,a,z;u) = F(s,a,z).B(u), min over the two heads (the training target)."""
+    """FB readout M(s,a,z;u) = F(s,a,z).B(u), min over heads."""
     import jax.numpy as jnp
 
     le = critic._le(net["left_encoder"].params, jnp.asarray(obs))
-    # z is one task vector for the whole action set; the forward tower concatenates it onto
-    # the per-row observation feature, so it has to be broadcast to the batch first.
+    # Broadcast z to the batch
     zb = jnp.broadcast_to(jnp.asarray(z), (len(acts), jnp.asarray(z).shape[-1]))
     Fs = critic._F(net["forward"].params, le, zb, jnp.asarray(acts))               # [P,B,d]
     Bm = critic._B(net["backward"].params, jnp.asarray(pool_obs))                  # [C,d]
@@ -290,12 +241,9 @@ def fb_readout(critic, net, obs, acts, z, pool_obs):
 
 
 def density_readout(critic, net, obs, acts, goal, pool_obs):
-    """Density-FB: w = softmax_j F(s,a,g).B(u_j)/tau -- a probability by construction.
+    """Density-FB readout w = softmax_j F(s,a,g).B(u_j)/tau, averaged over heads.
 
-    Heads are averaged, not min'd: `w` is a distribution over the pool, and the minimum of
-    two distributions is not one. (FB's M has no such constraint, so there the min that
-    matches its training target is taken.) `q` reproduces q_fn's readout,
-    sum_j w_j * kernel(goal, u_j), with the same min over heads q_fn itself uses.
+    Also returns q = min over heads of sum_j w_j kernel(goal, u_j), as in q_fn.
     """
     import jax
     import jax.numpy as jnp
@@ -310,25 +258,24 @@ def density_readout(critic, net, obs, acts, goal, pool_obs):
     f_emb = critic._F(f_p, jnp.asarray(obs), jnp.asarray(acts), g)
     w_heads = jax.nn.softmax(jnp.einsum("hbd,md->hbm", f_emb, b_emb) / critic.temp, -1)
     w = jnp.mean(w_heads, axis=0)                                                  # [B,M]
-    # The actor's own readout, on the same pool: kg is the hit kernel in RAW coordinates.
+    # Actor readout: hit kernel in raw coordinates
     u_raw = _raw_block_cols(pool, critic.blocks)
     kg = _delta_phi(jnp.asarray(goal)[None], u_raw, critic.blocks)                 # [1,M]
     q = jnp.min((w_heads * kg[None]).sum(-1), axis=0)                              # [B]
     return np.asarray(w), np.asarray(q)
 
 
-# ── metrics (spec 3.4) ──────────────────────────────────────────────────────────────────
+# Metrics
 
 def _auc(scores: np.ndarray, labels: np.ndarray) -> float:
-    """Within-state AUC by the rank formula. NaN when a state has only one class -- which
-    is the honest answer, not 0.5: there is nothing to separate."""
+    """Within-state AUC by the rank formula; NaN when only one class is present."""
     pos, neg = labels.sum(), (~labels.astype(bool)).sum()
     if pos == 0 or neg == 0:
         return float("nan")
     order = np.argsort(scores, kind="mergesort")
     ranks = np.empty(len(scores), float)
     ranks[order] = np.arange(1, len(scores) + 1)
-    # average ranks over ties, so a flat score gives exactly 0.5 rather than an artefact
+    # Average ranks over ties
     for v in np.unique(scores):
         m = scores == v
         if m.sum() > 1:
@@ -344,7 +291,7 @@ def _spearman(x: np.ndarray, y: np.ndarray) -> float:
     return float(np.corrcoef(rx, ry)[0, 1])
 
 
-# ── Pass B driver ───────────────────────────────────────────────────────────────────────
+# Pass B driver
 
 def readouts(arm, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
     """Every (phase, state, action, goal) readout for one arm."""
@@ -367,8 +314,7 @@ def readouts(arm, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
         acts_all = gt[f"{phase}_actions"]
         psec_all = gt[f"{phase}_p_secure"]
         for i in range(len(bank["qpos"])):
-            # The readout must be taken at the SAME observation the rollouts started from,
-            # i.e. the restored one, not the recorded row.
+            # Read at the restored observation
             env.reset(options=dict(task_id=goals[0][0], render_goal=False))
             R.set_state(env, bank["qpos"][i], bank["qvel"][i])
             R.settle(env)
@@ -379,7 +325,7 @@ def readouts(arm, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
                 if is_density:
                     w, q = density_readout(critic, net, obs_rep, acts, goal, pool_obs)
                     held_mass = w[:, held_mask].sum(-1)
-                    row_mass = w.mean(-1)          # identically 1/M; kept for symmetry
+                    row_mass = w.mean(-1)          # always 1/M
                 else:
                     z = np.asarray(critic.map_eval_cond(net, {"goal": jnp.asarray(goal)})["z"])
                     M, q = fb_readout(critic, net, obs_rep, acts, z, pool_obs)
@@ -448,7 +394,7 @@ def main() -> int:
     if not runs:
         raise SystemExit("no runs discovered")
 
-    # Pass A: shared ground truth, computed once off the FIRST discovered arm's actor.
+    # Pass A: shared ground truth from the first agent's actor
     gt_arm = A.load_arm(runs[0]["run_dir"], args.epoch)
     R.ensure_cube_env(gt_arm.env)
     print(f"[gt] p_secure continuations under {gt_arm.label}'s flow actor", flush=True)
@@ -459,7 +405,7 @@ def main() -> int:
         print(f"[gt] slice {sl.start}:{sl.stop} written; run --merge-gt when all are done")
         return 0
 
-    # Gate G4: are the P2 states actually decision points?
+    # Check that P2 states are decision points
     sd = gt["P2_p_secure"].std(axis=1)
     n_ok = int((sd > G4_STD_MIN).sum())
     g4 = dict(n_states=int(len(sd)), n_std_above=n_ok, required=G4_MIN_STATES,

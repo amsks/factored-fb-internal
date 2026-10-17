@@ -1,28 +1,9 @@
-"""Score the OGBench and ExoRL cells of the paper's benchmark table from evaluation logs.
+"""Score the OGBench and ExoRL cells of the paper's benchmark tables from evaluation logs.
 
-OGBench (success rate, %). Per run: the task-mean success at each evaluation step, averaged
-over the last three evaluations (800k, 900k, 1M). Per cell: mean over seeds 0-4, error =
-sample standard deviation / sqrt(n). Which log a method is scored from:
+OGBench: success (%) averaged over the last three evaluations, mean +- SE over seeds 0-4.
+ExoRL: return averaged over the domain's tasks, mean +- SE over seeds 0-4.
 
-    FB, HILP, RLDP      eval_relabel.csv   task vector inferred from 10k reward samples
-    Density-FB          eval.csv           goal-conditioned (the table's Density-FB column)
-    Density-FB (z)      eval_relabel.csv   task vector inferred from reward samples (in-text)
-
-ExoRL (DMC returns). Per seed: episode return averaged over the domain's tasks, read from the
-jsonl written by scripts/exorl_paper_eval.py (params_1000000.pkl, 10 episodes, 50k reward
-samples). Per cell: mean over seeds 0-4, error = population standard deviation / sqrt(n).
-
-GCIQL/CRL/QRL (OGBench) and FB/HILP/RLDP (ExoRL) are published numbers and are only read
-from the tex, never recomputed.
-
-    python scripts/score_tables.py --exp hf/exp                       # print every cell
-    python scripts/score_tables.py --exp hf/exp --tex experiments.tex # also diff against the paper
-    python scripts/score_tables.py --exp hf/exp --tex experiments.tex --write
-                                   # rewrite the table body: cells, benchmark means, delta column
-
-`--exp` is the `exp/` tree of the HF repo amsks/factored-fb-checkpoints (branch iclr2027):
-    huggingface-cli download amsks/factored-fb-checkpoints --revision iclr2027 \
-        --include 'exp/**/eval*.csv' 'exp/paper_eval_*.jsonl' --local-dir hf
+    python scripts/score_tables.py --exp hf/exp --tex experiments.tex [--write]
 """
 import argparse
 import collections
@@ -38,9 +19,7 @@ OGB_ENVS = {"cube-single": "cube-single-play-v0", "cube-double": "cube-double-pl
             "scene": "scene-play-v0"}
 SEEDS = range(5)
 
-# method -> (critic name in the run directory, log file, subdirectories of --exp searched in
-# order). FB and HILP seeds 0-2 sit at the top of exp/, seeds 3-4 under tdjtab/. RLDP is the
-# ortho_coef=1 arm, which lives only under ortho1/ (exp/<env>_rldp_* is a different arm).
+# method -> (critic name, log file, subdirectories of --exp searched in order)
 OGB_METHODS = {
     "FB": ("fb_tdj", "eval_relabel", ("", "tdjtab")),
     "HILP": ("hilp_tdjc", "eval_relabel", ("", "tdjtab")),
@@ -49,8 +28,7 @@ OGB_METHODS = {
     "Density-FB (z)": ("density_fb_z", "eval_relabel", ("", "tdjtab")),
 }
 
-# ExoRL table row -> (jsonl under --exp, domain). Each row is the recipe reported in the paper
-# (see the ExoRL hyperparameter appendix).
+# ExoRL row -> (jsonl under --exp, domain)
 EXORL_CELLS = {
     "walker": ("paper_eval_exorl_sqt.jsonl", "dmc-walker"),
     "quadruped": ("paper_eval_exorl_kernels_quadruped_vu.jsonl", "dmc-quadruped"),
@@ -58,9 +36,7 @@ EXORL_CELLS = {
     "cheetah": ("paper_eval_exorl_cheetah3_velblock.jsonl", "dmc-cheetah"),
 }
 
-# Table layout. tab:benchmarks has columns FB, HILP, RLDP, GCIQL, CRL, QRL, Density-FB;
-# tab:exorl has FB, HILP, RLDP, Density-FB. In both, FB/HILP/RLDP are the first three cells
-# and Density-FB the last, followed by the delta column. Each table is a list of blocks.
+# Table layout: each table is a list of blocks; Density-FB is the last column before delta
 TABLES = [["OGBench", "MetaWorld", "ManiSkill"], ["ExoRL"]]
 COLUMN = {"FB": 0, "HILP": 1, "RLDP": 2, "Density-FB": -1}
 BLOCKS = {"OGBench": ["cube-single", "cube-double", "scene"],
@@ -73,7 +49,7 @@ BLOCK_TITLES = {"OGBench": r"\textit{OGBench (success rate, \%)}",
                 "ExoRL": r"\textit{ExoRL (DMC returns)}"}
 
 
-# ----------------------------------------------------------------------------- scoring
+# Scoring
 
 def run_score(path):
     """Mean over the last three evaluation steps of the task-mean success, in %."""
@@ -129,7 +105,7 @@ def score_exorl(exp):
     return out
 
 
-# ----------------------------------------------------------------------------- tex table
+# Tex table
 
 CELL_RE = re.compile(r"(?:\\textbf\{)?([\d.]+)\}?\\pmse\{([\d.]+)\}")
 ROW_RE = re.compile(r"\s*\\texttt\{([\w-]+)\}\s*&(.*)\\\\")
@@ -204,7 +180,7 @@ def write_tables(tex_path, rows):
     open(tex_path, "w").write("\n".join(lines))
 
 
-# ----------------------------------------------------------------------------- main
+# Main
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -228,7 +204,7 @@ def main():
     mismatches = 0
     for (method, task), (c, _) in scores.items():
         if method == "Density-FB (z)" or c is None:
-            continue                                  # in-text numbers, not table cells
+            continue
         paper = rows[task][COLUMN[method]]
         ours = (round(c[0], 1), round(c[1], 1))
         ok = paper is not None and ours == paper

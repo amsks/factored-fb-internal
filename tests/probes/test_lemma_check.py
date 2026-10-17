@@ -5,7 +5,7 @@ import pathlib
 import numpy as np
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-# load under a distinct name: family.py imports the toy_ablation `run` module by that name
+# Load under a distinct name; family.py imports another module named run.
 _spec = importlib.util.spec_from_file_location("lemma_check_run", REPO / "analysis" / "lemma_check" / "run.py")
 lc = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(lc)

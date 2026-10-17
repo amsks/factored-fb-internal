@@ -1,16 +1,11 @@
-"""Config composition: a run config from three groups -- critic/, actor/, domain/ -- under
-impls/configs/. Returns a plain dict so the critics and actors never see a DictConfig.
-env/config.py::make_config is the entry point main.py uses (it also reads env/domains/).
-"""
+"""Config composition from the critic, actor and domain groups under impls/configs/."""
 import os
 
 from omegaconf import OmegaConf
 
 CONFIG_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs")
 
-# Keys each critic needs, checked up front so a missing key is a named error here rather
-# than a bare KeyError inside make_dataset() or Agent.create. Dotted keys reach into nested
-# group dicts. Keyed by the --critic name as given (aliases have their own yamls).
+# Required keys per critic name; dotted keys reach into nested dicts.
 _FB_KEYS = (
     "lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount",
     "L_dim", "num_parallel", "ortho_coef",
@@ -21,8 +16,6 @@ _FB_KEYS = (
 )
 REQUIRED_KEYS = {
     "fb": _FB_KEYS,
-    # rldp builds the same forward/backward/left_encoder modules plus the predictor, and
-    # needs `horizon` + dataset_class so make_dataset() emits the h-step window.
     "rldp": _FB_KEYS + (
         "horizon",
         "predictor.hidden_dim", "predictor.hidden_layers", "predictor.embedding_layers",
@@ -32,8 +25,7 @@ REQUIRED_KEYS = {
 
 
 def _get_dotted(d, dotted_key):
-    """Walk a dotted key (e.g. "forward.hidden_dim") through nested dicts. Returns
-    (value, present) so a present-but-None value can be distinguished from a missing one."""
+    """Look up a dotted key in nested dicts. Returns (value, present)."""
     node = d
     for part in dotted_key.split("."):
         if not isinstance(node, dict) or part not in node:
@@ -42,8 +34,7 @@ def _get_dotted(d, dotted_key):
     return node, True
 
 
-# Config keys renamed after the paper runs (old -> new). Run directories keep the old
-# names in their config.json, so every config entering the code goes through upgrade_config.
+# Legacy config key -> current name.
 LEGACY_RENAMES = {
     "measure_hit_spec": "goal_spec",
     "measure_density_dim": "z_dim",
@@ -88,8 +79,7 @@ class ConfigError(ValueError):
 
 
 def _load_group(group, name):
-    """Load <group>/<name>.yaml. A top-level `base: <other>` key loads <group>/<other>.yaml
-    first and merges this file over it."""
+    """Load <group>/<name>.yaml, merged over its `base` yaml if one is named."""
     path = os.path.join(CONFIG_ROOT, group, f"{name}.yaml")
     if not os.path.exists(path):
         raise ConfigError(f"no {group} config named {name!r} (looked for {path})")
@@ -113,9 +103,7 @@ def load_config(critic, actor, domain, overrides=None):
         if set_overrides:
             cfg = OmegaConf.merge(cfg, OmegaConf.from_dotlist(set_overrides))
         for key in del_overrides:
-            # OmegaConf has no dotlist "delete" verb, so walk to the parent container
-            # and pop the leaf ourselves. This has to happen after the `set_overrides`
-            # merge so that e.g. `~lr` always wins regardless of override ordering.
+            # Deletions apply after the set overrides.
             *parents, leaf = key.split(".")
             node = cfg
             for p in parents:

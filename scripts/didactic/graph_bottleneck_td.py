@@ -1,15 +1,6 @@
-"""Nine states connected in a graph, with one state every path has to pass.
+"""Nine-state graph whose two groups connect only through state 4.
 
-Each state has two actions and each action leads to another state, so the graph
-is a network rather than a chain. States 0-3 are joined to each other, states
-5-8 are joined to each other, and state 4 is the only state through which the
-first group reaches the second. The goal is state 8; the decision the diagnostic
-reads is at state 7, where one action reaches the goal and the other does not.
-
-`leak` is how often a transition ignores the drawn edges and lands on a uniformly
-random state in the other group. At leak 0 every path passes through state 4. As
-leak grows the two groups mix directly and state 4 stops being special, so it is
-the knob that turns the bottleneck off.
+`leak` mixes the groups directly and removes the bottleneck.
 """
 
 import argparse, hashlib, json, time
@@ -25,12 +16,12 @@ EDGES = np.array([
     [1, 2],   # 0
     [3, 0],   # 1
     [3, 1],   # 2
-    [4, 2],   # 3  the only state that reaches 4
-    [5, 3],   # 4  the only state that reaches the second group
+    [4, 2],   # 3
+    [5, 3],   # 4  bottleneck
     [6, 7],   # 5
     [7, 5],   # 6
-    [8, 6],   # 7  the decision: reach the goal, or stay in the group
-    [5, 8],   # 8  the goal
+    [8, 6],   # 7  decision state
+    [5, 8],   # 8  goal
 ])
 GROUP_A = [0, 1, 2, 3]
 GROUP_B = [5, 6, 7, 8]
@@ -38,12 +29,11 @@ CUT, GOAL, DECISION = 4, 8, 7
 
 
 def build_graph(leak=0.0):
-    """(n, 2, n) transition kernel. Rows are distributions over next states."""
+    """Return the (n, 2, n) transition kernel."""
     n = len(EDGES)
     p = np.eye(n)[EDGES]
     if leak > 0:
-        # Only the two groups leak. State 4 keeps its edges, so the knob removes
-        # its special position rather than rewiring it.
+        # Only the two groups leak; state 4 keeps its edges
         other = np.zeros((n, n))
         mix = np.zeros(n)
         for s in range(n):

@@ -1,20 +1,6 @@
-"""HILP — Hilbert-representation successor features (Park et al., ICML 2024), in the
-configuration TD-JEPA runs on OGBench.
+"""HILP critic: Hilbert-representation successor features (Park et al., 2024).
 
-Two learners, trained in two stages from the same pre-step parameters:
-
-1. phi stage. A goal-conditioned value V(s, g) = -||phi(s) - phi(g)|| is fit by TD with
-   reward -1 until the goal is reached (0 and no bootstrap at the goal), goals drawn from
-   the same trajectory's future. Two phi towers, each regressed onto its own target head;
-   the advantage used for the expectile weight takes the min over target heads.
-2. sf stage. Successor features F(s, a, z) of the centred feature phi(s') - mean(phi):
-   the TD target is  phi(s') + gamma * mean_heads F_target(s', a', z)  with phi the ONLINE
-   tower, stop-gradient. F reads a learned embedding of the observation (the left encoder).
-
-The actor maximises Q(s, a, z) = F(s, a, z)^T z, averaged over heads. For a reward given
-as samples, z is the least-squares solution of r ~ phi(s')^T z; for a goal g,
-z = normalise(phi(g) - phi(s)), recomputed at every step. Training z mixes random
-directions with whitened feature directions phi(s') Cov(phi)^-1.
+Stage phi fits V(s, g) = -||phi(s) - phi(g)||; stage sf fits successor features of phi.
 """
 from __future__ import annotations
 
@@ -31,28 +17,20 @@ from impls.utils.fb_math import project_z
 
 
 def hilp_value(phi_a, phi_b):
-    """v = -||phi(a) - phi(b)||, with the clamp on the squared distance. This floors v at
-    -1e-3 and keeps the gradient finite when phi(a) == phi(b), which the hindsight goals
-    make common (the sampled future can be the current step)."""
+    """v = -||phi(a) - phi(b)||, clamped to keep the gradient finite at zero distance."""
     sq = jnp.sum((phi_a - phi_b) ** 2, axis=-1)
     return -jnp.sqrt(jnp.clip(sq, 1e-6, None))
 
 
 def expectile_loss(adv, diff, expectile):
-    """weight * diff^2 with weight = expectile if adv >= 0 else 1 - expectile.
-    At the expectile 0.5 used here the weight is a constant 0.5: plain squared error."""
+    """Expectile-weighted squared error."""
     weight = jnp.where(adv >= 0, expectile, 1.0 - expectile)
     return weight * diff ** 2
 
 
 def hilp_phi_loss(phi1_p, phi2_p, tphi1_p, tphi2_p, apply_phi,
                   obs, goals, next_obs, discount, expectile):
-    """The phi value loss. `apply_phi(params, x)` applies one phi tower.
-
-    Three reductions, deliberately different: the advantage's Q uses the min of the two
-    target heads, its baseline the mean of the target V's, and each online head regresses
-    its own target head's Q.
-    """
+    """Phi value loss; each online head regresses its own target head's TD target."""
     same = (jnp.linalg.norm(obs - goals, axis=-1) < 1e-6).astype(obs.dtype)
     masks = 1.0 - same
     rewards = same - 1.0
@@ -82,7 +60,7 @@ def hilp_phi_loss(phi1_p, phi2_p, tphi1_p, tphi2_p, apply_phi,
 
 @dataclasses.dataclass(frozen=True)
 class HILPCritic:
-    # Field names are the optimizer group names (Agent.create reads getattr(critic, group)).
+    # Field names are the parameter group names
     hilp_phi1: Any
     hilp_phi2: Any
     hilp_sf: Any
@@ -103,14 +81,12 @@ class HILPCritic:
     GROUPS = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats", "hilp_le")
     STAGES = ("phi", "sf")
     PROVIDES_COND = frozenset({"z"})
-    # The SF target reads phi(s'), so z is inferred from rewards on next states.
     INFER_COND_MARGINAL = "next_observations"
     BOOT_COND = "actor_goal"
 
     @property
     def TARGETS(self):
-        # hilp_stats holds the running feature mean, written by update_stats; tau 0 keeps
-        # it out of the polyak update. The left encoder's target follows the SF rate.
+        # hilp_stats is written by update_stats, not polyak-averaged
         return {"hilp_phi1": self.phi_tau, "hilp_phi2": self.phi_tau,
                 "hilp_sf": self.sf_tau, "hilp_stats": 0.0, "hilp_le": self.sf_tau}
 
@@ -119,13 +95,12 @@ class HILPCritic:
         return self.z_dim
 
     def stage_groups(self, stage):
-        # The SF loss reads phi stop-gradient, so each stage trains only its own towers.
         if stage == "phi":
             return ("hilp_phi1", "hilp_phi2")
         assert stage == "sf", stage
         return ("hilp_sf", "hilp_le")
 
-    # --- towers -------------------------------------------------------------
+    # Towers
     def _phi(self, p, x):
         return self.hilp_phi1.apply({"params": p}, x)
 
@@ -136,14 +111,12 @@ class HILPCritic:
         return self.hilp_sf.apply({"params": p}, obs, z, action)
 
     def _feature_net(self, net_or_params, stats_params, x):
-        """The centred feature phi1(x) - running_mean, read by the SF target and by z
-        inference. The phi value loss uses the raw towers."""
+        """Centered feature phi1(x) - running mean."""
         return self._phi(net_or_params, x) - stats_params["mean"]
 
-    # --- losses -------------------------------------------------------------
+    # Losses
     def stage_loss(self, stage, params, target, batch, cond, boot):
         if stage == "phi":
-            # Goals are geometrically sampled futures from HILPFutureDataset.
             return hilp_phi_loss(
                 params["hilp_phi1"], params["hilp_phi2"], target["hilp_phi1"], target["hilp_phi2"],
                 lambda p, x: self._phi(p, x),
@@ -156,7 +129,7 @@ class HILPCritic:
 
         tF = self._sf(target["hilp_sf"], self._le(target, nobs), z,
                       boot["next_action"])                                    # [P, B, d]
-        # The immediate term is the ONLINE centred feature, stop-gradient (no target phi).
+        # Immediate term uses the online phi, stop-gradient
         target_phi = jax.lax.stop_gradient(
             self._feature_net(params["hilp_phi1"], params["hilp_stats"], nobs))   # [B, d]
         next_F = jnp.mean(tF, axis=0)                                         # [B, d]
@@ -164,13 +137,12 @@ class HILPCritic:
 
         F = self._sf(params["hilp_sf"], self._le(params, obs), z, action)     # [P, B, d]
         sf_loss = jnp.sum(jnp.mean((F - target_F[None]) ** 2, axis=(-1, -2)))
-        # 0.5 matches TD-JEPA's 0.5 * P * mse over all P*B*d elements.
         sf_loss = self.sf_loss_scale * sf_loss
         return sf_loss, {"sf_loss": sf_loss, "target_F": jnp.mean(target_F),
                          "phi_norm": jnp.mean(jnp.linalg.norm(target_phi, axis=-1)),
                          "z_norm": jnp.mean(jnp.linalg.norm(z, axis=-1))}
 
-    # --- control ------------------------------------------------------------
+    # Control
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         """Q(s, a, z) = F(s, a, z)^T z, averaged over heads."""
         z = cond["z"]
@@ -185,8 +157,7 @@ class HILPCritic:
         return {"z": jnp.zeros((self.z_dim,))}
 
     def map_eval_cond(self, net, cond, observations=None):
-        """Goal-conditioned evaluation: z = normalise(phi(g) - phi(s)) at the current
-        observation s, recomputed every step."""
+        """Map an evaluation goal to z = normalise(phi(g) - phi(s))."""
         if "goal" not in cond:
             return cond
         if observations is None:
@@ -197,8 +168,7 @@ class HILPCritic:
         return {**cond, "z": project_z(z, self.norm_z)}
 
     def sample_cond(self, net, batch, rng):
-        """Training z: random directions on the sphere, a mix_ratio fraction replaced by
-        whitened feature directions normalise(phi(s') Cov(phi)^-1) at shuffled next-states."""
+        """Mix random sphere directions with whitened features phi(s') Cov(phi)^-1."""
         B = batch["observations"].shape[0]
         r_g, r_perm, r_mask = jax.random.split(rng, 3)
         z = project_z(jax.random.normal(r_g, (B, self.z_dim)), self.norm_z)
@@ -221,8 +191,7 @@ class HILPCritic:
         return {"z": project_z(z, self.norm_z)}
 
     def update_stats(self, net, pre_net, batch):
-        """EMA of the phi mean (and std, kept for logging) from the pre-step online tower,
-        applied after the gradient step and the target update."""
+        """EMA of the phi mean and std from the pre-step online tower."""
         m = self.stats_momentum
         p = net["hilp_stats"].params
         phi1 = self._phi(pre_net["hilp_phi1"].params, batch["observations"])
@@ -234,8 +203,7 @@ class HILPCritic:
 
 
 class _HILPStats(nn.Module):
-    """The phi running mean and std, stored as parameters so they are checkpointed.
-    Written only by `update_stats`; no stage trains them."""
+    """Running phi mean and std, stored as parameters; written only by `update_stats`."""
     dim: int
     dtype: Any = jnp.float32
 
@@ -252,7 +220,6 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
     P = int(config["num_parallel"])
     L_dim = int(config["L_dim"])
 
-    # phi: Dense-LayerNorm-tanh, ReLU layers, linear output of width z_dim (no L2 norm).
     mk_phi = lambda: PhiMap(z_dim=z_dim, hidden_dim=config["phi"]["hidden_dim"],
                             hidden_layers=config["phi"]["hidden_layers"], norm=False)
     phi1, phi2 = mk_phi(), mk_phi()

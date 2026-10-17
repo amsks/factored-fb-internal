@@ -1,4 +1,4 @@
-"""Actor protocol, and the conditioning-vector helper both actors share."""
+"""Actor protocol and shared helpers."""
 from typing import Protocol, runtime_checkable
 
 
@@ -15,6 +15,5 @@ class Actor(Protocol):
 
 
 def cond_vector(cond):
-    """The vector the policy is conditioned on, for the paths that do not see the critic
-    (bootstrap and acting): the task latent z when the critic has one, else the goal."""
+    """Policy conditioning vector: z if present, else the goal."""
     return cond["z"] if "z" in cond else cond["goal"]

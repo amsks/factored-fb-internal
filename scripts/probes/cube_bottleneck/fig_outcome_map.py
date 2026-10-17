@@ -1,31 +1,6 @@
-"""Fig: "where will the cube end up?" -- the predicted successor measure over the table.
+"""Outcome-map figure: each critic's predicted distribution of future cube position over the table, at held states.
 
-This is the figure the value maps could not be. A value over states answers "how good is
-this state", which is not what makes a method work (control is a ranking over ACTIONS at a
-state, and measured here Density-FB scores AUC .56 on "is this state near the goal" while
-solving cube-single at .91). What separates the two families is the predicted OUTCOME
-DISTRIBUTION itself:
-
-    FB          M(s,a,.) = F(s,a,z)^T B(.)     signed, unnormalised, rank <= z_dim,
-                                               fit by squared regression whose target is
-                                               dominated by the "cube unchanged" atom
-    Density-FB  w(s,a,.) = softmax(F.B / tau)  a probability distribution by construction,
-                                               so mass is competed for and the rare
-                                               moved-cube outcomes resolve against each other
-
-Measured over the frozen 1024-row pool at 32 held states x 5 goals: 48.9% of FB's entries
-are NEGATIVE, and after clipping and renormalising its effective support is 213 of 1024
-rows with 1.8% on the top outcome. Density-FB: 0% negative, support 16.4, top-1 mass 28.6%.
-Thirteen times more concentrated, and not a tuning gap -- FB's parameterisation cannot
-represent a normalised distribution at all.
-
-Each panel bins the pool's rows by the cube position of the state they represent and sums
-the predicted mass per bin, so the picture is "probability the cube ends up here". The
-support is 1024 discrete real states, not a continuum; the binning is a summary of them.
-
-NOT SHOWN, and the caption must not imply it: the truth. Which of these predictions is
-right needs rollouts under each arm's OWN policy (FIGURE-PLAN Fig 1's third column); this
-figure claims concentration, not correctness.
+FB's signed measure is clipped at zero and renormalised; Density-FB's softmax weights are used as is.
 """
 import argparse
 from pathlib import Path
@@ -45,19 +20,15 @@ CUBE_OBS = slice(19, 22)
 CM = 10.0
 ORDER = ["fb_ref", "density_fb_state"]
 
-# Sequential single hue: probability is a magnitude, so pale -> red, red = the cube most
-# likely ends up here. Keeps the "red = the wanted thing" reading of the value figures.
+# Sequential colormap for predicted probability
 MASS_CMAP = LinearSegmentedColormap.from_list(
     "mass", ["#fbf7f4", "#fbd5c4", "#f5865c", "#d1341c", "#6d1000"])
 
 
 def predicted_mass(arm, obs_row, act_row, goal, pool_obs):
-    """[M] predicted mass over the pool, plus (% negative before clipping, N_eff, top-1).
+    """Return [M] predicted mass over the pool, fraction negative before clipping, N_eff, top-1 mass.
 
-    FB's measure is signed, so it must be clipped and renormalised before it can be read as
-    a distribution at all -- that clip is not a plotting convenience, it is the finding, and
-    the fraction discarded is reported per panel. Density-FB's weights are already a
-    distribution and are used untouched.
+    FB's measure is clipped at zero and renormalised; Density-FB's weights are used as is.
     """
     import jax.numpy as jnp
 
@@ -81,20 +52,10 @@ def predicted_mass(arm, obs_row, act_row, goal, pool_obs):
 
 
 def task_goals(arm, task_id: int, n: int, seed: int) -> np.ndarray:
-    """`n` goal rows for `task_id`, built from the DATASET rather than from the env.
+    """Draw `n` goal rows for `task_id` from dataset states whose cube is within 4 cm of the task target.
 
-    The env cannot supply a reproducible goal. `task_id` pins the goal's cube target, but
-    the rest of the goal row -- the arm pose -- is redrawn on every reset from an RNG that
-    neither `np.random.seed` nor gymnasium's `reset(seed=...)` controls: measured, the same
-    eight seeded draws summed to 37.93 in one process and 40.23 in the next. Since both
-    critics read the whole goal row, that made the figure non-reproducible and, worse, gave
-    each arm a different goal.
-
-    So the cube TARGET is taken from the env (that part is deterministic) and the goal rows
-    are then drawn from real dataset states whose cube already sits within the task's own
-    4 cm success radius of it. Reproducible from (dataset, seed), on-manifold, and it
-    marginalises the arm pose over the poses the data actually visits at that target rather
-    than over an arbitrary simulator draw.
+    The env's goal row redraws the arm pose on every reset, so goals are taken from the dataset
+    for reproducibility.
     """
     from scripts.probes.cube_bottleneck import banks as BK
 
@@ -145,20 +106,9 @@ def main() -> int:
     grids, stats, goal_xy = {}, {}, None
     for a in arms:
         arm = A.load_arm(Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}")
-        # The task goal is NOT a deterministic function of task_id: OGBench draws it from
-        # the global numpy RNG, and `load_arm` reseeds that per run. So without this the
-        # arms are compared on DIFFERENT goals and the figure changes between renders (it
-        # did: N_eff moved 171/186/228 -> 166/208/248 across two identical runs). Reseeding
-        # immediately before the reset pins one goal for every arm.
-        # A task_id pins the goal's CUBE target but not the rest of the goal vector: the
-        # arm pose in the goal row is redrawn every reset, and both critics read the whole
-        # row. Measured, one redraw moved Density-FB's top outcome from 0.40 to 0.52 and its
-        # argmax from pool row 907 to 114 with the cube target unchanged. So a single draw
-        # would be an arbitrary nuisance pose dressed up as "the goal": average the
-        # prediction over `--goal-draws` of them instead, and seed so it is reproducible.
+        # Average the prediction over several seeded goal draws for the task
         goals = task_goals(arm, args.task, args.goal_draws, args.goal_seed)
-        # Dataset-drawn goals sit WITHIN the 4cm success radius of the target rather than
-        # exactly on it, so the star is their centroid and the spread is bounded by 0.4.
+        # Goal marker at the centroid of the drawn goals
         gxy = np.mean([g[CUBE_OBS][:2] for g in goals], axis=0)
         assert np.max(np.linalg.norm([g[CUBE_OBS][:2] - gxy for g in goals], axis=1)) < 0.8, \
             "goal rows are not clustered on one cube target"
@@ -167,9 +117,7 @@ def main() -> int:
                 "arms drew different goals; the comparison would not be like-for-like")
         goal_xy = gxy
         for si in args.states:
-            # Average the DISTRIBUTION over draws; average the SCALARS per draw. N_eff of a
-            # mixture is not the mean N_eff -- mixing always spreads it -- so quoting the
-            # mixture's N_eff would overstate every method's diffuseness.
+            # Average the distribution over draws; scalar stats are averaged per draw
             ps, negs, neffs, tops = [], [], [], []
             for goal in goals:
                 p, neg, n_eff, top1 = predicted_mass(arm, bank["obs"][si],
@@ -183,8 +131,7 @@ def main() -> int:
         print(f"  [{a}] {[f'{stats[(a, s)][1]:.0f}' for s in args.states]} N_eff, "
               f"{100 * stats[(a, args.states[0])][0]:.0f}% negative", flush=True)
 
-    # One colour scale across the whole figure: the panels are probabilities on the same
-    # support, so a per-panel scale would erase exactly the concentration being claimed.
+    # One colour scale for all panels
     vmax = float(max(g.max() for g in grids.values()))
 
     fig, axes = plt.subplots(len(arms), len(args.states),
@@ -206,9 +153,6 @@ def main() -> int:
                     mec="#1a1a1a", mew=1.0, zorder=5)
             neg, n_eff, top1 = stats[(a, si)]
             if not args.bare:
-                # top-1 matters on the shared scale: FB's row is near-invisible against
-                # Density-FB's peak, and without the number a reader reads "predicts
-                # nothing" where the truth is "predicts a thin spread over the whole table".
                 lbl = (f"N_eff {n_eff:.0f}   peak {top1:.3f}"
                        + (f"\n{100 * neg:.0f}% neg. clipped" if neg else ""))
                 ax.text(0.04, 0.02, lbl, transform=ax.transAxes, fontsize=7, color=INK,

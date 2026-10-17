@@ -1,20 +1,6 @@
-"""Section 6.1 figures, one style, all on the eleven-state process P11 (fig:didactic-mdp).
+"""Section 6.1 figures on the single-bottleneck process: action values, lemma, KL bound, rank sweep, ablation.
 
-  fig_61_main      (a) action values at the bottleneck, rank 3: exact, FB, Density-FB (10 TD runs, 95% CI)
-                   (b) Lemma (lem:bottleneck-loss): difference a+ - a- in discounted future visits.
-                       Exact bars; least-squares refit of FB's forward vectors on its FROZEN trained
-                       features (every run, all zero because the feature averages of the two futures
-                       coincide); Density-FB at the same rank.
-                   (c) Proposition (prop:bottleneck-preservation): KL(M || M_hat) at the bottleneck for
-                       Density-FB, larger of the two actions, per run and rank, against the threshold
-                       eps = (1-gamma)^2 Delta^2 / (2 R^2). Filled markers: ordering preserved.
-  fig_61_rank      FB vs Density-FB, fraction of the exact action-value gap read, ranks 1..11 (TD, P11)
-  fig_61_ablation  all ablation arms on P11 (appendix)
-
-TD runs: analysis/toy_ablation/family.train_group (5 seeds x 2 learning rates, 50k steps). Ranks >= 2 of
-the rank sweep come from sb_trained.csv (written by run.py); rank 1 and the KL/refit quantities are
-computed here and cached in paper_figs_61_cache.npz (--recompute to redo).
-    JAX_PLATFORMS=cpu python analysis/single_bottleneck/paper_figs_61.py
+Run: JAX_PLATFORMS=cpu python analysis/single_bottleneck/paper_figs_61.py [--recompute]
 """
 import csv, importlib.util, os, pathlib, sys
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
@@ -25,15 +11,11 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 HERE = pathlib.Path(__file__).resolve().parent; REPO = HERE.parent.parent
-# SB_PROCESS=p11 (default): the eleven-state process P11, rank sweep read from sb_trained.csv.
-# SB_PROCESS=p7: the seven-state process (entry 0,1; bottleneck 2; A = {3}; B = {4}; tail {5,6}),
-#   built by design_single_bottleneck.build(entry=2, cluster=1, tail=2, merge=True); every arm is
-#   trained here (same harness) and cached; figures go to figures/seven_state/.
+# Process: p11 reads the rank sweep from sb_trained.csv; p7 and p9 train every arm here.
 PROCESS = os.environ.get("SB_PROCESS", "p11")
 TAIL_REWARD = float(os.environ.get("SB_TAIL_REWARD", "0.5"))
 if PROCESS == "p9":
-    # pass-through: entry 0,1; bottleneck 2; A = {3}; B = {4}; tail ring {5..8}; reward 1 for
-    # entering A and TAIL_REWARD on every tail state (so V(A) is high; the gap at 2 stays 1).
+    # Pass-through process, reward 1 on A and TAIL_REWARD on the tail
     FIG = REPO / "figures" / "nine_state"
     CACHE = HERE / "paper_figs_61_p9_cache.npz"
     GAMMA, VAL_RANK, KL_RANKS = 0.8, 4, [1, 2, 3, 4, 5, 6]
@@ -82,7 +64,7 @@ def kl(p, q):
     return float(np.sum(p[m] * np.log(p[m] / q[m])))
 
 
-# ------------------------------------------------------------------ compute (cached)
+# Compute (cached)
 def compute():
     spec = importlib.util.spec_from_file_location("sb_run", HERE / "run.py"); sb = importlib.util.module_from_spec(spec)
     argv = sys.argv; sys.argv = [argv[0]]; spec.loader.exec_module(sb); sys.argv = argv
@@ -108,7 +90,7 @@ def compute():
     T = mdp["t_exact"]; X = n * mdp["m_exact"]; dm = X[2 * b] - X[2 * b + 1]; W = np.sqrt(rho)[:, None]
     out = dict(T=T, r=r, b=b, n=n, A=np.array(mdp["clusterA"]), edges=np.asarray(mdp["edges"]))
     if PROCESS in ("p7", "p9"):
-        # the rank sweep, every arm, same harness as run.py's run_trained
+        # Rank sweep, every arm
         rows = []
         for d in range(1, n):
             for meth, arm in SWEEP_METHODS.items():
@@ -118,7 +100,7 @@ def compute():
                     rows.append((ord(arm), d, q[2 * b], q[2 * b + 1], (q[2 * b] - q[2 * b + 1]) / mdp["gap"]))
                 print(f"sweep d={d} {meth}: {np.mean([x[4] for x in rows[-len(pred):]]):+.2f}", flush=True)
         out["rows"] = np.array(rows)
-    # (b) refit on FB's frozen rank-3 features, every run
+    # (b) Least-squares refit on FB's trained features
     _, _, _, B_fb = fam.train_group(mdp, VAL_RANK, "fb")
     refit, moment = [], []
     for B in np.asarray(B_fb, float):
@@ -127,7 +109,7 @@ def compute():
     out.update(refit=np.array(refit), moment=np.array(moment))
     _, pred_d3, _, _ = fam.train_group(mdp, VAL_RANK, "density")
     out["dfb_diff"] = np.asarray(pred_d3, float)[:, 2 * b] / (1 - GAMMA) - np.asarray(pred_d3, float)[:, 2 * b + 1] / (1 - GAMMA)
-    # (c) KL at the bottleneck and ordering, ranks 1..5; also rank-1 gap ratios for the sweep
+    # (c) KL at the bottleneck and action ordering; rank-1 gap ratios
     kls, order, gr1 = [], [], {}
     for d in KL_RANKS:
         _, pred, _, _ = fam.train_group(mdp, d, "density")
@@ -155,14 +137,14 @@ def trained_rows(c=None):
     return rows
 
 
-# ------------------------------------------------------------------ figures
+# Figures
 def fig_main(c, rows):
     T, r, b, n = c["T"], c["r"], int(c["b"]), int(c["n"])
     gap = float((T[2 * b] - T[2 * b + 1]) @ r) / (1 - GAMMA)
     R = float(r.max() - r.min()); eps = (1 - GAMMA) ** 2 * gap ** 2 / (2 * R ** 2)
     fig, (ax, bx, cx) = plt.subplots(1, 3, figsize=(5.5, 1.85), gridspec_kw=dict(width_ratios=[0.8, 1.35, 1.0]))
 
-    # (a) values
+    # (a) Action values
     sub = [x for x in rows if x["d"] == VAL_RANK]
     groups = [("exact", EXACT, (T[2 * b] @ r / (1 - GAMMA), 0.0), (T[2 * b + 1] @ r / (1 - GAMMA), 0.0))]
     for arm, (name, col, _) in (("A", ARM["A"]), ("D", ARM["D"])):
@@ -182,7 +164,7 @@ def fig_main(c, rows):
               borderaxespad=0, columnspacing=0.8)
     ax.set_title("(a) action values", loc="left", pad=13)
 
-    # (b) lemma
+    # (b) Lemma
     x = np.arange(n); A = [int(v) for v in c.get("A", [3, 4])]
     bx.axvspan(A[0] - 0.5, A[-1] + 0.5, color=DFB, alpha=0.10, lw=0)
     bx.axhline(0, color=GRID, lw=0.6)
@@ -201,7 +183,7 @@ def fig_main(c, rows):
     bx.set_title("(b) Lemma 1: fit on FB's features", loc="left", pad=13)
     print(f"(b) max |feature-average difference| over runs {c['moment'].max():.1e}, max |refit| {np.abs(c['refit']).max():.1e}")
 
-    # (c) proposition: region below eps is where the proposition guarantees the ordering
+    # (c) Proposition: below eps the ordering is guaranteed
     lo_y, hi_y = 3e-6, 8.0
     cx.axhspan(lo_y, eps, color=DFB, alpha=0.08, lw=0, zorder=0)
     cx.axhline(eps, color=INK, ls="--", lw=0.7, zorder=1)
@@ -274,7 +256,7 @@ def fig_ablation(rows, c):
     data = sweep(rows, arms, c)
     for arm in arms:
         print(f"ablation {ARM[arm][0]}: " + " ".join(f"{d}:{data[arm][d][0]:.2f}" for d in sorted(data[arm])))
-    fig, ax = plt.subplots(figsize=(4.4, 2.0))          # = 0.8 \\textwidth, prints at 1:1
+    fig, ax = plt.subplots(figsize=(4.4, 2.0))
     draw_sweep(ax, data, arms)
     ax.set_xticks(sorted(data["A"]))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.3), ncol=3, frameon=False, columnspacing=1.0, handlelength=1.6)
@@ -285,7 +267,7 @@ def fig_ablation(rows, c):
 
 
 def fig_ablation_main(rows, c):
-    """fig_61_ablation_main: the ablation sized for a 0.5 \\textwidth minipage (2.75 in), printed 1:1."""
+    """Ablation figure sized for a half-width minipage."""
     arms = ["A", "B", "C", "D", "F"]
     short = {"A": "FB", "B": "FB-norm", "C": "SM-sq", "D": "D-FB", "F": "D-FB-soft"}
     data = sweep(rows, arms, c)
@@ -315,9 +297,9 @@ def fig_ablation_main(rows, c):
     plt.close(fig)
 
 
-# ------------------------------------------------------------------ individual panels (subfigures)
+# Individual panels
 PANEL_SIZE = (1.85, 1.6)
-# identical axes box (inches) in every panel so the three subfigures align exactly
+# Same axes box (inches) in every panel so subfigures align
 PANEL_MARGINS = dict(left=0.47, bottom=0.40, right=0.06, top=0.06)
 
 
@@ -338,20 +320,19 @@ def panel_style():
 
 def save_panel(fig, stem):
     for ext, kw in (("pdf", {}), ("png", {"dpi": 600})):
-        fig.savefig(FIG / f"{stem}.{ext}", **kw)          # no tight bbox: keep the fixed geometry
+        fig.savefig(FIG / f"{stem}.{ext}", **kw)          # no tight bbox, keeps the fixed geometry
     print("wrote", FIG / f"{stem}.pdf")
 
 
 def fig_panels(c, rows):
-    """fig_61_values / fig_61_lemma / fig_61_prop: the three panels of fig_61_main as separate,
-    title-free files sized for three side-by-side subfigures."""
+    """The three panels of fig_61_main as separate subfigure files."""
     from matplotlib.ticker import LogLocator, NullLocator
     panel_style()
     T, r, b, n = c["T"], c["r"], int(c["b"]), int(c["n"])
     gap = float((T[2 * b] - T[2 * b + 1]) @ r) / (1 - GAMMA)
     R = float(r.max() - r.min()); eps = (1 - GAMMA) ** 2 * gap ** 2 / (2 * R ** 2)
 
-    # values
+    # Values
     fig, ax = panel_fig()
     sub = [x for x in rows if x["d"] == VAL_RANK]
     groups = [("exact", EXACT, (T[2 * b] @ r / (1 - GAMMA), 0.0), (T[2 * b + 1] @ r / (1 - GAMMA), 0.0))]
@@ -374,7 +355,7 @@ def fig_panels(c, rows):
               borderaxespad=0.1, columnspacing=1.0)
     save_panel(fig, "fig_61_values"); plt.close(fig)
 
-    # lemma
+    # Lemma
     fig, bx = panel_fig()
     x = np.arange(n); A = [int(v) for v in c.get("A", [3, 4])]
     exact_diff = (T[2 * b] - T[2 * b + 1]) / (1 - GAMMA)
@@ -392,7 +373,7 @@ def fig_panels(c, rows):
               labelspacing=0.3)
     save_panel(fig, "fig_61_lemma"); plt.close(fig)
 
-    # proposition
+    # Proposition
     fig, cx = panel_fig()
     lo_y = 10 ** np.floor(np.log10(max(float(np.min(c["kl"])), 1e-7))) / 2
     hi_y = 10 ** np.ceil(np.log10(float(np.max(c["kl"])))) * 1.5
@@ -406,7 +387,7 @@ def fig_panels(c, rows):
         cx.scatter(xs[~ok], v[~ok], s=14, facecolors="white", edgecolors="#C0392B", lw=0.9, zorder=4)
     cx.set_yscale("log"); cx.set_ylim(lo_y, hi_y); cx.set_xlim(0.45, KL_RANKS[-1] + 0.55)
     cx.yaxis.set_major_locator(LogLocator(base=10, numticks=12)); cx.yaxis.set_minor_locator(NullLocator())
-    # label every other decade when the range is wide
+    # Label every other decade when the range is wide
     if np.log10(hi_y / lo_y) > 5:
         cx.yaxis.set_major_locator(LogLocator(base=100, numticks=12))
     cx.set_xticks(KL_RANKS); cx.set_xlabel("feature dimension $d$")

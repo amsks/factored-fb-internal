@@ -1,42 +1,7 @@
-"""Does the critic pick the right action where the choice matters? (cube-single, FB vs
-Density-FB). docs/notes/2026-09-19-gap-preservation-figure.md.
+"""Action-gap figures: per phase, the true Monte-Carlo gap between best and worst candidate action and how often the critic ranks them correctly.
 
-PAPER FIGURE: fig_decision_by_phase -- per phase (approach / in hand / carrying), top: the
-true Monte-Carlo action gap Delta_MC; bottom: the fraction of restored states where the
-critic values the true best candidate above the true worst (95 % Wilson interval, chance
-0.5). The three-panel fig_gap_preservation (ratio / share / scatter) is an internal
-diagnostic only. Per restored dataset state s:
-
-  Delta_MC(s)   = Q_MC(s, a+) - Q_MC(s, a-)        a+/a- = argmax/argmin over the candidate
-                                                      actions of the Monte-Carlo return
-  Delta_hat(s)  = q(s, a+, z) - q(s, a-, z)         the critic's OWN actor readout at the
-                                                      same two actions
-  y(s)          = beta * Delta_hat(s) / Delta_MC(s)  fraction of the true gap preserved
-
-`beta` is one least-squares slope per checkpoint (critic, seed): the true return regressed
-on the predicted value across ALL candidates at ALL states, both centred within the state.
-Neither readout is in return units (FB: F(s,a,z).z; Density-FB: the measure-weighted task
-reward the actor ascends), so a single global scale is needed before the ratio means
-"fraction"; being global it cannot repair a gap that is lost at some states and kept at
-others -- that is what the per-bin curve shows. Two scale-free companions are stored with
-it: `y_rel` = Delta_hat / (max_a q - min_a q), the share of the critic's own action-value
-spread that lies between a+ and a-, and `reversed` = 1[Delta_hat < 0].
-
-The per-candidate readings are the cached action probe of failure_figs.py (stage
-`actionprobe`, the same rows Fig. 5's sign metric reduces in sign_agreement.py): 64
-restored states per bank (approach / in-hand / carrying), 12 candidate actions per state
-(each policy's own action, secure, release, 4 Gaussian perturbations of each policy
-action), each candidate executed once and followed by K=10 continuations of THAT method's
-own frozen policy for 100 steps; return = sum_t gamma^t 1[cube within 4 cm of its goal].
-Rollouts are per method (own policy), so the true gaps -- and hence the quantile bins --
-are per method.
-
-    # aggregate the cached probe (default)
-    python scripts/probes/cube_bottleneck/gap_preservation.py
-    # end-to-end smoke: 5 states x 4 actions x 1 rollout, then aggregate that
-    python scripts/probes/cube_bottleneck/gap_preservation.py --smoke
-    # regenerate the probe rows for some seeds/banks before aggregating
-    python scripts/probes/cube_bottleneck/gap_preservation.py --probe --seeds 0 --banks carrying
+Reads the cached action probe of failure_figs.py. Run with no flags to aggregate, --smoke for a
+small end-to-end check, or --probe to regenerate probe rows first.
 """
 import os
 
@@ -68,11 +33,10 @@ N_BINS = 5
 STATE_KEYS = ["critic", "seed", "bank", "state"]
 
 
-# ── aggregator (pure numpy/pandas; unit-tested on synthetic arrays) ──────────────────────
+# Aggregation
 
 def calibration_slopes(long: pd.DataFrame) -> Dict[Tuple[str, int], float]:
-    """{(critic, seed): beta}. beta = sum (q - q_s)(r - r_s) / sum (q - q_s)^2 over every
-    candidate at every state, q_s / r_s the within-state means. One number per checkpoint."""
+    """Return {(critic, seed): beta}, the slope of true return on predicted value, both centred per state."""
     out = {}
     for (c, s), g in long.groupby(["critic", "seed"]):
         qc = g["q_pred"] - g.groupby(["bank", "state"])["q_pred"].transform("mean")
@@ -83,10 +47,10 @@ def calibration_slopes(long: pd.DataFrame) -> Dict[Tuple[str, int], float]:
 
 
 def per_state_gaps(long: pd.DataFrame) -> pd.DataFrame:
-    """One row per (critic, seed, bank, state): the true gap Delta_MC between the best and
-    worst candidate by Monte-Carlo return, the critic's gap Delta_hat at the same pair, and
-    the scale-free share y_rel. States whose candidates all tie in return (Delta_MC = 0)
-    carry `tie=1` and are excluded from every ratio."""
+    """One row per (critic, seed, bank, state) with the true gap, the critic's gap at the same pair, and y_rel.
+
+    States where all candidates tie in return get tie=1.
+    """
     rows = []
     for (c, s, b, i), g in long.groupby(STATE_KEYS, sort=False):
         q = g["q_pred"].to_numpy(float)
@@ -107,7 +71,7 @@ def per_state_gaps(long: pd.DataFrame) -> pd.DataFrame:
 
 
 def attach_ratio(per_state: pd.DataFrame, slopes: Dict[Tuple[str, int], float]) -> pd.DataFrame:
-    """Adds beta, y_raw = Delta_hat / Delta_MC and y = beta * y_raw (NaN at ties)."""
+    """Add beta, y_raw = Delta_hat / Delta_MC and y = beta * y_raw (NaN at ties)."""
     p = per_state.copy()
     p["beta"] = [slopes[(c, int(s))] for c, s in zip(p["critic"], p["seed"])]
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -117,8 +81,7 @@ def attach_ratio(per_state: pd.DataFrame, slopes: Dict[Tuple[str, int], float]) 
 
 
 def quantile_bins(x: np.ndarray, n_bins: int) -> np.ndarray:
-    """Equal-count bins by rank (stable, tie-safe): bin k holds the k-th n/n_bins slice of
-    the sorted values. Returns an int array in [0, n_bins)."""
+    """Equal-count bins by rank; returns ints in [0, n_bins)."""
     x = np.asarray(x, float)
     n = len(x)
     order = np.argsort(x, kind="stable")
@@ -129,10 +92,7 @@ def quantile_bins(x: np.ndarray, n_bins: int) -> np.ndarray:
 
 def bin_table(per_state: pd.DataFrame, n_bins: int = N_BINS, cols: Sequence[str] = ("y", "y_rel")
               ) -> pd.DataFrame:
-    """Per (critic, bin): the bin's true-gap range and mean, and for every column in `cols`
-    the mean, standard error (std with ddof=1 over states / sqrt n) and 10/50/90 % quantiles;
-    plus the fraction of states with Delta_hat < 0. Bins are per critic (own-policy rollouts)
-    and pooled over seeds and banks; tie states are excluded first."""
+    """Per (critic, bin): true-gap range and mean, mean/s.e./quantiles of each column, and fraction reversed."""
     rows = []
     p = per_state[per_state["tie"] == 0]
     for c, g in p.groupby("critic", sort=False):
@@ -164,12 +124,11 @@ def aggregate(long: pd.DataFrame, n_bins: int = N_BINS):
     return per, bin_table(per, n_bins), slopes
 
 
-# ── probe rows ──────────────────────────────────────────────────────────────────────────
+# Probe rows
 
 def load_long(root: Path = ROOT, env: str = ENV, epoch: int = EPOCH, tags: Optional[Sequence[str]] = None,
               seeds: Optional[Sequence[int]] = None) -> pd.DataFrame:
-    """The cached per-candidate readings of failure_figs.py's action probe. By default every
-    non-smoke tag; `tags` pins specific ones (e.g. ["_gapsmoke"])."""
+    """Load cached per-candidate rows of the action probe; all non-smoke tags unless `tags` is given."""
     fs = sorted(glob.glob(str(root / env / "actions" / f"actions_long_seed*_{epoch}*.csv")))
     if tags is None:
         fs = [f for f in fs if "smoke" not in f]
@@ -185,10 +144,7 @@ def load_long(root: Path = ROOT, env: str = ENV, epoch: int = EPOCH, tags: Optio
 
 def run_probe(seeds: Sequence[int], banks: Sequence[str], max_states: int, tag: str,
               smoke: bool, env: str = ENV, epoch: int = EPOCH) -> None:
-    """failure_figs.stage_actionprobe, unchanged: 12 candidates x K=10 own-policy
-    continuations x 100 steps. `smoke` shrinks it to 4 candidates (the two policy actions,
-    secure, release) x 1 continuation by patching the module constants it reads at call
-    time; the CSV it writes carries `tag` so it never mixes with the campaign rows."""
+    """Run failure_figs.stage_actionprobe; `smoke` shrinks it to 4 candidates and 1 continuation."""
     from scripts.probes.cube_bottleneck import failure_figs as FF
 
     if smoke:
@@ -203,13 +159,13 @@ def run_probe(seeds: Sequence[int], banks: Sequence[str], max_states: int, tag: 
         print(f"[gap] probe seed {seed} done in {time.time() - t0:.0f}s", flush=True)
 
 
-# ── figure ──────────────────────────────────────────────────────────────────────────────
+# Figure
 
 def plot(per: pd.DataFrame, bins: pd.DataFrame, out_dir: Path, name: str = "fig_gap_preservation") -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from scripts.probes.cube_bottleneck.failure_plots import METHOD_COLOR, METHOD_MARKER  # rcParams too
+    from scripts.probes.cube_bottleneck.failure_plots import METHOD_COLOR, METHOD_MARKER  # also sets rcParams
 
     fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.3), gridspec_kw=dict(width_ratios=[1.15, 1.15, 1]))
     ax, ax2, ax3 = axes
@@ -248,7 +204,7 @@ def plot(per: pd.DataFrame, bins: pd.DataFrame, out_dir: Path, name: str = "fig_
 BANK_LABEL = {"approach": "approach", "inhand": "in hand", "carrying": "carrying"}
 
 
-# ── per-phase decision figure (MAIN) ────────────────────────────────────────────────────
+# Per-phase decision figure
 
 def wilson_ci(k: int, n: int, z: float = 1.959964) -> Tuple[float, float]:
     """Wilson score interval for a binomial proportion k/n (95 % by default)."""
@@ -262,9 +218,7 @@ def wilson_ci(k: int, n: int, z: float = 1.959964) -> Tuple[float, float]:
 
 
 def phase_table(per_state: pd.DataFrame, by_seed: bool = False) -> pd.DataFrame:
-    """Per (critic, bank[, seed]): n states (ties excluded), mean true gap +- s.e., and the
-    fraction of states where the critic values the true best action above the true worst
-    (correct = 1 - reversed) with its 95 % Wilson interval."""
+    """Per (critic, bank[, seed]): n states, mean true gap and s.e., fraction ranked correctly with Wilson CI."""
     p = per_state[per_state["tie"] == 0]
     keys = ["critic", "bank"] + (["seed"] if by_seed else [])
     rows = []
@@ -286,10 +240,7 @@ def phase_table(per_state: pd.DataFrame, by_seed: bool = False) -> pd.DataFrame:
 
 def plot_decision_by_phase(per: pd.DataFrame, out_dir: Path, name: str = "fig_decision_by_phase",
                            show_seeds: bool = True) -> pd.DataFrame:
-    """Two stacked panels on a categorical phase axis (approach, in hand, carrying). Top: mean
-    true action gap +- s.e. per phase and model. Bottom: fraction of states where the critic
-    ranks the true best action above the true worst, 95 % Wilson bars, chance line at 0.5,
-    n per bar; per-seed fractions as faint markers behind."""
+    """Plot mean true action gap (top) and fraction ranked correctly (bottom) per phase."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

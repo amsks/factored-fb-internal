@@ -1,10 +1,5 @@
 #!/bin/bash
-# Slurm ARRAY wrapper for scripts/launch_mwms_baselines.sh (MODE=slurm): task N reads line N of
-# $JOBS_FILE -- one run per line in scripts/vista_train.slurm's env-var contract
-# (CRITIC/ACTOR/DOMAIN/SEED/OVERRIDE/TRAIN_STEPS/EVAL_INTERVAL/SAVE_INTERVAL/EVAL_EPISODES/
-# AUTO_RESUME/SAVE_DIR/FB_DATA_ROOT/FB_HF_EXPORT/VENV) -- exports it and hands off to
-# vista_train.slurm's body, so the environment (venv, EGL, Vulkan ICD, XLA memory fraction,
-# offline wandb, USR1 checkpoint-on-walltime) is the one every other campaign used.
+# Slurm array task N: export line N of $JOBS_FILE and run vista_train.slurm.
 #
 #   sbatch -A <alloc> --array=0-<N-1>%20 --export=ALL,JOBS_FILE=<abs path>,CODE_DIR=<repo> scripts/mwms_array.slurm
 #

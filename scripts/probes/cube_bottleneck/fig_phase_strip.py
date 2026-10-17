@@ -1,20 +1,6 @@
-"""Illustration of the four cube-single stages used in the failure analysis
-(fig:failure-where): approach, acquisition, maintain, transport, plus the delivered cube.
+"""Strip of rendered frames for the cube-single stages, from one successful Density-FB rollout.
 
-Frames are real simulator states from one successful Density-FB rollout recorded by
-failure_figs.py (analysis/failure_figs/cube-single-play-v0/rollouts/traj_*.npz), restored
-with qpos/qvel and rendered by MuJoCo with the goal cube shown. The moment picked for
-each stage uses the same thresholds as the stage classifier (phases.PhaseThresholds):
-
-  approach     hand moving toward the cube, still > eps_reach away
-  acquisition  first step the gripper is closed on the cube (hand within eps_reach)
-  maintain     cube lifted > delta_lift and held, before it starts moving to the goal
-  transport    held cube halfway (in distance) from its start to the goal
-  success      final state, cube within 4 cm of the goal
-
-Usage:
-  MUJOCO_GL=egl python scripts/probes/cube_bottleneck/fig_phase_strip.py \
-      [--task 2 --episode 0] [--video]
+Usage: MUJOCO_GL=egl python scripts/probes/cube_bottleneck/fig_phase_strip.py [--task 2 --episode 0] [--video]
 """
 import argparse
 import os
@@ -42,7 +28,7 @@ ROLL = Path("analysis/failure_figs") / ENV / "rollouts"
 LABEL = "density_fb_z_seed0_1000000"
 OUT = Path("figures/failure/fig_phase_strip")
 
-# colours match the caption of fig:failure (experiments.tex)
+# Stage colours, shared with the failure figures
 STAGES = [("approach", "Approach", "#CC78BC"),
           ("acquisition", "Acquisition", "#DE8F05"),
           ("maintain", "Maintain", "#0173B2"),
@@ -86,7 +72,7 @@ def main():
     d = np.load(ROLL / f"traj_{LABEL}.npz")
     eps = pd.read_csv(ROLL / f"episodes_{LABEL}.csv")
     if args.task is None:
-        # the successful episode whose cube travels furthest to its goal
+        # Successful episode with the longest cube-to-goal distance
         ok = eps[eps.success == 1].copy()
         ok["dist"] = [np.linalg.norm(d[f"t{t}_e{e}_goal"][0, :2] - d[f"t{t}_e{e}_init_cube"][0, :2])
                       for t, e in zip(ok.task, ok.episode)]

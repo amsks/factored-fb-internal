@@ -1,29 +1,6 @@
-"""Validate the fixed-features lemma of failure.tex on the five generated bottleneck processes.
+"""Check of the fixed-features lemma on the generated bottleneck processes: gap tables and fig_lemma_check.
 
-The lemma: with the backward features fixed (span U = column space of B), the least-squares fit
-of every successor row is its projection onto U, so the fitted action gap at the decision state is
-    gap_hat(r) = dv^T P_U r / n,   dv = X[i0] - X[i1],  X = n M  (density ratio w.r.t. rho = 1/n),
-and the discarded gap is (dv - P_U dv)^T r / n.  Three tests, all exact population quantities:
-
-  1. Trained features.  Train FB with the didactic TD harness (bootstrapped target, Adam, 50k
-     steps, 5 seeds x 2 learning rates) at ranks 2..9, keep B and F.  Compare the gap FB reads
-     with its trained F, (F[i0] - F[i1]) B^T r / n, to the lemma's projection prediction computed
-     from B alone.  The lemma says they agree whenever F is at its least-squares optimum given B;
-     the residual is the TD fixed point's distance from that optimum.  Closed-form (SVD) fits agree
-     by construction and are the sanity check.
-  2. Reward sweep.  Same trained B; put the unit reward on each state in turn and on random
-     rewards.  The lemma says the kept fraction depends on r only through <dv - P_U dv, r>, so
-     the same features keep the decision for some rewards and lose it for others, with the size
-     given by the formula.
-  3. Constructive.  Append one direction to U, the residual dv - P_U dv, and refit.  The lemma
-     says the discarded gap is then exactly zero at rank d+1 for every reward; we also record what
-     this costs in FB's objective relative to the optimal rank-(d+1) fit.
-
-Run (CPU, ~3 min):
-    JAX_PLATFORMS=cpu python analysis/lemma_check/run.py
-    ... --figures-only        # reuse results.npz
-Outputs: analysis/lemma_check/{results.npz, summary.json, run_log.txt},
-         figures/lemma_check/fig_lemma_check.{pdf,png} (+ per-panel files).
+Run: JAX_PLATFORMS=cpu python analysis/lemma_check/run.py [--figures-only]
 """
 
 import os
@@ -39,7 +16,7 @@ import numpy as np
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(REPO / "analysis" / "toy_ablation"))
-import family as fam                    # noqa: E402  (sets jax x64, imports the harness)
+import family as fam                    # noqa: E402
 
 FIG_DIR = REPO / "figures" / "lemma_check"
 RANKS = list(range(2, 10))
@@ -55,9 +32,7 @@ def log(msg):
     LOG.append(str(msg))
 
 
-# ----------------------------------------------------------------------------
-# pure linear algebra of the lemma
-# ----------------------------------------------------------------------------
+# Pure linear algebra of the lemma
 def projector(B):
     """Orthogonal projection onto the column space of B (n x d)."""
     Q, _ = np.linalg.qr(B)
@@ -65,7 +40,7 @@ def projector(B):
 
 
 def ratio_matrix(mdp):
-    """X = n M: the density ratio of the successor measure w.r.t. rho = 1/n (what FB fits)."""
+    """Density ratio X = n M of the successor measure w.r.t. uniform rho."""
     return mdp["n"] * mdp["m_exact"]
 
 
@@ -80,7 +55,7 @@ def true_gap(mdp, r):
 
 
 def lemma_gap(mdp, B, r):
-    """The lemma's fitted gap from the features alone: dv^T P_U r / n."""
+    """Fitted gap predicted from the features alone: dv^T P_U r / n."""
     X = ratio_matrix(mdp)
     i0, i1 = decision_rows(mdp)
     return float((X[i0] - X[i1]) @ projector(B) @ r / mdp["n"])
@@ -94,13 +69,13 @@ def discarded_gap(mdp, B, r):
 
 
 def trained_gap(mdp, F, B, r):
-    """The gap FB reads with its own F: (F[i0] - F[i1]) B^T r / n, i.e. F z with z = B^T rho r."""
+    """Gap FB reads with its own F: (F[i0] - F[i1]) B^T r / n."""
     i0, i1 = decision_rows(mdp)
     return float((F[i0] - F[i1]) @ B.T @ r / mdp["n"])
 
 
 def augmented_features(mdp, B):
-    """Append the residual of the decision row difference outside span(B)."""
+    """Append the part of the decision-row difference outside span(B)."""
     X = ratio_matrix(mdp)
     i0, i1 = decision_rows(mdp)
     dv = X[i0] - X[i1]
@@ -111,15 +86,13 @@ def augmented_features(mdp, B):
 
 
 def objective(mdp, B):
-    """FB's population squared objective at the least-squares F given B: mean_i (1/n)||X_i - X_i P||^2."""
+    """FB's squared objective at the least-squares F given B."""
     X = ratio_matrix(mdp)
     R = X - X @ projector(B)
     return float(np.mean(np.sum(R ** 2, axis=1)) / mdp["n"])
 
 
-# ----------------------------------------------------------------------------
-# experiment
-# ----------------------------------------------------------------------------
+# Experiment
 def load_processes():
     stored = json.load(open(REPO / "analysis" / "toy_ablation" / "family_mdps.json"))["processes"]
     mdps = []
@@ -131,16 +104,16 @@ def load_processes():
 
 
 def run(mdps):
-    rows = []                     # test 1 + closed-form sanity
+    rows = []                     # test 1
     reward_rows = []              # test 2
-    construct_rows = []           # test 3 (closed-form B at every rank)
+    construct_rows = []           # test 3
     t0 = time.monotonic()
     for mdp in mdps:
         X = ratio_matrix(mdp)
         r_goal = mdp["r"]
         n = mdp["n"]
         for d in RANKS:
-            # closed form: SVD B, sanity of the identity
+            # Closed-form SVD fit
             Fs, Bs = fam.svd_fit(X, d)
             g_svd = trained_gap(mdp, Fs, Bs, r_goal)
             g_lem = lemma_gap(mdp, Bs, r_goal)
@@ -148,7 +121,7 @@ def run(mdps):
             assert abs(g_lem + discarded_gap(mdp, Bs, r_goal) - mdp["gap"]) < 1e-9
             rows.append(dict(mdp=mdp["seed"], d=d, kind="closed", seed=-1, lr=0.0,
                              lemma=g_lem / mdp["gap"], read=g_svd / mdp["gap"]))
-            # constructive on the closed-form B
+            # Append residual to the closed-form B
             Ba = augmented_features(mdp, Bs)
             g_aug = lemma_gap(mdp, Ba, r_goal)
             assert abs(g_aug - mdp["gap"]) < 1e-9, (mdp["seed"], d, g_aug, mdp["gap"])
@@ -160,7 +133,7 @@ def run(mdps):
                                        obj_aug=objective(mdp, Ba),
                                        obj_rank_d1=objective(mdp, Bs1),
                                        aug_cols=Ba.shape[1]))
-            # trained
+            # TD-trained FB
             cfg, pred, F, B = fam.train_group(mdp, d, "fb", SEEDS, RATES)
             for i, c in enumerate(cfg):
                 g_read = trained_gap(mdp, F[i], B[i], r_goal)
@@ -168,7 +141,7 @@ def run(mdps):
                 rows.append(dict(mdp=mdp["seed"], d=d, kind="trained", seed=c["seed"], lr=c["lr"],
                                  lemma=g_lem / mdp["gap"], read=g_read / mdp["gap"],
                                  discarded=discarded_gap(mdp, B[i], r_goal) / mdp["gap"]))
-                # constructive on the trained B: refit F by least squares given [B, residual]
+                # Append residual to the trained B
                 Ba = augmented_features(mdp, B[i])
                 assert abs(lemma_gap(mdp, Ba, r_goal) - mdp["gap"]) < 1e-9
                 if d == REWARD_RANK:
@@ -189,9 +162,7 @@ def run(mdps):
     return rows, reward_rows, construct_rows
 
 
-# ----------------------------------------------------------------------------
-# figures
-# ----------------------------------------------------------------------------
+# Figures
 def make_figures(rows, reward_rows, construct_rows):
     import matplotlib
     matplotlib.use("Agg")
@@ -211,7 +182,7 @@ def make_figures(rows, reward_rows, construct_rows):
             fig.savefig(FIG_DIR / f"{stem}.{ext}", dpi=300, bbox_inches="tight")
         log(f"wrote {FIG_DIR / stem}.pdf / .png")
 
-    # (a) projection prediction vs the gap FB reads, trained features
+    # (a) Lemma prediction vs FB's readout
     def panel_a(ax):
         tr = [x for x in rows if x["kind"] == "trained"]
         for d in RANKS:
@@ -234,7 +205,7 @@ def make_figures(rows, reward_rows, construct_rows):
         ax.legend(handles=handles, fontsize=6.4, frameon=False, loc="upper left", ncol=2,
                   handlelength=1.0, columnspacing=0.8, labelspacing=0.3)
 
-    # (b) reward sweep at rank 3: predicted vs read, unit rewards and random rewards
+    # (b) Reward sweep at fixed rank
     def panel_b(ax):
         units = [x for x in reward_rows if x["kind"] == "unit"]
         rands = [x for x in reward_rows if x["kind"] == "random"]
@@ -255,11 +226,11 @@ def make_figures(rows, reward_rows, construct_rows):
         ax.set_title(f"(b) one feature set, many rewards (rank {REWARD_RANK})", loc="left", fontsize=8.5)
         ax.legend(fontsize=6.0, frameon=False, loc="upper left", handlelength=1.0, labelspacing=0.3)
 
-    # (c) constructive: closed-form rank d vs rank d + residual direction; objective cost
+    # (c) Rank d vs rank d plus residual, and objective cost
     def panel_c(ax):
         ds = RANKS
         def rel_cost(d):
-            # relative excess of the augmented fit over the optimal rank-(d+1) fit; 0 when both are exact
+            # Excess objective over the optimal rank-(d+1) fit
             vals = [x["obj_aug"] / x["obj_rank_d1"] - 1.0 if x["obj_rank_d1"] > 1e-12 else 0.0
                     for x in construct_rows if x["d"] == d]
             return float(np.mean(vals))
@@ -296,9 +267,7 @@ def make_figures(rows, reward_rows, construct_rows):
         save(fig, f"fig_lemma_check_{name}"); plt.close(fig)
 
 
-# ----------------------------------------------------------------------------
-# summary
-# ----------------------------------------------------------------------------
+# Summary
 def summarize(rows, reward_rows, construct_rows):
     out = {}
     tr = [x for x in rows if x["kind"] == "trained"]

@@ -1,50 +1,6 @@
-"""
-Rare-bottleneck experiment on the paper's nine-state bottleneck MDP
-(scripts/didactic/graph_bottleneck_td.py, leak 0, gamma 0.8, uniform continuation
-policy).  Companion of analysis/toy_ablation/run.py, whose arms A / C / D it reuses.
+"""Rare-bottleneck experiment: action-gap recovery of FB, softmax and Density-FB fits as the decision state's rows get rare.
 
-Claim under test: the decision at state 7 (action 0 enters the goal, action 1 goes
-back into the group) is locally consequential but globally rare.  We make it rare in
-two ways and ask, for every rank d, whether each fit keeps the exact action gap at 7.
-
-  (a) row reweighting     the two state-7 rows carry total weight w in the fitting
-                          objective, the other 16 rows share 1-w uniformly;
-                          w in {1/2, 1/4, 1/8, 1/9 (= uniform), 1/16, ..., 1/128, 0}.
-                          w = 0 is the limit: B chosen by the ordinary rows alone,
-                          the state-7 rows fitted afterwards given that B.
-  (b) structural rarity   N extra ordinary states, N/4 copies of group A (states
-                          0-3) each exiting into the cut state 4, uniform row weights;
-                          N in {0, 4, 8, 16, 32, 64}.  The original nine states cannot
-                          reach the copies, so the state-7 rows of M and the exact
-                          gap are unchanged (checked numerically).
-
-Arms (same rank d, same fixed policy, exact successor matrix):
-  A  FB          F B^T fits the ratio n M with the w-weighted squared error
-                 (1/n) sum_i w_i sum_j (F_i.B_j - n M_ij)^2 = FB's population loss;
-                 exact minimizer = weighted truncated SVD; value read as F z with
-                 z = (1/n) B^T r, i.e. Q = M_hat r.
-  A+ FB, gap-preserving   the same objective minimized over rank-d fits whose B-span
-                 contains the state-7 row difference (one direction spent on it, the
-                 remaining d-1 chosen optimally); its gap is exact by construction;
-                 the objective difference to A is the price of keeping the gap.
-  C  softmax + squared error   p_i = softmax(F_i B^T) fitted to (1-gamma) M with
-                 sum_i w_i 0.5 sum_j (p_ij - t_ij)^2; value = p r / (1-gamma).
-  D  Density-FB  same model, w-weighted cross-entropy; same integration readout.
-C and D: Adam on the population objective (5 seeds), then, with B frozen, every row
-of F re-optimized on its own row loss (rows decouple given B, so the row weights
-play no part in that step; this removes the small-gradient problem of rows with
-weight w -> 0 and is exactly what the w = 0 limit needs).
-Trained: the didactic TD harness (bootstrapped target network, Adam, 50k steps,
-tau 0.005, lr {0.001, 0.01}) with the per-row TD losses weighted by w_i; A, C, D
-at d = 3, 5 seeds, both constructions.
-
-Run (CPU, ~15 min):
-    JAX_PLATFORMS=cpu python analysis/rare_bottleneck/run.py
-    ... --figures-only         (rebuild figure + tables from the CSVs)
-    ... --closed-only          (redo the closed-form sweep, reuse trained.csv)
-    ... --smoke                (short fits, for a quick check)
-Outputs: analysis/rare_bottleneck/{closed.csv,trained.csv,exact.json,run_log.txt},
-         figures/rare_bottleneck/fig_rare_bottleneck.{pdf,png} (+ ranks file).
+Run: JAX_PLATFORMS=cpu python analysis/rare_bottleneck/run.py [--figures-only | --closed-only | --smoke]
 """
 
 import os
@@ -65,7 +21,7 @@ import optax
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(REPO / "scripts" / "didactic"))
-import bottleneck_family_td as bf      # noqa: E402  (sets jax x64)
+import bottleneck_family_td as bf      # noqa: E402
 import graph_bottleneck_td as gb       # noqa: E402
 
 FIG_DIR = REPO / "figures" / "rare_bottleneck"
@@ -78,12 +34,10 @@ def log(msg):
     LOG_LINES.append(str(msg))
 
 
-# ----------------------------------------------------------------------------
-# 1. MDPs.
-# ----------------------------------------------------------------------------
+# MDPs
 GAMMA = 0.8
 GOAL, DECISION, CUT = gb.GOAL, gb.DECISION, gb.CUT
-ROW0, ROW1 = 2 * DECISION, 2 * DECISION + 1          # the two bottleneck rows (state 7)
+ROW0, ROW1 = 2 * DECISION, 2 * DECISION + 1          # the two decision-state rows
 RANKS = [2, 3, 4, 6]
 SEEDS = [0, 1, 2, 3, 4]
 W_SWEEP = [1 / 2, 1 / 4, 1 / 8, 1 / 9, 1 / 16, 1 / 32, 1 / 64, 1 / 128, 0.0]
@@ -94,8 +48,7 @@ if SMOKE:
 
 
 def build_mdp(N):
-    """The nine didactic states (indices kept) plus N/4 copies of group A's four-state
-    pattern, each copy exiting into the cut state 4 exactly as group A does."""
+    """Nine-state process plus N/4 copies of group A, each exiting into state 4."""
     assert N % 4 == 0
     edges = gb.EDGES.tolist()
     for k in range(N // 4):
@@ -114,7 +67,7 @@ def build_mdp(N):
 
 
 def _rows(mdp):
-    """The two bottleneck rows: the state-7 rows unless the process names its own ("rows")."""
+    """The two decision-state rows."""
     return tuple(int(x) for x in mdp.get("rows", (ROW0, ROW1)))
 
 
@@ -134,9 +87,7 @@ def ordinary_rows(mdp):
     return np.array([i for i in range(2 * mdp["n"]) if i not in _rows(mdp)])
 
 
-# ----------------------------------------------------------------------------
-# 2. Metrics.
-# ----------------------------------------------------------------------------
+# Metrics
 def gap_stats(mdp, Q):
     ROW0, ROW1 = _rows(mdp)
     gap = float(Q[ROW0] - Q[ROW1])
@@ -145,8 +96,7 @@ def gap_stats(mdp, Q):
 
 
 def retained(mdp, P_hat, wts=None):
-    """1 - ||P_hat - T||^2 / ||T||^2 on the normalized-measure scale; weighted variant
-    uses the row weights on both numerator and denominator."""
+    """1 - ||P_hat - T||^2 / ||T||^2, optionally row-weighted."""
     T = mdp["T"]
     if wts is None:
         return float(1.0 - np.sum((P_hat - T) ** 2) / np.sum(T ** 2))
@@ -158,11 +108,9 @@ def share(wts, row_loss, rows):
     return float(np.sum(wts[rows] * row_loss[rows]) / tot) if tot > 0 else float("nan")
 
 
-# ----------------------------------------------------------------------------
-# 3. Arm A: weighted squared error, closed form.
-# ----------------------------------------------------------------------------
+# Arm A: FB, closed form
 def fb_objective_rows(mdp, fit):
-    """Per-row FB population loss: (1/n) sum_j (fit_ij - n M_ij)^2 (E_rho over j)."""
+    """Per-row FB loss: (1/n) sum_j (fit_ij - n M_ij)^2."""
     return np.sum((fit - mdp["X"]) ** 2, axis=1) / mdp["n"]
 
 
@@ -182,7 +130,7 @@ def fb_weighted(mdp, wts, d):
 
 
 def fb_constrained(mdp, wts, d):
-    """Same objective, B-span forced to contain the state-7 row difference."""
+    """Same objective, span of B forced to contain the decision-row difference."""
     X = mdp["X"]
     ROW0, ROW1 = _rows(mdp)
     dv = X[ROW0] - X[ROW1]
@@ -200,8 +148,7 @@ def fb_constrained(mdp, wts, d):
 
 
 def fb_limit(mdp, d):
-    """w -> 0 limit: P_d^0 = projection onto the top-d right singular directions of the
-    ordinary rows (uniform weight); predicted gap = (X_0 - X_1) P_d^0 r / n."""
+    """Limit w -> 0: project onto the top-d right singular directions of the other rows."""
     O = ordinary_rows(mdp)
     X = mdp["X"]
     G = X[O].T @ X[O]
@@ -220,7 +167,7 @@ def fb_limit(mdp, d):
 def run_arm_A(mdp, wts, d, construction, w):
     X, n, r = mdp["X"], mdp["n"], mdp["r"]
     F, B, fit, s = fb_weighted(mdp, wts, d)
-    Q = fit @ r / n                                   # = F z, z = (1/n) B^T r
+    Q = fit @ r / n                                   # F z with z = (1/n) B^T r
     rl = fb_objective_rows(mdp, fit)
     P_hat = (1 - GAMMA) * fit / n
     Fc, Bc, fitc = fb_constrained(mdp, wts, d)
@@ -248,10 +195,8 @@ def run_arm_A(mdp, wts, d, construction, w):
     return rows
 
 
-# ----------------------------------------------------------------------------
-# 4. Arms C and D: softmax model, weighted objective, Adam + per-row polish.
-# ----------------------------------------------------------------------------
-CLOSED_STEPS = 300 if SMOKE else 50000      # 10k left the N=64, d=3 cross-entropy fit at a higher objective with the gap lost
+# Arms C and D: softmax fits
+CLOSED_STEPS = 300 if SMOKE else 50000
 POLISH_STEPS = 200 if SMOKE else 10000
 CLOSED_LR = 1e-2
 
@@ -334,9 +279,7 @@ def run_arms_CD(mdp, wts, d, construction, w):
     return rows
 
 
-# ----------------------------------------------------------------------------
-# 5. Trained TD harness with weighted rows.
-# ----------------------------------------------------------------------------
+# Trained TD harness with weighted rows
 TRAIN_STEPS = 500 if SMOKE else 50000
 TRAIN_TAU = 0.005
 TRAIN_RATES = [0.001, 0.01]
@@ -346,7 +289,7 @@ TRAIN_RANK = 3
 
 
 def td_loss(params, target, kernel, pi, gamma, method, wts):
-    """bottleneck_family_td.loss_fn with the mean over rows replaced by sum_i w_i (.)."""
+    """TD loss with the mean over rows replaced by a w-weighted sum."""
     n = kernel.shape[1]
     p = bf.predict(params, method, False)
     tp = jax.lax.stop_gradient(bf.predict(target, method, False)).reshape(n, 2, n)
@@ -414,9 +357,7 @@ def run_trained(mdp, wts, construction, w, d=TRAIN_RANK):
     return rows
 
 
-# ----------------------------------------------------------------------------
-# 6. Sweeps.
-# ----------------------------------------------------------------------------
+# Sweeps
 def sweep_closed():
     rows = []
     t0 = time.time()
@@ -496,7 +437,7 @@ def run_sanity():
         facts["limits"][d] = dict(limit_gap_ratio=lim, diff_in_span=in_span, spectral_gap_rel=sg)
         log(f"d={d}: w->0 limit of A's gap fraction d^T P_d^0 r / d^T r = {lim:.4f}; "
             f"fraction of ||d||^2 inside span(P_d^0) = {in_span:.4f}; (lam_d - lam_d+1)/lam_1 = {sg:.4f}")
-    # the weighted SVD at w = 0 must agree with the limit formula, and A+ must keep the gap exactly
+    # Weighted SVD at w = 0 matches the limit; A+ keeps the gap exactly
     for d in RANKS:
         wts0 = row_weights(base, 0.0)
         a = run_arm_A(base, wts0, d, "check", 0.0)
@@ -513,9 +454,7 @@ def run_sanity():
     return facts
 
 
-# ----------------------------------------------------------------------------
-# 7. Aggregation, figure, tables.
-# ----------------------------------------------------------------------------
+# Aggregation, figure, tables
 def t_interval(values, confidence=0.95):
     values = np.asarray(values, dtype=float); n = len(values); m = float(values.mean())
     if n < 2:
@@ -556,7 +495,7 @@ ARM_LABEL = {"A": "A  FB (squared error)", "C": "C  softmax + squared error",
              "D": "D  Density-FB (softmax + cross-entropy)"}
 EXACT_COLOR = "#0173B2"
 INK = "#2a2a2a"
-W_POS = {0.0: 1 / 1024}            # where the w = 0 limit point is drawn on the log axis
+W_POS = {0.0: 1 / 1024}            # x-position of the w = 0 point on the log axis
 
 
 def xpos(w):
@@ -586,7 +525,7 @@ def _w_axis(ax, w_sweep=None, uniform=1 / 9):
 
 def draw_panel_gap(ax, closed, trained, d=3, arms=("A", "C", "D"), construction="reweight",
                    w_sweep=None, uniform=1 / 9):
-    """`w_sweep` / `uniform` default to the module's sweep and its uniform weight 1/9."""
+    """Gap fraction vs row weight at rank d."""
     W_SWEEP = globals()["W_SWEEP"] if w_sweep is None else list(w_sweep)
     ax.axhline(1.0, color=EXACT_COLOR, linestyle="--", linewidth=1.0, zorder=1)
     ax.axhline(0.0, color="#cfcfcf", linewidth=0.7, zorder=1)
@@ -708,9 +647,7 @@ def make_figures(closed, trained):
     fig.tight_layout(pad=0.3, w_pad=1.2)
     save(fig, "fig_rare_bottleneck"); plt.close(fig)
 
-    # single-panel version for the main text: the lemma's two halves in one plot -- the
-    # bottleneck rows' share of the squared objective vanishes (dotted, right axis) while
-    # FB's reconstructed action gap vanishes with it and the exact gap stays fixed.
+    # Main-text panel: decision rows' share of the objective (right axis) and FB's gap
     fig, ax = plt.subplots(figsize=(3.4, 2.3))
     draw_panel_gap(ax, closed, trained, d=d)
     ax.set_ylim(-0.25, 1.15)
@@ -733,7 +670,7 @@ def make_figures(closed, trained):
     fig.tight_layout(pad=0.3)
     save(fig, "fig_rare_bottleneck_lemma"); plt.close(fig)
 
-    # supplement: gap fraction vs w at every rank (row 1) and vs N (row 2)
+    # Supplement: gap fraction vs w (row 1) and vs N (row 2) at every rank
     fig, axes = plt.subplots(2, len(RANKS), figsize=(5.5, 3.6), sharey=True)
     axes = np.atleast_2d(axes)
     if axes.shape[0] == 1:

@@ -14,7 +14,7 @@ def test_load_fb_flowbc_matches_legacy_values():
 
 def test_load_density_fb_has_lr_and_dataset_keys():
     cfg = load_config("density_fb", "flowbc", "cube_single")
-    assert cfg["lr"] == pytest.approx(3e-4)          # the key _LR_KEY needs
+    assert cfg["lr"] == pytest.approx(3e-4)          # key read by _LR_KEY
     assert cfg["dataset_class"] == "GCDataset"
     assert cfg["value_p_trajgoal"] == pytest.approx(0.5)
     assert cfg["actor"]["flow_steps"] == 10
@@ -39,11 +39,10 @@ def test_returns_plain_dict_not_dictconfig():
     assert type(cfg["actor"]) is dict
 
 
-# REQUIRED_KEYS must cover what Agent.create / make_dataset read off the config, so a
-# missing key surfaces here as a named ConfigError rather than a bare KeyError inside them.
+# REQUIRED_KEYS covers what Agent.create and make_dataset read.
 
 def test_fb_agent_create_key_error_reproduction():
-    """`~L_dim` must fail at load_config time, not as a bare KeyError inside FBCritic.build()."""
+    """Removing L_dim fails in load_config, not inside FBCritic.build()."""
     with pytest.raises(ConfigError) as e:
         load_config("fb", "flowbc", "cube_single", overrides=["~L_dim"])
     assert "L_dim" in str(e.value)
@@ -66,18 +65,16 @@ def test_rldp_required_key_missing_raises_named_error(key):
 # `~key` overrides must remove the key, not leave it present with value None.
 
 def test_top_level_delete_override_removes_key():
-    # A synthetic top-level key introduced by a `set` override, unrelated to REQUIRED_KEYS,
-    # isolates the delete mechanism itself from the required-key gate exercised above (and
-    # from any particular domain yaml's contents).
+    # A synthetic key, unrelated to REQUIRED_KEYS.
     cfg = load_config("fb", "flowbc", "cube_single",
                       overrides=["scratch_probe=1", "~scratch_probe"])
     assert "scratch_probe" not in cfg
-    # sibling top-level keys must survive the delete.
+    # Sibling top-level keys survive.
     assert "env_name" in cfg
 
 
 def test_nested_delete_override_removes_key():
     cfg = load_config("fb", "ddpgbc", "cube_single", overrides=["~actor.q_noise_std"])
     assert "q_noise_std" not in cfg["actor"]
-    # sibling keys in the same nested dict must survive the delete.
+    # Sibling nested keys survive.
     assert "hidden_dims" in cfg["actor"]

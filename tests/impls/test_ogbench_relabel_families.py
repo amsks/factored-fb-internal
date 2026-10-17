@@ -1,15 +1,6 @@
-"""Reward-inference (relabel) eval for scene, and the family dispatch in env/ogbench.py.
+"""Scene reward relabelling and the per-family dispatch in env/ogbench.py.
 
-The scene reward follows TD-JEPA's per-env reward function. Its "physics" row is the npz
-`qpos` concatenated with `button_states`, which is why the buttons are read at
-`physics[-2:]`; `env/ogbench.py` rebuilds that row the same way.
-
-Pinned here:
-  1. The scene reward against hand-computed synthetic physics rows, and the shift semantics
-     (satisfied - k + 1; not a 0/1 indicator for scene).
-  2. `OGBenchAdapter.relabel_infer_batch` dispatches on the task_info's goal key, reads the
-     NEXT row's physics, and stays byte-identical for cube.
-  3. Integration on the real datasets (skipped when ~/.ogbench/data lacks them).
+The scene physics row is qpos concatenated with button_states, so buttons are physics[-2:].
 """
 import os
 import types
@@ -33,12 +24,9 @@ def _dataset_present(name):
     return os.path.exists(os.path.join(DATA_DIR, f"{name}.npz"))
 
 
-# ======================================================================================
-# 1. Scene reward, hand computed.
-# ======================================================================================
+# Scene reward
 def _scene_goal(cube=(0.35, 0.05, 0.02), buttons=(1, 1), drawer=-0.16, window=0.2):
-    # Same key order as ogbench's scene task_infos[...]['goal'] (scene_env.py), which
-    # `.values()` flattens in.
+    # Key order of ogbench scene task_infos[...]['goal'].
     return dict(block_xyzs=np.array([list(cube)]), button_states=np.array(buttons),
                 drawer_pos=float(drawer), window_pos=float(window))
 
@@ -70,7 +58,7 @@ def test_scene_reward_hand_computed():
 
 
 def test_scene_thresholds_are_inclusive():
-    """The scene reward uses <= for cube, drawer and window (the cube reward uses <)."""
+    """The scene reward uses <= for cube, drawer and window."""
     goal = _scene_goal(cube=(0.0, 0.0, 0.0), drawer=0.0, window=0.0)
     rows = np.stack([
         _scene_physics([0.04, 0.0, 0.0], [1, 1], 0.0, 0.0),     # cube exactly at 0.04 -> ok
@@ -98,9 +86,7 @@ def test_scene_reward_rejects_a_goal_dict_in_the_wrong_order():
         scene_relabel_reward(np.zeros((1, 27)), bad)
 
 
-# ======================================================================================
-# 2. Dispatch on the task_info's goal key.
-# ======================================================================================
+# Dispatch on the task_info goal key
 def test_dispatch_picks_the_family_from_the_task_info():
     scn = relabel_reward_for_task({"goal": _scene_goal()},
                                   np.stack([_scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.2)]))
@@ -117,9 +103,7 @@ def test_dispatch_rejects_an_unknown_task_info():
         relabel_reward_for_task({"goal_foo": np.zeros(2)}, np.zeros((1, 5)))
 
 
-# ======================================================================================
-# 3. relabel_infer_batch on synthetic datasets per family: NEXT-row physics, shift, shapes.
-# ======================================================================================
+# relabel_infer_batch on synthetic datasets
 def _fake_env(task_infos):
     return types.SimpleNamespace(unwrapped=types.SimpleNamespace(task_infos=task_infos))
 
@@ -160,8 +144,7 @@ def test_scene_batch_requires_button_states():
 
 
 def test_cube_batch_is_unchanged_by_the_dispatch():
-    """Cube must stay byte-identical: same rows, same rewards as cube_relabel_reward on the
-    next row's qpos, and a stray button_states column must NOT be consulted."""
+    """Cube relabelling is unchanged by the dispatch and ignores button_states."""
     n = 6
     qpos = np.random.default_rng(1).uniform(-0.5, 0.5, size=(n, 21))
     goal = np.array([[0.1, 0.2, 0.3]])
@@ -185,15 +168,13 @@ def test_shift_is_applied_verbatim():
     np.testing.assert_allclose(r5, [0.5, -0.5])
 
 
-# ======================================================================================
-# 4. Integration on the real datasets. Skipped when ~/.ogbench/data lacks them.
-# ======================================================================================
+# Real datasets; skipped when absent
 # (env_name, number of conditions k -> unshifted reward in [-k, 0])
 REAL_ENVS = [("scene-play-v0", 5), ("cube-single-play-v0", 1), ("cube-double-play-v0", 2)]
 
 
 def _positive_counts(adapter, train_ds, env, num_samples, shift):
-    """Per-task count of relabelled rows at the shifted-maximum (every condition satisfied)."""
+    """Per-task count of relabelled rows with every condition satisfied."""
     out = {}
     for tid in range(1, len(env.unwrapped.task_infos) + 1):
         _, r = adapter.relabel_infer_batch(train_ds, env, tid, num_samples, shift_reward=shift)

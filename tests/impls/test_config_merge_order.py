@@ -1,6 +1,4 @@
-"""Pin the config merge order: load_config merges (domain, critic, actor) with the actor
-winning ties, so lr_actor is owned by the actor yaml for every pair and swapping the critic
-never changes the actor's learning rate."""
+"""load_config merges (domain, critic, actor) with the actor winning ties."""
 import pytest
 from omegaconf import OmegaConf
 
@@ -22,7 +20,7 @@ def test_actor_yaml_owns_lr_actor(critic, actor):
 
 
 def test_critic_lr_does_not_leak_into_actor_lr():
-    """fb.yaml sets lr_f/lr_b; density_fb.yaml sets lr. Neither may be mistaken for the other."""
+    """The critic's learning rate does not set the actor's."""
     fb = load_config("fb", "flowbc", "cube_single")
     dfb = load_config("density_fb", "flowbc", "cube_single")
     assert fb["lr_f"] == pytest.approx(1.0e-4)

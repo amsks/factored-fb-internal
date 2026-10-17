@@ -10,7 +10,7 @@ def test_soft_update_matches_polyak():
 
 
 def test_per_group_trainstate_isolates_optimizer_state():
-    # Two independent groups; stepping group A must not move group B's Adam state.
+    # Stepping group A leaves group B's Adam state unchanged.
     a = nn.Dense(3); b = nn.Dense(3)
     pa = a.init(jax.random.PRNGKey(0), jnp.ones((1, 4)))["params"]
     pb = b.init(jax.random.PRNGKey(1), jnp.ones((1, 4)))["params"]
@@ -19,7 +19,7 @@ def test_per_group_trainstate_isolates_optimizer_state():
     grads = jax.tree_util.tree_map(jnp.ones_like, pa)
     ta2 = ta.apply_gradients(grads=grads)
     assert ta2.step == 2 and tb.step == 1
-    # group B params + opt_state untouched
+    # group B params and opt_state unchanged
     assert jax.tree_util.tree_all(jax.tree_util.tree_map(lambda x, y: bool((x == y).all()), tb.params, pb))
 
 

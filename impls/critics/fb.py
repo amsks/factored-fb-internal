@@ -1,15 +1,6 @@
-"""FBCritic — Forward-Backward successor-measure critic (Touati & Ollivier).
+"""Forward-backward successor-measure critic (Touati & Ollivier).
 
-The critic learns F(s, a, z) and B(s') so that F(s, a, z)^T B(s') is the successor measure
-of the policy pi_z: the discounted density of reaching s' from (s, a). It regresses
-M = F^T B onto the TD target  1{s' = next state} + gamma * F_target(s', a', z)^T B_target,
-with a' drawn from the actor at s'. The indicator term is the diagonal of the batch matrix,
-the bootstrapped term its off-diagonal (the contrastive FB loss). An orthonormality term
-keeps Cov(B) near the identity.
-
-The Q-value of a reward r under z is Q(s, a, z) = F(s, a, z)^T z, and the actor maximises
-it. For a reward given as samples (s_i, r_i), z = sum_i r_i B(s_i) (then normalised); for a
-goal g, z = B(g). Training z mixes Gaussian directions with B at batch next-states.
+M(s, a, s'; z) = F(s, a, z)^T B(s'); the actor maximises Q(s, a, z) = F(s, a, z)^T z.
 """
 import copy
 import dataclasses
@@ -38,8 +29,7 @@ class FBCritic:
 
     GROUPS = ("forward", "backward", "left_encoder")
     STAGES = ("fb",)
-    PROVIDES_COND = frozenset({"z"})  # sample_cond() produces {"z": ...}
-    # B is trained on next states, so z is inferred from rewards on next states.
+    PROVIDES_COND = frozenset({"z"})
     INFER_COND_MARGINAL = "next_observations"
 
     @property
@@ -54,7 +44,7 @@ class FBCritic:
         return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
 
     def map_eval_cond(self, net, cond, observations=None):
-        """Goal-conditioned evaluation: z = B(goal), normalised like the training z."""
+        """Map an evaluation goal to z = B(goal)."""
         if "goal" not in cond:
             return cond
         z = project_z(self._B(net["backward"].params, cond["goal"]), self.norm_z)
@@ -83,7 +73,7 @@ class FBCritic:
         off = 1.0 - jnp.eye(B)
         off_sum = off.sum()
 
-        # TD target: target networks at (s', a'), averaged over the F heads.
+        # TD target
         nle = self._le(target["left_encoder"], next_obs)
         tFs = self._F(target["forward"], nle, z, next_action)
         tB = self._B(target["backward"], goal)
@@ -94,8 +84,6 @@ class FBCritic:
         Bm = self._B(params["backward"], goal)
         M = jnp.einsum("pbz,cz->pbc", Fs, Bm)
         diff = M - disc * target_M
-        # Off-diagonal: squared TD error on the bootstrapped part. Diagonal: the indicator
-        # reward of reaching the sampled next state.
         fb_off = 0.5 * jnp.sum((diff * off) ** 2) / off_sum
         fb_diag = -jnp.mean(jnp.diagonal(diff, axis1=1, axis2=2)) * P
         cov = Bm @ Bm.T
@@ -119,8 +107,7 @@ class FBCritic:
         return cond["z"]
 
     def sample_cond(self, net, batch, rng):
-        """Training z: a train_goal_ratio fraction are B(s') at shuffled batch next-states,
-        the rest random directions on the sphere."""
+        """Mix B(s') at shuffled next states with random sphere directions."""
         next_obs = batch["next_observations"]
         B = next_obs.shape[0]
         r_z, r_mask, r_perm = jax.random.split(rng, 3)
@@ -134,7 +121,7 @@ class FBCritic:
         return {"z": z}
 
     def infer_cond(self, net, obs, rewards):
-        """z = sum_i r_i B(s_i), normalised (the 1/N is irrelevant under normalisation)."""
+        """z = sum_i r_i B(s_i), normalised."""
         Bm = self._B(net["backward"].params, obs)
         z = (rewards.reshape(1, -1) @ Bm).reshape(-1)
         return {"z": project_z(z, self.norm_z)}
@@ -148,7 +135,6 @@ class FBCritic:
                              embedding_layers=config["forward"]["embedding_layers"])
         backward = PhiMap(z_dim=z_dim, hidden_dim=config["backward"]["hidden_dim"],
                           hidden_layers=config["backward"]["hidden_layers"], norm=config["backward"]["norm"])
-        # F reads a learned embedding of the observation, not the raw observation.
         left_encoder = PhiMap(z_dim=L_dim, hidden_dim=config["left_encoder"]["hidden_dim"],
                               hidden_layers=config["left_encoder"]["hidden_layers"],
                               norm=config["left_encoder"]["norm"])

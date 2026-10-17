@@ -29,10 +29,7 @@ def test_csv_logger_roundtrip(tmp_path):
 
 
 def test_csv_logger_reopen_appends_instead_of_truncating(tmp_path):
-    """Simulates --restore_path into the same --save_dir: a second CsvLogger opened on the
-    same path (a fresh process would do this) must append, not truncate. Pre-resume rows
-    must survive, post-resume rows must be added, and the file must still have exactly one
-    header line."""
+    """Reopening a CsvLogger on an existing file appends rows under one header."""
     p = tmp_path / "log.csv"
 
     lg1 = CsvLogger(str(p))
@@ -54,10 +51,7 @@ def test_csv_logger_reopen_appends_instead_of_truncating(tmp_path):
 
 
 def test_csv_logger_warns_when_it_drops_a_column(tmp_path):
-    """The header is frozen on the first row (or inherited from an existing file), so a
-    later row's extra keys are dropped. That must not be SILENT: two arms sharing one
-    --save_dir is exactly how the `inferred_cond_*` witness columns -- the only evidence in
-    eval.csv that a run rolled a reward-inferred index -- disappear."""
+    """CsvLogger warns when it drops a column not in the frozen header."""
     p = tmp_path / "eval.csv"
 
     lg1 = CsvLogger(str(p))

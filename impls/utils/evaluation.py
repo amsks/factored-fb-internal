@@ -1,7 +1,4 @@
-"""Evaluation loop, ported from OGBench upstream impls/utils/evaluation.py.
-
-The agent's sample_actions absorbs the `goals` kwarg (FB conditions on cond_eval, an
-inferred task latent, not a per-episode goal)."""
+"""Evaluation loop."""
 from collections import defaultdict
 
 import jax
@@ -38,9 +35,7 @@ def evaluate(agent, env, task_id=None, config=None, num_eval_episodes=50,
              eval_temperature=0, eval_gaussian=None, any_step_success=False):
     """Evaluate the agent in the environment. Returns (stats, trajs).
 
-    `any_step_success` scores an episode as a success if ANY step reaches the goal, not only
-    the final step (the reward-inference eval's accounting). With OGBench's default
-    `terminate_at_goal=True` the two usually coincide.
+    :param any_step_success: Count an episode as a success if any step succeeds.
     """
     config = config or {}
     actor_fn = supply_rng(agent.sample_actions, rng=jax.random.PRNGKey(np.random.randint(0, 2 ** 32)))

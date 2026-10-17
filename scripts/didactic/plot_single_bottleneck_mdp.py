@@ -1,16 +1,4 @@
-"""Section-4 diagram, single-bottleneck version (2026-09-20, user request).
-
-One decision state b whose two actions enter two clusters, A and B, that diverge for a few steps and
-then merge into a shared closed tail T. Everything is measured at b only. Layout from
-analysis/lemma_check/design_single_bottleneck.py::build(entry=4, cluster=2, tail=6, merge=True):
-states 0-3 entry chain, 4 the bottleneck, {5,6} cluster A, {7,8} cluster B, 9-14 the tail.
-Deterministic edges, two actions per state, uniform continuation policy, discount 0.8, uniform
-reference rho = 1/15.
-
-(a) the graph;  (b) m+ = m(b, a+) and m- = m(b, a-) w.r.t. rho and their difference. The two futures
-share the whole tail and differ only on the transient clusters, so Delta m is small in squared mass and
-orthogonal to the leading directions of every other row: FB's rank-d optimum reads 0% of the gap for
-d <= 5 while the softmax fit reads ~100% at d = 2 (design script).
+"""Single-bottleneck MDP diagram and its successor measures at the bottleneck.
 
     JAX_PLATFORMS=cpu python scripts/didactic/plot_single_bottleneck_mdp.py
 """
@@ -34,9 +22,9 @@ OUT = pathlib.Path(os.environ.get("SB_GRAPH_OUT", REPO / "figures" / "didactic")
 INK, GREY, GREEN, ORANGE, BLUE = "#2a2a2a", "#9a9a9a", "#029E73", "#DE8F05", "#0173B2"
 ENTRY, TAIL = (int(sys.argv[1]) if len(sys.argv) > 1 else 2), (int(sys.argv[2]) if len(sys.argv) > 2 else 4)
 CLUSTER = int(sys.argv[3]) if len(sys.argv) > 3 else 2
-PASSTHROUGH = os.environ.get("SB_PASSTHROUGH", "0") == "1"   # A, B step straight into the tail
-TAIL_REWARD = os.environ.get("SB_TAIL_REWARD")               # annotate the tail's reward if set
-MUTUAL = TAIL == 0          # no tail: the two clusters leak into each other instead
+PASSTHROUGH = os.environ.get("SB_PASSTHROUGH", "0") == "1"   # clusters step straight into the tail
+TAIL_REWARD = os.environ.get("SB_TAIL_REWARD")               # tail reward label, optional
+MUTUAL = TAIL == 0          # no tail: clusters leak into each other
 
 
 def layout(b, A, B, T):
@@ -87,7 +75,7 @@ def panel_graph(ax, edges, b, A, B, T):
         ax.text(*pos[s], str(s), ha="center", va="center", fontsize=7.5 * FS, color=txt, zorder=3)
     compact = PASSTHROUGH
     if compact:
-        # compact layout: labels beside their nodes, no extra rows above or below the graph
+        # Labels beside their nodes
         ax.text(pos[b][0], pos[b][1] + 0.3, "bottleneck", color=ORANGE, fontsize=7 * FS, ha="center", va="bottom")
         ax.text(pos[A[0]][0] - 0.27, pos[A[0]][1], "A (reward 1)", color=GREEN, fontsize=7 * FS, ha="right", va="center")
         ax.text(pos[B[0]][0] - 0.27, pos[B[0]][1] - 0.12, "B (reward 0)", color=BLUE, fontsize=7 * FS, ha="right", va="center")
@@ -115,7 +103,7 @@ def panel_graph(ax, edges, b, A, B, T):
 
 
 def panel_rows(ax, t, b, A, B, T):
-    """t = (1-gamma) M: each row is the discounted probability of the next state."""
+    """Plot the normalized successor measure t = (1-gamma) M of both actions at b."""
     n = t.shape[1]; x = np.arange(n); w = 0.38
     ax.bar(x - w / 2, t[2 * b], w, color=GREEN, label="after $a_+$:  $m_+(s^+)$", zorder=2)
     ax.bar(x + w / 2, t[2 * b + 1], w, color=BLUE, label="after $a_-$:  $m_-(s^+)$", zorder=2)

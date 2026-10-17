@@ -1,36 +1,6 @@
-"""Separation preservation: does the critic tell apart the cube FUTURES caused by the best
-and the worst action? (cube-single, FB vs Density-FB; docs/notes/2026-09-19-separation-
-preservation.md)
+"""Separation figure: TV distance between the critic's predicted cube futures after the best and worst action, vs the rollout estimate.
 
-At every restored state s of the failure-figure banks, with the same a+ / a- (true best /
-worst candidate by Monte-Carlo return) the decision-by-phase figure used
-(gap_preservation_per_state.csv), and the same reward-inferred task vector z:
-
-  M_MC(s, a, .)   restore s, force a once, continue with the model's OWN frozen policy for
-                  H = 100 steps, K = 10 rollouts; cube position (obs[19:22], metres) at every
-                  step, weighted gamma^t (normalised) -> the discounted empirical future.
-  M_hat(s, a, .)  the critic's distribution over ONE fixed pool of N = 4096 dataset
-                  next-states (same pool for both methods, both actions, every state).
-                  Density-FB: softmax_j F(s,a,z).B(x_j)/tau averaged over heads (the
-                  distribution its actor readout q_fn ascends; failure_figs.predict_density).
-                  FB: min-over-heads F(s,a,z).B(x_j) (measure_probe.fb_readout), clipped at
-                  0 and normalised over the pool; the clipping rate is recorded.
-  cells           cube positions binned on a 3-D grid of CELL m cubes over the workspace
-                  (main 5 cm; 3 cm and 8 cm for sensitivity); TV between cell histograms.
-  D_true(s) = TV(M_MC(s,a+), M_MC(s,a-))      D_pred(s) = TV(M_hat(s,a+), M_hat(s,a-))
-  R(s) = D_pred / D_true                       states with D_true < 0.05 are excluded
-  fidelity(s, a) = TV(M_hat(s,a), M_MC(s,a))   critic vs reality, sanity number
-  Align(s) = cos(d_hat, d_true)                 d_hat = M_hat(a+) - M_hat(a-) over cells,
-                                               d_true likewise; also on the top-20 |d_true|
-                                               cells; permutation null = shuffled pairing
-
-Stages: `roll` (per seed: rollouts + predictions, cached as npz), `aggregate` (TVs at the
-three grids, per-phase tables, the figure). `--smoke` = 3 carrying states x 2 actions x 2
-rollouts, H = 20, then aggregate that.
-
-    python scripts/probes/cube_bottleneck/separation_preservation.py --smoke
-    python scripts/probes/cube_bottleneck/separation_preservation.py roll --seeds 0
-    python scripts/probes/cube_bottleneck/separation_preservation.py aggregate
+Stages: `roll` (rollouts and predictions per seed) and `aggregate` (tables and figure); --smoke runs a tiny version.
 """
 import os
 
@@ -69,12 +39,11 @@ CELL_MAIN = 0.05
 D_TRUE_MIN = 0.05
 XYZ_SCALER = 10.0
 XYZ_CENTER = np.array([0.425, 0.0, 0.0])
-# workspace: object sampling bounds [0.30,0.55]x[-0.30,0.30] padded; z from below the table
-# top (0.02) to a comfortable carry height
+# Workspace bounds for the cell grid, metres
 BOUNDS = ((0.25, 0.60), (-0.35, 0.35), (-0.05, 0.40))
 
 
-# ── pure helpers (unit-tested) ──────────────────────────────────────────────────────────
+# Helpers
 
 def cube_xyz_from_obs(obs: np.ndarray) -> np.ndarray:
     """Absolute cube position in metres from the state observation (block 0: obs[19:22])."""
@@ -86,8 +55,7 @@ def grid_edges(cell: float, bounds=BOUNDS) -> List[np.ndarray]:
 
 
 def hist3d(pts: np.ndarray, w: Optional[np.ndarray], cell: float, bounds=BOUNDS) -> np.ndarray:
-    """Normalised histogram of 3-D points on `cell`-sized cubes over `bounds`; points outside
-    are clipped to the border cell. Returns the flattened cell vector (sums to 1)."""
+    """Normalised 3-D histogram on `cell`-sized cubes; outside points go to the border cell. Returns a flat vector."""
     edges = grid_edges(cell, bounds)
     p = np.asarray(pts, float).reshape(-1, 3).copy()
     for d in range(3):
@@ -116,18 +84,20 @@ def cosine(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def alignment(d_hat: np.ndarray, d_true: np.ndarray, top: int = TOP_CELLS) -> Dict[str, float]:
-    """Cosine between the critic's and the true difference-of-futures vectors over cells, and
-    the same restricted to the `top` cells of largest |d_true|."""
+    """Cosine of predicted vs true difference-of-futures vectors, over all cells and the top |d_true| cells."""
     idx = np.argsort(-np.abs(d_true), kind="stable")[:top]
     return dict(align=cosine(d_hat, d_true), align_top=cosine(d_hat[idx], d_true[idx]))
 
 
 def separation_row(mc: np.ndarray, pred: np.ndarray, pool_xyz: np.ndarray, gamma: float,
                    cell: float, return_vectors: bool = False):
-    """mc: [2, H, K, 3] cube futures after a+ (0) and a- (1); pred: [2, N] critic weights over
-    the pool; pool_xyz: [N, 3]. Returns D_true, D_pred, R, the two fidelities and the cosine
-    alignment of d_hat = M_hat(a+) - M_hat(a-) with d_true = M_MC(a+) - M_MC(a-) (full and
-    top-|d_true| cells); with `return_vectors` also (d_hat, d_true)."""
+    """Separation stats for one state.
+
+    :param mc: [2, H, K, 3] cube futures after a+ and a-.
+    :param pred: [2, N] critic weights over the pool.
+    :param pool_xyz: [N, 3] pool cube positions.
+    :return: D_true, D_pred, R, fidelities and alignment; plus (d_hat, d_true) if `return_vectors`.
+    """
     H, K = mc.shape[1], mc.shape[2]
     w = np.broadcast_to(discount_weights(gamma, H)[:, None] / K, (H, K))
     h_mc = [hist3d(mc[i], w, cell) for i in range(2)]
@@ -142,9 +112,7 @@ def separation_row(mc: np.ndarray, pred: np.ndarray, pool_xyz: np.ndarray, gamma
 
 
 def align_table(rows: pd.DataFrame, by_seed: bool = False) -> pd.DataFrame:
-    """Per (critic, bank[, seed]): alignment mean +- s.e., median, fraction > 0, n (states with
-    a defined cosine), n_undefined (a zero difference vector on either side); same for the
-    top-cell version."""
+    """Per (critic, bank[, seed]): alignment mean, s.e., median, fraction > 0, and counts."""
     keys = ["critic", "bank"] + (["seed"] if by_seed else [])
     out = []
     for k, g in rows.groupby(keys, sort=False):
@@ -167,10 +135,7 @@ def align_table(rows: pd.DataFrame, by_seed: bool = False) -> pd.DataFrame:
 
 def permutation_null(vectors: Dict[Tuple, Tuple[np.ndarray, np.ndarray]], n_perm: int = 200,
                      seed: int = 0) -> pd.DataFrame:
-    """Null for the mean alignment: within each (critic, bank), shuffle which state's d_true
-    is paired with which state's d_hat (pooled over seeds), recompute the mean cosine, repeat.
-    `vectors`: {(critic, seed, bank, state): (d_hat, d_true)}. Returns per (critic, bank) the
-    null mean and sd of the mean alignment (full and top cells)."""
+    """Permutation null for mean alignment: shuffle d_true/d_hat pairing within each (critic, bank)."""
     rng = np.random.default_rng(seed)
     groups: Dict[Tuple[str, str], List[Tuple[np.ndarray, np.ndarray]]] = {}
     for (c, _s, b, _i), v in vectors.items():
@@ -193,8 +158,7 @@ def permutation_null(vectors: Dict[Tuple, Tuple[np.ndarray, np.ndarray]], n_perm
 
 
 def phase_table(rows: pd.DataFrame, d_true_min: float = D_TRUE_MIN, by_seed: bool = False) -> pd.DataFrame:
-    """Per (critic, bank[, seed]): n kept, n excluded (D_true < d_true_min), mean/median R with
-    the s.e. of the mean, mean D_true / D_pred / fidelity."""
+    """Per (critic, bank[, seed]): counts, mean/median R with s.e., and mean D_true, D_pred, fidelity."""
     keys = ["critic", "bank"] + (["seed"] if by_seed else [])
     out = []
     for k, g in rows.groupby(keys, sort=False):
@@ -216,10 +180,10 @@ def phase_table(rows: pd.DataFrame, d_true_min: float = D_TRUE_MIN, by_seed: boo
     return t.sort_values(keys).reset_index(drop=True)
 
 
-# ── stage roll ──────────────────────────────────────────────────────────────────────────
+# Stage: roll
 
 def build_pool(out_dir: Path, n: int = POOL_N, seed: int = POOL_SEED) -> np.ndarray:
-    """N dataset NEXT-states, fixed by seed; one file, shared by every seed and method."""
+    """Sample N dataset next-states with a fixed seed, shared by all seeds and methods."""
     from scripts.probes.cube_bottleneck import banks as BK
 
     f = out_dir / f"pool{n}.npz"
@@ -235,8 +199,7 @@ def build_pool(out_dir: Path, n: int = POOL_N, seed: int = POOL_SEED) -> np.ndar
 
 
 def roll_futures(cond_agent, envs, rec, acts, K: int, H: int, rng_key) -> np.ndarray:
-    """Each of the len(acts) actions once, then K own-policy continuations for H steps in
-    lockstep. Returns [n_acts, H, K, 3] cube positions (metres) from the observation."""
+    """Apply each action once, then K policy continuations for H steps; returns [n_acts, H, K, 3] cube xyz."""
     from impls.utils.evaluation import supply_rng
     from scripts.probes.cube_bottleneck.failure_figs import restore_full
 
@@ -296,7 +259,7 @@ def stage_roll(seed: int, banks: Sequence[str], out_dir: Path, per_state_csv: Pa
                        qpos=bk[f"{bank}_qpos"][i], qvel=bk[f"{bank}_qvel"][i],
                        grip=float(bk[f"{bank}_grip"][i]), cube=int(bk[f"{bank}_cube"][i]))
             tid = rec["task"]
-            # the SAME candidate set as failure_figs.stage_actionprobe (same rng keys)
+            # Same candidate set as failure_figs.stage_actionprobe
             ob = FF.restore_full(envs[0], rec)
             key = jax.random.PRNGKey(4242 + i * 7 + seed)
             a_fb = np.asarray(conds["fb_tdj"][tid].sample_actions(ob, goals=None, seed=key))
@@ -339,12 +302,11 @@ def stage_roll(seed: int, banks: Sequence[str], out_dir: Path, per_state_csv: Pa
     return out_dir / f"futures_seed{seed}{tag}.npz"
 
 
-# ── stage aggregate ─────────────────────────────────────────────────────────────────────
+# Stage: aggregate
 
 def load_rows(out_dir: Path, tag: Optional[str], cells: Sequence[float] = CELLS,
               vectors: Optional[Dict] = None, vector_cell: float = CELL_MAIN) -> pd.DataFrame:
-    """Per-state rows at every grid; if `vectors` (a dict) is given it is filled with the
-    (d_hat, d_true) cell vectors at `vector_cell` for the permutation null."""
+    """Per-state rows at every grid; fills `vectors` with (d_hat, d_true) at `vector_cell` if given."""
     fs = sorted(glob.glob(str(out_dir / "futures_seed*.csv")))
     fs = [f for f in fs if (("smoke" not in f) if tag is None else f.endswith(f"{tag}.csv"))]
     assert fs, f"no futures under {out_dir}"
@@ -368,8 +330,7 @@ def load_rows(out_dir: Path, tag: Optional[str], cells: Sequence[float] = CELLS,
 
 def plot(t: pd.DataFrame, ts: pd.DataFrame, out_dir: Path, name: str = "fig_separation_by_phase",
          at: Optional[pd.DataFrame] = None, ats: Optional[pd.DataFrame] = None) -> None:
-    """Top: separation preserved R per phase. Bottom (when `at` given): cosine alignment of
-    the critic's difference-of-futures with the true one, per phase."""
+    """Plot R per phase, and alignment per phase below when `at` is given."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -410,7 +371,7 @@ def plot(t: pd.DataFrame, ts: pd.DataFrame, out_dir: Path, name: str = "fig_sepa
                     elinewidth=1.0, capsize=2.5, lw=0, label=METHOD_LABEL[m], zorder=3)
         axl = ax if at is None else ax2
         for xi, (_, r) in zip(xo, b.iterrows()):
-            # mean true separation under the tick label (bottom axis), one row per model
+            # Mean true separation under the tick labels
             axl.annotate(f"{r['d_true_mean']:.2f}", (xi, -0.13 - 0.07 * j), xycoords=("data", "axes fraction"),
                          ha="center", va="top", fontsize=6.5, color=col, annotation_clip=False)
     axl.annotate("$D_{true}$", (-0.55, -0.13), xycoords=("data", "axes fraction"), ha="right", va="top",
@@ -451,7 +412,7 @@ def stage_aggregate(out_dir: Path, fig_dir: Path, tag: Optional[str] = None, n_p
         print(f"=== cell {cell * 100:.0f} cm (R = D_pred / D_true; states with D_true < {D_TRUE_MIN} excluded) ===")
         print(tables[cell][0][cols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
     print(f"=== FB clipping: {clip}")
-    # alignment: per phase at every grid, per seed at the main grid, permutation null at the main grid
+    # Alignment tables and permutation null
     for cell in CELLS:
         a = align_table(rows[rows["cell"] == cell])
         a.assign(cell=cell).to_csv(fig_dir / f"alignment_by_phase_cell{int(cell * 100)}cm.csv", index=False)
