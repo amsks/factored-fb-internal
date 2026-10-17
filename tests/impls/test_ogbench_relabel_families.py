@@ -2,6 +2,7 @@
 
 The scene physics row is qpos concatenated with button_states, so buttons are physics[-2:].
 """
+
 import os
 import types
 
@@ -27,8 +28,12 @@ def _dataset_present(name):
 # Scene reward
 def _scene_goal(cube=(0.35, 0.05, 0.02), buttons=(1, 1), drawer=-0.16, window=0.2):
     # Key order of ogbench scene task_infos[...]['goal'].
-    return dict(block_xyzs=np.array([list(cube)]), button_states=np.array(buttons),
-                drawer_pos=float(drawer), window_pos=float(window))
+    return dict(
+        block_xyzs=np.array([list(cube)]),
+        button_states=np.array(buttons),
+        drawer_pos=float(drawer),
+        window_pos=float(window),
+    )
 
 
 def _scene_physics(cube, buttons, drawer, window, n_qpos=25):
@@ -42,15 +47,21 @@ def _scene_physics(cube, buttons, drawer, window, n_qpos=25):
 
 def test_scene_reward_hand_computed():
     goal = _scene_goal()
-    rows = np.stack([
-        _scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.2),    # all 5 satisfied
-        _scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.0),    # window off (0.2 away)
-        _scene_physics([0.35, 0.05, 0.02], [0, 1], -0.16, 0.2),    # button 1 off
-        _scene_physics([0.35, 0.05, 0.02], [1, 0], -0.16, 0.2),    # button 2 off
-        _scene_physics([0.35, 0.05, 0.02], [1, 1], 0.0, 0.2),      # drawer off (0.16 away)
-        _scene_physics([0.35, 0.05, 0.10], [1, 1], -0.16, 0.2),    # cube 0.08 away
-        _scene_physics([0.60, 0.30, 0.10], [0, 0], 0.0, 0.0),      # nothing satisfied
-    ])
+    rows = np.stack(
+        [
+            _scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.2),  # all 5 satisfied
+            _scene_physics(
+                [0.35, 0.05, 0.02], [1, 1], -0.16, 0.0
+            ),  # window off (0.2 away)
+            _scene_physics([0.35, 0.05, 0.02], [0, 1], -0.16, 0.2),  # button 1 off
+            _scene_physics([0.35, 0.05, 0.02], [1, 0], -0.16, 0.2),  # button 2 off
+            _scene_physics(
+                [0.35, 0.05, 0.02], [1, 1], 0.0, 0.2
+            ),  # drawer off (0.16 away)
+            _scene_physics([0.35, 0.05, 0.10], [1, 1], -0.16, 0.2),  # cube 0.08 away
+            _scene_physics([0.60, 0.30, 0.10], [0, 0], 0.0, 0.0),  # nothing satisfied
+        ]
+    )
     r = scene_relabel_reward(rows, goal)
     assert r.shape == (7,)
     np.testing.assert_allclose(r, [0.0, -1.0, -1.0, -1.0, -1.0, -1.0, -5.0])
@@ -60,12 +71,20 @@ def test_scene_reward_hand_computed():
 def test_scene_thresholds_are_inclusive():
     """The scene reward uses <= for cube, drawer and window."""
     goal = _scene_goal(cube=(0.0, 0.0, 0.0), drawer=0.0, window=0.0)
-    rows = np.stack([
-        _scene_physics([0.04, 0.0, 0.0], [1, 1], 0.0, 0.0),     # cube exactly at 0.04 -> ok
-        _scene_physics([0.0, 0.0, 0.0], [1, 1], 0.04, 0.0),     # drawer exactly at 0.04 -> ok
-        _scene_physics([0.0, 0.0, 0.0], [1, 1], 0.0, -0.04),    # window exactly at 0.04 -> ok
-        _scene_physics([0.0, 0.0, 0.0], [1, 1], 0.0401, 0.0),   # drawer just outside
-    ])
+    rows = np.stack(
+        [
+            _scene_physics(
+                [0.04, 0.0, 0.0], [1, 1], 0.0, 0.0
+            ),  # cube exactly at 0.04 -> ok
+            _scene_physics(
+                [0.0, 0.0, 0.0], [1, 1], 0.04, 0.0
+            ),  # drawer exactly at 0.04 -> ok
+            _scene_physics(
+                [0.0, 0.0, 0.0], [1, 1], 0.0, -0.04
+            ),  # window exactly at 0.04 -> ok
+            _scene_physics([0.0, 0.0, 0.0], [1, 1], 0.0401, 0.0),  # drawer just outside
+        ]
+    )
     np.testing.assert_allclose(scene_relabel_reward(rows, goal), [0.0, 0.0, 0.0, -1.0])
 
 
@@ -73,29 +92,44 @@ def test_scene_reward_accepts_the_flattened_7_vector_too():
     goal = _scene_goal()
     flat = np.concatenate([np.array([v]).ravel() for v in goal.values()])
     assert flat.shape == (7,)
-    rows = np.stack([_scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.2),
-                     _scene_physics([0.35, 0.05, 0.02], [0, 0], -0.16, 0.2)])
-    np.testing.assert_allclose(scene_relabel_reward(rows, flat), scene_relabel_reward(rows, goal))
+    rows = np.stack(
+        [
+            _scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.2),
+            _scene_physics([0.35, 0.05, 0.02], [0, 0], -0.16, 0.2),
+        ]
+    )
+    np.testing.assert_allclose(
+        scene_relabel_reward(rows, flat), scene_relabel_reward(rows, goal)
+    )
     np.testing.assert_allclose(scene_relabel_reward(rows, flat), [0.0, -2.0])
 
 
 def test_scene_reward_rejects_a_goal_dict_in_the_wrong_order():
-    bad = dict(window_pos=0.2, drawer_pos=-0.16, button_states=np.array([1, 1]),
-               block_xyzs=np.array([[0.35, 0.05, 0.02]]))
+    bad = dict(
+        window_pos=0.2,
+        drawer_pos=-0.16,
+        button_states=np.array([1, 1]),
+        block_xyzs=np.array([[0.35, 0.05, 0.02]]),
+    )
     with pytest.raises(AssertionError, match="goal"):
         scene_relabel_reward(np.zeros((1, 27)), bad)
 
 
 # Dispatch on the task_info goal key
 def test_dispatch_picks_the_family_from_the_task_info():
-    scn = relabel_reward_for_task({"goal": _scene_goal()},
-                                  np.stack([_scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.2)]))
+    scn = relabel_reward_for_task(
+        {"goal": _scene_goal()},
+        np.stack([_scene_physics([0.35, 0.05, 0.02], [1, 1], -0.16, 0.2)]),
+    )
     np.testing.assert_allclose(scn, [0.0])
 
-    q = np.zeros((1, 21)); q[0, 14:17] = [0.1, 0.2, 0.3]
+    q = np.zeros((1, 21))
+    q[0, 14:17] = [0.1, 0.2, 0.3]
     cube = relabel_reward_for_task({"goal_xyzs": np.array([[0.1, 0.2, 0.3]])}, q)
     np.testing.assert_allclose(cube, [0.0])
-    np.testing.assert_allclose(cube, cube_relabel_reward(q, np.array([[0.1, 0.2, 0.3]])))
+    np.testing.assert_allclose(
+        cube, cube_relabel_reward(q, np.array([[0.1, 0.2, 0.3]]))
+    )
 
 
 def test_dispatch_rejects_an_unknown_task_info():
@@ -112,9 +146,14 @@ def _ds(n, qpos, button_states=None, seed=0):
     rng = np.random.default_rng(seed)
     valids = np.ones(n, np.float32)
     valids[-1] = 0.0
-    fields = dict(observations=rng.standard_normal((n, OBS_DIM)).astype(np.float32),
-                  actions=np.zeros((n, ACT_DIM), np.float32), qpos=qpos.astype(np.float32),
-                  valids=valids, terminals=1.0 - valids, rewards=np.zeros(n, np.float32))
+    fields = dict(
+        observations=rng.standard_normal((n, OBS_DIM)).astype(np.float32),
+        actions=np.zeros((n, ACT_DIM), np.float32),
+        qpos=qpos.astype(np.float32),
+        valids=valids,
+        terminals=1.0 - valids,
+        rewards=np.zeros(n, np.float32),
+    )
     if button_states is not None:
         fields["button_states"] = button_states.astype(np.int64)
     ds = FBDataset.create(**fields)
@@ -127,8 +166,18 @@ def test_scene_batch_reads_next_row_physics():
     n = 5
     qpos = np.zeros((n, 25))
     bs = np.zeros((n, 2), np.int64)
-    qpos[1, 14:17], qpos[1, 23], qpos[1, 24], bs[1] = [0.35, 0.05, 0.02], -0.16, 0.2, [1, 1]
-    qpos[2, 14:17], qpos[2, 23], qpos[2, 24], bs[2] = [0.35, 0.05, 0.02], -0.16, 0.2, [0, 1]
+    qpos[1, 14:17], qpos[1, 23], qpos[1, 24], bs[1] = (
+        [0.35, 0.05, 0.02],
+        -0.16,
+        0.2,
+        [1, 1],
+    )
+    qpos[2, 14:17], qpos[2, 23], qpos[2, 24], bs[2] = (
+        [0.35, 0.05, 0.02],
+        -0.16,
+        0.2,
+        [0, 1],
+    )
     ds = _ds(n, qpos, bs)
     env = _fake_env([{"goal": _scene_goal()}])
     _, r = OGBenchAdapter().relabel_infer_batch(ds, env, 1, 4, shift_reward=1.0)
@@ -159,7 +208,8 @@ def test_cube_batch_is_unchanged_by_the_dispatch():
 
 def test_shift_is_applied_verbatim():
     goal = np.array([[0.1, 0.2, 0.3]])
-    qpos = np.zeros((3, 21)); qpos[1, 14:17] = goal[0]
+    qpos = np.zeros((3, 21))
+    qpos[1, 14:17] = goal[0]
     ds = _ds(3, qpos)
     env = _fake_env([{"goal_xyzs": goal}])
     _, r0 = OGBenchAdapter().relabel_infer_batch(ds, env, 1, 2, shift_reward=0.0)
@@ -170,14 +220,20 @@ def test_shift_is_applied_verbatim():
 
 # Real datasets; skipped when absent
 # (env_name, number of conditions k -> unshifted reward in [-k, 0])
-REAL_ENVS = [("scene-play-v0", 5), ("cube-single-play-v0", 1), ("cube-double-play-v0", 2)]
+REAL_ENVS = [
+    ("scene-play-v0", 5),
+    ("cube-single-play-v0", 1),
+    ("cube-double-play-v0", 2),
+]
 
 
 def _positive_counts(adapter, train_ds, env, num_samples, shift):
     """Per-task count of relabelled rows with every condition satisfied."""
     out = {}
     for tid in range(1, len(env.unwrapped.task_infos) + 1):
-        _, r = adapter.relabel_infer_batch(train_ds, env, tid, num_samples, shift_reward=shift)
+        _, r = adapter.relabel_infer_batch(
+            train_ds, env, tid, num_samples, shift_reward=shift
+        )
         out[tid] = (r, int((r >= shift - 1e-6).sum()))
     return out
 
@@ -190,7 +246,8 @@ def test_relabel_on_the_real_dataset(env_name, k):
     np.random.seed(0)
     adapter = OGBenchAdapter()
     env, train_ds, _ = adapter.make_env_and_datasets(
-        {"env_name": env_name, "eval_relabel_size": 2000})
+        {"env_name": env_name, "eval_relabel_size": 2000}
+    )
     base = adapter._column_backed(train_ds)
     assert "qpos" in base
     if env_name.startswith("scene"):
@@ -210,4 +267,6 @@ def test_relabel_on_the_real_dataset(env_name, k):
         lines.append(f"task{tid}: {c}/{n} positives ({100.0 * c / n:.2f}%)")
     print(f"\n[relabel positives] {env_name}: " + "; ".join(lines))
     assert any(c > 0 for _, c in res.values()), (
-        f"{env_name}: no positive relabel in {n} samples for ANY task -- " + "; ".join(lines))
+        f"{env_name}: no positive relabel in {n} samples for ANY task -- "
+        + "; ".join(lines)
+    )

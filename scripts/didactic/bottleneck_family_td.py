@@ -4,13 +4,16 @@ Arms: fb (FB loss), normsq (squared error on the normalized measure), softsq and
 (squared error on softmax / exp outputs), density (cross entropy on softmax outputs).
 """
 
-import argparse, hashlib, json, time
+import argparse
+import hashlib
+import json
+import time
 from itertools import product
 from pathlib import Path
 
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
 
 jax.config.update("jax_enable_x64", True)
@@ -44,8 +47,11 @@ def exact(kernel2d, pi, gamma):
 def backward(params, sphere):
     b = params["b"]
     if sphere:
-        b = b * jnp.sqrt(b.shape[1]) / jnp.maximum(
-            jnp.linalg.norm(b, axis=-1, keepdims=True), 1e-12)
+        b = (
+            b
+            * jnp.sqrt(b.shape[1])
+            / jnp.maximum(jnp.linalg.norm(b, axis=-1, keepdims=True), 1e-12)
+        )
     return b
 
 
@@ -66,8 +72,12 @@ def loss_fn(params, target, kernel, pi, gamma, method, sphere):
     boot = gamma * (kernel @ v)
     if method == "density":
         labels = (1 - gamma) * kernel + boot
-        return -jnp.mean(jnp.sum(
-            labels * jax.nn.log_softmax(params["f"] @ params["b"].T, axis=-1), axis=-1))
+        return -jnp.mean(
+            jnp.sum(
+                labels * jax.nn.log_softmax(params["f"] @ params["b"].T, axis=-1),
+                axis=-1,
+            )
+        )
     if method in ("softsq", "expsq"):
         return 0.5 * jnp.mean((p - ((1 - gamma) * kernel + boot)) ** 2)
     b = backward(params, sphere)
@@ -96,15 +106,20 @@ def metrics(pred, method, gamma, P, goal, b, near):
     return {
         "q_decision": [float(Q[2 * near, goal]), float(Q[2 * near + 1, goal])],
         "q_decision_true": [float(P[2 * near, goal]), float(P[2 * near + 1, goal])],
-        "state_gap_ratios": np.where(np.abs(tg) > 1e-12, qg / np.where(tg == 0, 1, tg),
-                                     np.nan).tolist(),
+        "state_gap_ratios": np.where(
+            np.abs(tg) > 1e-12, qg / np.where(tg == 0, 1, tg), np.nan
+        ).tolist(),
         "gap_near": float(gap(Q, near)),
         "gap_near_true": float(gap(P, near)),
         "gap_ratio_near": float(gap(Q, near) / gap(P, near)),
         "gap_ratio_b": float(gap(Q, b) / gap(P, b)),
         "inverted_near": bool(gap(Q, near) * gap(P, near) < 0),
-        "wrong_states": int(np.sum(
-            (Q[1::2, goal] - Q[0::2, goal]) * (P[1::2, goal] - P[0::2, goal]) < -1e-10)),
+        "wrong_states": int(
+            np.sum(
+                (Q[1::2, goal] - Q[0::2, goal]) * (P[1::2, goal] - P[0::2, goal])
+                < -1e-10
+            )
+        ),
         "goal_mass_near": float(P[2 * near, goal]),
         "abs_err_goal": float(col.max()),
         "rel_err_goal": float((col / np.maximum(P[:, goal], 1e-12)).max()),
@@ -117,7 +132,9 @@ def metrics(pred, method, gamma, P, goal, b, near):
 def run_group(L, R, d, method, gamma, seeds, rates, steps, tau, sphere):
     """Train one (graph, rank, method) group, vmapped over seeds and rates."""
     p, n, b, goal, near = build(L, R)
-    rows = run_kernel(p, b, goal, near, d, method, gamma, seeds, rates, steps, tau, sphere)
+    rows = run_kernel(
+        p, b, goal, near, d, method, gamma, seeds, rates, steps, tau, sphere
+    )
     return [dict(r, L=L, R=R) for r in rows]
 
 
@@ -131,8 +148,10 @@ def run_kernel(p, b, goal, near, d, method, gamma, seeds, rates, steps, tau, sph
 
     def init(c):
         rng = np.random.default_rng(c["seed"])
-        return {"f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
-                "b": jnp.array(rng.normal(0, 0.1, (n, d)))}
+        return {
+            "f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
+            "b": jnp.array(rng.normal(0, 0.1, (n, d))),
+        }
 
     params = jax.tree.map(lambda *x: jnp.stack(x), *[init(c) for c in cfg])
     opt = optax.scale_by_adam()
@@ -149,17 +168,27 @@ def run_kernel(p, b, goal, near, d, method, gamma, seeds, rates, steps, tau, sph
 
     @jax.jit
     def train(carry):
-        return jax.lax.scan(lambda c, _: (jax.vmap(one)(*c, lrs), None),
-                            carry, None, length=steps)[0]
+        return jax.lax.scan(
+            lambda c, _: (jax.vmap(one)(*c, lrs), None), carry, None, length=steps
+        )[0]
 
     final = train((params, params, state))[0]
     pred = np.asarray(jax.vmap(lambda x: predict(x, method, sph))(final))
     if not np.all(np.isfinite(pred)):
         raise FloatingPointError(f"nonfinite prediction: d={d} {method}")
-    return [dict(c, d=d, n=n, method=method, gamma=gamma, sphere=sph,
-                 rho_goal=1.0 / n,
-                 **metrics(pred[i], method, gamma, P, goal, b, near))
-            for i, c in enumerate(cfg)]
+    return [
+        dict(
+            c,
+            d=d,
+            n=n,
+            method=method,
+            gamma=gamma,
+            sphere=sph,
+            rho_goal=1.0 / n,
+            **metrics(pred[i], method, gamma, P, goal, b, near),
+        )
+        for i, c in enumerate(cfg)
+    ]
 
 
 if __name__ == "__main__":
@@ -168,7 +197,9 @@ if __name__ == "__main__":
     ap.add_argument("--L", type=int, default=2)
     ap.add_argument("--rooms", nargs="+", type=int, default=[2, 3, 4, 5, 6])
     ap.add_argument("--ranks", nargs="+", type=int, default=[2, 3, 4, 6])
-    ap.add_argument("--methods", nargs="+", default=["fb", "normsq", "softsq", "expsq", "density"])
+    ap.add_argument(
+        "--methods", nargs="+", default=["fb", "normsq", "softsq", "expsq", "density"]
+    )
     ap.add_argument("--gamma", type=float, default=0.8)
     ap.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
     ap.add_argument("--rates", nargs="+", type=float, default=[0.001, 0.01])
@@ -179,22 +210,45 @@ if __name__ == "__main__":
     a.out.mkdir(parents=True, exist_ok=True)
     if (a.out / "config.json").exists():
         raise FileExistsError("output has a run")
-    (a.out / "config.json").write_text(json.dumps(
-        {**vars(a), "out": str(a.out), "numpy": np.__version__, "jax": jax.__version__,
-         "optax": optax.__version__,
-         "source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}, indent=2))
+    (a.out / "config.json").write_text(
+        json.dumps(
+            {
+                **vars(a),
+                "out": str(a.out),
+                "numpy": np.__version__,
+                "jax": jax.__version__,
+                "optax": optax.__version__,
+                "source_sha256": hashlib.sha256(
+                    Path(__file__).read_bytes()
+                ).hexdigest(),
+            },
+            indent=2,
+        )
+    )
 
     rows, t0 = [], time.monotonic()
     for R, d, m in product(a.rooms, a.ranks, a.methods):
         g = run_group(a.L, R, d, m, a.gamma, a.seeds, a.rates, a.steps, a.tau, a.sphere)
         rows += g
-        print(json.dumps({"R": R, "d": d, "method": m, "n": g[0]["n"],
-                          "gap_ratio_near": round(float(np.mean(
-                              [r["gap_ratio_near"] for r in g])), 4),
-                          "rel_err_goal": round(float(np.mean(
-                              [r["rel_err_goal"] for r in g])), 3),
-                          "l2": round(float(np.mean([r["l2_residual"] for r in g])), 4),
-                          "inverted": sum(r["inverted_near"] for r in g),
-                          "elapsed": round(time.monotonic() - t0, 1)}), flush=True)
+        print(
+            json.dumps(
+                {
+                    "R": R,
+                    "d": d,
+                    "method": m,
+                    "n": g[0]["n"],
+                    "gap_ratio_near": round(
+                        float(np.mean([r["gap_ratio_near"] for r in g])), 4
+                    ),
+                    "rel_err_goal": round(
+                        float(np.mean([r["rel_err_goal"] for r in g])), 3
+                    ),
+                    "l2": round(float(np.mean([r["l2_residual"] for r in g])), 4),
+                    "inverted": sum(r["inverted_near"] for r in g),
+                    "elapsed": round(time.monotonic() - t0, 1),
+                }
+            ),
+            flush=True,
+        )
     (a.out / "summary.json").write_text(json.dumps(rows, indent=2))
-    print(f"wrote {a.out/'summary.json'}  ({len(rows)} runs)")
+    print(f"wrote {a.out / 'summary.json'}  ({len(rows)} runs)")

@@ -3,6 +3,7 @@
 Reset takes one zero-action step to fill the previous-observation half of the obs.
 A step is two simulator steps with rewards summed.
 """
+
 import numpy as np
 from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
 
@@ -32,18 +33,26 @@ class MetaWorldWrapper:
     def reset(self, **kwargs):
         self.env.reset(**kwargs)
         obs, _r, _term, _trunc, info = self.env.step(
-            np.zeros(self.env.action_space.shape, dtype=np.float32))
+            np.zeros(self.env.action_space.shape, dtype=np.float32)
+        )
         return obs.astype(np.float32), self._info(info)
 
     def step(self, action):
         reward = 0.0
         for _ in range(ACTION_REPEAT):
-            obs, r, terminated, truncated, info = self.env.step(np.asarray(action).copy())
+            obs, r, terminated, truncated, info = self.env.step(
+                np.asarray(action).copy()
+            )
             reward += r
             if terminated or truncated:
                 break
-        return (obs.astype(np.float32), reward, terminated, truncated,
-                self._info(info, terminated, truncated))
+        return (
+            obs.astype(np.float32),
+            reward,
+            terminated,
+            truncated,
+            self._info(info, terminated, truncated),
+        )
 
     def render(self, *_args, **_kwargs):
         return np.flipud(np.asarray(self.env.render()))
@@ -69,5 +78,7 @@ def make_metaworld_env(task, seed=0):
     env_id = task.split("-", 1)[-1] + "-v2-goal-observable"
     if env_id not in ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE:
         raise ValueError(f"unknown Metaworld task {task!r} (no env {env_id!r})")
-    raw = ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[env_id](seed=seed, render_mode="rgb_array")
+    raw = ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[env_id](
+        seed=seed, render_mode="rgb_array"
+    )
     return MetaWorldWrapper(raw), HORIZON

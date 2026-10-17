@@ -1,5 +1,7 @@
 """Density-FB reward-sample index: the centered encoder from reward samples to z."""
+
 import jax
+
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import numpy as np
@@ -7,20 +9,32 @@ import pytest
 
 from impls.agents import Agent
 from impls.critics.density_fb import (
-    DensityFBCritic, _density_queries, _raw_block_cols, _delta_phi, _scale_block_cols,
+    DensityFBCritic,
+    _delta_phi,
+    _density_queries,
+    _raw_block_cols,
+    _scale_block_cols,
     _sphere_or_neutral,
 )
 from impls.utils.config_utils import load_config
 
 B, OBS, ACT, D = 16, 40, 5, 8
-POOL_M = 256          # eval pool size
+POOL_M = 256  # eval pool size
 
 
 def _cfg(z=True, **over):
     cfg = dict(
-        lr=3e-4, lr_actor=3e-4, batch_size=B, discount=0.99, tau=0.005, seed=0,
-        value_hidden_dims=[32, 32], layer_norm=True,
-        goal_spec="19:22:0.4", z_dim=D, temperature=1.0,
+        lr=3e-4,
+        lr_actor=3e-4,
+        batch_size=B,
+        discount=0.99,
+        tau=0.005,
+        seed=0,
+        value_hidden_dims=[32, 32],
+        layer_norm=True,
+        goal_spec="19:22:0.4",
+        z_dim=D,
+        temperature=1.0,
         infer_z=z,
     )
     cfg.update(over)
@@ -29,8 +43,10 @@ def _cfg(z=True, **over):
 
 def _ex(n=B):
     rng = np.random.default_rng(0)
-    return (jnp.asarray(rng.standard_normal((n, OBS))),
-            jnp.asarray(np.tanh(rng.standard_normal((n, ACT)))))
+    return (
+        jnp.asarray(rng.standard_normal((n, OBS))),
+        jnp.asarray(np.tanh(rng.standard_normal((n, ACT)))),
+    )
 
 
 def _batch(seed=1, b=B):
@@ -86,7 +102,9 @@ def test_index_is_off_by_default_in_the_shipped_config():
     """The reward-sample index is off in the default config."""
     cfg = load_config("density_fb", "flowbc", "cube_single")
     assert cfg["infer_z"] is False
-    critic, _params, _t = DensityFBCritic.build(*_ex(), {**cfg, "seed": 0, "batch_size": B})
+    critic, _params, _t = DensityFBCritic.build(
+        *_ex(), {**cfg, "seed": 0, "batch_size": B}
+    )
     assert critic.z_on is False
     assert critic.cvec_dim == OBS, "conditioning width must stay the observation width"
     assert critic.PROVIDES_COND == frozenset({"value_goal", "goal"})
@@ -106,7 +124,9 @@ def test_sample_cond_off_publishes_the_raw_value_goal():
     batch = _batch()
     cond = critic.sample_cond(None, batch, jax.random.PRNGKey(0))
     assert "z" not in cond
-    assert np.array_equal(np.asarray(cond["_cvec_vgoal"]), np.asarray(batch["value_goals"]))
+    assert np.array_equal(
+        np.asarray(cond["_cvec_vgoal"]), np.asarray(batch["value_goals"])
+    )
 
 
 def test_index_is_reward_sensitive():
@@ -121,7 +141,8 @@ def test_index_is_reward_sensitive():
     pair_cos = [abs(_cos(z[i], z[j])) for i in range(5) for j in range(i + 1, 5)]
     assert max(pair_cos) < 0.99, (
         f"five independent reward draws produced near-identical indices (max |cos| = "
-        f"{max(pair_cos):.4f}) -- the encoder is not reading the reward")
+        f"{max(pair_cos):.4f}) -- the encoder is not reading the reward"
+    )
 
 
 def test_index_norm_is_sqrt_d():
@@ -143,7 +164,8 @@ def test_index_is_invariant_to_an_additive_reward_shift(beta):
     z1 = np.asarray(critic.z_from_reward_samples(_net_from(params), u_sc, r + beta))
     assert np.allclose(z0, z1, atol=1e-8), (
         f"an additive reward gauge moved the index by "
-        f"{np.abs(z0 - z1).max():.3e} at beta={beta}")
+        f"{np.abs(z0 - z1).max():.3e} at beta={beta}"
+    )
 
 
 @pytest.mark.parametrize("alpha", [1e-3, 7.0, 1e3])
@@ -156,7 +178,8 @@ def test_index_is_invariant_to_a_positive_reward_rescale(alpha):
     z1 = np.asarray(critic.z_from_reward_samples(_net_from(params), u_sc, alpha * r))
     assert np.allclose(z0, z1, atol=1e-8), (
         f"a positive reward rescale moved the index by "
-        f"{np.abs(z0 - z1).max():.3e} at alpha={alpha}")
+        f"{np.abs(z0 - z1).max():.3e} at alpha={alpha}"
+    )
 
 
 def test_index_is_invariant_to_the_additive_gauge_on_the_backward_tower():
@@ -168,8 +191,10 @@ def test_index_is_invariant_to_the_additive_gauge_on_the_backward_tower():
     b_params = params["density_b_zenc"]
     last = max(b_params, key=lambda k: int(k.split("_")[-1]))
     shift = jnp.asarray(np.random.default_rng(16).standard_normal(D) * 25.0)
-    shifted = {**b_params, last: {**b_params[last],
-                                 "bias": b_params[last]["bias"] + shift}}
+    shifted = {
+        **b_params,
+        last: {**b_params[last], "bias": b_params[last]["bias"] + shift},
+    }
     # The shift must move B
     b0 = np.asarray(critic._B(b_params, u_sc))
     b1 = np.asarray(critic._B(shifted, u_sc))
@@ -183,15 +208,19 @@ def test_index_is_invariant_to_the_additive_gauge_on_the_backward_tower():
     z0 = np.asarray(critic._z_index(b_params, st0, u_sc, r))
     z1 = np.asarray(critic._z_index(shifted, st1, u_sc, r))
     assert np.allclose(z0, z1, atol=1e-8), (
-        f"the additive gauge on B moved the index by {np.abs(z0 - z1).max():.3e}")
+        f"the additive gauge on B moved the index by {np.abs(z0 - z1).max():.3e}"
+    )
 
 
 def test_a_constant_reward_falls_back_to_the_neutral_index():
     """A constant reward gives the neutral index 1_d."""
     critic, params = _built()
     _obs, u_sc = _pool()
-    z = np.asarray(critic.z_from_reward_samples(
-        _net_from(params), u_sc, jnp.full((2, POOL_M), 3.5)))
+    z = np.asarray(
+        critic.z_from_reward_samples(
+            _net_from(params), u_sc, jnp.full((2, POOL_M), 3.5)
+        )
+    )
     assert np.allclose(z, np.ones((2, D)), atol=1e-12)
     assert np.allclose(np.linalg.norm(z, axis=-1), np.sqrt(D))
 
@@ -201,7 +230,9 @@ def test_sphere_or_neutral_normalizes_exactly():
     x = jnp.asarray([[3.0, 4.0, 0.0, 0.0]])
     out = np.asarray(_sphere_or_neutral(x, 4.0, 1e-6))
     assert np.allclose(np.linalg.norm(out), 2.0, atol=0)
-    assert np.allclose(np.asarray(_sphere_or_neutral(1e-9 * x, 4.0, 1e-6)), np.ones((1, 4)))
+    assert np.allclose(
+        np.asarray(_sphere_or_neutral(1e-9 * x, 4.0, 1e-6)), np.ones((1, 4))
+    )
 
 
 def test_centered_moment_matches_a_numpy_reference():
@@ -210,10 +241,10 @@ def test_centered_moment_matches_a_numpy_reference():
     _obs, u_sc = _pool(m=64)
     rng = np.random.default_rng(31)
     r = jnp.asarray(rng.standard_normal((3, 64)))
-    mu = jnp.asarray(rng.standard_normal(D))          # not the pool mean
+    mu = jnp.asarray(rng.standard_normal(D))  # not the pool mean
 
     got = np.asarray(critic._z_centered_moment(params["density_b_zenc"], u_sc, mu, r))
-    b = np.asarray(critic._B(params["density_b_zenc"], u_sc))       # [M, d]
+    b = np.asarray(critic._B(params["density_b_zenc"], u_sc))  # [M, d]
     db = b - np.asarray(mu)[None]
     dr = np.asarray(r) - np.asarray(r).mean(axis=-1, keepdims=True)
     assert np.allclose(got, dr @ db / 64, atol=1e-12)
@@ -235,16 +266,24 @@ def test_moments_are_the_centered_covariance_not_the_second_moment():
     mu_b, tau = b.mean(0), agent.critic.z_sigma_tau
     db = b - mu_b[None]
     cov_b = db.T @ db / b.shape[0]
-    assert np.allclose(np.asarray(st["mu"]),
-                       np.asarray(st_before["mu"]) * (1 - tau) + mu_b * tau, atol=1e-10)
-    assert np.allclose(np.asarray(st["cov"]),
-                       np.asarray(st_before["cov"]) * (1 - tau) + cov_b * tau, atol=1e-10)
+    assert np.allclose(
+        np.asarray(st["mu"]),
+        np.asarray(st_before["mu"]) * (1 - tau) + mu_b * tau,
+        atol=1e-10,
+    )
+    assert np.allclose(
+        np.asarray(st["cov"]),
+        np.asarray(st_before["cov"]) * (1 - tau) + cov_b * tau,
+        atol=1e-10,
+    )
     # Centered, not the second moment
     cov_unc = np.asarray(st_before["cov"]) * (1 - tau) + (b.T @ b / b.shape[0]) * tau
-    assert not np.allclose(np.asarray(st["cov"]), cov_unc, atol=1e-6), \
+    assert not np.allclose(np.asarray(st["cov"]), cov_unc, atol=1e-6), (
         "C_hat is the UNCENTERED second moment -- the exact object spec 30 replaced"
-    assert np.allclose(np.asarray(st["cov"]), np.asarray(st["cov"]).T, atol=0), \
+    )
+    assert np.allclose(np.asarray(st["cov"]), np.asarray(st["cov"]).T, atol=0), (
         "C_hat must be symmetric"
+    )
 
 
 def test_reward_centering_holds_at_a_base_mean_that_is_not_the_pool_mean():
@@ -253,16 +292,20 @@ def test_reward_centering_holds_at_a_base_mean_that_is_not_the_pool_mean():
     _obs, u_sc = _pool(m=64)
     rng = np.random.default_rng(32)
     r = jnp.asarray(rng.standard_normal((3, 64)))
-    mu = jnp.asarray(rng.standard_normal(D) * 10.0)     # not the pool mean
+    mu = jnp.asarray(rng.standard_normal(D) * 10.0)  # not the pool mean
     b = np.asarray(critic._B(params["density_b_zenc"], u_sc))
-    assert np.abs((b - np.asarray(mu)[None]).sum(0)).max() > 1.0, \
+    assert np.abs((b - np.asarray(mu)[None]).sum(0)).max() > 1.0, (
         "this mu is too close to the pool mean for the test to discriminate"
+    )
 
     m0 = np.asarray(critic._z_centered_moment(params["density_b_zenc"], u_sc, mu, r))
-    m1 = np.asarray(critic._z_centered_moment(params["density_b_zenc"], u_sc, mu, r + 7.0))
+    m1 = np.asarray(
+        critic._z_centered_moment(params["density_b_zenc"], u_sc, mu, r + 7.0)
+    )
     assert np.allclose(m0, m1, atol=1e-10), (
         f"an additive reward gauge moved m_c by {np.abs(m0 - m1).max():.3e} at an off-pool "
-        f"base mean -- the reward-centering (r - rbar) is missing or wrong")
+        f"base mean -- the reward-centering (r - rbar) is missing or wrong"
+    )
 
 
 def test_the_ridge_uses_the_mean_eigenvalue_convention_and_floors_the_spectrum():
@@ -280,12 +323,14 @@ def test_the_ridge_uses_the_mean_eigenvalue_convention_and_floors_the_spectrum()
     ev, vec = np.linalg.eigh(0.5 * (c + c.T))
     ev_f = np.maximum(ev, critic.z_cov_eig_floor * tr / D)
     lam = critic.z_ridge_lambda_mult * tr / D
-    assert np.allclose(got, ((np.asarray(m_c) @ vec) / (ev_f + lam)[None, :]) @ vec.T,
-                       atol=1e-10)
+    assert np.allclose(
+        got, ((np.asarray(m_c) @ vec) / (ev_f + lam)[None, :]) @ vec.T, atol=1e-10
+    )
     # A larger ridge shrinks the coefficient
     critic_big = _built(ridge_lambda=10.0)[0]
-    assert np.linalg.norm(np.asarray(critic_big._z_centered_coef(m_c, cov))) \
-        < np.linalg.norm(got)
+    assert np.linalg.norm(
+        np.asarray(critic_big._z_centered_coef(m_c, cov))
+    ) < np.linalg.norm(got)
 
 
 def test_one_reward_sample_raises_instead_of_returning_a_zero_index():
@@ -299,9 +344,15 @@ def test_one_reward_sample_raises_instead_of_returning_a_zero_index():
 
 def _agent(actor="flowbc", z=True, **over):
     cfg = load_config("density_fb", actor, "cube_single")
-    cfg = {**cfg, "batch_size": B, "z_dim": D,
-           "value_hidden_dims": [32, 32], "infer_z": z,
-           "eval_pool_size": 8, **over}
+    cfg = {
+        **cfg,
+        "batch_size": B,
+        "z_dim": D,
+        "value_hidden_dims": [32, 32],
+        "infer_z": z,
+        "eval_pool_size": 8,
+        **over,
+    }
     ex_obs, ex_act = _ex()
     return Agent.create("density_fb", actor, 0, ex_obs, ex_act, cfg), cfg
 
@@ -338,7 +389,9 @@ def test_the_whole_256_sample_pool_is_read():
     z0 = np.asarray(agent.infer_eval_cond(obs_pool, rewards).cond_eval["z"])
     bumped = rewards.at[POOL_M - 1].add(50.0)
     z1 = np.asarray(agent.infer_eval_cond(obs_pool, bumped).cond_eval["z"])
-    assert not np.allclose(z0, z1, atol=1e-6), "the last pool row had no effect on the index"
+    assert not np.allclose(z0, z1, atol=1e-6), (
+        "the last pool row had no effect on the index"
+    )
 
 
 def test_infer_cond_uses_the_eps_scaled_queries_not_the_raw_block_columns():
@@ -347,8 +400,11 @@ def test_infer_cond_uses_the_eps_scaled_queries_not_the_raw_block_columns():
     obs, u_sc = _pool()
     r = jnp.asarray(np.random.default_rng(23).standard_normal((POOL_M,)))
     z_scaled = np.asarray(critic.z_from_reward_samples(_net_from(params), u_sc, r))
-    z_raw = np.asarray(critic.z_from_reward_samples(
-        _net_from(params), _raw_block_cols(obs, critic.blocks), r))
+    z_raw = np.asarray(
+        critic.z_from_reward_samples(
+            _net_from(params), _raw_block_cols(obs, critic.blocks), r
+        )
+    )
     assert not np.allclose(z_scaled, z_raw, atol=1e-6)
 
     z_infer = np.asarray(critic.infer_cond(_net_from(params), obs, r)["z"])
@@ -365,11 +421,15 @@ def test_cvec_vgoal_is_z_shaped_and_matches_the_actor_width():
     assert agent.critic.cvec_dim == D
     assert cond["z"].shape == (B, D)
     assert cond["_cvec_vgoal"].shape == (B, D), (
-        f"_cvec_vgoal is {cond['_cvec_vgoal'].shape}, not the actor's (B, cvec_dim)")
+        f"_cvec_vgoal is {cond['_cvec_vgoal'].shape}, not the actor's (B, cvec_dim)"
+    )
     assert cond["_cvec_vgoal"].shape[-1] == agent.critic.cvec_dim
-    assert cond["_cvec_vgoal"].shape != batch["value_goals"].shape, \
+    assert cond["_cvec_vgoal"].shape != batch["value_goals"].shape, (
         "_cvec_vgoal is still the RAW value goal -- the exact bug this test exists for"
-    assert np.allclose(np.linalg.norm(np.asarray(cond["_cvec_vgoal"]), axis=-1), np.sqrt(D))
+    )
+    assert np.allclose(
+        np.linalg.norm(np.asarray(cond["_cvec_vgoal"]), axis=-1), np.sqrt(D)
+    )
 
     # Index at the value goal, not the actor goal
     assert not np.allclose(np.asarray(cond["z"]), np.asarray(cond["_cvec_vgoal"]))
@@ -377,14 +437,18 @@ def test_cvec_vgoal_is_z_shaped_and_matches_the_actor_width():
     # Value-goal bootstrap action differs from the actor-goal one
     boot = agent.actor.sample_bootstrap(agent.net, batch, cond, jax.random.PRNGKey(1))
     assert "next_action_vgoal" in boot
-    assert not np.allclose(np.asarray(boot["next_action"]),
-                           np.asarray(boot["next_action_vgoal"]))
+    assert not np.allclose(
+        np.asarray(boot["next_action"]), np.asarray(boot["next_action_vgoal"])
+    )
 
     # The raw value goal has the wrong width
     with pytest.raises(Exception):
         agent.actor.sample_bootstrap(
-            agent.net, batch, {**cond, "_cvec_vgoal": batch["value_goals"]},
-            jax.random.PRNGKey(1))
+            agent.net,
+            batch,
+            {**cond, "_cvec_vgoal": batch["value_goals"]},
+            jax.random.PRNGKey(1),
+        )
 
 
 def test_stage_loss_conditions_f_on_the_value_goal_index():
@@ -409,9 +473,13 @@ def test_a_real_update_runs_with_the_index_on(actor):
     updated, info = agent.update(_batch())
     assert np.isfinite(float(np.asarray(info["density_ce"])))
     assert np.isfinite(float(np.asarray(info["actor_loss"])))
-    moved = [not np.array_equal(np.asarray(a), np.asarray(b))
-             for a, b in zip(jax.tree_util.tree_leaves(agent.net["density_f"].params),
-                             jax.tree_util.tree_leaves(updated.net["density_f"].params))]
+    moved = [
+        not np.array_equal(np.asarray(a), np.asarray(b))
+        for a, b in zip(
+            jax.tree_util.tree_leaves(agent.net["density_f"].params),
+            jax.tree_util.tree_leaves(updated.net["density_f"].params),
+        )
+    ]
     assert any(moved), "density_f params did not move"
 
 
@@ -438,14 +506,16 @@ def test_the_training_index_mixes_in_sphere_draws():
     assert not np.allclose(np.asarray(c0["z"]), np.asarray(c1["z"]))
     # Both branches have norm sqrt(d)
     for c in (c0, c1):
-        assert np.allclose(np.linalg.norm(np.asarray(c["z"]), axis=-1), np.sqrt(D),
-                           atol=1e-6)
+        assert np.allclose(
+            np.linalg.norm(np.asarray(c["z"]), axis=-1), np.sqrt(D), atol=1e-6
+        )
     # At frac=0 every row is the encoder's output
     u_raw = _raw_block_cols(batch["next_observations"], a0.critic.blocks)
     u_sc = _density_queries(batch["next_observations"], a0.critic.blocks)
     r = _delta_phi(batch["actor_goals"], u_raw, a0.critic.blocks)
     z_enc = np.asarray(a0.critic.z_from_reward_samples(a0.net, u_sc, r))
     assert np.allclose(np.asarray(c0["z"]), z_enc, atol=1e-10)
+
 
 def test_the_index_state_groups_exist_only_when_the_index_is_on():
     """Index state groups exist only with the index on."""
@@ -454,7 +524,12 @@ def test_the_index_state_groups_exist_only_when_the_index_is_on():
     assert set(off.net) - {"actor", "actor_vf"} == {"density_f", "density_b"}
     assert {"density_b_zenc", "density_zstats"} <= set(on.net)
     assert off.critic.GROUPS == ("density_f", "density_b")
-    assert on.critic.GROUPS == ("density_f", "density_b", "density_b_zenc", "density_zstats")
+    assert on.critic.GROUPS == (
+        "density_f",
+        "density_b",
+        "density_b_zenc",
+        "density_zstats",
+    )
 
 
 def test_the_index_tower_starts_as_a_copy_of_density_b_and_then_lags_it():
@@ -468,22 +543,30 @@ def test_the_index_tower_starts_as_a_copy_of_density_b_and_then_lags_it():
     updated = agent.update(_batch())[0]
     tau = agent.critic.z_enc_tau
     expect = jax.tree_util.tree_map(lambda p, ep: p * tau + ep * (1 - tau), b0, z0)
-    for got, exp in zip(jax.tree_util.tree_leaves(updated.net["density_b_zenc"].params),
-                        jax.tree_util.tree_leaves(expect)):
+    for got, exp in zip(
+        jax.tree_util.tree_leaves(updated.net["density_b_zenc"].params),
+        jax.tree_util.tree_leaves(expect),
+    ):
         assert np.allclose(np.asarray(got), np.asarray(exp), atol=1e-12)
 
     # It differs from the online tower
     on_new = updated.net["density_b"].params
     zn_new = updated.net["density_b_zenc"].params
-    assert any(not np.allclose(np.asarray(a), np.asarray(b), atol=1e-9)
-               for a, b in zip(jax.tree_util.tree_leaves(on_new),
-                               jax.tree_util.tree_leaves(zn_new))), \
-        "the index tower equals the online tower -- it is not lagging anything"
+    assert any(
+        not np.allclose(np.asarray(a), np.asarray(b), atol=1e-9)
+        for a, b in zip(
+            jax.tree_util.tree_leaves(on_new), jax.tree_util.tree_leaves(zn_new)
+        )
+    ), "the index tower equals the online tower -- it is not lagging anything"
 
     # and from the target tower
-    assert any(not np.allclose(np.asarray(a), np.asarray(b), atol=1e-9)
-               for a, b in zip(jax.tree_util.tree_leaves(updated.target["density_b"]),
-                               jax.tree_util.tree_leaves(zn_new)))
+    assert any(
+        not np.allclose(np.asarray(a), np.asarray(b), atol=1e-9)
+        for a, b in zip(
+            jax.tree_util.tree_leaves(updated.target["density_b"]),
+            jax.tree_util.tree_leaves(zn_new),
+        )
+    )
 
 
 def test_the_index_reads_the_slow_tower_not_the_online_or_target_one():
@@ -500,10 +583,12 @@ def test_the_index_reads_the_slow_tower_not_the_online_or_target_one():
     z_online = np.asarray(critic._z_index(net["density_b"].params, st, u_sc, r))
     z_target = np.asarray(critic._z_index(agent.target["density_b"], st, u_sc, r))
     # The three towers must have diverged
-    assert not np.allclose(z_slow, z_online, atol=1e-6), \
+    assert not np.allclose(z_slow, z_online, atol=1e-6), (
         "online and slow towers still agree -- run more updates or the test is vacuous"
-    assert not np.allclose(z_slow, z_target, atol=1e-6), \
+    )
+    assert not np.allclose(z_slow, z_target, atol=1e-6), (
         "target and slow towers still agree -- run more updates or the test is vacuous"
+    )
 
     got = np.asarray(critic.z_from_reward_samples(net, u_sc, r))
     assert np.allclose(got, z_slow, atol=0), "the index does not read density_b_zenc"
@@ -514,9 +599,11 @@ def test_the_index_reads_the_slow_tower_not_the_online_or_target_one():
     mapped = critic.map_eval_cond(net, {"goal": jnp.zeros((2, OBS))})
     pool_sc = _scale_block_cols(st["pool"], critic.blocks)
     kg = _delta_phi(jnp.zeros((2, OBS)), st["pool"], critic.blocks)
-    assert np.allclose(np.asarray(mapped["z"]),
-                       np.asarray(critic._z_index(net["density_b_zenc"].params, st,
-                                                  pool_sc, kg)), atol=0)
+    assert np.allclose(
+        np.asarray(mapped["z"]),
+        np.asarray(critic._z_index(net["density_b_zenc"].params, st, pool_sc, kg)),
+        atol=0,
+    )
 
 
 def test_the_moments_are_stored_and_not_recomputed_from_the_batch():
@@ -532,10 +619,12 @@ def test_the_moments_are_stored_and_not_recomputed_from_the_batch():
     b = np.asarray(agent.critic._B(a1.net["density_b_zenc"].params, u_sc))
     mu_batch, cov_batch = b.mean(0), (b - b.mean(0)).T @ (b - b.mean(0)) / b.shape[0]
 
-    assert not np.allclose(np.asarray(st["mu"]), mu_batch, atol=1e-6), \
+    assert not np.allclose(np.asarray(st["mu"]), mu_batch, atol=1e-6), (
         "mu_hat equals the last batch's mean -- these are batch statistics, not an EMA"
-    assert not np.allclose(np.asarray(st["cov"]), cov_batch, atol=1e-6), \
+    )
+    assert not np.allclose(np.asarray(st["cov"]), cov_batch, atol=1e-6), (
         "C_hat equals the last batch's covariance -- these are batch statistics, not an EMA"
+    )
     # The EMA has moved off its init
     assert np.abs(np.asarray(st["mu"])).max() > 0
     assert not np.allclose(np.asarray(st["cov"]), np.eye(D), atol=1e-9)
@@ -546,19 +635,28 @@ def test_the_stored_moments_change_the_index():
     critic, params = _built()
     _obs, u_sc = _pool(m=64)
     r = jnp.asarray(np.random.default_rng(41).standard_normal((2, 64)))
-    z_init = np.asarray(critic._z_index(params["density_b_zenc"], _stats(params), u_sc, r))
+    z_init = np.asarray(
+        critic._z_index(params["density_b_zenc"], _stats(params), u_sc, r)
+    )
     b = critic._B(params["density_b_zenc"], u_sc)
     dbv = b - jnp.mean(b, axis=0)[None]
-    z_real = np.asarray(critic._z_index(
-        params["density_b_zenc"],
-        _stats(params, mu=jnp.mean(b, axis=0), cov=dbv.T @ dbv / b.shape[0]), u_sc, r))
-    assert not np.allclose(z_init, z_real, atol=1e-6), \
+    z_real = np.asarray(
+        critic._z_index(
+            params["density_b_zenc"],
+            _stats(params, mu=jnp.mean(b, axis=0), cov=dbv.T @ dbv / b.shape[0]),
+            u_sc,
+            r,
+        )
+    )
+    assert not np.allclose(z_init, z_real, atol=1e-6), (
         "the stored moments do not reach the index -- the EMA is not load-bearing"
+    )
 
 
 def test_the_index_state_survives_a_serialization_round_trip():
     """Index state survives a serialization round trip."""
     import flax
+
     agent, _c = _agent()
     trained = agent.update(_batch())[0]
     blob = flax.serialization.to_state_dict(trained)
@@ -566,10 +664,15 @@ def test_the_index_state_survives_a_serialization_round_trip():
     restored = flax.serialization.from_state_dict(fresh, blob)
 
     for k in ("mu", "cov", "pool", "filled"):
-        assert np.allclose(np.asarray(restored.net["density_zstats"].params[k]),
-                           np.asarray(trained.net["density_zstats"].params[k]), atol=0), k
-    for a, b in zip(jax.tree_util.tree_leaves(restored.net["density_b_zenc"].params),
-                    jax.tree_util.tree_leaves(trained.net["density_b_zenc"].params)):
+        assert np.allclose(
+            np.asarray(restored.net["density_zstats"].params[k]),
+            np.asarray(trained.net["density_zstats"].params[k]),
+            atol=0,
+        ), k
+    for a, b in zip(
+        jax.tree_util.tree_leaves(restored.net["density_b_zenc"].params),
+        jax.tree_util.tree_leaves(trained.net["density_b_zenc"].params),
+    ):
         assert np.array_equal(np.asarray(a), np.asarray(b))
 
 
@@ -582,13 +685,18 @@ def test_the_index_state_takes_no_gradient_and_no_optimizer_step():
     # Only the two towers step
     updated = agent.update(_batch())[0]
     assert int(updated.net["density_f"].step) > int(agent.net["density_f"].step)
-    assert int(updated.net["density_zstats"].step) == int(agent.net["density_zstats"].step)
-    assert int(updated.net["density_b_zenc"].step) == int(agent.net["density_b_zenc"].step)
+    assert int(updated.net["density_zstats"].step) == int(
+        agent.net["density_zstats"].step
+    )
+    assert int(updated.net["density_b_zenc"].step) == int(
+        agent.net["density_b_zenc"].step
+    )
 
 
 def test_update_stats_is_a_noop_for_every_other_critic():
     """Only density_fb and hilp define update_stats; it is a no-op with the index off."""
     from impls.agents import CRITICS
+
     defining = {n for n, c in CRITICS.items() if hasattr(c, "update_stats")}
     assert defining == {"density_fb", "hilp"}
     off, _c = _agent(z=False)
@@ -608,12 +716,17 @@ def test_the_pool_is_frozen_on_the_first_update_and_never_rewritten():
     st1 = a1.net["density_zstats"].params
     m = agent.critic.z_eval_pool_m
     assert float(st1["filled"]) == 1.0
-    expect = np.asarray(_raw_block_cols(b1["next_observations"], agent.critic.blocks))[:m]
+    expect = np.asarray(_raw_block_cols(b1["next_observations"], agent.critic.blocks))[
+        :m
+    ]
     assert np.allclose(np.asarray(st1["pool"]), expect, atol=0)
 
     a2 = a1.update(_batch(seed=2))[0]
-    assert np.allclose(np.asarray(a2.net["density_zstats"].params["pool"]),
-                       np.asarray(st1["pool"]), atol=0), "the pool was rewritten"
+    assert np.allclose(
+        np.asarray(a2.net["density_zstats"].params["pool"]),
+        np.asarray(st1["pool"]),
+        atol=0,
+    ), "the pool was rewritten"
 
 
 def test_map_eval_cond_routes_a_raw_goal_through_the_reward_sample_api():
@@ -630,8 +743,11 @@ def test_map_eval_cond_routes_a_raw_goal_through_the_reward_sample_api():
     st = trained.net["density_zstats"].params
     kg = _delta_phi(goal, st["pool"], trained.critic.blocks)
     u_sc = _scale_block_cols(st["pool"], trained.critic.blocks)
-    assert np.allclose(z, np.asarray(trained.critic.z_from_reward_samples(
-        trained.net, u_sc, kg)), atol=1e-12)
+    assert np.allclose(
+        z,
+        np.asarray(trained.critic.z_from_reward_samples(trained.net, u_sc, kg)),
+        atol=1e-12,
+    )
 
     assert max(abs(_cos(z[i], z[j])) for i in range(3) for j in range(i + 1, 3)) < 0.99
 
@@ -643,7 +759,9 @@ def test_map_eval_cond_handles_the_unbatched_eval_goal():
     g = jnp.asarray(np.random.default_rng(52).standard_normal(OBS))
     z = np.asarray(trained.critic.map_eval_cond(trained.net, {"goal": g})["z"])
     assert z.shape == (D,)
-    acts = trained.sample_actions(jnp.zeros((OBS,)), goals=g, seed=jax.random.PRNGKey(1))
+    acts = trained.sample_actions(
+        jnp.zeros((OBS,)), goals=g, seed=jax.random.PRNGKey(1)
+    )
     assert np.asarray(acts).shape == (ACT,) and np.isfinite(np.asarray(acts)).all()
 
 
@@ -654,14 +772,21 @@ def test_the_pool_uses_the_raw_scaled_coordinate_conventions_correctly():
     trained = agent.update(b1)[0]
     st = trained.net["density_zstats"].params
     blocks = trained.critic.blocks
-    raw = np.asarray(_raw_block_cols(b1["next_observations"], blocks))[:agent.critic.z_eval_pool_m]
-    assert np.allclose(np.asarray(st["pool"]), raw, atol=0), "pool must store RAW coords"
+    raw = np.asarray(_raw_block_cols(b1["next_observations"], blocks))[
+        : agent.critic.z_eval_pool_m
+    ]
+    assert np.allclose(np.asarray(st["pool"]), raw, atol=0), (
+        "pool must store RAW coords"
+    )
     scaled = np.asarray(_scale_block_cols(st["pool"], blocks))
     assert not np.allclose(scaled, np.asarray(st["pool"]), atol=1e-3)
     assert np.allclose(
         scaled,
-        np.asarray(_density_queries(b1["next_observations"], blocks))[:agent.critic.z_eval_pool_m],
-        atol=1e-10)
+        np.asarray(_density_queries(b1["next_observations"], blocks))[
+            : agent.critic.z_eval_pool_m
+        ],
+        atol=1e-10,
+    )
 
 
 def test_the_real_m256_pool_runs_end_to_end():
@@ -672,8 +797,9 @@ def test_the_real_m256_pool_runs_end_to_end():
     st = trained.net["density_zstats"].params
     assert np.asarray(st["pool"]).shape[0] == 256
     assert float(st["filled"]) == 1.0
-    z = np.asarray(trained.critic.map_eval_cond(
-        trained.net, {"goal": jnp.zeros((1, OBS))})["z"])
+    z = np.asarray(
+        trained.critic.map_eval_cond(trained.net, {"goal": jnp.zeros((1, OBS))})["z"]
+    )
     assert z.shape == (1, D) and np.isfinite(z).all()
 
 
@@ -686,13 +812,16 @@ def test_a_pool_larger_than_the_batch_is_refused():
 def test_the_centered_encoder_refuses_a_fast_index_tower():
     """The centered index requires slow_backward_tau > 0."""
     with pytest.raises(AssertionError, match="slow_backward_tau"):
-        DensityFBCritic.build(*_ex(), _cfg(z=True, slow_backward_tau=0.0,
-                                           eval_pool_size=8))
+        DensityFBCritic.build(
+            *_ex(), _cfg(z=True, slow_backward_tau=0.0, eval_pool_size=8)
+        )
 
 
 def _leafmax(a, b):
-    return max(float(np.abs(np.asarray(x) - np.asarray(y)).max())
-               for x, y in zip(jax.tree_util.tree_leaves(a), jax.tree_util.tree_leaves(b)))
+    return max(
+        float(np.abs(np.asarray(x) - np.asarray(y)).max())
+        for x, y in zip(jax.tree_util.tree_leaves(a), jax.tree_util.tree_leaves(b))
+    )
 
 
 def test_the_index_tower_ema_rate_is_pinned_across_several_updates():
@@ -706,14 +835,18 @@ def test_the_index_tower_ema_rate_is_pinned_across_several_updates():
         pre_b = a.net["density_b"].params
         pre_z = a.net["density_b_zenc"].params
         a = a.update(_batch(seed=seed))[0]
-        expect = jax.tree_util.tree_map(lambda p, ep: p * tau + ep * (1 - tau), pre_b, pre_z)
+        expect = jax.tree_util.tree_map(
+            lambda p, ep: p * tau + ep * (1 - tau), pre_b, pre_z
+        )
         # rtol=0 so small rate errors are visible
         assert _leafmax(a.net["density_b_zenc"].params, expect) < 1e-12, (
-            "the index tower is not the tau_z EMA of the PRE-step online tower")
+            "the index tower is not the tau_z EMA of the PRE-step online tower"
+        )
 
     # The towers must have separated
-    assert _leafmax(a.net["density_b"].params, a.net["density_b_zenc"].params) > 1e-6, \
+    assert _leafmax(a.net["density_b"].params, a.net["density_b_zenc"].params) > 1e-6, (
         "online and index towers never separated -- the rate above is untested"
+    )
 
 
 def test_a_different_index_tower_rate_produces_a_different_tower():
@@ -723,12 +856,15 @@ def test_a_different_index_tower_rate_produces_a_different_tower():
     for seed in (1, 2, 3):
         b = _batch(seed=seed)
         slow, fast = slow.update(b)[0], fast.update(b)[0]
-    zgap = _leafmax(slow.net["density_b_zenc"].params, fast.net["density_b_zenc"].params)
+    zgap = _leafmax(
+        slow.net["density_b_zenc"].params, fast.net["density_b_zenc"].params
+    )
     bgap = _leafmax(slow.net["density_b"].params, fast.net["density_b"].params)
     assert zgap > 1e-6, "slow_backward_tau does not reach the index tower"
     # The rate also feeds back into the online tower through the actor
-    assert zgap > 100 * bgap, \
+    assert zgap > 100 * bgap, (
         f"index-tower gap {zgap:.3e} is not dominated by the knob (online gap {bgap:.3e})"
+    )
 
 
 def test_the_moments_ema_reads_the_pre_step_index_tower():
@@ -747,20 +883,29 @@ def test_the_moments_ema_reads_the_pre_step_index_tower():
         db = bb - mu_b[None]
         cov_b = db.T @ db / bb.shape[0]
         t = a.critic.z_sigma_tau
-        assert np.allclose(np.asarray(st["mu"]),
-                           np.asarray(st_before["mu"]) * (1 - t) + mu_b * t,
-                           rtol=0, atol=1e-9), "mu_hat is not EMA'd at the PRE-step tower"
-        assert np.allclose(np.asarray(st["cov"]),
-                           np.asarray(st_before["cov"]) * (1 - t) + cov_b * t,
-                           rtol=0, atol=1e-9), "C_hat is not EMA'd at the PRE-step tower"
+        assert np.allclose(
+            np.asarray(st["mu"]),
+            np.asarray(st_before["mu"]) * (1 - t) + mu_b * t,
+            rtol=0,
+            atol=1e-9,
+        ), "mu_hat is not EMA'd at the PRE-step tower"
+        assert np.allclose(
+            np.asarray(st["cov"]),
+            np.asarray(st_before["cov"]) * (1 - t) + cov_b * t,
+            rtol=0,
+            atol=1e-9,
+        ), "C_hat is not EMA'd at the PRE-step tower"
 
     # Pre- and post-step towers must differ
     pre = a.net["density_b_zenc"].params
     post = jax.tree_util.tree_map(
         lambda p, ep: p * a.critic.z_enc_tau + ep * (1 - a.critic.z_enc_tau),
-        a.net["density_b"].params, pre)
-    assert _leafmax(pre, post) > 1e-9, \
+        a.net["density_b"].params,
+        pre,
+    )
+    assert _leafmax(pre, post) > 1e-9, (
         "pre- and post-step index towers coincide -- the ordering above is untested"
+    )
 
 
 def test_the_covariance_eigenvalue_floor_is_exercised_and_load_bearing():
@@ -775,16 +920,18 @@ def test_the_covariance_eigenvalue_floor_is_exercised_and_load_bearing():
     tr = float(np.trace(cov_np))
     ev, vec = np.linalg.eigh(0.5 * (cov_np + cov_np.T))
     floor = critic.z_cov_eig_floor * tr / D
-    assert (ev < floor).sum() >= D - 2, \
+    assert (ev < floor).sum() >= D - 2, (
         "this covariance does not exercise the floor -- the test would be vacuous"
+    )
 
     lam = critic.z_ridge_lambda_mult * tr / D
     got = np.asarray(critic._z_centered_coef(m_c, cov))
     floored = ((np.asarray(m_c) @ vec) / (np.maximum(ev, floor) + lam)[None, :]) @ vec.T
     unfloored = ((np.asarray(m_c) @ vec) / (ev + lam)[None, :]) @ vec.T
     assert np.allclose(got, floored, rtol=0, atol=1e-8), "the spectrum is not floored"
-    assert not np.allclose(floored, unfloored, atol=1e-6), \
+    assert not np.allclose(floored, unfloored, atol=1e-6), (
         "floored and unfloored solves agree -- the assertion above cannot discriminate"
+    )
 
 
 def _built_full(**over):
@@ -798,7 +945,9 @@ def _perturbed(params, seed=3):
     rng = np.random.default_rng(seed)
     p = dict(params)
     p["density_b_zenc"] = jax.tree_util.tree_map(
-        lambda x: x * 1.5 + 0.1 * jnp.asarray(rng.standard_normal(x.shape)), params["density_b_zenc"])
+        lambda x: x * 1.5 + 0.1 * jnp.asarray(rng.standard_normal(x.shape)),
+        params["density_b_zenc"],
+    )
     st = dict(params["density_zstats"])
     st["mu"] = jnp.asarray(rng.standard_normal(np.asarray(st["mu"]).shape))
     p["density_zstats"] = st
@@ -809,9 +958,13 @@ def test_sample_cond_publishes_the_centered_slow_basis():
     critic, params, _t = _built_full()
     params = _perturbed(params)
     cond = critic.sample_cond(_net_from(params), _batch(), jax.random.PRNGKey(0))
-    expect = np.asarray(critic._B(params["density_b_zenc"], cond["_density_u_sc"])) \
+    expect = (
+        np.asarray(critic._B(params["density_b_zenc"], cond["_density_u_sc"]))
         - np.asarray(params["density_zstats"]["mu"])[None]
-    np.testing.assert_allclose(np.asarray(cond["_density_zenc_u"]), expect, rtol=1e-5, atol=1e-6)
+    )
+    np.testing.assert_allclose(
+        np.asarray(cond["_density_zenc_u"]), expect, rtol=1e-5, atol=1e-6
+    )
 
 
 def test_q_fn_averages_the_linear_z_reward_under_the_predicted_distribution():
@@ -824,12 +977,13 @@ def test_q_fn_averages_the_linear_z_reward_under_the_predicted_distribution():
     z = cond["z"]
     f = critic._F(params["density_f"], obs, act, z)
     b = critic._B(params["density_b"], cond["_density_u_sc"])
-    w = np.asarray(jax.nn.softmax(jnp.einsum('hbd,md->hbm', f, b) / critic.temp, -1))
-    r = np.asarray(cond["_density_zenc_u"]) @ np.asarray(z).T / np.sqrt(D)    # [M, B]
+    w = np.asarray(jax.nn.softmax(jnp.einsum("hbd,md->hbm", f, b) / critic.temp, -1))
+    r = np.asarray(cond["_density_zenc_u"]) @ np.asarray(z).T / np.sqrt(D)  # [M, B]
     heads = (w * r.T[None]).sum(-1)
     np.testing.assert_allclose(np.asarray(q), heads.min(0), rtol=1e-6, atol=1e-8)
-    np.testing.assert_allclose(np.asarray(qs[0]), heads.min(0) - heads.min(0).mean(),
-                               rtol=1e-6, atol=1e-8)
+    np.testing.assert_allclose(
+        np.asarray(qs[0]), heads.min(0) - heads.min(0).mean(), rtol=1e-6, atol=1e-8
+    )
 
 
 def test_the_index_requires_hit_spec_backward_input():

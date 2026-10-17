@@ -2,6 +2,7 @@
 
 Usage: MUJOCO_GL=egl python scripts/probes/cube_bottleneck/fig_phase_strip.py [--task 2 --episode 0] [--video]
 """
+
 import argparse
 import os
 import sys
@@ -29,11 +30,13 @@ LABEL = "density_fb_z_seed0_1000000"
 OUT = Path("figures/failure/fig_phase_strip")
 
 # Stage colours, shared with the failure figures
-STAGES = [("approach", "Approach", "#CC78BC"),
-          ("acquisition", "Acquisition", "#DE8F05"),
-          ("maintain", "Maintain", "#0173B2"),
-          ("transport", "Transport", "#D55E00"),
-          ("success", "Success", "#029E73")]
+STAGES = [
+    ("approach", "Approach", "#CC78BC"),
+    ("acquisition", "Acquisition", "#DE8F05"),
+    ("maintain", "Maintain", "#0173B2"),
+    ("transport", "Transport", "#D55E00"),
+    ("success", "Success", "#029E73"),
+]
 
 
 def pick_frames(eff, cube, grip, goal, thr: PhaseThresholds):
@@ -51,8 +54,13 @@ def pick_frames(eff, cube, grip, goal, thr: PhaseThresholds):
     after = np.flatnonzero((np.arange(len(cube)) > t_lift) & (moved > 0.5 * total))
     t_carry = int(after[0]) if len(after) else (t_lift + len(cube) - 1) // 2
     t_approach = max(0, t_reach // 2)
-    return dict(approach=t_approach, acquisition=t_grasp, maintain=t_lift,
-                transport=t_carry, success=len(cube) - 1)
+    return dict(
+        approach=t_approach,
+        acquisition=t_grasp,
+        maintain=t_lift,
+        transport=t_carry,
+        success=len(cube) - 1,
+    )
 
 
 def render_state(env, task, goal, qpos, qvel):
@@ -66,7 +74,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--task", type=int, default=None)
     ap.add_argument("--episode", type=int, default=None)
-    ap.add_argument("--video", action="store_true", help="also write a gif of the episode")
+    ap.add_argument(
+        "--video", action="store_true", help="also write a gif of the episode"
+    )
     args = ap.parse_args()
 
     d = np.load(ROLL / f"traj_{LABEL}.npz")
@@ -74,8 +84,12 @@ def main():
     if args.task is None:
         # Successful episode with the longest cube-to-goal distance
         ok = eps[eps.success == 1].copy()
-        ok["dist"] = [np.linalg.norm(d[f"t{t}_e{e}_goal"][0, :2] - d[f"t{t}_e{e}_init_cube"][0, :2])
-                      for t, e in zip(ok.task, ok.episode)]
+        ok["dist"] = [
+            np.linalg.norm(
+                d[f"t{t}_e{e}_goal"][0, :2] - d[f"t{t}_e{e}_init_cube"][0, :2]
+            )
+            for t, e in zip(ok.task, ok.episode)
+        ]
         row = ok.sort_values("dist").iloc[-1]
         args.task, args.episode = int(row.task), int(row.episode)
     p = f"t{args.task}_e{args.episode}"
@@ -85,20 +99,34 @@ def main():
     print(f"task {args.task} episode {args.episode} length {len(qpos)} frames {frames}")
 
     import ogbench
+
     env = ogbench.make_env_and_datasets(ENV, env_only=True, render_mode="rgb_array")
-    imgs = {k: render_state(env, args.task, goal, qpos[t], qvel[t]) for k, t in frames.items()}
+    imgs = {
+        k: render_state(env, args.task, goal, qpos[t], qvel[t])
+        for k, t in frames.items()
+    }
 
     h, w = next(iter(imgs.values())).shape[:2]
-    top, bot = int(0.10 * h), int(0.92 * h)          # trim sky and floor
+    top, bot = int(0.10 * h), int(0.92 * h)  # trim sky and floor
     fig, axes = plt.subplots(1, len(STAGES), figsize=(7.0, 1.75))
     for ax, (key, name, col) in zip(axes, STAGES):
         ax.imshow(imgs[key][top:bot])
-        ax.set_xticks([]); ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_yticks([])
         for s in ax.spines.values():
-            s.set_edgecolor(col); s.set_linewidth(2.0)
+            s.set_edgecolor(col)
+            s.set_linewidth(2.0)
         ax.set_title(name, fontsize=11, color=col, pad=3)
-        ax.text(0.03, 0.04, f"t={frames[key]}", transform=ax.transAxes, fontsize=7.5,
-                color="white", ha="left", va="bottom")
+        ax.text(
+            0.03,
+            0.04,
+            f"t={frames[key]}",
+            transform=ax.transAxes,
+            fontsize=7.5,
+            color="white",
+            ha="left",
+            va="bottom",
+        )
     fig.subplots_adjust(wspace=0.04, left=0.005, right=0.995, top=0.88, bottom=0.01)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     for e in ("pdf", "png"):
@@ -107,7 +135,11 @@ def main():
 
     if args.video:
         import imageio.v2 as imageio
-        vid = [render_state(env, args.task, goal, qpos[t], qvel[t]) for t in range(len(qpos))]
+
+        vid = [
+            render_state(env, args.task, goal, qpos[t], qvel[t])
+            for t in range(len(qpos))
+        ]
         imageio.mimsave(f"{OUT}.gif", vid, duration=100, loop=0)
         print(f"wrote {OUT}.gif")
 

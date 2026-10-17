@@ -1,4 +1,5 @@
 """Critic protocol and critic x actor combo validation."""
+
 from typing import Protocol, runtime_checkable
 
 
@@ -8,22 +9,22 @@ class ComboError(ValueError):
 
 @runtime_checkable
 class Critic(Protocol):
-    GROUPS: tuple           # parameter groups
-    STAGES: tuple           # loss stages, run in order
-    TARGETS: dict           # group -> polyak tau
+    GROUPS: tuple  # parameter groups
+    STAGES: tuple  # loss stages, run in order
+    TARGETS: dict  # group -> polyak tau
     PROVIDES_COND: frozenset  # cond keys produced by sample_cond
-    BOOT_COND: str          # "actor_goal" or "value_goal": cond of the TD bootstrap action
+    BOOT_COND: str  # "actor_goal" or "value_goal": cond of the TD bootstrap action
     INFER_COND_MARGINAL: str  # batch key of the rows passed to infer_cond
-    cvec_dim: int           # width of the actor's conditioning vector
+    cvec_dim: int  # width of the actor's conditioning vector
 
-    def eval_cond0(self, ex_obs, config): ...   # initial evaluation cond
+    def eval_cond0(self, ex_obs, config): ...  # initial evaluation cond
 
     @classmethod
     def build(cls, ex_obs, ex_actions, config): ...
     def stage_groups(self, stage) -> tuple: ...
     def stage_loss(self, stage, params, target, batch, cond, boot): ...
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad: bool = False): ...
-    def cond_vec(self, cond): ...            # actor conditioning vector
+    def cond_vec(self, cond): ...  # actor conditioning vector
     def sample_cond(self, net, batch, rng): ...
     def infer_cond(self, net, obs, rewards): ...
 
@@ -76,14 +77,18 @@ def check_combo(critic, actor):
         raise ComboError(
             f"{_name(critic)}.BOOT_COND is {boot_cond!r}; expected one of {sorted(BOOT_KEY)}"
         )
-    if boot_cond == "value_goal" and "value_goal" not in set(getattr(critic, "PROVIDES_COND", ())):
+    if boot_cond == "value_goal" and "value_goal" not in set(
+        getattr(critic, "PROVIDES_COND", ())
+    ):
         raise ComboError(
             f"{_name(critic)}.BOOT_COND is 'value_goal' but its sample_cond does not "
             f"produce 'value_goal', so it cannot publish cond['_cvec_vgoal'] and no actor "
             f"will emit boot['next_action_vgoal'] (every actor guards that draw on "
             f"'_cvec_vgoal' in cond)"
         )
-    missing = set(getattr(actor, "REQUIRES_COND", ())) - set(getattr(critic, "PROVIDES_COND", ()))
+    missing = set(getattr(actor, "REQUIRES_COND", ())) - set(
+        getattr(critic, "PROVIDES_COND", ())
+    )
     if missing:
         raise ComboError(
             f"{_name(actor)} requires cond key(s) {sorted(missing)} but "

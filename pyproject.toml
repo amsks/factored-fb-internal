@@ -60,11 +60,12 @@ dev = [
 
 [tool.ruff]
 target-version = "py311"
-extend-exclude = ["ogbench"]
+extend-exclude = ["ogbench", "scripts/probes/cube_bottleneck/phases.py"]
 
 [tool.isort]
 profile = "black"
 skip = ["ogbench"]
+skip_glob = ["scripts/probes/cube_bottleneck/phases.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

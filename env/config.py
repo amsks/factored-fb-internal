@@ -1,11 +1,15 @@
 """Run config composition with domains from env/domains/ (fallback impls/configs/domain/)."""
+
 import os
 
 from omegaconf import OmegaConf
 
 from impls.utils.config_utils import (
+    REQUIRED_KEYS,
+    ConfigError,
+    _get_dotted,
+    _load_group,
     upgrade_config,
-    _load_group, _get_dotted, REQUIRED_KEYS, ConfigError,
 )
 
 DOMAINS_ROOT = os.path.join(os.path.dirname(__file__), "domains")

@@ -2,13 +2,14 @@
 
 HILP maps a goal to z = sqrt(d) * normalize(phi(g) - phi(s)) with centered phi.
 """
+
 import inspect
 
 import jax.numpy as jnp
 import numpy as np
 
 from env import make_config
-from impls.agents import Agent, CRITICS
+from impls.agents import CRITICS, Agent
 
 OBS_DIM, ACT_DIM, B = 37, 5, 6
 
@@ -19,11 +20,15 @@ def _reads_z(cls):
 
 def test_every_z_conditioned_critic_resolves_map_eval_cond():
     """Every critic whose cond_vec reads z defines map_eval_cond."""
-    missing = [name for name, cls in CRITICS.items()
-               if _reads_z(cls) and not hasattr(cls, "map_eval_cond")]
+    missing = [
+        name
+        for name, cls in CRITICS.items()
+        if _reads_z(cls) and not hasattr(cls, "map_eval_cond")
+    ]
     assert not missing, (
         f"z-conditioned critics with NO map_eval_cond (goal-blind on the goal route): "
-        f"{missing}")
+        f"{missing}"
+    )
 
 
 def _built(critic, overrides=()):
@@ -49,8 +54,14 @@ def test_hilp_goal_maps_to_the_reference_z():
     cr = ag.critic
     # Non-zero stats mean, so a missing centering is caught.
     stats = ag.net["hilp_stats"]
-    ag = ag.replace(net={**ag.net, "hilp_stats": stats.replace(
-        params={**stats.params, "mean": jnp.full((cr.z_dim,), 0.3)})})
+    ag = ag.replace(
+        net={
+            **ag.net,
+            "hilp_stats": stats.replace(
+                params={**stats.params, "mean": jnp.full((cr.z_dim,), 0.3)}
+            ),
+        }
+    )
     goal, s = obs[0] + 2.0, obs[1]
     cond0 = {"z": jnp.zeros((cr.z_dim,))}
     assert float(jnp.linalg.norm(cr.cond_vec(cond0))) == 0.0
@@ -64,8 +75,9 @@ def test_hilp_goal_maps_to_the_reference_z():
 
     # Batch of observations, one goal: one z per row.
     mb = cr.map_eval_cond(ag.net, {**cond0, "goal": goal}, observations=obs)
-    np.testing.assert_allclose(np.asarray(mb["z"]), _reference_z(ag, goal, obs),
-                               rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(
+        np.asarray(mb["z"]), _reference_z(ag, goal, obs), rtol=1e-5, atol=1e-6
+    )
     # No goal in cond: the hook is a no-op.
     assert cr.map_eval_cond(ag.net, cond0, observations=s) is cond0
 
@@ -78,6 +90,7 @@ def test_hilp_actor_is_not_goal_blind_on_the_goal_route():
     a1 = ag.sample_actions(s, goals=g1, seed=ag.rng)
     a2 = ag.sample_actions(s, goals=g2, seed=ag.rng)
     a1b = ag.sample_actions(s, goals=g1, seed=ag.rng)
-    np.testing.assert_allclose(a1, a1b)   # deterministic given (s, g, seed)
-    assert not np.allclose(a1, a2), "same action for two goals: the actor never saw the goal"
-
+    np.testing.assert_allclose(a1, a1b)  # deterministic given (s, g, seed)
+    assert not np.allclose(a1, a2), (
+        "same action for two goals: the actor never saw the goal"
+    )

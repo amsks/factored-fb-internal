@@ -3,6 +3,7 @@
 Backward/phi map, forward map F(s, a, z), RLDP's multi-step predictor and the
 noise-conditioned policy.
 """
+
 import math
 
 import flax.linen as nn
@@ -14,8 +15,8 @@ def ensemblize(cls, num_qs, in_axes=None, out_axes=0, **kwargs):
     """Ensemblize a module via nn.vmap."""
     return nn.vmap(
         cls,
-        variable_axes={'params': 0, 'intermediates': 0},
-        split_rngs={'params': True},
+        variable_axes={"params": 0, "intermediates": 0},
+        split_rngs={"params": True},
         in_axes=in_axes,
         out_axes=out_axes,
         axis_size=num_qs,
@@ -60,7 +61,9 @@ class PhiMap(nn.Module):
 def _simple_embedding(x, hidden_dim, embedding_layers):
     """Dense + LayerNorm + tanh, ReLU layers, then a ReLU layer of width hidden_dim // 2."""
     assert embedding_layers >= 2, "must have at least 2 embedding layers"
-    x = jnp.tanh(nn.LayerNorm(epsilon=1e-5)(nn.Dense(hidden_dim, kernel_init=_ORTH1)(x)))
+    x = jnp.tanh(
+        nn.LayerNorm(epsilon=1e-5)(nn.Dense(hidden_dim, kernel_init=_ORTH1)(x))
+    )
     for _ in range(embedding_layers - 2):
         x = nn.relu(nn.Dense(hidden_dim, kernel_init=_ORTH1)(x))
     return nn.relu(nn.Dense(hidden_dim // 2, kernel_init=_ORTH1)(x))
@@ -76,10 +79,12 @@ class NoiseConditionedActor(nn.Module):
 
     @nn.compact
     def __call__(self, obs, z, noise):
-        z_embedding = _simple_embedding(jnp.concatenate([obs, z, noise], -1),
-                                        self.hidden_dim, self.embedding_layers)
-        s_embedding = _simple_embedding(jnp.concatenate([obs, noise], -1),
-                                        self.hidden_dim, self.embedding_layers)
+        z_embedding = _simple_embedding(
+            jnp.concatenate([obs, z, noise], -1), self.hidden_dim, self.embedding_layers
+        )
+        s_embedding = _simple_embedding(
+            jnp.concatenate([obs, noise], -1), self.hidden_dim, self.embedding_layers
+        )
         h = jnp.concatenate([s_embedding, z_embedding], -1)
         for _ in range(self.hidden_layers):
             h = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_ORTH1)(h))
@@ -98,7 +103,9 @@ class FlowVectorField(nn.Module):
         x = jnp.concatenate([obs, action, t], -1)
         x = nn.gelu(nn.Dense(self.hidden_dim, kernel_init=_ORTH1)(x), approximate=False)
         for _ in range(self.hidden_layers - 1):
-            x = nn.gelu(nn.Dense(self.hidden_dim, kernel_init=_ORTH1)(x), approximate=False)
+            x = nn.gelu(
+                nn.Dense(self.hidden_dim, kernel_init=_ORTH1)(x), approximate=False
+            )
         return nn.Dense(self.action_dim, kernel_init=_ORTH1)(x)
 
 
@@ -114,7 +121,9 @@ class _ForwardTower(nn.Module):
     embedding_layers: int = 2
 
     def setup(self):
-        assert self.embedding_layers == 2, "only embedding_layers=2 supported (reference default)"
+        assert self.embedding_layers == 2, (
+            "only embedding_layers=2 supported (reference default)"
+        )
         h = self.hidden_dim
         self.embed_z_0 = nn.Dense(h, kernel_init=_ORTH_RELU)
         self.embed_z_ln = nn.LayerNorm(epsilon=1e-5)
@@ -122,14 +131,27 @@ class _ForwardTower(nn.Module):
         self.embed_sa_0 = nn.Dense(h, kernel_init=_ORTH_RELU)
         self.embed_sa_ln = nn.LayerNorm(epsilon=1e-5)
         self.embed_sa_3 = nn.Dense(h // 2, kernel_init=_ORTH_RELU)
-        self.fs = [nn.Dense(h, kernel_init=_ORTH_RELU) for _ in range(self.hidden_layers)] \
-            + [nn.Dense(self.z_dim, kernel_init=_ORTH_RELU)]
+        self.fs = [
+            nn.Dense(h, kernel_init=_ORTH_RELU) for _ in range(self.hidden_layers)
+        ] + [nn.Dense(self.z_dim, kernel_init=_ORTH_RELU)]
 
     def __call__(self, obs_feat, z, action):
-        ze = nn.relu(self.embed_z_3(jnp.tanh(self.embed_z_ln(
-            self.embed_z_0(jnp.concatenate([obs_feat, z], -1))))))
-        sa = nn.relu(self.embed_sa_3(jnp.tanh(self.embed_sa_ln(
-            self.embed_sa_0(jnp.concatenate([obs_feat, action], -1))))))
+        ze = nn.relu(
+            self.embed_z_3(
+                jnp.tanh(
+                    self.embed_z_ln(self.embed_z_0(jnp.concatenate([obs_feat, z], -1)))
+                )
+            )
+        )
+        sa = nn.relu(
+            self.embed_sa_3(
+                jnp.tanh(
+                    self.embed_sa_ln(
+                        self.embed_sa_0(jnp.concatenate([obs_feat, action], -1))
+                    )
+                )
+            )
+        )
         x = jnp.concatenate([sa, ze], -1)
         for layer in self.fs[:-1]:
             x = nn.relu(layer(x))
@@ -148,8 +170,10 @@ class ForwardMap(nn.Module):
     @nn.compact
     def __call__(self, obs_feat, z, action):
         tower = ensemblize(_ForwardTower, self.num_parallel, in_axes=None)(
-            z_dim=self.z_dim, hidden_dim=self.hidden_dim,
-            hidden_layers=self.hidden_layers, embedding_layers=self.embedding_layers,
+            z_dim=self.z_dim,
+            hidden_dim=self.hidden_dim,
+            hidden_layers=self.hidden_layers,
+            embedding_layers=self.embedding_layers,
             name="tower",
         )
         return tower(obs_feat, z, action)
@@ -164,7 +188,9 @@ class _PredictorTower(nn.Module):
     embedding_layers: int = 2
 
     def setup(self):
-        assert self.embedding_layers == 2, "only embedding_layers=2 supported (reference default)"
+        assert self.embedding_layers == 2, (
+            "only embedding_layers=2 supported (reference default)"
+        )
         h = self.hidden_dim
         self.embed_z_0 = nn.Dense(h, kernel_init=_ORTH_RELU)
         self.embed_z_ln = nn.LayerNorm(epsilon=1e-5)
@@ -172,12 +198,18 @@ class _PredictorTower(nn.Module):
         self.embed_s_0 = nn.Dense(h, kernel_init=_ORTH_RELU)
         self.embed_s_ln = nn.LayerNorm(epsilon=1e-5)
         self.embed_s_3 = nn.Dense(h // 2, kernel_init=_ORTH_RELU)
-        self.fs = [nn.Dense(h, kernel_init=_ORTH_RELU) for _ in range(self.hidden_layers)] \
-            + [nn.Dense(self.out_dim, kernel_init=_ORTH_RELU)]
+        self.fs = [
+            nn.Dense(h, kernel_init=_ORTH_RELU) for _ in range(self.hidden_layers)
+        ] + [nn.Dense(self.out_dim, kernel_init=_ORTH_RELU)]
 
     def __call__(self, x, action):
-        ze = nn.relu(self.embed_z_3(jnp.tanh(self.embed_z_ln(
-            self.embed_z_0(jnp.concatenate([x, action], -1))))))
+        ze = nn.relu(
+            self.embed_z_3(
+                jnp.tanh(
+                    self.embed_z_ln(self.embed_z_0(jnp.concatenate([x, action], -1)))
+                )
+            )
+        )
         se = nn.relu(self.embed_s_3(jnp.tanh(self.embed_s_ln(self.embed_s_0(x)))))
         y = jnp.concatenate([se, ze], -1)
         for layer in self.fs[:-1]:
@@ -200,8 +232,10 @@ class PredictorMap(nn.Module):
     @nn.compact
     def __call__(self, x, action):
         tower = ensemblize(_PredictorTower, self.num_parallel, in_axes=(0, None))(
-            out_dim=self.out_dim, hidden_dim=self.hidden_dim,
-            hidden_layers=self.hidden_layers, embedding_layers=self.embedding_layers,
+            out_dim=self.out_dim,
+            hidden_dim=self.hidden_dim,
+            hidden_layers=self.hidden_layers,
+            embedding_layers=self.embedding_layers,
             name="tower",
         )
         return tower(x, action)

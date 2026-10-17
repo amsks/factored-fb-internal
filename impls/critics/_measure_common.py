@@ -1,4 +1,5 @@
 """Hit-spec parsing: which observation columns define the task and the success radius."""
+
 import jax.numpy as jnp
 
 
@@ -17,19 +18,22 @@ def parse_hit_spec(spec):
     Example: '19:22:0.4,28:31:0.4'.
     """
     blocks = []
-    for part in str(spec).split(','):
+    for part in str(spec).split(","):
         part = part.strip()
         if not part:
             continue
-        fields = part.split(':')
+        fields = part.split(":")
         # OmegaConf parses an unquoted 'a:b:eps' as a sexagesimal number
         if len(fields) == 1 and _looks_sexagesimal(part):
             raise AssertionError(
                 f"hit-spec {part!r} looks like OmegaConf's sexagesimal parse of an UNQUOTED "
                 f"'a:b:eps' override. Pass it with escaped quotes so the value stays a "
                 f"string: --override 'goal_spec=\"4:7:0.07\"' (launchers: "
-                f'goal_spec=\\"...\\" inside the OVERRIDE string, `tr` not `xargs`).')
-        assert len(fields) == 3, f"hit-spec block must be 'start:stop:eps', got {part!r}"
+                f'goal_spec=\\"...\\" inside the OVERRIDE string, `tr` not `xargs`).'
+            )
+        assert len(fields) == 3, (
+            f"hit-spec block must be 'start:stop:eps', got {part!r}"
+        )
         a, b, e = int(fields[0]), int(fields[1]), float(fields[2])
         assert 0 <= a < b, f"hit-spec block {part!r}: need 0 <= start < stop"
         assert e >= 0.0, f"hit-spec block {part!r}: radius must be >= 0"
@@ -41,4 +45,3 @@ def parse_hit_spec(spec):
 def scaled_hit_cols(x, blocks):
     """Eps-scaled hit-spec columns [..., d_c]; callers check the blocks fit the observation."""
     return jnp.concatenate([x[..., a:b] / e for (a, b, e) in blocks], axis=-1)
-

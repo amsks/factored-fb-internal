@@ -3,6 +3,7 @@
 Column k of future_actions is row min(idx + 1 + k, traj_end) and column k of
 future_observations is row min(idx + 2 + k, traj_end), so windows never cross episodes.
 """
+
 import numpy as np
 import pytest
 
@@ -18,9 +19,9 @@ def _base(cls=FBDataset):
     terminals = np.zeros(SIZE, np.float32)
     terminals[np.arange(1, N_TRAJ + 1) * T - 1] = 1.0
     obs = rng.standard_normal((SIZE, OBS)).astype(np.float32)
-    obs[:, 0] = np.arange(SIZE)                      # row tag
+    obs[:, 0] = np.arange(SIZE)  # row tag
     acts = rng.standard_normal((SIZE, ACT)).astype(np.float32)
-    acts[:, 0] = np.arange(SIZE)                     # row tag
+    acts[:, 0] = np.arange(SIZE)  # row tag
     return cls.create(observations=obs, actions=acts, terminals=terminals)
 
 
@@ -64,7 +65,7 @@ def test_still_emits_the_fb_training_batch():
     assert b["actions"].shape == (9, ACT)
     assert b["rewards"].shape == (9, 1)
     assert b["terminals"].shape == (9,)
-    assert np.all(b["terminals"] == 0.0)             # as FBDataset
+    assert np.all(b["terminals"] == 0.0)  # as FBDataset
 
 
 def test_horizon_one_emits_no_future_keys():
@@ -79,9 +80,9 @@ def test_window_contents_are_the_actual_next_h_rows():
     obs = np.asarray(base["observations"])
     acts = np.asarray(base["actions"])
     ds = make_dataset(base, _cfg(horizon=4))
-    idxs = np.array([0, 1, 5, T + 2, 2 * T + 3])     # away from trajectory ends
+    idxs = np.array([0, 1, 5, T + 2, 2 * T + 3])  # away from trajectory ends
     b = ds.sample(len(idxs), idxs=idxs)
-    for k in range(3):                               # h-1 future columns
+    for k in range(3):  # h-1 future columns
         np.testing.assert_allclose(b["future_observations"][:, k], obs[idxs + 2 + k])
         np.testing.assert_allclose(b["future_actions"][:, k], acts[idxs + 1 + k])
 
@@ -96,8 +97,9 @@ def test_future_column_zero_starts_one_step_past_the_transition():
     b = ds.sample(len(idxs), idxs=idxs)
     np.testing.assert_allclose(b["future_observations"][:, 0], obs[idxs + 2])
     np.testing.assert_allclose(b["future_actions"][:, 0], acts[idxs + 1])
-    assert not np.allclose(b["future_observations"][:, 0], b["next_observations"]), \
+    assert not np.allclose(b["future_observations"][:, 0], b["next_observations"]), (
         "column 0 duplicates next_observations (off-by-one)"
+    )
 
 
 def test_window_near_a_trajectory_end_is_clamped_not_bled():
@@ -107,11 +109,13 @@ def test_window_near_a_trajectory_end_is_clamped_not_bled():
     ds = make_dataset(base, _cfg(horizon=4))
     idx = np.array([T - 3])
     b = ds.sample(1, idxs=idx)
-    got_o = b["future_observations"][0][:, 0]        # row tag
+    got_o = b["future_observations"][0][:, 0]  # row tag
     got_a = b["future_actions"][0][:, 0]
     np.testing.assert_allclose(got_o, [T - 1, T - 1, T - 1])
     np.testing.assert_allclose(got_a, [T - 2, T - 1, T - 1])
-    assert not np.any(got_o >= T) and not np.any(got_a >= T), "window bled into the next episode"
+    assert not np.any(got_o >= T) and not np.any(got_a >= T), (
+        "window bled into the next episode"
+    )
     np.testing.assert_allclose(b["future_observations"][0], obs[[T - 1, T - 1, T - 1]])
 
 
@@ -126,8 +130,12 @@ def test_clamping_to_the_trajectory_end_over_every_start_row():
     b = ds.sample(SIZE, idxs=idxs)
     final = _final_idxs(idxs)
     for k in range(h - 1):
-        np.testing.assert_allclose(b["future_observations"][:, k], obs[np.minimum(idxs + 2 + k, final)])
-        np.testing.assert_allclose(b["future_actions"][:, k], acts[np.minimum(idxs + 1 + k, final)])
+        np.testing.assert_allclose(
+            b["future_observations"][:, k], obs[np.minimum(idxs + 2 + k, final)]
+        )
+        np.testing.assert_allclose(
+            b["future_actions"][:, k], acts[np.minimum(idxs + 1 + k, final)]
+        )
 
 
 def test_every_window_row_stays_inside_its_own_trajectory():
@@ -136,8 +144,10 @@ def test_every_window_row_stays_inside_its_own_trajectory():
     idxs = np.arange(SIZE)
     b = ds.sample(SIZE, idxs=idxs)
     for key in ("future_observations", "future_actions"):
-        rows = b[key][:, :, 0]                       # row tags, [SIZE, h-1]
-        assert np.all(rows // T == (idxs // T)[:, None]), "a window crossed into another episode"
+        rows = b[key][:, :, 0]  # row tags, [SIZE, h-1]
+        assert np.all(rows // T == (idxs // T)[:, None]), (
+            "a window crossed into another episode"
+        )
         assert np.all(rows >= idxs[:, None]), "a window went backwards in time"
         assert np.all(np.diff(rows, axis=1) >= 0), "a window is not monotone in time"
 
@@ -150,7 +160,8 @@ def test_observation_rows_lead_action_rows_by_one_step():
     final = _final_idxs(idxs)
     np.testing.assert_allclose(
         b["future_observations"][:, :, 0],
-        np.minimum(b["future_actions"][:, :, 0] + 1, final[:, None]))
+        np.minimum(b["future_actions"][:, :, 0] + 1, final[:, None]),
+    )
 
 
 def test_random_sampling_also_respects_boundaries():

@@ -1,26 +1,50 @@
 """infer_eval_cond and the no-op inference detector."""
+
 import jax.numpy as jnp
 import numpy as np
-from impls.agents import Agent
+
 import impls.main as m
+from impls.agents import Agent
 
 
 def _fb_cfg():
-    return dict(batch_size=8, z_dim=50, L_dim=50, num_parallel=2, discount=0.99,
-                f_target_tau=0.005, b_target_tau=0.005, ortho_coef=1.0,
-                train_goal_ratio=0.5, fb_pessimism_penalty=0.0, norm_z=True,
-                lr_f=1e-4, lr_b=1e-4, lr_actor=1e-4,
-                forward=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
-                backward=dict(hidden_dim=32, hidden_layers=2, norm=True),
-                left_encoder=dict(hidden_dim=32, hidden_layers=2, norm=True),
-                actor=dict(type="flow", hidden_dim=32, hidden_layers=2, embedding_layers=2,
-                           bc_coeff=3.0, flow_steps=3, lr_actor_vf=3e-4,
-                           flow_vf_hidden_dim=32, flow_vf_hidden_layers=2))
+    return dict(
+        batch_size=8,
+        z_dim=50,
+        L_dim=50,
+        num_parallel=2,
+        discount=0.99,
+        f_target_tau=0.005,
+        b_target_tau=0.005,
+        ortho_coef=1.0,
+        train_goal_ratio=0.5,
+        fb_pessimism_penalty=0.0,
+        norm_z=True,
+        lr_f=1e-4,
+        lr_b=1e-4,
+        lr_actor=1e-4,
+        forward=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
+        backward=dict(hidden_dim=32, hidden_layers=2, norm=True),
+        left_encoder=dict(hidden_dim=32, hidden_layers=2, norm=True),
+        actor=dict(
+            type="flow",
+            hidden_dim=32,
+            hidden_layers=2,
+            embedding_layers=2,
+            bc_coeff=3.0,
+            flow_steps=3,
+            lr_actor_vf=3e-4,
+            flow_vf_hidden_dim=32,
+            flow_vf_hidden_layers=2,
+        ),
+    )
 
 
 def test_infer_eval_cond_changes_z():
     """Non-degenerate rewards move the inferred z."""
-    agent = Agent.create("fb", "flowbc", 0, jnp.zeros((2, 8)), jnp.zeros((2, 5)), _fb_cfg())
+    agent = Agent.create(
+        "fb", "flowbc", 0, jnp.zeros((2, 8)), jnp.zeros((2, 5)), _fb_cfg()
+    )
     before = np.asarray(agent.cond_eval["z"])
     rng = np.random.default_rng(0)
     obs = rng.standard_normal((32, 8)).astype(np.float32)
@@ -40,19 +64,30 @@ def test_infer_eval_cond_is_noop_on_real_cube_single_data():
     _, train_ds, _ = make_env_and_datasets(cfg["env_name"])
     train_ds = make_dataset(train_ds, cfg)
     ex = train_ds.sample(1)
-    agent = Agent.create("fb", "flowbc", 0, jnp.asarray(ex["observations"]),
-                         jnp.asarray(ex["actions"]), cfg)
+    agent = Agent.create(
+        "fb",
+        "flowbc",
+        0,
+        jnp.asarray(ex["observations"]),
+        jnp.asarray(ex["actions"]),
+        cfg,
+    )
 
     rb = train_ds.sample(32)
-    assert bool(jnp.all(jnp.asarray(rb["rewards"]) == 0)), \
+    assert bool(jnp.all(jnp.asarray(rb["rewards"]) == 0)), (
         "test premise: cube-single-play-v0 rewards must be all zero"
+    )
 
     before = agent.cond_eval
-    after_agent = agent.infer_eval_cond(jnp.asarray(rb["observations"]), jnp.asarray(rb["rewards"]))
+    after_agent = agent.infer_eval_cond(
+        jnp.asarray(rb["observations"]), jnp.asarray(rb["rewards"])
+    )
     after = after_agent.cond_eval
 
     np.testing.assert_array_equal(np.asarray(after["z"]), np.asarray(before["z"]))
-    np.testing.assert_array_equal(np.asarray(after["z"]), np.zeros_like(np.asarray(after["z"])))
+    np.testing.assert_array_equal(
+        np.asarray(after["z"]), np.zeros_like(np.asarray(after["z"]))
+    )
 
     reason = m.infer_cond_noop_reason(before, after, rb["rewards"])
     assert reason is not None, "the runtime no-op detector must catch this exact case"

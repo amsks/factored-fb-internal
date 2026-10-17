@@ -1,4 +1,5 @@
 """Config composition from the critic, actor and domain groups under impls/configs/."""
+
 import os
 
 from omegaconf import OmegaConf
@@ -7,18 +8,37 @@ CONFIG_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), "configs"
 
 # Required keys per critic name; dotted keys reach into nested dicts.
 _FB_KEYS = (
-    "lr_f", "lr_b", "lr_actor", "z_dim", "batch_size", "discount",
-    "L_dim", "num_parallel", "ortho_coef",
-    "train_goal_ratio", "norm_z", "f_target_tau", "b_target_tau",
-    "forward.hidden_dim", "forward.hidden_layers", "forward.embedding_layers",
-    "backward.hidden_dim", "backward.hidden_layers", "backward.norm",
-    "left_encoder.hidden_dim", "left_encoder.hidden_layers", "left_encoder.norm",
+    "lr_f",
+    "lr_b",
+    "lr_actor",
+    "z_dim",
+    "batch_size",
+    "discount",
+    "L_dim",
+    "num_parallel",
+    "ortho_coef",
+    "train_goal_ratio",
+    "norm_z",
+    "f_target_tau",
+    "b_target_tau",
+    "forward.hidden_dim",
+    "forward.hidden_layers",
+    "forward.embedding_layers",
+    "backward.hidden_dim",
+    "backward.hidden_layers",
+    "backward.norm",
+    "left_encoder.hidden_dim",
+    "left_encoder.hidden_layers",
+    "left_encoder.norm",
 )
 REQUIRED_KEYS = {
     "fb": _FB_KEYS,
-    "rldp": _FB_KEYS + (
+    "rldp": _FB_KEYS
+    + (
         "horizon",
-        "predictor.hidden_dim", "predictor.hidden_layers", "predictor.embedding_layers",
+        "predictor.hidden_dim",
+        "predictor.hidden_layers",
+        "predictor.embedding_layers",
         "dataset_class",
     ),
 }
@@ -69,7 +89,9 @@ def upgrade_config(config):
         if old in out:
             value = out.pop(old)
             if new in out and out[new] != value:
-                raise ConfigError(f"config sets both {old!r} and {new!r} to different values")
+                raise ConfigError(
+                    f"config sets both {old!r} and {new!r} to different values"
+                )
             out[new] = value
     return out
 

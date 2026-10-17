@@ -1,4 +1,5 @@
 """Rebuild and restore trained agents from run directories, as the eval path does."""
+
 import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -56,12 +57,26 @@ def load_arm(run_dir, epoch: int = 500000, *, with_env: bool = True) -> Arm:
     adapter = get_adapter(cfg)
     env, train_ds, _val = adapter.make_env_and_datasets(cfg)
     ex = make_dataset(train_ds, cfg).sample(1)
-    agent = Agent.create(meta["critic"], meta["actor"], meta["seed"],
-                         jnp.asarray(ex["observations"]), jnp.asarray(ex["actions"]), cfg)
+    agent = Agent.create(
+        meta["critic"],
+        meta["actor"],
+        meta["seed"],
+        jnp.asarray(ex["observations"]),
+        jnp.asarray(ex["actions"]),
+        cfg,
+    )
     agent = restore_agent(agent, str(run_dir), epoch)
-    return Arm(run_dir=run_dir, critic=meta["critic"], actor=meta["actor"], seed=meta["seed"],
-               epoch=epoch, config=cfg, agent=agent, env=env if with_env else None,
-               dataset=train_ds)
+    return Arm(
+        run_dir=run_dir,
+        critic=meta["critic"],
+        actor=meta["actor"],
+        seed=meta["seed"],
+        epoch=epoch,
+        config=cfg,
+        agent=agent,
+        env=env if with_env else None,
+        dataset=train_ds,
+    )
 
 
 def eval_tasks(arm: Arm) -> List[int]:
@@ -70,11 +85,14 @@ def eval_tasks(arm: Arm) -> List[int]:
     tasks = get_adapter(arm.config).eval_tasks(arm.env, arm.config)
     assert tasks and tasks[0] is not None, (
         "the probe needs the per-task_id OGBench eval (eval_aggregate off), which is what "
-        "table_privcoord's cells were produced by")
+        "table_privcoord's cells were produced by"
+    )
     return list(tasks)
 
 
-def discover(exp_root, env_name: str, critics, seeds, epoch: int = 500000) -> List[Dict]:
+def discover(
+    exp_root, env_name: str, critics, seeds, epoch: int = 500000
+) -> List[Dict]:
     """Every (critic, seed) run present for `env_name`, with its final-checkpoint path."""
     out = []
     for critic in critics:
@@ -91,8 +109,9 @@ def discover(exp_root, env_name: str, critics, seeds, epoch: int = 500000) -> Li
 DEFAULT_ROOTS = ("exp", "exp/tdjtab")
 
 
-def discover_roots(env_name: str, critics, seeds, epoch: int,
-                   roots=DEFAULT_ROOTS) -> List[Dict]:
+def discover_roots(
+    env_name: str, critics, seeds, epoch: int, roots=DEFAULT_ROOTS
+) -> List[Dict]:
     """Like `discover`, over several exp roots; the first root holding the checkpoint wins."""
     out = []
     for critic in critics:
@@ -121,11 +140,26 @@ def load_arm_eval(run_dir, epoch: int) -> Arm:
     adapter = get_adapter(cfg)
     env, train_ds, _val = adapter.make_env_and_datasets(cfg)
     ex = make_dataset(train_ds, cfg).sample(1)
-    agent = Agent.create(meta["critic"], meta["actor"], meta["seed"],
-                         jnp.asarray(ex["observations"]), jnp.asarray(ex["actions"]), cfg)
+    agent = Agent.create(
+        meta["critic"],
+        meta["actor"],
+        meta["seed"],
+        jnp.asarray(ex["observations"]),
+        jnp.asarray(ex["actions"]),
+        cfg,
+    )
     agent = restore_agent(agent, str(run_dir), epoch, params_only=True)
-    return Arm(run_dir=run_dir, critic=meta["critic"], actor=meta["actor"], seed=meta["seed"],
-               epoch=epoch, config=cfg, agent=agent, env=env, dataset=train_ds)
+    return Arm(
+        run_dir=run_dir,
+        critic=meta["critic"],
+        actor=meta["actor"],
+        seed=meta["seed"],
+        epoch=epoch,
+        config=cfg,
+        agent=agent,
+        env=env,
+        dataset=train_ds,
+    )
 
 
 def relabel_cond_agents(arm: Arm, tasks, *, seed: int = 20260912) -> Dict[int, Any]:
@@ -149,8 +183,9 @@ def relabel_cond_agents(arm: Arm, tasks, *, seed: int = 20260912) -> Dict[int, A
             obs = jnp.asarray(observations)
             if obs.ndim == 2 and z.ndim == 1:
                 z = jnp.broadcast_to(z[None], (obs.shape[0], z.shape[-1]))
-            return self.agent.sample_actions(observations, goals={"z": z}, seed=seed,
-                                             temperature=temperature)
+            return self.agent.sample_actions(
+                observations, goals={"z": z}, seed=seed, temperature=temperature
+            )
 
     cfg = arm.config
     adapter = get_adapter(cfg)
@@ -159,19 +194,29 @@ def relabel_cond_agents(arm: Arm, tasks, *, seed: int = 20260912) -> Dict[int, A
     out = {}
     for tid in tasks:
         np.random.seed(seed + int(tid))
-        obs, rew = adapter.relabel_infer_batch(arm.dataset, arm.env, int(tid), n,
-                                               shift_reward=shift)
+        obs, rew = adapter.relabel_infer_batch(
+            arm.dataset, arm.env, int(tid), n, shift_reward=shift
+        )
         pre = arm.agent.cond_eval
         ag = BatchedInferredCondAgent(
-            arm.agent.infer_eval_cond(jnp.asarray(obs), jnp.asarray(rew)))
+            arm.agent.infer_eval_cond(jnp.asarray(obs), jnp.asarray(rew))
+        )
         w = ag.witness()
         key = "z"
         assert key in ag.cond_eval, f"{arm.critic}: reward inference returned no 'z'"
-        assert not np.allclose(np.asarray(ag.cond_eval[key]), np.asarray(pre.get(key, 0))), (
-            f"{arm.label} task {tid}: reward inference was a no-op")
-        assert w["inferred_cond_norm"] > 0, f"{arm.label} task {tid}: zero inferred index"
-        ag.relabel_stats = dict(task=int(tid), n=n, shift=shift,
-                                reward_mean=float(np.mean(rew)),
-                                reward_pos_frac=float(np.mean(rew > 0.5)), **w)
+        assert not np.allclose(
+            np.asarray(ag.cond_eval[key]), np.asarray(pre.get(key, 0))
+        ), f"{arm.label} task {tid}: reward inference was a no-op"
+        assert w["inferred_cond_norm"] > 0, (
+            f"{arm.label} task {tid}: zero inferred index"
+        )
+        ag.relabel_stats = dict(
+            task=int(tid),
+            n=n,
+            shift=shift,
+            reward_mean=float(np.mean(rew)),
+            reward_pos_frac=float(np.mean(rew > 0.5)),
+            **w,
+        )
         out[int(tid)] = ag
     return out

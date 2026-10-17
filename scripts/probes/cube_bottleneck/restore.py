@@ -3,6 +3,7 @@
 obs[18] (contact force) needs mj_rnePostConstraint after mj_forward. Gripper action +1 closes.
 Settling steps the env with zero arm action so the effector holds its pose.
 """
+
 import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -24,8 +25,8 @@ GRIPPER_SCALER = 3.0
 
 # Two settle steps restore the contact reading; more steps only add drift
 N_SETTLE = 2
-G2_DRIFT_M = 0.04      # max cube drift after restore, m
-G2_CONTACT_MIN = 0.5   # min contact reading for a held state
+G2_DRIFT_M = 0.04  # max cube drift after restore, m
+G2_CONTACT_MIN = 0.5  # min contact reading for a held state
 
 
 def make_env(env_name: str, seed: int = 0):
@@ -39,12 +40,23 @@ def make_env(env_name: str, seed: int = 0):
 
 def ensure_cube_env(env) -> None:
     u = getattr(env, "unwrapped", None)
-    missing = [a for a in ("_data", "_model", "_pinch_site_id", "cur_task_info",
-                           "_gripper_actuator_ids", "set_state", "compute_observation")
-               if u is None or not hasattr(u, a)]
+    missing = [
+        a
+        for a in (
+            "_data",
+            "_model",
+            "_pinch_site_id",
+            "cur_task_info",
+            "_gripper_actuator_ids",
+            "set_state",
+            "compute_observation",
+        )
+        if u is None or not hasattr(u, a)
+    ]
     if missing:
         raise RuntimeError(
-            f"cube_bottleneck needs an OGBench cube manip env; env.unwrapped lacks {missing}")
+            f"cube_bottleneck needs an OGBench cube manip env; env.unwrapped lacks {missing}"
+        )
 
 
 def forward(env) -> None:
@@ -79,8 +91,15 @@ def settle(env, n_settle: int = N_SETTLE, a_grip: float = 1.0) -> np.ndarray:
     return observation(env) if ob is None else np.asarray(ob, np.float32)
 
 
-def restore(env, task_id: int, qpos: np.ndarray, qvel: np.ndarray,
-            *, n_settle: int = N_SETTLE, a_grip: float = 1.0) -> np.ndarray:
+def restore(
+    env,
+    task_id: int,
+    qpos: np.ndarray,
+    qvel: np.ndarray,
+    *,
+    n_settle: int = N_SETTLE,
+    a_grip: float = 1.0,
+) -> np.ndarray:
     """Reset to `task_id`, set state, settle; return the observation."""
     env.reset(options=dict(task_id=task_id, render_goal=False))
     set_state(env, qpos, qvel)
@@ -91,22 +110,32 @@ def restore(env, task_id: int, qpos: np.ndarray, qvel: np.ndarray,
 
 # Restore fidelity check
 
+
 @dataclass
 class G2Result:
-    held: bool           # lifted and gripped after one zero-action step
-    in_contact: bool     # obs[18] > 0.5 before the step
-    drift_m: float       # cube displacement from the recorded qpos
-    lift: float          # cube height above the task's table_z
-    grip: float          # gripper_opening in [0, 1]
-    contact: float       # obs[18]
+    held: bool  # lifted and gripped after one zero-action step
+    in_contact: bool  # obs[18] > 0.5 before the step
+    drift_m: float  # cube displacement from the recorded qpos
+    lift: float  # cube height above the task's table_z
+    grip: float  # gripper_opening in [0, 1]
+    contact: float  # obs[18]
     passes: bool
 
     def as_row(self) -> Dict[str, Any]:
-        return dict(held=self.held, in_contact=self.in_contact, drift_m=self.drift_m,
-                    lift=self.lift, grip=self.grip, contact=self.contact, passes=self.passes)
+        return dict(
+            held=self.held,
+            in_contact=self.in_contact,
+            drift_m=self.drift_m,
+            lift=self.lift,
+            grip=self.grip,
+            contact=self.contact,
+            passes=self.passes,
+        )
 
 
-def g2_check(env, qpos_ref: np.ndarray, *, thr: Optional[PhaseThresholds] = None) -> G2Result:
+def g2_check(
+    env, qpos_ref: np.ndarray, *, thr: Optional[PhaseThresholds] = None
+) -> G2Result:
     """Check a restored env: contact > 0.5 now, then held and drift < 0.04 m after one zero-action step."""
     thr = thr or PhaseThresholds()
     u = env.unwrapped
@@ -121,27 +150,39 @@ def g2_check(env, qpos_ref: np.ndarray, *, thr: Optional[PhaseThresholds] = None
     ob = observation(env)
     cube = np.asarray(u._data.qpos[CUBE_QPOS], np.float64)
     drift = float(np.linalg.norm(cube - np.asarray(qpos_ref, np.float64)[CUBE_QPOS]))
-    table_z = float(u.cur_task_info["init_xyzs"][int(getattr(u, "_target_block", 0) or 0)][2])
+    table_z = float(
+        u.cur_task_info["init_xyzs"][int(getattr(u, "_target_block", 0) or 0)][2]
+    )
     lift = float(cube[2] - table_z)
     grip = float(ob[17] / GRIPPER_SCALER)
     held = bool(lift > thr.delta_lift and grip > thr.tau_grip)
-    return G2Result(held=held, in_contact=in_contact, drift_m=drift, lift=lift, grip=grip,
-                    contact=contact,
-                    passes=bool(held and in_contact and drift < G2_DRIFT_M))
+    return G2Result(
+        held=held,
+        in_contact=in_contact,
+        drift_m=drift,
+        lift=lift,
+        grip=grip,
+        contact=contact,
+        passes=bool(held and in_contact and drift < G2_DRIFT_M),
+    )
 
 
 # Gripper convention check
 
-def determine_gripper_convention(env, rows: Sequence[Dict[str, np.ndarray]],
-                                 task_id: int = 1) -> Dict[str, Any]:
+
+def determine_gripper_convention(
+    env, rows: Sequence[Dict[str, np.ndarray]], task_id: int = 1
+) -> Dict[str, Any]:
     """Restore held states under raw ctrl 0/255 and action +1/-1, and report which holds the cube."""
     import mujoco
 
     out = {}
-    for label, kind, value in (("action_close(+1)", "action", +1.0),
-                               ("action_open(-1)", "action", -1.0),
-                               ("ctrl_255", "ctrl", 255.0),
-                               ("ctrl_0", "ctrl", 0.0)):
+    for label, kind, value in (
+        ("action_close(+1)", "action", +1.0),
+        ("action_open(-1)", "action", -1.0),
+        ("ctrl_255", "ctrl", 255.0),
+        ("ctrl_0", "ctrl", 0.0),
+    ):
         res = []
         for r in rows:
             env.reset(options=dict(task_id=task_id, render_goal=False))

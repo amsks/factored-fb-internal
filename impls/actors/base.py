@@ -1,10 +1,11 @@
 """Actor protocol and shared helpers."""
+
 from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class Actor(Protocol):
-    GROUPS: tuple             # module groups this actor owns
+    GROUPS: tuple  # module groups this actor owns
     REQUIRES_COND: frozenset  # cond keys this actor hard-requires
 
     @classmethod

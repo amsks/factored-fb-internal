@@ -2,6 +2,7 @@
 
 Needs MuJoCo and the OGBench play dataset; skips without them.
 """
+
 import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -13,7 +14,7 @@ from scripts.probes.cube_bottleneck import banks as BK
 from scripts.probes.cube_bottleneck import restore as R
 
 ENV_NAME = "cube-single-play-v0"
-SCAN_ROWS = 50_000     # enough to find held rows without loading 1M
+SCAN_ROWS = 50_000  # enough to find held rows without loading 1M
 
 
 @pytest.fixture(scope="module")
@@ -27,8 +28,9 @@ def held_rows():
     qpos = np.asarray(d["qpos"][:SCAN_ROWS])
     qvel = np.asarray(d["qvel"][:SCAN_ROWS])
     # Same held criterion as the real bank, persistence included.
-    held = ((obs[:, BK.CONTACT_IDX] > BK.CONTACT_THRESH)
-            & (qpos[:, BK.CUBE_QPOS_Z] > BK.LIFT_THRESH))
+    held = (obs[:, BK.CONTACT_IDX] > BK.CONTACT_THRESH) & (
+        qpos[:, BK.CUBE_QPOS_Z] > BK.LIFT_THRESH
+    )
     episode = (np.arange(len(obs)) // 1001).astype(np.int32)
     m = np.flatnonzero(BK._persists(held, episode, BK.K_STEPS))
     if len(m) < 4:
@@ -55,7 +57,8 @@ def test_set_state_reproduces_every_obs_channel_except_contact(env, held_rows):
         err = np.abs(ob - r["obs"])
         err_no_contact = np.delete(err, R.CONTACT_IDX)
         assert err_no_contact.max() < 0.01, (
-            f"non-contact channels drifted by {err_no_contact.max():.4f}")
+            f"non-contact channels drifted by {err_no_contact.max():.4f}"
+        )
 
 
 def test_settling_rebuilds_the_contact_channel(env, held_rows):
@@ -99,7 +102,9 @@ def test_g2_rejects_a_latent_drop(env, held_rows):
         g = R.g2_check(env, r["qpos"])
         slack_passes.append(g.passes)
         slack_held.append(g.held)
-    assert any(slack_held), "the geometric test alone does NOT catch this -- that is the point"
+    assert any(slack_held), (
+        "the geometric test alone does NOT catch this -- that is the point"
+    )
     assert not any(slack_passes), "G2 must reject a slack-gripper restore"
 
 

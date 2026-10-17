@@ -1,4 +1,5 @@
 """Flax train state, target updates and checkpointing."""
+
 import functools
 import glob
 import os
@@ -31,8 +32,8 @@ class ModuleDict(nn.Module):
         if name is None:
             if kwargs.keys() != self.modules.keys():
                 raise ValueError(
-                    f'When `name` is not specified, kwargs must contain the arguments for each module. '
-                    f'Got kwargs keys {kwargs.keys()} but module keys {self.modules.keys()}'
+                    f"When `name` is not specified, kwargs must contain the arguments for each module. "
+                    f"Got kwargs keys {kwargs.keys()} but module keys {self.modules.keys()}"
                 )
             out = {}
             for key, value in kwargs.items():
@@ -91,7 +92,7 @@ class TrainState(flax.struct.PyTreeNode):
         """
         if params is None:
             params = self.params
-        variables = {'params': params}
+        variables = {"params": params}
         if method is not None:
             method_name = getattr(self.model_def, method)
         else:
@@ -118,24 +119,26 @@ class TrainState(flax.struct.PyTreeNode):
 
 def soft_update(online_params, target_params, tau):
     """Polyak update: target <- tau * online + (1 - tau) * target."""
-    return jax.tree_util.tree_map(lambda o, t: o * tau + t * (1 - tau), online_params, target_params)
+    return jax.tree_util.tree_map(
+        lambda o, t: o * tau + t * (1 - tau), online_params, target_params
+    )
 
 
 def save_agent(agent, save_dir, epoch):
     """Save the agent to save_dir/params_{epoch}.pkl (atomic write)."""
     save_dict = dict(agent=flax.serialization.to_state_dict(agent))
-    save_path = os.path.join(save_dir, f'params_{epoch}.pkl')
-    tmp_path = save_path + '.tmp'
-    with open(tmp_path, 'wb') as f:
+    save_path = os.path.join(save_dir, f"params_{epoch}.pkl")
+    tmp_path = save_path + ".tmp"
+    with open(tmp_path, "wb") as f:
         pickle.dump(save_dict, f)
     os.replace(tmp_path, save_path)
-    print(f'Saved to {save_path}')
+    print(f"Saved to {save_path}")
 
 
 def resolve_run_dir(path_glob):
     """Resolve a run-directory glob to the single directory it matches."""
     candidates = glob.glob(path_glob)
-    assert len(candidates) == 1, f'Found {len(candidates)} candidates: {candidates}'
+    assert len(candidates) == 1, f"Found {len(candidates)} candidates: {candidates}"
     return candidates[0]
 
 
@@ -147,7 +150,7 @@ def _keep_fresh_opt_state(fresh_sd, loaded):
     for k, v in loaded.items():
         if k not in fresh_sd:
             out[k] = v
-        elif k == 'opt_state':
+        elif k == "opt_state":
             out[k] = fresh_sd[k]
         else:
             out[k] = _keep_fresh_opt_state(fresh_sd[k], v)
@@ -159,12 +162,12 @@ def restore_agent(agent, restore_path, restore_epoch, params_only=False):
 
     :param params_only: Keep the fresh optimizer state; restore everything else.
     """
-    restore_path = resolve_run_dir(restore_path) + f'/params_{restore_epoch}.pkl'
-    with open(restore_path, 'rb') as f:
+    restore_path = resolve_run_dir(restore_path) + f"/params_{restore_epoch}.pkl"
+    with open(restore_path, "rb") as f:
         load_dict = pickle.load(f)
-    loaded = load_dict['agent']
+    loaded = load_dict["agent"]
     if params_only:
         loaded = _keep_fresh_opt_state(flax.serialization.to_state_dict(agent), loaded)
     agent = flax.serialization.from_state_dict(agent, loaded)
-    print(f'Restored from {restore_path}' + (' (params only)' if params_only else ''))
+    print(f"Restored from {restore_path}" + (" (params only)" if params_only else ""))
     return agent

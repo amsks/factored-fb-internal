@@ -3,6 +3,7 @@
 ExoRL tasks are reward functions scored by episode return; MetaWorld and ManiSkill tasks
 are scored by success. Eval episode i uses seed i.
 """
+
 import contextlib
 import glob
 import os
@@ -11,9 +12,10 @@ from pathlib import Path
 
 import numpy as np
 
-from impls.utils.datasets import FBDataset
 from env import registry
 from env.base import column_backed_dataset, episode_horizon, needs_goal_frame
+from impls.utils.datasets import FBDataset
+
 
 def _ep_index(p):
     return int(re.findall(r"\d+", Path(p).stem)[-1])
@@ -25,7 +27,8 @@ def load_packed(npz_path):
     obs, act, nobs = z["observation"], z["action"], z["next_observation"]
     assert obs.ndim == 3, (
         f"{npz_path}: expected packed [N,T,obs_dim], got {obs.shape} -- a ragged (object) "
-        f"pack means the task is not fixed-horizon and needs the per-episode path")
+        f"pack means the task is not fixed-horizon and needs the per-episode path"
+    )
     n_ep, T = obs.shape[0], obs.shape[1]
     term = np.zeros((n_ep, T), np.float32)
     term[:, -1] = 1.0
@@ -34,9 +37,13 @@ def load_packed(npz_path):
         a = np.asarray(a, np.float32)
         return a.reshape(n_ep * T, a.shape[-1]) if a.ndim == 3 else a.reshape(n_ep * T)
 
-    out = dict(observations=flat(obs), actions=np.clip(flat(act), -1.0, 1.0),
-               next_observations=flat(nobs), rewards=flat(z["reward"]),
-               terminals=flat(term))
+    out = dict(
+        observations=flat(obs),
+        actions=np.clip(flat(act), -1.0, 1.0),
+        next_observations=flat(nobs),
+        rewards=flat(z["reward"]),
+        terminals=flat(term),
+    )
     # Per-step success flag, used only by reward-inference eval
     if "success" in z.files:
         out["success"] = flat(np.asarray(z["success"], np.float32))
@@ -45,7 +52,9 @@ def load_packed(npz_path):
 
 def load_unified(data_dir):
     """Flatten <data_dir>/buffer/episode_*.npz into one flat dataset dict."""
-    eps = sorted(glob.glob(os.path.join(data_dir, "buffer", "episode_*.npz")), key=_ep_index)
+    eps = sorted(
+        glob.glob(os.path.join(data_dir, "buffer", "episode_*.npz")), key=_ep_index
+    )
     assert eps, f"no episodes under {data_dir}"
     obs, act, nobs, rew, term = [], [], [], [], []
     for ep in eps:
@@ -58,9 +67,13 @@ def load_unified(data_dir):
         nobs.append(z["next_observation"].astype(np.float32))
         rew.append(z["reward"].astype(np.float32).reshape(-1))
         term.append(t)
-    return dict(observations=np.concatenate(obs), actions=np.concatenate(act),
-                next_observations=np.concatenate(nobs), rewards=np.concatenate(rew),
-                terminals=np.concatenate(term))
+    return dict(
+        observations=np.concatenate(obs),
+        actions=np.concatenate(act),
+        next_observations=np.concatenate(nobs),
+        rewards=np.concatenate(rew),
+        terminals=np.concatenate(term),
+    )
 
 
 def load_domain_data(cfg):
@@ -68,6 +81,7 @@ def load_domain_data(cfg):
     task = cfg.get("task") or ""
     if task.startswith("dmc-"):
         from env.exorl_env import load_domain_data as load_exorl_domain
+
         return load_exorl_domain(cfg)
     path = cfg.get("data_path")
     if path:
@@ -80,13 +94,16 @@ def make_task_env(task, reward_task=None):
     if task.startswith("mw-"):
         os.environ.setdefault("MUJOCO_GL", "egl")
         from env.metaworld_env import make_metaworld_env
+
         return make_metaworld_env(task)
     if task.startswith("ms-"):
         from env.maniskill_env import make_maniskill_env
+
         return make_maniskill_env(task)
     if task.startswith("dmc-"):
         os.environ.setdefault("MUJOCO_GL", "egl")
         from env.exorl_env import make_exorl_env
+
         return make_exorl_env(task, reward_task=reward_task)
     raise ValueError(f"no env builder for task {task!r}")
 
@@ -97,14 +114,32 @@ def make_task_env(task, reward_task=None):
 # derived_offset: obj - tcp, recomputed; zero/one: slots set to 0/1; ndim: dims the success
 # rule measures.
 _GOAL_LAYOUT = {
-    "mw": dict(target=(36, 39), object=(4, 7),
-               copy=((0, 3), (4, 7), (18, 21), (22, 25)), zero=(), one=(), ndim=3),
-    "ms-push-cube": dict(target=(25, 28), object=(28, 31),
-                         copy=((18, 21), (28, 31)), zero=(), one=(), ndim=2),
-    "ms-pick-cube": dict(target=(26, 29), object=(29, 32),
-                         copy=((19, 22), (29, 32)), zero=((39, 42),),
-                         one=((18, 19),), ndim=3,
-                         grasp_offset=(19, 22), derived_offset=(36, 39)),
+    "mw": dict(
+        target=(36, 39),
+        object=(4, 7),
+        copy=((0, 3), (4, 7), (18, 21), (22, 25)),
+        zero=(),
+        one=(),
+        ndim=3,
+    ),
+    "ms-push-cube": dict(
+        target=(25, 28),
+        object=(28, 31),
+        copy=((18, 21), (28, 31)),
+        zero=(),
+        one=(),
+        ndim=2,
+    ),
+    "ms-pick-cube": dict(
+        target=(26, 29),
+        object=(29, 32),
+        copy=((19, 22), (29, 32)),
+        zero=((39, 42),),
+        one=((18, 19),),
+        ndim=3,
+        grasp_offset=(19, 22),
+        derived_offset=(36, 39),
+    ),
 }
 
 
@@ -119,7 +154,9 @@ def synth_goal_frame(task, raw_obs):
     """Goal observation built from the reset observation with end effector and object on the target."""
     lay = goal_layout(task)
     if lay is None:
-        raise ValueError(f"eval_goal_mode=synth: no goal-in-obs layout registered for {task!r}")
+        raise ValueError(
+            f"eval_goal_mode=synth: no goal-in-obs layout registered for {task!r}"
+        )
     g = np.array(raw_obs, np.float32, copy=True)
     tgt = g[slice(*lay["target"])].copy()
     grasp = lay.get("grasp_offset")
@@ -152,8 +189,8 @@ def goal_distance(task, raw_obs):
         return None
     o = np.asarray(raw_obs, np.float32)
     n = lay["ndim"]
-    obj = o[lay["object"][0]:lay["object"][0] + n]
-    tgt = o[lay["target"][0]:lay["target"][0] + n]
+    obj = o[lay["object"][0] : lay["object"][0] + n]
+    tgt = o[lay["target"][0] : lay["target"][0] + n]
     return float(np.linalg.norm(obj - tgt))
 
 
@@ -200,7 +237,9 @@ class UnifiedAdapter:
         env, horizon = make_task_env(cfg["task"], reward_task=cfg.get("exorl_task"))
         self._horizon = horizon
         # Fixed eval goal: the highest-reward next observation
-        self._goal = data["next_observations"][int(np.argmax(data["rewards"]))].astype(np.float32)
+        self._goal = data["next_observations"][int(np.argmax(data["rewards"]))].astype(
+            np.float32
+        )
         n = len(data["observations"])
         # Hold out the tail as validation
         n_val = int(n * float(cfg.get("val_frac", 0.05)))
@@ -217,7 +256,9 @@ class UnifiedAdapter:
     def eval_tasks(self, env, cfg):
         return [None]
 
-    def relabel_infer_batch(self, train_ds, env, task_id, num_samples, shift_reward=1.0):
+    def relabel_infer_batch(
+        self, train_ds, env, task_id, num_samples, shift_reward=1.0
+    ):
         """Sample transitions labeled with the task reward of their next state.
 
         The reward is the success flag minus 1 or the stored dense reward, plus `shift_reward`.
@@ -235,22 +276,32 @@ class UnifiedAdapter:
                     "eval_relabel_reward=success needs the dataset's per-step `success` "
                     "column; this pack has none (load_packed keeps it when the npz carries "
                     "it; the per-episode `load_unified` layout never does). Pass "
-                    "--override eval_relabel_reward=dense to relabel with the stored reward.")
-            rewards = np.asarray(ds["success"][idxs], np.float32) - 1.0 + float(shift_reward)
+                    "--override eval_relabel_reward=dense to relabel with the stored reward."
+                )
+            rewards = (
+                np.asarray(ds["success"][idxs], np.float32) - 1.0 + float(shift_reward)
+            )
         elif mode == "dense":
             rewards = np.asarray(ds["rewards"][idxs], np.float32) + float(shift_reward)
         else:
-            raise ValueError(f"eval_relabel_reward must be 'success' or 'dense', got {mode!r}")
-        dims = sorted(set(cfg_get(self, "obs_mask_dims") or ()) |
-                      set(cfg_get(self, "goal_mask_dims") or ()))
+            raise ValueError(
+                f"eval_relabel_reward must be 'success' or 'dense', got {mode!r}"
+            )
+        dims = sorted(
+            set(cfg_get(self, "obs_mask_dims") or ())
+            | set(cfg_get(self, "goal_mask_dims") or ())
+        )
         if dims:
             next_obs[:, dims] = 0.0
         return next_obs, rewards.astype(np.float32)
 
-    def evaluate(self, agent, env, task, cfg, num_episodes, num_video=0, any_step_success=None):
+    def evaluate(
+        self, agent, env, task, cfg, num_episodes, num_video=0, any_step_success=None
+    ):
         if num_video:
             raise ValueError("video rendering is not supported; pass num_video=0")
         import jax
+
         slug = cfg["task"]
         horizon = episode_horizon(self)
         is_dmc = slug.startswith("dmc-")
@@ -279,18 +330,23 @@ class UnifiedAdapter:
         # Goal: fixed from the data, or synthesized per episode
         goal_mode = str(cfg.get("eval_goal_mode", "fixed"))
         if goal_mode not in ("fixed", "synth"):
-            raise ValueError(f"eval_goal_mode must be 'fixed' or 'synth', got {goal_mode!r}")
+            raise ValueError(
+                f"eval_goal_mode must be 'fixed' or 'synth', got {goal_mode!r}"
+            )
         if needs_goal and goal_mode == "synth" and goal_layout(slug) is None:
             raise ValueError(
                 f"eval_goal_mode=synth is not available for task {slug!r}: no goal-in-obs "
-                f"layout is registered for it in env/unified.py::_GOAL_LAYOUT")
+                f"layout is registered for it in env/unified.py::_GOAL_LAYOUT"
+            )
 
         goal = None
         if needs_goal and goal_mode == "fixed":
             goal = getattr(self, "_goal", None)
             if goal is None:
                 d = load_domain_data(cfg)
-                goal = d["next_observations"][int(np.argmax(d["rewards"]))].astype(np.float32)
+                goal = d["next_observations"][int(np.argmax(d["rewards"]))].astype(
+                    np.float32
+                )
             goal = _prep_goal(goal)
 
         successes, finals, returns = [], [], []
@@ -313,9 +369,14 @@ class UnifiedAdapter:
             d_min, d_last = d, d
             for _ in range(horizon):
                 key, sub = jax.random.split(key)
-                a = np.asarray(agent.sample_actions(
-                    observations=_mask_obs(obs), goals=ep_goal,
-                    seed=sub, temperature=0))
+                a = np.asarray(
+                    agent.sample_actions(
+                        observations=_mask_obs(obs),
+                        goals=ep_goal,
+                        seed=sub,
+                        temperature=0,
+                    )
+                )
                 obs, _r, term, trunc, info = env.step(np.clip(a, -1.0, 1.0))
                 ep_return += float(_r)
                 saw_success = saw_success or ("success" in info)
@@ -346,9 +407,13 @@ class UnifiedAdapter:
         if is_dmc:
             per_ep["episode_return"] = [float(x) for x in returns]
         if dist_min:
-            per_ep.update({"goal_dist_min": [float(x) for x in dist_min],
-                           "goal_dist_final": [float(x) for x in dist_final],
-                           "success": [float(x) for x in successes]})
+            per_ep.update(
+                {
+                    "goal_dist_min": [float(x) for x in dist_min],
+                    "goal_dist_final": [float(x) for x in dist_final],
+                    "success": [float(x) for x in successes],
+                }
+            )
         if per_ep:
             out["_per_episode"] = per_ep
         return out, []

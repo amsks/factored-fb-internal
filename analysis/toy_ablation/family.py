@@ -4,6 +4,7 @@ Run: JAX_PLATFORMS=cpu python analysis/toy_ablation/family.py [--figures-only]
 """
 
 import os
+
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 
 import csv
@@ -13,18 +14,18 @@ import sys
 import time
 from collections import deque
 
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(REPO / "scripts" / "didactic"))
-import bottleneck_family_td as bf      # noqa: E402
+import bottleneck_family_td as bf  # noqa: E402
 
 sys.path.insert(0, str(HERE))
-import run as single                   # noqa: E402
+import run as single  # noqa: E402
 
 FIG_DIR = REPO / "figures" / "bottleneck_family"
 
@@ -74,8 +75,9 @@ def _wire_group(rng, edges, states, exit_to):
     order = [int(x) for x in rng.permutation(states)]
     for i, s in enumerate(order):
         edges[s, 0] = order[i + 1] if i + 1 < len(order) else exit_to
-        alt = [t for t in states if t not in (s, edges[s, 0])] or \
-              [t for t in states if t != s]
+        alt = [t for t in states if t not in (s, edges[s, 0])] or [
+            t for t in states if t != s
+        ]
         edges[s, 1] = int(rng.choice(alt))
     return order
 
@@ -86,17 +88,20 @@ def _wire_last_group(rng, edges, states):
     goal, decision = order[-1], order[-2]
     for i, s in enumerate(order):
         edges[s, 0] = order[i + 1] if i + 1 < len(order) else int(rng.choice(states))
-        alt = [t for t in states if t not in (s, edges[s, 0])] or \
-              [t for t in states if t != s]
+        alt = [t for t in states if t not in (s, edges[s, 0])] or [
+            t for t in states if t != s
+        ]
         edges[s, 1] = int(rng.choice(alt))
     edges[decision, 0] = goal
-    edges[decision, 1] = int(rng.choice([t for t in states if t not in (decision, goal)]))
+    edges[decision, 1] = int(
+        rng.choice([t for t in states if t not in (decision, goal)])
+    )
     return goal, decision
 
 
 def _finish(seed, variant, n, gamma, edges, pi, groups, cuts, goal, decision, attempt):
-    kernel = np.eye(n)[edges].reshape(-1, n)              # (2n, n), row 2s+a
-    t_exact = bf.exact(kernel, pi, gamma)                 # (1-gamma) M
+    kernel = np.eye(n)[edges].reshape(-1, n)  # (2n, n), row 2s+a
+    t_exact = bf.exact(kernel, pi, gamma)  # (1-gamma) M
     m_exact = t_exact / (1 - gamma)
     r = np.zeros(n)
     r[goal] = 1.0
@@ -105,12 +110,29 @@ def _finish(seed, variant, n, gamma, edges, pi, groups, cuts, goal, decision, at
     if gap < MIN_GAP:
         return None
     dist = graph_distance(edges, n)
-    k_soft = np.exp(-dist ** 2 / (2 * SOFT_SIGMA ** 2))
+    k_soft = np.exp(-(dist**2) / (2 * SOFT_SIGMA**2))
     k_soft = k_soft / k_soft.sum(axis=1, keepdims=True)
-    return dict(seed=seed, variant=variant, n=n, edges=edges, pi=pi, cuts=cuts, groups=groups,
-                goal=goal, decision=decision, kernel=kernel, t_exact=t_exact, m_exact=m_exact,
-                r=r, q_exact=q, gap=gap, k_soft=k_soft, t_soft=t_exact @ k_soft,
-                rho=np.full(n, 1.0 / n), attempts=attempt + 1)
+    return dict(
+        seed=seed,
+        variant=variant,
+        n=n,
+        edges=edges,
+        pi=pi,
+        cuts=cuts,
+        groups=groups,
+        goal=goal,
+        decision=decision,
+        kernel=kernel,
+        t_exact=t_exact,
+        m_exact=m_exact,
+        r=r,
+        q_exact=q,
+        gap=gap,
+        k_soft=k_soft,
+        t_soft=t_exact @ k_soft,
+        rho=np.full(n, 1.0 / n),
+        attempts=attempt + 1,
+    )
 
 
 def sample_mdp(seed, variant="single", n=N, gamma=GAMMA):
@@ -174,7 +196,9 @@ def sample_mdp(seed, variant="single", n=N, gamma=GAMMA):
 
         p0 = rng.uniform(0.25, 0.75, size=n)
         pi = np.stack([p0, 1.0 - p0], axis=1)
-        mdp = _finish(seed, variant, n, gamma, edges, pi, groups, cuts, goal, decision, attempt)
+        mdp = _finish(
+            seed, variant, n, gamma, edges, pi, groups, cuts, goal, decision, attempt
+        )
         if mdp is not None:
             return mdp
     raise RuntimeError("no valid sample")
@@ -184,13 +208,18 @@ def sample_mdp(seed, variant="single", n=N, gamma=GAMMA):
 def gap_stats(mdp, Q):
     row0, row1 = 2 * mdp["decision"], 2 * mdp["decision"] + 1
     gap = float(Q[row0] - Q[row1])
-    return dict(q0=float(Q[row0]), q1=float(Q[row1]), gap=gap,
-                gap_ratio=gap / mdp["gap"], argmax_correct=bool(gap > 0))
+    return dict(
+        q0=float(Q[row0]),
+        q1=float(Q[row1]),
+        gap=gap,
+        gap_ratio=gap / mdp["gap"],
+        argmax_correct=bool(gap > 0),
+    )
 
 
 def retained_mass(mdp, P_hat, T=None):
     T = mdp["t_exact"] if T is None else T
-    return float(1.0 - np.sum((P_hat - T) ** 2) / np.sum(T ** 2))
+    return float(1.0 - np.sum((P_hat - T) ** 2) / np.sum(T**2))
 
 
 def linear_readout(mdp, F, B):
@@ -210,9 +239,19 @@ def e_arm_rows(mdp, F, B, base):
     v = linear_readout(mdp, F, B)
     a, corr = calibrate(mdp, v)
     raw, cal = gap_stats(mdp, v), gap_stats(mdp, a * v)
-    return dict(base, arm="E", method="density_lin", q0=raw["q0"], q1=raw["q1"],
-                gap=raw["gap"], gap_ratio=raw["gap_ratio"], argmax_correct=raw["argmax_correct"],
-                gap_ratio_calibrated=cal["gap_ratio"], calib_scale=a, corr_with_exact=corr)
+    return dict(
+        base,
+        arm="E",
+        method="density_lin",
+        q0=raw["q0"],
+        q1=raw["q1"],
+        gap=raw["gap"],
+        gap_ratio=raw["gap_ratio"],
+        argmax_correct=raw["argmax_correct"],
+        gap_ratio_calibrated=cal["gap_ratio"],
+        calib_scale=a,
+        corr_with_exact=corr,
+    )
 
 
 # Closed-form fits
@@ -223,15 +262,21 @@ def svd_fit(X, d):
 
 def softmax_fit(target, n, d, seed, loss_kind, steps=CLOSED_STEPS, lr=CLOSED_LR):
     rng = np.random.default_rng(seed)
-    params = {"f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
-              "b": jnp.array(rng.normal(0, 0.1, (n, d)))}
+    params = {
+        "f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
+        "b": jnp.array(rng.normal(0, 0.1, (n, d))),
+    }
     tgt = jnp.array(target)
 
     def loss_fn(p):
         logits = p["f"] @ p["b"].T
         if loss_kind == "ce":
-            return -jnp.mean(jnp.sum(tgt * jax.nn.log_softmax(logits, axis=-1), axis=-1))
-        return 0.5 * jnp.mean(jnp.sum((jax.nn.softmax(logits, axis=-1) - tgt) ** 2, axis=-1))
+            return -jnp.mean(
+                jnp.sum(tgt * jax.nn.log_softmax(logits, axis=-1), axis=-1)
+            )
+        return 0.5 * jnp.mean(
+            jnp.sum((jax.nn.softmax(logits, axis=-1) - tgt) ** 2, axis=-1)
+        )
 
     opt = optax.adam(lr)
     state = opt.init(params)
@@ -243,6 +288,7 @@ def softmax_fit(target, n, d, seed, loss_kind, steps=CLOSED_STEPS, lr=CLOSED_LR)
             g = jax.grad(loss_fn)(p)
             upd, st = opt.update(g, st, p)
             return (optax.apply_updates(p, upd), st), None
+
         return jax.lax.scan(body, carry, None, length=steps)[0]
 
     params, _ = train((params, state))
@@ -268,28 +314,76 @@ def run_closed_form(mdps, ranks=None):
         for d in _ranks_for(mdp, ranks):
             F, B = svd_fit(n * mdp["m_exact"], d)
             Q = linear_readout(mdp, F, B)
-            rows.append(dict(arm="A", method="fb", mdp=k, d=d, seed=-1, **gap_stats(mdp, Q),
-                             retained_mass=retained_mass(mdp, (1 - GAMMA) * (F @ B.T) / n)))
+            rows.append(
+                dict(
+                    arm="A",
+                    method="fb",
+                    mdp=k,
+                    d=d,
+                    seed=-1,
+                    **gap_stats(mdp, Q),
+                    retained_mass=retained_mass(mdp, (1 - GAMMA) * (F @ B.T) / n),
+                )
+            )
             F, B = svd_fit(mdp["t_exact"], d)
             Q = linear_readout(mdp, F, B) * n / (1 - GAMMA)
-            rows.append(dict(arm="B", method="fb_norm", mdp=k, d=d, seed=-1, **gap_stats(mdp, Q),
-                             retained_mass=retained_mass(mdp, F @ B.T)))
+            rows.append(
+                dict(
+                    arm="B",
+                    method="fb_norm",
+                    mdp=k,
+                    d=d,
+                    seed=-1,
+                    **gap_stats(mdp, Q),
+                    retained_mass=retained_mass(mdp, F @ B.T),
+                )
+            )
             for sd in SEEDS:
                 sseed = 1000 * sd + 17 * d + 101 * k
                 F, B, P, _ = softmax_fit(mdp["t_exact"], n, d, sseed, "sq")
-                rows.append(dict(arm="C", method="softsq", mdp=k, d=d, seed=sd,
-                                 **gap_stats(mdp, P @ mdp["r"] / (1 - GAMMA)),
-                                 retained_mass=retained_mass(mdp, P)))
+                rows.append(
+                    dict(
+                        arm="C",
+                        method="softsq",
+                        mdp=k,
+                        d=d,
+                        seed=sd,
+                        **gap_stats(mdp, P @ mdp["r"] / (1 - GAMMA)),
+                        retained_mass=retained_mass(mdp, P),
+                    )
+                )
                 F, B, P, _ = softmax_fit(mdp["t_exact"], n, d, sseed, "ce")
-                rows.append(dict(arm="D", method="density", mdp=k, d=d, seed=sd,
-                                 **gap_stats(mdp, P @ mdp["r"] / (1 - GAMMA)),
-                                 retained_mass=retained_mass(mdp, P)))
-                rows.append(e_arm_rows(mdp, F, B, dict(mdp=k, d=d, seed=sd,
-                                                       retained_mass=retained_mass(mdp, P))))
+                rows.append(
+                    dict(
+                        arm="D",
+                        method="density",
+                        mdp=k,
+                        d=d,
+                        seed=sd,
+                        **gap_stats(mdp, P @ mdp["r"] / (1 - GAMMA)),
+                        retained_mass=retained_mass(mdp, P),
+                    )
+                )
+                rows.append(
+                    e_arm_rows(
+                        mdp,
+                        F,
+                        B,
+                        dict(mdp=k, d=d, seed=sd, retained_mass=retained_mass(mdp, P)),
+                    )
+                )
                 F, B, P, _ = softmax_fit(mdp["t_soft"], n, d, sseed, "ce")
-                rows.append(dict(arm="F", method="density_soft", mdp=k, d=d, seed=sd,
-                                 **gap_stats(mdp, P @ mdp["r"] / (1 - GAMMA)),
-                                 retained_mass=retained_mass(mdp, P)))
+                rows.append(
+                    dict(
+                        arm="F",
+                        method="density_soft",
+                        mdp=k,
+                        d=d,
+                        seed=sd,
+                        **gap_stats(mdp, P @ mdp["r"] / (1 - GAMMA)),
+                        retained_mass=retained_mass(mdp, P),
+                    )
+                )
         log(f"  [closed] mdp {k} done ({time.time() - t0:.0f}s)")
     return rows
 
@@ -310,20 +404,30 @@ def loss_any(params, target, kernel, pi, gamma, method, ksoft):
     tp = jax.lax.stop_gradient(bf.predict(target, "density", False)).reshape(n, 2, n)
     v = jnp.sum(pi[:, :, None] * tp, axis=1)
     labels = (1 - gamma) * (kernel @ ksoft) + gamma * (kernel @ v)
-    return -jnp.mean(jnp.sum(
-        labels * jax.nn.log_softmax(params["f"] @ params["b"].T, axis=-1), axis=-1))
+    return -jnp.mean(
+        jnp.sum(
+            labels * jax.nn.log_softmax(params["f"] @ params["b"].T, axis=-1), axis=-1
+        )
+    )
 
 
-def train_group(mdp, d, method, seeds=SEEDS, rates=RATES,
-                steps=TRAIN_STEPS, tau=TRAIN_TAU):
+def train_group(
+    mdp, d, method, seeds=SEEDS, rates=RATES, steps=TRAIN_STEPS, tau=TRAIN_TAU
+):
     n = mdp["n"]
-    kernel, jp, ks = jnp.array(mdp["kernel"]), jnp.array(mdp["pi"]), jnp.array(mdp["k_soft"])
+    kernel, jp, ks = (
+        jnp.array(mdp["kernel"]),
+        jnp.array(mdp["pi"]),
+        jnp.array(mdp["k_soft"]),
+    )
     cfg = [{"seed": s, "lr": r} for s in seeds for r in rates]
 
     def init(c):
         rng = np.random.default_rng(c["seed"])
-        return {"f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
-                "b": jnp.array(rng.normal(0, 0.1, (n, d)))}
+        return {
+            "f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
+            "b": jnp.array(rng.normal(0, 0.1, (n, d))),
+        }
 
     params = jax.tree.map(lambda *x: jnp.stack(x), *[init(c) for c in cfg])
     opt = optax.scale_by_adam()
@@ -339,13 +443,18 @@ def train_group(mdp, d, method, seeds=SEEDS, rates=RATES,
 
     @jax.jit
     def train(carry):
-        return jax.lax.scan(lambda c, _: (jax.vmap(one)(*c, lrs), None),
-                            carry, None, length=steps)[0]
+        return jax.lax.scan(
+            lambda c, _: (jax.vmap(one)(*c, lrs), None), carry, None, length=steps
+        )[0]
 
     final = train((params, params, state))[0]
-    pred = np.asarray(jax.vmap(lambda x: bf.predict(x, _base_method(method), False))(final))
+    pred = np.asarray(
+        jax.vmap(lambda x: bf.predict(x, _base_method(method), False))(final)
+    )
     if not np.all(np.isfinite(pred)):
-        raise FloatingPointError(f"nonfinite prediction: mdp={mdp['seed']} d={d} {method}")
+        raise FloatingPointError(
+            f"nonfinite prediction: mdp={mdp['seed']} d={d} {method}"
+        )
     return cfg, pred, np.asarray(final["f"]), np.asarray(final["b"])
 
 
@@ -360,12 +469,24 @@ def run_trained(mdps, ranks=None):
                 for i, c in enumerate(cfg):
                     P = bf.readout(pred[i], _base_method(method), GAMMA, n)
                     base = dict(mdp=k, d=d, seed=c["seed"], lr=c["lr"])
-                    rows.append(dict(arm=ARM_OF[method], method=method, **base,
-                                     **gap_stats(mdp, P @ mdp["r"] / (1 - GAMMA)),
-                                     retained_mass=retained_mass(mdp, P)))
+                    rows.append(
+                        dict(
+                            arm=ARM_OF[method],
+                            method=method,
+                            **base,
+                            **gap_stats(mdp, P @ mdp["r"] / (1 - GAMMA)),
+                            retained_mass=retained_mass(mdp, P),
+                        )
+                    )
                     if method == "density":
-                        rows.append(e_arm_rows(mdp, F_all[i], B_all[i],
-                                               dict(base, retained_mass=retained_mass(mdp, P))))
+                        rows.append(
+                            e_arm_rows(
+                                mdp,
+                                F_all[i],
+                                B_all[i],
+                                dict(base, retained_mass=retained_mass(mdp, P)),
+                            )
+                        )
             log(f"  [trained] mdp {k} d={d} done ({time.time() - t0:.0f}s)")
     return rows
 
@@ -379,14 +500,24 @@ GAP_YLIM = single.GAP_YLIM
 def agg(rows, arm, key="gap_ratio", ranks=RANKS):
     out = {}
     for d in ranks:
-        vals = [float(r[key]) for r in rows
-                if r["arm"] == arm and int(r["d"]) == d and r.get(key, "") != ""]
+        vals = [
+            float(r[key])
+            for r in rows
+            if r["arm"] == arm and int(r["d"]) == d and r.get(key, "") != ""
+        ]
         out[d] = single.t_interval(vals) if vals else (np.nan, np.nan, np.nan)
     return out
 
 
-def draw_panel(ax, rows, hollow, key="gap_ratio", ylabel="fraction of the exact action gap",
-               ylim=GAP_YLIM, ranks=None):
+def draw_panel(
+    ax,
+    rows,
+    hollow,
+    key="gap_ratio",
+    ylabel="fraction of the exact action gap",
+    ylim=GAP_YLIM,
+    ranks=None,
+):
     """One line per arm with a band over runs; hollow markers for TD-trained."""
     RANKS = list(ranks) if ranks is not None else globals()["RANKS"]
     for arm in ARMS:
@@ -394,22 +525,40 @@ def draw_panel(ax, rows, hollow, key="gap_ratio", ylabel="fraction of the exact 
         y = np.array([a[d][0] for d in RANKS])
         lo = np.array([a[d][1] for d in RANKS])
         hi = np.array([a[d][2] for d in RANKS])
-        if arm != "E":          # E's scale is arbitrary
-            ax.fill_between(RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2)
-        shown = np.where((y > ylim[1]) | (y < ylim[0]), np.nan, y) if ylim is not None else y
-        ax.plot(RANKS, shown, color=ARM_COLOR[arm], marker=ARM_MARKER[arm],
-                markersize=6.0 if arm == "B" else 4.2,
-                markerfacecolor="none" if hollow else ARM_COLOR[arm],
-                markeredgecolor=ARM_COLOR[arm] if hollow else "white",
-                markeredgewidth=1.1 if hollow else 0.6,
-                linewidth=1.5, linestyle="-", zorder=3 + (arm == "A"))
-        if ylim is not None:          # label off-axis points at the edge
+        if arm != "E":  # E's scale is arbitrary
+            ax.fill_between(
+                RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2
+            )
+        shown = (
+            np.where((y > ylim[1]) | (y < ylim[0]), np.nan, y)
+            if ylim is not None
+            else y
+        )
+        ax.plot(
+            RANKS,
+            shown,
+            color=ARM_COLOR[arm],
+            marker=ARM_MARKER[arm],
+            markersize=6.0 if arm == "B" else 4.2,
+            markerfacecolor="none" if hollow else ARM_COLOR[arm],
+            markeredgecolor=ARM_COLOR[arm] if hollow else "white",
+            markeredgewidth=1.1 if hollow else 0.6,
+            linewidth=1.5,
+            linestyle="-",
+            zorder=3 + (arm == "A"),
+        )
+        if ylim is not None:  # label off-axis points at the edge
             for xi, yi in zip(RANKS, y):
                 if yi > ylim[1] or yi < ylim[0]:
                     up = yi > ylim[1]
-                    ax.annotate(f"{yi:.2f}", (xi, ylim[1] - 0.02 if up else ylim[0] + 0.02),
-                                fontsize=6.5, color=ARM_COLOR[arm], ha="center",
-                                va="top" if up else "bottom")
+                    ax.annotate(
+                        f"{yi:.2f}",
+                        (xi, ylim[1] - 0.02 if up else ylim[0] + 0.02),
+                        fontsize=6.5,
+                        color=ARM_COLOR[arm],
+                        ha="center",
+                        va="top" if up else "bottom",
+                    )
     single._style_axis(ax, ylabel)
     if ranks is not None:
         ax.set_xticks(RANKS)
@@ -422,8 +571,13 @@ VALUES_RANK = 3
 
 def values_rows(trained_rows, mdps, d=VALUES_RANK, arms=("A", "D")):
     """Decision-state action values, rescaled so the exact pair is (1, 0); {arm: {action: (mean, lo, hi)}}."""
-    qx = {m["seed"]: (m["q_exact"][2 * m["decision"]], m["q_exact"][2 * m["decision"] + 1])
-          for m in mdps}
+    qx = {
+        m["seed"]: (
+            m["q_exact"][2 * m["decision"]],
+            m["q_exact"][2 * m["decision"] + 1],
+        )
+        for m in mdps
+    }
     out = {}
     for arm in arms:
         cols = {0: [], 1: []}
@@ -441,12 +595,22 @@ def values_rows(trained_rows, mdps, d=VALUES_RANK, arms=("A", "D")):
 def make_two_arm_figure(trained_rows, arms=("A", "D")):
     """FB vs Density-FB figure."""
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    plt.rcParams.update({"font.family": "sans-serif", "font.size": 8.5,
-                         "text.color": single.INK, "axes.labelcolor": single.INK,
-                         "pdf.fonttype": 42, "svg.fonttype": "none"})
+
+    plt.rcParams.update(
+        {
+            "font.family": "sans-serif",
+            "font.size": 8.5,
+            "text.color": single.INK,
+            "axes.labelcolor": single.INK,
+            "pdf.fonttype": 42,
+            "svg.fonttype": "none",
+        }
+    )
     from matplotlib.lines import Line2D
+
     fig, ax = plt.subplots(figsize=(3.4, 2.3))
     ax.axhline(1.0, color=single.EXACT_COLOR, linestyle="--", linewidth=1.0, zorder=1)
     ax.axhline(0.0, color="#cfcfcf", linewidth=0.7, zorder=1)
@@ -455,37 +619,95 @@ def make_two_arm_figure(trained_rows, arms=("A", "D")):
         y = np.array([a[d][0] for d in RANKS])
         lo = np.array([a[d][1] for d in RANKS])
         hi = np.array([a[d][2] for d in RANKS])
-        ax.fill_between(RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2)
-        ax.plot(RANKS, y, color=ARM_COLOR[arm], marker=ARM_MARKER[arm], markersize=4.2,
-                markerfacecolor="none", markeredgecolor=ARM_COLOR[arm], markeredgewidth=1.1,
-                linewidth=1.6, zorder=3)
+        ax.fill_between(
+            RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2
+        )
+        ax.plot(
+            RANKS,
+            y,
+            color=ARM_COLOR[arm],
+            marker=ARM_MARKER[arm],
+            markersize=4.2,
+            markerfacecolor="none",
+            markeredgecolor=ARM_COLOR[arm],
+            markeredgewidth=1.1,
+            linewidth=1.6,
+            zorder=3,
+        )
     single._style_axis(ax, "fraction of the exact action gap")
     ax.set_ylim(-0.1, 1.15)
-    ax.legend(handles=[Line2D([0], [0], color=ARM_COLOR["A"], marker=ARM_MARKER["A"],
-                              markerfacecolor="none", markersize=4.2, linewidth=1.6, label="FB"),
-                       Line2D([0], [0], color=ARM_COLOR["D"], marker=ARM_MARKER["D"],
-                              markerfacecolor="none", markersize=4.2, linewidth=1.6,
-                              label="\\textsc{Density-FB}" if False else "Density-FB"),
-                       Line2D([0], [0], color=single.EXACT_COLOR, linestyle="--", linewidth=1.0,
-                              label="exact gap")],
-              loc="lower right", fontsize=7.4, frameon=False, handlelength=1.6,
-              labelspacing=0.3, borderpad=0.2)
+    ax.legend(
+        handles=[
+            Line2D(
+                [0],
+                [0],
+                color=ARM_COLOR["A"],
+                marker=ARM_MARKER["A"],
+                markerfacecolor="none",
+                markersize=4.2,
+                linewidth=1.6,
+                label="FB",
+            ),
+            Line2D(
+                [0],
+                [0],
+                color=ARM_COLOR["D"],
+                marker=ARM_MARKER["D"],
+                markerfacecolor="none",
+                markersize=4.2,
+                linewidth=1.6,
+                label="\\textsc{Density-FB}" if False else "Density-FB",
+            ),
+            Line2D(
+                [0],
+                [0],
+                color=single.EXACT_COLOR,
+                linestyle="--",
+                linewidth=1.0,
+                label="exact gap",
+            ),
+        ],
+        loc="lower right",
+        fontsize=7.4,
+        frameon=False,
+        handlelength=1.6,
+        labelspacing=0.3,
+        borderpad=0.2,
+    )
     fig.tight_layout(pad=0.3)
     save(fig, "fig_family_gap_two_arm")
     plt.close(fig)
 
 
-def make_values_figure(trained_rows, mdps, d=VALUES_RANK, stem="fig_family_values", fig_dir=None,
-                       action_labels=("action into the goal", "action away")):
+def make_values_figure(
+    trained_rows,
+    mdps,
+    d=VALUES_RANK,
+    stem="fig_family_values",
+    fig_dir=None,
+    action_labels=("action into the goal", "action away"),
+):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    plt.rcParams.update({"font.family": "sans-serif", "font.size": 8.5,
-                         "text.color": single.INK, "axes.labelcolor": single.INK,
-                         "pdf.fonttype": 42, "svg.fonttype": "none"})
+
+    plt.rcParams.update(
+        {
+            "font.family": "sans-serif",
+            "font.size": 8.5,
+            "text.color": single.INK,
+            "axes.labelcolor": single.INK,
+            "pdf.fonttype": 42,
+            "svg.fonttype": "none",
+        }
+    )
     vals = values_rows(trained_rows, mdps, d=d)
-    groups = [("exact", "exact", single.EXACT_COLOR), ("A", "FB", ARM_COLOR["A"]),
-              ("D", "Density-FB", ARM_COLOR["D"])]
+    groups = [
+        ("exact", "exact", single.EXACT_COLOR),
+        ("A", "FB", ARM_COLOR["A"]),
+        ("D", "Density-FB", ARM_COLOR["D"]),
+    ]
     fig, ax = plt.subplots(figsize=(3.4, 2.3))
     width, gap = 0.34, 0.12
     xt, xl = [], []
@@ -494,19 +716,44 @@ def make_values_figure(trained_rows, mdps, d=VALUES_RANK, stem="fig_family_value
         for a in (0, 1):
             m, lo, hi = vals[key][a]
             x = base + a * (width + 0.03)
-            ax.bar(x, m, width=width, color=color, alpha=1.0 if a == 0 else 0.42,
-                   edgecolor=color, linewidth=0.8, zorder=2)
+            ax.bar(
+                x,
+                m,
+                width=width,
+                color=color,
+                alpha=1.0 if a == 0 else 0.42,
+                edgecolor=color,
+                linewidth=0.8,
+                zorder=2,
+            )
             if hi > lo:
-                ax.errorbar(x, m, yerr=[[m - lo], [hi - m]], ecolor=single.INK, elinewidth=0.9,
-                            capsize=2.0, linestyle="none", zorder=3)
-            ax.annotate(f"{m:.2f}", (x, max(m, hi)), textcoords="offset points",
-                        xytext=(0, 2.5), ha="center", fontsize=6.5, color=single.INK)
+                ax.errorbar(
+                    x,
+                    m,
+                    yerr=[[m - lo], [hi - m]],
+                    ecolor=single.INK,
+                    elinewidth=0.9,
+                    capsize=2.0,
+                    linestyle="none",
+                    zorder=3,
+                )
+            ax.annotate(
+                f"{m:.2f}",
+                (x, max(m, hi)),
+                textcoords="offset points",
+                xytext=(0, 2.5),
+                ha="center",
+                fontsize=6.5,
+                color=single.INK,
+            )
         xt.append(base + width / 2 + 0.015)
         xl.append(name)
     ax.axhline(0.0, color="#cfcfcf", linewidth=0.7, zorder=1)
     ax.set_xticks(xt)
     ax.set_xticklabels(xl, fontsize=8.5)
-    ax.set_ylabel("value at the decision state\n(exact pair mapped to 1 and 0)", fontsize=8)
+    ax.set_ylabel(
+        "value at the decision state\n(exact pair mapped to 1 and 0)", fontsize=8
+    )
     ax.tick_params(axis="y", labelsize=8, length=2.5)
     ax.tick_params(axis="x", length=0)
     for sp in ("top", "right"):
@@ -514,10 +761,20 @@ def make_values_figure(trained_rows, mdps, d=VALUES_RANK, stem="fig_family_value
     for sp in ("left", "bottom"):
         ax.spines[sp].set_color("#9a9a9a")
     from matplotlib.patches import Patch
-    ax.legend(handles=[Patch(facecolor="#6a6a6a", label=action_labels[0]),
-                       Patch(facecolor="#6a6a6a", alpha=0.42, label=action_labels[1])],
-              fontsize=7.2, frameon=False, loc="upper center", ncol=2,
-              bbox_to_anchor=(0.5, 1.22), handlelength=1.4, columnspacing=1.0)
+
+    ax.legend(
+        handles=[
+            Patch(facecolor="#6a6a6a", label=action_labels[0]),
+            Patch(facecolor="#6a6a6a", alpha=0.42, label=action_labels[1]),
+        ],
+        fontsize=7.2,
+        frameon=False,
+        loc="upper center",
+        ncol=2,
+        bbox_to_anchor=(0.5, 1.22),
+        handlelength=1.4,
+        columnspacing=1.0,
+    )
     fig.tight_layout(pad=0.3)
     save(fig, stem, fig_dir)
     plt.close(fig)
@@ -533,39 +790,78 @@ def save(fig, stem, fig_dir=None):
 
 def make_figures(closed_rows, trained_rows, mdps):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    plt.rcParams.update({"font.family": "sans-serif", "font.size": 8.5,
-                         "text.color": single.INK, "axes.labelcolor": single.INK,
-                         "pdf.fonttype": 42, "svg.fonttype": "none"})
+
+    plt.rcParams.update(
+        {
+            "font.family": "sans-serif",
+            "font.size": 8.5,
+            "text.color": single.INK,
+            "axes.labelcolor": single.INK,
+            "pdf.fonttype": 42,
+            "svg.fonttype": "none",
+        }
+    )
 
     fig, axes = plt.subplots(1, 2, figsize=(5.5, 2.35), sharey=True)
     draw_panel(axes[0], closed_rows, hollow=False)
     draw_panel(axes[1], trained_rows, hollow=True)
     axes[1].set_ylabel("")
-    fig.legend(handles=single.legend_handles(), loc="lower center", ncol=2, fontsize=7.6,
-               frameon=False, bbox_to_anchor=(0.5, -0.30), handlelength=1.8, columnspacing=1.2)
+    fig.legend(
+        handles=single.legend_handles(),
+        loc="lower center",
+        ncol=2,
+        fontsize=7.6,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.30),
+        handlelength=1.8,
+        columnspacing=1.2,
+    )
     fig.tight_layout(pad=0.3, w_pad=1.0)
     save(fig, "fig_family_ablation")
     plt.close(fig)
 
     # Standalone panels with their own legend
-    for stem, rows, hollow in (("fig_family_ablation_closed", closed_rows, False),
-                               ("fig_family_ablation_trained", trained_rows, True)):
+    for stem, rows, hollow in (
+        ("fig_family_ablation_closed", closed_rows, False),
+        ("fig_family_ablation_trained", trained_rows, True),
+    ):
         fig, ax = plt.subplots(figsize=(3.4, 2.5))
         draw_panel(ax, rows, hollow=hollow)
-        fig.legend(handles=single.legend_handles()[:-1], loc="lower center", ncol=2,
-                   fontsize=6.4, frameon=False, bbox_to_anchor=(0.5, -0.20),
-                   handlelength=1.6, columnspacing=1.0, labelspacing=0.3)
+        fig.legend(
+            handles=single.legend_handles()[:-1],
+            loc="lower center",
+            ncol=2,
+            fontsize=6.4,
+            frameon=False,
+            bbox_to_anchor=(0.5, -0.20),
+            handlelength=1.6,
+            columnspacing=1.0,
+            labelspacing=0.3,
+        )
         fig.tight_layout(pad=0.3)
         save(fig, stem)
         plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(2.75, 2.35))
-    draw_panel(ax, closed_rows, hollow=False, key="retained_mass",
-               ylabel="retained squared mass", ylim=(0.8, 1.02))
-    draw_panel(ax, trained_rows, hollow=True, key="retained_mass",
-               ylabel="retained squared mass", ylim=(0.8, 1.02))
+    draw_panel(
+        ax,
+        closed_rows,
+        hollow=False,
+        key="retained_mass",
+        ylabel="retained squared mass",
+        ylim=(0.8, 1.02),
+    )
+    draw_panel(
+        ax,
+        trained_rows,
+        hollow=True,
+        key="retained_mass",
+        ylabel="retained squared mass",
+        ylim=(0.8, 1.02),
+    )
     fig.tight_layout(pad=0.3)
     save(fig, "fig_family_mass")
     plt.close(fig)
@@ -573,20 +869,28 @@ def make_figures(closed_rows, trained_rows, mdps):
     # Per-process trained panels
     ncol = 5
     nrow = int(np.ceil(len(mdps) / ncol))
-    fig, axes = plt.subplots(nrow, ncol, figsize=(2.2 * ncol, 2.35 * nrow),
-                             sharey=True, squeeze=False)
+    fig, axes = plt.subplots(
+        nrow, ncol, figsize=(2.2 * ncol, 2.35 * nrow), sharey=True, squeeze=False
+    )
     for ax, mdp in zip(axes.ravel(), mdps):
         sub = [r for r in trained_rows if int(r["mdp"]) == mdp["seed"]]
         draw_panel(ax, sub, hollow=True)
         ax.set_title(label(mdp), fontsize=8)
         ax.set_ylabel("")
-    for ax in axes.ravel()[len(mdps):]:
+    for ax in axes.ravel()[len(mdps) :]:
         ax.axis("off")
     for r in range(nrow):
         axes[r, 0].set_ylabel("fraction of the exact action gap", fontsize=8.5)
-    fig.legend(handles=single.legend_handles(), loc="lower center", ncol=4, fontsize=7.6,
-               frameon=False, bbox_to_anchor=(0.5, -0.12 / nrow), handlelength=1.8,
-               columnspacing=1.2)
+    fig.legend(
+        handles=single.legend_handles(),
+        loc="lower center",
+        ncol=4,
+        fontsize=7.6,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.12 / nrow),
+        handlelength=1.8,
+        columnspacing=1.2,
+    )
     fig.tight_layout(pad=0.3, w_pad=0.8, h_pad=1.2)
     save(fig, "fig_family_per_mdp")
     plt.close(fig)
@@ -604,7 +908,10 @@ def graph_layout(mdp):
     if mdp["variant"] == "series":
         col_x = [-2.0, -1.0, 0.0, 1.0, 2.0]
         blocks = [(groups[0], col_x[0]), (groups[1], col_x[2]), (groups[2], col_x[4])]
-        cut_pos = {cuts[0]: np.array([col_x[1], 0.0]), cuts[1]: np.array([col_x[3], 0.0])}
+        cut_pos = {
+            cuts[0]: np.array([col_x[1], 0.0]),
+            cuts[1]: np.array([col_x[3], 0.0]),
+        }
         radius = 0.42
     elif mdp["variant"] == "parallel":
         blocks = [(groups[0], -1.35), (groups[1], 1.35)]
@@ -622,18 +929,29 @@ def graph_layout(mdp):
     for c, p in cut_pos.items():
         pos[c] = p
         centers[c] = p + np.array([0.0, -0.9 if p[1] <= 0 else 0.9])
-    out = {st: (pos[st] - centers[st]) / max(np.linalg.norm(pos[st] - centers[st]), 1e-9)
-           for st in range(n)}
+    out = {
+        st: (pos[st] - centers[st]) / max(np.linalg.norm(pos[st] - centers[st]), 1e-9)
+        for st in range(n)
+    }
     return pos, out
 
 
-def draw_graph(mdp, layout=None, node_style=None, stem=None, title=None, fig_dir=None,
-               figsize=None, xlim=None):
+def draw_graph(
+    mdp,
+    layout=None,
+    node_style=None,
+    stem=None,
+    title=None,
+    fig_dir=None,
+    figsize=None,
+    xlim=None,
+):
     """Draw a process graph; layout and node_style default to the family's own."""
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.patches import FancyArrowPatch, Circle
+    from matplotlib.patches import Circle, FancyArrowPatch
 
     n, goal, dec, cuts = mdp["n"], mdp["goal"], mdp["decision"], list(mdp["cuts"])
     pos, out = (layout or graph_layout)(mdp)
@@ -647,13 +965,34 @@ def draw_graph(mdp, layout=None, node_style=None, stem=None, title=None, fig_dir
             color = single.INK if a == 0 else "#9a9a9a"
             style = "-" if a == 0 else (0, (3, 2))
             if t == s:
-                ax.add_patch(Circle(pos[s] + 0.24 * out[s], 0.11, fill=False, edgecolor=color,
-                                    linewidth=0.8, linestyle=style, zorder=1))
+                ax.add_patch(
+                    Circle(
+                        pos[s] + 0.24 * out[s],
+                        0.11,
+                        fill=False,
+                        edgecolor=color,
+                        linewidth=0.8,
+                        linestyle=style,
+                        zorder=1,
+                    )
+                )
                 continue
-            ax.add_patch(FancyArrowPatch(
-                pos[s], pos[t], connectionstyle="arc3,rad=0.18", arrowstyle="-|>",
-                mutation_scale=7, linewidth=0.8, linestyle=style, color=color,
-                shrinkA=8, shrinkB=8, zorder=1, alpha=0.9))
+            ax.add_patch(
+                FancyArrowPatch(
+                    pos[s],
+                    pos[t],
+                    connectionstyle="arc3,rad=0.18",
+                    arrowstyle="-|>",
+                    mutation_scale=7,
+                    linewidth=0.8,
+                    linestyle=style,
+                    color=color,
+                    shrinkA=8,
+                    shrinkB=8,
+                    zorder=1,
+                    alpha=0.9,
+                )
+            )
     for s in range(n):
         if node_style is not None:
             face, edge, txt = node_style(mdp, s)
@@ -665,23 +1004,42 @@ def draw_graph(mdp, layout=None, node_style=None, stem=None, title=None, fig_dir
             face, edge, txt = "#DE8F05", "#DE8F05", "white"
         else:
             face, edge, txt = "white", "#9a9a9a", single.INK
-        ax.add_patch(Circle(pos[s], node_r, facecolor=face, edgecolor=edge, linewidth=1.2,
-                            zorder=2))
-        ax.text(*pos[s], str(s), ha="center", va="center", fontsize=6.5, color=txt, zorder=3)
+        ax.add_patch(
+            Circle(
+                pos[s], node_r, facecolor=face, edgecolor=edge, linewidth=1.2, zorder=2
+            )
+        )
+        ax.text(
+            *pos[s], str(s), ha="center", va="center", fontsize=6.5, color=txt, zorder=3
+        )
         loops = int(mdp["edges"][s, 0]) == s or int(mdp["edges"][s, 1]) == s
         lab = pos[s] + (0.48 if loops else 0.25) * out[s]
-        ax.text(lab[0], lab[1], f"{mdp['pi'][s, 0]:.2f}", ha="center", va="center",
-                fontsize=5.5, color="#6a6a6a", zorder=3,
-                bbox=dict(boxstyle="round,pad=0.08", facecolor="white", edgecolor="none",
-                          alpha=0.85))
+        ax.text(
+            lab[0],
+            lab[1],
+            f"{mdp['pi'][s, 0]:.2f}",
+            ha="center",
+            va="center",
+            fontsize=5.5,
+            color="#6a6a6a",
+            zorder=3,
+            bbox=dict(
+                boxstyle="round,pad=0.08",
+                facecolor="white",
+                edgecolor="none",
+                alpha=0.85,
+            ),
+        )
     ax.set_xlim(*(xlim or ((-2.85, 2.85) if wide else (-2.35, 2.35))))
     ax.set_ylim(-1.45, 1.45)
     ax.set_aspect("equal")
     ax.axis("off")
     if title is None:
-        title = (f"{label(mdp)}: cut{'s' if len(cuts) > 1 else ''} "
-                 f"{', '.join(str(c) for c in cuts)}, decision {dec}, goal {goal}, "
-                 f"exact gap {mdp['gap']:.2f}")
+        title = (
+            f"{label(mdp)}: cut{'s' if len(cuts) > 1 else ''} "
+            f"{', '.join(str(c) for c in cuts)}, decision {dec}, goal {goal}, "
+            f"exact gap {mdp['gap']:.2f}"
+        )
     ax.set_title(title, fontsize=7, color=single.INK)
     fig.tight_layout(pad=0.2)
     save(fig, stem or f"fig_family_graph_{mdp['seed'] + 1}", fig_dir)
@@ -701,27 +1059,36 @@ def print_tables(closed_rows, trained_rows, mdps):
     log("\n=== gap ratio vs rank, mean over all processes (TD-trained) ===")
     for arm in ARMS:
         a = agg(trained_rows, arm)
-        log(f"{arm} | " + " | ".join(f"{a[d][0]:.2f} [{a[d][1]:.2f}, {a[d][2]:.2f}]" for d in RANKS))
+        log(
+            f"{arm} | "
+            + " | ".join(f"{a[d][0]:.2f} [{a[d][1]:.2f}, {a[d][2]:.2f}]" for d in RANKS)
+        )
     for variant in ("single", "series", "parallel"):
         keep = {m["seed"] for m in mdps if m["variant"] == variant}
         sub = [r for r in trained_rows if int(r["mdp"]) in keep]
         if not sub:
             continue
-        log(f"\n=== gap ratio vs rank, TD-trained, {variant} bottleneck only "
-            f"({len(keep)} processes) ===")
+        log(
+            f"\n=== gap ratio vs rank, TD-trained, {variant} bottleneck only "
+            f"({len(keep)} processes) ==="
+        )
         for arm in ARMS:
             log(f"{arm} | {line(sub, arm)}")
 
     log("\n=== per process, TD-trained gap ratio ===")
     for mdp in mdps:
         sub = [r for r in trained_rows if int(r["mdp"]) == mdp["seed"]]
-        log(f"-- {label(mdp)} (gap {mdp['gap']:.2f}, "
+        log(
+            f"-- {label(mdp)} (gap {mdp['gap']:.2f}, "
             f"groups {'/'.join(str(len(g)) for g in mdp['groups'])}, "
-            f"cuts {mdp['cuts']}) --")
+            f"cuts {mdp['cuts']}) --"
+        )
         for arm in ARMS:
             log(f"   {arm} | {line(sub, arm)}")
 
-    log("\n=== smallest rank reaching 90% of the exact gap (per process, TD-trained) ===")
+    log(
+        "\n=== smallest rank reaching 90% of the exact gap (per process, TD-trained) ==="
+    )
     log("arm | " + " | ".join(label(m).replace(" ", "") for m in mdps) + " | median")
     for arm in ARMS:
         need = []
@@ -731,17 +1098,32 @@ def print_tables(closed_rows, trained_rows, mdps):
             hit = [d for d in RANKS if a[d][0] >= 0.9]
             need.append(min(hit) if hit else np.nan)
         med = np.nanmedian(need) if not all(np.isnan(x) for x in need) else np.nan
-        log(f"{arm} | " + " | ".join("-" if np.isnan(x) else str(int(x)) for x in need)
-            + f" | {med if np.isnan(med) else med:.1f}")
+        log(
+            f"{arm} | "
+            + " | ".join("-" if np.isnan(x) else str(int(x)) for x in need)
+            + f" | {med if np.isnan(med) else med:.1f}"
+        )
 
-    log("\n=== retained squared mass vs rank, mean over all processes (closed || trained) ===")
+    log(
+        "\n=== retained squared mass vs rank, mean over all processes (closed || trained) ==="
+    )
     for arm in ARMS:
-        log(f"{arm} | {line(closed_rows, arm, 'retained_mass')}  ||  "
-            f"{line(trained_rows, arm, 'retained_mass')}")
+        log(
+            f"{arm} | {line(closed_rows, arm, 'retained_mass')}  ||  "
+            f"{line(trained_rows, arm, 'retained_mass')}"
+        )
     log("\n=== argmax stays on the goal action (fraction of fits, TD-trained) ===")
     for arm in ARMS:
-        vals = [np.mean([float(str(r['argmax_correct']) == 'True') for r in trained_rows
-                         if r['arm'] == arm and int(r['d']) == d]) for d in RANKS]
+        vals = [
+            np.mean(
+                [
+                    float(str(r["argmax_correct"]) == "True")
+                    for r in trained_rows
+                    if r["arm"] == arm and int(r["d"]) == d
+                ]
+            )
+            for d in RANKS
+        ]
         log(f"{arm} | " + " | ".join(f"{v:.2f}" for v in vals))
 
 
@@ -772,22 +1154,35 @@ def check(mdp):
     edges, n = mdp["edges"], mdp["n"]
     assert float(np.max(np.abs(mdp["t_exact"].sum(1) - 1))) < 1e-10
     last = mdp["groups"][-1]
-    for s in last:                                     # goal group is closed
+    for s in last:  # goal group is closed
         assert all(int(t) in last for t in edges[s]), "last group leaks back"
-    into_last = [(s, a) for s in range(n) for a in (0, 1)
-                 if s not in last and int(edges[s, a]) in last]
+    into_last = [
+        (s, a)
+        for s in range(n)
+        for a in (0, 1)
+        if s not in last and int(edges[s, a]) in last
+    ]
     cuts = mdp["cuts"]
-    want = ([(cuts[0], 0), (cuts[1], 0)] if mdp["variant"] == "parallel"
-            else [(cuts[-1], 0)])
+    want = (
+        [(cuts[0], 0), (cuts[1], 0)]
+        if mdp["variant"] == "parallel"
+        else [(cuts[-1], 0)]
+    )
     assert sorted(into_last) == sorted(want), (into_last, want)
-    if mdp["variant"] == "series":                     # middle group has one entry
+    if mdp["variant"] == "series":  # middle group has one entry
         mid = mdp["groups"][1] + [cuts[1]]
-        into_mid = [(s, a) for s in range(n) for a in (0, 1)
-                    if s not in mid and int(edges[s, a]) in mid]
+        into_mid = [
+            (s, a)
+            for s in range(n)
+            for a in (0, 1)
+            if s not in mid and int(edges[s, a]) in mid
+        ]
         assert into_mid == [(cuts[0], 0)], into_mid
-    if mdp["variant"] == "parallel":                   # both cuts reachable from A
+    if mdp["variant"] == "parallel":  # both cuts reachable from A
         for c in cuts:
-            assert any(int(edges[s, a]) == c for s in mdp["groups"][0] for a in (0, 1)), c
+            assert any(
+                int(edges[s, a]) == c for s in mdp["groups"][0] for a in (0, 1)
+            ), c
 
 
 def describe(mdps):
@@ -795,23 +1190,48 @@ def describe(mdps):
     out = []
     for mdp in mdps:
         check(mdp)
-        log(f"{label(mdp):14s} groups {'/'.join(str(len(g)) for g in mdp['groups'])}, "
+        log(
+            f"{label(mdp):14s} groups {'/'.join(str(len(g)) for g in mdp['groups'])}, "
             f"cuts {mdp['cuts']}, decision {mdp['decision']}, goal {mdp['goal']}, "
             f"exact values {mdp['q_exact'][2 * mdp['decision']]:.2f} / "
             f"{mdp['q_exact'][2 * mdp['decision'] + 1]:.2f}, gap {mdp['gap']:.3f}, "
             f"p(action 0) in [{mdp['pi'][:, 0].min():.2f}, {mdp['pi'][:, 0].max():.2f}], "
-            f"{mdp['attempts']} draw(s)")
-        out.append(dict(seed=int(mdp["seed"]), variant=mdp["variant"], n=int(mdp["n"]),
-                        edges=mdp["edges"].tolist(), pi=mdp["pi"].tolist(),
-                        cuts=[int(c) for c in mdp["cuts"]], goal=int(mdp["goal"]),
-                        decision=int(mdp["decision"]),
-                        groups=[[int(x) for x in g] for g in mdp["groups"]],
-                        gap=mdp["gap"], q_exact=mdp["q_exact"].tolist(),
-                        attempts=mdp["attempts"]))
-    (HERE / "family_mdps.json").write_text(json.dumps(
-        dict(gamma=GAMMA, ranks=RANKS, seeds=SEEDS, rates=RATES, steps=TRAIN_STEPS,
-             tau=TRAIN_TAU, closed_steps=CLOSED_STEPS, closed_lr=CLOSED_LR,
-             soft_sigma=SOFT_SIGMA, min_gap=MIN_GAP, processes=out), indent=2))
+            f"{mdp['attempts']} draw(s)"
+        )
+        out.append(
+            dict(
+                seed=int(mdp["seed"]),
+                variant=mdp["variant"],
+                n=int(mdp["n"]),
+                edges=mdp["edges"].tolist(),
+                pi=mdp["pi"].tolist(),
+                cuts=[int(c) for c in mdp["cuts"]],
+                goal=int(mdp["goal"]),
+                decision=int(mdp["decision"]),
+                groups=[[int(x) for x in g] for g in mdp["groups"]],
+                gap=mdp["gap"],
+                q_exact=mdp["q_exact"].tolist(),
+                attempts=mdp["attempts"],
+            )
+        )
+    (HERE / "family_mdps.json").write_text(
+        json.dumps(
+            dict(
+                gamma=GAMMA,
+                ranks=RANKS,
+                seeds=SEEDS,
+                rates=RATES,
+                steps=TRAIN_STEPS,
+                tau=TRAIN_TAU,
+                closed_steps=CLOSED_STEPS,
+                closed_lr=CLOSED_LR,
+                soft_sigma=SOFT_SIGMA,
+                min_gap=MIN_GAP,
+                processes=out,
+            ),
+            indent=2,
+        )
+    )
     log("")
 
 
@@ -821,8 +1241,12 @@ if __name__ == "__main__":
     describe(mdps)
     if "--figures-only" in sys.argv:
         keep = {k for k, _ in PROCESSES}
-        closed_rows = [r for r in read_csv("family_closed.csv") if int(r["mdp"]) in keep]
-        trained_rows = [r for r in read_csv("family_trained.csv") if int(r["mdp"]) in keep]
+        closed_rows = [
+            r for r in read_csv("family_closed.csv") if int(r["mdp"]) in keep
+        ]
+        trained_rows = [
+            r for r in read_csv("family_trained.csv") if int(r["mdp"]) in keep
+        ]
     else:
         closed_rows = run_closed_form(mdps)
         write_csv(closed_rows, "family_closed.csv")

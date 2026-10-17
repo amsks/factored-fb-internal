@@ -3,6 +3,7 @@
 The policy maximizes Q / mean |Q| plus bc_coeff times the squared distance to the flow's
 action for the same noise.
 """
+
 import dataclasses
 from typing import Any
 
@@ -40,10 +41,12 @@ class FlowBCActor:
     def _policy_drift(params, obs, cond, critic, a_actor, a_data, q_actor):
         """Logging: action gap to the data and Q(s, a_data) - Q(s, a_actor)."""
         q_data, _ = critic.q_fn(params, obs, cond, a_data, stop_encoder_grad=True)
-        return jax.lax.stop_gradient({
-            "action_gap_l2": jnp.linalg.norm(a_actor - a_data, axis=-1).mean(),
-            "q_gap_data_minus_actor": q_data.mean() - q_actor.mean(),
-        })
+        return jax.lax.stop_gradient(
+            {
+                "action_gap_l2": jnp.linalg.norm(a_actor - a_data, axis=-1).mean(),
+                "q_gap_data_minus_actor": q_data.mean() - q_actor.mean(),
+            }
+        )
 
     def loss(self, params, target, batch, critic, cond, boot):
         obs, action = batch["observations"], batch["actions"]
@@ -80,14 +83,17 @@ class FlowBCActor:
         r_na, r_x0, r_t, r_noise = jax.random.split(rng, 4)
         na_noise = jax.random.normal(r_na, (B, adim))
         na = self._actor(net["actor"].params, next_obs, c, na_noise)
-        boot = {"next_action": na,
-                "flow_x0": jax.random.normal(r_x0, (B, adim)),
-                "flow_t": jax.random.uniform(r_t, (B, 1)),
-                "actor_noise": jax.random.normal(r_noise, (B, adim))}
+        boot = {
+            "next_action": na,
+            "flow_x0": jax.random.normal(r_x0, (B, adim)),
+            "flow_t": jax.random.uniform(r_t, (B, 1)),
+            "actor_noise": jax.random.normal(r_noise, (B, adim)),
+        }
         # Bootstrap action at the TD-target goal, if the critic uses a separate one
         if "_cvec_vgoal" in cond:
             boot["next_action_vgoal"] = self._actor(
-                net["actor"].params, next_obs, cond["_cvec_vgoal"], na_noise)
+                net["actor"].params, next_obs, cond["_cvec_vgoal"], na_noise
+            )
         return boot
 
     def sample_actions(self, net, obs, cond, rng, temperature=1.0):
@@ -99,21 +105,33 @@ class FlowBCActor:
     @classmethod
     def build(cls, ex_obs, ex_actions, config):
         import jax.random as jr
-        from impls.utils.networks import NoiseConditionedActor, FlowVectorField
+
+        from impls.utils.networks import FlowVectorField, NoiseConditionedActor
+
         adim = ex_actions.shape[-1]
         cdim = config["cvec_dim"]
         a_cfg = config["actor"]
-        actor = NoiseConditionedActor(action_dim=adim, hidden_dim=a_cfg["hidden_dim"],
-                                      hidden_layers=a_cfg["hidden_layers"],
-                                      embedding_layers=a_cfg["embedding_layers"])
-        vf = FlowVectorField(action_dim=adim, hidden_dim=a_cfg["flow_vf_hidden_dim"],
-                             hidden_layers=a_cfg["flow_vf_hidden_layers"])
+        actor = NoiseConditionedActor(
+            action_dim=adim,
+            hidden_dim=a_cfg["hidden_dim"],
+            hidden_layers=a_cfg["hidden_layers"],
+            embedding_layers=a_cfg["embedding_layers"],
+        )
+        vf = FlowVectorField(
+            action_dim=adim,
+            hidden_dim=a_cfg["flow_vf_hidden_dim"],
+            hidden_layers=a_cfg["flow_vf_hidden_layers"],
+        )
         ract, rvf = jr.split(jr.PRNGKey(config["seed"] + 1000), 2)
         ex_z = jnp.zeros((ex_obs.shape[0], cdim))
         params = {
             "actor": actor.init(ract, ex_obs, ex_z, ex_actions)["params"],
             "actor_vf": vf.init(rvf, ex_obs, ex_actions, ex_actions[..., :1])["params"],
         }
-        obj = cls(actor=actor, actor_vf=vf, flow_steps=int(a_cfg["flow_steps"]),
-                  bc_coeff=float(a_cfg["bc_coeff"]))
+        obj = cls(
+            actor=actor,
+            actor_vf=vf,
+            flow_steps=int(a_cfg["flow_steps"]),
+            bc_coeff=float(a_cfg["bc_coeff"]),
+        )
         return obj, params

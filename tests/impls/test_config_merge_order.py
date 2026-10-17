@@ -1,4 +1,5 @@
 """load_config merges (domain, critic, actor) with the actor winning ties."""
+
 import pytest
 from omegaconf import OmegaConf
 

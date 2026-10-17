@@ -1,42 +1,63 @@
 """Agent: a critic and an actor over per-group TrainStates, updated stage by stage."""
+
 from typing import Any
 
 import flax
 import jax
 import optax
 
-from impls.utils.flax_utils import TrainState, soft_update, nonpytree_field
+from impls.actors.ddpgbc import DDPGBCActor
+from impls.actors.flowbc import FlowBCActor
 from impls.critics.base import check_combo
-from impls.utils.config_utils import upgrade_config
-from impls.critics.fb import FBCritic
 from impls.critics.density_fb import DensityFBCritic
+from impls.critics.fb import FBCritic
 from impls.critics.hilp import HILPCritic
 from impls.critics.rldp import RLDPCritic
-from impls.actors.flowbc import FlowBCActor
-from impls.actors.ddpgbc import DDPGBCActor
+from impls.utils.config_utils import upgrade_config
+from impls.utils.flax_utils import TrainState, nonpytree_field, soft_update
 
-CRITICS = {"fb": FBCritic, "density_fb": DensityFBCritic, "hilp": HILPCritic, "rldp": RLDPCritic}
+CRITICS = {
+    "fb": FBCritic,
+    "density_fb": DensityFBCritic,
+    "hilp": HILPCritic,
+    "rldp": RLDPCritic,
+}
 
 # Critic names that select their own yaml but reuse a critic class.
 #   density_fb_z      z inferred from reward samples.
 #   density_fb_state  backward network reads the full state.
 #   fb_tdj, fb_ref    FB at the TD-JEPA reference settings (identical yamls).
 #   hilp_tdjc         HILP at TD-JEPA's OGBench settings.
-CRITIC_ALIASES = {"density_fb_z": "density_fb", "density_fb_state": "density_fb",
-                  "fb_tdj": "fb", "fb_ref": "fb", "hilp_tdjc": "hilp"}
+CRITIC_ALIASES = {
+    "density_fb_z": "density_fb",
+    "density_fb_state": "density_fb",
+    "fb_tdj": "fb",
+    "fb_ref": "fb",
+    "hilp_tdjc": "hilp",
+}
 
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor}
 
 # Optimizer group -> learning-rate config key.
-_LR_KEY = {"forward": "lr_f", "left_encoder": "lr_f", "backward": "lr_b",
-           "predictor": "lr_b",
-           # Density-FB. density_b_zenc and density_zstats get no gradient.
-           "density_f": "lr", "density_b": "lr",
-           "density_b_zenc": "lr", "density_zstats": "lr",
-           # HILP
-           "hilp_phi1": "lr_b", "hilp_phi2": "lr_b", "hilp_sf": "lr_f", "hilp_stats": "lr_b",
-           "hilp_le": "lr_f",
-           "actor": "lr_actor", "actor_vf": None}   # actor_vf uses actor.lr_actor_vf
+_LR_KEY = {
+    "forward": "lr_f",
+    "left_encoder": "lr_f",
+    "backward": "lr_b",
+    "predictor": "lr_b",
+    # Density-FB. density_b_zenc and density_zstats get no gradient.
+    "density_f": "lr",
+    "density_b": "lr",
+    "density_b_zenc": "lr",
+    "density_zstats": "lr",
+    # HILP
+    "hilp_phi1": "lr_b",
+    "hilp_phi2": "lr_b",
+    "hilp_sf": "lr_f",
+    "hilp_stats": "lr_b",
+    "hilp_le": "lr_f",
+    "actor": "lr_actor",
+    "actor_vf": None,
+}  # actor_vf uses actor.lr_actor_vf
 
 
 def _group_lr(group, config):
@@ -50,9 +71,9 @@ def _group_lr(group, config):
 
 class Agent(flax.struct.PyTreeNode):
     rng: Any
-    net: Any            # dict[group -> TrainState]   (online groups)
-    target: Any         # dict[group -> params]        (target groups)
-    cond_eval: Any      # eval-time conditioning, e.g. {"z": ...}
+    net: Any  # dict[group -> TrainState]   (online groups)
+    target: Any  # dict[group -> params]        (target groups)
+    cond_eval: Any  # eval-time conditioning, e.g. {"z": ...}
     critic: Any = nonpytree_field()
     actor: Any = nonpytree_field()
     config: Any = nonpytree_field()
@@ -78,7 +99,8 @@ class Agent(flax.struct.PyTreeNode):
                 return self.critic.stage_loss(stage, params, target, batch, cond, boot)
 
             (_, sinfo), grads = jax.value_and_grad(stage_loss_fn, has_aux=True)(
-                {g: (pre_step[g] if from_pre else net[g].params) for g in groups})
+                {g: (pre_step[g] if from_pre else net[g].params) for g in groups}
+            )
             if from_pre:
                 pending.update({g: grads[g] for g in groups})
             else:
@@ -93,7 +115,8 @@ class Agent(flax.struct.PyTreeNode):
             return self.actor.loss(params, target, batch, self.critic, cond, boot)
 
         (_, ainfo), agrads = jax.value_and_grad(actor_loss_fn, has_aux=True)(
-            {g: net[g].params for g in self.actor.GROUPS})
+            {g: net[g].params for g in self.actor.GROUPS}
+        )
         for g in self.actor.GROUPS:
             net[g] = net[g].apply_gradients(grads=agrads[g])
         info.update(ainfo)
@@ -111,7 +134,9 @@ class Agent(flax.struct.PyTreeNode):
         info = {}
         online = {g: self.net[g].params for g in self.net}
         for stage in self.critic.STAGES:
-            _, sinfo = self.critic.stage_loss(stage, online, self.target, batch, cond, boot)
+            _, sinfo = self.critic.stage_loss(
+                stage, online, self.target, batch, cond, boot
+            )
             info.update(sinfo)
         _, ainfo = self.actor.loss(online, self.target, batch, self.critic, cond, boot)
         info.update(ainfo)
@@ -132,10 +157,14 @@ class Agent(flax.struct.PyTreeNode):
         seed = self.rng if seed is None else seed
         cond = self.cond_eval if goals is None else {**self.cond_eval, "goal": goals}
         cond = self.critic.map_eval_cond(self.net, cond, observations=observations)
-        return self.actor.sample_actions(self.net, observations, cond, seed, temperature)
+        return self.actor.sample_actions(
+            self.net, observations, cond, seed, temperature
+        )
 
     def infer_eval_cond(self, observations, rewards):
-        return self.replace(cond_eval=self.critic.infer_cond(self.net, observations, rewards))
+        return self.replace(
+            cond_eval=self.critic.infer_cond(self.net, observations, rewards)
+        )
 
     # Factory
     @classmethod
@@ -155,9 +184,17 @@ class Agent(flax.struct.PyTreeNode):
         modules.update({g: getattr(actor, g) for g in actor.GROUPS})
         net = {}
         for g, p in params.items():
-            net[g] = TrainState.create(modules[g], p, tx=optax.adam(_group_lr(g, config)))
+            net[g] = TrainState.create(
+                modules[g], p, tx=optax.adam(_group_lr(g, config))
+            )
 
         cond_eval = critic.eval_cond0(ex_obs, config)
-        return cls(rng=jax.random.PRNGKey(seed), net=net, target=targets,
-                   cond_eval=cond_eval, critic=critic, actor=actor,
-                   config=flax.core.FrozenDict(config))
+        return cls(
+            rng=jax.random.PRNGKey(seed),
+            net=net,
+            target=targets,
+            cond_eval=cond_eval,
+            critic=critic,
+            actor=actor,
+            config=flax.core.FrozenDict(config),
+        )

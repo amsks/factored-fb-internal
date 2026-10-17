@@ -1,4 +1,5 @@
 """HILP left encoder: an observation embedding for the successor features, with its own target."""
+
 import jax.numpy as jnp
 import pytest
 import yaml
@@ -22,7 +23,7 @@ def test_encoder_group_target_and_output_width():
     critic, params, targets = _build(_cfg(L_dim=50))
     assert "hilp_le" in critic.GROUPS
     assert "hilp_le" in params and "hilp_le" in targets
-    assert critic._le(params, EX_OBS).shape == (4, 50)      # obs_dim -> L_dim
+    assert critic._le(params, EX_OBS).shape == (4, 50)  # obs_dim -> L_dim
 
 
 def test_encoder_target_rides_sf_tau_not_phi_tau():

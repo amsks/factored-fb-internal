@@ -1,5 +1,6 @@
 import pytest
-from impls.utils.config_utils import load_config, ConfigError, REQUIRED_KEYS
+
+from impls.utils.config_utils import REQUIRED_KEYS, ConfigError, load_config
 
 
 def test_load_fb_flowbc_matches_legacy_values():
@@ -14,15 +15,19 @@ def test_load_fb_flowbc_matches_legacy_values():
 
 def test_load_density_fb_has_lr_and_dataset_keys():
     cfg = load_config("density_fb", "flowbc", "cube_single")
-    assert cfg["lr"] == pytest.approx(3e-4)          # key read by _LR_KEY
+    assert cfg["lr"] == pytest.approx(3e-4)  # key read by _LR_KEY
     assert cfg["dataset_class"] == "GCDataset"
     assert cfg["value_p_trajgoal"] == pytest.approx(0.5)
     assert cfg["actor"]["flow_steps"] == 10
 
 
 def test_overrides_apply():
-    cfg = load_config("fb", "ddpgbc", "cube_single",
-                      overrides=["batch_size=64", "actor.q_noise_std=1.5"])
+    cfg = load_config(
+        "fb",
+        "ddpgbc",
+        "cube_single",
+        overrides=["batch_size=64", "actor.q_noise_std=1.5"],
+    )
     assert cfg["batch_size"] == 64
     assert cfg["actor"]["q_noise_std"] == pytest.approx(1.5)
 
@@ -40,6 +45,7 @@ def test_returns_plain_dict_not_dictconfig():
 
 
 # REQUIRED_KEYS covers what Agent.create and make_dataset read.
+
 
 def test_fb_agent_create_key_error_reproduction():
     """Removing L_dim fails in load_config, not inside FBCritic.build()."""
@@ -64,10 +70,12 @@ def test_rldp_required_key_missing_raises_named_error(key):
 
 # `~key` overrides must remove the key, not leave it present with value None.
 
+
 def test_top_level_delete_override_removes_key():
     # A synthetic key, unrelated to REQUIRED_KEYS.
-    cfg = load_config("fb", "flowbc", "cube_single",
-                      overrides=["scratch_probe=1", "~scratch_probe"])
+    cfg = load_config(
+        "fb", "flowbc", "cube_single", overrides=["scratch_probe=1", "~scratch_probe"]
+    )
     assert "scratch_probe" not in cfg
     # Sibling top-level keys survive.
     assert "env_name" in cfg

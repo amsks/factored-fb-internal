@@ -1,8 +1,10 @@
 """Cube bottleneck probe figures: held-start success, predicted held mass vs p_secure, and FB row mass by phase."""
+
 import argparse
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,10 +12,10 @@ import pandas as pd
 
 # Fixed colour per method
 ARM_COLOR = {
-    "fb_ref": "#2a78d6",            # plain FB
+    "fb_ref": "#2a78d6",  # plain FB
     "density_fb_state": "#eb6834",  # Density-FB, state input
-    "density_fb": "#1baf7a",        # Density-FB
-    "fb": "#eda100",                # FB with orthonormality loss
+    "density_fb": "#1baf7a",  # Density-FB
+    "fb": "#eda100",  # FB with orthonormality loss
 }
 ARM_LABEL = {
     "fb_ref": "FB (plain)",
@@ -51,27 +53,53 @@ def fig_a(per_seed: pd.DataFrame, out: Path):
         sub = per_seed[per_seed.critic == arm].sort_values("seed")
         c = ARM_COLOR[arm]
         # Stagger overlapping seed labels
-        ends = sorted(float(r["H1"]) for _, r in sub.iterrows() if not pd.isna(r.get("H1")))
+        ends = sorted(
+            float(r["H1"]) for _, r in sub.iterrows() if not pd.isna(r.get("H1"))
+        )
         for i, (_, r) in enumerate(sub.iterrows()):
             if pd.isna(r.get("H0")) or pd.isna(r.get("H1")):
                 continue
-            ax.plot([0, 1], [r["H0"], r["H1"]], color=c, lw=2, marker="o", ms=8,
-                    mec=SURFACE, mew=2, zorder=3)
+            ax.plot(
+                [0, 1],
+                [r["H0"], r["H1"]],
+                color=c,
+                lw=2,
+                marker="o",
+                ms=8,
+                mec=SURFACE,
+                mew=2,
+                zorder=3,
+            )
             crowded = sum(abs(e - float(r["H1"])) < 0.04 for e in ends) > 1
             dy = (i - (len(sub) - 1) / 2) * 9 if crowded else 0
-            ax.annotate(f"s{int(r['seed'])}", (1, r["H1"]), textcoords="offset points",
-                        xytext=(8, dy), fontsize=7, color=INK2, va="center")
-        ax.set_xticks([0, 1]); ax.set_xticklabels(["standard\nreset (H0)", "held\nstart (H1)"],
-                                                  fontsize=8, color=INK2)
-        ax.set_xlim(-0.35, 1.45); ax.set_ylim(-0.03, 1.03)
+            ax.annotate(
+                f"s{int(r['seed'])}",
+                (1, r["H1"]),
+                textcoords="offset points",
+                xytext=(8, dy),
+                fontsize=7,
+                color=INK2,
+                va="center",
+            )
+        ax.set_xticks([0, 1])
+        ax.set_xticklabels(
+            ["standard\nreset (H0)", "held\nstart (H1)"], fontsize=8, color=INK2
+        )
+        ax.set_xlim(-0.35, 1.45)
+        ax.set_ylim(-0.03, 1.03)
         ax.set_title(ARM_LABEL[arm], fontsize=9, color=INK, pad=8)
     axes[0].set_ylabel("success (mean over 5 tasks)", fontsize=9, color=INK)
-    fig.suptitle("Does removing the bottleneck rescue the estimator?", fontsize=10.5,
-                 color=INK, y=1.0)
+    fig.suptitle(
+        "Does removing the bottleneck rescue the estimator?",
+        fontsize=10.5,
+        color=INK,
+        y=1.0,
+    )
     fig.tight_layout()
     for ext in ("pdf", "png"):
-        fig.savefig(out.with_suffix(f".{ext}"), dpi=200, facecolor=SURFACE,
-                    bbox_inches="tight")
+        fig.savefig(
+            out.with_suffix(f".{ext}"), dpi=200, facecolor=SURFACE, bbox_inches="tight"
+        )
     plt.close(fig)
 
 
@@ -88,8 +116,15 @@ def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
         _style(ax)
         c = ARM_COLOR[arm]
         p2 = t2[(t2.critic == arm) & (t2.phase == "P2")]
-        ax.scatter(p2["p_secure"], p2["held_mass"], s=7, color=c, alpha=0.18,
-                   linewidths=0, zorder=3)
+        ax.scatter(
+            p2["p_secure"],
+            p2["held_mass"],
+            s=7,
+            color=c,
+            alpha=0.18,
+            linewidths=0,
+            zorder=3,
+        )
         if len(p2) > 2 and p2["p_secure"].std() > 0:
             b, a = np.polyfit(p2["p_secure"], p2["held_mass"], 1)
             xs = np.linspace(0, 1, 20)
@@ -100,30 +135,47 @@ def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
 
         # Within-state AUC
         if auc_by_arm and arm in auc_by_arm:
-            ax.annotate(f"within-state AUC {auc_by_arm[arm]:.2f}", xy=(0.03, 0.04),
-                        xycoords="axes fraction", fontsize=7.5, color=INK, va="bottom",
-                        zorder=6,
-                        bbox=dict(boxstyle="round,pad=0.3", fc=SURFACE, ec="#d6d5d1",
-                                  lw=0.6, alpha=0.95))
+            ax.annotate(
+                f"within-state AUC {auc_by_arm[arm]:.2f}",
+                xy=(0.03, 0.04),
+                xycoords="axes fraction",
+                fontsize=7.5,
+                color=INK,
+                va="bottom",
+                zorder=6,
+                bbox=dict(
+                    boxstyle="round,pad=0.3",
+                    fc=SURFACE,
+                    ec="#d6d5d1",
+                    lw=0.6,
+                    alpha=0.95,
+                ),
+            )
 
         p1 = t2[(t2.critic == arm) & (t2.phase == "P1")]
         if len(p1):
             # Inset top-right
             ins = ax.inset_axes([0.60, 0.60, 0.36, 0.30])
-            ins.scatter(p1["p_secure"], p1["held_mass"], s=3, color=c, alpha=0.14,
-                        linewidths=0)
+            ins.scatter(
+                p1["p_secure"], p1["held_mass"], s=3, color=c, alpha=0.14, linewidths=0
+            )
             ins.set_title("P1 null", fontsize=6, color=INK2, pad=2)
             ins.tick_params(labelsize=4.5, colors=INK2, length=2)
             ins.set_facecolor(SURFACE)
             for sp in ins.spines.values():
                 sp.set_color("#e3e1dd")
     axes[0].set_ylabel("held mass", fontsize=9, color=INK)
-    fig.suptitle("Does the measure put mass on held futures for securing actions?",
-                 fontsize=10.5, color=INK, y=1.0)
+    fig.suptitle(
+        "Does the measure put mass on held futures for securing actions?",
+        fontsize=10.5,
+        color=INK,
+        y=1.0,
+    )
     fig.tight_layout()
     for ext in ("pdf", "png"):
-        fig.savefig(out.with_suffix(f".{ext}"), dpi=200, facecolor=SURFACE,
-                    bbox_inches="tight")
+        fig.savefig(
+            out.with_suffix(f".{ext}"), dpi=200, facecolor=SURFACE, bbox_inches="tight"
+        )
     plt.close(fig)
 
 
@@ -139,29 +191,57 @@ def fig_c(t2: pd.DataFrame, out: Path):
     # Reference line at 1/(1-gamma)
     truth = 1.0 / (1.0 - 0.99)
     ax.axhline(truth, color=INK2, lw=1, ls=(0, (4, 3)), zorder=2)
-    ax.annotate(r"truth $1/(1-\gamma) = 100$", xy=(0.02, truth), xycoords=("axes fraction", "data"),
-                fontsize=7, color=INK2, va="bottom")
+    ax.annotate(
+        r"truth $1/(1-\gamma) = 100$",
+        xy=(0.02, truth),
+        xycoords=("axes fraction", "data"),
+        fontsize=7,
+        color=INK2,
+        va="bottom",
+    )
     for arm in arms:
         c = ARM_COLOR[arm]
         sub = t2[t2.critic == arm]
         for seed, g in sub.groupby("seed"):
             vals = [g[g.phase == p]["row_mass"].median() for p in phases]
-            ax.plot(range(len(phases)), vals, color=c, lw=2, marker="o", ms=7,
-                    mec=SURFACE, mew=1.5, alpha=0.85, zorder=3)
-        ax.annotate(ARM_LABEL[arm], (len(phases) - 1, vals[-1]),
-                    textcoords="offset points", xytext=(8, 0), fontsize=8, color=c,
-                    va="center")
+            ax.plot(
+                range(len(phases)),
+                vals,
+                color=c,
+                lw=2,
+                marker="o",
+                ms=7,
+                mec=SURFACE,
+                mew=1.5,
+                alpha=0.85,
+                zorder=3,
+            )
+        ax.annotate(
+            ARM_LABEL[arm],
+            (len(phases) - 1, vals[-1]),
+            textcoords="offset points",
+            xytext=(8, 0),
+            fontsize=8,
+            color=c,
+            va="center",
+        )
     ax.set_xticks(range(len(phases)))
-    ax.set_xticklabels(["P1\npre-contact", "P2\nat contact", "P3\nheld"], fontsize=8,
-                       color=INK2)
+    ax.set_xticklabels(
+        ["P1\npre-contact", "P2\nat contact", "P3\nheld"], fontsize=8, color=INK2
+    )
     ax.set_xlim(-0.3, len(phases) - 0.2)
     ax.set_ylabel("mean row mass  $\\mathbb{E}_u M(s,a,z;u)$", fontsize=9, color=INK)
-    ax.set_title("FB's predicted total mass, by phase\n(the truth is constant across phases)",
-                 fontsize=9.5, color=INK, pad=8)
+    ax.set_title(
+        "FB's predicted total mass, by phase\n(the truth is constant across phases)",
+        fontsize=9.5,
+        color=INK,
+        pad=8,
+    )
     fig.tight_layout()
     for ext in ("pdf", "png"):
-        fig.savefig(out.with_suffix(f".{ext}"), dpi=200, facecolor=SURFACE,
-                    bbox_inches="tight")
+        fig.savefig(
+            out.with_suffix(f".{ext}"), dpi=200, facecolor=SURFACE, bbox_inches="tight"
+        )
     plt.close(fig)
 
 

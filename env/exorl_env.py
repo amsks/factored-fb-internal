@@ -3,6 +3,7 @@
 Rewards are relabeled for the requested task from the stored physics states, as in ExoRL;
 the stored reward column is not used. Episode files hold T+1 rows with a dummy first action.
 """
+
 import glob
 import hashlib
 import os
@@ -19,21 +20,35 @@ _TASKS_ROOT = str(_REPO_ROOT)
 # Default ExoRL exploration buffer
 DEFAULT_ALGO = "rnd"
 
-DATA_ROOT = os.environ.get("EXORL_DATA_ROOT", os.path.expanduser("~/exorl_data/exorl/datasets"))
+DATA_ROOT = os.environ.get(
+    "EXORL_DATA_ROOT", os.path.expanduser("~/exorl_data/exorl/datasets")
+)
 # Relabeled-reward cache
-CACHE_ROOT = os.environ.get("EXORL_CACHE_ROOT", os.path.expanduser("~/exorl_data/relabel_cache"))
+CACHE_ROOT = os.environ.get(
+    "EXORL_CACHE_ROOT", os.path.expanduser("~/exorl_data/relabel_cache")
+)
 
 EPISODE_LEN = 1000
 
 # task slug -> (dm_control domain, default reward task, all reward tasks)
 TASKS = {
-    "dmc-point-mass-maze": ("point_mass_maze", "reach_top_left",
-                            ("reach_top_left", "reach_top_right",
-                             "reach_bottom_left", "reach_bottom_right")),
-    "dmc-walker":          ("walker", "walk", ("stand", "walk", "run", "flip", "spin")),
-    "dmc-cheetah":         ("cheetah", "run", ("run", "run_backward", "walk",
-                                               "walk_backward", "flip", "flip_backward")),
-    "dmc-quadruped":       ("quadruped", "walk", ("stand", "walk", "run", "jump")),
+    "dmc-point-mass-maze": (
+        "point_mass_maze",
+        "reach_top_left",
+        (
+            "reach_top_left",
+            "reach_top_right",
+            "reach_bottom_left",
+            "reach_bottom_right",
+        ),
+    ),
+    "dmc-walker": ("walker", "walk", ("stand", "walk", "run", "flip", "spin")),
+    "dmc-cheetah": (
+        "cheetah",
+        "run",
+        ("run", "run_backward", "walk", "walk_backward", "flip", "flip_backward"),
+    ),
+    "dmc-quadruped": ("quadruped", "walk", ("stand", "walk", "run", "jump")),
 }
 
 
@@ -44,8 +59,13 @@ def _overlay_candidates():
         return [p for p in env.split(os.pathsep) if p]
     out = []
     for root in [_REPO_ROOT, *_REPO_ROOT.parents][:6]:
-        out.extend(sorted(str(p) for p in root.glob(".venv*/lib/python*/site-packages")
-                          if (p / "mujoco").is_dir()))
+        out.extend(
+            sorted(
+                str(p)
+                for p in root.glob(".venv*/lib/python*/site-packages")
+                if (p / "mujoco").is_dir()
+            )
+        )
     return out
 
 
@@ -70,13 +90,18 @@ def resolve_reward_task(task, reward_task=None):
     if reward_task is None:
         return default_reward_task(task)
     if reward_task not in known:
-        raise ValueError(f"unknown reward task {reward_task!r} for {task!r} (known: {known})")
+        raise ValueError(
+            f"unknown reward task {reward_task!r} for {task!r} (known: {known})"
+        )
     return reward_task
 
 
 def _purge(*prefixes):
-    for name in [k for k in sys.modules
-                 if any(k == pre or k.startswith(pre + ".") for pre in prefixes)]:
+    for name in [
+        k
+        for k in sys.modules
+        if any(k == pre or k.startswith(pre + ".") for pre in prefixes)
+    ]:
         del sys.modules[name]
 
 
@@ -84,9 +109,10 @@ def _dm_control_works():
     """Whether dm_control can compile a model with the current mujoco."""
     try:
         from dm_control import mujoco as dm_mujoco
+
         dm_mujoco.Physics.from_xml_string("<mujoco/>")
         return True
-    except Exception:                                              # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return False
 
 
@@ -105,9 +131,10 @@ def _mujoco_overlay():
         sys.path.insert(0, sp)
         try:
             import mujoco as _mj
+
             ver = getattr(_mj, "__version__", "?")
             ok = _dm_control_works()
-        except Exception as e:                                     # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             ver, ok = f"import failed: {type(e).__name__}", False
         finally:
             if sp in sys.path:
@@ -121,7 +148,8 @@ def _mujoco_overlay():
         "cannot compile a dm_control model, and no overlay site-packages could "
         f"(tried: {tried or 'none found'}). Set FB_MUJOCO_SITE_PACKAGES (colon-separated) "
         "to a site-packages directory whose mujoco matches this dm_control, or install a "
-        "matching pair in the running venv.")
+        "matching pair in the running venv."
+    )
 
 
 def _load_dmc(domain, reward_task, seed=0):
@@ -131,16 +159,19 @@ def _load_dmc(domain, reward_task, seed=0):
     if _TASKS_ROOT not in sys.path:
         sys.path.insert(0, _TASKS_ROOT)
     from dm_control import suite
+
     if (domain, reward_task) in suite.ALL_TASKS:
         return suite.load(domain, reward_task, task_kwargs={"random": seed})
     from env import exorl_dmc_tasks
+
     return exorl_dmc_tasks.make(domain, reward_task, task_kwargs={"random": seed})
 
 
 def _flat_obs(observation):
     """Concatenate observation entries in emission order, as ExoRL stores them."""
-    return np.concatenate([np.asarray(v, np.float64).ravel()
-                           for v in observation.values()]).astype(np.float32)
+    return np.concatenate(
+        [np.asarray(v, np.float64).ravel() for v in observation.values()]
+    ).astype(np.float32)
 
 
 class ExoRLWrapper:
@@ -160,14 +191,17 @@ class ExoRLWrapper:
             if _TASKS_ROOT not in sys.path:
                 sys.path.insert(0, _TASKS_ROOT)
             from env.exorl_dmc_tasks import point_mass_maze as _pmm
-            self._target = np.asarray(
-                dict(_pmm.TASKS)[reward_task][:2], np.float64)
+
+            self._target = np.asarray(dict(_pmm.TASKS)[reward_task][:2], np.float64)
             # Maze target size
             self._eps = 0.03
 
     def _check(self, obs):
-        if self._target is not None and float(
-                np.linalg.norm(np.asarray(obs[:2], np.float64) - self._target)) <= self._eps:
+        if (
+            self._target is not None
+            and float(np.linalg.norm(np.asarray(obs[:2], np.float64) - self._target))
+            <= self._eps
+        ):
             self._success = True
 
     def _info(self, extra=None):
@@ -209,13 +243,13 @@ class ExoRLWrapper:
     def render(self, *_a, **_k):
         try:
             return np.asarray(self.env.physics.render(height=64, width=64, camera_id=0))
-        except Exception:                                          # noqa: BLE001
+        except Exception:  # noqa: BLE001
             return np.zeros((64, 64, 3), np.uint8)
 
     def close(self):
         try:
             self.env.close()
-        except Exception:                                          # noqa: BLE001
+        except Exception:  # noqa: BLE001
             pass
 
 
@@ -223,10 +257,13 @@ def make_exorl_env(task, reward_task=None, seed=0):
     """Return (env, horizon) for a `dmc-*` task slug scored by `reward_task`."""
     domain = domain_of(task)
     rt = resolve_reward_task(task, reward_task)
-    return ExoRLWrapper(_load_dmc(domain, rt, seed=seed), domain, rt, seed=seed), EPISODE_LEN
+    return ExoRLWrapper(
+        _load_dmc(domain, rt, seed=seed), domain, rt, seed=seed
+    ), EPISODE_LEN
 
 
 # Dataset
+
 
 def _ep_index(p):
     """Episode index from `episode_<idx>_<length>.npz`."""
@@ -237,7 +274,9 @@ def _ep_index(p):
 
 
 def episode_files(buffer_dir, max_episodes=None):
-    eps = sorted(glob.glob(os.path.join(str(buffer_dir), "episode_*.npz")), key=_ep_index)
+    eps = sorted(
+        glob.glob(os.path.join(str(buffer_dir), "episode_*.npz")), key=_ep_index
+    )
     if not eps:
         raise FileNotFoundError(f"no ExoRL episode .npz under {buffer_dir!r}")
     return eps[:max_episodes] if max_episodes else eps
@@ -257,10 +296,16 @@ def read_episode(path):
     n_declared = _ep_index_len(path)
     n = obs.shape[0] - 1
     if n_declared is not None and n != n_declared:
-        raise ValueError(f"{path}: filename declares {n_declared} transitions but the "
-                         f"observation array implies {n} (shape {obs.shape})")
-    return (obs[:-1].astype(np.float32), act[1:].astype(np.float32),
-            obs[1:].astype(np.float32), None if phys is None else phys)
+        raise ValueError(
+            f"{path}: filename declares {n_declared} transitions but the "
+            f"observation array implies {n} (shape {obs.shape})"
+        )
+    return (
+        obs[:-1].astype(np.float32),
+        act[1:].astype(np.float32),
+        obs[1:].astype(np.float32),
+        None if phys is None else phys,
+    )
 
 
 def _ep_index_len(path):
@@ -288,8 +333,15 @@ def _cache_key(files, domain, reward_task, algo):
     return h.hexdigest()[:16]
 
 
-def load_exorl(buffer_dir, task, reward_task=None, algo=DEFAULT_ALGO, max_episodes=None,
-               cache_dir=None, use_cache=True):
+def load_exorl(
+    buffer_dir,
+    task,
+    reward_task=None,
+    algo=DEFAULT_ALGO,
+    max_episodes=None,
+    cache_dir=None,
+    use_cache=True,
+):
     """Flatten an ExoRL buffer into a dataset dict with relabeled rewards.
 
     `rewards` is the task reward at the next state; `terminals` marks each episode's last
@@ -300,7 +352,9 @@ def load_exorl(buffer_dir, task, reward_task=None, algo=DEFAULT_ALGO, max_episod
     files = episode_files(buffer_dir, max_episodes)
 
     cache_dir = cache_dir or CACHE_ROOT
-    cache_path = os.path.join(cache_dir, f"{domain}_{algo}_{rt}_{_cache_key(files, domain, rt, algo)}.npy")
+    cache_path = os.path.join(
+        cache_dir, f"{domain}_{algo}_{rt}_{_cache_key(files, domain, rt, algo)}.npy"
+    )
     cached = None
     if use_cache and os.path.exists(cache_path):
         cached = np.load(cache_path)
@@ -312,11 +366,13 @@ def load_exorl(buffer_dir, task, reward_task=None, algo=DEFAULT_ALGO, max_episod
         o, a, no, phys = read_episode(fn)
         T = o.shape[0]
         if cached is not None:
-            r = cached[off:off + T]
+            r = cached[off : off + T]
             if r.shape[0] != T:
-                raise ValueError(f"reward cache {cache_path!r} is stale for {buffer_dir!r} "
-                                 f"(expected {T} rows at offset {off}, got {r.shape[0]}); "
-                                 f"delete it and re-run")
+                raise ValueError(
+                    f"reward cache {cache_path!r} is stale for {buffer_dir!r} "
+                    f"(expected {T} rows at offset {off}, got {r.shape[0]}); "
+                    f"delete it and re-run"
+                )
         else:
             if phys is None:
                 raise ValueError(
@@ -324,10 +380,13 @@ def load_exorl(buffer_dir, task, reward_task=None, algo=DEFAULT_ALGO, max_episod
                     f"{rt!r}. The stored 'reward' column is the reward of the task the data "
                     f"was COLLECTED under, not of this one (see this module's docstring), "
                     f"so it is deliberately not used as a fallback: it would be silently "
-                    f"right on one task per domain and silently wrong on the rest.")
+                    f"right on one task per domain and silently wrong on the rest."
+                )
             if env is None:
                 env = _load_dmc(domain, rt)
-            r = relabel_rewards(phys, domain, rt, env=env)[1:]      # reward at the next state
+            r = relabel_rewards(phys, domain, rt, env=env)[
+                1:
+            ]  # reward at the next state
         t = np.zeros(T, np.float32)
         t[-1] = 1.0
         obs.append(o)
@@ -337,9 +396,13 @@ def load_exorl(buffer_dir, task, reward_task=None, algo=DEFAULT_ALGO, max_episod
         term.append(t)
         off += T
 
-    data = dict(observations=np.concatenate(obs), actions=np.concatenate(act),
-                next_observations=np.concatenate(nobs),
-                rewards=np.concatenate(rew), terminals=np.concatenate(term))
+    data = dict(
+        observations=np.concatenate(obs),
+        actions=np.concatenate(act),
+        next_observations=np.concatenate(nobs),
+        rewards=np.concatenate(rew),
+        terminals=np.concatenate(term),
+    )
     if cached is None and use_cache:
         os.makedirs(cache_dir, exist_ok=True)
         np.save(cache_path, data["rewards"])
@@ -354,6 +417,11 @@ def load_domain_data(cfg):
     d = os.path.expanduser(str(d))
     if os.path.isdir(os.path.join(d, "buffer")):
         d = os.path.join(d, "buffer")
-    return load_exorl(d, task, reward_task=cfg.get("exorl_task"), algo=algo,
-                      max_episodes=cfg.get("exorl_max_episodes"),
-                      cache_dir=cfg.get("exorl_cache_dir"))
+    return load_exorl(
+        d,
+        task,
+        reward_task=cfg.get("exorl_task"),
+        algo=algo,
+        max_episodes=cfg.get("exorl_max_episodes"),
+        cache_dir=cfg.get("exorl_cache_dir"),
+    )

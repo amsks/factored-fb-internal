@@ -1,4 +1,5 @@
 """Bank selection and restore-gate logic (no simulator; see test_cube_bottleneck_restore.py)."""
+
 import numpy as np
 import pytest
 
@@ -13,9 +14,14 @@ def _raw(n_ep=3, ep_len=10, seed=0):
     qpos = rng.uniform(-1, 1, size=(n, 21)).astype(np.float32)
     episode = np.repeat(np.arange(n_ep), ep_len).astype(np.int32)
     step = np.tile(np.arange(ep_len), n_ep).astype(np.int32)
-    return dict(observations=obs, actions=rng.uniform(-1, 1, (n, 5)).astype(np.float32),
-                qpos=qpos, qvel=rng.uniform(-1, 1, (n, 20)).astype(np.float32),
-                episode=episode, step=step)
+    return dict(
+        observations=obs,
+        actions=rng.uniform(-1, 1, (n, 5)).astype(np.float32),
+        qpos=qpos,
+        qvel=rng.uniform(-1, 1, (n, 20)).astype(np.float32),
+        episode=episode,
+        step=step,
+    )
 
 
 def test_persists_requires_k_consecutive_within_one_episode():
@@ -36,8 +42,12 @@ def test_persists_does_not_bridge_an_episode_boundary():
 def test_phase_masks_are_mutually_exclusive():
     raw = _raw()
     # Force a spread of contact / lift / distance so every phase is populated.
-    raw["observations"][:, BK.CONTACT_IDX] = np.tile([0.9, 0.1], len(raw["observations"]) // 2)
-    raw["qpos"][:, BK.CUBE_QPOS_Z] = np.tile([0.10, 0.02], len(raw["observations"]) // 2)
+    raw["observations"][:, BK.CONTACT_IDX] = np.tile(
+        [0.9, 0.1], len(raw["observations"]) // 2
+    )
+    raw["qpos"][:, BK.CUBE_QPOS_Z] = np.tile(
+        [0.10, 0.02], len(raw["observations"]) // 2
+    )
     raw["observations"][:, BK.EFF_OBS] = 0.0
     raw["observations"][:, BK.CUBE_OBS] = 0.0
     m = BK.phase_masks(raw)
@@ -84,4 +94,5 @@ def test_sample_bank_raises_rather_than_shrinking_a_short_bank():
 def test_lift_threshold_matches_the_delta_lift_the_phase_code_uses():
     """LIFT_THRESH equals table_z + delta_lift."""
     from scripts.probes.cube_bottleneck.phases import PhaseThresholds
+
     assert BK.LIFT_THRESH == pytest.approx(BK.TABLE_Z + PhaseThresholds().delta_lift)

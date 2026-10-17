@@ -2,6 +2,7 @@
 
 M(s, a, s'; z) = F(s, a, z)^T B(s'); the actor maximises Q(s, a, z) = F(s, a, z)^T z.
 """
+
 import copy
 import dataclasses
 from typing import Any
@@ -9,8 +10,8 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
-from impls.utils.networks import ForwardMap, PhiMap
 from impls.utils.fb_math import project_z
+from impls.utils.networks import ForwardMap, PhiMap
 
 
 @dataclasses.dataclass(frozen=True)
@@ -34,7 +35,11 @@ class FBCritic:
 
     @property
     def TARGETS(self):
-        return {"forward": self.f_tau, "left_encoder": self.f_tau, "backward": self.b_tau}
+        return {
+            "forward": self.f_tau,
+            "left_encoder": self.f_tau,
+            "backward": self.b_tau,
+        }
 
     @property
     def cvec_dim(self):
@@ -65,7 +70,11 @@ class FBCritic:
 
     def stage_loss(self, stage, params, target, batch, cond, boot):
         assert stage == "fb"
-        obs, action, next_obs = batch["observations"], batch["actions"], batch["next_observations"]
+        obs, action, next_obs = (
+            batch["observations"],
+            batch["actions"],
+            batch["next_observations"],
+        )
         goal = next_obs
         disc, P = self.discount, self.num_parallel
         z, next_action = cond["z"], boot["next_action"]
@@ -77,7 +86,9 @@ class FBCritic:
         nle = self._le(target["left_encoder"], next_obs)
         tFs = self._F(target["forward"], nle, z, next_action)
         tB = self._B(target["backward"], goal)
-        target_M = jax.lax.stop_gradient(jnp.einsum("pbz,cz->pbc", tFs, tB).mean(axis=0))
+        target_M = jax.lax.stop_gradient(
+            jnp.einsum("pbz,cz->pbc", tFs, tB).mean(axis=0)
+        )
 
         le = self._le(params["left_encoder"], obs)
         Fs = self._F(params["forward"], le, z, action)
@@ -91,7 +102,12 @@ class FBCritic:
         orth_diag = -jnp.mean(jnp.diagonal(cov))
         orth = orth_off + orth_diag
         loss = fb_off + fb_diag + self.ortho_coef * orth
-        return loss, {"fb_loss": loss, "fb_offdiag": fb_off, "fb_diag": fb_diag, "ortho_loss": orth}
+        return loss, {
+            "fb_loss": loss,
+            "fb_offdiag": fb_off,
+            "fb_diag": fb_diag,
+            "ortho_loss": orth,
+        }
 
     def q_fn(self, params, obs, cond, actions, *, stop_encoder_grad=False):
         """Q(s, a, z) = F(s, a, z)^T z, averaged over the F heads."""
@@ -113,7 +129,9 @@ class FBCritic:
         r_z, r_mask, r_perm = jax.random.split(rng, 3)
         z_gauss = project_z(jax.random.normal(r_z, (B, self.z_dim)), self.norm_z)
         goals = project_z(
-            self._B(net["backward"].params, next_obs)[jax.random.permutation(r_perm, B)],
+            self._B(net["backward"].params, next_obs)[
+                jax.random.permutation(r_perm, B)
+            ],
             self.norm_z,
         )
         mix_mask = (jax.random.uniform(r_mask, (B,)) < self.train_goal_ratio)[:, None]
@@ -129,15 +147,27 @@ class FBCritic:
     @classmethod
     def build(cls, ex_obs, ex_actions, config):
         import jax.random as jr
+
         z_dim, L_dim, P = config["z_dim"], config["L_dim"], config["num_parallel"]
-        forward = ForwardMap(z_dim=z_dim, hidden_dim=config["forward"]["hidden_dim"],
-                             num_parallel=P, hidden_layers=config["forward"]["hidden_layers"],
-                             embedding_layers=config["forward"]["embedding_layers"])
-        backward = PhiMap(z_dim=z_dim, hidden_dim=config["backward"]["hidden_dim"],
-                          hidden_layers=config["backward"]["hidden_layers"], norm=config["backward"]["norm"])
-        left_encoder = PhiMap(z_dim=L_dim, hidden_dim=config["left_encoder"]["hidden_dim"],
-                              hidden_layers=config["left_encoder"]["hidden_layers"],
-                              norm=config["left_encoder"]["norm"])
+        forward = ForwardMap(
+            z_dim=z_dim,
+            hidden_dim=config["forward"]["hidden_dim"],
+            num_parallel=P,
+            hidden_layers=config["forward"]["hidden_layers"],
+            embedding_layers=config["forward"]["embedding_layers"],
+        )
+        backward = PhiMap(
+            z_dim=z_dim,
+            hidden_dim=config["backward"]["hidden_dim"],
+            hidden_layers=config["backward"]["hidden_layers"],
+            norm=config["backward"]["norm"],
+        )
+        left_encoder = PhiMap(
+            z_dim=L_dim,
+            hidden_dim=config["left_encoder"]["hidden_dim"],
+            hidden_layers=config["left_encoder"]["hidden_layers"],
+            norm=config["left_encoder"]["norm"],
+        )
         rf, rb, rle = jr.split(jr.PRNGKey(config["seed"]), 3)
         ex_feat = jnp.zeros((ex_obs.shape[0], L_dim))
         ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
@@ -148,10 +178,16 @@ class FBCritic:
         }
         targets = {g: copy.deepcopy(params[g]) for g in cls.GROUPS}
         critic = cls(
-            forward=forward, backward=backward, left_encoder=left_encoder,
-            z_dim=z_dim, num_parallel=P, discount=config["discount"],
+            forward=forward,
+            backward=backward,
+            left_encoder=left_encoder,
+            z_dim=z_dim,
+            num_parallel=P,
+            discount=config["discount"],
             ortho_coef=config["ortho_coef"],
-            train_goal_ratio=config["train_goal_ratio"], norm_z=config["norm_z"],
-            f_tau=config["f_target_tau"], b_tau=config["b_target_tau"],
+            train_goal_ratio=config["train_goal_ratio"],
+            norm_z=config["norm_z"],
+            f_tau=config["f_target_tau"],
+            b_tau=config["b_target_tau"],
         )
         return critic, params, targets

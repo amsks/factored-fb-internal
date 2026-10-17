@@ -1,4 +1,5 @@
 """backward_input=state: B reads the full observation; the hit-kernel reward is unchanged."""
+
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -6,7 +7,7 @@ import pytest
 from env import make_config
 from impls.agents import Agent
 
-OBS_DIM, ACT_DIM, B = 28, 5, 6      # cube-single's real width
+OBS_DIM, ACT_DIM, B = 28, 5, 6  # cube-single's real width
 
 
 def _built(critic, overrides=()):
@@ -33,6 +34,7 @@ def test_default_is_unchanged():
 def test_the_knob_moves_only_b_not_the_kernel_reward():
     """backward_input changes B's input but not the hit-kernel operand."""
     from impls.critics.density_fb import _raw_block_cols
+
     rng = np.random.default_rng(1)
     nobs = jnp.asarray(rng.standard_normal((B, OBS_DIM)))
     out = {}
@@ -40,8 +42,8 @@ def test_the_knob_moves_only_b_not_the_kernel_reward():
         ag, _, _, _ = _built(critic)
         cr = ag.critic
         out[critic] = (
-            np.asarray(_raw_block_cols(nobs, cr.blocks)),          # kernel operand
-            np.asarray(cr._b_query(nobs)),                         # B's input
+            np.asarray(_raw_block_cols(nobs, cr.blocks)),  # kernel operand
+            np.asarray(cr._b_query(nobs)),  # B's input
         )
     # Kernel operand is identical.
     assert np.array_equal(out["density_fb"][0], out["density_fb_state"][0])
@@ -53,10 +55,19 @@ def test_the_knob_moves_only_b_not_the_kernel_reward():
 
 def test_state_plus_reward_index_is_refused():
     """The reward-sample index requires B on the hit-spec columns."""
-    cfg = make_config("density_fb_state", "flowbc", "cube_single",
-                      ["infer_z=true", "eval_pool_size=4"])
+    cfg = make_config(
+        "density_fb_state",
+        "flowbc",
+        "cube_single",
+        ["infer_z=true", "eval_pool_size=4"],
+    )
     rng = np.random.default_rng(0)
     with pytest.raises(ValueError, match="backward_input"):
-        Agent.create("density_fb_state", "flowbc", 0,
-                     jnp.asarray(rng.standard_normal((B, OBS_DIM))),
-                     jnp.asarray(rng.standard_normal((B, ACT_DIM))), cfg)
+        Agent.create(
+            "density_fb_state",
+            "flowbc",
+            0,
+            jnp.asarray(rng.standard_normal((B, OBS_DIM))),
+            jnp.asarray(rng.standard_normal((B, ACT_DIM))),
+            cfg,
+        )

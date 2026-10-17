@@ -3,6 +3,7 @@
 Phases: P1 pre-contact (contact <= 0.5, effector-cube xy > 0.10), P2 at-contact (contact > 0.5,
 not lifted, xy < 0.06), P3 held (contact > 0.5, lifted). P3 is also the held-start bank.
 """
+
 import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -21,20 +22,19 @@ CUBE_OBS = slice(19, 22)
 XYZ_SCALER = 10.0
 CUBE_QPOS_Z = 16
 
-TABLE_Z = 0.02          # cube resting height
-LIFT_THRESH = 0.05      # absolute cube z, i.e. lift > delta_lift (0.03)
+TABLE_Z = 0.02  # cube resting height
+LIFT_THRESH = 0.05  # absolute cube z, i.e. lift > delta_lift (0.03)
 CONTACT_THRESH = 0.5
-P2_XY_MAX = 0.06        # eps_reach
+P2_XY_MAX = 0.06  # eps_reach
 P1_XY_MIN = 0.10
-K_STEPS = 5             # PhaseThresholds.k_steps
+K_STEPS = 5  # PhaseThresholds.k_steps
 
 N_HELD = 64
 N_P2 = 64
 N_CONTROL = 32
 RNG_SEED = 0
 
-DATA_ROOT = Path(os.environ.get("OGBENCH_DATA_ROOT",
-                                Path.home() / ".ogbench" / "data"))
+DATA_ROOT = Path(os.environ.get("OGBENCH_DATA_ROOT", Path.home() / ".ogbench" / "data"))
 
 
 def dataset_path(env_name: str) -> Path:
@@ -42,7 +42,8 @@ def dataset_path(env_name: str) -> Path:
     if not p.exists():
         raise FileNotFoundError(
             f"{p} not found. This must be the SAME npz the arms trained on "
-            "(impls/utils/env_utils.make_env_and_datasets -> ogbench), not a re-download.")
+            "(impls/utils/env_utils.make_env_and_datasets -> ogbench), not a re-download."
+        )
     return p
 
 
@@ -59,12 +60,17 @@ def load_raw(env_name: str) -> Dict[str, np.ndarray]:
     episode = np.zeros(len(obs), np.int32)
     step = np.zeros(len(obs), np.int32)
     for e, (s, t) in enumerate(zip(starts, ends)):
-        episode[s:t + 1] = e
-        step[s:t + 1] = np.arange(t + 1 - s)
-    return dict(observations=obs, actions=np.asarray(d["actions"], np.float32),
-                qpos=np.asarray(d["qpos"], np.float32),
-                qvel=np.asarray(d["qvel"], np.float32),
-                episode=episode, step=step, terminals=term)
+        episode[s : t + 1] = e
+        step[s : t + 1] = np.arange(t + 1 - s)
+    return dict(
+        observations=obs,
+        actions=np.asarray(d["actions"], np.float32),
+        qpos=np.asarray(d["qpos"], np.float32),
+        qvel=np.asarray(d["qvel"], np.float32),
+        episode=episode,
+        step=step,
+        terminals=term,
+    )
 
 
 def _channels(raw: Dict[str, np.ndarray]):
@@ -100,16 +106,22 @@ def phase_masks(raw: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
     )
 
 
-def sample_bank(raw: Dict[str, np.ndarray], mask: np.ndarray, n: int,
-                rng: np.random.Generator) -> Dict[str, np.ndarray]:
+def sample_bank(
+    raw: Dict[str, np.ndarray], mask: np.ndarray, n: int, rng: np.random.Generator
+) -> Dict[str, np.ndarray]:
     idx = np.flatnonzero(mask)
     if len(idx) < n:
         raise ValueError(f"only {len(idx)} candidate rows for a bank of {n}")
     sel = np.sort(rng.choice(idx, size=n, replace=False))
-    return dict(row=sel.astype(np.int64),
-                obs=raw["observations"][sel], action=raw["actions"][sel],
-                qpos=raw["qpos"][sel], qvel=raw["qvel"][sel],
-                episode=raw["episode"][sel], step=raw["step"][sel])
+    return dict(
+        row=sel.astype(np.int64),
+        obs=raw["observations"][sel],
+        action=raw["actions"][sel],
+        qpos=raw["qpos"][sel],
+        qvel=raw["qvel"][sel],
+        episode=raw["episode"][sel],
+        step=raw["step"][sel],
+    )
 
 
 def build(env_name: str, out_dir: Path) -> Dict[str, dict]:
@@ -124,26 +136,37 @@ def build(env_name: str, out_dir: Path) -> Dict[str, dict]:
     for phase in ("P3", "P2", "P1"):
         bank = sample_bank(raw, masks[phase], sizes[phase], rng)
         banks[phase] = bank
-        stats[phase] = dict(candidates=int(masks[phase].sum()),
-                            fraction=float(masks[phase].mean()),
-                            banked=int(len(bank["row"])),
-                            episodes=int(len(np.unique(bank["episode"]))))
+        stats[phase] = dict(
+            candidates=int(masks[phase].sum()),
+            fraction=float(masks[phase].mean()),
+            banked=int(len(bank["row"])),
+            episodes=int(len(np.unique(bank["episode"]))),
+        )
     # Held-start bank is P3
-    np.savez(out_dir / "held_bank.npz",
-             **{k: v for k, v in banks["P3"].items()})
-    np.savez(out_dir / "phase_banks.npz",
-             **{f"{p}_{k}": v for p, b in banks.items() for k, v in b.items()})
-    stats["_meta"] = dict(env=env_name, rng_seed=RNG_SEED, k_steps=K_STEPS,
-                          table_z=TABLE_Z, lift_thresh=LIFT_THRESH,
-                          dataset=str(dataset_path(env_name)), rows=int(len(raw["observations"])),
-                          episodes=int(raw["episode"].max() + 1))
+    np.savez(out_dir / "held_bank.npz", **{k: v for k, v in banks["P3"].items()})
+    np.savez(
+        out_dir / "phase_banks.npz",
+        **{f"{p}_{k}": v for p, b in banks.items() for k, v in b.items()},
+    )
+    stats["_meta"] = dict(
+        env=env_name,
+        rng_seed=RNG_SEED,
+        k_steps=K_STEPS,
+        table_z=TABLE_Z,
+        lift_thresh=LIFT_THRESH,
+        dataset=str(dataset_path(env_name)),
+        rows=int(len(raw["observations"])),
+        episodes=int(raw["episode"].max() + 1),
+    )
     (out_dir / "banks_stats.json").write_text(json.dumps(stats, indent=2))
     return stats
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--envs", nargs="+", default=["cube-single-play-v0", "cube-double-play-v0"])
+    ap.add_argument(
+        "--envs", nargs="+", default=["cube-single-play-v0", "cube-double-play-v0"]
+    )
     ap.add_argument("--out-root", default="analysis/cube_bottleneck")
     args = ap.parse_args()
     for env_name in args.envs:

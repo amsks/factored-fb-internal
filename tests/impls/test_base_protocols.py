@@ -1,6 +1,7 @@
 import pytest
-from impls.critics.base import Critic, ComboError, check_combo
+
 from impls.actors.base import Actor
+from impls.critics.base import ComboError, Critic, check_combo
 
 
 class _ZCritic:

@@ -6,6 +6,7 @@ Runs scripts/reeval_checkpoint.py per (domain, task, seed) and appends one row t
         --out exp/paper_eval_exorl_walker.jsonl
     python -m scripts.exorl_paper_eval --out exp/paper_eval_exorl_walker.jsonl --report-only
 """
+
 import argparse
 import json
 import os
@@ -22,8 +23,12 @@ TASKS = {
     "dmc-walker": ("stand", "walk", "run", "spin"),
     "dmc-cheetah": ("walk", "walk_backward", "run", "run_backward"),
     "dmc-quadruped": ("stand", "walk", "run", "jump"),
-    "dmc-point-mass-maze": ("reach_top_left", "reach_top_right",
-                            "reach_bottom_left", "reach_bottom_right"),
+    "dmc-point-mass-maze": (
+        "reach_top_left",
+        "reach_top_right",
+        "reach_bottom_left",
+        "reach_bottom_right",
+    ),
 }
 CRITIC, ACTOR = "density_fb_z", "ddpgbc"
 
@@ -36,17 +41,37 @@ def _check_tasks():
 
 
 def run_cell(args, domain, task, seed):
-    run_dir = os.path.join(args.root, domain, CRITIC, f"{domain}_{CRITIC}_{ACTOR}_seed_{seed}")
-    cmd = [args.python, "-m", "scripts.reeval_checkpoint",
-           "--critic", CRITIC, "--actor", ACTOR, "--domain", domain,
-           "--seed", str(seed), "--restore_path", run_dir,
-           "--restore_epoch", str(args.steps),
-           "--eval_episodes", str(args.episodes),
-           "--infer_cond_episodes", str(args.inference_samples),
-           "--eval_on_inferred_cond",
-           "--tag", f"{CRITIC}|{domain}|{task}|s{seed}",
-           "--out_jsonl", args.out,
-           "--override", f"exorl_task={task}"]
+    run_dir = os.path.join(
+        args.root, domain, CRITIC, f"{domain}_{CRITIC}_{ACTOR}_seed_{seed}"
+    )
+    cmd = [
+        args.python,
+        "-m",
+        "scripts.reeval_checkpoint",
+        "--critic",
+        CRITIC,
+        "--actor",
+        ACTOR,
+        "--domain",
+        domain,
+        "--seed",
+        str(seed),
+        "--restore_path",
+        run_dir,
+        "--restore_epoch",
+        str(args.steps),
+        "--eval_episodes",
+        str(args.episodes),
+        "--infer_cond_episodes",
+        str(args.inference_samples),
+        "--eval_on_inferred_cond",
+        "--tag",
+        f"{CRITIC}|{domain}|{task}|s{seed}",
+        "--out_jsonl",
+        args.out,
+        "--override",
+        f"exorl_task={task}",
+    ]
     if args.dry_run:
         print(("MISSING-RUNDIR " if not os.path.isdir(run_dir) else "") + " ".join(cmd))
         return
@@ -58,7 +83,10 @@ def run_cell(args, domain, task, seed):
     # Set FB_MUJOCO_SITE_PACKAGES if the local mujoco is too old for dm_control
     r = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if r.returncode != 0:
-        print(f"[FAIL] {domain}/{task}/s{seed} rc={r.returncode}\n{r.stderr[-2000:]}", flush=True)
+        print(
+            f"[FAIL] {domain}/{task}/s{seed} rc={r.returncode}\n{r.stderr[-2000:]}",
+            flush=True,
+        )
     else:
         print(f"[ok] {domain}/{task}/s{seed}", flush=True)
 
@@ -76,7 +104,9 @@ def report(out_path):
     for (dom, task), by_seed in sorted(cells.items()):
         vals = list(by_seed.values())
         sd = statistics.stdev(vals) if len(vals) > 1 else 0.0
-        print(f"{dom:<22} {task:<20} {statistics.mean(vals):9.1f} {sd:8.1f}  {len(vals)}")
+        print(
+            f"{dom:<22} {task:<20} {statistics.mean(vals):9.1f} {sd:8.1f}  {len(vals)}"
+        )
 
 
 def main():
@@ -84,10 +114,16 @@ def main():
     ap.add_argument("--root", default="exp/exorl")
     ap.add_argument("--domains", nargs="*", default=sorted(TASKS))
     ap.add_argument("--seeds", nargs="*", type=int, default=[0, 1, 2, 3, 4])
-    ap.add_argument("--steps", type=int, default=1_000_000, help="checkpoint step to restore")
+    ap.add_argument(
+        "--steps", type=int, default=1_000_000, help="checkpoint step to restore"
+    )
     ap.add_argument("--episodes", type=int, default=10)
-    ap.add_argument("--inference-samples", type=int, default=50_000,
-                    help="reward-labelled transitions used to infer z")
+    ap.add_argument(
+        "--inference-samples",
+        type=int,
+        default=50_000,
+        help="reward-labelled transitions used to infer z",
+    )
     ap.add_argument("--out", required=True)
     ap.add_argument("--python", default=sys.executable)
     ap.add_argument("--jobs", type=int, default=2, help="cells evaluated concurrently")

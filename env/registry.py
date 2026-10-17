@@ -1,12 +1,13 @@
 """Task registry for the unified adapter, keyed by task-slug prefix."""
+
 import os
 
 COLLECTED = os.environ.get("FB_COLLECTED", "/raid/tongle/rl/fb-data/collected")
 
 # task-slug prefix -> (family, eval horizon, family folder used in the data path)
 _PREFIX = {
-    "mw":  ("metaworld", 100, "Metaworld"),
-    "ms":  ("maniskill", 25, "ManiSkill"),
+    "mw": ("metaworld", 100, "Metaworld"),
+    "ms": ("maniskill", 25, "ManiSkill"),
     # ExoRL domain yamls set data_dir explicitly
     "dmc": ("exorl", 1000, "ExoRL"),
 }
@@ -18,7 +19,9 @@ EXPLICIT = {}
 def _prefix(task):
     key = task.split("-", 1)[0]
     if key not in _PREFIX:
-        raise KeyError(f"no env registered for task {task!r} (known prefixes: {sorted(_PREFIX)})")
+        raise KeyError(
+            f"no env registered for task {task!r} (known prefixes: {sorted(_PREFIX)})"
+        )
     return _PREFIX[key]
 
 

@@ -5,6 +5,7 @@ ExoRL: return averaged over the domain's tasks, mean +- SE over seeds 0-4.
 
     python scripts/score_tables.py --exp hf/exp --tex experiments.tex [--write]
 """
+
 import argparse
 import collections
 import csv
@@ -15,8 +16,11 @@ import re
 import statistics
 import sys
 
-OGB_ENVS = {"cube-single": "cube-single-play-v0", "cube-double": "cube-double-play-v0",
-            "scene": "scene-play-v0"}
+OGB_ENVS = {
+    "cube-single": "cube-single-play-v0",
+    "cube-double": "cube-double-play-v0",
+    "scene": "scene-play-v0",
+}
 SEEDS = range(5)
 
 # method -> (critic name, log file, subdirectories of --exp searched in order)
@@ -39,17 +43,22 @@ EXORL_CELLS = {
 # Table layout: each table is a list of blocks; Density-FB is the last column before delta
 TABLES = [["OGBench", "MetaWorld", "ManiSkill"], ["ExoRL"]]
 COLUMN = {"FB": 0, "HILP": 1, "RLDP": 2, "Density-FB": -1}
-BLOCKS = {"OGBench": ["cube-single", "cube-double", "scene"],
-          "MetaWorld": ["push", "bin-picking", "box-close"],
-          "ManiSkill": ["push-cube", "pick-cube", "stack-cube", "poke-cube", "lift-peg"],
-          "ExoRL": ["walker", "quadruped", "point-mass", "cheetah"]}
-BLOCK_TITLES = {"OGBench": r"\textit{OGBench (success rate, \%)}",
-                "MetaWorld": r"\textit{MetaWorld (success rate, \%)}",
-                "ManiSkill": r"\textit{ManiSkill (success rate, \%)}",
-                "ExoRL": r"\textit{ExoRL (DMC returns)}"}
+BLOCKS = {
+    "OGBench": ["cube-single", "cube-double", "scene"],
+    "MetaWorld": ["push", "bin-picking", "box-close"],
+    "ManiSkill": ["push-cube", "pick-cube", "stack-cube", "poke-cube", "lift-peg"],
+    "ExoRL": ["walker", "quadruped", "point-mass", "cheetah"],
+}
+BLOCK_TITLES = {
+    "OGBench": r"\textit{OGBench (success rate, \%)}",
+    "MetaWorld": r"\textit{MetaWorld (success rate, \%)}",
+    "ManiSkill": r"\textit{ManiSkill (success rate, \%)}",
+    "ExoRL": r"\textit{ExoRL (DMC returns)}",
+}
 
 
 # Scoring
+
 
 def run_score(path):
     """Mean over the last three evaluation steps of the task-mean success, in %."""
@@ -74,7 +83,11 @@ def cell(values, pop=False):
     n = len(values)
     if n == 0:
         return None
-    sd = statistics.pstdev(values) if pop else (statistics.stdev(values) if n > 1 else 0.0)
+    sd = (
+        statistics.pstdev(values)
+        if pop
+        else (statistics.stdev(values) if n > 1 else 0.0)
+    )
     return statistics.mean(values), sd / math.sqrt(n), n
 
 
@@ -121,7 +134,11 @@ def parse_rows(tex):
         vals = []
         for c in [c.strip() for c in m.group(2).split("&")][:-1]:
             mm = CELL_RE.search(c)
-            vals.append(None if c == "--" or mm is None else (float(mm.group(1)), float(mm.group(2))))
+            vals.append(
+                None
+                if c == "--" or mm is None
+                else (float(mm.group(1)), float(mm.group(2)))
+            )
         rows[m.group(1)] = vals
     return rows
 
@@ -154,39 +171,70 @@ def fmt_row(label, v, indent):
         if x is None:
             return "--"
         m = "%.1f" % x[0]
-        return (r"\textbf{%s}" % m if x[0] >= best - best_se - 1e-9 else m) + r"\pmse{%.1f}" % x[1]
+        return (
+            r"\textbf{%s}" % m if x[0] >= best - best_se - 1e-9 else m
+        ) + r"\pmse{%.1f}" % x[1]
 
     d = delta(v)
     t = max(-1.0, min(1.0, d / cap))
     lo, hi = (gray, green) if t >= 0 else (gray, red)
     rgb = ",".join(str(round(lo[i] + (hi[i] - lo[i]) * abs(t))) for i in range(3))
-    dcell = r"\textcolor[RGB]{%s}{(%s%.1f\%%)}" % (rgb, "$+$" if d >= 0 else "$-$", abs(d))
-    return indent + "%-38s & " % label + " & ".join(fmt(x) for x in v) + " & " + dcell + r" \\"
+    dcell = r"\textcolor[RGB]{%s}{(%s%.1f\%%)}" % (
+        rgb,
+        "$+$" if d >= 0 else "$-$",
+        abs(d),
+    )
+    return (
+        indent
+        + "%-38s & " % label
+        + " & ".join(fmt(x) for x in v)
+        + " & "
+        + dcell
+        + r" \\"
+    )
 
 
 def write_tables(tex_path, rows):
     """Rewrite each table's body, from its first block title down to its \\bottomrule."""
     lines = open(tex_path).read().split("\n")
     for blocks in TABLES:
-        s = next(i for i, l in enumerate(lines) if l.strip().startswith(BLOCK_TITLES[blocks[0]]))
-        e = next(i for i, l in enumerate(lines) if i > s and l.strip() == r"\bottomrule")
-        indent = lines[s][:len(lines[s]) - len(lines[s].lstrip())]
+        s = next(
+            i
+            for i, l in enumerate(lines)
+            if l.strip().startswith(BLOCK_TITLES[blocks[0]])
+        )
+        e = next(
+            i for i, l in enumerate(lines) if i > s and l.strip() == r"\bottomrule"
+        )
+        indent = lines[s][: len(lines[s]) - len(lines[s].lstrip())]
         body = []
         for block in blocks:
             tasks = BLOCKS[block]
-            body += [indent + r"\midrule", fmt_row(BLOCK_TITLES[block], block_mean(rows, tasks), indent),
-                     indent + r"\midrule"] + [fmt_row(r"\texttt{%s}" % t, rows[t], indent) for t in tasks]
+            body += [
+                indent + r"\midrule",
+                fmt_row(BLOCK_TITLES[block], block_mean(rows, tasks), indent),
+                indent + r"\midrule",
+            ] + [fmt_row(r"\texttt{%s}" % t, rows[t], indent) for t in tasks]
         lines[s:e] = body[1:]
     open(tex_path, "w").write("\n".join(lines))
 
 
 # Main
 
+
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--exp", required=True, help="exp/ tree holding the run directories and jsonl files")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--exp",
+        required=True,
+        help="exp/ tree holding the run directories and jsonl files",
+    )
     ap.add_argument("--tex", help="experiments.tex holding the benchmark table")
-    ap.add_argument("--write", action="store_true", help="rewrite the table body in --tex")
+    ap.add_argument(
+        "--write", action="store_true", help="rewrite the table body in --tex"
+    )
     args = ap.parse_args()
 
     scores = {**score_ogbench(args.exp), **score_exorl(args.exp)}
@@ -209,7 +257,9 @@ def main():
         ours = (round(c[0], 1), round(c[1], 1))
         ok = paper is not None and ours == paper
         mismatches += not ok
-        print(f"{'ok  ' if ok else 'DIFF'} {method:10s} {task:12s} computed {ours}  paper {paper}")
+        print(
+            f"{'ok  ' if ok else 'DIFF'} {method:10s} {task:12s} computed {ours}  paper {paper}"
+        )
         rows[task][COLUMN[method]] = ours
     if args.write:
         write_tables(args.tex, rows)

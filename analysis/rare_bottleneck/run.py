@@ -4,6 +4,7 @@ Run: JAX_PLATFORMS=cpu python analysis/rare_bottleneck/run.py [--figures-only | 
 """
 
 import os
+
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 
 import csv
@@ -13,16 +14,16 @@ import pathlib
 import sys
 import time
 
-import numpy as np
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(REPO / "scripts" / "didactic"))
-import bottleneck_family_td as bf      # noqa: E402
-import graph_bottleneck_td as gb       # noqa: E402
+import bottleneck_family_td as bf  # noqa: E402
+import graph_bottleneck_td as gb  # noqa: E402
 
 FIG_DIR = REPO / "figures" / "rare_bottleneck"
 LOG_LINES = []
@@ -37,7 +38,7 @@ def log(msg):
 # MDPs
 GAMMA = 0.8
 GOAL, DECISION, CUT = gb.GOAL, gb.DECISION, gb.CUT
-ROW0, ROW1 = 2 * DECISION, 2 * DECISION + 1          # the two decision-state rows
+ROW0, ROW1 = 2 * DECISION, 2 * DECISION + 1  # the two decision-state rows
 RANKS = [2, 3, 4, 6]
 SEEDS = [0, 1, 2, 3, 4]
 W_SWEEP = [1 / 2, 1 / 4, 1 / 8, 1 / 9, 1 / 16, 1 / 32, 1 / 64, 1 / 128, 0.0]
@@ -56,14 +57,26 @@ def build_mdp(N):
         edges += [[b + 1, b + 2], [b + 3, b + 0], [b + 3, b + 1], [CUT, b + 2]]
     edges = np.array(edges)
     n = len(edges)
-    kernel = np.eye(n)[edges].reshape(-1, n)          # (2n, n), row 2s+a
+    kernel = np.eye(n)[edges].reshape(-1, n)  # (2n, n), row 2s+a
     pi = np.full((n, 2), 0.5)
-    T = bf.exact(kernel, pi, GAMMA)                   # (1-gamma) M
+    T = bf.exact(kernel, pi, GAMMA)  # (1-gamma) M
     M = T / (1.0 - GAMMA)
-    r = np.zeros(n); r[GOAL] = 1.0
+    r = np.zeros(n)
+    r[GOAL] = 1.0
     Q = M @ r
-    return dict(N=N, n=n, edges=edges, kernel=kernel, pi=pi, T=T, M=M, X=n * M, r=r, Q=Q,
-                gap=float(Q[ROW0] - Q[ROW1]))
+    return dict(
+        N=N,
+        n=n,
+        edges=edges,
+        kernel=kernel,
+        pi=pi,
+        T=T,
+        M=M,
+        X=n * M,
+        r=r,
+        Q=Q,
+        gap=float(Q[ROW0] - Q[ROW1]),
+    )
 
 
 def _rows(mdp):
@@ -91,16 +104,23 @@ def ordinary_rows(mdp):
 def gap_stats(mdp, Q):
     ROW0, ROW1 = _rows(mdp)
     gap = float(Q[ROW0] - Q[ROW1])
-    return dict(q0=float(Q[ROW0]), q1=float(Q[ROW1]), gap=gap,
-                gap_ratio=gap / mdp["gap"], argmax_correct=bool(gap > 0))
+    return dict(
+        q0=float(Q[ROW0]),
+        q1=float(Q[ROW1]),
+        gap=gap,
+        gap_ratio=gap / mdp["gap"],
+        argmax_correct=bool(gap > 0),
+    )
 
 
 def retained(mdp, P_hat, wts=None):
     """1 - ||P_hat - T||^2 / ||T||^2, optionally row-weighted."""
     T = mdp["T"]
     if wts is None:
-        return float(1.0 - np.sum((P_hat - T) ** 2) / np.sum(T ** 2))
-    return float(1.0 - np.sum(wts[:, None] * (P_hat - T) ** 2) / np.sum(wts[:, None] * T ** 2))
+        return float(1.0 - np.sum((P_hat - T) ** 2) / np.sum(T**2))
+    return float(
+        1.0 - np.sum(wts[:, None] * (P_hat - T) ** 2) / np.sum(wts[:, None] * T**2)
+    )
 
 
 def share(wts, row_loss, rows):
@@ -138,7 +158,7 @@ def fb_constrained(mdp, wts, d):
     Xp = X - np.outer(X @ dh, dh)
     S = np.sqrt(wts)[:, None]
     _, _, Vt = np.linalg.svd(S * Xp, full_matrices=False)
-    Bp = Vt[:d - 1].T
+    Bp = Vt[: d - 1].T
     Bp = Bp - np.outer(dh, dh @ Bp)
     Bp, _ = np.linalg.qr(Bp)
     B = np.concatenate([dh[:, None], Bp], axis=1)
@@ -167,7 +187,7 @@ def fb_limit(mdp, d):
 def run_arm_A(mdp, wts, d, construction, w):
     X, n, r = mdp["X"], mdp["n"], mdp["r"]
     F, B, fit, s = fb_weighted(mdp, wts, d)
-    Q = fit @ r / n                                   # F z with z = (1/n) B^T r
+    Q = fit @ r / n  # F z with z = (1/n) B^T r
     rl = fb_objective_rows(mdp, fit)
     P_hat = (1 - GAMMA) * fit / n
     Fc, Bc, fitc = fb_constrained(mdp, wts, d)
@@ -177,21 +197,49 @@ def run_arm_A(mdp, wts, d, construction, w):
     O = ordinary_rows(mdp)
     bn = np.array(_rows(mdp))
     lim, in_span, spec_gap = fb_limit(mdp, d)
-    tgt_rows = np.sum(X ** 2, axis=1) / n
-    rows = [dict(construction=construction, w=w, N=mdp["N"], n=n, d=d, arm="A", method="fb", seed=-1,
-                 **gap_stats(mdp, Q),
-                 retained_mass=retained(mdp, P_hat), retained_mass_w=retained(mdp, P_hat, wts),
-                 own_loss=J, bn_share_obj=share(wts, rl, bn), bn_share_target=share(wts, tgt_rows, bn),
-                 bn_loss=float(np.sum(wts[bn] * rl[bn])),
-                 cost_preserve=Jc - J, cost_preserve_rel=(Jc - J) / J if J > 0 else float("nan"),
-                 cost_preserve_ord=float(np.sum(wts[O] * (rlc[O] - rl[O]))),
-                 cost_preserve_bn=float(np.sum(wts[bn] * (rlc[bn] - rl[bn]))),
-                 limit_gap_ratio=lim, limit_diff_in_span=in_span, limit_spectral_gap=spec_gap),
-            dict(construction=construction, w=w, N=mdp["N"], n=n, d=d, arm="A+", method="fb_keepgap", seed=-1,
-                 **gap_stats(mdp, Qc),
-                 retained_mass=retained(mdp, (1 - GAMMA) * fitc / n),
-                 retained_mass_w=retained(mdp, (1 - GAMMA) * fitc / n, wts),
-                 own_loss=Jc, bn_share_obj=share(wts, rlc, bn), bn_loss=float(np.sum(wts[bn] * rlc[bn])))]
+    tgt_rows = np.sum(X**2, axis=1) / n
+    rows = [
+        dict(
+            construction=construction,
+            w=w,
+            N=mdp["N"],
+            n=n,
+            d=d,
+            arm="A",
+            method="fb",
+            seed=-1,
+            **gap_stats(mdp, Q),
+            retained_mass=retained(mdp, P_hat),
+            retained_mass_w=retained(mdp, P_hat, wts),
+            own_loss=J,
+            bn_share_obj=share(wts, rl, bn),
+            bn_share_target=share(wts, tgt_rows, bn),
+            bn_loss=float(np.sum(wts[bn] * rl[bn])),
+            cost_preserve=Jc - J,
+            cost_preserve_rel=(Jc - J) / J if J > 0 else float("nan"),
+            cost_preserve_ord=float(np.sum(wts[O] * (rlc[O] - rl[O]))),
+            cost_preserve_bn=float(np.sum(wts[bn] * (rlc[bn] - rl[bn]))),
+            limit_gap_ratio=lim,
+            limit_diff_in_span=in_span,
+            limit_spectral_gap=spec_gap,
+        ),
+        dict(
+            construction=construction,
+            w=w,
+            N=mdp["N"],
+            n=n,
+            d=d,
+            arm="A+",
+            method="fb_keepgap",
+            seed=-1,
+            **gap_stats(mdp, Qc),
+            retained_mass=retained(mdp, (1 - GAMMA) * fitc / n),
+            retained_mass_w=retained(mdp, (1 - GAMMA) * fitc / n, wts),
+            own_loss=Jc,
+            bn_share_obj=share(wts, rlc, bn),
+            bn_loss=float(np.sum(wts[bn] * rlc[bn])),
+        ),
+    ]
     return rows
 
 
@@ -224,7 +272,10 @@ def _trainer(loss_kind, steps, polish_steps, lr):
             g = jax.grad(loss_joint)(p, target, wts)
             u, st = opt.update(g, st, p)
             return (optax.apply_updates(p, u), st), None
-        (params, _), _ = jax.lax.scan(body, (params, opt.init(params)), None, length=steps)
+
+        (params, _), _ = jax.lax.scan(
+            body, (params, opt.init(params)), None, length=steps
+        )
         f, b = params["f"], params["b"]
         opt2 = optax.adam(lr)
 
@@ -233,8 +284,10 @@ def _trainer(loss_kind, steps, polish_steps, lr):
             g = jax.grad(loss_polish)(f, b, target)
             u, st = opt2.update(g, st, f)
             return (optax.apply_updates(f, u), st), None
+
         (f, _), _ = jax.lax.scan(body2, (f, opt2.init(f)), None, length=polish_steps)
         return {"f": f, "b": b}
+
     return jax.jit(jax.vmap(fit_one, in_axes=(0, None, None)))
 
 
@@ -243,10 +296,16 @@ def softmax_fits(mdp, wts, d, loss_kind, seeds):
     inits = []
     for sd in seeds:
         rng = np.random.default_rng(1000 * sd + 17 * d)
-        inits.append({"f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
-                      "b": jnp.array(rng.normal(0, 0.1, (n, d)))})
+        inits.append(
+            {
+                "f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
+                "b": jnp.array(rng.normal(0, 0.1, (n, d))),
+            }
+        )
     params = jax.tree.map(lambda *x: jnp.stack(x), *inits)
-    out = _trainer(loss_kind, CLOSED_STEPS, POLISH_STEPS, CLOSED_LR)(params, jnp.array(mdp["T"]), jnp.array(wts))
+    out = _trainer(loss_kind, CLOSED_STEPS, POLISH_STEPS, CLOSED_LR)(
+        params, jnp.array(mdp["T"]), jnp.array(wts)
+    )
     return np.asarray(out["f"]), np.asarray(out["b"])
 
 
@@ -266,16 +325,33 @@ def run_arms_CD(mdp, wts, d, construction, w):
             P_hat /= P_hat.sum(axis=1, keepdims=True)
             Q = P_hat @ r / (1 - GAMMA)
             if kind == "ce":
-                rl = -np.sum(T * np.log(np.maximum(P_hat, 1e-300)), axis=1) - H    # KL(t || p) per row
+                rl = (
+                    -np.sum(T * np.log(np.maximum(P_hat, 1e-300)), axis=1) - H
+                )  # KL(t || p) per row
             else:
                 rl = 0.5 * np.sum((P_hat - T) ** 2, axis=1)
-            rows.append(dict(construction=construction, w=w, N=mdp["N"], n=n, d=d, arm=arm, method=method,
-                             seed=sd, **gap_stats(mdp, Q),
-                             retained_mass=retained(mdp, P_hat), retained_mass_w=retained(mdp, P_hat, wts),
-                             own_loss=float(np.sum(wts * rl)), bn_share_obj=share(wts, rl, bn),
-                             bn_loss=float(np.sum(wts[bn] * rl[bn])),
-                             bn_goal_mass_0=float(P_hat[ROW0, GOAL]), bn_goal_mass_1=float(P_hat[ROW1, GOAL]),
-                             bn_goal_mass_0_true=float(T[ROW0, GOAL]), bn_goal_mass_1_true=float(T[ROW1, GOAL])))
+            rows.append(
+                dict(
+                    construction=construction,
+                    w=w,
+                    N=mdp["N"],
+                    n=n,
+                    d=d,
+                    arm=arm,
+                    method=method,
+                    seed=sd,
+                    **gap_stats(mdp, Q),
+                    retained_mass=retained(mdp, P_hat),
+                    retained_mass_w=retained(mdp, P_hat, wts),
+                    own_loss=float(np.sum(wts * rl)),
+                    bn_share_obj=share(wts, rl, bn),
+                    bn_loss=float(np.sum(wts[bn] * rl[bn])),
+                    bn_goal_mass_0=float(P_hat[ROW0, GOAL]),
+                    bn_goal_mass_1=float(P_hat[ROW1, GOAL]),
+                    bn_goal_mass_0_true=float(T[ROW0, GOAL]),
+                    bn_goal_mass_1_true=float(T[ROW1, GOAL]),
+                )
+            )
     return rows
 
 
@@ -297,13 +373,20 @@ def td_loss(params, target, kernel, pi, gamma, method, wts):
     boot = gamma * (kernel @ v)
     labels = (1 - gamma) * kernel + boot
     if method == "density":
-        return -jnp.sum(wts * jnp.sum(
-            labels * jax.nn.log_softmax(params["f"] @ params["b"].T, axis=-1), axis=-1))
+        return -jnp.sum(
+            wts
+            * jnp.sum(
+                labels * jax.nn.log_softmax(params["f"] @ params["b"].T, axis=-1),
+                axis=-1,
+            )
+        )
     if method == "softsq":
         return 0.5 * jnp.sum(wts * jnp.mean((p - labels) ** 2, axis=-1))
     b = params["b"]
     ortho = 0.5 * jnp.mean((b @ b.T) ** 2) - jnp.mean(jnp.sum(b * b, axis=-1))
-    td = 0.5 * jnp.sum(wts * jnp.mean((p - boot) ** 2, axis=-1)) - jnp.sum(wts * jnp.sum(kernel * p, axis=-1))
+    td = 0.5 * jnp.sum(wts * jnp.mean((p - boot) ** 2, axis=-1)) - jnp.sum(
+        wts * jnp.sum(kernel * p, axis=-1)
+    )
     return td + ortho
 
 
@@ -314,8 +397,10 @@ def train_group(mdp, wts, d, method, seeds, rates, steps=TRAIN_STEPS, tau=TRAIN_
 
     def init(c):
         rng = np.random.default_rng(c["seed"])
-        return {"f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
-                "b": jnp.array(rng.normal(0, 0.1, (n, d)))}
+        return {
+            "f": jnp.array(rng.normal(0, 0.1, (2 * n, d))),
+            "b": jnp.array(rng.normal(0, 0.1, (n, d))),
+        }
 
     params = jax.tree.map(lambda *x: jnp.stack(x), *[init(c) for c in cfg])
     opt = optax.scale_by_adam()
@@ -331,8 +416,9 @@ def train_group(mdp, wts, d, method, seeds, rates, steps=TRAIN_STEPS, tau=TRAIN_
 
     @jax.jit
     def train(carry):
-        return jax.lax.scan(lambda c, _: (jax.vmap(one)(*c, lrs), None),
-                            carry, None, length=steps)[0]
+        return jax.lax.scan(
+            lambda c, _: (jax.vmap(one)(*c, lrs), None), carry, None, length=steps
+        )[0]
 
     final = train((params, params, state))[0]
     pred = np.asarray(jax.vmap(lambda x: bf.predict(x, method, False))(final))
@@ -349,11 +435,23 @@ def run_trained(mdp, wts, construction, w, d=TRAIN_RANK):
         for i, c in enumerate(cfg):
             P_hat = bf.readout(pred[i], method, GAMMA, n)
             Q = P_hat @ r / (1 - GAMMA)
-            rows.append(dict(construction=construction, w=w, N=mdp["N"], n=n, d=d,
-                             arm=ARM_OF[method], method=method, seed=c["seed"], lr=c["lr"],
-                             **gap_stats(mdp, Q), retained_mass=retained(mdp, P_hat),
-                             retained_mass_w=retained(mdp, P_hat, wts),
-                             max_mass_error=float(np.max(np.abs(P_hat.sum(1) - 1)))))
+            rows.append(
+                dict(
+                    construction=construction,
+                    w=w,
+                    N=mdp["N"],
+                    n=n,
+                    d=d,
+                    arm=ARM_OF[method],
+                    method=method,
+                    seed=c["seed"],
+                    lr=c["lr"],
+                    **gap_stats(mdp, Q),
+                    retained_mass=retained(mdp, P_hat),
+                    retained_mass_w=retained(mdp, P_hat, wts),
+                    max_mass_error=float(np.max(np.abs(P_hat.sum(1) - 1))),
+                )
+            )
     return rows
 
 
@@ -367,25 +465,47 @@ def sweep_closed():
         for d in RANKS:
             rows += run_arm_A(base, wts, d, "reweight", w)
             rows += run_arms_CD(base, wts, d, "reweight", w)
-        g = lambda arm, d: np.mean([x["gap_ratio"] for x in rows if x["construction"] == "reweight"
-                                    and x["w"] == w and x["d"] == d and x["arm"] == arm])
-        log(f"  [closed a] w={w:.4f}  d=3: A {g('A', 3 if 3 in RANKS else RANKS[0]):.3f} "
+        g = lambda arm, d: np.mean(
+            [
+                x["gap_ratio"]
+                for x in rows
+                if x["construction"] == "reweight"
+                and x["w"] == w
+                and x["d"] == d
+                and x["arm"] == arm
+            ]
+        )
+        log(
+            f"  [closed a] w={w:.4f}  d=3: A {g('A', 3 if 3 in RANKS else RANKS[0]):.3f} "
             f"C {g('C', 3 if 3 in RANKS else RANKS[0]):.3f} D {g('D', 3 if 3 in RANKS else RANKS[0]):.3f}"
-            f"  ({time.time() - t0:.0f}s)")
+            f"  ({time.time() - t0:.0f}s)"
+        )
     for N in N_SWEEP:
         mdp = build_mdp(N)
         assert abs(mdp["gap"] - base["gap"]) < 1e-9, (N, mdp["gap"])
-        assert np.allclose(mdp["M"][:18, :9], base["M"]) and np.allclose(mdp["M"][:18, 9:], 0.0)
+        assert np.allclose(mdp["M"][:18, :9], base["M"]) and np.allclose(
+            mdp["M"][:18, 9:], 0.0
+        )
         wts = row_weights(mdp, 1.0 / mdp["n"])
         assert np.allclose(wts, 1.0 / (2 * mdp["n"]))
         for d in RANKS:
             rows += run_arm_A(mdp, wts, d, "structural", 1.0 / mdp["n"])
             rows += run_arms_CD(mdp, wts, d, "structural", 1.0 / mdp["n"])
         dd = 3 if 3 in RANKS else RANKS[0]
-        g = lambda arm: np.mean([x["gap_ratio"] for x in rows if x["construction"] == "structural"
-                                 and x["N"] == N and x["d"] == dd and x["arm"] == arm])
-        log(f"  [closed b] N={N:3d} n={mdp['n']:3d}  d={dd}: A {g('A'):.3f} C {g('C'):.3f} D {g('D'):.3f}"
-            f"  ({time.time() - t0:.0f}s)")
+        g = lambda arm: np.mean(
+            [
+                x["gap_ratio"]
+                for x in rows
+                if x["construction"] == "structural"
+                and x["N"] == N
+                and x["d"] == dd
+                and x["arm"] == arm
+            ]
+        )
+        log(
+            f"  [closed b] N={N:3d} n={mdp['n']:3d}  d={dd}: A {g('A'):.3f} C {g('C'):.3f} D {g('D'):.3f}"
+            f"  ({time.time() - t0:.0f}s)"
+        )
     return rows
 
 
@@ -395,17 +515,33 @@ def sweep_trained():
     base = build_mdp(0)
     for w in W_SWEEP:
         if w == 0.0:
-            continue                                   # TD needs every row to receive gradient
+            continue  # TD needs every row to receive gradient
         rows += run_trained(base, row_weights(base, w), "reweight", w)
-        g = lambda arm: np.mean([x["gap_ratio"] for x in rows if x["construction"] == "reweight"
-                                 and x["w"] == w and x["arm"] == arm])
-        log(f"  [trained a] w={w:.4f}  A {g('A'):.3f} C {g('C'):.3f} D {g('D'):.3f}  ({time.time() - t0:.0f}s)")
+        g = lambda arm: np.mean(
+            [
+                x["gap_ratio"]
+                for x in rows
+                if x["construction"] == "reweight" and x["w"] == w and x["arm"] == arm
+            ]
+        )
+        log(
+            f"  [trained a] w={w:.4f}  A {g('A'):.3f} C {g('C'):.3f} D {g('D'):.3f}  ({time.time() - t0:.0f}s)"
+        )
     for N in N_SWEEP:
         mdp = build_mdp(N)
-        rows += run_trained(mdp, row_weights(mdp, 1.0 / mdp["n"]), "structural", 1.0 / mdp["n"])
-        g = lambda arm: np.mean([x["gap_ratio"] for x in rows if x["construction"] == "structural"
-                                 and x["N"] == N and x["arm"] == arm])
-        log(f"  [trained b] N={N:3d}  A {g('A'):.3f} C {g('C'):.3f} D {g('D'):.3f}  ({time.time() - t0:.0f}s)")
+        rows += run_trained(
+            mdp, row_weights(mdp, 1.0 / mdp["n"]), "structural", 1.0 / mdp["n"]
+        )
+        g = lambda arm: np.mean(
+            [
+                x["gap_ratio"]
+                for x in rows
+                if x["construction"] == "structural" and x["N"] == N and x["arm"] == arm
+            ]
+        )
+        log(
+            f"  [trained b] N={N:3d}  A {g('A'):.3f} C {g('C'):.3f} D {g('D'):.3f}  ({time.time() - t0:.0f}s)"
+        )
     return rows
 
 
@@ -414,29 +550,57 @@ def run_sanity():
     base = build_mdp(0)
     assert abs(base["gap"] - 1.4) < 1e-9
     log(f"exact gap at state 7: {base['gap']:.4f} (2.2 - 0.8)")
-    facts = dict(gamma=GAMMA, decision_state=DECISION, goal=GOAL, gap_exact=base["gap"],
-                 w_sweep=W_SWEEP, n_sweep=N_SWEEP, ranks=RANKS, seeds=SEEDS,
-                 closed_form_adam=dict(steps=CLOSED_STEPS, polish_steps=POLISH_STEPS, lr=CLOSED_LR),
-                 trained=dict(steps=TRAIN_STEPS, tau=TRAIN_TAU, rates=TRAIN_RATES, rank=TRAIN_RANK,
-                              ortho_coef_fb=1.0), structural={}, limits={})
+    facts = dict(
+        gamma=GAMMA,
+        decision_state=DECISION,
+        goal=GOAL,
+        gap_exact=base["gap"],
+        w_sweep=W_SWEEP,
+        n_sweep=N_SWEEP,
+        ranks=RANKS,
+        seeds=SEEDS,
+        closed_form_adam=dict(
+            steps=CLOSED_STEPS, polish_steps=POLISH_STEPS, lr=CLOSED_LR
+        ),
+        trained=dict(
+            steps=TRAIN_STEPS,
+            tau=TRAIN_TAU,
+            rates=TRAIN_RATES,
+            rank=TRAIN_RANK,
+            ortho_coef_fb=1.0,
+        ),
+        structural={},
+        limits={},
+    )
     for N in N_SWEEP:
         m = build_mdp(N)
         assert abs(m["gap"] - base["gap"]) < 1e-9
         O = ordinary_rows(m)
         wts = row_weights(m, 1.0 / m["n"])
         tgt = np.sum(m["X"] ** 2, axis=1) / m["n"]
-        facts["structural"][N] = dict(n=m["n"], rows=2 * m["n"], w=1.0 / m["n"],
-                                      bn_share_target=share(wts, tgt, np.array([ROW0, ROW1])),
-                                      gap=m["gap"], rank_X=int(np.linalg.matrix_rank(m["X"])),
-                                      rank_X_ordinary=int(np.linalg.matrix_rank(m["X"][O])))
-        log(f"N={N:3d}: n={m['n']}, gap {m['gap']:.6f}, bottleneck share of the target's squared mass "
+        facts["structural"][N] = dict(
+            n=m["n"],
+            rows=2 * m["n"],
+            w=1.0 / m["n"],
+            bn_share_target=share(wts, tgt, np.array([ROW0, ROW1])),
+            gap=m["gap"],
+            rank_X=int(np.linalg.matrix_rank(m["X"])),
+            rank_X_ordinary=int(np.linalg.matrix_rank(m["X"][O])),
+        )
+        log(
+            f"N={N:3d}: n={m['n']}, gap {m['gap']:.6f}, bottleneck share of the target's squared mass "
             f"{facts['structural'][N]['bn_share_target']:.4f}, rank(X)={facts['structural'][N]['rank_X']}, "
-            f"rank(X_ordinary)={facts['structural'][N]['rank_X_ordinary']}")
+            f"rank(X_ordinary)={facts['structural'][N]['rank_X_ordinary']}"
+        )
     for d in RANKS:
         lim, in_span, sg = fb_limit(base, d)
-        facts["limits"][d] = dict(limit_gap_ratio=lim, diff_in_span=in_span, spectral_gap_rel=sg)
-        log(f"d={d}: w->0 limit of A's gap fraction d^T P_d^0 r / d^T r = {lim:.4f}; "
-            f"fraction of ||d||^2 inside span(P_d^0) = {in_span:.4f}; (lam_d - lam_d+1)/lam_1 = {sg:.4f}")
+        facts["limits"][d] = dict(
+            limit_gap_ratio=lim, diff_in_span=in_span, spectral_gap_rel=sg
+        )
+        log(
+            f"d={d}: w->0 limit of A's gap fraction d^T P_d^0 r / d^T r = {lim:.4f}; "
+            f"fraction of ||d||^2 inside span(P_d^0) = {in_span:.4f}; (lam_d - lam_d+1)/lam_1 = {sg:.4f}"
+        )
     # Weighted SVD at w = 0 matches the limit; A+ keeps the gap exactly
     for d in RANKS:
         wts0 = row_weights(base, 0.0)
@@ -446,9 +610,13 @@ def run_sanity():
         wts_u = row_weights(base, 1 / 9)
         a = run_arm_A(base, wts_u, d, "check", 1 / 9)
         assert a[0]["cost_preserve"] >= -1e-10
-    log("uniform weights (w = 1/9) reproduce the toy-ablation SVD: "
-        + ", ".join(f"d={d}: {run_arm_A(base, row_weights(base, 1 / 9), d, 'check', 1 / 9)[0]['gap_ratio']:.3f}"
-                    for d in RANKS))
+    log(
+        "uniform weights (w = 1/9) reproduce the toy-ablation SVD: "
+        + ", ".join(
+            f"d={d}: {run_arm_A(base, row_weights(base, 1 / 9), d, 'check', 1 / 9)[0]['gap_ratio']:.3f}"
+            for d in RANKS
+        )
+    )
     (HERE / "exact.json").write_text(json.dumps(facts, indent=2, default=float))
     log("sanity passed.\n")
     return facts
@@ -456,10 +624,13 @@ def run_sanity():
 
 # Aggregation, figure, tables
 def t_interval(values, confidence=0.95):
-    values = np.asarray(values, dtype=float); n = len(values); m = float(values.mean())
+    values = np.asarray(values, dtype=float)
+    n = len(values)
+    m = float(values.mean())
     if n < 2:
         return m, m, m
     from scipy import stats
+
     tcrit = float(stats.t.ppf(0.5 + confidence / 2, df=n - 1))
     h = tcrit * float(values.std(ddof=1) / np.sqrt(n))
     return m, m - h, m + h
@@ -491,11 +662,14 @@ def agg(rows, key="gap_ratio", **kw):
 
 ARM_COLOR = {"A": "#DE8F05", "C": "#D55E00", "D": "#029E73", "A+": "#CC78BC"}
 ARM_MARKER = {"A": "o", "C": "^", "D": "D", "A+": "s"}
-ARM_LABEL = {"A": "A  FB (squared error)", "C": "C  softmax + squared error",
-             "D": "D  Density-FB (softmax + cross-entropy)"}
+ARM_LABEL = {
+    "A": "A  FB (squared error)",
+    "C": "C  softmax + squared error",
+    "D": "D  Density-FB (softmax + cross-entropy)",
+}
 EXACT_COLOR = "#0173B2"
 INK = "#2a2a2a"
-W_POS = {0.0: 1 / 1024}            # x-position of the w = 0 point on the log axis
+W_POS = {0.0: 1 / 1024}  # x-position of the w = 0 point on the log axis
 
 
 def xpos(w):
@@ -518,13 +692,22 @@ def _w_axis(ax, w_sweep=None, uniform=1 / 9):
     shown = [w for w in (1 / 2, 1 / 16, 1 / 128) if w in W_SWEEP]
     ticks = shown + [W_POS[0.0]]
     labels = [("1/%d" % round(1 / w)) for w in shown] + ["0"]
-    ax.set_xticks(ticks); ax.set_xticklabels(labels)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(labels)
     ax.set_xticks([], minor=True)
     ax.axvline(uniform, color="#cfcfcf", linewidth=0.7, linestyle=":", zorder=1)
 
 
-def draw_panel_gap(ax, closed, trained, d=3, arms=("A", "C", "D"), construction="reweight",
-                   w_sweep=None, uniform=1 / 9):
+def draw_panel_gap(
+    ax,
+    closed,
+    trained,
+    d=3,
+    arms=("A", "C", "D"),
+    construction="reweight",
+    w_sweep=None,
+    uniform=1 / 9,
+):
     """Gap fraction vs row weight at rank d."""
     W_SWEEP = globals()["W_SWEEP"] if w_sweep is None else list(w_sweep)
     ax.axhline(1.0, color=EXACT_COLOR, linestyle="--", linewidth=1.0, zorder=1)
@@ -533,42 +716,129 @@ def draw_panel_gap(ax, closed, trained, d=3, arms=("A", "C", "D"), construction=
         xs, ys, los, his = [], [], [], []
         for w in W_SWEEP:
             m, lo, hi = agg(closed, construction=construction, w=float(w), d=d, arm=arm)
-            xs.append(xpos(w)); ys.append(m); los.append(lo); his.append(hi)
-        ax.fill_between(xs, los, his, color=ARM_COLOR[arm], alpha=0.18, linewidth=0, zorder=2)
-        ax.plot(xs, ys, color=ARM_COLOR[arm], marker=ARM_MARKER[arm], markersize=3.8,
-                markeredgecolor="white", markeredgewidth=0.5, linewidth=1.4, zorder=3)
+            xs.append(xpos(w))
+            ys.append(m)
+            los.append(lo)
+            his.append(hi)
+        ax.fill_between(
+            xs, los, his, color=ARM_COLOR[arm], alpha=0.18, linewidth=0, zorder=2
+        )
+        ax.plot(
+            xs,
+            ys,
+            color=ARM_COLOR[arm],
+            marker=ARM_MARKER[arm],
+            markersize=3.8,
+            markeredgecolor="white",
+            markeredgewidth=0.5,
+            linewidth=1.4,
+            zorder=3,
+        )
         tx, ty, tlo, thi = [], [], [], []
         for w in W_SWEEP:
-            m, lo, hi = agg(trained, construction=construction, w=float(w), d=d, arm=arm)
+            m, lo, hi = agg(
+                trained, construction=construction, w=float(w), d=d, arm=arm
+            )
             if np.isfinite(m):
-                tx.append(xpos(w) * (1.06 if arm == "D" else 0.94 if arm == "A" else 1.0))
-                ty.append(m); tlo.append(m - lo); thi.append(hi - m)
+                tx.append(
+                    xpos(w) * (1.06 if arm == "D" else 0.94 if arm == "A" else 1.0)
+                )
+                ty.append(m)
+                tlo.append(m - lo)
+                thi.append(hi - m)
         if tx:
-            ax.errorbar(tx, ty, yerr=[tlo, thi], fmt=ARM_MARKER[arm], markersize=4.2,
-                        markerfacecolor="none", markeredgecolor=ARM_COLOR[arm], markeredgewidth=1.0,
-                        ecolor=ARM_COLOR[arm], elinewidth=0.8, capsize=1.6, linestyle="none", zorder=4)
+            ax.errorbar(
+                tx,
+                ty,
+                yerr=[tlo, thi],
+                fmt=ARM_MARKER[arm],
+                markersize=4.2,
+                markerfacecolor="none",
+                markeredgecolor=ARM_COLOR[arm],
+                markeredgewidth=1.0,
+                ecolor=ARM_COLOR[arm],
+                elinewidth=0.8,
+                capsize=1.6,
+                linestyle="none",
+                zorder=4,
+            )
     _w_axis(ax, W_SWEEP, uniform)
     _style(ax, "bottleneck weight $w$", "fraction of the exact action gap")
 
 
 def draw_panel_share(ax, closed, d=3):
     xs = [xpos(w) for w in W_SWEEP]
-    a_share = [agg(closed, "bn_share_obj", construction="reweight", w=float(w), d=d, arm="A")[0] for w in W_SWEEP]
-    a_tgt = [agg(closed, "bn_share_target", construction="reweight", w=float(w), d=d, arm="A")[0] for w in W_SWEEP]
-    d_share = [agg(closed, "bn_share_obj", construction="reweight", w=float(w), d=d, arm="D")[0] for w in W_SWEEP]
+    a_share = [
+        agg(closed, "bn_share_obj", construction="reweight", w=float(w), d=d, arm="A")[
+            0
+        ]
+        for w in W_SWEEP
+    ]
+    a_tgt = [
+        agg(
+            closed, "bn_share_target", construction="reweight", w=float(w), d=d, arm="A"
+        )[0]
+        for w in W_SWEEP
+    ]
+    d_share = [
+        agg(closed, "bn_share_obj", construction="reweight", w=float(w), d=d, arm="D")[
+            0
+        ]
+        for w in W_SWEEP
+    ]
     ax.plot(xs, a_tgt, color="#949494", linestyle=":", linewidth=1.1, zorder=2)
-    ax.plot(xs, a_share, color=ARM_COLOR["A"], marker=ARM_MARKER["A"], markersize=3.8,
-            markeredgecolor="white", markeredgewidth=0.5, linewidth=1.4, zorder=3)
-    ax.plot(xs, d_share, color=ARM_COLOR["D"], marker=ARM_MARKER["D"], markersize=3.8,
-            markeredgecolor="white", markeredgewidth=0.5, linewidth=1.4, zorder=3)
+    ax.plot(
+        xs,
+        a_share,
+        color=ARM_COLOR["A"],
+        marker=ARM_MARKER["A"],
+        markersize=3.8,
+        markeredgecolor="white",
+        markeredgewidth=0.5,
+        linewidth=1.4,
+        zorder=3,
+    )
+    ax.plot(
+        xs,
+        d_share,
+        color=ARM_COLOR["D"],
+        marker=ARM_MARKER["D"],
+        markersize=3.8,
+        markeredgecolor="white",
+        markeredgewidth=0.5,
+        linewidth=1.4,
+        zorder=3,
+    )
     ax.set_ylim(-0.02, 0.62)
     _w_axis(ax)
     _style(ax, "bottleneck weight $w$", "bottleneck rows' share of the objective")
     ax2 = ax.twinx()
-    cost = [agg(closed, "cost_preserve_rel", construction="reweight", w=float(w), d=d, arm="A")[0] for w in W_SWEEP]
-    ax2.plot(xs, cost, color=ARM_COLOR["A+"], marker=ARM_MARKER["A+"], markersize=3.6,
-             markeredgecolor="white", markeredgewidth=0.5, linewidth=1.4, linestyle="-", zorder=3)
-    ax2.set_ylabel("FB: relative cost of keeping the gap", fontsize=8.5, color=ARM_COLOR["A+"])
+    cost = [
+        agg(
+            closed,
+            "cost_preserve_rel",
+            construction="reweight",
+            w=float(w),
+            d=d,
+            arm="A",
+        )[0]
+        for w in W_SWEEP
+    ]
+    ax2.plot(
+        xs,
+        cost,
+        color=ARM_COLOR["A+"],
+        marker=ARM_MARKER["A+"],
+        markersize=3.6,
+        markeredgecolor="white",
+        markeredgewidth=0.5,
+        linewidth=1.4,
+        linestyle="-",
+        zorder=3,
+    )
+    ax2.set_ylabel(
+        "FB: relative cost of keeping the gap", fontsize=8.5, color=ARM_COLOR["A+"]
+    )
     ax2.tick_params(labelsize=8, length=2.5, colors=ARM_COLOR["A+"])
     ax2.set_ylim(bottom=-0.01)
     for sp in ("top",):
@@ -586,37 +856,114 @@ def draw_panel_structural(ax, closed, trained, d=3, arms=("A", "C", "D")):
         ys, los, his = [], [], []
         for N in N_SWEEP:
             m, lo, hi = agg(closed, construction="structural", N=N, d=d, arm=arm)
-            ys.append(m); los.append(lo); his.append(hi)
+            ys.append(m)
+            los.append(lo)
+            his.append(hi)
         xs = [pos[N] for N in N_SWEEP]
-        ax.fill_between(xs, los, his, color=ARM_COLOR[arm], alpha=0.18, linewidth=0, zorder=2)
-        ax.plot(xs, ys, color=ARM_COLOR[arm], marker=ARM_MARKER[arm], markersize=3.8,
-                markeredgecolor="white", markeredgewidth=0.5, linewidth=1.4, zorder=3)
+        ax.fill_between(
+            xs, los, his, color=ARM_COLOR[arm], alpha=0.18, linewidth=0, zorder=2
+        )
+        ax.plot(
+            xs,
+            ys,
+            color=ARM_COLOR[arm],
+            marker=ARM_MARKER[arm],
+            markersize=3.8,
+            markeredgecolor="white",
+            markeredgewidth=0.5,
+            linewidth=1.4,
+            zorder=3,
+        )
         tx, ty, tlo, thi = [], [], [], []
         for N in N_SWEEP:
             m, lo, hi = agg(trained, construction="structural", N=N, d=d, arm=arm)
             if np.isfinite(m):
-                tx.append(pos[N] + (0.12 if arm == "D" else -0.12 if arm == "A" else 0.0))
-                ty.append(m); tlo.append(m - lo); thi.append(hi - m)
+                tx.append(
+                    pos[N] + (0.12 if arm == "D" else -0.12 if arm == "A" else 0.0)
+                )
+                ty.append(m)
+                tlo.append(m - lo)
+                thi.append(hi - m)
         if tx:
-            ax.errorbar(tx, ty, yerr=[tlo, thi], fmt=ARM_MARKER[arm], markersize=4.2,
-                        markerfacecolor="none", markeredgecolor=ARM_COLOR[arm], markeredgewidth=1.0,
-                        ecolor=ARM_COLOR[arm], elinewidth=0.8, capsize=1.6, linestyle="none", zorder=4)
-    ax.set_xticks(list(pos.values())); ax.set_xticklabels([str(N) for N in N_SWEEP])
+            ax.errorbar(
+                tx,
+                ty,
+                yerr=[tlo, thi],
+                fmt=ARM_MARKER[arm],
+                markersize=4.2,
+                markerfacecolor="none",
+                markeredgecolor=ARM_COLOR[arm],
+                markeredgewidth=1.0,
+                ecolor=ARM_COLOR[arm],
+                elinewidth=0.8,
+                capsize=1.6,
+                linestyle="none",
+                zorder=4,
+            )
+    ax.set_xticks(list(pos.values()))
+    ax.set_xticklabels([str(N) for N in N_SWEEP])
     _style(ax, "extra ordinary states $N$", "fraction of the exact action gap")
 
 
 def legend_handles(with_share=True):
     from matplotlib.lines import Line2D
-    hs = [Line2D([0], [0], color=ARM_COLOR[a], marker=ARM_MARKER[a], markersize=4.2, linewidth=1.4,
-                 label=ARM_LABEL[a]) for a in ("A", "C", "D")]
-    hs.append(Line2D([0], [0], color=EXACT_COLOR, linestyle="--", linewidth=1.0, label="exact gap"))
-    hs.append(Line2D([0], [0], color="#555555", marker="o", markersize=4.2, markerfacecolor="none",
-                     linestyle="none", label="hollow: TD-trained, mean and 95% CI (10 runs)"))
+
+    hs = [
+        Line2D(
+            [0],
+            [0],
+            color=ARM_COLOR[a],
+            marker=ARM_MARKER[a],
+            markersize=4.2,
+            linewidth=1.4,
+            label=ARM_LABEL[a],
+        )
+        for a in ("A", "C", "D")
+    ]
+    hs.append(
+        Line2D(
+            [0],
+            [0],
+            color=EXACT_COLOR,
+            linestyle="--",
+            linewidth=1.0,
+            label="exact gap",
+        )
+    )
+    hs.append(
+        Line2D(
+            [0],
+            [0],
+            color="#555555",
+            marker="o",
+            markersize=4.2,
+            markerfacecolor="none",
+            linestyle="none",
+            label="hollow: TD-trained, mean and 95% CI (10 runs)",
+        )
+    )
     if with_share:
-        hs.append(Line2D([0], [0], color="#949494", linestyle=":", linewidth=1.1,
-                         label="bottleneck share of the target's squared mass"))
-        hs.append(Line2D([0], [0], color=ARM_COLOR["A+"], marker=ARM_MARKER["A+"], markersize=4.0,
-                         linewidth=1.4, label="FB: (loss of gap-keeping fit $-$ optimum) / optimum"))
+        hs.append(
+            Line2D(
+                [0],
+                [0],
+                color="#949494",
+                linestyle=":",
+                linewidth=1.1,
+                label="bottleneck share of the target's squared mass",
+            )
+        )
+        hs.append(
+            Line2D(
+                [0],
+                [0],
+                color=ARM_COLOR["A+"],
+                marker=ARM_MARKER["A+"],
+                markersize=4.0,
+                linewidth=1.4,
+                label="FB: (loss of gap-keeping fit $-$ optimum) / optimum",
+            )
+        )
     return hs
 
 
@@ -628,12 +975,22 @@ def save(fig, stem):
 
 
 def make_figures(closed, trained):
-    from matplotlib.lines import Line2D
     import matplotlib
+    from matplotlib.lines import Line2D
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    plt.rcParams.update({"font.family": "sans-serif", "font.size": 8.5, "text.color": INK,
-                         "axes.labelcolor": INK, "pdf.fonttype": 42, "svg.fonttype": "none"})
+
+    plt.rcParams.update(
+        {
+            "font.family": "sans-serif",
+            "font.size": 8.5,
+            "text.color": INK,
+            "axes.labelcolor": INK,
+            "pdf.fonttype": 42,
+            "svg.fonttype": "none",
+        }
+    )
     d = 3 if 3 in RANKS else RANKS[0]
     fig, axes = plt.subplots(1, 3, figsize=(5.5, 2.1))
     draw_panel_gap(axes[0], closed, trained, d=d)
@@ -642,33 +999,69 @@ def make_figures(closed, trained):
     draw_panel_structural(axes[2], closed, trained, d=d)
     axes[2].set_ylim(-0.25, 1.15)
     axes[2].set_ylabel("")
-    fig.legend(handles=legend_handles(), loc="lower center", ncol=2, fontsize=7.2, frameon=False,
-               bbox_to_anchor=(0.5, -0.33), handlelength=1.8, columnspacing=1.0)
+    fig.legend(
+        handles=legend_handles(),
+        loc="lower center",
+        ncol=2,
+        fontsize=7.2,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.33),
+        handlelength=1.8,
+        columnspacing=1.0,
+    )
     fig.tight_layout(pad=0.3, w_pad=1.2)
-    save(fig, "fig_rare_bottleneck"); plt.close(fig)
+    save(fig, "fig_rare_bottleneck")
+    plt.close(fig)
 
     # Main-text panel: decision rows' share of the objective (right axis) and FB's gap
     fig, ax = plt.subplots(figsize=(3.4, 2.3))
     draw_panel_gap(ax, closed, trained, d=d)
     ax.set_ylim(-0.25, 1.15)
     ax2 = ax.twinx()
-    share = [agg(closed, "bn_share_target", construction="reweight", w=float(w), d=d, arm="A")[0]
-             for w in W_SWEEP]
-    ax2.plot([xpos(w) for w in W_SWEEP], share, color="#949494", linestyle=":", linewidth=1.2,
-             zorder=2)
-    ax2.set_ylabel("bottleneck share of the squared mass", fontsize=7.6, color="#6a6a6a")
+    share = [
+        agg(
+            closed, "bn_share_target", construction="reweight", w=float(w), d=d, arm="A"
+        )[0]
+        for w in W_SWEEP
+    ]
+    ax2.plot(
+        [xpos(w) for w in W_SWEEP],
+        share,
+        color="#949494",
+        linestyle=":",
+        linewidth=1.2,
+        zorder=2,
+    )
+    ax2.set_ylabel(
+        "bottleneck share of the squared mass", fontsize=7.6, color="#6a6a6a"
+    )
     ax2.tick_params(labelsize=7.6, length=2.5, colors="#6a6a6a")
     ax2.set_ylim(bottom=-0.01)
     ax2.spines["top"].set_visible(False)
     ax2.spines["left"].set_visible(False)
     ax2.spines["right"].set_color("#9a9a9a")
-    ax.legend(handles=legend_handles(with_share=True)[:4] +
-              [Line2D([0], [0], color="#949494", linestyle=":", linewidth=1.2,
-                      label="bottleneck share of the squared mass")],
-              loc="center left", fontsize=6.4, frameon=False, handlelength=1.6,
-              labelspacing=0.35, borderpad=0.2)
+    ax.legend(
+        handles=legend_handles(with_share=True)[:4]
+        + [
+            Line2D(
+                [0],
+                [0],
+                color="#949494",
+                linestyle=":",
+                linewidth=1.2,
+                label="bottleneck share of the squared mass",
+            )
+        ],
+        loc="center left",
+        fontsize=6.4,
+        frameon=False,
+        handlelength=1.6,
+        labelspacing=0.35,
+        borderpad=0.2,
+    )
     fig.tight_layout(pad=0.3)
-    save(fig, "fig_rare_bottleneck_lemma"); plt.close(fig)
+    save(fig, "fig_rare_bottleneck_lemma")
+    plt.close(fig)
 
     # Supplement: gap fraction vs w (row 1) and vs N (row 2) at every rank
     fig, axes = plt.subplots(2, len(RANKS), figsize=(5.5, 3.6), sharey=True)
@@ -677,80 +1070,158 @@ def make_figures(closed, trained):
         axes = axes.T
     for j, dd in enumerate(RANKS):
         draw_panel_gap(axes[0, j], closed, trained if dd == TRAIN_RANK else [], d=dd)
-        draw_panel_structural(axes[1, j], closed, trained if dd == TRAIN_RANK else [], d=dd)
-        axes[0, j].text(0.03, 0.05, f"$d={dd}$", transform=axes[0, j].transAxes, fontsize=8)
-        axes[1, j].text(0.03, 0.05, f"$d={dd}$", transform=axes[1, j].transAxes, fontsize=8)
+        draw_panel_structural(
+            axes[1, j], closed, trained if dd == TRAIN_RANK else [], d=dd
+        )
+        axes[0, j].text(
+            0.03, 0.05, f"$d={dd}$", transform=axes[0, j].transAxes, fontsize=8
+        )
+        axes[1, j].text(
+            0.03, 0.05, f"$d={dd}$", transform=axes[1, j].transAxes, fontsize=8
+        )
         axes[0, j].set_xlabel("bottleneck weight $w$" if j == 1 else "")
         axes[1, j].set_xlabel("extra ordinary states $N$" if j == 1 else "")
         axes[0, j].set_ylabel("fraction of the exact gap" if j == 0 else "")
         axes[1, j].set_ylabel("fraction of the exact gap" if j == 0 else "")
     axes[0, 0].set_ylim(-0.25, 1.2)
-    fig.legend(handles=legend_handles(with_share=False), loc="lower center", ncol=3, fontsize=7.2,
-               frameon=False, bbox_to_anchor=(0.5, -0.1), handlelength=1.8, columnspacing=1.0)
+    fig.legend(
+        handles=legend_handles(with_share=False),
+        loc="lower center",
+        ncol=3,
+        fontsize=7.2,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.1),
+        handlelength=1.8,
+        columnspacing=1.0,
+    )
     fig.tight_layout(pad=0.3, w_pad=0.8, h_pad=1.0)
-    save(fig, "fig_rare_bottleneck_ranks"); plt.close(fig)
+    save(fig, "fig_rare_bottleneck_ranks")
+    plt.close(fig)
 
 
 def fmt_w(w, uniform=1 / 9):
-    return ("0 (limit)" if w == 0 else
-            ("1/%d (uniform)" % round(1 / uniform) if abs(w - uniform) < 1e-12 else "1/%d" % round(1 / w)))
+    return (
+        "0 (limit)"
+        if w == 0
+        else (
+            "1/%d (uniform)" % round(1 / uniform)
+            if abs(w - uniform) < 1e-12
+            else "1/%d" % round(1 / w)
+        )
+    )
 
 
 def print_tables(closed, trained):
     for d in RANKS:
-        log(f"\n=== construction (a) row reweighting, d={d}: gap fraction (C, D mean of {len(SEEDS)} seeds) ===")
-        log("w | A gap | C gap | D gap | A bn share of obj | A bn share of target | A cost of keeping gap "
-            "(abs, rel; ordinary part, bottleneck part) | D bn share of obj | A retained | D retained | A+ retained | A limit")
+        log(
+            f"\n=== construction (a) row reweighting, d={d}: gap fraction (C, D mean of {len(SEEDS)} seeds) ==="
+        )
+        log(
+            "w | A gap | C gap | D gap | A bn share of obj | A bn share of target | A cost of keeping gap "
+            "(abs, rel; ordinary part, bottleneck part) | D bn share of obj | A retained | D retained | A+ retained | A limit"
+        )
         for w in W_SWEEP:
             a = sel(closed, construction="reweight", w=float(w), d=d, arm="A")[0]
             c = agg(closed, construction="reweight", w=float(w), d=d, arm="C")
             dd = agg(closed, construction="reweight", w=float(w), d=d, arm="D")
-            ds = agg(closed, "bn_share_obj", construction="reweight", w=float(w), d=d, arm="D")[0]
-            dr = agg(closed, "retained_mass", construction="reweight", w=float(w), d=d, arm="D")[0]
+            ds = agg(
+                closed,
+                "bn_share_obj",
+                construction="reweight",
+                w=float(w),
+                d=d,
+                arm="D",
+            )[0]
+            dr = agg(
+                closed,
+                "retained_mass",
+                construction="reweight",
+                w=float(w),
+                d=d,
+                arm="D",
+            )[0]
             ap = sel(closed, construction="reweight", w=float(w), d=d, arm="A+")[0]
-            log(f"{fmt_w(w)} | {float(a['gap_ratio']):.3f} | {c[0]:.3f} [{c[1]:.3f},{c[2]:.3f}] | "
+            log(
+                f"{fmt_w(w)} | {float(a['gap_ratio']):.3f} | {c[0]:.3f} [{c[1]:.3f},{c[2]:.3f}] | "
                 f"{dd[0]:.3f} [{dd[1]:.3f},{dd[2]:.3f}] | {float(a['bn_share_obj']):.4f} | "
                 f"{float(a['bn_share_target']):.4f} | {float(a['cost_preserve']):.4f}, "
                 f"{float(a['cost_preserve_rel']):.3f}; {float(a['cost_preserve_ord']):.4f}, "
                 f"{float(a['cost_preserve_bn']):.4f} | {ds:.4f} | {float(a['retained_mass']):.3f} | "
-                f"{dr:.3f} | {float(ap['retained_mass']):.3f} | {float(a['limit_gap_ratio']):.3f}")
+                f"{dr:.3f} | {float(ap['retained_mass']):.3f} | {float(a['limit_gap_ratio']):.3f}"
+            )
     for d in RANKS:
         log(f"\n=== construction (b) structural rarity, d={d} ===")
-        log("N | n | w=1/n | A gap | C gap | D gap | A bn share of obj | A bn share of target | A cost (abs, rel) | D bn share | A limit (P_d^0 of the ordinary rows)")
+        log(
+            "N | n | w=1/n | A gap | C gap | D gap | A bn share of obj | A bn share of target | A cost (abs, rel) | D bn share | A limit (P_d^0 of the ordinary rows)"
+        )
         for N in N_SWEEP:
             a = sel(closed, construction="structural", N=N, d=d, arm="A")[0]
             c = agg(closed, construction="structural", N=N, d=d, arm="C")
             dd = agg(closed, construction="structural", N=N, d=d, arm="D")
-            ds = agg(closed, "bn_share_obj", construction="structural", N=N, d=d, arm="D")[0]
-            log(f"{N} | {a['n']} | {float(a['w']):.4f} | {float(a['gap_ratio']):.3f} | "
+            ds = agg(
+                closed, "bn_share_obj", construction="structural", N=N, d=d, arm="D"
+            )[0]
+            log(
+                f"{N} | {a['n']} | {float(a['w']):.4f} | {float(a['gap_ratio']):.3f} | "
                 f"{c[0]:.3f} [{c[1]:.3f},{c[2]:.3f}] | {dd[0]:.3f} [{dd[1]:.3f},{dd[2]:.3f}] | "
                 f"{float(a['bn_share_obj']):.4f} | {float(a['bn_share_target']):.4f} | "
                 f"{float(a['cost_preserve']):.4f}, {float(a['cost_preserve_rel']):.3f} | {ds:.4f} | "
-                f"{float(a['limit_gap_ratio']):.3f}")
+                f"{float(a['limit_gap_ratio']):.3f}"
+            )
     if trained:
-        log(f"\n=== TD-trained, d={TRAIN_RANK}: gap fraction, mean of 10 runs [95% t-interval]; per-rate means ===")
-        for cons, keyname, keys in (("reweight", "w", [w for w in W_SWEEP if w > 0]), ("structural", "N", N_SWEEP)):
+        log(
+            f"\n=== TD-trained, d={TRAIN_RANK}: gap fraction, mean of 10 runs [95% t-interval]; per-rate means ==="
+        )
+        for cons, keyname, keys in (
+            ("reweight", "w", [w for w in W_SWEEP if w > 0]),
+            ("structural", "N", N_SWEEP),
+        ):
             log(f"--- {cons} ---")
             for k in keys:
                 kw = {keyname: (float(k) if keyname == "w" else int(k))}
                 parts = []
                 for arm in ("A", "C", "D"):
                     m = agg(trained, construction=cons, d=TRAIN_RANK, arm=arm, **kw)
-                    per = [agg(trained, construction=cons, d=TRAIN_RANK, arm=arm, lr=float(lr), **kw)[0]
-                           for lr in TRAIN_RATES]
-                    ok = np.mean([float(str(r["argmax_correct"]) == "True") for r in
-                                  sel(trained, construction=cons, d=TRAIN_RANK, arm=arm, **kw)])
-                    parts.append(f"{arm} {m[0]:.3f} [{m[1]:.3f},{m[2]:.3f}] (lr {per[0]:.3f}/{per[1]:.3f}; argmax ok {ok:.1f})")
+                    per = [
+                        agg(
+                            trained,
+                            construction=cons,
+                            d=TRAIN_RANK,
+                            arm=arm,
+                            lr=float(lr),
+                            **kw,
+                        )[0]
+                        for lr in TRAIN_RATES
+                    ]
+                    ok = np.mean(
+                        [
+                            float(str(r["argmax_correct"]) == "True")
+                            for r in sel(
+                                trained, construction=cons, d=TRAIN_RANK, arm=arm, **kw
+                            )
+                        ]
+                    )
+                    parts.append(
+                        f"{arm} {m[0]:.3f} [{m[1]:.3f},{m[2]:.3f}] (lr {per[0]:.3f}/{per[1]:.3f}; argmax ok {ok:.1f})"
+                    )
                 label = fmt_w(k) if keyname == "w" else f"N={k}"
                 log(f"{label} | " + " | ".join(parts))
-    log("\n=== D: predicted vs exact goal mass on the two state-7 rows (construction a, d=3, seed mean) ===")
+    log(
+        "\n=== D: predicted vs exact goal mass on the two state-7 rows (construction a, d=3, seed mean) ==="
+    )
     for w in W_SWEEP:
         d = 3 if 3 in RANKS else RANKS[0]
-        g0 = agg(closed, "bn_goal_mass_0", construction="reweight", w=float(w), d=d, arm="D")[0]
-        g1 = agg(closed, "bn_goal_mass_1", construction="reweight", w=float(w), d=d, arm="D")[0]
+        g0 = agg(
+            closed, "bn_goal_mass_0", construction="reweight", w=float(w), d=d, arm="D"
+        )[0]
+        g1 = agg(
+            closed, "bn_goal_mass_1", construction="reweight", w=float(w), d=d, arm="D"
+        )[0]
         r0 = sel(closed, construction="reweight", w=float(w), d=d, arm="D")[0]
-        log(f"{fmt_w(w)} | action 0: {g0:.4f} (exact {float(r0['bn_goal_mass_0_true']):.4f}) | "
-            f"action 1: {g1:.4f} (exact {float(r0['bn_goal_mass_1_true']):.4f})")
+        log(
+            f"{fmt_w(w)} | action 0: {g0:.4f} (exact {float(r0['bn_goal_mass_0_true']):.4f}) | "
+            f"action 1: {g1:.4f} (exact {float(r0['bn_goal_mass_1_true']):.4f})"
+        )
 
 
 def write_csv(rows, name):
@@ -760,7 +1231,9 @@ def write_csv(rows, name):
             if k not in keys:
                 keys.append(k)
     with open(HERE / name, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=keys); w.writeheader(); w.writerows(rows)
+        w = csv.DictWriter(f, fieldnames=keys)
+        w.writeheader()
+        w.writerows(rows)
     log(f"wrote {HERE / name} ({len(rows)} rows)")
 
 
@@ -775,11 +1248,13 @@ if __name__ == "__main__":
         closed, trained = read_csv("closed.csv"), read_csv("trained.csv")
     else:
         run_sanity()
-        closed = sweep_closed(); write_csv(closed, "closed.csv")
+        closed = sweep_closed()
+        write_csv(closed, "closed.csv")
         if "--closed-only" in sys.argv:
             trained = read_csv("trained.csv")
         else:
-            trained = sweep_trained(); write_csv(trained, "trained.csv")
+            trained = sweep_trained()
+            write_csv(trained, "trained.csv")
     make_figures(closed, trained)
     print_tables(closed, trained)
     log(f"\ntotal wall time {time.time() - t0:.0f}s")

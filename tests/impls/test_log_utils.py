@@ -1,11 +1,12 @@
-
 import pytest
 
-from impls.utils.log_utils import get_exp_name, setup_wandb, CsvLogger
+from impls.utils.log_utils import CsvLogger, get_exp_name, setup_wandb
 
 
 def test_exp_name_includes_pair_and_env():
-    name = get_exp_name(3, critic="density_fb", actor="ddpgbc", env_name="cube-single-play-v0")
+    name = get_exp_name(
+        3, critic="density_fb", actor="ddpgbc", env_name="cube-single-play-v0"
+    )
     assert "density_fb" in name and "ddpgbc" in name and "3" in name
 
 
@@ -46,8 +47,9 @@ def test_csv_logger_reopen_appends_instead_of_truncating(tmp_path):
     assert lines.count("loss,step") == 1, "exactly one header line"
     assert lines[0] == "loss,step"
     body = lines[1:]
-    assert body == ["1.0,1", "0.9,2", "0.5,3", "0.4,4"], \
+    assert body == ["1.0,1", "0.9,2", "0.5,3", "0.4,4"], (
         "pre-resume rows (steps 1-2) and post-resume rows (steps 3-4) must both survive"
+    )
 
 
 def test_csv_logger_warns_when_it_drops_a_column(tmp_path):
@@ -60,7 +62,9 @@ def test_csv_logger_warns_when_it_drops_a_column(tmp_path):
 
     lg2 = CsvLogger(str(p))
     with pytest.warns(UserWarning, match="inferred_cond"):
-        lg2.log({"success": 0.9, "inferred_cond": 1.0, "inferred_cond_norm": 3.7}, step=200)
+        lg2.log(
+            {"success": 0.9, "inferred_cond": 1.0, "inferred_cond_norm": 3.7}, step=200
+        )
     lg2.close()
 
     assert p.read_text().strip().splitlines()[0] == "success,step"
@@ -70,6 +74,6 @@ def test_csv_logger_does_not_warn_on_a_matching_row(tmp_path, recwarn):
     p = tmp_path / "train.csv"
     lg = CsvLogger(str(p))
     lg.log({"loss": 1.0}, step=1)
-    lg.log({"loss": 0.9}, step=2)         # same keys -> nothing to drop
+    lg.log({"loss": 0.9}, step=2)  # same keys -> nothing to drop
     lg.close()
     assert not [w for w in recwarn if "DROPPED" in str(w.message)]

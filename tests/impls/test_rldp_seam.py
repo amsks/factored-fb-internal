@@ -1,14 +1,16 @@
 """RLDPCritic: FB critic whose backward map is trained by multi-step latent prediction."""
+
 import jax
+
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from impls.agents import Agent, CRITICS, _LR_KEY
+from impls.agents import _LR_KEY, CRITICS, Agent
 from impls.critics.rldp import RLDPCritic
-from impls.utils.config_utils import load_config, ConfigError
-from impls.utils.datasets import make_dataset, Dataset
+from impls.utils.config_utils import ConfigError, load_config
+from impls.utils.datasets import Dataset, make_dataset
 
 B, OBS, ACT, Z, L, H, P, HOR = 6, 12, 4, 5, 5, 16, 2, 4
 ACTOR_FAMILIES = ("flowbc", "ddpgbc")
@@ -16,9 +18,20 @@ ACTOR_FAMILIES = ("flowbc", "ddpgbc")
 
 def _cfg(**over):
     cfg = dict(
-        seed=0, batch_size=B, z_dim=Z, L_dim=L, num_parallel=P, discount=0.99,
-        f_target_tau=0.005, b_target_tau=0.005, ortho_coef=1.0, train_goal_ratio=0.5,
-        norm_z=True, lr_f=1e-4, lr_b=1e-4, lr_actor=1e-4,
+        seed=0,
+        batch_size=B,
+        z_dim=Z,
+        L_dim=L,
+        num_parallel=P,
+        discount=0.99,
+        f_target_tau=0.005,
+        b_target_tau=0.005,
+        ortho_coef=1.0,
+        train_goal_ratio=0.5,
+        norm_z=True,
+        lr_f=1e-4,
+        lr_b=1e-4,
+        lr_actor=1e-4,
         horizon=HOR,
         forward=dict(hidden_dim=H, hidden_layers=2, embedding_layers=2),
         backward=dict(hidden_dim=H, hidden_layers=4, norm=True),
@@ -32,8 +45,10 @@ def _cfg(**over):
 
 def _ex():
     rng = np.random.default_rng(0)
-    return (jnp.asarray(rng.standard_normal((B, OBS))),
-            jnp.asarray(np.tanh(rng.standard_normal((B, ACT)))))
+    return (
+        jnp.asarray(rng.standard_normal((B, OBS))),
+        jnp.asarray(np.tanh(rng.standard_normal((B, ACT)))),
+    )
 
 
 def _batch(seed=1, b=B, h=HOR):
@@ -51,7 +66,9 @@ def _batch(seed=1, b=B, h=HOR):
     )
     if h > 1:
         out["future_observations"] = jnp.asarray(rng.standard_normal((b, h - 1, OBS)))
-        out["future_actions"] = jnp.asarray(np.tanh(rng.standard_normal((b, h - 1, ACT))))
+        out["future_actions"] = jnp.asarray(
+            np.tanh(rng.standard_normal((b, h - 1, ACT)))
+        )
     return out
 
 
@@ -90,13 +107,18 @@ def _np_phi(p, x, hidden_layers, norm):
 
 def _np_predictor(p, x, action, hidden_layers):
     """PredictorMap in numpy; x is [P, B, in], action is [B, adim]."""
+
     def g(k, h):
-        return (np.asarray(p["tower"][k]["kernel"][h], np.float64),
-                np.asarray(p["tower"][k]["bias"][h], np.float64))
+        return (
+            np.asarray(p["tower"][k]["kernel"][h], np.float64),
+            np.asarray(p["tower"][k]["bias"][h], np.float64),
+        )
 
     def ln(k, h):
-        return (np.asarray(p["tower"][k]["scale"][h], np.float64),
-                np.asarray(p["tower"][k]["bias"][h], np.float64))
+        return (
+            np.asarray(p["tower"][k]["scale"][h], np.float64),
+            np.asarray(p["tower"][k]["bias"][h], np.float64),
+        )
 
     outs = []
     for h in range(x.shape[0]):
@@ -139,8 +161,10 @@ def _np_sp(critic, params, target, batch, cfg):
         actions += [fa[:, i] for i in range(fa.shape[1])]
 
     ys = [_np_phi(target["backward"], s, hl_b, norm_b) for s in tgt_states]
-    curr = np.broadcast_to(_np_phi(params["backward"], obs, hl_b, norm_b)[None],
-                           (cfg["num_parallel"], obs.shape[0], cfg["z_dim"]))
+    curr = np.broadcast_to(
+        _np_phi(params["backward"], obs, hl_b, norm_b)[None],
+        (cfg["num_parallel"], obs.shape[0], cfg["z_dim"]),
+    )
     sp = 0.0
     for a_t, y_t in zip(actions, ys):
         curr = _np_predictor(params["predictor"], curr, a_t, hl_p)
@@ -170,8 +194,9 @@ def test_sp_loss_reads_every_window_column():
             arr = np.asarray(batch[key]).copy()
             arr[:, k] += 1.0
             bumped[key] = jnp.asarray(arr)
-            assert float(critic._sp_loss(params, target, bumped)[0]) != base, \
+            assert float(critic._sp_loss(params, target, bumped)[0]) != base, (
                 f"{key} column {k} is not read by the SP rollout"
+            )
 
 
 def test_sp_pairs_on_a_real_window_have_the_right_alignment():
@@ -185,19 +210,26 @@ def test_sp_pairs_on_a_real_window_have_the_right_alignment():
     terminals[np.arange(1, n_traj + 1) * T - 1] = 1.0
     obs = rng.standard_normal((n, OBS)).astype(np.float32)
     acts = np.tanh(rng.standard_normal((n, ACT))).astype(np.float32)
-    obs[:, 0] = np.arange(n)                          # row tag
-    acts[:, 0] = np.arange(n)                         # row tag
-    ds = make_dataset(Dataset.create(observations=obs, actions=acts, terminals=terminals),
-                      _cfg())
-    idxs = np.array([0, 3, 12, 2 * T + 5])            # idx + h <= trajectory end
+    obs[:, 0] = np.arange(n)  # row tag
+    acts[:, 0] = np.arange(n)  # row tag
+    ds = make_dataset(
+        Dataset.create(observations=obs, actions=acts, terminals=terminals), _cfg()
+    )
+    idxs = np.array([0, 3, 12, 2 * T + 5])  # idx + h <= trajectory end
     batch = ds.sample(len(idxs), idxs=idxs)
     actions, targets = critic._sp_pairs(batch)
     assert len(actions) == len(targets) == h
     for k in range(1, h + 1):
-        np.testing.assert_allclose(np.asarray(actions[k - 1])[:, 0], idxs + k - 1,
-                                   err_msg=f"rollout step {k} does not apply a_(t+{k - 1})")
-        np.testing.assert_allclose(np.asarray(targets[k - 1])[:, 0], idxs + k,
-                                   err_msg=f"rollout step {k} does not target s_(t+{k})")
+        np.testing.assert_allclose(
+            np.asarray(actions[k - 1])[:, 0],
+            idxs + k - 1,
+            err_msg=f"rollout step {k} does not apply a_(t+{k - 1})",
+        )
+        np.testing.assert_allclose(
+            np.asarray(targets[k - 1])[:, 0],
+            idxs + k,
+            err_msg=f"rollout step {k} does not target s_(t+{k})",
+        )
 
 
 def test_sp_targets_come_from_the_TARGET_backward_map():
@@ -256,9 +288,11 @@ def test_windowed_dataset_feeds_the_critic_the_columns_it_expects():
     n, T = 40, 10
     terminals = np.zeros(n, np.float32)
     terminals[np.arange(1, n // T + 1) * T - 1] = 1.0
-    base = Dataset.create(observations=rng.standard_normal((n, OBS)).astype(np.float32),
-                          actions=rng.standard_normal((n, ACT)).astype(np.float32),
-                          terminals=terminals)
+    base = Dataset.create(
+        observations=rng.standard_normal((n, OBS)).astype(np.float32),
+        actions=rng.standard_normal((n, ACT)).astype(np.float32),
+        terminals=terminals,
+    )
     ds = make_dataset(base, cfg)
     b = ds.sample(8)
     assert b["future_observations"].shape == (8, 2, OBS)
@@ -274,7 +308,9 @@ def test_builds_and_updates_with_each_actor_family(actor):
     agent = Agent.create("rldp", actor, 0, ex_obs, ex_act, cfg)
     assert set(agent.net) >= {"forward", "backward", "left_encoder", "predictor"}
 
-    before = jax.tree_util.tree_map(np.asarray, {g: agent.net[g].params for g in agent.net})
+    before = jax.tree_util.tree_map(
+        np.asarray, {g: agent.net[g].params for g in agent.net}
+    )
     batch = _batch()
     agent, info = agent.update(batch)
     for k, v in info.items():
@@ -282,9 +318,13 @@ def test_builds_and_updates_with_each_actor_family(actor):
     assert "sp_loss" in info
     after = {g: agent.net[g].params for g in agent.net}
     for g in before:
-        moved = any(not np.array_equal(np.asarray(a), np.asarray(b_))
-                    for a, b_ in zip(jax.tree_util.tree_leaves(before[g]),
-                                     jax.tree_util.tree_leaves(after[g])))
+        moved = any(
+            not np.array_equal(np.asarray(a), np.asarray(b_))
+            for a, b_ in zip(
+                jax.tree_util.tree_leaves(before[g]),
+                jax.tree_util.tree_leaves(after[g]),
+            )
+        )
         assert moved, f"group {g!r} did not move after one update with actor {actor!r}"
 
 
@@ -305,8 +345,12 @@ def test_the_sp_term_is_what_trains_the_predictor():
     critic, params, target = RLDPCritic.build(*_ex(), cfg)
     batch = _batch()
     g = jax.grad(lambda p: critic._sp_loss({**params, **p}, target, batch)[0])(
-        {"predictor": params["predictor"]})
-    assert any(float(jnp.sum(jnp.abs(l))) > 0 for l in jax.tree_util.tree_leaves(g["predictor"]))
+        {"predictor": params["predictor"]}
+    )
+    assert any(
+        float(jnp.sum(jnp.abs(l))) > 0
+        for l in jax.tree_util.tree_leaves(g["predictor"])
+    )
 
 
 def test_stage_loss_is_the_sum_of_its_reported_parts():
@@ -316,8 +360,12 @@ def test_stage_loss_is_the_sum_of_its_reported_parts():
     batch, boot = _batch(), _boot()
     cond = {"z": jnp.asarray(np.random.default_rng(3).standard_normal((B, Z)))}
     loss, info = critic.stage_loss("fb", params, target, batch, cond, boot)
-    recon = (info["fb_offdiag"] + info["fb_diag"] + info["sp_loss"]
-             + cfg["ortho_coef"] * info["ortho_loss"])
+    recon = (
+        info["fb_offdiag"]
+        + info["fb_diag"]
+        + info["sp_loss"]
+        + cfg["ortho_coef"] * info["ortho_loss"]
+    )
     np.testing.assert_allclose(float(loss), float(recon), atol=1e-10)
     np.testing.assert_allclose(float(info["fb_loss"]), float(loss), atol=0)
 
@@ -327,8 +375,11 @@ def test_stage_loss_itself_sends_no_backward_gradient_through_the_fb_residual():
     cfg = _cfg(ortho_coef=0.0)
     critic, params, target = RLDPCritic.build(*_ex(), cfg)
     batch, boot = _batch(), _boot()
-    cond = critic.sample_cond({"backward": type("S", (), {"params": params["backward"]})},
-                              batch, jax.random.PRNGKey(0))
+    cond = critic.sample_cond(
+        {"backward": type("S", (), {"params": params["backward"]})},
+        batch,
+        jax.random.PRNGKey(0),
+    )
 
     def full(p):
         return critic.stage_loss("fb", {**params, **p}, target, batch, cond, boot)[0]
@@ -343,8 +394,10 @@ def test_stage_loss_itself_sends_no_backward_gradient_through_the_fb_residual():
 
     # The residual trains F, and the SP term reaches B.
     g_fwd = jax.grad(full)({"forward": params["forward"]})["forward"]
-    assert any(float(np.abs(np.asarray(l)).sum()) > 0
-               for l in jax.tree_util.tree_leaves(g_fwd)), "the FB residual is dead"
-    assert any(float(np.abs(np.asarray(l)).sum()) > 0
-               for l in jax.tree_util.tree_leaves(g_full)), \
-        "the backward map gets no gradient at all -- the comparison above is vacuous"
+    assert any(
+        float(np.abs(np.asarray(l)).sum()) > 0 for l in jax.tree_util.tree_leaves(g_fwd)
+    ), "the FB residual is dead"
+    assert any(
+        float(np.abs(np.asarray(l)).sum()) > 0
+        for l in jax.tree_util.tree_leaves(g_full)
+    ), "the backward map gets no gradient at all -- the comparison above is vacuous"

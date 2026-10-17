@@ -1,14 +1,22 @@
 def test_short_train_and_checkpoint(tmp_path):
     import jax.numpy as jnp
+
     from impls.agents import Agent
     from impls.utils.config_utils import load_config
     from impls.utils.env_utils import make_env_and_datasets
-    from impls.utils.flax_utils import save_agent, restore_agent
+    from impls.utils.flax_utils import restore_agent, save_agent
 
     env, train_ds, _ = make_env_and_datasets("cube-single-play-v0")
     cfg = load_config("fb", "flowbc", "cube_single")
     ex = train_ds.sample(2)
-    agent = Agent.create("fb", "flowbc", 0, jnp.asarray(ex["observations"]), jnp.asarray(ex["actions"]), cfg)
+    agent = Agent.create(
+        "fb",
+        "flowbc",
+        0,
+        jnp.asarray(ex["observations"]),
+        jnp.asarray(ex["actions"]),
+        cfg,
+    )
 
     infos = []
     for _ in range(10):

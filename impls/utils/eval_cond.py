@@ -1,4 +1,5 @@
 """Agent wrapper for reward-inference evaluation."""
+
 import jax.numpy as jnp
 
 
@@ -24,19 +25,25 @@ class InferredCondAgent:
         self.action_calls += 1
         if goals is not None:
             self.goals_dropped += 1
-        return self.agent.sample_actions(observations, goals=None, seed=seed,
-                                         temperature=temperature)
+        return self.agent.sample_actions(
+            observations, goals=None, seed=seed, temperature=temperature
+        )
 
     def witness(self):
         """Logging scalars describing the conditioning used."""
-        norms = {k: float(jnp.linalg.norm(jnp.asarray(v).ravel()))
-                 for k, v in self.cond_eval.items() if not k.startswith("_")}
+        norms = {
+            k: float(jnp.linalg.norm(jnp.asarray(v).ravel()))
+            for k, v in self.cond_eval.items()
+            if not k.startswith("_")
+        }
         primary = "z" if "z" in norms else (sorted(norms)[0] if norms else None)
-        return {"inferred_cond": 1.0,
-                "inferred_cond_action_calls": float(self.action_calls),
-                "inferred_cond_goals_dropped": float(self.goals_dropped),
-                "inferred_cond_norm": norms.get(primary, float("nan")),
-                "inferred_cond_cos_neutral": self._cos_neutral(primary)}
+        return {
+            "inferred_cond": 1.0,
+            "inferred_cond_action_calls": float(self.action_calls),
+            "inferred_cond_goals_dropped": float(self.goals_dropped),
+            "inferred_cond_norm": norms.get(primary, float("nan")),
+            "inferred_cond_cos_neutral": self._cos_neutral(primary),
+        }
 
     def _cos_neutral(self, primary):
         """cos(cond, 1_d); 1.0 means the constant-reward fallback z was used."""
@@ -46,5 +53,3 @@ class InferredCondAgent:
         n = jnp.linalg.norm(v)
         ones = jnp.ones_like(v)
         return float(jnp.where(n > 0, v.sum() / (n * jnp.linalg.norm(ones)), jnp.nan))
-
-

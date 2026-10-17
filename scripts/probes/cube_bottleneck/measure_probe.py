@@ -3,6 +3,7 @@
 Pass A rolls out the BC actor to label p_secure per (state, action); Pass B reads both critics
 on the same (state, action) pairs against a shared pool.
 """
+
 import os
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -39,6 +40,7 @@ G4_MIN_STATES = 40
 
 # Shared pool
 
+
 def build_pool(env_name: str, out_dir: Path) -> Dict[str, np.ndarray]:
     """Build and cache 1024 dataset states with phase labels, fixed by `POOL_SEED`."""
     f = out_dir / "pool.npz"
@@ -48,8 +50,9 @@ def build_pool(env_name: str, out_dir: Path) -> Dict[str, np.ndarray]:
     rng = np.random.default_rng(POOL_SEED)
     sel = np.sort(rng.choice(len(raw["observations"]), size=POOL_SIZE, replace=False))
     obs = raw["observations"][sel]
-    held = ((obs[:, BK.CONTACT_IDX] > BK.CONTACT_THRESH)
-            & (raw["qpos"][sel][:, BK.CUBE_QPOS_Z] > BK.LIFT_THRESH))
+    held = (obs[:, BK.CONTACT_IDX] > BK.CONTACT_THRESH) & (
+        raw["qpos"][sel][:, BK.CUBE_QPOS_Z] > BK.LIFT_THRESH
+    )
     pool = dict(row=sel.astype(np.int64), obs=obs, held=held.astype(np.int8))
     np.savez(f, **pool)
     return pool
@@ -57,18 +60,31 @@ def build_pool(env_name: str, out_dir: Path) -> Dict[str, np.ndarray]:
 
 # Action set
 
-def action_set(actor_fn, obs: np.ndarray, goal, dataset_action: np.ndarray,
-               rng: np.random.Generator, action_dim: int) -> np.ndarray:
+
+def action_set(
+    actor_fn,
+    obs: np.ndarray,
+    goal,
+    dataset_action: np.ndarray,
+    rng: np.random.Generator,
+    action_dim: int,
+) -> np.ndarray:
     """12 actions: dataset action, 6 policy draws, dataset action with gripper at each extreme, 3 uniform."""
     acts = [np.asarray(dataset_action, np.float32)]
     # Policy draws in one batched call
-    draws = np.asarray(actor_fn(observations=np.repeat(np.asarray(obs)[None], 6, axis=0),
-                                goals=np.repeat(np.asarray(goal)[None], 6, axis=0),
-                                temperature=1.0))
+    draws = np.asarray(
+        actor_fn(
+            observations=np.repeat(np.asarray(obs)[None], 6, axis=0),
+            goals=np.repeat(np.asarray(goal)[None], 6, axis=0),
+            temperature=1.0,
+        )
+    )
     for d in draws:
         acts.append(np.clip(d, -1, 1).astype(np.float32))
-    closed = np.asarray(dataset_action, np.float32).copy(); closed[-1] = +1.0
-    opened = np.asarray(dataset_action, np.float32).copy(); opened[-1] = -1.0
+    closed = np.asarray(dataset_action, np.float32).copy()
+    closed[-1] = +1.0
+    opened = np.asarray(dataset_action, np.float32).copy()
+    opened[-1] = -1.0
     acts += [closed, opened]
     for _ in range(3):
         acts.append(rng.uniform(-1, 1, size=action_dim).astype(np.float32))
@@ -78,6 +94,7 @@ def action_set(actor_fn, obs: np.ndarray, goal, dataset_action: np.ndarray,
 
 
 # Pass A: ground truth
+
 
 def make_env_pool(env_name: str, n: int) -> List[Any]:
     """Make `n` envs to step in lockstep with one batched actor call."""
@@ -100,15 +117,23 @@ def p_secure_for_state(actor_fn, envs, qpos, qvel, acts, goals, thr) -> np.ndarr
             e.reset(options=dict(task_id=task_id, render_goal=False))
             R.set_state(e, qpos, qvel)
             R.settle(e)
-            ob, _r, term, trunc, _i = e.step(np.clip(np.asarray(acts[ai], np.float32), -1, 1))
-            obs.append(np.asarray(ob, np.float32)); goal_b.append(goal)
-            alive.append(not (term or trunc)); slots.append((ai, k, m))
-    obs = np.stack(obs); goal_b = np.stack(goal_b); alive = np.asarray(alive)
+            ob, _r, term, trunc, _i = e.step(
+                np.clip(np.asarray(acts[ai], np.float32), -1, 1)
+            )
+            obs.append(np.asarray(ob, np.float32))
+            goal_b.append(goal)
+            alive.append(not (term or trunc))
+            slots.append((ai, k, m))
+    obs = np.stack(obs)
+    goal_b = np.stack(goal_b)
+    alive = np.asarray(alive)
 
     for _ in range(HORIZON - 1):
         if not alive.any():
             break
-        a = np.clip(np.asarray(actor_fn(observations=obs, goals=goal_b, temperature=1.0)), -1, 1)
+        a = np.clip(
+            np.asarray(actor_fn(observations=obs, goals=goal_b, temperature=1.0)), -1, 1
+        )
         for j, (_ai, _k, m) in enumerate(slots):
             if not alive[j]:
                 continue
@@ -123,20 +148,28 @@ def p_secure_for_state(actor_fn, envs, qpos, qvel, acts, goals, thr) -> np.ndarr
         R.forward(e)
         u = e.unwrapped
         cube_z = float(u._data.qpos[R.CUBE_QPOS][2])
-        table_z = float(u.cur_task_info["init_xyzs"][int(getattr(u, "_target_block", 0) or 0)][2])
+        table_z = float(
+            u.cur_task_info["init_xyzs"][int(getattr(u, "_target_block", 0) or 0)][2]
+        )
         grip = float(R.observation(e)[17] / R.GRIPPER_SCALER)
         out[ai] += int((cube_z - table_z) > thr.delta_lift and grip > thr.tau_grip)
     return out / N_CONT
 
 
-def ground_truth(arm, banks: Dict[str, Dict[str, np.ndarray]], out_dir: Path,
-                 thr: PhaseThresholds, tag: str = "",
-                 state_slice: Optional[slice] = None) -> Dict[str, Any]:
+def ground_truth(
+    arm,
+    banks: Dict[str, Dict[str, np.ndarray]],
+    out_dir: Path,
+    thr: PhaseThresholds,
+    tag: str = "",
+    state_slice: Optional[slice] = None,
+) -> Dict[str, Any]:
     """Pass A over P2 states and the P1/P3 controls, for one slice of states.
 
     The action rng is seeded per state, so results do not depend on slicing.
     """
     import jax
+
     from impls.utils.evaluation import supply_rng
 
     part = out_dir / "gt_parts"
@@ -177,24 +210,32 @@ def ground_truth(arm, banks: Dict[str, Dict[str, np.ndarray]], out_dir: Path,
             R.set_state(env, bank["qpos"][i], bank["qvel"][i])
             R.settle(env)
             ob = R.observation(env)
-            acts = action_set(actor_fn, ob, goals[0][1], bank["action"][i], rng, action_dim)
+            acts = action_set(
+                actor_fn, ob, goals[0][1], bank["action"][i], rng, action_dim
+            )
             acts_all[slot] = acts
-            psec_all[slot] = p_secure_for_state(actor_fn, pool_envs, bank["qpos"][i],
-                                                bank["qvel"][i], acts, goals, thr)
+            psec_all[slot] = p_secure_for_state(
+                actor_fn, pool_envs, bank["qpos"][i], bank["qvel"][i], acts, goals, thr
+            )
             if (slot + 1) % 4 == 0:
                 print(f"    [{phase}] {slot + 1}/{n} states", flush=True)
         store[f"{phase}_actions"] = acts_all
         store[f"{phase}_p_secure"] = psec_all
         store[f"{phase}_index"] = np.asarray(idxs, np.int64)
         sd = psec_all.std(axis=1)
-        print(f"  [{phase}] p_secure std across actions: median {np.median(sd):.3f}, "
-              f"states with std>{G4_STD_MIN}: {int((sd > G4_STD_MIN).sum())}/{n}", flush=True)
+        print(
+            f"  [{phase}] p_secure std across actions: median {np.median(sd):.3f}, "
+            f"states with std>{G4_STD_MIN}: {int((sd > G4_STD_MIN).sum())}/{n}",
+            flush=True,
+        )
     store["_gt_arm"] = np.asarray(arm.label)
     np.savez(f, **store)
     return store
 
 
-def merge_ground_truth(out_dir: Path, phases, sizes: Dict[str, int], tag: str = "") -> Dict[str, Any]:
+def merge_ground_truth(
+    out_dir: Path, phases, sizes: Dict[str, int], tag: str = ""
+) -> Dict[str, Any]:
     """Merge sliced Pass A parts into ground_truth.npz; raise if any state is missing."""
     parts = sorted((out_dir / "gt_parts").glob(f"gt{tag}_*.npz"))
     if not parts:
@@ -211,19 +252,24 @@ def merge_ground_truth(out_dir: Path, phases, sizes: Dict[str, int], tag: str = 
                 continue
             idx = d[f"{phase}_index"]
             if acts.shape[-1] != d[f"{phase}_actions"].shape[-1]:
-                acts = np.full((n, N_ACTIONS, d[f"{phase}_actions"].shape[-1]), np.nan, np.float32)
+                acts = np.full(
+                    (n, N_ACTIONS, d[f"{phase}_actions"].shape[-1]), np.nan, np.float32
+                )
             acts[idx] = d[f"{phase}_actions"]
             psec[idx] = d[f"{phase}_p_secure"]
             seen[idx] = True
         if not seen.all():
-            raise ValueError(f"Pass A incomplete for {phase}: missing states "
-                             f"{np.flatnonzero(~seen).tolist()}")
+            raise ValueError(
+                f"Pass A incomplete for {phase}: missing states "
+                f"{np.flatnonzero(~seen).tolist()}"
+            )
         store[f"{phase}_actions"], store[f"{phase}_p_secure"] = acts, psec
     np.savez(out_dir / f"ground_truth{tag}.npz", **store)
     return store
 
 
 # Pass B: critic readouts
+
 
 def fb_readout(critic, net, obs, acts, z, pool_obs):
     """FB readout M(s,a,z;u) = F(s,a,z).B(u), min over heads."""
@@ -232,11 +278,11 @@ def fb_readout(critic, net, obs, acts, z, pool_obs):
     le = critic._le(net["left_encoder"].params, jnp.asarray(obs))
     # Broadcast z to the batch
     zb = jnp.broadcast_to(jnp.asarray(z), (len(acts), jnp.asarray(z).shape[-1]))
-    Fs = critic._F(net["forward"].params, le, zb, jnp.asarray(acts))               # [P,B,d]
-    Bm = critic._B(net["backward"].params, jnp.asarray(pool_obs))                  # [C,d]
+    Fs = critic._F(net["forward"].params, le, zb, jnp.asarray(acts))  # [P,B,d]
+    Bm = critic._B(net["backward"].params, jnp.asarray(pool_obs))  # [C,d]
     M = jnp.einsum("pbz,cz->pbc", Fs, Bm)
-    M = jnp.min(M, axis=0)                                                         # [B,C]
-    Q = jnp.min((Fs * zb).sum(-1), axis=0)                                         # [B]
+    M = jnp.min(M, axis=0)  # [B,C]
+    Q = jnp.min((Fs * zb).sum(-1), axis=0)  # [B]
     return np.asarray(M), np.asarray(Q)
 
 
@@ -253,19 +299,20 @@ def density_readout(critic, net, obs, acts, goal, pool_obs):
     f_p, b_p = net["density_f"].params, net["density_b"].params
     pool = jnp.asarray(pool_obs)
     u_sc = critic._b_query(pool)
-    b_emb = critic._B(b_p, u_sc)                                                   # [M,d]
+    b_emb = critic._B(b_p, u_sc)  # [M,d]
     g = jnp.broadcast_to(jnp.asarray(goal), (len(acts), len(goal)))
     f_emb = critic._F(f_p, jnp.asarray(obs), jnp.asarray(acts), g)
     w_heads = jax.nn.softmax(jnp.einsum("hbd,md->hbm", f_emb, b_emb) / critic.temp, -1)
-    w = jnp.mean(w_heads, axis=0)                                                  # [B,M]
+    w = jnp.mean(w_heads, axis=0)  # [B,M]
     # Actor readout: hit kernel in raw coordinates
     u_raw = _raw_block_cols(pool, critic.blocks)
-    kg = _delta_phi(jnp.asarray(goal)[None], u_raw, critic.blocks)                 # [1,M]
-    q = jnp.min((w_heads * kg[None]).sum(-1), axis=0)                              # [B]
+    kg = _delta_phi(jnp.asarray(goal)[None], u_raw, critic.blocks)  # [1,M]
+    q = jnp.min((w_heads * kg[None]).sum(-1), axis=0)  # [B]
     return np.asarray(w), np.asarray(q)
 
 
 # Metrics
+
 
 def _auc(scores: np.ndarray, labels: np.ndarray) -> float:
     """Within-state AUC by the rank formula; NaN when only one class is present."""
@@ -287,11 +334,14 @@ def _spearman(x: np.ndarray, y: np.ndarray) -> float:
     if len(x) < 2 or np.ptp(x) < 1e-12 or np.ptp(y) < 1e-12:
         return float("nan")
     import pandas as pd
-    rx = pd.Series(x).rank().to_numpy(); ry = pd.Series(y).rank().to_numpy()
+
+    rx = pd.Series(x).rank().to_numpy()
+    ry = pd.Series(y).rank().to_numpy()
     return float(np.corrcoef(rx, ry)[0, 1])
 
 
 # Pass B driver
+
 
 def readouts(arm, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
     """Every (phase, state, action, goal) readout for one arm."""
@@ -302,7 +352,9 @@ def readouts(arm, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
     tasks = A.eval_tasks(arm)
     pool_obs = pool["obs"]
     held_mask = pool["held"].astype(bool)
-    assert len(pool_obs) == POOL_SIZE, f"pool must be {POOL_SIZE} rows, got {len(pool_obs)}"
+    assert len(pool_obs) == POOL_SIZE, (
+        f"pool must be {POOL_SIZE} rows, got {len(pool_obs)}"
+    )
 
     goals = []
     for t in tasks:
@@ -325,23 +377,42 @@ def readouts(arm, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
                 if is_density:
                     w, q = density_readout(critic, net, obs_rep, acts, goal, pool_obs)
                     held_mass = w[:, held_mask].sum(-1)
-                    row_mass = w.mean(-1)          # always 1/M
+                    row_mass = w.mean(-1)  # always 1/M
                 else:
-                    z = np.asarray(critic.map_eval_cond(net, {"goal": jnp.asarray(goal)})["z"])
+                    z = np.asarray(
+                        critic.map_eval_cond(net, {"goal": jnp.asarray(goal)})["z"]
+                    )
                     M, q = fb_readout(critic, net, obs_rep, acts, z, pool_obs)
                     pos = np.maximum(M, 0.0)
                     denom = pos.sum(-1)
-                    held_mass = np.where(denom > 0, pos[:, held_mask].sum(-1) / np.maximum(denom, 1e-12), np.nan)
+                    held_mass = np.where(
+                        denom > 0,
+                        pos[:, held_mask].sum(-1) / np.maximum(denom, 1e-12),
+                        np.nan,
+                    )
                     row_mass = M.mean(-1)
                 for ai in range(len(acts)):
-                    rows.append(dict(env=arm.env_name, critic=arm.critic, seed=arm.seed,
-                                     phase=phase, state=i, action=ai, task=task_id,
-                                     p_secure=float(psec_all[i, ai]),
-                                     held_mass=float(held_mass[ai]),
-                                     row_mass=float(row_mass[ai]), q=float(q[ai]),
-                                     bank_row=int(bank["row"][i])))
-        print(f"  [{arm.label}] {phase}: {len(bank['qpos'])} states x {N_ACTIONS} actions "
-              f"x {len(goals)} goals", flush=True)
+                    rows.append(
+                        dict(
+                            env=arm.env_name,
+                            critic=arm.critic,
+                            seed=arm.seed,
+                            phase=phase,
+                            state=i,
+                            action=ai,
+                            task=task_id,
+                            p_secure=float(psec_all[i, ai]),
+                            held_mass=float(held_mass[ai]),
+                            row_mass=float(row_mass[ai]),
+                            q=float(q[ai]),
+                            bank_row=int(bank["row"][i]),
+                        )
+                    )
+        print(
+            f"  [{arm.label}] {phase}: {len(bank['qpos'])} states x {N_ACTIONS} actions "
+            f"x {len(goals)} goals",
+            flush=True,
+        )
     return rows
 
 
@@ -355,38 +426,69 @@ def main() -> int:
     ap.add_argument("--epoch", type=int, default=500000)
     ap.add_argument("--exp-root", default="exp")
     ap.add_argument("--out-root", default="analysis/cube_bottleneck")
-    ap.add_argument("--gt-only", action="store_true",
-                    help="compute the shared p_secure ground truth and stop")
-    ap.add_argument("--state-start", type=int, default=None,
-                    help="Pass A worker: first state index (inclusive)")
-    ap.add_argument("--state-end", type=int, default=None,
-                    help="Pass A worker: last state index (exclusive)")
-    ap.add_argument("--merge-gt", action="store_true",
-                    help="assemble the sliced Pass A parts and stop")
-    ap.add_argument("--max-states", type=int, default=0,
-                    help="truncate every bank to this many states (0 = all). Smoke runs "
-                         "only; results are cached under a separate tag so a truncated run "
-                         "can never be mistaken for the real ground truth.")
+    ap.add_argument(
+        "--gt-only",
+        action="store_true",
+        help="compute the shared p_secure ground truth and stop",
+    )
+    ap.add_argument(
+        "--state-start",
+        type=int,
+        default=None,
+        help="Pass A worker: first state index (inclusive)",
+    )
+    ap.add_argument(
+        "--state-end",
+        type=int,
+        default=None,
+        help="Pass A worker: last state index (exclusive)",
+    )
+    ap.add_argument(
+        "--merge-gt",
+        action="store_true",
+        help="assemble the sliced Pass A parts and stop",
+    )
+    ap.add_argument(
+        "--max-states",
+        type=int,
+        default=0,
+        help="truncate every bank to this many states (0 = all). Smoke runs "
+        "only; results are cached under a separate tag so a truncated run "
+        "can never be mistaken for the real ground truth.",
+    )
     args = ap.parse_args()
 
     out_dir = Path(args.out_root) / args.env
     out_dir.mkdir(parents=True, exist_ok=True)
     thr = PhaseThresholds()
     pool = build_pool(args.env, out_dir)
-    print(f"[pool] {len(pool['obs'])} rows, held fraction {pool['held'].mean():.3f}", flush=True)
+    print(
+        f"[pool] {len(pool['obs'])} rows, held fraction {pool['held'].mean():.3f}",
+        flush=True,
+    )
 
     pb = np.load(out_dir / "phase_banks.npz")
-    banks = {p: {k: pb[f"{p}_{k}"] for k in ("row", "obs", "action", "qpos", "qvel")}
-             for p in ("P2", "P1", "P3")}
+    banks = {
+        p: {k: pb[f"{p}_{k}"] for k in ("row", "obs", "action", "qpos", "qvel")}
+        for p in ("P2", "P1", "P3")
+    }
     tag = ""
     if args.max_states:
-        banks = {p: {k: v[:args.max_states] for k, v in b.items()} for p, b in banks.items()}
+        banks = {
+            p: {k: v[: args.max_states] for k, v in b.items()} for p, b in banks.items()
+        }
         tag = f"_smoke{args.max_states}"
-        print(f"[smoke] banks truncated to {args.max_states} states per phase", flush=True)
+        print(
+            f"[smoke] banks truncated to {args.max_states} states per phase", flush=True
+        )
 
     if args.merge_gt:
-        merge_ground_truth(out_dir, ("P2", "P1", "P3"),
-                           {p: len(b["qpos"]) for p, b in banks.items()}, tag=tag)
+        merge_ground_truth(
+            out_dir,
+            ("P2", "P1", "P3"),
+            {p: len(b["qpos"]) for p, b in banks.items()},
+            tag=tag,
+        )
         print(f"[gt] merged Pass A parts -> {out_dir / f'ground_truth{tag}.npz'}")
         return 0
 
@@ -398,30 +500,47 @@ def main() -> int:
     gt_arm = A.load_arm(runs[0]["run_dir"], args.epoch)
     R.ensure_cube_env(gt_arm.env)
     print(f"[gt] p_secure continuations under {gt_arm.label}'s flow actor", flush=True)
-    sl = (slice(args.state_start, args.state_end)
-          if args.state_start is not None or args.state_end is not None else None)
+    sl = (
+        slice(args.state_start, args.state_end)
+        if args.state_start is not None or args.state_end is not None
+        else None
+    )
     gt = ground_truth(gt_arm, banks, out_dir, thr, tag=tag, state_slice=sl)
     if sl is not None:
-        print(f"[gt] slice {sl.start}:{sl.stop} written; run --merge-gt when all are done")
+        print(
+            f"[gt] slice {sl.start}:{sl.stop} written; run --merge-gt when all are done"
+        )
         return 0
 
     # Check that P2 states are decision points
     sd = gt["P2_p_secure"].std(axis=1)
     n_ok = int((sd > G4_STD_MIN).sum())
-    g4 = dict(n_states=int(len(sd)), n_std_above=n_ok, required=G4_MIN_STATES,
-              median_std=float(np.median(sd)), passes=bool(n_ok >= G4_MIN_STATES),
-              p1_median_std=float(np.median(gt["P1_p_secure"].std(axis=1))),
-              p3_median_std=float(np.median(gt["P3_p_secure"].std(axis=1))))
+    g4 = dict(
+        n_states=int(len(sd)),
+        n_std_above=n_ok,
+        required=G4_MIN_STATES,
+        median_std=float(np.median(sd)),
+        passes=bool(n_ok >= G4_MIN_STATES),
+        p1_median_std=float(np.median(gt["P1_p_secure"].std(axis=1))),
+        p3_median_std=float(np.median(gt["P3_p_secure"].std(axis=1))),
+    )
     (out_dir / f"g4{tag}.json").write_text(json.dumps(g4, indent=2))
-    print(f"[G4] P2 states with p_secure std > {G4_STD_MIN}: {n_ok}/{len(sd)} "
-          f"(need {G4_MIN_STATES}) -> {'PASS' if g4['passes'] else 'FAIL'}", flush=True)
+    print(
+        f"[G4] P2 states with p_secure std > {G4_STD_MIN}: {n_ok}/{len(sd)} "
+        f"(need {G4_MIN_STATES}) -> {'PASS' if g4['passes'] else 'FAIL'}",
+        flush=True,
+    )
     if args.gt_only:
         return 0
 
     part_dir = out_dir / "measure_probe"
     part_dir.mkdir(parents=True, exist_ok=True)
     for r in runs:
-        arm = gt_arm if r["run_dir"] == runs[0]["run_dir"] else A.load_arm(r["run_dir"], args.epoch)
+        arm = (
+            gt_arm
+            if r["run_dir"] == runs[0]["run_dir"]
+            else A.load_arm(r["run_dir"], args.epoch)
+        )
         rows = readouts(arm, banks, gt, pool, out_dir)
         out = part_dir / f"{r['critic']}_seed{r['seed']}{tag}.csv"
         pd.DataFrame(rows).to_csv(out, index=False)

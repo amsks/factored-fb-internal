@@ -1,4 +1,5 @@
 """Task-vector normalization."""
+
 import jax.numpy as jnp
 
 

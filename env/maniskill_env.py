@@ -1,15 +1,16 @@
 """ManiSkill3 state-observation envs, built as the offline data was collected."""
+
 import os
 
 import numpy as np
 
 # task slug -> (env id, control mode, horizon); control mode sets the action dim of the data
 TASKS = {
-    "ms-pick-cube":  ("PickCube-v1",       "pd_ee_delta_pos",  25),
-    "ms-push-cube":  ("PushCube-v1",       "pd_ee_delta_pose", 25),
-    "ms-stack-cube": ("StackCube-v1",      "pd_ee_delta_pose", 25),
-    "ms-lift-peg":   ("LiftPegUpright-v1", "pd_ee_delta_pose", 25),
-    "ms-poke-cube":  ("PokeCube-v1",       "pd_ee_delta_pose", 25),
+    "ms-pick-cube": ("PickCube-v1", "pd_ee_delta_pos", 25),
+    "ms-push-cube": ("PushCube-v1", "pd_ee_delta_pose", 25),
+    "ms-stack-cube": ("StackCube-v1", "pd_ee_delta_pose", 25),
+    "ms-lift-peg": ("LiftPegUpright-v1", "pd_ee_delta_pose", 25),
+    "ms-poke-cube": ("PokeCube-v1", "pd_ee_delta_pose", 25),
 }
 
 
@@ -21,7 +22,11 @@ class ManiSkillWrapper:
         self._horizon = horizon
 
     def reset(self, seed=None, **kw):
-        obs, info = self.env.reset(seed=seed, **kw) if seed is not None else self.env.reset(**kw)
+        obs, info = (
+            self.env.reset(seed=seed, **kw)
+            if seed is not None
+            else self.env.reset(**kw)
+        )
         return np.asarray(obs, np.float32), info
 
     def step(self, action):
@@ -67,11 +72,22 @@ def make_maniskill_env(task, render_size=128, max_episode_steps=None):
     from mani_skill.utils.wrappers import CPUGymWrapper
 
     env_id, control_mode, horizon = TASKS[task]
-    limit = {} if max_episode_steps is None else dict(max_episode_steps=int(max_episode_steps))
-    env = gym.make(env_id, obs_mode="state", control_mode=control_mode, num_envs=1,
-                   render_mode="rgb_array",
-                   sensor_configs=dict(width=render_size, height=render_size),
-                   human_render_camera_configs=dict(width=render_size, height=render_size),
-                   reconfiguration_freq=None, sim_backend="auto", **limit)
+    limit = (
+        {}
+        if max_episode_steps is None
+        else dict(max_episode_steps=int(max_episode_steps))
+    )
+    env = gym.make(
+        env_id,
+        obs_mode="state",
+        control_mode=control_mode,
+        num_envs=1,
+        render_mode="rgb_array",
+        sensor_configs=dict(width=render_size, height=render_size),
+        human_render_camera_configs=dict(width=render_size, height=render_size),
+        reconfiguration_freq=None,
+        sim_backend="auto",
+        **limit,
+    )
     env = CPUGymWrapper(env, ignore_terminations=True)
     return ManiSkillWrapper(env, horizon), horizon
