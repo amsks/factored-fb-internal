@@ -144,11 +144,8 @@ def _mujoco_overlay():
         tried.append(f"{sp} (mujoco {ver})")
     _purge("mujoco", "dm_control")
     raise RuntimeError(
-        "no usable mujoco/dm_control pairing found: the running interpreter's own mujoco "
-        "cannot compile a dm_control model, and no overlay site-packages could "
-        f"(tried: {tried or 'none found'}). Set FB_MUJOCO_SITE_PACKAGES (colon-separated) "
-        "to a site-packages directory whose mujoco matches this dm_control, or install a "
-        "matching pair in the running venv."
+        f"no usable mujoco/dm_control pair (tried: {tried or 'none found'}); "
+        "set FB_MUJOCO_SITE_PACKAGES to a matching site-packages."
     )
 
 
@@ -376,11 +373,7 @@ def load_exorl(
         else:
             if phys is None:
                 raise ValueError(
-                    f"{fn} has no 'physics' array, so its rewards cannot be relabelled for "
-                    f"{rt!r}. The stored 'reward' column is the reward of the task the data "
-                    f"was COLLECTED under, not of this one (see this module's docstring), "
-                    f"so it is deliberately not used as a fallback: it would be silently "
-                    f"right on one task per domain and silently wrong on the rest."
+                    f"{fn} has no 'physics' array, cannot relabel rewards for {rt!r}."
                 )
             if env is None:
                 env = _load_dmc(domain, rt)

@@ -452,9 +452,7 @@ def main() -> int:
         "--max-states",
         type=int,
         default=0,
-        help="truncate every bank to this many states (0 = all). Smoke runs "
-        "only; results are cached under a separate tag so a truncated run "
-        "can never be mistaken for the real ground truth.",
+        help="truncate every bank to this many states (0 = all); smoke runs only",
     )
     args = ap.parse_args()
 

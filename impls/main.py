@@ -47,25 +47,17 @@ flags.DEFINE_string("save_dir", "exp/", "Checkpoint directory.")
 flags.DEFINE_bool(
     "auto_resume",
     False,
-    "Resume from the latest params_<N>.pkl in this run's own directory "
-    "(save_dir/exp_name), continuing at step N+1. With no checkpoint present "
-    "this is a fresh start, so a launcher can pass it unconditionally. "
-    "eval.csv/train.csv are appended, so the step axis continues.",
+    "Resume from the latest params_<N>.pkl in save_dir/exp_name; fresh start if none.",
 )
 flags.DEFINE_integer(
     "infer_cond_episodes",
     0,
-    "If >0, infer the eval task vector from this many dataset transitions "
-    "and their rewards before each eval. The rows fed to infer_cond are the "
-    "critic's declared INFER_COND_MARGINAL (impls/critics/base.py). On its "
-    "own this only computes the vector; --eval_on_inferred_cond rolls it.",
+    "If >0, infer the eval task vector from this many reward-labelled transitions before each eval.",
 )
 flags.DEFINE_bool(
     "eval_on_inferred_cond",
     False,
-    "Evaluate on the task vector --infer_cond_episodes inferred instead of the "
-    "env's task goal. Without it, the evaluator hands goal-capable critics a "
-    "goal frame, which overrides the inferred vector.",
+    "Evaluate on the inferred task vector instead of the env goal.",
 )
 
 
@@ -155,11 +147,7 @@ def main(_):
     cfg = make_config(FLAGS.critic, FLAGS.actor, FLAGS.domain, FLAGS.override)
 
     if FLAGS.eval_on_inferred_cond and FLAGS.infer_cond_episodes <= 0:
-        raise ValueError(
-            "--eval_on_inferred_cond needs --infer_cond_episodes>0: it evaluates on the "
-            "conditioning inference produced, and with inference off that is eval_cond0 "
-            "(a zero task vector => Q == 0, a task-blind policy), not a zero-shot readout."
-        )
+        raise ValueError("--eval_on_inferred_cond needs --infer_cond_episodes>0.")
 
     # Datasets sample from the global NumPy RNG
     np.random.seed(FLAGS.seed)
@@ -250,16 +238,13 @@ def main(_):
                     )
                     if reason is not None:
                         warnings.warn(
-                            f"--infer_cond_episodes={FLAGS.infer_cond_episodes} requested but "
-                            f"inference had no effect this eval: {reason}. Evaluation is "
-                            f"using eval_cond0 (or the env task goal), not an inferred "
-                            f"task vector -- these numbers are not a zero-shot result."
+                            f"--infer_cond_episodes={FLAGS.infer_cond_episodes}: inference "
+                            f"had no effect ({reason}); this eval is not zero-shot."
                         )
                     if FLAGS.eval_on_inferred_cond:
                         print(
-                            f"[infer-cond] step {i}: evaluating on the inferred "
-                            f"conditioning from {FLAGS.infer_cond_episodes} rb[{rows!r}] "
-                            f"rows; the env goal is NOT supplied",
+                            f"[infer-cond] step {i}: evaluating on the task vector "
+                            f"inferred from {FLAGS.infer_cond_episodes} rb[{rows!r}] rows",
                             flush=True,
                         )
                 for task_id in adapter.eval_tasks(env, cfg):
@@ -317,8 +302,7 @@ def main(_):
                         if invalid is not None:
                             warnings.warn(
                                 f"eval_relabel task {tid} at step {i}: reward inference had "
-                                f"no effect ({invalid}); the row is written with success=NaN "
-                                f"and invalid_reason set, and is NOT a zero-shot result."
+                                f"no effect ({invalid}); logging success=NaN."
                             )
                             row = {"success": float("nan"), **relabel_agent.witness()}
                         else:
@@ -356,8 +340,8 @@ def main(_):
                 if i % FLAGS.save_interval != 0:
                     save_agent(agent, run_dir, i)
                 print(
-                    f"[signal] caught signal {_CHECKPOINT_SIGNAL['num']} -- checkpointed "
-                    f"at step {i} and exiting; resubmit with --auto_resume to continue",
+                    f"[signal] caught signal {_CHECKPOINT_SIGNAL['num']}, checkpointed "
+                    f"at step {i}; resubmit with --auto_resume",
                     flush=True,
                 )
                 break

@@ -96,9 +96,8 @@ def _relabel_family(task_info):
         if key in task_info:
             return key, needs_buttons, fn
     raise AssertionError(
-        f"relabel_infer_batch: task_info has none of the supported goal keys "
-        f"{[k for k, _, _ in _RELABEL_FAMILIES]} (cube goal_xyzs / scene goal); keys: "
-        f"{sorted(task_info)} -- this domain is unsupported"
+        f"relabel_infer_batch: task_info has none of the goal keys "
+        f"{[k for k, _, _ in _RELABEL_FAMILIES]}; keys: {sorted(task_info)}."
     )
 
 

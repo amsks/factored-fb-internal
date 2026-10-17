@@ -38,10 +38,8 @@ def infer_cond_marginal(critic):
     m = getattr(critic, "INFER_COND_MARGINAL", None)
     if m not in INFER_COND_MARGINALS:
         raise ComboError(
-            f"{_name(critic)}.INFER_COND_MARGINAL is {m!r}; every critic must declare one of "
-            f"{list(INFER_COND_MARGINALS)} so the --infer_cond_episodes caller knows which "
-            f"batch column its infer_cond() expects (the FB family is solved against the "
-            f"NEXT-state marginal its backward tower is trained on)."
+            f"{_name(critic)}.INFER_COND_MARGINAL is {m!r}, "
+            f"must be one of {list(INFER_COND_MARGINALS)}."
         )
     return m
 
@@ -81,10 +79,8 @@ def check_combo(critic, actor):
         getattr(critic, "PROVIDES_COND", ())
     ):
         raise ComboError(
-            f"{_name(critic)}.BOOT_COND is 'value_goal' but its sample_cond does not "
-            f"produce 'value_goal', so it cannot publish cond['_cvec_vgoal'] and no actor "
-            f"will emit boot['next_action_vgoal'] (every actor guards that draw on "
-            f"'_cvec_vgoal' in cond)"
+            f"{_name(critic)}.BOOT_COND is 'value_goal' but its sample_cond "
+            f"does not produce 'value_goal'."
         )
     missing = set(getattr(actor, "REQUIRES_COND", ())) - set(
         getattr(critic, "PROVIDES_COND", ())

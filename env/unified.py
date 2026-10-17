@@ -273,10 +273,8 @@ class UnifiedAdapter:
         if mode == "success":
             if "success" not in ds:
                 raise ValueError(
-                    "eval_relabel_reward=success needs the dataset's per-step `success` "
-                    "column; this pack has none (load_packed keeps it when the npz carries "
-                    "it; the per-episode `load_unified` layout never does). Pass "
-                    "--override eval_relabel_reward=dense to relabel with the stored reward."
+                    "eval_relabel_reward=success needs a `success` column; "
+                    "pass --override eval_relabel_reward=dense instead."
                 )
             rewards = (
                 np.asarray(ds["success"][idxs], np.float32) - 1.0 + float(shift_reward)

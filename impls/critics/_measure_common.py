@@ -26,10 +26,8 @@ def parse_hit_spec(spec):
         # OmegaConf parses an unquoted 'a:b:eps' as a sexagesimal number
         if len(fields) == 1 and _looks_sexagesimal(part):
             raise AssertionError(
-                f"hit-spec {part!r} looks like OmegaConf's sexagesimal parse of an UNQUOTED "
-                f"'a:b:eps' override. Pass it with escaped quotes so the value stays a "
-                f"string: --override 'goal_spec=\"4:7:0.07\"' (launchers: "
-                f'goal_spec=\\"...\\" inside the OVERRIDE string, `tr` not `xargs`).'
+                f"hit-spec {part!r} was parsed as a number; quote it: "
+                f"--override 'goal_spec=\"4:7:0.07\"'."
             )
         assert len(fields) == 3, (
             f"hit-spec block must be 'start:stop:eps', got {part!r}"

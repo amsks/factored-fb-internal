@@ -48,10 +48,8 @@ class CsvLogger:
         if dropped:
             self._warned.update(dropped)
             warnings.warn(
-                f"{self.path}: column(s) {dropped} are not in this file's header "
-                f"{self._keys} and are being DROPPED from every row. The header is frozen "
-                f"on the first row written, or inherited from a pre-existing file -- so "
-                f"this usually means two different arms are sharing one run directory."
+                f"{self.path}: column(s) {dropped} not in header {self._keys}, DROPPED "
+                f"from every row."
             )
         self._writer.writerow({k: row.get(k) for k in self._keys})
         self._file.flush()

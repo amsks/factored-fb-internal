@@ -50,36 +50,22 @@ flags.DEFINE_string(
 flags.DEFINE_bool(
     "keep_per_episode",
     False,
-    "Keep the per-episode arrays in the jsonl row instead of dropping them. "
-    "The mean hides the SHAPE of the return distribution, and on some tasks "
-    "the shape is the finding: walker/spin is bimodal (nine episodes near 975, "
-    "one near 40), so one catastrophic episode moves the mean ~100 and the std "
-    "reads as 'high variance' when the truth is 'rare total failure'. Off by "
-    "default because it makes rows much larger.",
+    "Keep per-episode return arrays in the jsonl row (off by default: rows get large).",
 )
 flags.DEFINE_integer(
     "infer_cond_episodes",
     0,
-    "If >0, infer eval conditioning from this many relabelled transitions "
-    "before evaluating (the zero-shot reward-sample route). Same meaning as "
-    "impls/main.py's flag of this name, including that the rows fed to "
-    "infer_cond come from the critic's own INFER_COND_MARGINAL.",
+    "If >0, infer the eval task vector from this many relabelled transitions, as in impls/main.py.",
 )
 flags.DEFINE_bool(
     "config_from_run",
     True,
-    "Rebuild the agent from the config.json the run recorded next to its "
-    "checkpoints rather than from the current yaml, so the evaluation builds "
-    "the same networks the checkpoint was written from. --override still "
-    "wins over it.",
+    "Rebuild the agent from the run's recorded config.json, not the yaml; --override still wins.",
 )
 flags.DEFINE_bool(
     "eval_on_inferred_cond",
     False,
-    "Evaluate on the inferred conditioning INSTEAD of the env's task goal. "
-    "Requires --infer_cond_episodes>0. Without it the evaluator hands a goal "
-    "frame to any goal-capable critic and the inferred index is discarded "
-    "before it is used -- see impls/main.py.",
+    "Evaluate on the inferred task vector instead of the env goal; needs --infer_cond_episodes>0.",
 )
 
 

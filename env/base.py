@@ -61,9 +61,7 @@ def episode_horizon(adapter, explicit=None):
     if h:
         return int(h)
     raise ValueError(
-        f"{type(adapter).__name__} publishes no `_horizon`, so the episode length for this "
-        f"rollout is unknown (config['horizon'] is RLDP's window length, not an episode "
-        f"length). Set `_horizon` on the adapter or pass the horizon explicitly."
+        f"{type(adapter).__name__} has no `_horizon`; set it or pass the horizon explicitly."
     )
 
 

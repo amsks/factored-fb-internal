@@ -50,10 +50,7 @@ def make_config(critic, actor, domain, overrides=None):
         value, present = _get_dotted(out, alias)
         if present:
             raise ConfigError(
-                f"override {alias}={value!r} does nothing in this tree: the key that is "
-                f"actually read is {real!r} (see impls/agents/__init__.py::_LR_KEY). Pass "
-                f"{real}={value!r} instead — the run would otherwise train at the default "
-                f"and report a number nobody could tell apart from a tuned one."
+                f"override {alias}={value!r} is never read; pass {real}={value!r} instead."
             )
 
     for key in REQUIRED_KEYS.get(critic, ()):
