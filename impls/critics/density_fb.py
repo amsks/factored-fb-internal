@@ -2,8 +2,8 @@
 
 w(s, a, g, u_j) = softmax_j(F(s, a, g)^T B(u_j) / temp), trained by cross-entropy to
 (1 - gamma) * onehot(next state) + gamma * w_target(s', a', g). The actor maximises the
-reward averaged under w; on the reward-inference arm z is a ridge regression of reward
-samples on centered slow-B features.
+reward averaged under w. When the task is a latent z (infer_z), z is a ridge regression of
+reward samples on centered features of a slow copy of B.
 """
 
 import copy
@@ -14,7 +14,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
-from impls.critics._measure_common import parse_hit_spec
+from impls.critics.goal_spec import parse_goal_spec
 
 _DEFAULT_INIT = nn.initializers.variance_scaling(1.0, "fan_avg", "uniform")
 
@@ -144,15 +144,15 @@ class _ZStatsState(nn.Module):
         return mu, cov, pool, filled
 
 
-# Hit-spec columns and the hit kernel
+# Goal observation columns and the goal reward kernel
 # `_delta_phi` takes raw columns; the B tower takes eps-scaled columns.
 def _density_queries(nobs, blocks):
-    """Eps-scaled hit-spec columns [M, d_c], the B tower input."""
+    """Eps-scaled goal_spec columns [M, d_c], the B tower input."""
     return jnp.concatenate([nobs[:, a:b] / e for (a, b, e) in blocks], axis=-1)
 
 
 def _raw_block_cols(obs_rows, blocks):
-    """Raw hit-spec columns [N, d_c]."""
+    """Raw goal_spec columns [N, d_c]."""
     return jnp.concatenate([obs_rows[:, a:b] for (a, b, e) in blocks], axis=-1)
 
 
@@ -169,7 +169,7 @@ def _scale_block_cols(raw_cols, blocks):
 def _delta_phi(obs_rows, protos, blocks):
     """Hit-kernel reward [N, M], a softmax over candidates of -0.5 ||(x - u_j) / eps||^2.
 
-    `obs_rows` are raw observations [N, obs_dim], `protos` raw hit-spec columns [M, d_c].
+    `obs_rows` are raw observations [N, obs_dim], `protos` raw goal_spec columns [M, d_c].
     """
     protos = jnp.asarray(protos, jnp.float32)
     parts_x, parts_p, off = [], [], 0
@@ -192,28 +192,28 @@ class DensityFBCritic:
     obs_dim: int
     blocks: tuple  # ((start, stop, eps), ...)
     discount: float
-    temp: float
+    temperature: float
     tau: float
-    # 'softmax' or 'linear_fz' (F^T z, z = B(g) on the goal arm)
+    # 'softmax' or 'linear_fz' (F^T z, z = B(g) for the goal-conditioned critic)
     actor_value: str = "softmax"
     archi: str = "mlp"  # 'mlp' or 'motivo'
-    b_norm: bool = False  # project B's output onto the sqrt(d) sphere
-    # 'hit_spec' or 'state' (full observation, goal arm only)
-    backward_input: str = "hit_spec"
-    # Reward-inference arm
-    z_on: bool = False
+    norm_backward: bool = False  # project B's output onto the sqrt(d) sphere
+    # 'goal_spec' or 'state' (full observation, goal-conditioned critic only)
+    backward_input: str = "goal_spec"
+    # Latent task z inferred from reward samples
+    infer_z: bool = False
     z_dim: int = 0
-    z_rand_frac: float = 0.5  # fraction of rows with a random sphere z
-    z_ridge_lambda_mult: float = 0.01  # lam = mult * tr(C)/d
-    z_cov_eig_floor: float = 1e-6  # eigenvalue floor, times tr(C)/d
-    z_const_eps: float = 1e-6  # ||c|| below this means a constant reward
-    z_enc_tau: float = 0.0005  # polyak rate of B_slow
-    z_sigma_tau: float = 0.005  # running-average rate of mu and C
-    z_eval_pool_m: int = 256  # frozen eval pool size
+    z_random_frac: float = 0.5  # fraction of rows with a random sphere z
+    ridge_lambda: float = 0.01  # lam = mult * tr(C)/d
+    cov_eig_floor: float = 1e-6  # eigenvalue floor, times tr(C)/d
+    const_reward_eps: float = 1e-6  # ||c|| below this means a constant reward
+    slow_backward_tau: float = 0.0005  # polyak rate of B_slow, the slow copy of B
+    feature_stats_tau: float = 0.005  # running-average rate of mu and C
+    eval_pool_size: int = 256  # frozen eval pool size
     density_b_zenc: Any = None
     density_zstats: Any = None
 
-    # Instance fields; `build` extends them on the reward-inference arm.
+    # Instance fields; `build` extends them when infer_z is on.
     GROUPS: tuple = ("density_f", "density_b")
     PROVIDES_COND: frozenset = frozenset({"value_goal", "goal"})
     STAGES = ("density",)
@@ -228,7 +228,7 @@ class DensityFBCritic:
     @property
     def cvec_dim(self):
         """Width of the actor's conditioning vector."""
-        return self.z_dim if self.z_on else self.obs_dim
+        return self.z_dim if self.infer_z else self.obs_dim
 
     def stage_groups(self, stage):
         assert stage == "density"
@@ -239,9 +239,9 @@ class DensityFBCritic:
         return self.density_f.apply({"params": p}, jnp.concatenate([obs, acts, g], -1))
 
     def _B(self, p, u):
-        """B(u) -> [M, d], projected onto the sqrt(d) sphere when `b_norm`."""
+        """B(u) -> [M, d], projected onto the sqrt(d) sphere when `norm_backward`."""
         out = self.density_b.apply({"params": p}, u)
-        if self.b_norm:
+        if self.norm_backward:
             nrm = jnp.linalg.norm(out, axis=-1, keepdims=True)
             out = jnp.sqrt(float(out.shape[-1])) * out / jnp.maximum(nrm, 1e-8)
         return out
@@ -280,40 +280,42 @@ class DensityFBCritic:
         cov = 0.5 * (cov + cov.T)
         tr = jnp.trace(cov)
         ev, vec = jnp.linalg.eigh(cov)
-        ev = jnp.maximum(ev, jnp.maximum(self.z_cov_eig_floor * tr / d, 1e-12))
-        lam = self.z_ridge_lambda_mult * tr / d
+        ev = jnp.maximum(ev, jnp.maximum(self.cov_eig_floor * tr / d, 1e-12))
+        lam = self.ridge_lambda * tr / d
         return ((m_c @ vec) / (ev + lam)[None, :]) @ vec.T
 
-    def _z_index(self, zenc_params, zstats, u_sc, r):
+    def _infer_z_from_rewards(self, zenc_params, zstats, u_sc, r):
         """Reward samples -> z."""
         m_c = self._z_centered_moment(zenc_params, u_sc, zstats["mu"], r)
         c = self._z_centered_coef(m_c, zstats["cov"])
         return jax.lax.stop_gradient(
-            _sphere_or_neutral(c, float(self.z_dim), self.z_const_eps)
+            _sphere_or_neutral(c, float(self.z_dim), self.const_reward_eps)
         )
 
     def z_from_reward_samples(self, net, u_sc, r):
         """B inputs [M, d_c] and rewards [B, M] or [M] -> z [B, d]."""
-        return self._z_index(self._zenc(net), self._zstats(net), u_sc, r)
+        return self._infer_z_from_rewards(self._zenc(net), self._zstats(net), u_sc, r)
 
     def _z_mix(self, z_g, rng):
-        """Replace a z_rand_frac fraction of rows by random sphere draws."""
+        """Replace a z_random_frac fraction of rows by random sphere draws."""
         d, n = int(self.z_dim), z_g.shape[0]
         rng_sphere, rng_mix = jax.random.split(rng)
         z_rand = _sphere(jax.random.normal(rng_sphere, (n, d)), d)
-        use_rand = jax.random.bernoulli(rng_mix, self.z_rand_frac, (n, 1))
+        use_rand = jax.random.bernoulli(rng_mix, self.z_random_frac, (n, 1))
         return jax.lax.stop_gradient(jnp.where(use_rand, z_rand, z_g))
 
     def update_stats(self, net, pre_net, batch):
         """Update B_slow, (mu, C) and, on the first call, the eval pool."""
-        if not self.z_on:
+        if not self.infer_z:
             return net
         nobs = batch["next_observations"]
         u_sc = self._b_query(nobs)
 
         zenc_old = net["density_b_zenc"].params
         zenc_new = jax.tree_util.tree_map(
-            lambda p, ep: p * self.z_enc_tau + ep * (1.0 - self.z_enc_tau),
+            lambda p, ep: (
+                p * self.slow_backward_tau + ep * (1.0 - self.slow_backward_tau)
+            ),
             pre_net["density_b"].params,
             zenc_old,
         )
@@ -323,18 +325,18 @@ class DensityFBCritic:
         db = b - mu_b[None]
         cov_b = db.T @ db / b.shape[0]
         st = net["density_zstats"].params
-        tau = self.z_sigma_tau
+        tau = self.feature_stats_tau
         mu_new = st["mu"] * (1.0 - tau) + mu_b * tau
         cov_new = st["cov"] * (1.0 - tau) + cov_b * tau
         cov_new = 0.5 * (cov_new + cov_new.T)
 
         raw = _raw_block_cols(nobs, self.blocks)
-        if raw.shape[0] < self.z_eval_pool_m:
+        if raw.shape[0] < self.eval_pool_size:
             raise ValueError(
-                f"eval_pool_size={self.z_eval_pool_m} exceeds the batch "
+                f"eval_pool_size={self.eval_pool_size} exceeds the batch "
                 f"({raw.shape[0]} next states) the evaluation pool is drawn from."
             )
-        pool_new = jnp.where(st["filled"] > 0.5, st["pool"], raw[: self.z_eval_pool_m])
+        pool_new = jnp.where(st["filled"] > 0.5, st["pool"], raw[: self.eval_pool_size])
 
         # Keep stored dtypes to avoid retracing
         cast = lambda new, old: jnp.asarray(new, old.dtype)
@@ -353,7 +355,7 @@ class DensityFBCritic:
     def map_eval_cond(self, net, cond, observations=None):
         """Map an evaluation goal to z via its hit-kernel reward on the frozen pool."""
         del observations
-        if not self.z_on or "goal" not in cond:
+        if not self.infer_z or "goal" not in cond:
             return cond
         g = cond["goal"]
         unbatched = g.ndim == 1
@@ -362,7 +364,7 @@ class DensityFBCritic:
         pool_raw = st["pool"]  # [M, d_c]
         u_sc = _scale_block_cols(pool_raw, self.blocks)
         kg = jax.lax.stop_gradient(_delta_phi(g2, pool_raw, self.blocks))  # [B, M]
-        z = self._z_index(self._zenc(net), st, u_sc, kg)
+        z = self._infer_z_from_rewards(self._zenc(net), st, u_sc, kg)
         return {**cond, "z": z[0] if unbatched else z}
 
     # Critic loss
@@ -373,13 +375,13 @@ class DensityFBCritic:
             batch["next_observations"],
             batch["actions"],
         )
-        g = cond["_cvec_vgoal"] if self.z_on else cond["value_goal"]
-        tau = self.temp
+        g = cond["_cvec_vgoal"] if self.infer_z else cond["value_goal"]
+        temperature = self.temperature
         u_sc = self._b_query(nobs)  # candidates u_j
 
         b_emb = self._B(params["density_b"], u_sc)  # [M, d]
         f_emb = self._F(params["density_f"], obs, acts, g)  # [2, B, d]
-        logits = jnp.einsum("hbd,md->hbm", f_emb, b_emb) / tau  # [2, B, M]
+        logits = jnp.einsum("hbd,md->hbm", f_emb, b_emb) / temperature  # [2, B, M]
         w = jax.nn.softmax(logits, -1)
         logp = jax.nn.log_softmax(logits, -1)
 
@@ -392,7 +394,9 @@ class DensityFBCritic:
         a_plus = jax.lax.stop_gradient(boot["next_action_vgoal"])
         tb = self._B(target["density_b"], u_sc)
         tf = self._F(target["density_f"], nobs, a_plus, g)
-        w_bar = jax.nn.softmax(jnp.einsum("hbd,md->hbm", tf, tb) / tau, -1)  # [2, B, M]
+        w_bar = jax.nn.softmax(
+            jnp.einsum("hbd,md->hbm", tf, tb) / temperature, -1
+        )  # [2, B, M]
 
         # TD target
         k = jnp.eye(nobs.shape[0])
@@ -421,15 +425,15 @@ class DensityFBCritic:
         del stop_encoder_grad
         f_p = jax.lax.stop_gradient(params["density_f"])
         b_p = jax.lax.stop_gradient(params["density_b"])
-        g = cond["z"] if self.z_on else cond["goal"]
+        g = cond["z"] if self.infer_z else cond["goal"]
         f_emb = self._F(f_p, obs, actions, g)
         if self.actor_value == "linear_fz":
-            zvec = g if self.z_on else self._B(b_p, self._b_query(g))
+            zvec = g if self.infer_z else self._B(b_p, self._b_query(g))
             q1, q2 = jnp.einsum("hbd,bd->hb", f_emb, zvec) / jnp.sqrt(
                 float(f_emb.shape[-1])
             )
         else:
-            if self.z_on:
+            if self.infer_z:
                 # Linear reward (B_slow(u) - mu)^T z / sqrt(d)
                 r = jnp.einsum("md,bd->bm", cond["_density_zenc_u"], g) / jnp.sqrt(
                     float(self.z_dim)
@@ -438,21 +442,23 @@ class DensityFBCritic:
                 r = _delta_phi(g, cond["_density_u_raw"], self.blocks)
             r = jax.lax.stop_gradient(r)  # [B, M]
             b_emb = self._B(b_p, cond["_density_u_sc"])
-            w = jax.nn.softmax(jnp.einsum("hbd,md->hbm", f_emb, b_emb) / self.temp, -1)
+            w = jax.nn.softmax(
+                jnp.einsum("hbd,md->hbm", f_emb, b_emb) / self.temperature, -1
+            )
             q1, q2 = (w * r[None]).sum(-1)
         q = jnp.minimum(q1, q2)
         return q, (q - q.mean())[None]
 
     def cond_vec(self, cond):
         """Actor conditioning vector: z or the raw goal."""
-        return cond["z"] if self.z_on else cond["goal"]
+        return cond["z"] if self.infer_z else cond["goal"]
 
     def sample_cond(self, net, batch, rng):
-        """Training goals, or z for actor and value goals on the reward-inference arm."""
+        """Training goals, or z for actor and value goals when infer_z is on."""
         nobs = batch["next_observations"]
         u_raw = _raw_block_cols(nobs, self.blocks)
         u_sc = self._b_query(nobs)
-        if not self.z_on:
+        if not self.infer_z:
             return {
                 "value_goal": batch["value_goals"],
                 "goal": batch["actor_goals"],
@@ -465,7 +471,7 @@ class DensityFBCritic:
 
         def _z_at(goals, r_mix):
             r = jax.lax.stop_gradient(_delta_phi(goals, u_raw, self.blocks))  # [B, M]
-            return self._z_mix(self._z_index(zenc_p, st, u_sc, r), r_mix)
+            return self._z_mix(self._infer_z_from_rewards(zenc_p, st, u_sc, r), r_mix)
 
         return {
             "value_goal": batch["value_goals"],
@@ -480,13 +486,13 @@ class DensityFBCritic:
         }
 
     def eval_cond0(self, ex_obs, config):
-        if self.z_on:
+        if self.infer_z:
             return {"z": jnp.zeros((self.z_dim,), jnp.float64)}
         return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
 
     def infer_cond(self, net, obs, rewards):
-        """Next states [M, obs_dim] and rewards [M] or [B, M] -> z; zero goal on the goal arm."""
-        if not self.z_on:
+        """Next states [M, obs_dim] and rewards [M] or [B, M] -> z; zero goal when infer_z is off."""
+        if not self.infer_z:
             return {"goal": jnp.zeros((self.obs_dim,), jnp.float64)}
         z = self.z_from_reward_samples(net, self._b_query(obs), rewards)
         return {"z": z[0] if jnp.ndim(rewards) == 1 else z}
@@ -505,41 +511,43 @@ class DensityFBCritic:
         hd_b = tuple(_hb) if _hb else hd
         ln = bool(config["layer_norm"])
         d = int(config["z_dim"])
-        blocks = parse_hit_spec(config.get("goal_spec", "19:22:0.4"))
+        blocks = parse_goal_spec(config.get("goal_spec", "19:22:0.4"))
         obs_dim = int(ex_obs.shape[-1])
         if max(b for (_a, b, _e) in blocks) > obs_dim:
             raise ValueError(f"goal_spec {blocks} reaches past obs_dim={obs_dim}")
-        z_on = bool(config.get("infer_z", False))
+        infer_z = bool(config.get("infer_z", False))
         actor_value = str(config.get("actor_value", "softmax"))
         if actor_value not in ("softmax", "linear_fz"):
             raise ValueError(
                 f"actor_value must be 'softmax' or 'linear_fz', got {actor_value!r}"
             )
-        backward_input = str(config.get("backward_input", "hit_spec"))
-        if backward_input not in ("hit_spec", "state"):
+        backward_input = str(config.get("backward_input", "goal_spec"))
+        if backward_input not in ("goal_spec", "state"):
             raise ValueError(
-                f"backward_input must be 'hit_spec' or 'state', got {backward_input!r}"
+                f"backward_input must be 'goal_spec' or 'state', got {backward_input!r}"
             )
-        if z_on and backward_input != "hit_spec":
-            raise ValueError("infer_z requires backward_input='hit_spec'")
+        if infer_z and backward_input != "goal_spec":
+            raise ValueError("infer_z requires backward_input='goal_spec'")
         archi = str(config.get("archi", "mlp"))
         if archi not in ("mlp", "motivo"):
             raise ValueError(f"archi must be 'mlp' or 'motivo', got {archi!r}")
-        b_norm = bool(config.get("norm_backward", False))
-        z_rand_frac = float(config.get("z_random_frac", 0.5))
+        norm_backward = bool(config.get("norm_backward", False))
+        z_random_frac = float(config.get("z_random_frac", 0.5))
         z_lam = float(config.get("ridge_lambda", 0.01))
         z_floor = float(config.get("cov_eig_floor", 1e-6))
         z_eps = float(config.get("const_reward_eps", 1e-6))
-        z_enc_tau = float(config.get("slow_backward_tau", 0.0005))
-        z_sigma_tau = float(config.get("feature_stats_tau", 0.005))
+        slow_backward_tau = float(config.get("slow_backward_tau", 0.0005))
+        feature_stats_tau = float(config.get("feature_stats_tau", 0.005))
         z_pool_m = int(config.get("eval_pool_size", 256))
-        if z_on:
-            assert 0.0 <= z_rand_frac <= 1.0, "z_random_frac must be in [0, 1]"
+        if infer_z:
+            assert 0.0 <= z_random_frac <= 1.0, "z_random_frac must be in [0, 1]"
             assert z_lam > 0.0, "ridge_lambda must be > 0"
             assert z_floor > 0.0, "cov_eig_floor must be > 0"
             assert z_eps > 0.0, "const_reward_eps must be > 0"
-            assert 0.0 < z_enc_tau <= 0.1, "slow_backward_tau must be in (0, 0.1]"
-            assert 0.0 < z_sigma_tau <= 1.0, "feature_stats_tau must be in (0, 1]"
+            assert 0.0 < slow_backward_tau <= 0.1, (
+                "slow_backward_tau must be in (0, 0.1]"
+            )
+            assert 0.0 < feature_stats_tau <= 1.0, "feature_stats_tau must be in (0, 1]"
             assert z_pool_m > 1, "eval_pool_size must be > 1"
             _bs = int(config.get("batch_size", z_pool_m))
             assert z_pool_m <= _bs, (
@@ -571,7 +579,7 @@ class DensityFBCritic:
             [
                 ex_obs,
                 ex_actions,
-                jnp.zeros((ex_obs.shape[0], d), ex_obs.dtype) if z_on else ex_obs,
+                jnp.zeros((ex_obs.shape[0], d), ex_obs.dtype) if infer_z else ex_obs,
             ],
             -1,
         )
@@ -585,7 +593,7 @@ class DensityFBCritic:
             "density_b": copy.deepcopy(params["density_b"]),
         }
         zstats_mod = None
-        if z_on:
+        if infer_z:
             params["density_b_zenc"] = copy.deepcopy(params["density_b"])
             d_c = int(sum(b - a for (a, b, _e) in blocks))
             zstats_mod = _ZStatsState(
@@ -598,31 +606,31 @@ class DensityFBCritic:
             obs_dim=obs_dim,
             blocks=blocks,
             discount=float(config["discount"]),
-            temp=float(config["temperature"]),
+            temperature=float(config["temperature"]),
             tau=float(config["tau"]),
             actor_value=actor_value,
             archi=archi,
-            b_norm=b_norm,
+            norm_backward=norm_backward,
             backward_input=backward_input,
-            z_on=z_on,
+            infer_z=infer_z,
             z_dim=d,
-            z_rand_frac=z_rand_frac,
-            z_ridge_lambda_mult=z_lam,
-            z_cov_eig_floor=z_floor,
-            z_const_eps=z_eps,
-            z_enc_tau=z_enc_tau,
-            z_sigma_tau=z_sigma_tau,
-            z_eval_pool_m=z_pool_m,
-            density_b_zenc=(density_b if z_on else None),
+            z_random_frac=z_random_frac,
+            ridge_lambda=z_lam,
+            cov_eig_floor=z_floor,
+            const_reward_eps=z_eps,
+            slow_backward_tau=slow_backward_tau,
+            feature_stats_tau=feature_stats_tau,
+            eval_pool_size=z_pool_m,
+            density_b_zenc=(density_b if infer_z else None),
             density_zstats=zstats_mod,
             GROUPS=(
                 ("density_f", "density_b", "density_b_zenc", "density_zstats")
-                if z_on
+                if infer_z
                 else ("density_f", "density_b")
             ),
             PROVIDES_COND=(
                 frozenset({"value_goal", "goal", "z"})
-                if z_on
+                if infer_z
                 else frozenset({"value_goal", "goal"})
             ),
         )

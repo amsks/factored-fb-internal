@@ -27,8 +27,8 @@ ROOT = V2.ROOT
 CACHE = ROOT / "drop_strip_cache.npz"  # suffixed by --cache-tag
 
 
-def rollout(arm, actor_fn, qpos, qvel, task_id, max_steps, thr):
-    env = arm.env
+def rollout(variant, actor_fn, qpos, qvel, task_id, max_steps, thr):
+    env = variant.env
     _o, info = env.reset(options=dict(task_id=task_id, render_goal=False))
     goal = np.asarray(info["goal"], np.float32)
     R.set_state(env, qpos, qvel)
@@ -111,11 +111,11 @@ def main():
     from impls.utils.evaluation import supply_rng
 
     thr = PhaseThresholds()
-    arms = {
-        a: A.load_arm(Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}")
+    variants = {
+        a: A.load_variant(Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}")
         for a in args.critics
     }
-    pol = arms[args.policy]
+    pol = variants[args.policy]
     R.ensure_cube_env(pol.env)
     actor_fn = supply_rng(pol.agent.sample_actions, rng=jax.random.PRNGKey(0))
     hb = np.load(ROOT / "held_bank.npz")
@@ -206,19 +206,19 @@ def main():
         success=bool(ro["success"]),
     )
     goal_xy = None
-    for a, arm in arms.items():
-        goals = task_goals(arm, args.task, args.goal_draws, 20260904)
+    for a, variant in variants.items():
+        goals = task_goals(variant, args.task, args.goal_draws, 20260904)
         if goal_xy is None:
             goal_xy = V2.world_to_plot(
                 np.mean([g[V2.CUBE_OBS][:2] for g in goals], axis=0) * CM
             )
-        W, r2 = fit_probe(arm, obs_p, tgt_cube)
-        E = b_embed(arm, obs_f)
+        W, r2 = fit_probe(variant, obs_p, tgt_cube)
+        E = b_embed(variant, obs_f)
         d[f"dec_{a}"] = np.concatenate([E, np.ones((len(E), 1), np.float32)], 1) @ W
         d[f"r2_{a}"] = r2
         d[f"mass_{a}"] = np.stack(
             [
-                predicted_cube_mass(arm, obs_f[k], act_f[k], goals, pool_obs)[0]
+                predicted_cube_mass(variant, obs_f[k], act_f[k], goals, pool_obs)[0]
                 for k in range(len(rows))
             ]
         )

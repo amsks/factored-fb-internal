@@ -27,8 +27,12 @@ ENV = "cube-single-play-v0"
 EPOCH = 1000000
 ROOT = Path("analysis/failure_figs")
 FIG = Path("figures/gap_preservation")
-METHODS = ["fb_tdj", "density_fb_z"]
-METHOD_LABEL = {"fb_tdj": "FB", "density_fb_z": "Density-FB"}
+METHODS = ["fb", "density_fb_z"]
+METHOD_LABEL = {"fb": "FB", "density_fb_z": "Density-FB"}
+# Critic name each method's runs were saved under; probe CSVs carry it in their
+# "critic" column and the run directories are named after it.
+RUN_NAME = {"fb": "fb_tdj", "density_fb_z": "density_fb_z"}
+METHOD_OF = {run: m for m, run in RUN_NAME.items()}
 BANKS = ["approach", "inhand", "carrying"]
 N_BINS = 5
 STATE_KEYS = ["critic", "seed", "bank", "state"]
@@ -124,7 +128,7 @@ def bin_table(
             h = g[b == j]
             row = dict(
                 critic=c,
-                method=METHOD_LABEL.get(c, c),
+                method=METHOD_LABEL.get(METHOD_OF.get(c, c), c),
                 bin=j,
                 n=len(h),
                 gap_lo=float(h["delta_mc"].min()),
@@ -180,7 +184,7 @@ def load_long(
         fs = [f for f in fs if any(f.endswith(f"_{epoch}{t}.csv") for t in tags)]
     assert fs, f"no action-probe rows under {root / env / 'actions'}"
     df = pd.concat([pd.read_csv(f) for f in fs], ignore_index=True)
-    df = df[df["bank"].isin(BANKS) & df["critic"].isin(METHODS)]
+    df = df[df["bank"].isin(BANKS) & df["critic"].isin([RUN_NAME[m] for m in METHODS])]
     if seeds is not None:
         df = df[df["seed"].isin(list(seeds))]
     return df.reset_index(drop=True)
@@ -242,7 +246,7 @@ def plot(
     )
     ax, ax2, ax3 = axes
     for m in METHODS:
-        b = bins[bins["critic"] == m].sort_values("bin")
+        b = bins[bins["critic"] == RUN_NAME[m]].sort_values("bin")
         if b.empty:
             continue
         col, mk, lab = METHOD_COLOR[m], METHOD_MARKER[m], METHOD_LABEL[m]
@@ -251,7 +255,7 @@ def plot(
             y, se = b[f"{key}_mean"].to_numpy(), b[f"{key}_se"].to_numpy()
             a.fill_between(x, y - se, y + se, color=col, alpha=0.2, lw=0)
             a.plot(x, y, marker=mk, ms=4, lw=1.2, color=col, label=lab)
-        p = per[(per["critic"] == m) & (per["tie"] == 0)]
+        p = per[(per["critic"] == RUN_NAME[m]) & (per["tie"] == 0)]
         ax3.scatter(
             p["delta_mc"],
             p["y"],
@@ -311,7 +315,9 @@ def phase_table(per_state: pd.DataFrame, by_seed: bool = False) -> pd.DataFrame:
         lo, hi = wilson_ci(k_ok, n)
         row = dict(zip(keys, k))
         row.update(
-            method=METHOD_LABEL.get(row["critic"], row["critic"]),
+            method=METHOD_LABEL.get(
+                METHOD_OF.get(row["critic"], row["critic"]), row["critic"]
+            ),
             n=n,
             gap_mean=float(d.mean()),
             gap_se=float(d.std(ddof=1) / np.sqrt(n)) if n > 1 else float("nan"),
@@ -353,7 +359,7 @@ def plot_decision_by_phase(
     w = 0.34
     for j, m in enumerate(METHODS):
         col, mk = METHOD_COLOR[m], METHOD_MARKER[m]
-        b = t[t["critic"] == m].set_index("bank").reindex(BANKS)
+        b = t[t["critic"] == RUN_NAME[m]].set_index("bank").reindex(BANKS)
         xo = x + (j - 0.5) * w
         ax1.bar(
             xo,
@@ -367,7 +373,7 @@ def plot_decision_by_phase(
             label=METHOD_LABEL[m],
         )
         if show_seeds:
-            sb = ts[ts["critic"] == m]
+            sb = ts[ts["critic"] == RUN_NAME[m]]
             for bk_i, bk in enumerate(BANKS):
                 v = sb[sb["bank"] == bk]["frac_correct"].to_numpy()
                 ax2.scatter(

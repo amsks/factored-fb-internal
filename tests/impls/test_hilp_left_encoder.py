@@ -11,7 +11,7 @@ EX_ACT = jnp.zeros((4, 5))
 
 
 def _cfg(**over):
-    base = yaml.safe_load(open("impls/configs/critic/hilp_tdjc.yaml"))
+    base = yaml.safe_load(open("impls/configs/critic/hilp.yaml"))
     return {**base, "seed": 0, **over}
 
 

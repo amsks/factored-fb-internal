@@ -8,13 +8,13 @@ import numpy as np
 import pytest
 
 from impls.agents import CRITICS, Agent
-from impls.critics._measure_common import parse_hit_spec
 from impls.critics.density_fb import (
     DensityFBCritic,
     _delta_phi,
     _density_queries,
     _raw_block_cols,
 )
+from impls.critics.goal_spec import parse_goal_spec
 
 B, OBS, ACT, D = 12, 40, 5, 8
 
@@ -70,7 +70,7 @@ def _boot(b=B, seed=2):
 
 # Kernel takes raw columns, B takes eps-scaled queries
 def test_query_scaling_matches_delta_phi_internal_convention():
-    blocks = parse_hit_spec("19:22:0.4,28:31:0.8")
+    blocks = parse_goal_spec("19:22:0.4,28:31:0.8")
     rng = np.random.default_rng(3)
     nobs = rng.standard_normal((9, OBS)).astype(np.float32)
     nobs_j = jnp.asarray(nobs)
@@ -288,14 +288,16 @@ def test_ce_and_ess_match_a_direct_reconstruction():
     f_emb = c.density_f.apply(
         {"params": params["density_f"]}, jnp.concatenate([obs, acts, g], -1)
     )
-    logits = jnp.einsum("hbd,md->hbm", f_emb, b_emb) / c.temp
+    logits = jnp.einsum("hbd,md->hbm", f_emb, b_emb) / c.temperature
     logp = np.asarray(jax.nn.log_softmax(logits, -1))
     a_plus = boot["next_action_vgoal"]  # value-goal bootstrap
     tb = c.density_b.apply({"params": targets["density_b"]}, u_sc)
     tf = c.density_f.apply(
         {"params": targets["density_f"]}, jnp.concatenate([nobs, a_plus, g], -1)
     )
-    w_bar = np.asarray(jax.nn.softmax(jnp.einsum("hbd,md->hbm", tf, tb) / c.temp, -1))
+    w_bar = np.asarray(
+        jax.nn.softmax(jnp.einsum("hbd,md->hbm", tf, tb) / c.temperature, -1)
+    )
     k = np.eye(nobs.shape[0])
     t = (1.0 - c.discount) * k[None] + c.discount * w_bar
     ce_ref = -np.mean(np.sum(t * logp, axis=-1))

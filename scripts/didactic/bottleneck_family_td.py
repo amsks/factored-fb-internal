@@ -1,6 +1,6 @@
 """Tabular fixed-policy TD for rank-d successor measures on a bottleneck chain.
 
-Arms: fb (FB loss), normsq (squared error on the normalized measure), softsq and expsq
+Variants: fb (FB loss), normsq (squared error on the normalized measure), softsq and expsq
 (squared error on softmax / exp outputs), density (cross entropy on softmax outputs).
 """
 

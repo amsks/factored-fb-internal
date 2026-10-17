@@ -14,7 +14,7 @@ archi: mlp                  # mlp or motivo
 z_dim: 50
 temperature: 1.0            # softmax temperature over F^T B
 norm_backward: false
-backward_input: hit_spec    # state or hit_spec (the goal_spec columns)
+backward_input: goal_spec    # state or hit_spec (the goal_spec columns)
 
 # Task
 goal_spec: "19:22:0.4"      # start:stop:radius observation blocks, comma-joined

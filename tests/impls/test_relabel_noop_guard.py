@@ -1,8 +1,8 @@
-"""The reward-inference eval route in impls/main.py refuses to score a no-op inference.
+"""Reward-inference evaluation in impls/main.py refuses to score a no-op inference.
 
 Run on CPU, in its own process:
 
-    JAX_PLATFORMS=cpu python -m pytest tests/impls/test_route_b_noop_guard.py -q
+    JAX_PLATFORMS=cpu python -m pytest tests/impls/test_relabel_noop_guard.py -q
 """
 
 import csv
@@ -18,7 +18,7 @@ from impls.utils.config_utils import load_config
 from impls.utils.datasets import FBDataset
 
 ACT_DIM = 2
-# density_fb's default hit spec is obs[19:22].
+# density_fb's default goal_spec columns are obs[19:22].
 OBS_DIM = 40
 SUCCESS_FROM_EVALUATE = 0.75
 
@@ -181,8 +181,8 @@ def _relabel_rows(run_dir):
     return rows
 
 
-# density_fb with the index off: the row is refused
-def test_route_b_refuses_to_score_a_noop_inference(tmp_path, monkeypatch):
+# density_fb with the z encoder off: the row is refused
+def test_relabel_refuses_to_score_a_noop_inference(tmp_path, monkeypatch):
     adapter = _RelabelAdapter(n_tasks=2)
     with pytest.warns(UserWarning, match="DensityFBCritic"):
         run_dir = _run_main(
@@ -192,10 +192,10 @@ def test_route_b_refuses_to_score_a_noop_inference(tmp_path, monkeypatch):
     rows = _relabel_rows(run_dir)
     assert len(rows) == 2, "one Route B row per task, refused or not"
     for r in rows:
-        assert "route_b_valid" in r and "invalid_reason" in r, (
+        assert "inference_valid" in r and "invalid_reason" in r, (
             f"the row carries no validity flag -- it would be read as a real score: {r}"
         )
-        assert float(r["route_b_valid"]) == 0.0
+        assert float(r["inference_valid"]) == 0.0
         assert "DensityFBCritic" in r["invalid_reason"], r["invalid_reason"]
         assert math.isnan(float(r["success"])), (
             f"a goal=0 rollout was SCORED as success={r['success']}"
@@ -203,21 +203,21 @@ def test_route_b_refuses_to_score_a_noop_inference(tmp_path, monkeypatch):
         # The placeholder is the zero vector.
         assert float(r["inferred_cond_norm"]) == 0.0
 
-    # Only the goal-conditioned route reached the evaluator.
+    # Only goal-conditioned evaluation reached the evaluator.
     assert all(not c["any_step_success"] for c in adapter.evaluate_calls), (
         "Route B still rolled the policy on a no-op conditioning"
     )
 
 
 # fb: inference is live and the row is scored
-def test_route_b_passes_a_live_inference_through_unchanged(tmp_path, monkeypatch):
+def test_relabel_passes_a_live_inference_through_unchanged(tmp_path, monkeypatch):
     adapter = _RelabelAdapter(n_tasks=2)
     run_dir = _run_main(tmp_path, monkeypatch, _fb_cfg(), adapter, "fb")
 
     rows = _relabel_rows(run_dir)
     assert len(rows) == 2
     for r in rows:
-        assert float(r["route_b_valid"]) == 1.0
+        assert float(r["inference_valid"]) == 1.0
         assert r["invalid_reason"] == ""
         assert float(r["success"]) == SUCCESS_FROM_EVALUATE
         assert float(r["inferred_cond_norm"]) > 0.0
@@ -228,7 +228,7 @@ def test_route_b_passes_a_live_inference_through_unchanged(tmp_path, monkeypatch
 
 
 # Detector alone: a zero-norm cond is refused
-def test_route_b_invalid_reason_flags_a_zero_norm_cond():
+def test_relabel_invalid_reason_flags_a_zero_norm_cond():
     import jax.numpy as jnp
 
     import impls.main as m
@@ -242,12 +242,12 @@ def test_route_b_invalid_reason_flags_a_zero_norm_cond():
 
     wrapped = m.InferredCondAgent(_Agent())
     pre = {"z": jnp.ones((8,))}  # cond changed, so only the norm check can refuse it
-    reason = m.route_b_invalid_reason(pre, wrapped, jnp.ones((8,)))
+    reason = m.relabel_invalid_reason(pre, wrapped, jnp.ones((8,)))
     assert reason is not None and "_Critic" in reason and "norm" in reason
 
     live = m.InferredCondAgent(
         types.SimpleNamespace(critic=_Critic(), cond_eval={"z": jnp.ones((8,))})
     )
     assert (
-        m.route_b_invalid_reason({"z": jnp.zeros((8,))}, live, jnp.ones((8,))) is None
+        m.relabel_invalid_reason({"z": jnp.zeros((8,))}, live, jnp.ones((8,))) is None
     )

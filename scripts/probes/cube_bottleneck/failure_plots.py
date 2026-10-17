@@ -18,8 +18,11 @@ ROOT = Path("analysis/failure_figs")
 FIG = Path("figures/failure")
 ENVS = ["cube-single-play-v0"]
 ENV_LABEL = {"cube-single-play-v0": "cube-single", "cube-double-play-v0": "cube-double"}
-METHODS = ["fb_tdj", "density_fb_z"]
-METHOD_LABEL = {"fb_tdj": "FB", "density_fb_z": "Density-FB"}
+METHODS = ["fb", "density_fb_z"]
+METHOD_LABEL = {"fb": "FB", "density_fb_z": "Density-FB"}
+# Critic name each method's runs were saved under; probe CSVs carry it in their
+# "critic" column and the run directories are named after it.
+RUN_NAME = {"fb": "fb_tdj", "density_fb_z": "density_fb_z"}
 OUTCOMES = ["approach", "acquisition", "maintain", "transport", "success"]
 OUTCOME_LABEL = {
     "approach": "approach failure",
@@ -52,9 +55,9 @@ OUTCOME_COLOR = {
     "transport": CB[3],
     "success": CB[2],
 }
-METHOD_COLOR = {"fb_tdj": CB[7], "density_fb_z": CB[2]}  # grey vs green
+METHOD_COLOR = {"fb": CB[7], "density_fb_z": CB[2]}  # grey vs green
 ENV_COLOR = {"cube-single-play-v0": CB[0], "cube-double-play-v0": CB[1]}
-METHOD_MARKER = {"fb_tdj": "o", "density_fb_z": "^"}
+METHOD_MARKER = {"fb": "o", "density_fb_z": "^"}
 
 plt.rcParams.update(
     {
@@ -119,7 +122,7 @@ def draw_a(ax, mean, legend=True):
     rows = [(env, m) for env in ENVS for m in METHODS]
     x = np.arange(len(rows))
     for xi, (env, m) in zip(x, rows):
-        r = mean[(mean.env == env) & (mean.critic == m)]
+        r = mean[(mean.env == env) & (mean.critic == RUN_NAME[m])]
         if r.empty:
             continue
         bottom = 0.0
@@ -224,7 +227,7 @@ def draw_b(axes, tab, legend=False):
     for ax, env in zip(axes, ENVS):
         for j, m in enumerate(METHODS):
             r = (
-                tab[(tab.env == env) & (tab.critic == m)]
+                tab[(tab.env == env) & (tab.critic == RUN_NAME[m])]
                 .set_index("bank")
                 .reindex(BANKS)
             )
@@ -350,7 +353,7 @@ def draw_rank(
     for ax, env in zip(axes, ENVS):
         for j, m in enumerate(METHODS):
             r = (
-                tab[(tab.env == env) & (tab.critic == m)]
+                tab[(tab.env == env) & (tab.critic == RUN_NAME[m])]
                 .set_index("bank")
                 .reindex(BANKS)
             )
@@ -399,8 +402,9 @@ def success_at(env, critic, seed, step):
             continue
         d = pd.read_csv(f)
         d = d[d.task_id.between(1, 5) & d.step.notna()]
-        if "route_b_valid" in d:
-            d = d[d.route_b_valid > 0]
+        valid = "inference_valid" if "inference_valid" in d else "route_b_valid"
+        if valid in d:
+            d = d[d[valid] > 0]
         steps = sorted(d.step.unique())
         if step in steps:
             use = [step]
@@ -447,7 +451,7 @@ def spearman(x, y):
 def draw_c(ax, g):
     for env in ENVS:
         for m in METHODS:
-            r = g[(g.env == env) & (g.critic == m)]
+            r = g[(g.env == env) & (g.critic == RUN_NAME[m])]
             if r.empty:
                 continue
             ax.scatter(
@@ -504,7 +508,7 @@ def draw_c(ax, g):
         e = ok[ok.env == env]
         out[f"spearman_{ENV_LABEL[env]}"] = spearman(e.tv, e.success)
         out[f"n_{ENV_LABEL[env]}"] = int(len(e))
-    fb = ok[ok.critic == "fb_tdj"]
+    fb = ok[ok.critic == RUN_NAME["fb"]]
     out["spearman_fb_only"] = spearman(fb.tv, fb.success)
     return out
 

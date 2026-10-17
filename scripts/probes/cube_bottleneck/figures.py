@@ -11,13 +11,13 @@ import numpy as np
 import pandas as pd
 
 # Fixed colour per method
-ARM_COLOR = {
+VARIANT_COLOR = {
     "fb_ref": "#2a78d6",  # plain FB
     "density_fb_state": "#eb6834",  # Density-FB, state input
     "density_fb": "#1baf7a",  # Density-FB
     "fb": "#eda100",  # FB with orthonormality loss
 }
-ARM_LABEL = {
+VARIANT_LABEL = {
     "fb_ref": "FB (plain)",
     "density_fb_state": "Density-FB (state)",
     "density_fb": "Density-FB (obj. coords)",
@@ -38,20 +38,22 @@ def _style(ax):
     ax.set_axisbelow(True)
 
 
-def _arms(df):
+def _variants(df):
     return [a for a in ORDER if a in set(df["critic"])]
 
 
 def fig_a(per_seed: pd.DataFrame, out: Path):
     """Paired slope chart of success from H0 to H1, per seed."""
-    arms = _arms(per_seed)
-    fig, axes = plt.subplots(1, len(arms), figsize=(2.1 * len(arms), 3.0), sharey=True)
+    variants = _variants(per_seed)
+    fig, axes = plt.subplots(
+        1, len(variants), figsize=(2.1 * len(variants), 3.0), sharey=True
+    )
     axes = np.atleast_1d(axes)
     fig.patch.set_facecolor(SURFACE)
-    for ax, arm in zip(axes, arms):
+    for ax, variant in zip(axes, variants):
         _style(ax)
-        sub = per_seed[per_seed.critic == arm].sort_values("seed")
-        c = ARM_COLOR[arm]
+        sub = per_seed[per_seed.critic == variant].sort_values("seed")
+        c = VARIANT_COLOR[variant]
         # Stagger overlapping seed labels
         ends = sorted(
             float(r["H1"]) for _, r in sub.iterrows() if not pd.isna(r.get("H1"))
@@ -87,7 +89,7 @@ def fig_a(per_seed: pd.DataFrame, out: Path):
         )
         ax.set_xlim(-0.35, 1.45)
         ax.set_ylim(-0.03, 1.03)
-        ax.set_title(ARM_LABEL[arm], fontsize=9, color=INK, pad=8)
+        ax.set_title(VARIANT_LABEL[variant], fontsize=9, color=INK, pad=8)
     axes[0].set_ylabel("success (mean over 5 tasks)", fontsize=9, color=INK)
     fig.suptitle(
         "Does removing the bottleneck rescue the estimator?",
@@ -103,19 +105,19 @@ def fig_a(per_seed: pd.DataFrame, out: Path):
     plt.close(fig)
 
 
-def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
-    """held_mass vs p_secure at P2, one panel per arm, with the P1 null as an inset.
+def fig_b(t2: pd.DataFrame, out: Path, auc_by_variant=None):
+    """held_mass vs p_secure at P2, one panel per variant, with the P1 null as an inset.
 
     Panels have separate y-scales; the within-state AUC printed on each is the comparable number.
     """
-    arms = _arms(t2)
-    fig, axes = plt.subplots(1, len(arms), figsize=(2.5 * len(arms), 3.0))
+    variants = _variants(t2)
+    fig, axes = plt.subplots(1, len(variants), figsize=(2.5 * len(variants), 3.0))
     axes = np.atleast_1d(axes)
     fig.patch.set_facecolor(SURFACE)
-    for ax, arm in zip(axes, arms):
+    for ax, variant in zip(axes, variants):
         _style(ax)
-        c = ARM_COLOR[arm]
-        p2 = t2[(t2.critic == arm) & (t2.phase == "P2")]
+        c = VARIANT_COLOR[variant]
+        p2 = t2[(t2.critic == variant) & (t2.phase == "P2")]
         ax.scatter(
             p2["p_secure"],
             p2["held_mass"],
@@ -130,13 +132,13 @@ def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
             xs = np.linspace(0, 1, 20)
             ax.plot(xs, a + b * xs, color=INK, lw=1.5, zorder=5)
         ax.set_xlabel("p_secure (rollout ground truth)", fontsize=8, color=INK2)
-        ax.set_title(ARM_LABEL[arm], fontsize=9, color=INK, pad=8)
+        ax.set_title(VARIANT_LABEL[variant], fontsize=9, color=INK, pad=8)
         ax.set_xlim(-0.05, 1.05)
 
         # Within-state AUC
-        if auc_by_arm and arm in auc_by_arm:
+        if auc_by_variant and variant in auc_by_variant:
             ax.annotate(
-                f"within-state AUC {auc_by_arm[arm]:.2f}",
+                f"within-state AUC {auc_by_variant[variant]:.2f}",
                 xy=(0.03, 0.04),
                 xycoords="axes fraction",
                 fontsize=7.5,
@@ -152,7 +154,7 @@ def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
                 ),
             )
 
-        p1 = t2[(t2.critic == arm) & (t2.phase == "P1")]
+        p1 = t2[(t2.critic == variant) & (t2.phase == "P1")]
         if len(p1):
             # Inset top-right
             ins = ax.inset_axes([0.60, 0.60, 0.36, 0.30])
@@ -182,9 +184,9 @@ def fig_b(t2: pd.DataFrame, out: Path, auc_by_arm=None):
 def fig_c(t2: pd.DataFrame, out: Path):
     """FB's predicted row mass by phase; the true value is 1/(1-gamma) at every state."""
     phases = ["P1", "P2", "P3"]
-    arms = [a for a in _arms(t2) if a.startswith("fb")]
-    if not arms:
-        arms = _arms(t2)
+    variants = [a for a in _variants(t2) if a.startswith("fb")]
+    if not variants:
+        variants = _variants(t2)
     fig, ax = plt.subplots(figsize=(4.6, 3.0))
     fig.patch.set_facecolor(SURFACE)
     _style(ax)
@@ -199,9 +201,9 @@ def fig_c(t2: pd.DataFrame, out: Path):
         color=INK2,
         va="bottom",
     )
-    for arm in arms:
-        c = ARM_COLOR[arm]
-        sub = t2[t2.critic == arm]
+    for variant in variants:
+        c = VARIANT_COLOR[variant]
+        sub = t2[t2.critic == variant]
         for seed, g in sub.groupby("seed"):
             vals = [g[g.phase == p]["row_mass"].median() for p in phases]
             ax.plot(
@@ -217,7 +219,7 @@ def fig_c(t2: pd.DataFrame, out: Path):
                 zorder=3,
             )
         ax.annotate(
-            ARM_LABEL[arm],
+            VARIANT_LABEL[variant],
             (len(phases) - 1, vals[-1]),
             textcoords="offset points",
             xytext=(8, 0),
@@ -268,7 +270,7 @@ def main() -> int:
             m = pd.read_csv(sm)
             m = m[m.phase == "P2"]
             auc = m.groupby("critic")["auc_heldmass"].median().to_dict()
-        fig_b(t2, figs / "fig_b_measure_scatter", auc_by_arm=auc)
+        fig_b(t2, figs / "fig_b_measure_scatter", auc_by_variant=auc)
         fig_c(t2, figs / "fig_c_row_mass")
         made += ["b", "c"]
     print(f"[figures] wrote {made or 'nothing (no inputs yet)'} -> {figs}")

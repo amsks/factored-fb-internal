@@ -21,11 +21,11 @@ from scripts.probes.cube_bottleneck import banks as BK
 from scripts.probes.cube_bottleneck import restore as R
 from scripts.probes.cube_bottleneck.fig_outcome_map import CM, MASS_CMAP, task_goals
 from scripts.probes.cube_bottleneck.figures import (
-    ARM_COLOR,
-    ARM_LABEL,
     INK,
     INK2,
     SURFACE,
+    VARIANT_COLOR,
+    VARIANT_LABEL,
 )
 
 ROOT = Path("analysis/cube_bottleneck/cube-single-play-v0")
@@ -41,20 +41,20 @@ CUBE_OBS, EFF_OBS = slice(19, 22), slice(12, 15)
 ORDER = ["fb_ref", "density_fb_state"]
 
 
-def b_embed(arm, obs):
+def b_embed(variant, obs):
     """Backward embedding B(s) of a batch of observations."""
     import jax.numpy as jnp
 
-    c, net = arm.agent.critic, arm.agent.net
+    c, net = variant.agent.critic, variant.agent.net
     x = jnp.asarray(obs)
-    if arm.critic.startswith("density_fb"):
+    if variant.critic.startswith("density_fb"):
         return np.asarray(c._B(net["density_b"].params, c._b_query(x)))
     return np.asarray(c._B(net["backward"].params, x))
 
 
-def fit_probe(arm, obs_pool, target, ridge=1e-3):
+def fit_probe(variant, obs_pool, target, ridge=1e-3):
     """Fit a ridge probe B(s) -> target; return weights and held-out R^2."""
-    E = b_embed(arm, obs_pool)
+    E = b_embed(variant, obs_pool)
     E = np.concatenate([E, np.ones((len(E), 1), np.float32)], 1)
     n = len(E) * 4 // 5
     A_ = E[:n].T @ E[:n] + ridge * np.eye(E.shape[1])
@@ -66,10 +66,10 @@ def fit_probe(arm, obs_pool, target, ridge=1e-3):
     return W, float(1 - ss.mean())
 
 
-def predicted_cube_mass(arm, obs_row, act_row, goals, pool_obs):
+def predicted_cube_mass(variant, obs_row, act_row, goals, pool_obs):
     from scripts.probes.cube_bottleneck.fig_reach_map import batched_mass
 
-    p, neg = batched_mass(arm, obs_row, act_row, goals, pool_obs)
+    p, neg = batched_mass(variant, obs_row, act_row, goals, pool_obs)
     return p.mean(0), neg
 
 
@@ -127,18 +127,20 @@ def main() -> int:
 
     grids, dec, stats, goal_xy = {}, {}, {}, None
     for a in args.critics:
-        arm = A.load_arm(Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}")
-        goals = task_goals(arm, args.task, args.goal_draws, 20260904)
+        variant = A.load_variant(
+            Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}"
+        )
+        goals = task_goals(variant, args.task, args.goal_draws, 20260904)
         if goal_xy is None:
             goal_xy = world_to_plot(
                 np.mean([g[CUBE_OBS][:2] for g in goals], axis=0) * CM
             )
-        W, r2 = fit_probe(arm, obs_p, tgt_cube)
-        E = b_embed(arm, obs_f)
+        W, r2 = fit_probe(variant, obs_p, tgt_cube)
+        E = b_embed(variant, obs_f)
         dec[a] = np.concatenate([E, np.ones((len(E), 1), np.float32)], 1) @ W
         gs, negs = [], []
         for i in range(len(rows)):
-            p, neg = predicted_cube_mass(arm, obs_f[i], act_f[i], goals, pool_obs)
+            p, neg = predicted_cube_mass(variant, obs_f[i], act_f[i], goals, pool_obs)
             h, _, _ = np.histogram2d(
                 pool_xy[:, 0], pool_xy[:, 1], bins=[xe, ye], weights=p
             )
@@ -237,12 +239,12 @@ def main() -> int:
         axes[r][0].text(
             -0.10,
             0.5,
-            ARM_LABEL[a].replace(" (", "\n("),
+            VARIANT_LABEL[a].replace(" (", "\n("),
             transform=axes[r][0].transAxes,
             ha="right",
             va="center",
             fontsize=9.5,
-            color=ARM_COLOR[a],
+            color=VARIANT_COLOR[a],
             fontweight="bold",
         )
 

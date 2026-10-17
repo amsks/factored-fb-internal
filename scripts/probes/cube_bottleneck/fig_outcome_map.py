@@ -15,11 +15,11 @@ from matplotlib.colors import LinearSegmentedColormap
 
 from scripts.probes.cube_bottleneck import agents as A
 from scripts.probes.cube_bottleneck.figures import (
-    ARM_COLOR,
-    ARM_LABEL,
     INK,
     INK2,
     SURFACE,
+    VARIANT_COLOR,
+    VARIANT_LABEL,
 )
 
 ANALYSIS = Path("analysis/cube_bottleneck")
@@ -33,7 +33,7 @@ MASS_CMAP = LinearSegmentedColormap.from_list(
 )
 
 
-def predicted_mass(arm, obs_row, act_row, goal, pool_obs):
+def predicted_mass(variant, obs_row, act_row, goal, pool_obs):
     """Return [M] predicted mass over the pool, fraction negative before clipping, N_eff, top-1 mass.
 
     FB's measure is clipped at zero and renormalised; Density-FB's weights are used as is.
@@ -42,9 +42,9 @@ def predicted_mass(arm, obs_row, act_row, goal, pool_obs):
 
     from scripts.probes.cube_bottleneck.measure_probe import density_readout, fb_readout
 
-    c, net = arm.agent.critic, arm.agent.net
+    c, net = variant.agent.critic, variant.agent.net
     ob, ac = np.asarray(obs_row)[None], np.asarray(act_row)[None]
-    if arm.critic.startswith("density_fb"):
+    if variant.critic.startswith("density_fb"):
         w, _ = density_readout(c, net, ob, ac, goal, pool_obs)
         m, neg = w[0], 0.0
     else:
@@ -59,7 +59,7 @@ def predicted_mass(arm, obs_row, act_row, goal, pool_obs):
     return p, neg, n_eff, float(p.max())
 
 
-def task_goals(arm, task_id: int, n: int, seed: int) -> np.ndarray:
+def task_goals(variant, task_id: int, n: int, seed: int) -> np.ndarray:
     """Draw `n` goal rows for `task_id` from dataset states whose cube is within 4 cm of the task target.
 
     The env's goal row redraws the arm pose on every reset, so goals are taken from the dataset
@@ -67,10 +67,10 @@ def task_goals(arm, task_id: int, n: int, seed: int) -> np.ndarray:
     """
     from scripts.probes.cube_bottleneck import banks as BK
 
-    _o, info = arm.env.reset(options=dict(task_id=task_id, render_goal=False))
+    _o, info = variant.env.reset(options=dict(task_id=task_id, render_goal=False))
     target = np.asarray(info["goal"], np.float32)[CUBE_OBS][:2]
 
-    raw = BK.load_raw(arm.env_name)
+    raw = BK.load_raw(variant.env_name)
     obs = np.asarray(raw["observations"], np.float32)
     near = np.flatnonzero(
         np.linalg.norm(obs[:, CUBE_OBS][:, :2] - target, axis=1) < 0.4
@@ -100,8 +100,8 @@ def main() -> int:
         "--goal-seed",
         type=int,
         default=20260904,
-        help="numpy seed pinned immediately before each arm's env.reset, so "
-        "every arm is scored against the SAME task goal.",
+        help="numpy seed pinned immediately before each method's env.reset, so "
+        "every method is scored against the SAME task goal.",
     )
     ap.add_argument(
         "--goal-draws",
@@ -124,18 +124,20 @@ def main() -> int:
     ye = np.linspace(lo[1], hi[1], args.bins + 1)
     ext = [xe[0] * CM, xe[-1] * CM, ye[0] * CM, ye[-1] * CM]
 
-    arms = [
+    variants = [
         a
         for a in args.critics
         if (Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}").exists()
     ]
-    assert arms, f"no runs for {args.critics} seed {args.seed}"
+    assert variants, f"no runs for {args.critics} seed {args.seed}"
 
     grids, stats, goal_xy = {}, {}, None
-    for a in arms:
-        arm = A.load_arm(Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}")
+    for a in variants:
+        variant = A.load_variant(
+            Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}"
+        )
         # Average the prediction over several seeded goal draws for the task
-        goals = task_goals(arm, args.task, args.goal_draws, args.goal_seed)
+        goals = task_goals(variant, args.task, args.goal_draws, args.goal_seed)
         # Goal marker at the centroid of the drawn goals
         gxy = np.mean([g[CUBE_OBS][:2] for g in goals], axis=0)
         assert (
@@ -143,7 +145,7 @@ def main() -> int:
         ), "goal rows are not clustered on one cube target"
         if goal_xy is not None:
             assert np.allclose(goal_xy, gxy), (
-                "arms drew different goals; the comparison would not be like-for-like"
+                "methods drew different goals; the comparison would not be like-for-like"
             )
         goal_xy = gxy
         for si in args.states:
@@ -151,7 +153,7 @@ def main() -> int:
             ps, negs, neffs, tops = [], [], [], []
             for goal in goals:
                 p, neg, n_eff, top1 = predicted_mass(
-                    arm, bank["obs"][si], bank["action"][si], goal, pool_obs
+                    variant, bank["obs"][si], bank["action"][si], goal, pool_obs
                 )
                 ps.append(p), negs.append(neg), neffs.append(n_eff), tops.append(top1)
             p = np.mean(ps, axis=0)
@@ -174,16 +176,16 @@ def main() -> int:
     vmax = float(max(g.max() for g in grids.values()))
 
     fig, axes = plt.subplots(
-        len(arms),
+        len(variants),
         len(args.states),
-        figsize=(2.35 * len(args.states) + 1.0, 2.5 * len(arms)),
+        figsize=(2.35 * len(args.states) + 1.0, 2.5 * len(variants)),
         sharex=True,
         sharey=True,
     )
     axes = np.atleast_2d(axes)
     fig.patch.set_facecolor(SURFACE)
 
-    for r, a in enumerate(arms):
+    for r, a in enumerate(variants):
         for c, si in enumerate(args.states):
             ax = axes[r][c]
             ax.set_facecolor(SURFACE)
@@ -244,16 +246,16 @@ def main() -> int:
                 ax.text(
                     -0.72,
                     0.5,
-                    ARM_LABEL[a],
+                    VARIANT_LABEL[a],
                     transform=ax.transAxes,
                     rotation=90,
                     va="center",
                     ha="center",
                     fontsize=10.5,
                     fontweight="bold",
-                    color=ARM_COLOR[a],
+                    color=VARIANT_COLOR[a],
                 )
-            if r == len(arms) - 1:
+            if r == len(variants) - 1:
                 ax.set_xlabel("table x (cm)", fontsize=8, color=INK2)
 
     cb = fig.colorbar(im, ax=axes, fraction=0.030, pad=0.02)
@@ -282,7 +284,7 @@ def main() -> int:
             f"{out}.{e}", dpi=200, bbox_inches="tight", facecolor=fig.get_facecolor()
         )
     print(f"wrote {out}.pdf / .png")
-    for a in arms:
+    for a in variants:
         n = [stats[(a, s)][1] for s in args.states]
         t = [stats[(a, s)][2] for s in args.states]
         print(

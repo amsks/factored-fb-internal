@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 
 from impls.utils.config_utils import CONFIG_ROOT, load_config
 
-CRITICS = ("fb", "density_fb", "hilp_tdjc", "rldp")
+CRITICS = ("fb", "density_fb", "hilp", "rldp")
 ACTORS = ("flowbc", "ddpgbc")
 
 

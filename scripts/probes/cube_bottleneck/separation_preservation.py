@@ -26,8 +26,12 @@ ENV = "cube-single-play-v0"
 EPOCH = 1000000
 ROOT = Path("analysis/failure_figs")
 FIG = Path("figures/gap_preservation")
-METHODS = ["fb_tdj", "density_fb_z"]
-METHOD_LABEL = {"fb_tdj": "FB", "density_fb_z": "Density-FB"}
+METHODS = ["fb", "density_fb_z"]
+METHOD_LABEL = {"fb": "FB", "density_fb_z": "Density-FB"}
+# Critic name each method's runs were saved under; probe CSVs carry it in their
+# "critic" column and the run directories are named after it.
+RUN_NAME = {"fb": "fb_tdj", "density_fb_z": "density_fb_z"}
+METHOD_OF = {run: m for m, run in RUN_NAME.items()}
 BANKS = ["approach", "inhand", "carrying"]
 BANK_LABEL = {"approach": "approach", "inhand": "in hand", "carrying": "carrying"}
 BANK_IDX = {"approach": 0, "inhand": 1, "carrying": 2}
@@ -136,7 +140,9 @@ def align_table(rows: pd.DataFrame, by_seed: bool = False) -> pd.DataFrame:
     for k, g in rows.groupby(keys, sort=False):
         k = (k,) if not isinstance(k, tuple) else k
         row = dict(zip(keys, k))
-        row["method"] = METHOD_LABEL.get(row["critic"], row["critic"])
+        row["method"] = METHOD_LABEL.get(
+            METHOD_OF.get(row["critic"], row["critic"]), row["critic"]
+        )
         for col in ("align", "align_top"):
             v = g[col].to_numpy(float)
             v = v[np.isfinite(v)]
@@ -180,7 +186,7 @@ def permutation_null(
             dict(
                 critic=c,
                 bank=b,
-                method=METHOD_LABEL.get(c, c),
+                method=METHOD_LABEL.get(METHOD_OF.get(c, c), c),
                 n_states=len(lst),
                 n_perm=n_perm,
                 null_mean=float(np.mean(means)),
@@ -206,7 +212,9 @@ def phase_table(
         r = keep["R"].to_numpy(float)
         row = dict(zip(keys, k))
         row.update(
-            method=METHOD_LABEL.get(row["critic"], row["critic"]),
+            method=METHOD_LABEL.get(
+                METHOD_OF.get(row["critic"], row["critic"]), row["critic"]
+            ),
             n=len(keep),
             n_excluded=int(len(g) - len(keep)),
             R_mean=float(r.mean()) if len(r) else float("nan"),
@@ -295,12 +303,16 @@ def stage_roll(
     from scripts.probes.cube_bottleneck import restore as R
     from scripts.probes.cube_bottleneck.measure_probe import fb_readout
 
-    runs = {r["critic"]: r for r in A.discover_roots(ENV, METHODS, [seed], EPOCH)}
+    run_names = [RUN_NAME[m] for m in METHODS]
+    runs = {
+        METHOD_OF[r["critic"]]: r
+        for r in A.discover_roots(ENV, run_names, [seed], EPOCH)
+    }
     assert set(runs) == set(METHODS), f"seed {seed}: found {sorted(runs)}"
-    arms = {m: A.load_arm_eval(runs[m]["run_dir"], EPOCH) for m in METHODS}
-    tasks = A.eval_tasks(arms["fb_tdj"])
-    conds = {m: A.relabel_cond_agents(arms[m], tasks) for m in METHODS}
-    gamma = {m: float(arms[m].config.get("discount", 0.99)) for m in METHODS}
+    variants = {m: A.load_variant_eval(runs[m]["run_dir"], EPOCH) for m in METHODS}
+    tasks = A.eval_tasks(variants["fb"])
+    conds = {m: A.relabel_cond_agents(variants[m], tasks) for m in METHODS}
+    gamma = {m: float(variants[m].config.get("discount", 0.99)) for m in METHODS}
     pool_obs = build_pool(out_dir)
     ps = pd.read_csv(per_state_csv)
     ps = ps[ps["seed"] == seed].set_index(["critic", "bank", "state"])
@@ -330,9 +342,7 @@ def stage_roll(
             # Same candidate set as failure_figs.stage_actionprobe
             ob = FF.restore_full(envs[0], rec)
             key = jax.random.PRNGKey(4242 + i * 7 + seed)
-            a_fb = np.asarray(
-                conds["fb_tdj"][tid].sample_actions(ob, goals=None, seed=key)
-            )
+            a_fb = np.asarray(conds["fb"][tid].sample_actions(ob, goals=None, seed=key))
             a_d = np.asarray(
                 conds["density_fb_z"][tid].sample_actions(ob, goals=None, seed=key)
             )
@@ -341,7 +351,7 @@ def stage_roll(
                 a_fb.astype(np.float32), a_d.astype(np.float32), adim, rng
             )
             for m in METHODS:
-                row = ps.loc[(m, bank, i)]
+                row = ps.loc[(RUN_NAME[m], bank, i)]
                 if int(row["tie"]):
                     continue  # no best/worst pair at this state
                 ip, im = (
@@ -349,15 +359,20 @@ def stage_roll(
                     FF.CANDIDATE_NAMES.index(row["worst"]),
                 )
                 acts = cands[[ip, im]]
-                arm, ag = arms[m], conds[m][tid]
+                variant, ag = variants[m], conds[m][tid]
                 z = np.asarray(ag.cond_eval["z"])
                 obs_rep = np.repeat(ob[None], 2, axis=0)
                 if m.startswith("density_fb"):
-                    pred = FF.predict_density(arm, obs_rep, acts, z, pool_obs)
+                    pred = FF.predict_density(variant, obs_rep, acts, z, pool_obs)
                     clip_frac = neg_mass = 0.0
                 else:
                     M, _q = fb_readout(
-                        arm.agent.critic, arm.agent.net, obs_rep, acts, z, pool_obs
+                        variant.agent.critic,
+                        variant.agent.net,
+                        obs_rep,
+                        acts,
+                        z,
+                        pool_obs,
                     )
                     clip_frac = float((M < 0).mean())
                     neg_mass = float(
@@ -374,13 +389,13 @@ def stage_roll(
                 mc = roll_futures(
                     ag, envs, rec, acts, K, H, jax.random.PRNGKey(777 + i * 13 + seed)
                 )
-                p = f"{bank}_{i}_{m}"
+                p = f"{bank}_{i}_{RUN_NAME[m]}"
                 store[f"{p}_mc"] = mc.astype(np.float32)
                 store[f"{p}_pred"] = np.asarray(pred, np.float32)
                 store[f"{p}_acts"] = acts.astype(np.float32)
                 meta.append(
                     dict(
-                        critic=m,
+                        critic=RUN_NAME[m],
                         seed=seed,
                         bank=bank,
                         state=i,
@@ -493,9 +508,9 @@ def plot(
         )
         for j, m in enumerate(METHODS):
             col, mk = METHOD_COLOR[m], METHOD_MARKER[m]
-            b = at[at["critic"] == m].set_index("bank").reindex(BANKS)
+            b = at[at["critic"] == RUN_NAME[m]].set_index("bank").reindex(BANKS)
             xo = x + (j - 0.5) * w
-            sb = ats[ats["critic"] == m]
+            sb = ats[ats["critic"] == RUN_NAME[m]]
             for bi, bk in enumerate(BANKS):
                 v = sb[sb["bank"] == bk]["align_mean"].to_numpy()
                 ax2.scatter(
@@ -529,9 +544,9 @@ def plot(
         ax2.set_ylim(lo, hi)
     for j, m in enumerate(METHODS):
         col, mk = METHOD_COLOR[m], METHOD_MARKER[m]
-        b = t[t["critic"] == m].set_index("bank").reindex(BANKS)
+        b = t[t["critic"] == RUN_NAME[m]].set_index("bank").reindex(BANKS)
         xo = x + (j - 0.5) * w
-        sb = ts[ts["critic"] == m]
+        sb = ts[ts["critic"] == RUN_NAME[m]]
         for bi, bk in enumerate(BANKS):
             v = sb[sb["bank"] == bk]["R_mean"].to_numpy()
             ax.scatter(
@@ -622,7 +637,7 @@ def stage_aggregate(
         )
     t, ts = tables[CELL_MAIN]
     ts.to_csv(fig_dir / "separation_by_phase_per_seed.csv", index=False)
-    fb = rows[(rows["critic"] == "fb_tdj") & (rows["cell"] == CELL_MAIN)]
+    fb = rows[(rows["critic"] == RUN_NAME["fb"]) & (rows["cell"] == CELL_MAIN)]
     clip = dict(
         fb_clip_frac_mean=float(fb["fb_clip_frac"].mean()),
         fb_neg_mass_mean=float(fb["fb_neg_mass"].mean()),

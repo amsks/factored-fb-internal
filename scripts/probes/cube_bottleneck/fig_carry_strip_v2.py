@@ -100,19 +100,21 @@ def compute(args):
     )
     goal_xy = None
     for a in args.critics:
-        arm = A.load_arm(Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}")
-        goals = task_goals(arm, args.task, args.goal_draws, 20260904)
+        variant = A.load_variant(
+            Path("exp") / f"{args.env}_{a}_flowbc_seed_{args.seed}"
+        )
+        goals = task_goals(variant, args.task, args.goal_draws, 20260904)
         if goal_xy is None:
             goal_xy = world_to_plot(
                 np.mean([g[CUBE_OBS][:2] for g in goals], axis=0) * CM
             )
-        W, r2 = fit_probe(arm, obs_p, tgt_cube)
-        E = b_embed(arm, obs_f)
+        W, r2 = fit_probe(variant, obs_p, tgt_cube)
+        E = b_embed(variant, obs_f)
         out[f"dec_{a}"] = np.concatenate([E, np.ones((len(E), 1), np.float32)], 1) @ W
         out[f"r2_{a}"] = r2
         ps, negs = [], []
         for i in range(len(rows)):
-            p, neg = predicted_cube_mass(arm, obs_f[i], act_f[i], goals, pool_obs)
+            p, neg = predicted_cube_mass(variant, obs_f[i], act_f[i], goals, pool_obs)
             ps.append(p)
             negs.append(neg)
         out[f"mass_{a}"] = np.stack(ps)  # [frames, pool]

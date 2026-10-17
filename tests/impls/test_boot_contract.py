@@ -18,7 +18,9 @@ FIXTURE = os.path.join(
     os.path.dirname(__file__), "fixtures", "boot_contract_reference.npz"
 )
 # One config per critic class.
-CRITIC_CONFIGS = ("density_fb", "fb", "hilp_tdjc", "rldp")
+CRITIC_CONFIGS = ("density_fb", "fb", "hilp", "rldp")
+# The fixture was recorded when the hilp config was named hilp_tdjc; its keys keep that name.
+FIXTURE_KEY = {"hilp": "hilp_tdjc"}
 ACTOR_FAMILIES = ("flowbc", "ddpgbc")
 # Recorded: every bootstrap draw plus these info scalars.
 INFO_KEYS = (
@@ -82,11 +84,13 @@ def collect():
         for actor in ACTOR_FAMILIES:
             boot, info = pair_statics(critic, actor)
             for k, v in boot.items():
-                out[f"boot|{critic}|{actor}|{k}"] = np.asarray(v)
+                out[f"boot|{FIXTURE_KEY.get(critic, critic)}|{actor}|{k}"] = np.asarray(
+                    v
+                )
             for k in INFO_KEYS:
                 if k in info:
-                    out[f"info|{critic}|{actor}|{k}"] = np.asarray(
-                        jnp.asarray(info[k]).mean()
+                    out[f"info|{FIXTURE_KEY.get(critic, critic)}|{actor}|{k}"] = (
+                        np.asarray(jnp.asarray(info[k]).mean())
                     )
     return out
 

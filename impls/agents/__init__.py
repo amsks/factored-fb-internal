@@ -13,7 +13,7 @@ from impls.critics.density_fb import DensityFBCritic
 from impls.critics.fb import FBCritic
 from impls.critics.hilp import HILPCritic
 from impls.critics.rldp import RLDPCritic
-from impls.utils.config_utils import upgrade_config
+from impls.utils.config_utils import LEGACY_CRITICS, upgrade_config
 from impls.utils.flax_utils import TrainState, nonpytree_field, soft_update
 
 CRITICS = {
@@ -26,14 +26,10 @@ CRITICS = {
 # Critic names that select their own yaml but reuse a critic class.
 #   density_fb_z      z inferred from reward samples.
 #   density_fb_state  backward network reads the full state.
-#   fb_tdj, fb_ref    FB at the TD-JEPA reference settings (identical yamls).
-#   hilp_tdjc         HILP at TD-JEPA's OGBench settings.
 CRITIC_ALIASES = {
     "density_fb_z": "density_fb",
     "density_fb_state": "density_fb",
-    "fb_tdj": "fb",
-    "fb_ref": "fb",
-    "hilp_tdjc": "hilp",
+    **LEGACY_CRITICS,
 }
 
 ACTORS = {"flowbc": FlowBCActor, "ddpgbc": DDPGBCActor}

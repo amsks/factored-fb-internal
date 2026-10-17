@@ -28,8 +28,12 @@ from scripts.probes.cube_bottleneck import restore as R
 from scripts.probes.cube_bottleneck.phases import PhaseThresholds, _max_true_run
 
 OUT_ROOT = Path("analysis/failure_figs")
-METHODS = ["fb_tdj", "density_fb_z"]
-METHOD_LABEL = {"fb_tdj": "FB", "density_fb_z": "Density-FB"}
+METHODS = ["fb", "density_fb_z"]
+METHOD_LABEL = {"fb": "FB", "density_fb_z": "Density-FB"}
+# Critic name each method's runs were saved under. It names the run directories and
+# fills the "critic" column of every probe file, so on-disk data keeps these names.
+RUN_NAME = {"fb": "fb_tdj", "density_fb_z": "density_fb_z"}
+METHOD_OF = {**{m: m for m in METHODS}, **{run: m for m, run in RUN_NAME.items()}}
 OUTCOMES = ["approach", "acquisition", "maintain", "transport", "success"]
 RANK = {o: i for i, o in enumerate(OUTCOMES)}
 
@@ -229,20 +233,20 @@ def stage_rollouts(
 ) -> Path:
     import pandas as pd
 
-    arm = A.load_arm_eval(run["run_dir"], run["epoch"])
-    R.ensure_cube_env(arm.env)
-    tasks = A.eval_tasks(arm)
-    conds = A.relabel_cond_agents(arm, tasks)
+    variant = A.load_variant_eval(run["run_dir"], run["epoch"])
+    R.ensure_cube_env(variant.env)
+    tasks = A.eval_tasks(variant)
+    conds = A.relabel_cond_agents(variant, tasks)
     thr = PhaseThresholds()
     envs = make_env_pool(env_name, n_episodes)
-    label = f"{arm.critic}_seed{arm.seed}_{arm.epoch}{tag}"
+    label = f"{variant.critic}_seed{variant.seed}_{variant.epoch}{tag}"
     print(f"[rollouts] {label}: {len(tasks)} tasks x {n_episodes} episodes", flush=True)
     rows, store = [], {}
     t0 = time.time()
     for tid in tasks:
         import jax
 
-        key = jax.random.PRNGKey(ROLLOUT_SEED * 1000 + int(tid) * 10 + arm.seed)
+        key = jax.random.PRNGKey(ROLLOUT_SEED * 1000 + int(tid) * 10 + variant.seed)
         eps = rollout_task(conds[tid], envs, tid, n_episodes, key)
         for e in eps:
             o = episode_outcome(e, thr)
@@ -250,10 +254,10 @@ def stage_rollouts(
             rows.append(
                 dict(
                     env=env_name,
-                    critic=arm.critic,
-                    method=METHOD_LABEL[arm.critic],
-                    seed=arm.seed,
-                    epoch=arm.epoch,
+                    critic=variant.critic,
+                    method=METHOD_LABEL[METHOD_OF[variant.critic]],
+                    seed=variant.seed,
+                    epoch=variant.epoch,
                     task=tid,
                     episode=e["episode"],
                     outcome=o["outcome"],
@@ -544,8 +548,10 @@ def stage_banks(
             tried=n_tried,
             banked=len(kept),
             gate_pass=float(len(kept) / max(1, n_tried)),
-            from_fb=int(sum(r["critic"] == "fb_tdj" for r in kept)),
-            from_density=int(sum(r["critic"] == "density_fb_z" for r in kept)),
+            from_fb=int(sum(r["critic"] == RUN_NAME["fb"] for r in kept)),
+            from_density=int(
+                sum(r["critic"] == RUN_NAME["density_fb_z"] for r in kept)
+            ),
         )
         print(f"[banks] {env_name} {bank}: {stats[bank]}", flush=True)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -614,26 +620,28 @@ def tv(p: np.ndarray, q: np.ndarray) -> float:
     return float(0.5 * np.abs(p - q).sum())
 
 
-def predict_density(arm, obs_rep, acts, z, pool_obs) -> np.ndarray:
+def predict_density(variant, obs_rep, acts, z, pool_obs) -> np.ndarray:
     """Density-FB weights w = mean_h softmax_j F(s,a,z).B(u_j)/tau over the pool."""
     import jax
     import jax.numpy as jnp
 
-    critic, net = arm.agent.critic, arm.agent.net
+    critic, net = variant.agent.critic, variant.agent.net
     f_p, b_p = net["density_f"].params, net["density_b"].params
     pool = jnp.asarray(pool_obs)
     b_emb = critic._B(b_p, critic._b_query(pool))  # [M, d]
     g = jnp.broadcast_to(jnp.asarray(z), (len(acts), jnp.asarray(z).shape[-1]))
     f_emb = critic._F(f_p, jnp.asarray(obs_rep), jnp.asarray(acts), g)
-    w = jax.nn.softmax(jnp.einsum("hbd,md->hbm", f_emb, b_emb) / critic.temp, -1)
+    w = jax.nn.softmax(jnp.einsum("hbd,md->hbm", f_emb, b_emb) / critic.temperature, -1)
     return np.asarray(jnp.mean(w, axis=0))  # [B, M]
 
 
-def predict_fb(arm, obs_rep, acts, z, pool_obs):
+def predict_fb(variant, obs_rep, acts, z, pool_obs):
     """FB measure min_h F(s,a,z).B(u), clipped at zero and normalised; returns ([B, M], negative fraction)."""
     from scripts.probes.cube_bottleneck.measure_probe import fb_readout
 
-    M, _q = fb_readout(arm.agent.critic, arm.agent.net, obs_rep, acts, z, pool_obs)
+    M, _q = fb_readout(
+        variant.agent.critic, variant.agent.net, obs_rep, acts, z, pool_obs
+    )
     neg = float(
         (np.minimum(M, 0).sum(-1) / np.maximum(np.abs(M).sum(-1), 1e-12)).mean() * -1
     )
@@ -693,13 +701,13 @@ def stage_predict(
     import jax
     import pandas as pd
 
-    arm = A.load_arm_eval(run["run_dir"], run["epoch"])
-    R.ensure_cube_env(arm.env)
-    tasks = A.eval_tasks(arm)
-    conds = A.relabel_cond_agents(arm, tasks)
-    disc = float(arm.config.get("discount", 0.99))
-    is_density = arm.critic.startswith("density_fb")
-    label = f"{arm.critic}_seed{arm.seed}_{arm.epoch}{tag}"
+    variant = A.load_variant_eval(run["run_dir"], run["epoch"])
+    R.ensure_cube_env(variant.env)
+    tasks = A.eval_tasks(variant)
+    conds = A.relabel_cond_agents(variant, tasks)
+    disc = float(variant.config.get("discount", 0.99))
+    is_density = variant.critic.startswith("density_fb")
+    label = f"{variant.critic}_seed{variant.seed}_{variant.epoch}{tag}"
     pool = build_pool(env_name, out_dir)
     pool_obs = pool["obs"]
     bk = np.load(bank_file)
@@ -741,7 +749,7 @@ def stage_predict(
             for s in range(0, len(rl), STATES_PER_BATCH):
                 chunk = rl[s : s + STATES_PER_BATCH]
                 key = jax.random.PRNGKey(
-                    ROLLOUT_SEED * 7919 + tid * 101 + s + arm.seed * 13
+                    ROLLOUT_SEED * 7919 + tid * 101 + s + variant.seed * 13
                 )
                 truths, w = truth_batch(ag, envs, chunk, disc, key)
                 for rec, (xy_t, succ) in zip(chunk, truths):
@@ -754,14 +762,14 @@ def stage_predict(
                         ag.sample_actions(
                             obs_rep,
                             goals=None,
-                            seed=jax.random.PRNGKey(rec["idx"] + 31 * arm.seed),
+                            seed=jax.random.PRNGKey(rec["idx"] + 31 * variant.seed),
                         )
                     )
                     if is_density:
-                        wp = predict_density(arm, obs_rep, acts, z, pool_obs)
+                        wp = predict_density(variant, obs_rep, acts, z, pool_obs)
                         neg = 0.0
                     else:
-                        wp, neg = predict_fb(arm, obs_rep, acts, z, pool_obs)
+                        wp, neg = predict_fb(variant, obs_rep, acts, z, pool_obs)
                     wp = wp.mean(0)  # [M]
                     pool_xy = cube_xy_from_obs(pool_obs, c)
                     p_pred = hist_xy(pool_xy, wp)
@@ -782,10 +790,10 @@ def stage_predict(
                     rows.append(
                         dict(
                             env=env_name,
-                            critic=arm.critic,
-                            method=METHOD_LABEL[arm.critic],
-                            seed=arm.seed,
-                            epoch=arm.epoch,
+                            critic=variant.critic,
+                            method=METHOD_LABEL[METHOD_OF[variant.critic]],
+                            seed=variant.seed,
+                            epoch=variant.epoch,
                             bank=bank,
                             state=rec["idx"],
                             task=tid,
@@ -858,15 +866,15 @@ CANDIDATE_NAMES = (
 )
 
 
-def q_values(arm, obs_rep, acts, z, pool_obs) -> np.ndarray:
+def q_values(variant, obs_rep, acts, z, pool_obs) -> np.ndarray:
     """Critic value q(s, a, z) used by the actor, for a batch of actions at one state."""
     import jax
     import jax.numpy as jnp
 
-    critic, net = arm.agent.critic, arm.agent.net
+    critic, net = variant.agent.critic, variant.agent.net
     params = {k: v.params for k, v in net.items()}
     zb = jnp.broadcast_to(jnp.asarray(z), (len(acts), jnp.asarray(z).shape[-1]))
-    if arm.critic.startswith("density_fb"):
+    if variant.critic.startswith("density_fb"):
         from impls.critics.density_fb import _raw_block_cols
 
         pool = jnp.asarray(pool_obs)
@@ -957,12 +965,16 @@ def stage_actionprobe(
     import jax
     import pandas as pd
 
-    runs = {r["critic"]: r for r in A.discover_roots(env_name, METHODS, [seed], epoch)}
+    run_names = [RUN_NAME[m] for m in METHODS]
+    runs = {
+        METHOD_OF[r["critic"]]: r
+        for r in A.discover_roots(env_name, run_names, [seed], epoch)
+    }
     assert set(runs) == set(METHODS), f"seed {seed}: found {sorted(runs)}"
-    arms = {m: A.load_arm_eval(runs[m]["run_dir"], epoch) for m in METHODS}
-    tasks = A.eval_tasks(arms["fb_tdj"])
-    conds = {m: A.relabel_cond_agents(arms[m], tasks) for m in METHODS}
-    disc = float(arms["fb_tdj"].config.get("discount", 0.99))
+    variants = {m: A.load_variant_eval(runs[m]["run_dir"], epoch) for m in METHODS}
+    tasks = A.eval_tasks(variants["fb"])
+    conds = {m: A.relabel_cond_agents(variants[m], tasks) for m in METHODS}
+    disc = float(variants["fb"].config.get("discount", 0.99))
     pool_obs = build_pool(env_name, out_dir)["obs"]
     bk = np.load(bank_file)
     n_acts = 4 + 2 * N_PERTURB
@@ -993,9 +1005,7 @@ def stage_actionprobe(
             goal_xyz = np.asarray(rec["goal"])[c]
             ob = restore_full(envs[0], rec)
             key = jax.random.PRNGKey(4242 + i * 7 + seed)
-            a_fb = np.asarray(
-                conds["fb_tdj"][tid].sample_actions(ob, goals=None, seed=key)
-            )
+            a_fb = np.asarray(conds["fb"][tid].sample_actions(ob, goals=None, seed=key))
             a_d = np.asarray(
                 conds["density_fb_z"][tid].sample_actions(ob, goals=None, seed=key)
             )
@@ -1008,13 +1018,13 @@ def stage_actionprobe(
             obs_rep = np.repeat(ob[None], n_acts, axis=0)
             pool_xy = cube_xy_from_obs(pool_obs, c)
             for m in METHODS:
-                arm, ag = arms[m], conds[m][tid]
+                variant, ag = variants[m], conds[m][tid]
                 z = np.asarray(ag.cond_eval["z"])
-                q = q_values(arm, obs_rep, acts, z, pool_obs)
+                q = q_values(variant, obs_rep, acts, z, pool_obs)
                 if m.startswith("density_fb"):
-                    wp = predict_density(arm, obs_rep, acts, z, pool_obs)
+                    wp = predict_density(variant, obs_rep, acts, z, pool_obs)
                 else:
-                    wp, _neg = predict_fb(arm, obs_rep, acts, z, pool_obs)
+                    wp, _neg = predict_fb(variant, obs_rep, acts, z, pool_obs)
                 xy_t, ret, w = truth_actions(
                     ag,
                     envs,
@@ -1039,7 +1049,7 @@ def stage_actionprobe(
                             bank=bank,
                             state=i,
                             task=tid,
-                            critic=m,
+                            critic=RUN_NAME[m],
                             method=METHOD_LABEL[m],
                             candidate=CANDIDATE_NAMES[ai],
                             q_pred=float(q[ai]),
@@ -1069,7 +1079,7 @@ def stage_actionprobe(
                         state=i,
                         task=tid,
                         cube=c,
-                        critic=m,
+                        critic=RUN_NAME[m],
                         method=METHOD_LABEL[m],
                         tv_action=float(tvs.mean()),
                         gap_error=gap_err,
@@ -1079,7 +1089,7 @@ def stage_actionprobe(
                         q_range=rng_q,
                         return_best=float(ret[ib]),
                         return_chosen=float(ret[int(np.argmax(q))]),
-                        return_own_policy=float(ret[0 if m == "fb_tdj" else 1]),
+                        return_own_policy=float(ret[0 if m == "fb" else 1]),
                         return_secure=float(ret[2]),
                         return_release=float(ret[3]),
                         best_candidate=CANDIDATE_NAMES[ib],
@@ -1089,8 +1099,8 @@ def stage_actionprobe(
             if (i + 1) % 4 == 0:
                 sub = [r for r in rows if r["bank"] == bank]
                 msg = " ".join(
-                    f"{m}: rank {np.nanmean([r['rank_spearman'] for r in sub if r['critic'] == m]):.2f} "
-                    f"regret {np.nanmean([r['regret'] for r in sub if r['critic'] == m]):.2f}"
+                    f"{m}: rank {np.nanmean([r['rank_spearman'] for r in sub if r['critic'] == RUN_NAME[m]]):.2f} "
+                    f"regret {np.nanmean([r['regret'] for r in sub if r['critic'] == RUN_NAME[m]]):.2f}"
                     for m in METHODS
                 )
                 print(
@@ -1117,7 +1127,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("stage", choices=["rollouts", "banks", "predict", "actionprobe"])
     ap.add_argument("--env", default="cube-single-play-v0")
-    ap.add_argument("--critics", nargs="+", default=METHODS)
+    ap.add_argument(
+        "--critics",
+        nargs="+",
+        default=METHODS,
+        help="methods to probe; run-directory names (fb_tdj) are also accepted",
+    )
     ap.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2])
     ap.add_argument("--epoch", type=int, default=1000000)
     ap.add_argument("--episodes", type=int, default=20)
@@ -1131,11 +1146,12 @@ def main() -> int:
         "--exp-roots",
         nargs="+",
         default=list(A.DEFAULT_ROOTS),
-        help="exp roots searched in order; the tdjtab density_fb_z runs share "
+        help="exp roots searched in order; the density_fb_z runs under exp/tdjtab share "
         "their name with older local runs under exp/, so pass exp/tdjtab "
         "alone to pin them",
     )
     args = ap.parse_args()
+    args.critics = [RUN_NAME.get(c, c) for c in args.critics]  # run-directory names
 
     out = Path(args.out_root) / args.env
     if args.stage == "rollouts":

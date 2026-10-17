@@ -82,6 +82,10 @@ LEGACY_RENAMES = {
 }
 
 
+# Critic config names used by the paper runs (and their run directories).
+LEGACY_CRITICS = {"fb_tdj": "fb", "fb_ref": "fb", "hilp_tdjc": "hilp"}
+
+
 def upgrade_config(config):
     """Rename legacy keys in a top-level config dict."""
     out = dict(config)
@@ -93,6 +97,8 @@ def upgrade_config(config):
                     f"config sets both {old!r} and {new!r} to different values"
                 )
             out[new] = value
+    if out.get("backward_input") == "hit_spec":
+        out["backward_input"] = "goal_spec"
     return out
 
 
@@ -102,6 +108,8 @@ class ConfigError(ValueError):
 
 def _load_group(group, name):
     """Load <group>/<name>.yaml, merged over its `base` yaml if one is named."""
+    if group == "critic":
+        name = LEGACY_CRITICS.get(name, name)
     path = os.path.join(CONFIG_ROOT, group, f"{name}.yaml")
     if not os.path.exists(path):
         raise ConfigError(f"no {group} config named {name!r} (looked for {path})")

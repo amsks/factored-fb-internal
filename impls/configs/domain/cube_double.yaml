@@ -1,4 +1,4 @@
 # cube-double (state-based). obs dim 37 = 19 proprio + 2 x 9 block columns; block 0 position
-# at 19:22, block 1 at 28:31. The density critics' hit spec is the conjunction of the two
+# at 19:22, block 1 at 28:31. The density critics' goal observation columns and success radius (goal_spec) are the conjunction of the two
 # block slices, "19:22:0.4,28:31:0.4", passed as an override (it lives in the critic group).
 env_name: cube-double-play-v0

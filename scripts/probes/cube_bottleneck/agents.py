@@ -15,7 +15,7 @@ import numpy as np
 
 
 @dataclass
-class Arm:
+class Variant:
     run_dir: Path
     critic: str
     actor: str
@@ -40,7 +40,7 @@ def read_meta(run_dir: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
-def load_arm(run_dir, epoch: int = 500000, *, with_env: bool = True) -> Arm:
+def load_variant(run_dir, epoch: int = 500000, *, with_env: bool = True) -> Variant:
     """Rebuild and restore one checkpoint. `with_env=False` skips the env (dataset only)."""
     import jax.numpy as jnp
 
@@ -66,7 +66,7 @@ def load_arm(run_dir, epoch: int = 500000, *, with_env: bool = True) -> Arm:
         cfg,
     )
     agent = restore_agent(agent, str(run_dir), epoch)
-    return Arm(
+    return Variant(
         run_dir=run_dir,
         critic=meta["critic"],
         actor=meta["actor"],
@@ -79,10 +79,10 @@ def load_arm(run_dir, epoch: int = 500000, *, with_env: bool = True) -> Arm:
     )
 
 
-def eval_tasks(arm: Arm) -> List[int]:
+def eval_tasks(variant: Variant) -> List[int]:
     from env import get_adapter
 
-    tasks = get_adapter(arm.config).eval_tasks(arm.env, arm.config)
+    tasks = get_adapter(variant.config).eval_tasks(variant.env, variant.config)
     assert tasks and tasks[0] is not None, (
         "the probe needs the per-task_id OGBench eval (eval_aggregate off), which is what "
         "table_privcoord's cells were produced by"
@@ -124,8 +124,8 @@ def discover_roots(
     return out
 
 
-def load_arm_eval(run_dir, epoch: int) -> Arm:
-    """`load_arm` restoring parameters only (no optimizer state)."""
+def load_variant_eval(run_dir, epoch: int) -> Variant:
+    """`load_variant` restoring parameters only (no optimizer state)."""
     import jax.numpy as jnp
 
     from env import get_adapter
@@ -149,7 +149,7 @@ def load_arm_eval(run_dir, epoch: int) -> Arm:
         cfg,
     )
     agent = restore_agent(agent, str(run_dir), epoch, params_only=True)
-    return Arm(
+    return Variant(
         run_dir=run_dir,
         critic=meta["critic"],
         actor=meta["actor"],
@@ -162,7 +162,9 @@ def load_arm_eval(run_dir, epoch: int) -> Arm:
     )
 
 
-def relabel_cond_agents(arm: Arm, tasks, *, seed: int = 20260912) -> Dict[int, Any]:
+def relabel_cond_agents(
+    variant: Variant, tasks, *, seed: int = 20260912
+) -> Dict[int, Any]:
     """Return {task_id: InferredCondAgent}, z inferred from 10k relabelled rows per task.
 
     The global NumPy RNG is reseeded per task from `seed`, so all agents use the same rows.
@@ -187,7 +189,7 @@ def relabel_cond_agents(arm: Arm, tasks, *, seed: int = 20260912) -> Dict[int, A
                 observations, goals={"z": z}, seed=seed, temperature=temperature
             )
 
-    cfg = arm.config
+    cfg = variant.config
     adapter = get_adapter(cfg)
     n = int(cfg.get("eval_relabel_size") or 10000)
     shift = float(cfg.get("eval_relabel_shift", 1.0))
@@ -195,20 +197,22 @@ def relabel_cond_agents(arm: Arm, tasks, *, seed: int = 20260912) -> Dict[int, A
     for tid in tasks:
         np.random.seed(seed + int(tid))
         obs, rew = adapter.relabel_infer_batch(
-            arm.dataset, arm.env, int(tid), n, shift_reward=shift
+            variant.dataset, variant.env, int(tid), n, shift_reward=shift
         )
-        pre = arm.agent.cond_eval
+        pre = variant.agent.cond_eval
         ag = BatchedInferredCondAgent(
-            arm.agent.infer_eval_cond(jnp.asarray(obs), jnp.asarray(rew))
+            variant.agent.infer_eval_cond(jnp.asarray(obs), jnp.asarray(rew))
         )
         w = ag.witness()
         key = "z"
-        assert key in ag.cond_eval, f"{arm.critic}: reward inference returned no 'z'"
+        assert key in ag.cond_eval, (
+            f"{variant.critic}: reward inference returned no 'z'"
+        )
         assert not np.allclose(
             np.asarray(ag.cond_eval[key]), np.asarray(pre.get(key, 0))
-        ), f"{arm.label} task {tid}: reward inference was a no-op"
+        ), f"{variant.label} task {tid}: reward inference was a no-op"
         assert w["inferred_cond_norm"] > 0, (
-            f"{arm.label} task {tid}: zero inferred index"
+            f"{variant.label} task {tid}: zero inferred z"
         )
         ag.relabel_stats = dict(
             task=int(tid),

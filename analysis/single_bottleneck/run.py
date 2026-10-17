@@ -283,7 +283,7 @@ def describe(mdps):
 
 # Rank sweep + lemma check
 def run_closed(mdps):
-    """Six arms in closed form plus closed-form lemma rows."""
+    """Six variants in closed form plus closed-form lemma rows."""
     closed = fam.run_closed_form(mdps, ranks=ranks_of)
     lemma_rows, construct_rows = [], []
     for mdp in mdps:
@@ -300,7 +300,7 @@ def run_closed(mdps):
             ][0]
             assert (
                 abs(a_row["gap_ratio"] - g_lem / mdp["gap"]) < 1e-9
-            )  # arm A equals the projection
+            )  # variant A equals the projection
             lemma_rows.append(
                 dict(
                     mdp=mdp["seed"],
@@ -333,7 +333,7 @@ def run_closed(mdps):
 
 
 def run_trained(mdps):
-    """TD-trained arms; FB's trained (F, B) also feed the lemma check."""
+    """TD-trained variants; FB's trained (F, B) also feed the lemma check."""
     abl, lemma_rows, reward_rows = [], [], []
     t0 = time.time()
     for mdp in mdps:
@@ -348,7 +348,7 @@ def run_trained(mdps):
                     base = dict(mdp=k, d=d, seed=c["seed"], lr=c["lr"])
                     abl.append(
                         dict(
-                            arm=fam.ARM_OF[method],
+                            arm=fam.VARIANT_OF[method],
                             method=method,
                             **base,
                             **fam.gap_stats(mdp, P @ r / (1 - GAMMA)),
@@ -357,7 +357,7 @@ def run_trained(mdps):
                     )
                     if method == "density":
                         abl.append(
-                            fam.e_arm_rows(
+                            fam.e_variant_rows(
                                 mdp,
                                 F_all[i],
                                 B_all[i],
@@ -409,14 +409,14 @@ def run_trained(mdps):
                                     )
                                 )
             means = {
-                arm: np.mean(
+                variant: np.mean(
                     [
                         x["gap_ratio"]
                         for x in abl
-                        if x["mdp"] == k and x["d"] == d and x["arm"] == arm
+                        if x["mdp"] == k and x["d"] == d and x["arm"] == variant
                     ]
                 )
-                for arm in ("A", "C", "D")
+                for variant in ("A", "C", "D")
             }
             log(
                 f"  [trained] {mdp['variant']} d={d}: A {means['A']:.3f} C {means['C']:.3f} D {means['D']:.3f} "
@@ -435,19 +435,19 @@ def run_rarity(p6):
         if abs(w - W_UNIFORM) < 1e-12:
             assert np.allclose(wts, 1.0 / (2 * p6["n"]))
         for d in RARITY_RANKS:
-            a = rb.run_arm_A(p6, wts, d, "reweight", w)
+            a = rb.run_variant_a(p6, wts, d, "reweight", w)
             assert abs(a[1]["gap_ratio"] - 1.0) < 1e-8
             if w == 0.0:
                 assert (
                     abs(a[0]["gap_ratio"] - a[0]["limit_gap_ratio"]) < 1e-8
                 )  # weighted SVD at w = 0 matches the limit
             closed += a
-            closed += rb.run_arms_CD(p6, wts, d, "reweight", w)
-        g = lambda arm, d: np.mean(
+            closed += rb.run_variants_cd(p6, wts, d, "reweight", w)
+        g = lambda variant, d: np.mean(
             [
                 x["gap_ratio"]
                 for x in closed
-                if x["w"] == w and x["d"] == d and x["arm"] == arm
+                if x["w"] == w and x["d"] == d and x["arm"] == variant
             ]
         )
         log(
@@ -464,11 +464,11 @@ def run_rarity(p6):
         wts = rb.row_weights(p6, w)
         for d in RARITY_RANKS:
             trained += rb.run_trained(p6, wts, "reweight", w, d=d)
-        g = lambda arm, d: np.mean(
+        g = lambda variant, d: np.mean(
             [
                 x["gap_ratio"]
                 for x in trained
-                if x["w"] == w and x["d"] == d and x["arm"] == arm
+                if x["w"] == w and x["d"] == d and x["arm"] == variant
             ]
         )
         log(
@@ -574,7 +574,7 @@ def run_mitigation(mdps):
         for d in MIT_RANKS:
             feats = [("fb", -1, fam.svd_fit(X, d)[1], None)]
             for sd in SEEDS:
-                sseed = 1000 * sd + 17 * d + 101 * k  # same seeds as arm D
+                sseed = 1000 * sd + 17 * d + 101 * k  # same seeds as variant D
                 F, B, P, _ = fam.softmax_fit(T, n, d, sseed, "ce")
                 feats.append(("density", sd, B, P))
             for fname, sd, B_raw, P_joint in feats:
@@ -604,7 +604,7 @@ def run_mitigation(mdps):
                         -np.mean(np.sum(T * np.log(np.maximum(P, 1e-300)), axis=1))
                     ),
                 )
-                if P_joint is not None:  # arm D's joint fit
+                if P_joint is not None:  # variant D's joint fit
                     row["gap_softmax_joint"] = fam.gap_stats(
                         mdp, P_joint @ r / (1 - GAMMA)
                     )["gap_ratio"]
@@ -621,7 +621,7 @@ def run_mitigation(mdps):
 
 # Figures
 COL_B = "#0173B2"  # cluster B
-ARM_COLOR, ARM_MARKER = single.ARM_COLOR, single.ARM_MARKER
+VARIANT_COLOR, VARIANT_MARKER = single.VARIANT_COLOR, single.VARIANT_MARKER
 INK = single.INK
 
 
@@ -761,11 +761,11 @@ def make_ablation_figures(closed, trained, mdps):
             Line2D(
                 [0],
                 [0],
-                color=single.ARM_COLOR[k],
-                marker=single.ARM_MARKER[k],
+                color=single.VARIANT_COLOR[k],
+                marker=single.VARIANT_MARKER[k],
                 markersize=4,
                 linewidth=1.4,
-                markerfacecolor="none" if hollow else single.ARM_COLOR[k],
+                markerfacecolor="none" if hollow else single.VARIANT_COLOR[k],
                 label=v,
             )
             for k, v in short.items()
@@ -797,20 +797,26 @@ def make_ablation_figures(closed, trained, mdps):
     fig, ax = plt.subplots(figsize=(3.4, 2.3))
     ax.axhline(1.0, color=single.EXACT_COLOR, linestyle="--", linewidth=1.0, zorder=1)
     ax.axhline(0.0, color="#cfcfcf", linewidth=0.7, zorder=1)
-    for arm in ("A", "D"):
-        a = fam.agg(trained, arm, ranks=ranks)
+    for variant in ("A", "D"):
+        a = fam.agg(trained, variant, ranks=ranks)
         y, lo, hi = (np.array([a[d][i] for d in ranks]) for i in range(3))
         ax.fill_between(
-            ranks, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2
+            ranks,
+            lo,
+            hi,
+            color=VARIANT_COLOR[variant],
+            alpha=0.16,
+            linewidth=0,
+            zorder=2,
         )
         ax.plot(
             ranks,
             y,
-            color=ARM_COLOR[arm],
-            marker=ARM_MARKER[arm],
+            color=VARIANT_COLOR[variant],
+            marker=VARIANT_MARKER[variant],
             markersize=4.2,
             markerfacecolor="none",
-            markeredgecolor=ARM_COLOR[arm],
+            markeredgecolor=VARIANT_COLOR[variant],
             markeredgewidth=1.1,
             linewidth=1.6,
             zorder=3,
@@ -824,7 +830,7 @@ def make_ablation_figures(closed, trained, mdps):
             Line2D(
                 [0],
                 [0],
-                color=ARM_COLOR["A"],
+                color=VARIANT_COLOR["A"],
                 marker="o",
                 markerfacecolor="none",
                 markersize=4.2,
@@ -834,7 +840,7 @@ def make_ablation_figures(closed, trained, mdps):
             Line2D(
                 [0],
                 [0],
-                color=ARM_COLOR["D"],
+                color=VARIANT_COLOR["D"],
                 marker="D",
                 markerfacecolor="none",
                 markersize=4.2,
@@ -1117,7 +1123,7 @@ def make_lemma_figure(lemma_rows, reward_rows, construct_rows, mdps):
             [mean_over("gap_rank_d", d) for d in ds],
             marker="o",
             markersize=4,
-            color=ARM_COLOR["A"],
+            color=VARIANT_COLOR["A"],
             label="FB, optimal rank $d$",
         )
         ax.plot(
@@ -1125,7 +1131,7 @@ def make_lemma_figure(lemma_rows, reward_rows, construct_rows, mdps):
             [mean_over("gap_aug", d) for d in ds],
             marker="s",
             markersize=4,
-            color=ARM_COLOR["D"],
+            color=VARIANT_COLOR["D"],
             label="rank $d$ + residual direction  ($d{+}1$)",
         )
         ax.axhline(1.0, color="#9a9a9a", linewidth=0.7, linestyle="--")
@@ -1182,20 +1188,20 @@ def make_mitigation_figures(mit):
     from matplotlib.patches import Patch
 
     combos = [
-        ("fb", "gap_linear", "FB features, linear rows (= FB)", ARM_COLOR["A"], ""),
-        ("fb", "gap_softmax", "FB features, softmax rows", ARM_COLOR["A"], "///"),
+        ("fb", "gap_linear", "FB features, linear rows (= FB)", VARIANT_COLOR["A"], ""),
+        ("fb", "gap_softmax", "FB features, softmax rows", VARIANT_COLOR["A"], "///"),
         (
             "density",
             "gap_linear",
             "Density-FB features, linear rows",
-            ARM_COLOR["D"],
+            VARIANT_COLOR["D"],
             "",
         ),
         (
             "density",
             "gap_softmax",
             "Density-FB features, softmax rows (= Density-FB)",
-            ARM_COLOR["D"],
+            VARIANT_COLOR["D"],
             "///",
         ),
     ]
@@ -1260,7 +1266,7 @@ def make_mitigation_figures(mit):
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(3.6, 2.5))
-    for feat, col in (("fb", ARM_COLOR["A"]), ("density", ARM_COLOR["D"])):
+    for feat, col in (("fb", VARIANT_COLOR["A"]), ("density", VARIANT_COLOR["D"])):
         sub = [x for x in mit if x["features"] == feat]
         ax.scatter(
             [float(x["margin"]) for x in sub],
@@ -1298,7 +1304,7 @@ def make_mitigation_figures(mit):
                 marker="o",
                 linestyle="",
                 markerfacecolor="none",
-                markeredgecolor=ARM_COLOR["A"],
+                markeredgecolor=VARIANT_COLOR["A"],
                 label="FB features, linear rows",
             ),
             Line2D(
@@ -1306,7 +1312,7 @@ def make_mitigation_figures(mit):
                 [0],
                 marker="D",
                 linestyle="",
-                color=ARM_COLOR["A"],
+                color=VARIANT_COLOR["A"],
                 label="FB features, softmax rows",
             ),
             Line2D(
@@ -1315,7 +1321,7 @@ def make_mitigation_figures(mit):
                 marker="o",
                 linestyle="",
                 markerfacecolor="none",
-                markeredgecolor=ARM_COLOR["D"],
+                markeredgecolor=VARIANT_COLOR["D"],
                 label="Density-FB features, linear rows",
             ),
             Line2D(
@@ -1323,7 +1329,7 @@ def make_mitigation_figures(mit):
                 [0],
                 marker="D",
                 linestyle="",
-                color=ARM_COLOR["D"],
+                color=VARIANT_COLOR["D"],
                 label="Density-FB features, softmax rows",
             ),
         ],
@@ -1377,36 +1383,36 @@ def summarize(
     )
     log("closed form:  arm | " + " | ".join(f"d={d}" for d in ranks))
     S["rank_sweep"] = {}
-    for arm in single.ARMS:
-        a = fam.agg(closed, arm, ranks=ranks)
-        S["rank_sweep"][f"closed_{arm}"] = {d: a[d][0] for d in ranks}
-        log(f"  {arm} | " + " | ".join(f"{a[d][0]:.3f}" for d in ranks))
+    for variant in single.VARIANTS:
+        a = fam.agg(closed, variant, ranks=ranks)
+        S["rank_sweep"][f"closed_{variant}"] = {d: a[d][0] for d in ranks}
+        log(f"  {variant} | " + " | ".join(f"{a[d][0]:.3f}" for d in ranks))
     log("TD-trained (mean [95% t-interval over processes x runs]):")
-    for arm in single.ARMS:
-        a = fam.agg(trained, arm, ranks=ranks)
-        S["rank_sweep"][f"trained_{arm}"] = {d: a[d][0] for d in ranks}
+    for variant in single.VARIANTS:
+        a = fam.agg(trained, variant, ranks=ranks)
+        S["rank_sweep"][f"trained_{variant}"] = {d: a[d][0] for d in ranks}
         log(
-            f"  {arm} | "
+            f"  {variant} | "
             + " | ".join(f"{a[d][0]:.2f} [{a[d][1]:.2f},{a[d][2]:.2f}]" for d in ranks)
         )
     log("\nper process, TD-trained (arm | ranks 2..n):")
     for m in sweep:
         sub = [x for x in trained if int(x["mdp"]) == m["seed"]]
         log(f"-- {m['variant']} (n={m['n']}, gap {m['gap']:.2f}) --")
-        for arm in single.ARMS:
-            a = fam.agg(sub, arm, ranks=ranks_of(m))
-            log(f"   {arm} | " + " | ".join(f"{a[d][0]:.3f}" for d in ranks_of(m)))
+        for variant in single.VARIANTS:
+            a = fam.agg(sub, variant, ranks=ranks_of(m))
+            log(f"   {variant} | " + " | ".join(f"{a[d][0]:.3f}" for d in ranks_of(m)))
     for kind, rows in (("TD-trained", trained), ("closed form", closed)):
         log(
             f"\nsmallest rank reaching 90% of the exact gap ({kind}; mean over runs at that rank):"
         )
         log("  arm | " + " | ".join(names[m["seed"]] for m in sweep) + " | median")
         S[f"rank90_{kind.split()[0].lower()}"] = {}
-        for arm in single.ARMS:
+        for variant in single.VARIANTS:
             need = []
             for m in sweep:
                 sub = [x for x in rows if int(x["mdp"]) == m["seed"]]
-                a = fam.agg(sub, arm, ranks=ranks_of(m))
+                a = fam.agg(sub, variant, ranks=ranks_of(m))
                 hit = [d for d in ranks_of(m) if a[d][0] >= 0.9]
                 need.append(min(hit) if hit else np.nan)
             med = (
@@ -1414,7 +1420,7 @@ def summarize(
                 if not all(np.isnan(x) for x in need)
                 else float("nan")
             )
-            S[f"rank90_{kind.split()[0].lower()}"][arm] = dict(
+            S[f"rank90_{kind.split()[0].lower()}"][variant] = dict(
                 per_process={
                     names[m["seed"]]: (None if np.isnan(x) else int(x))
                     for m, x in zip(sweep, need)
@@ -1422,27 +1428,29 @@ def summarize(
                 median=med,
             )
             log(
-                f"  {arm} | "
+                f"  {variant} | "
                 + " | ".join("-" if np.isnan(x) else str(int(x)) for x in need)
                 + f" | {med:.1f}"
             )
     log("\nargmax stays on cluster A (fraction of TD-trained fits):")
-    for arm in single.ARMS:
+    for variant in single.VARIANTS:
         vals = [
             np.mean(
                 [
                     float(str(x["argmax_correct"]) == "True")
                     for x in trained
-                    if x["arm"] == arm and int(x["d"]) == d
+                    if x["arm"] == variant and int(x["d"]) == d
                 ]
             )
             for d in ranks
         ]
-        log(f"  {arm} | " + " | ".join(f"{v:.2f}" for v in vals))
+        log(f"  {variant} | " + " | ".join(f"{v:.2f}" for v in vals))
     vals = {}
     for d in (2, 3):
         v = fam.values_rows(trained, sweep, d=d)
-        vals[d] = {arm: [v[arm][0][0], v[arm][1][0]] for arm in ("A", "D")}
+        vals[d] = {
+            variant: [v[variant][0][0], v[variant][1][0]] for variant in ("A", "D")
+        }
         log(
             f"values at b, TD-trained rank {d}, exact pair mapped to (1, 0): FB {v['A'][0][0]:.2f} / {v['A'][1][0]:.2f}, "
             f"Density-FB {v['D'][0][0]:.2f} / {v['D'][1][0]:.2f}"
@@ -1468,10 +1476,14 @@ def summarize(
             dd = rb.agg(rare_closed, construction="reweight", w=float(w), d=d, arm="D")
             tr = (
                 {
-                    arm: rb.agg(
-                        rare_trained, construction="reweight", w=float(w), d=d, arm=arm
+                    variant: rb.agg(
+                        rare_trained,
+                        construction="reweight",
+                        w=float(w),
+                        d=d,
+                        arm=variant,
                     )
-                    for arm in ("A", "C", "D")
+                    for variant in ("A", "C", "D")
                 }
                 if w > 0
                 else None
@@ -1511,7 +1523,7 @@ def summarize(
         S["rarity"][d]["fb_crossover_w"] = max(below) if below else None
         log(
             f"  FB closed form at rank {d} reads < 0.5 of the gap for every w <= {rb.fmt_w(max(below), W_UNIFORM) if below else 'never'}; "
-            f"w -> 0 limit {fr[ws[-1]]:.3f} -> {float(rb.sel(rare_closed, construction='reweight', w=0.0, d=d, arm='A')[0]['limit_gap_ratio']):.3f}"
+            f"w -> 0 limit {fr[ws[-1]]:.3f} -> {float(rb.sel(rare_closed, construction='reweight', w=0.0, d=d, variant='A')[0]['limit_gap_ratio']):.3f}"
         )
 
     # Lemma check

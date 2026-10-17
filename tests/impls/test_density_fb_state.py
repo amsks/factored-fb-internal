@@ -25,9 +25,9 @@ def test_state_mode_widens_b_to_the_full_observation():
 
 
 def test_default_is_unchanged():
-    """By default B reads the 3 hit-spec columns."""
+    """By default B reads the 3 goal_spec columns."""
     ag, _, _, cfg = _built("density_fb")
-    assert cfg.get("backward_input", "hit_spec") == "hit_spec"
+    assert cfg.get("backward_input", "goal_spec") == "goal_spec"
     assert ag.net["density_b"].params["Dense_0"]["kernel"].shape[0] == 3
 
 
@@ -53,8 +53,8 @@ def test_the_knob_moves_only_b_not_the_kernel_reward():
     assert np.allclose(out["density_fb_state"][1], np.asarray(nobs))
 
 
-def test_state_plus_reward_index_is_refused():
-    """The reward-sample index requires B on the hit-spec columns."""
+def test_state_plus_z_encoder_is_refused():
+    """The z encoder requires B on the goal_spec columns."""
     cfg = make_config(
         "density_fb_state",
         "flowbc",

@@ -41,7 +41,7 @@ def dataset_path(env_name: str) -> Path:
     p = DATA_ROOT / f"{env_name}.npz"
     if not p.exists():
         raise FileNotFoundError(
-            f"{p} not found. This must be the SAME npz the arms trained on "
+            f"{p} not found. This must be the SAME npz the methods trained on "
             "(impls/utils/env_utils.make_env_and_datasets -> ogbench), not a re-download."
         )
     return p

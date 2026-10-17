@@ -50,7 +50,7 @@ def _reference_z(ag, goal, obs):
 
 
 def test_hilp_goal_maps_to_the_reference_z():
-    ag, obs, _, _ = _built("hilp_tdjc")
+    ag, obs, _, _ = _built("hilp")
     cr = ag.critic
     # Non-zero stats mean, so a missing centering is caught.
     stats = ag.net["hilp_stats"]
@@ -84,7 +84,7 @@ def test_hilp_goal_maps_to_the_reference_z():
 
 def test_hilp_actor_is_not_goal_blind_on_the_goal_route():
     """Two goals give two different HILP actions through Agent.sample_actions."""
-    ag, obs, _, _ = _built("hilp_tdjc")
+    ag, obs, _, _ = _built("hilp")
     s = obs[0]
     g1, g2 = obs[1].at[19:22].add(0.5), obs[2].at[19:22].add(-0.5)
     a1 = ag.sample_actions(s, goals=g1, seed=ag.rng)

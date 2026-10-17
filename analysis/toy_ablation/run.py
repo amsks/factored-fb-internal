@@ -52,7 +52,7 @@ ROW0, ROW1 = 2 * DECISION, 2 * DECISION + 1
 GAP_EXACT = Q_EXACT[ROW0] - Q_EXACT[ROW1]  # action 0 minus action 1
 RANKS = list(range(2, N + 1))
 SEEDS = [0, 1, 2, 3, 4]
-SOFT_SIGMA = 0.5  # kernel width in graph edges for arm F
+SOFT_SIGMA = 0.5  # kernel width in graph edges for variant F
 
 
 def graph_distance():
@@ -81,7 +81,7 @@ K_SOFT = K_SOFT / K_SOFT.sum(axis=1, keepdims=True)  # row-stochastic smoothing 
 T_SOFT = T_EXACT @ K_SOFT  # fixed point of the soft-target TD
 
 
-# Readouts and metrics shared by closed-form and trained arms
+# Readouts and metrics shared by closed-form and trained variants
 def gap_stats(Q):
     gap = float(Q[ROW0] - Q[ROW1])
     return dict(
@@ -104,7 +104,7 @@ def linear_readout(F, B, r=R_GOAL):
 
 
 def calibrate(v, Q=Q_EXACT):
-    """Least-squares scale a with a*v + b ~ Q, and the correlation (arm E only)."""
+    """Least-squares scale a with a*v + b ~ Q, and the correlation (variant E only)."""
     vc = v - v.mean()
     qc = Q - Q.mean()
     a = float(vc @ qc / max(vc @ vc, 1e-300))
@@ -112,8 +112,8 @@ def calibrate(v, Q=Q_EXACT):
     return a, corr
 
 
-def e_arm_rows(F, B, base):
-    """Arm E from a softmax model's (F, B): raw linear readout and scale-calibrated."""
+def e_variant_rows(F, B, base):
+    """Variant E from a softmax model's (F, B): raw linear readout and scale-calibrated."""
     v = linear_readout(F, B)
     a, corr = calibrate(v)
     raw = gap_stats(v)
@@ -253,7 +253,7 @@ def run_closed_form():
             )
             # E: D's model, FB's linear readout
             rows.append(
-                e_arm_rows(
+                e_variant_rows(
                     F,
                     B,
                     dict(
@@ -282,12 +282,18 @@ def run_closed_form():
     return rows
 
 
-# Trained arms
+# Trained variants
 TRAIN_STEPS = 50000
 TRAIN_TAU = 0.005
 TRAIN_RATES = [0.001, 0.01]
 TRAIN_METHODS = ["fb", "normsq", "softsq", "density", "density_soft"]
-ARM_OF = {"fb": "A", "normsq": "B", "softsq": "C", "density": "D", "density_soft": "F"}
+VARIANT_OF = {
+    "fb": "A",
+    "normsq": "B",
+    "softsq": "C",
+    "density": "D",
+    "density_soft": "F",
+}
 
 
 def _base_method(method):
@@ -363,7 +369,7 @@ def run_trained():
                     extra["retained_mass_vs_soft_target"] = retained_mass(P_hat, T_SOFT)
                 rows.append(
                     dict(
-                        arm=ARM_OF[method],
+                        arm=VARIANT_OF[method],
                         method=method,
                         **base,
                         **gap_stats(Q),
@@ -375,7 +381,7 @@ def run_trained():
                 )
                 if method == "density":
                     rows.append(
-                        e_arm_rows(
+                        e_variant_rows(
                             F_all[i],
                             B_all[i],
                             dict(base, retained_mass=retained_mass(P_hat)),
@@ -467,8 +473,8 @@ def t_interval(values, confidence=0.95):
     return m, m - h, m + h
 
 
-ARMS = ["A", "B", "C", "D", "E", "F"]
-ARM_LABEL = {
+VARIANTS = ["A", "B", "C", "D", "E", "F"]
+VARIANT_LABEL = {
     "A": "A  FB (squared error, linear readout)",
     "B": "B  FB, normalized target",
     "C": "C  softmax + squared error",
@@ -477,7 +483,7 @@ ARM_LABEL = {
     "F": "F  Density-FB, soft immediate target",
 }
 # Colorblind palette: exact blue, FB orange, Density-FB green
-ARM_COLOR = {
+VARIANT_COLOR = {
     "A": "#DE8F05",
     "B": "#CC78BC",
     "C": "#D55E00",
@@ -485,15 +491,15 @@ ARM_COLOR = {
     "E": "#56B4E9",
     "F": "#CA9161",
 }
-ARM_MARKER = {"A": "o", "B": "s", "C": "^", "D": "D", "E": "v", "F": "P"}
+VARIANT_MARKER = {"A": "o", "B": "s", "C": "^", "D": "D", "E": "v", "F": "P"}
 EXACT_COLOR = "#0173B2"
 INK = "#2a2a2a"
 
 
-def agg(rows, arm, key="gap_ratio"):
+def agg(rows, variant, key="gap_ratio"):
     out = {}
     for d in RANKS:
-        vals = [float(r[key]) for r in rows if r["arm"] == arm and int(r["d"]) == d]
+        vals = [float(r[key]) for r in rows if r["arm"] == variant and int(r["d"]) == d]
         out[d] = t_interval(vals) if vals else (np.nan, np.nan, np.nan)
     return out
 
@@ -514,27 +520,33 @@ def _style_axis(ax, ylabel):
 def draw_closed_panel(
     ax, closed_rows, key="gap_ratio", ylabel="fraction of the exact action gap"
 ):
-    for arm in ARMS:
-        a = agg(closed_rows, arm, key)
+    for variant in VARIANTS:
+        a = agg(closed_rows, variant, key)
         y = [a[d][0] for d in RANKS]
         lo = [a[d][1] for d in RANKS]
         hi = [a[d][2] for d in RANKS]
-        if arm in ("C", "D", "F"):  # E's scale is arbitrary
+        if variant in ("C", "D", "F"):  # E's scale is arbitrary
             ax.fill_between(
-                RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.18, linewidth=0, zorder=2
+                RANKS,
+                lo,
+                hi,
+                color=VARIANT_COLOR[variant],
+                alpha=0.18,
+                linewidth=0,
+                zorder=2,
             )
         # B equals A; draw it underneath with a larger marker
         ax.plot(
             RANKS,
             y,
-            color=ARM_COLOR[arm],
-            marker=ARM_MARKER[arm],
-            markersize=6.0 if arm == "B" else 4,
+            color=VARIANT_COLOR[variant],
+            marker=VARIANT_MARKER[variant],
+            markersize=6.0 if variant == "B" else 4,
             markeredgecolor="white",
             markeredgewidth=0.6,
             linewidth=1.5,
             linestyle="-",
-            zorder=3 + (arm == "A"),
+            zorder=3 + (variant == "A"),
         )
     _style_axis(ax, ylabel)
 
@@ -542,15 +554,21 @@ def draw_closed_panel(
 def draw_trained_panel(
     ax, trained_rows, key="gap_ratio", ylabel="fraction of the exact action gap"
 ):
-    """Trained-arm panel: hollow markers and a band over runs."""
-    for arm in ARMS:
-        a = agg(trained_rows, arm, key)
+    """Trained-variant panel: hollow markers and a band over runs."""
+    for variant in VARIANTS:
+        a = agg(trained_rows, variant, key)
         y = np.array([a[d][0] for d in RANKS])
         lo = np.array([a[d][1] for d in RANKS])
         hi = np.array([a[d][2] for d in RANKS])
-        if arm != "E":  # E's scale is arbitrary
+        if variant != "E":  # E's scale is arbitrary
             ax.fill_between(
-                RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2
+                RANKS,
+                lo,
+                hi,
+                color=VARIANT_COLOR[variant],
+                alpha=0.16,
+                linewidth=0,
+                zorder=2,
             )
         shown = (
             np.where((y > GAP_YLIM[1]) | (y < GAP_YLIM[0]), np.nan, y)
@@ -560,15 +578,15 @@ def draw_trained_panel(
         ax.plot(
             RANKS,
             shown,
-            color=ARM_COLOR[arm],
-            marker=ARM_MARKER[arm],
-            markersize=6.0 if arm == "B" else 4.2,
+            color=VARIANT_COLOR[variant],
+            marker=VARIANT_MARKER[variant],
+            markersize=6.0 if variant == "B" else 4.2,
             markerfacecolor="none",
-            markeredgecolor=ARM_COLOR[arm],
+            markeredgecolor=VARIANT_COLOR[variant],
             markeredgewidth=1.1,
             linewidth=1.5,
             linestyle="-",
-            zorder=3 + (arm == "A"),
+            zorder=3 + (variant == "A"),
         )
         if key == "gap_ratio":  # label off-axis points at the edge
             for xi, yi in zip(RANKS, y):
@@ -578,7 +596,7 @@ def draw_trained_panel(
                         f"{yi:.2f}",
                         (xi, GAP_YLIM[1] - 0.02 if up else GAP_YLIM[0] + 0.02),
                         fontsize=6.5,
-                        color=ARM_COLOR[arm],
+                        color=VARIANT_COLOR[variant],
                         ha="center",
                         va="top" if up else "bottom",
                     )
@@ -595,13 +613,13 @@ def legend_handles():
         Line2D(
             [0],
             [0],
-            color=ARM_COLOR[a],
-            marker=ARM_MARKER[a],
+            color=VARIANT_COLOR[a],
+            marker=VARIANT_MARKER[a],
             markersize=4.5,
             linewidth=1.5,
-            label=ARM_LABEL[a],
+            label=VARIANT_LABEL[a],
         )
-        for a in ARMS
+        for a in VARIANTS
     ]
     hs.append(
         Line2D(
@@ -691,7 +709,7 @@ def make_figures(closed_rows, trained_rows):
     save(fig, "fig_toy_ablation_mass")
     plt.close(fig)
 
-    # Arm E, scale-calibrated
+    # Variant E, scale-calibrated
     fig, ax = plt.subplots(figsize=(2.75, 2.35))
     for rows, hollow in ((closed_rows, False), (trained_rows, True)):
         a = agg(rows, "E", "gap_ratio_calibrated")
@@ -702,15 +720,15 @@ def make_figures(closed_rows, trained_rows):
             RANKS,
             y,
             yerr=[lo, hi],
-            fmt=ARM_MARKER["E"],
+            fmt=VARIANT_MARKER["E"],
             markersize=4.2,
-            markerfacecolor="none" if hollow else ARM_COLOR["E"],
-            markeredgecolor=ARM_COLOR["E"],
-            ecolor=ARM_COLOR["E"],
+            markerfacecolor="none" if hollow else VARIANT_COLOR["E"],
+            markeredgecolor=VARIANT_COLOR["E"],
+            ecolor=VARIANT_COLOR["E"],
             elinewidth=0.9,
             capsize=1.8,
             linestyle="none" if hollow else "-",
-            color=ARM_COLOR["E"],
+            color=VARIANT_COLOR["E"],
             linewidth=1.5,
         )
     _style_axis(ax, "fraction of the exact gap, E scale-calibrated")
@@ -735,39 +753,39 @@ def make_figures(closed_rows, trained_rows):
 
 # Summary tables
 def print_tables(closed_rows, trained_rows):
-    def line(arm, rows, key, fmt="{:.3f}"):
-        a = agg(rows, arm, key)
+    def line(variant, rows, key, fmt="{:.3f}"):
+        a = agg(rows, variant, key)
         return " | ".join(fmt.format(a[d][0]) for d in RANKS)
 
     log("\n=== gap ratio at state 7 vs rank (closed form; C-F mean of 5 seeds) ===")
     log("arm | " + " | ".join(f"d={d}" for d in RANKS))
-    for arm in ARMS:
-        log(f"{arm} | {line(arm, closed_rows, 'gap_ratio')}")
+    for variant in VARIANTS:
+        log(f"{variant} | {line(variant, closed_rows, 'gap_ratio')}")
     log("E calibrated | " + line("E", closed_rows, "gap_ratio_calibrated"))
     log(
         "\n=== gap ratio at state 7 vs rank (TD-trained; mean of 5 seeds x 2 learning rates) ==="
     )
-    for arm in ARMS:
-        log(f"{arm} | {line(arm, trained_rows, 'gap_ratio')}")
+    for variant in VARIANTS:
+        log(f"{variant} | {line(variant, trained_rows, 'gap_ratio')}")
     log("E calibrated | " + line("E", trained_rows, "gap_ratio_calibrated"))
     for lr in TRAIN_RATES:
         log(f"\n--- TD-trained, lr={lr} only (5 seeds) ---")
         sub = [r for r in trained_rows if float(r["lr"]) == lr]
-        for arm in ARMS:
-            log(f"{arm} | {line(arm, sub, 'gap_ratio')}")
+        for variant in VARIANTS:
+            log(f"{variant} | {line(variant, sub, 'gap_ratio')}")
     log("\n=== retained squared mass vs rank (closed / trained) ===")
-    for arm in ARMS:
+    for variant in VARIANTS:
         log(
-            f"{arm} | {line(arm, closed_rows, 'retained_mass')}  ||  {line(arm, trained_rows, 'retained_mass')}"
+            f"{variant} | {line(variant, closed_rows, 'retained_mass')}  ||  {line(variant, trained_rows, 'retained_mass')}"
         )
     log("\n=== argmax stays on action 0 (fraction of fits) closed / trained ===")
-    for arm in ARMS:
+    for variant in VARIANTS:
         c = [
             np.mean(
                 [
                     float(r["argmax_correct"] in (True, "True"))
                     for r in closed_rows
-                    if r["arm"] == arm and int(r["d"]) == d
+                    if r["arm"] == variant and int(r["d"]) == d
                 ]
             )
             for d in RANKS
@@ -777,22 +795,22 @@ def print_tables(closed_rows, trained_rows):
                 [
                     float(r["argmax_correct"] in (True, "True"))
                     for r in trained_rows
-                    if r["arm"] == arm and int(r["d"]) == d
+                    if r["arm"] == variant and int(r["d"]) == d
                 ]
             )
             for d in RANKS
         ]
         log(
-            f"{arm} | "
+            f"{variant} | "
             + " | ".join(f"{x:.2f}" for x in c)
             + "  ||  "
             + " | ".join(f"{x:.2f}" for x in t)
         )
     log("\n=== 95% CI of the TD-trained gap ratio (10 runs) ===")
-    for arm in ARMS:
-        a = agg(trained_rows, arm, "gap_ratio")
+    for variant in VARIANTS:
+        a = agg(trained_rows, variant, "gap_ratio")
         log(
-            f"{arm} | "
+            f"{variant} | "
             + " | ".join(f"{a[d][0]:.2f} [{a[d][1]:.2f}, {a[d][2]:.2f}]" for d in RANKS)
         )
 

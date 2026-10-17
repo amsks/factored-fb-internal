@@ -14,7 +14,7 @@ DRYRUN="${DRYRUN:-0}"
 [ "$MODE" = "dry" ] && DRYRUN=1
 : "${FB_DATA_ROOT:?set FB_DATA_ROOT to the dataset root holding data/<family>/<task>.npz}"
 FB_DATA_ROOT="$(cd "$FB_DATA_ROOT" && pwd)"
-CRITICS="${CRITICS:-fb_tdj hilp_tdjc rldp}"
+CRITICS="${CRITICS:-fb hilp rldp}"
 TASKS="${TASKS:-mw-push mw-bin-picking mw-box-close ms-push-cube ms-pick-cube ms-stack-cube ms-poke-cube ms-lift-peg}"
 SEEDS="${SEEDS:-0 1 2}"
 ACTOR="${ACTOR:-flowbc}"                   # bc_coeff 3.0 is the yaml default (OGBench manipulation)
@@ -48,7 +48,7 @@ declare -A PROTO=(
   [ms-stack-cube]="" [ms-poke-cube]="" [ms-lift-peg]=""
 )
 # Per-critic overrides
-declare -A CRITIC_OV=( [fb_tdj]="" [hilp_tdjc]="" [rldp]="ortho_coef=1.0" )
+declare -A CRITIC_OV=( [fb]="" [hilp]="" [rldp]="ortho_coef=1.0" )
 RELABEL="eval_relabel_size=$RELABEL_SIZE eval_relabel_shift=$RELABEL_SHIFT eval_relabel_episodes=$RELABEL_EPISODES"
 
 overrides_for() {  # <critic> <task> -> space-separated k=v list

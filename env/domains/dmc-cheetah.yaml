@@ -1,5 +1,5 @@
 # ExoRL cheetah, RND exploration data, reward-specified tasks scored by episode return.
-# goal_spec is passed by scripts/launch_exorl_*.sh, calibrated by scripts/calibrate_hit_spec.py.
+# goal_spec is passed by scripts/launch_exorl_*.sh, calibrated by scripts/calibrate_goal_spec.py.
 adapter: unified
 env_name: dmc-cheetah         # run naming only
 task: dmc-cheetah

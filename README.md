@@ -17,8 +17,8 @@ The task is a goal state g or a latent task vector z of width 50.
 The actor is trained against the frozen critic, and the next action a' in each TD target comes from the current actor.
 
 - **Density-FB** (`impls/critics/density_fb.py`). The critic predicts a probability distribution over which of the batch's next states the agent will visit in the future: `w(s, a, g, u_j) = softmax_j( F(s, a, g)^T B(u_j) )`. Its TD target puts weight (1 - gamma) on the row's own next state plus gamma times the target network's distribution at (s', a'), and it is trained by cross-entropy. The actor maximizes the reward averaged under that distribution. For a goal, the reward is a "goal reached" kernel over the goal observation columns and success radius; for z, it is the linear reward z represents.
-- **FB** (`impls/critics/fb.py`, config `fb_tdj`). F(s, a, z)^T B(s') regresses the discounted successor density, with TD target "1 at the row's own next state, plus gamma times the target F^T B at s''", and an orthonormality penalty on B. The actor maximizes F(s, a, z)^T z.
-- **HILP** (`impls/critics/hilp.py`, config `hilp_tdjc`). A goal-conditioned value V(s, g) = -||phi(s) - phi(g)|| is fit by TD to learn features phi. Successor features F(s, a, z) then regress the discounted sum of centered phi, with TD target phi(s') + gamma F_target(s', a', z). The actor maximizes F(s, a, z)^T z.
+- **FB** (`impls/critics/fb.py`, config `fb`). F(s, a, z)^T B(s') regresses the discounted successor density, with TD target "1 at the row's own next state, plus gamma times the target F^T B at s''", and an orthonormality penalty on B. The actor maximizes F(s, a, z)^T z.
+- **HILP** (`impls/critics/hilp.py`, config `hilp`). A goal-conditioned value V(s, g) = -||phi(s) - phi(g)|| is fit by TD to learn features phi. Successor features F(s, a, z) then regress the discounted sum of centered phi, with TD target phi(s') + gamma F_target(s', a', z). The actor maximizes F(s, a, z)^T z.
 - **RLDP** (`impls/critics/rldp.py`, config `rldp`). F is trained as in FB with B held fixed in that loss. B is trained by a 5-step latent prediction loss along the dataset actions. The actor and z are as in FB.
 
 There are two ways to give the agent a task at evaluation.
@@ -37,7 +37,7 @@ If the installed `mujoco` is too old for `dm_control`'s reward re-simulation, po
 ## Running
 
 Every run goes through `impls/main.py` with a critic, an actor and a domain.
-Critic names are `density_fb`, `density_fb_z`, `density_fb_state` (B reads the full state), `fb_tdj`, `fb_ref`, `hilp_tdjc` and `rldp`.
+Critic names are `density_fb`, `density_fb_z`, `density_fb_state` (B reads the full state), `fb`, `hilp` and `rldp`.
 Config values can be changed with `--override key=value`.
 
 ```bash
@@ -48,14 +48,14 @@ python -m impls.main --critic density_fb --actor flowbc --domain cube_single --s
 python -m impls.main --critic density_fb_z --actor flowbc --domain cube_single --seed 0 \
     --override 'goal_spec="19:22:0.4"' --override eval_relabel_size=10000
 # FB, HILP and RLDP
-python -m impls.main --critic fb_tdj    --actor flowbc --domain cube_double --seed 0
-python -m impls.main --critic hilp_tdjc --actor flowbc --domain cube_double --seed 0
+python -m impls.main --critic fb   --actor flowbc --domain cube_double --seed 0
+python -m impls.main --critic hilp --actor flowbc --domain cube_double --seed 0
 python -m impls.main --critic rldp      --actor flowbc --domain cube_double --seed 0
 ```
 
 `goal_spec` lists the goal observation columns and success radius as `start:end:radius`, comma separated per object.
 A critic yaml may start with `base: <name>` to inherit another.
-Old config keys (such as `measure_hit_spec` or `measure_density_z`) are still accepted and renamed on load (`impls/utils/config_utils.py`).
+Configs and critic names saved by older runs (such as `measure_hit_spec`, or the critic `fb_tdj`) are still accepted and renamed on load (`impls/utils/config_utils.py`).
 
 ## Reproducing the paper
 
@@ -98,7 +98,7 @@ python analysis/single_bottleneck/family9.py                    # policy family 
 python analysis/single_bottleneck/check_lemma.py                # lemma check (CPU)
 ```
 
-The lead figure uses `fb_ref` and `density_fb_state` cube-single seed 0 at `params_500000.pkl`. The failure analysis uses `fb_tdj` and `density_fb_z` cube-single seeds 0-2 at 1M.
+The lead figure uses FB and `density_fb_state` on cube-single, seed 0, at 500k steps. The failure analysis uses FB and `density_fb_z` on cube-single, seeds 0-2, at 1M steps. The paper's run directories carry the older critic names `fb_ref` and `fb_tdj`.
 
 Run the tests with:
 
@@ -110,7 +110,7 @@ JAX_PLATFORMS=cpu PYTHONPATH=. python -m pytest tests -q
 
 - `impls/main.py`: training loop and both evaluation modes (reward inference is the `eval_relabel_size` block)
 - `impls/agents/`: pairs a critic with an actor and sets the update order
-- `impls/critics/`: Density-FB, FB, HILP and RLDP; `_measure_common.py` parses the goal columns and success radii
+- `impls/critics/`: Density-FB, FB, HILP and RLDP; `goal_spec.py` parses the goal columns and success radii
 - `impls/actors/`: flow actor (`flowbc.py`) and DDPG-style actor (`ddpgbc.py`, `_motivo_nets.py`)
 - `impls/utils/`: networks, datasets and goal sampling, config loading, evaluation
 - `impls/configs/`: critic, actor and OGBench domain yamls

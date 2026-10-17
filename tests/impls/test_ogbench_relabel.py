@@ -1,4 +1,4 @@
-"""OGBench reward relabelling and the reward-inference eval route."""
+"""OGBench reward relabelling and reward-inference evaluation."""
 
 import csv
 import os
@@ -393,7 +393,7 @@ def test_eval_relabel_route_runs_alongside_the_goal_conditioned_route(
         "the new relabel route must run for every task"
     )
 
-    # Relabel route: per-task z. Normal route: eval_cond0 for both tasks.
+    # Reward-inference evaluation: per-task z. Goal-conditioned evaluation: eval_cond0 for both tasks.
     z1 = next(c["z"] for c in relabel if c["task"] == 1)
     z2 = next(c["z"] for c in relabel if c["task"] == 2)
     assert not np.allclose(z1, z2), "relabel z must differ by task"
@@ -402,7 +402,7 @@ def test_eval_relabel_route_runs_alongside_the_goal_conditioned_route(
             "the goal-conditioned route's z must be untouched (eval_cond0)"
         )
 
-    # The routes write separate files; CsvLogger fixes its header on the first row.
+    # The two evaluations write separate files; CsvLogger fixes its header on the first row.
     with open(os.path.join(run_dir, "eval.csv")) as f:
         normal_rows = list(csv.DictReader(f))
     with open(os.path.join(run_dir, "eval_relabel.csv")) as f:
@@ -414,7 +414,7 @@ def test_eval_relabel_route_runs_alongside_the_goal_conditioned_route(
 
 
 def test_eval_relabel_absent_when_the_key_is_unset(tmp_path, monkeypatch):
-    """Without eval_relabel_size the relabel route never runs."""
+    """Without eval_relabel_size reward-inference evaluation never runs."""
     adapter = _RelabelWiringAdapter(n_tasks=2)
     cfg = _fb_cfg()
     run_dir = _run_main(tmp_path, monkeypatch, cfg, adapter)

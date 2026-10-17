@@ -74,7 +74,7 @@ def train_one(name):
     b, n = m["decision"], m["n"]
     rows = []
     for d in RANKS:
-        for meth, arm in METHODS.items():
+        for meth, variant in METHODS.items():
             cfg, pred, _, _ = sb.fam.train_group(m, d, meth)
             for c_, p in zip(cfg, pred):
                 P = sb.bf.readout(p, sb.fam._base_method(meth), GAMMA, n)
@@ -82,7 +82,7 @@ def train_one(name):
                 rows.append(
                     dict(
                         process=name,
-                        arm=arm,
+                        arm=variant,
                         d=d,
                         seed=c_["seed"],
                         lr=c_["lr"],
@@ -125,7 +125,7 @@ def table(rows):
     names = ["P9"] + [f"R{k}" for k in range(1, 6)]
     print("\nsmallest d with mean gap fraction >= 0.9 (TD):")
     out = {}
-    for arm in "ABCDF":
+    for variant in "ABCDF":
         line = []
         for nm in names:
             ds = [
@@ -135,15 +135,15 @@ def table(rows):
                     [
                         r["gap_ratio"]
                         for r in rows
-                        if r["process"] == nm and r["arm"] == arm and r["d"] == d
+                        if r["process"] == nm and r["arm"] == variant and r["d"] == d
                     ]
                     or [np.nan]
                 )
                 >= 0.9
             ]
             line.append(min(ds) if ds else None)
-        out[arm] = line
-        print(arm, line)
+        out[variant] = line
+        print(variant, line)
     return out
 
 

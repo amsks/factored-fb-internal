@@ -1,9 +1,9 @@
-"""Hit-spec radius calibration from the effective support of the softmax-normalised goal reward."""
+"""Goal-spec success radius calibration from the effective support of the softmax-normalised goal reward."""
 
 import numpy as np
 import pytest
 
-from scripts.calibrate_hit_spec import calibrate_support, effective_support
+from scripts.calibrate_goal_spec import calibrate_support, effective_support
 
 
 def _blob(n, d, seed=0):

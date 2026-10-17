@@ -16,11 +16,11 @@ import numpy as np
 from scripts.probes.cube_bottleneck import agents as A
 from scripts.probes.cube_bottleneck.fig_outcome_map import CM, MASS_CMAP, task_goals
 from scripts.probes.cube_bottleneck.figures import (
-    ARM_COLOR,
-    ARM_LABEL,
     INK,
     INK2,
     SURFACE,
+    VARIANT_COLOR,
+    VARIANT_LABEL,
 )
 
 ANALYSIS = Path("analysis/cube_bottleneck")
@@ -30,7 +30,7 @@ ORDER = ["fb_ref", "density_fb_state"]
 NEAR_CM = 5.0  # radius for "gripper at the cube"
 
 
-def batched_mass(arm, obs_row, act_row, goals, pool_obs):
+def batched_mass(variant, obs_row, act_row, goals, pool_obs):
     """Return [G, M] predicted pool mass for one state under G goals, and FB's negative fraction.
 
     FB's signed measure is clipped at zero and renormalised per row.
@@ -39,11 +39,11 @@ def batched_mass(arm, obs_row, act_row, goals, pool_obs):
 
     from scripts.probes.cube_bottleneck.measure_probe import density_readout, fb_readout
 
-    c, net = arm.agent.critic, arm.agent.net
+    c, net = variant.agent.critic, variant.agent.net
     G = len(goals)
     obs = np.repeat(np.asarray(obs_row, np.float32)[None], G, axis=0)
     acts = np.repeat(np.asarray(act_row, np.float32)[None], G, axis=0)
-    if arm.critic.startswith("density_fb"):
+    if variant.critic.startswith("density_fb"):
         # density_readout takes one goal at a time
         m = np.stack(
             [
@@ -117,10 +117,10 @@ def main() -> int:
             run = Path("exp") / f"{args.env}_{a}_flowbc_seed_{s}"
             if not (run / "params_500000.pkl").exists():
                 continue
-            arm = A.load_arm(run)
-            goals = task_goals(arm, args.task, args.goal_draws, args.goal_seed)
+            variant = A.load_variant(run)
+            goals = task_goals(variant, args.task, args.goal_draws, args.goal_seed)
             for i in range(len(obs_b)):
-                p, neg = batched_mass(arm, obs_b[i], act_b[i], goals, pool_obs)
+                p, neg = batched_mass(variant, obs_b[i], act_b[i], goals, pool_obs)
                 pm = p.mean(0)  # average over goal draws
                 acc = pm if acc is None else acc + pm
                 nears.append(float(pm[near].sum()))
@@ -139,9 +139,9 @@ def main() -> int:
 
     cols = ["prior"] + [a for a in args.critics if a in panels]
     titles = {"prior": "dataset prior\n(uniform over the pool)"}
-    titles.update({a: ARM_LABEL[a] for a in args.critics})
+    titles.update({a: VARIANT_LABEL[a] for a in args.critics})
     colours = {"prior": INK2}
-    colours.update({a: ARM_COLOR[a] for a in args.critics})
+    colours.update({a: VARIANT_COLOR[a] for a in args.critics})
 
     vmax = float(max(panels[c].max() for c in cols))
     fig, axes = plt.subplots(

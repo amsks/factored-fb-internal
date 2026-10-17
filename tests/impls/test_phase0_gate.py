@@ -9,8 +9,8 @@ from impls.utils.config_utils import load_config
 from impls.utils.datasets import make_dataset
 from impls.utils.env_utils import make_env_and_datasets
 
-# One config per critic class (hilp's only yaml is hilp_tdjc).
-CRITIC_CONFIGS = ("fb", "density_fb", "hilp_tdjc", "rldp")
+# One config per critic class.
+CRITIC_CONFIGS = ("fb", "density_fb", "hilp", "rldp")
 PAIRS = [(c, a) for c in CRITIC_CONFIGS for a in ACTORS]
 
 

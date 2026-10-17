@@ -3,7 +3,7 @@
 #
 #   bash scripts/launch_ogbench.sh <method> <domain> <seed> [extra impls.main flags]
 #
-#   method  fb | hilp | rldp | density_fb | density_fb_z | density_fb_state | fb_ref
+#   method  fb | fb_500k | hilp | rldp | density_fb | density_fb_z | density_fb_state
 #           | density_fb_linear | density_fb_z_linear | density_fb_500k | density_fb_z_500k
 #   domain  cube_single | cube_double | scene_play
 #
@@ -28,9 +28,9 @@ esac
 STEPS=1000000
 EXTRA=()
 case $METHOD in
-  fb)                  CRITIC=fb_tdj ;;
-  fb_ref)              CRITIC=fb_ref; STEPS=500000 ;;
-  hilp)                CRITIC=hilp_tdjc ;;
+  fb)                  CRITIC=fb ;;
+  fb_500k)             CRITIC=fb; STEPS=500000; EXTRA=(--save_dir exp/fb_500k) ;;
+  hilp)                CRITIC=hilp ;;
   rldp)                CRITIC=rldp; EXTRA=(--save_dir exp/ortho1) ;;
   density_fb)          CRITIC=density_fb ;;
   density_fb_state)    CRITIC=density_fb_state ;;
@@ -49,7 +49,7 @@ case $CRITIC in density_fb*) EXTRA+=(--override "goal_spec=$HIT") ;; esac
 RELABEL=(--override eval_relabel_size=10000 --override eval_relabel_shift=1.0
          --override eval_relabel_episodes=10)
 case $METHOD/$DOMAIN in
-  fb_ref/*|density_fb_linear/cube_single|density_fb_500k/cube_single) RELABEL=() ;;
+  fb_500k/*|density_fb_linear/cube_single|density_fb_500k/cube_single) RELABEL=() ;;
 esac
 
 CMD=("$PY" -m impls.main --critic "$CRITIC" --actor flowbc --domain "$DOMAIN" --seed "$SEED"

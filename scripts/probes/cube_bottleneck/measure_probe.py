@@ -157,7 +157,7 @@ def p_secure_for_state(actor_fn, envs, qpos, qvel, acts, goals, thr) -> np.ndarr
 
 
 def ground_truth(
-    arm,
+    variant,
     banks: Dict[str, Dict[str, np.ndarray]],
     out_dir: Path,
     thr: PhaseThresholds,
@@ -183,11 +183,11 @@ def ground_truth(
         if f.exists():
             return dict(np.load(f, allow_pickle=True))
 
-    env, agent = arm.env, arm.agent
+    env, agent = variant.env, variant.agent
     actor_fn = supply_rng(agent.sample_actions, rng=jax.random.PRNGKey(ACTION_SEED))
-    pool_envs = make_env_pool(arm.env_name, N_ACTIONS * N_CONT)
+    pool_envs = make_env_pool(variant.env_name, N_ACTIONS * N_CONT)
     print(f"[gt] env pool: {len(pool_envs)} envs stepped in lockstep", flush=True)
-    tasks = A.eval_tasks(arm)
+    tasks = A.eval_tasks(variant)
     goals = []
     for t in tasks:
         _o, info = env.reset(options=dict(task_id=t, render_goal=False))
@@ -228,7 +228,7 @@ def ground_truth(
             f"states with std>{G4_STD_MIN}: {int((sd > G4_STD_MIN).sum())}/{n}",
             flush=True,
         )
-    store["_gt_arm"] = np.asarray(arm.label)
+    store["_gt_arm"] = np.asarray(variant.label)
     np.savez(f, **store)
     return store
 
@@ -302,9 +302,11 @@ def density_readout(critic, net, obs, acts, goal, pool_obs):
     b_emb = critic._B(b_p, u_sc)  # [M,d]
     g = jnp.broadcast_to(jnp.asarray(goal), (len(acts), len(goal)))
     f_emb = critic._F(f_p, jnp.asarray(obs), jnp.asarray(acts), g)
-    w_heads = jax.nn.softmax(jnp.einsum("hbd,md->hbm", f_emb, b_emb) / critic.temp, -1)
+    w_heads = jax.nn.softmax(
+        jnp.einsum("hbd,md->hbm", f_emb, b_emb) / critic.temperature, -1
+    )
     w = jnp.mean(w_heads, axis=0)  # [B,M]
-    # Actor readout: hit kernel in raw coordinates
+    # Actor readout: goal reward kernel in raw coordinates
     u_raw = _raw_block_cols(pool, critic.blocks)
     kg = _delta_phi(jnp.asarray(goal)[None], u_raw, critic.blocks)  # [1,M]
     q = jnp.min((w_heads * kg[None]).sum(-1), axis=0)  # [B]
@@ -343,13 +345,13 @@ def _spearman(x: np.ndarray, y: np.ndarray) -> float:
 # Pass B driver
 
 
-def readouts(arm, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
-    """Every (phase, state, action, goal) readout for one arm."""
+def readouts(variant, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
+    """Every (phase, state, action, goal) readout for one variant."""
     import jax.numpy as jnp
 
-    critic, net, env = arm.agent.critic, arm.agent.net, arm.env
-    is_density = arm.critic.startswith("density_fb")
-    tasks = A.eval_tasks(arm)
+    critic, net, env = variant.agent.critic, variant.agent.net, variant.env
+    is_density = variant.critic.startswith("density_fb")
+    tasks = A.eval_tasks(variant)
     pool_obs = pool["obs"]
     held_mask = pool["held"].astype(bool)
     assert len(pool_obs) == POOL_SIZE, (
@@ -394,9 +396,9 @@ def readouts(arm, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
                 for ai in range(len(acts)):
                     rows.append(
                         dict(
-                            env=arm.env_name,
-                            critic=arm.critic,
-                            seed=arm.seed,
+                            env=variant.env_name,
+                            critic=variant.critic,
+                            seed=variant.seed,
                             phase=phase,
                             state=i,
                             action=ai,
@@ -409,7 +411,7 @@ def readouts(arm, banks, gt, pool, out_dir: Path) -> List[Dict[str, Any]]:
                         )
                     )
         print(
-            f"  [{arm.label}] {phase}: {len(bank['qpos'])} states x {N_ACTIONS} actions "
+            f"  [{variant.label}] {phase}: {len(bank['qpos'])} states x {N_ACTIONS} actions "
             f"x {len(goals)} goals",
             flush=True,
         )
@@ -495,15 +497,17 @@ def main() -> int:
         raise SystemExit("no runs discovered")
 
     # Pass A: shared ground truth from the first agent's actor
-    gt_arm = A.load_arm(runs[0]["run_dir"], args.epoch)
-    R.ensure_cube_env(gt_arm.env)
-    print(f"[gt] p_secure continuations under {gt_arm.label}'s flow actor", flush=True)
+    gt_variant = A.load_variant(runs[0]["run_dir"], args.epoch)
+    R.ensure_cube_env(gt_variant.env)
+    print(
+        f"[gt] p_secure continuations under {gt_variant.label}'s flow actor", flush=True
+    )
     sl = (
         slice(args.state_start, args.state_end)
         if args.state_start is not None or args.state_end is not None
         else None
     )
-    gt = ground_truth(gt_arm, banks, out_dir, thr, tag=tag, state_slice=sl)
+    gt = ground_truth(gt_variant, banks, out_dir, thr, tag=tag, state_slice=sl)
     if sl is not None:
         print(
             f"[gt] slice {sl.start}:{sl.stop} written; run --merge-gt when all are done"
@@ -534,12 +538,12 @@ def main() -> int:
     part_dir = out_dir / "measure_probe"
     part_dir.mkdir(parents=True, exist_ok=True)
     for r in runs:
-        arm = (
-            gt_arm
+        variant = (
+            gt_variant
             if r["run_dir"] == runs[0]["run_dir"]
-            else A.load_arm(r["run_dir"], args.epoch)
+            else A.load_variant(r["run_dir"], args.epoch)
         )
-        rows = readouts(arm, banks, gt, pool, out_dir)
+        rows = readouts(variant, banks, gt, pool, out_dir)
         out = part_dir / f"{r['critic']}_seed{r['seed']}{tag}.csv"
         pd.DataFrame(rows).to_csv(out, index=False)
         print(f"[test2] wrote {len(rows)} rows -> {out}", flush=True)

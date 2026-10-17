@@ -235,7 +235,7 @@ def calibrate(mdp, v):
     return a, corr
 
 
-def e_arm_rows(mdp, F, B, base):
+def e_variant_rows(mdp, F, B, base):
     v = linear_readout(mdp, F, B)
     a, corr = calibrate(mdp, v)
     raw, cal = gap_stats(mdp, v), gap_stats(mdp, a * v)
@@ -365,7 +365,7 @@ def run_closed_form(mdps, ranks=None):
                     )
                 )
                 rows.append(
-                    e_arm_rows(
+                    e_variant_rows(
                         mdp,
                         F,
                         B,
@@ -390,7 +390,13 @@ def run_closed_form(mdps, ranks=None):
 
 # TD-trained fits
 TRAIN_METHODS = ["fb", "normsq", "softsq", "density", "density_soft"]
-ARM_OF = {"fb": "A", "normsq": "B", "softsq": "C", "density": "D", "density_soft": "F"}
+VARIANT_OF = {
+    "fb": "A",
+    "normsq": "B",
+    "softsq": "C",
+    "density": "D",
+    "density_soft": "F",
+}
 
 
 def _base_method(method):
@@ -471,7 +477,7 @@ def run_trained(mdps, ranks=None):
                     base = dict(mdp=k, d=d, seed=c["seed"], lr=c["lr"])
                     rows.append(
                         dict(
-                            arm=ARM_OF[method],
+                            arm=VARIANT_OF[method],
                             method=method,
                             **base,
                             **gap_stats(mdp, P @ mdp["r"] / (1 - GAMMA)),
@@ -480,7 +486,7 @@ def run_trained(mdps, ranks=None):
                     )
                     if method == "density":
                         rows.append(
-                            e_arm_rows(
+                            e_variant_rows(
                                 mdp,
                                 F_all[i],
                                 B_all[i],
@@ -492,18 +498,22 @@ def run_trained(mdps, ranks=None):
 
 
 # Figures
-ARMS = single.ARMS
-ARM_COLOR, ARM_MARKER, ARM_LABEL = single.ARM_COLOR, single.ARM_MARKER, single.ARM_LABEL
+VARIANTS = single.VARIANTS
+VARIANT_COLOR, VARIANT_MARKER, VARIANT_LABEL = (
+    single.VARIANT_COLOR,
+    single.VARIANT_MARKER,
+    single.VARIANT_LABEL,
+)
 GAP_YLIM = single.GAP_YLIM
 
 
-def agg(rows, arm, key="gap_ratio", ranks=RANKS):
+def agg(rows, variant, key="gap_ratio", ranks=RANKS):
     out = {}
     for d in ranks:
         vals = [
             float(r[key])
             for r in rows
-            if r["arm"] == arm and int(r["d"]) == d and r.get(key, "") != ""
+            if r["arm"] == variant and int(r["d"]) == d and r.get(key, "") != ""
         ]
         out[d] = single.t_interval(vals) if vals else (np.nan, np.nan, np.nan)
     return out
@@ -518,16 +528,22 @@ def draw_panel(
     ylim=GAP_YLIM,
     ranks=None,
 ):
-    """One line per arm with a band over runs; hollow markers for TD-trained."""
+    """One line per variant with a band over runs; hollow markers for TD-trained."""
     RANKS = list(ranks) if ranks is not None else globals()["RANKS"]
-    for arm in ARMS:
-        a = agg(rows, arm, key, ranks=RANKS)
+    for variant in VARIANTS:
+        a = agg(rows, variant, key, ranks=RANKS)
         y = np.array([a[d][0] for d in RANKS])
         lo = np.array([a[d][1] for d in RANKS])
         hi = np.array([a[d][2] for d in RANKS])
-        if arm != "E":  # E's scale is arbitrary
+        if variant != "E":  # E's scale is arbitrary
             ax.fill_between(
-                RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2
+                RANKS,
+                lo,
+                hi,
+                color=VARIANT_COLOR[variant],
+                alpha=0.16,
+                linewidth=0,
+                zorder=2,
             )
         shown = (
             np.where((y > ylim[1]) | (y < ylim[0]), np.nan, y)
@@ -537,15 +553,15 @@ def draw_panel(
         ax.plot(
             RANKS,
             shown,
-            color=ARM_COLOR[arm],
-            marker=ARM_MARKER[arm],
-            markersize=6.0 if arm == "B" else 4.2,
-            markerfacecolor="none" if hollow else ARM_COLOR[arm],
-            markeredgecolor=ARM_COLOR[arm] if hollow else "white",
+            color=VARIANT_COLOR[variant],
+            marker=VARIANT_MARKER[variant],
+            markersize=6.0 if variant == "B" else 4.2,
+            markerfacecolor="none" if hollow else VARIANT_COLOR[variant],
+            markeredgecolor=VARIANT_COLOR[variant] if hollow else "white",
             markeredgewidth=1.1 if hollow else 0.6,
             linewidth=1.5,
             linestyle="-",
-            zorder=3 + (arm == "A"),
+            zorder=3 + (variant == "A"),
         )
         if ylim is not None:  # label off-axis points at the edge
             for xi, yi in zip(RANKS, y):
@@ -555,7 +571,7 @@ def draw_panel(
                         f"{yi:.2f}",
                         (xi, ylim[1] - 0.02 if up else ylim[0] + 0.02),
                         fontsize=6.5,
-                        color=ARM_COLOR[arm],
+                        color=VARIANT_COLOR[variant],
                         ha="center",
                         va="top" if up else "bottom",
                     )
@@ -569,8 +585,8 @@ def draw_panel(
 VALUES_RANK = 3
 
 
-def values_rows(trained_rows, mdps, d=VALUES_RANK, arms=("A", "D")):
-    """Decision-state action values, rescaled so the exact pair is (1, 0); {arm: {action: (mean, lo, hi)}}."""
+def values_rows(trained_rows, mdps, d=VALUES_RANK, variants=("A", "D")):
+    """Decision-state action values, rescaled so the exact pair is (1, 0); {variant: {action: (mean, lo, hi)}}."""
     qx = {
         m["seed"]: (
             m["q_exact"][2 * m["decision"]],
@@ -579,20 +595,20 @@ def values_rows(trained_rows, mdps, d=VALUES_RANK, arms=("A", "D")):
         for m in mdps
     }
     out = {}
-    for arm in arms:
+    for variant in variants:
         cols = {0: [], 1: []}
         for r in trained_rows:
-            if r["arm"] != arm or int(r["d"]) != d:
+            if r["arm"] != variant or int(r["d"]) != d:
                 continue
             q0e, q1e = qx[int(r["mdp"])]
             for a, key in ((0, "q0"), (1, "q1")):
                 cols[a].append((float(r[key]) - q1e) / (q0e - q1e))
-        out[arm] = {a: single.t_interval(v) for a, v in cols.items()}
+        out[variant] = {a: single.t_interval(v) for a, v in cols.items()}
     out["exact"] = {0: (1.0, 1.0, 1.0), 1: (0.0, 0.0, 0.0)}
     return out
 
 
-def make_two_arm_figure(trained_rows, arms=("A", "D")):
+def make_two_variant_figure(trained_rows, variants=("A", "D")):
     """FB vs Density-FB figure."""
     import matplotlib
 
@@ -614,22 +630,28 @@ def make_two_arm_figure(trained_rows, arms=("A", "D")):
     fig, ax = plt.subplots(figsize=(3.4, 2.3))
     ax.axhline(1.0, color=single.EXACT_COLOR, linestyle="--", linewidth=1.0, zorder=1)
     ax.axhline(0.0, color="#cfcfcf", linewidth=0.7, zorder=1)
-    for arm in arms:
-        a = agg(trained_rows, arm)
+    for variant in variants:
+        a = agg(trained_rows, variant)
         y = np.array([a[d][0] for d in RANKS])
         lo = np.array([a[d][1] for d in RANKS])
         hi = np.array([a[d][2] for d in RANKS])
         ax.fill_between(
-            RANKS, lo, hi, color=ARM_COLOR[arm], alpha=0.16, linewidth=0, zorder=2
+            RANKS,
+            lo,
+            hi,
+            color=VARIANT_COLOR[variant],
+            alpha=0.16,
+            linewidth=0,
+            zorder=2,
         )
         ax.plot(
             RANKS,
             y,
-            color=ARM_COLOR[arm],
-            marker=ARM_MARKER[arm],
+            color=VARIANT_COLOR[variant],
+            marker=VARIANT_MARKER[variant],
             markersize=4.2,
             markerfacecolor="none",
-            markeredgecolor=ARM_COLOR[arm],
+            markeredgecolor=VARIANT_COLOR[variant],
             markeredgewidth=1.1,
             linewidth=1.6,
             zorder=3,
@@ -641,8 +663,8 @@ def make_two_arm_figure(trained_rows, arms=("A", "D")):
             Line2D(
                 [0],
                 [0],
-                color=ARM_COLOR["A"],
-                marker=ARM_MARKER["A"],
+                color=VARIANT_COLOR["A"],
+                marker=VARIANT_MARKER["A"],
                 markerfacecolor="none",
                 markersize=4.2,
                 linewidth=1.6,
@@ -651,8 +673,8 @@ def make_two_arm_figure(trained_rows, arms=("A", "D")):
             Line2D(
                 [0],
                 [0],
-                color=ARM_COLOR["D"],
-                marker=ARM_MARKER["D"],
+                color=VARIANT_COLOR["D"],
+                marker=VARIANT_MARKER["D"],
                 markerfacecolor="none",
                 markersize=4.2,
                 linewidth=1.6,
@@ -705,8 +727,8 @@ def make_values_figure(
     vals = values_rows(trained_rows, mdps, d=d)
     groups = [
         ("exact", "exact", single.EXACT_COLOR),
-        ("A", "FB", ARM_COLOR["A"]),
-        ("D", "Density-FB", ARM_COLOR["D"]),
+        ("A", "FB", VARIANT_COLOR["A"]),
+        ("D", "Density-FB", VARIANT_COLOR["D"]),
     ]
     fig, ax = plt.subplots(figsize=(3.4, 2.3))
     width, gap = 0.34, 0.12
@@ -896,7 +918,7 @@ def make_figures(closed_rows, trained_rows, mdps):
     plt.close(fig)
 
     make_values_figure(trained_rows, mdps)
-    make_two_arm_figure(trained_rows)
+    make_two_variant_figure(trained_rows)
     for mdp in mdps:
         draw_graph(mdp)
 
@@ -1048,19 +1070,19 @@ def draw_graph(
 
 # Tables and IO
 def print_tables(closed_rows, trained_rows, mdps):
-    def line(rows, arm, key="gap_ratio"):
-        a = agg(rows, arm, key)
+    def line(rows, variant, key="gap_ratio"):
+        a = agg(rows, variant, key)
         return " | ".join(f"{a[d][0]:.3f}" for d in RANKS)
 
     log("\n=== gap ratio vs rank, mean over all processes (closed form) ===")
     log("arm | " + " | ".join(f"d={d}" for d in RANKS))
-    for arm in ARMS:
-        log(f"{arm} | {line(closed_rows, arm)}")
+    for variant in VARIANTS:
+        log(f"{variant} | {line(closed_rows, variant)}")
     log("\n=== gap ratio vs rank, mean over all processes (TD-trained) ===")
-    for arm in ARMS:
-        a = agg(trained_rows, arm)
+    for variant in VARIANTS:
+        a = agg(trained_rows, variant)
         log(
-            f"{arm} | "
+            f"{variant} | "
             + " | ".join(f"{a[d][0]:.2f} [{a[d][1]:.2f}, {a[d][2]:.2f}]" for d in RANKS)
         )
     for variant in ("single", "series", "parallel"):
@@ -1072,8 +1094,8 @@ def print_tables(closed_rows, trained_rows, mdps):
             f"\n=== gap ratio vs rank, TD-trained, {variant} bottleneck only "
             f"({len(keep)} processes) ==="
         )
-        for arm in ARMS:
-            log(f"{arm} | {line(sub, arm)}")
+        for variant in VARIANTS:
+            log(f"{variant} | {line(sub, variant)}")
 
     log("\n=== per process, TD-trained gap ratio ===")
     for mdp in mdps:
@@ -1083,23 +1105,23 @@ def print_tables(closed_rows, trained_rows, mdps):
             f"groups {'/'.join(str(len(g)) for g in mdp['groups'])}, "
             f"cuts {mdp['cuts']}) --"
         )
-        for arm in ARMS:
-            log(f"   {arm} | {line(sub, arm)}")
+        for variant in VARIANTS:
+            log(f"   {variant} | {line(sub, variant)}")
 
     log(
         "\n=== smallest rank reaching 90% of the exact gap (per process, TD-trained) ==="
     )
     log("arm | " + " | ".join(label(m).replace(" ", "") for m in mdps) + " | median")
-    for arm in ARMS:
+    for variant in VARIANTS:
         need = []
         for mdp in mdps:
             sub = [r for r in trained_rows if int(r["mdp"]) == mdp["seed"]]
-            a = agg(sub, arm)
+            a = agg(sub, variant)
             hit = [d for d in RANKS if a[d][0] >= 0.9]
             need.append(min(hit) if hit else np.nan)
         med = np.nanmedian(need) if not all(np.isnan(x) for x in need) else np.nan
         log(
-            f"{arm} | "
+            f"{variant} | "
             + " | ".join("-" if np.isnan(x) else str(int(x)) for x in need)
             + f" | {med if np.isnan(med) else med:.1f}"
         )
@@ -1107,24 +1129,24 @@ def print_tables(closed_rows, trained_rows, mdps):
     log(
         "\n=== retained squared mass vs rank, mean over all processes (closed || trained) ==="
     )
-    for arm in ARMS:
+    for variant in VARIANTS:
         log(
-            f"{arm} | {line(closed_rows, arm, 'retained_mass')}  ||  "
-            f"{line(trained_rows, arm, 'retained_mass')}"
+            f"{variant} | {line(closed_rows, variant, 'retained_mass')}  ||  "
+            f"{line(trained_rows, variant, 'retained_mass')}"
         )
     log("\n=== argmax stays on the goal action (fraction of fits, TD-trained) ===")
-    for arm in ARMS:
+    for variant in VARIANTS:
         vals = [
             np.mean(
                 [
                     float(str(r["argmax_correct"]) == "True")
                     for r in trained_rows
-                    if r["arm"] == arm and int(r["d"]) == d
+                    if r["arm"] == variant and int(r["d"]) == d
                 ]
             )
             for d in RANKS
         ]
-        log(f"{arm} | " + " | ".join(f"{v:.2f}" for v in vals))
+        log(f"{variant} | " + " | ".join(f"{v:.2f}" for v in vals))
 
 
 def write_csv(rows, name):

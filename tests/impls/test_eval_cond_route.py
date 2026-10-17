@@ -106,7 +106,7 @@ def test_the_wrapper_drops_a_supplied_goal_and_counts_it():
 
 
 def test_witness_cos_neutral_separates_the_constant_reward_fallback():
-    """cos(cond, 1_d) is 1 for the neutral fallback and below 1 for a real index."""
+    """cos(cond, 1_d) is 1 for the neutral fallback and below 1 for a real inferred z."""
     import impls.main as m
 
     agent = _inferred(_fb_agent())
@@ -117,13 +117,11 @@ def test_witness_cos_neutral_separates_the_constant_reward_fallback():
     w.cond_eval = {"z": jnp.ones((d,))}
     assert w.witness()["inferred_cond_cos_neutral"] == pytest.approx(1.0, abs=1e-6)
 
-    # A reward-informed index is not parallel to 1_d.
+    # A reward-informed z is not parallel to 1_d.
     v = jnp.asarray(np.linspace(-1.0, 1.0, d), dtype=jnp.float32)
     w.cond_eval = {"z": jnp.sqrt(jnp.array(float(d))) * v / jnp.linalg.norm(v)}
     cos = w.witness()["inferred_cond_cos_neutral"]
-    assert abs(cos) < 0.99, (
-        f"a non-neutral index must not read as the fallback (cos={cos})"
-    )
+    assert abs(cos) < 0.99, f"a non-neutral z must not read as the fallback (cos={cos})"
 
     # Both vectors lie on the sqrt(d) sphere; only one is the fallback.
     root_d = float(np.sqrt(d))

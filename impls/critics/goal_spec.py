@@ -1,4 +1,4 @@
-"""Hit-spec parsing: which observation columns define the task and the success radius."""
+"""Goal-spec parsing: which observation columns define the task and the success radius."""
 
 import jax.numpy as jnp
 
@@ -12,7 +12,7 @@ def _looks_sexagesimal(part):
     return True
 
 
-def parse_hit_spec(spec):
+def parse_goal_spec(spec):
     """Parse 'start:stop:eps,...' into a tuple of (start, stop, eps) blocks.
 
     Example: '19:22:0.4,28:31:0.4'.
@@ -41,5 +41,5 @@ def parse_hit_spec(spec):
 
 
 def scaled_hit_cols(x, blocks):
-    """Eps-scaled hit-spec columns [..., d_c]; callers check the blocks fit the observation."""
+    """Eps-scaled goal_spec columns [..., d_c]; callers check the blocks fit the observation."""
     return jnp.concatenate([x[..., a:b] / e for (a, b, e) in blocks], axis=-1)

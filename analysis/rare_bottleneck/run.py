@@ -128,7 +128,7 @@ def share(wts, row_loss, rows):
     return float(np.sum(wts[rows] * row_loss[rows]) / tot) if tot > 0 else float("nan")
 
 
-# Arm A: FB, closed form
+# Variant A: FB, closed form
 def fb_objective_rows(mdp, fit):
     """Per-row FB loss: (1/n) sum_j (fit_ij - n M_ij)^2."""
     return np.sum((fit - mdp["X"]) ** 2, axis=1) / mdp["n"]
@@ -184,7 +184,7 @@ def fb_limit(mdp, d):
     return frac, in_span, gap_rel
 
 
-def run_arm_A(mdp, wts, d, construction, w):
+def run_variant_a(mdp, wts, d, construction, w):
     X, n, r = mdp["X"], mdp["n"], mdp["r"]
     F, B, fit, s = fb_weighted(mdp, wts, d)
     Q = fit @ r / n  # F z with z = (1/n) B^T r
@@ -243,7 +243,7 @@ def run_arm_A(mdp, wts, d, construction, w):
     return rows
 
 
-# Arms C and D: softmax fits
+# Variants C and D: softmax fits
 CLOSED_STEPS = 300 if SMOKE else 50000
 POLISH_STEPS = 200 if SMOKE else 10000
 CLOSED_LR = 1e-2
@@ -309,7 +309,7 @@ def softmax_fits(mdp, wts, d, loss_kind, seeds):
     return np.asarray(out["f"]), np.asarray(out["b"])
 
 
-def run_arms_CD(mdp, wts, d, construction, w):
+def run_variants_cd(mdp, wts, d, construction, w):
     rows = []
     T, r, n = mdp["T"], mdp["r"], mdp["n"]
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -317,7 +317,7 @@ def run_arms_CD(mdp, wts, d, construction, w):
     bn = np.array(_rows(mdp))
     ROW0, ROW1 = _rows(mdp)
     GOAL = _goal(mdp)
-    for arm, method, kind in (("C", "softsq", "sq"), ("D", "density", "ce")):
+    for variant, method, kind in (("C", "softsq", "sq"), ("D", "density", "ce")):
         F_all, B_all = softmax_fits(mdp, wts, d, kind, SEEDS)
         for i, sd in enumerate(SEEDS):
             logits = F_all[i] @ B_all[i].T
@@ -337,7 +337,7 @@ def run_arms_CD(mdp, wts, d, construction, w):
                     N=mdp["N"],
                     n=n,
                     d=d,
-                    arm=arm,
+                    arm=variant,
                     method=method,
                     seed=sd,
                     **gap_stats(mdp, Q),
@@ -360,7 +360,7 @@ TRAIN_STEPS = 500 if SMOKE else 50000
 TRAIN_TAU = 0.005
 TRAIN_RATES = [0.001, 0.01]
 TRAIN_METHODS = ["fb", "softsq", "density"]
-ARM_OF = {"fb": "A", "softsq": "C", "density": "D"}
+VARIANT_OF = {"fb": "A", "softsq": "C", "density": "D"}
 TRAIN_RANK = 3
 
 
@@ -442,7 +442,7 @@ def run_trained(mdp, wts, construction, w, d=TRAIN_RANK):
                     N=mdp["N"],
                     n=n,
                     d=d,
-                    arm=ARM_OF[method],
+                    arm=VARIANT_OF[method],
                     method=method,
                     seed=c["seed"],
                     lr=c["lr"],
@@ -463,16 +463,16 @@ def sweep_closed():
     for w in W_SWEEP:
         wts = row_weights(base, w)
         for d in RANKS:
-            rows += run_arm_A(base, wts, d, "reweight", w)
-            rows += run_arms_CD(base, wts, d, "reweight", w)
-        g = lambda arm, d: np.mean(
+            rows += run_variant_a(base, wts, d, "reweight", w)
+            rows += run_variants_cd(base, wts, d, "reweight", w)
+        g = lambda variant, d: np.mean(
             [
                 x["gap_ratio"]
                 for x in rows
                 if x["construction"] == "reweight"
                 and x["w"] == w
                 and x["d"] == d
-                and x["arm"] == arm
+                and x["arm"] == variant
             ]
         )
         log(
@@ -489,17 +489,17 @@ def sweep_closed():
         wts = row_weights(mdp, 1.0 / mdp["n"])
         assert np.allclose(wts, 1.0 / (2 * mdp["n"]))
         for d in RANKS:
-            rows += run_arm_A(mdp, wts, d, "structural", 1.0 / mdp["n"])
-            rows += run_arms_CD(mdp, wts, d, "structural", 1.0 / mdp["n"])
+            rows += run_variant_a(mdp, wts, d, "structural", 1.0 / mdp["n"])
+            rows += run_variants_cd(mdp, wts, d, "structural", 1.0 / mdp["n"])
         dd = 3 if 3 in RANKS else RANKS[0]
-        g = lambda arm: np.mean(
+        g = lambda variant: np.mean(
             [
                 x["gap_ratio"]
                 for x in rows
                 if x["construction"] == "structural"
                 and x["N"] == N
                 and x["d"] == dd
-                and x["arm"] == arm
+                and x["arm"] == variant
             ]
         )
         log(
@@ -517,11 +517,13 @@ def sweep_trained():
         if w == 0.0:
             continue  # TD needs every row to receive gradient
         rows += run_trained(base, row_weights(base, w), "reweight", w)
-        g = lambda arm: np.mean(
+        g = lambda variant: np.mean(
             [
                 x["gap_ratio"]
                 for x in rows
-                if x["construction"] == "reweight" and x["w"] == w and x["arm"] == arm
+                if x["construction"] == "reweight"
+                and x["w"] == w
+                and x["arm"] == variant
             ]
         )
         log(
@@ -532,11 +534,13 @@ def sweep_trained():
         rows += run_trained(
             mdp, row_weights(mdp, 1.0 / mdp["n"]), "structural", 1.0 / mdp["n"]
         )
-        g = lambda arm: np.mean(
+        g = lambda variant: np.mean(
             [
                 x["gap_ratio"]
                 for x in rows
-                if x["construction"] == "structural" and x["N"] == N and x["arm"] == arm
+                if x["construction"] == "structural"
+                and x["N"] == N
+                and x["arm"] == variant
             ]
         )
         log(
@@ -604,16 +608,16 @@ def run_sanity():
     # Weighted SVD at w = 0 matches the limit; A+ keeps the gap exactly
     for d in RANKS:
         wts0 = row_weights(base, 0.0)
-        a = run_arm_A(base, wts0, d, "check", 0.0)
+        a = run_variant_a(base, wts0, d, "check", 0.0)
         assert abs(a[0]["gap_ratio"] - facts["limits"][d]["limit_gap_ratio"]) < 1e-8
         assert abs(a[1]["gap_ratio"] - 1.0) < 1e-8
         wts_u = row_weights(base, 1 / 9)
-        a = run_arm_A(base, wts_u, d, "check", 1 / 9)
+        a = run_variant_a(base, wts_u, d, "check", 1 / 9)
         assert a[0]["cost_preserve"] >= -1e-10
     log(
         "uniform weights (w = 1/9) reproduce the toy-ablation SVD: "
         + ", ".join(
-            f"d={d}: {run_arm_A(base, row_weights(base, 1 / 9), d, 'check', 1 / 9)[0]['gap_ratio']:.3f}"
+            f"d={d}: {run_variant_a(base, row_weights(base, 1 / 9), d, 'check', 1 / 9)[0]['gap_ratio']:.3f}"
             for d in RANKS
         )
     )
@@ -660,9 +664,9 @@ def agg(rows, key="gap_ratio", **kw):
     return t_interval(vals) if vals else (np.nan, np.nan, np.nan)
 
 
-ARM_COLOR = {"A": "#DE8F05", "C": "#D55E00", "D": "#029E73", "A+": "#CC78BC"}
-ARM_MARKER = {"A": "o", "C": "^", "D": "D", "A+": "s"}
-ARM_LABEL = {
+VARIANT_COLOR = {"A": "#DE8F05", "C": "#D55E00", "D": "#029E73", "A+": "#CC78BC"}
+VARIANT_MARKER = {"A": "o", "C": "^", "D": "D", "A+": "s"}
+VARIANT_LABEL = {
     "A": "A  FB (squared error)",
     "C": "C  softmax + squared error",
     "D": "D  Density-FB (softmax + cross-entropy)",
@@ -703,7 +707,7 @@ def draw_panel_gap(
     closed,
     trained,
     d=3,
-    arms=("A", "C", "D"),
+    variants=("A", "C", "D"),
     construction="reweight",
     w_sweep=None,
     uniform=1 / 9,
@@ -712,22 +716,30 @@ def draw_panel_gap(
     W_SWEEP = globals()["W_SWEEP"] if w_sweep is None else list(w_sweep)
     ax.axhline(1.0, color=EXACT_COLOR, linestyle="--", linewidth=1.0, zorder=1)
     ax.axhline(0.0, color="#cfcfcf", linewidth=0.7, zorder=1)
-    for arm in arms:
+    for variant in variants:
         xs, ys, los, his = [], [], [], []
         for w in W_SWEEP:
-            m, lo, hi = agg(closed, construction=construction, w=float(w), d=d, arm=arm)
+            m, lo, hi = agg(
+                closed, construction=construction, w=float(w), d=d, arm=variant
+            )
             xs.append(xpos(w))
             ys.append(m)
             los.append(lo)
             his.append(hi)
         ax.fill_between(
-            xs, los, his, color=ARM_COLOR[arm], alpha=0.18, linewidth=0, zorder=2
+            xs,
+            los,
+            his,
+            color=VARIANT_COLOR[variant],
+            alpha=0.18,
+            linewidth=0,
+            zorder=2,
         )
         ax.plot(
             xs,
             ys,
-            color=ARM_COLOR[arm],
-            marker=ARM_MARKER[arm],
+            color=VARIANT_COLOR[variant],
+            marker=VARIANT_MARKER[variant],
             markersize=3.8,
             markeredgecolor="white",
             markeredgewidth=0.5,
@@ -737,11 +749,12 @@ def draw_panel_gap(
         tx, ty, tlo, thi = [], [], [], []
         for w in W_SWEEP:
             m, lo, hi = agg(
-                trained, construction=construction, w=float(w), d=d, arm=arm
+                trained, construction=construction, w=float(w), d=d, arm=variant
             )
             if np.isfinite(m):
                 tx.append(
-                    xpos(w) * (1.06 if arm == "D" else 0.94 if arm == "A" else 1.0)
+                    xpos(w)
+                    * (1.06 if variant == "D" else 0.94 if variant == "A" else 1.0)
                 )
                 ty.append(m)
                 tlo.append(m - lo)
@@ -751,12 +764,12 @@ def draw_panel_gap(
                 tx,
                 ty,
                 yerr=[tlo, thi],
-                fmt=ARM_MARKER[arm],
+                fmt=VARIANT_MARKER[variant],
                 markersize=4.2,
                 markerfacecolor="none",
-                markeredgecolor=ARM_COLOR[arm],
+                markeredgecolor=VARIANT_COLOR[variant],
                 markeredgewidth=1.0,
-                ecolor=ARM_COLOR[arm],
+                ecolor=VARIANT_COLOR[variant],
                 elinewidth=0.8,
                 capsize=1.6,
                 linestyle="none",
@@ -790,8 +803,8 @@ def draw_panel_share(ax, closed, d=3):
     ax.plot(
         xs,
         a_share,
-        color=ARM_COLOR["A"],
-        marker=ARM_MARKER["A"],
+        color=VARIANT_COLOR["A"],
+        marker=VARIANT_MARKER["A"],
         markersize=3.8,
         markeredgecolor="white",
         markeredgewidth=0.5,
@@ -801,8 +814,8 @@ def draw_panel_share(ax, closed, d=3):
     ax.plot(
         xs,
         d_share,
-        color=ARM_COLOR["D"],
-        marker=ARM_MARKER["D"],
+        color=VARIANT_COLOR["D"],
+        marker=VARIANT_MARKER["D"],
         markersize=3.8,
         markeredgecolor="white",
         markeredgewidth=0.5,
@@ -827,8 +840,8 @@ def draw_panel_share(ax, closed, d=3):
     ax2.plot(
         xs,
         cost,
-        color=ARM_COLOR["A+"],
-        marker=ARM_MARKER["A+"],
+        color=VARIANT_COLOR["A+"],
+        marker=VARIANT_MARKER["A+"],
         markersize=3.6,
         markeredgecolor="white",
         markeredgewidth=0.5,
@@ -837,37 +850,43 @@ def draw_panel_share(ax, closed, d=3):
         zorder=3,
     )
     ax2.set_ylabel(
-        "FB: relative cost of keeping the gap", fontsize=8.5, color=ARM_COLOR["A+"]
+        "FB: relative cost of keeping the gap", fontsize=8.5, color=VARIANT_COLOR["A+"]
     )
-    ax2.tick_params(labelsize=8, length=2.5, colors=ARM_COLOR["A+"])
+    ax2.tick_params(labelsize=8, length=2.5, colors=VARIANT_COLOR["A+"])
     ax2.set_ylim(bottom=-0.01)
     for sp in ("top",):
         ax2.spines[sp].set_visible(False)
-    ax2.spines["right"].set_color(ARM_COLOR["A+"])
+    ax2.spines["right"].set_color(VARIANT_COLOR["A+"])
     ax2.spines["left"].set_visible(False)
     return ax2
 
 
-def draw_panel_structural(ax, closed, trained, d=3, arms=("A", "C", "D")):
+def draw_panel_structural(ax, closed, trained, d=3, variants=("A", "C", "D")):
     ax.axhline(1.0, color=EXACT_COLOR, linestyle="--", linewidth=1.0, zorder=1)
     ax.axhline(0.0, color="#cfcfcf", linewidth=0.7, zorder=1)
     pos = {N: i for i, N in enumerate(N_SWEEP)}
-    for arm in arms:
+    for variant in variants:
         ys, los, his = [], [], []
         for N in N_SWEEP:
-            m, lo, hi = agg(closed, construction="structural", N=N, d=d, arm=arm)
+            m, lo, hi = agg(closed, construction="structural", N=N, d=d, arm=variant)
             ys.append(m)
             los.append(lo)
             his.append(hi)
         xs = [pos[N] for N in N_SWEEP]
         ax.fill_between(
-            xs, los, his, color=ARM_COLOR[arm], alpha=0.18, linewidth=0, zorder=2
+            xs,
+            los,
+            his,
+            color=VARIANT_COLOR[variant],
+            alpha=0.18,
+            linewidth=0,
+            zorder=2,
         )
         ax.plot(
             xs,
             ys,
-            color=ARM_COLOR[arm],
-            marker=ARM_MARKER[arm],
+            color=VARIANT_COLOR[variant],
+            marker=VARIANT_MARKER[variant],
             markersize=3.8,
             markeredgecolor="white",
             markeredgewidth=0.5,
@@ -876,10 +895,11 @@ def draw_panel_structural(ax, closed, trained, d=3, arms=("A", "C", "D")):
         )
         tx, ty, tlo, thi = [], [], [], []
         for N in N_SWEEP:
-            m, lo, hi = agg(trained, construction="structural", N=N, d=d, arm=arm)
+            m, lo, hi = agg(trained, construction="structural", N=N, d=d, arm=variant)
             if np.isfinite(m):
                 tx.append(
-                    pos[N] + (0.12 if arm == "D" else -0.12 if arm == "A" else 0.0)
+                    pos[N]
+                    + (0.12 if variant == "D" else -0.12 if variant == "A" else 0.0)
                 )
                 ty.append(m)
                 tlo.append(m - lo)
@@ -889,12 +909,12 @@ def draw_panel_structural(ax, closed, trained, d=3, arms=("A", "C", "D")):
                 tx,
                 ty,
                 yerr=[tlo, thi],
-                fmt=ARM_MARKER[arm],
+                fmt=VARIANT_MARKER[variant],
                 markersize=4.2,
                 markerfacecolor="none",
-                markeredgecolor=ARM_COLOR[arm],
+                markeredgecolor=VARIANT_COLOR[variant],
                 markeredgewidth=1.0,
-                ecolor=ARM_COLOR[arm],
+                ecolor=VARIANT_COLOR[variant],
                 elinewidth=0.8,
                 capsize=1.6,
                 linestyle="none",
@@ -912,11 +932,11 @@ def legend_handles(with_share=True):
         Line2D(
             [0],
             [0],
-            color=ARM_COLOR[a],
-            marker=ARM_MARKER[a],
+            color=VARIANT_COLOR[a],
+            marker=VARIANT_MARKER[a],
             markersize=4.2,
             linewidth=1.4,
-            label=ARM_LABEL[a],
+            label=VARIANT_LABEL[a],
         )
         for a in ("A", "C", "D")
     ]
@@ -957,8 +977,8 @@ def legend_handles(with_share=True):
             Line2D(
                 [0],
                 [0],
-                color=ARM_COLOR["A+"],
-                marker=ARM_MARKER["A+"],
+                color=VARIANT_COLOR["A+"],
+                marker=VARIANT_MARKER["A+"],
                 markersize=4.0,
                 linewidth=1.4,
                 label="FB: (loss of gap-keeping fit $-$ optimum) / optimum",
@@ -1180,14 +1200,14 @@ def print_tables(closed, trained):
             for k in keys:
                 kw = {keyname: (float(k) if keyname == "w" else int(k))}
                 parts = []
-                for arm in ("A", "C", "D"):
-                    m = agg(trained, construction=cons, d=TRAIN_RANK, arm=arm, **kw)
+                for variant in ("A", "C", "D"):
+                    m = agg(trained, construction=cons, d=TRAIN_RANK, arm=variant, **kw)
                     per = [
                         agg(
                             trained,
                             construction=cons,
                             d=TRAIN_RANK,
-                            arm=arm,
+                            arm=variant,
                             lr=float(lr),
                             **kw,
                         )[0]
@@ -1197,12 +1217,16 @@ def print_tables(closed, trained):
                         [
                             float(str(r["argmax_correct"]) == "True")
                             for r in sel(
-                                trained, construction=cons, d=TRAIN_RANK, arm=arm, **kw
+                                trained,
+                                construction=cons,
+                                d=TRAIN_RANK,
+                                arm=variant,
+                                **kw,
                             )
                         ]
                     )
                     parts.append(
-                        f"{arm} {m[0]:.3f} [{m[1]:.3f},{m[2]:.3f}] (lr {per[0]:.3f}/{per[1]:.3f}; argmax ok {ok:.1f})"
+                        f"{variant} {m[0]:.3f} [{m[1]:.3f},{m[2]:.3f}] (lr {per[0]:.3f}/{per[1]:.3f}; argmax ok {ok:.1f})"
                     )
                 label = fmt_w(k) if keyname == "w" else f"N={k}"
                 log(f"{label} | " + " | ".join(parts))

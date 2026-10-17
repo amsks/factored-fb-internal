@@ -43,9 +43,9 @@ ENVBASE="XLA_PYTHON_CLIENT_PREALLOCATE=false XLA_FLAGS=--xla_gpu_enable_command_
 IDS=(); CMDS=()
 for t in $TASKS; do
   [ -n "${PROTO[$t]+x}" ] || { echo "no protocol for $t (goal-observable tasks only)" >&2; exit 2; }
-  case "${HIT[$t]:-}" in ""|*REQUIRED*) echo "hit spec for $t is unset/REQUIRED -- fill HIT[$t] first" >&2; exit 2;; esac
+  case "${HIT[$t]:-}" in ""|*REQUIRED*) echo "hit spec for $t is unset; fill HIT[$t] first" >&2; exit 2;; esac
   for s in $SEEDS; do
-    ov="${PROTO[$t]} measure_density_hard=true goal_spec=\"${HIT[$t]}\""
+    ov="${PROTO[$t]} goal_spec=\"${HIT[$t]}\""
     ovflags=""; for kv in $ov; do ovflags+=" --override $kv"; done
     cmd="CUDA_VISIBLE_DEVICES=\$GPU $ENVBASE $PY -m impls.main --critic density_fb --actor $ACTOR --domain $t --seed $s"
     cmd+=" --train_steps $TRAIN_STEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL"

@@ -385,7 +385,7 @@ def make_figures(rows, reward_rows, construct_rows):
             [mean_over("gap_rank_d", d) for d in ds],
             marker="o",
             markersize=4,
-            color=single.ARM_COLOR["A"],
+            color=single.VARIANT_COLOR["A"],
             label="FB, optimal rank $d$",
         )
         ax.plot(
@@ -393,7 +393,7 @@ def make_figures(rows, reward_rows, construct_rows):
             [mean_over("gap_aug", d) for d in ds],
             marker="s",
             markersize=4,
-            color=single.ARM_COLOR["D"],
+            color=single.VARIANT_COLOR["D"],
             label="rank $d$ + residual direction  ($d{+}1$)",
         )
         ax.axhline(1.0, color="#9a9a9a", linewidth=0.7, linestyle="--")

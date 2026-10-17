@@ -1,5 +1,5 @@
 # ExoRL walker, RND exploration data, reward-specified tasks scored by episode return.
-# goal_spec "0:24:15.9" (full observation), calibrated by scripts/calibrate_hit_spec.py.
+# goal_spec "0:24:15.9" (full observation), calibrated by scripts/calibrate_goal_spec.py.
 adapter: unified
 env_name: dmc-walker          # run naming only
 task: dmc-walker

@@ -19,7 +19,7 @@ from matplotlib.lines import Line2D
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parent.parent
-# Process: p11 reads the rank sweep from sb_trained.csv; p7 and p9 train every arm here.
+# Process: p11 reads the rank sweep from sb_trained.csv; p7 and p9 train every variant here.
 PROCESS = os.environ.get("SB_PROCESS", "p11")
 TAIL_REWARD = float(os.environ.get("SB_TAIL_REWARD", "0.5"))
 if PROCESS == "p9":
@@ -46,7 +46,7 @@ SWEEP_METHODS = {
 
 INK, GRID = "#222222", "#d9d9d9"
 EXACT, FB, DFB = "#6f6f6f", "#DE8F05", "#029E73"
-ARM = {
+VARIANT = {
     "A": ("FB", FB, "o"),
     "B": ("FB, normalized target", "#CC78BC", "s"),
     "C": ("softmax + squared error", "#D55E00", "^"),
@@ -159,17 +159,17 @@ def compute():
         T=T, r=r, b=b, n=n, A=np.array(mdp["clusterA"]), edges=np.asarray(mdp["edges"])
     )
     if PROCESS in ("p7", "p9"):
-        # Rank sweep, every arm
+        # Rank sweep, every variant
         rows = []
         for d in range(1, n):
-            for meth, arm in SWEEP_METHODS.items():
+            for meth, variant in SWEEP_METHODS.items():
                 _, pred, _, _ = fam.train_group(mdp, d, meth)
                 for p in pred:
                     P = sb.bf.readout(p, fam._base_method(meth), GAMMA, n)
                     q = P @ r / (1 - GAMMA)
                     rows.append(
                         (
-                            ord(arm),
+                            ord(variant),
                             d,
                             q[2 * b],
                             q[2 * b + 1],
@@ -252,9 +252,9 @@ def fig_main(c, rows):
             (T[2 * b + 1] @ r / (1 - GAMMA), 0.0),
         )
     ]
-    for arm, (name, col, _) in (("A", ARM["A"]), ("D", ARM["D"])):
-        q0 = ci95([float(x["q0"]) for x in sub if x["arm"] == arm])
-        q1 = ci95([float(x["q1"]) for x in sub if x["arm"] == arm])
+    for variant, (name, col, _) in (("A", VARIANT["A"]), ("D", VARIANT["D"])):
+        q0 = ci95([float(x["q0"]) for x in sub if x["arm"] == variant])
+        q1 = ci95([float(x["q1"]) for x in sub if x["arm"] == variant])
         groups.append((name, col, q0, q1))
     w = 0.36
     for i, (name, col, qp, qm) in enumerate(groups):
@@ -449,29 +449,33 @@ def fig_main(c, rows):
     return eps
 
 
-def sweep(rows, arms, c):
+def sweep(rows, variants, c):
     ranks = sorted({x["d"] for x in rows})
     out = {}
-    for arm in arms:
+    for variant in variants:
         pts = {}
-        if arm in ("A", "D"):
-            pts[1] = ci95(c[f"gr1_{arm}"])
+        if variant in ("A", "D"):
+            pts[1] = ci95(c[f"gr1_{variant}"])
         for d in ranks:
-            v = [float(x["gap_ratio"]) for x in rows if x["arm"] == arm and x["d"] == d]
+            v = [
+                float(x["gap_ratio"])
+                for x in rows
+                if x["arm"] == variant and x["d"] == d
+            ]
             if v:
                 pts[d] = ci95(v)
-        out[arm] = pts
+        out[variant] = pts
     return out
 
 
-def draw_sweep(ax, data, arms):
+def draw_sweep(ax, data, variants):
     ax.axhline(1.0, color=EXACT, ls="--", lw=0.8)
     ax.axhline(0.0, color=GRID, lw=0.6)
-    for arm in arms:
-        name, col, mk = ARM[arm]
-        ds = sorted(data[arm])
-        m = np.array([data[arm][d][0] for d in ds])
-        e = np.array([data[arm][d][1] for d in ds])
+    for variant in variants:
+        name, col, mk = VARIANT[variant]
+        ds = sorted(data[variant])
+        m = np.array([data[variant][d][0] for d in ds])
+        e = np.array([data[variant][d][1] for d in ds])
         ax.fill_between(ds, m - e, m + e, color=col, alpha=0.18, lw=0)
         ax.plot(
             ds,
@@ -491,10 +495,10 @@ def draw_sweep(ax, data, arms):
 
 def fig_rank(rows, c):
     data = sweep(rows, ["A", "D"], c)
-    for arm in "AD":
+    for variant in "AD":
         print(
-            f"rank sweep {ARM[arm][0]}: "
-            + " ".join(f"{d}:{data[arm][d][0]:.2f}" for d in sorted(data[arm]))
+            f"rank sweep {VARIANT[variant][0]}: "
+            + " ".join(f"{d}:{data[variant][d][0]:.2f}" for d in sorted(data[variant]))
         )
     fig, ax = plt.subplots(figsize=(2.7, 1.75))
     draw_sweep(ax, data, ["A", "D"])
@@ -514,15 +518,15 @@ def fig_rank(rows, c):
 
 
 def fig_ablation(rows, c):
-    arms = ["A", "B", "C", "D", "F"]
-    data = sweep(rows, arms, c)
-    for arm in arms:
+    variants = ["A", "B", "C", "D", "F"]
+    data = sweep(rows, variants, c)
+    for variant in variants:
         print(
-            f"ablation {ARM[arm][0]}: "
-            + " ".join(f"{d}:{data[arm][d][0]:.2f}" for d in sorted(data[arm]))
+            f"ablation {VARIANT[variant][0]}: "
+            + " ".join(f"{d}:{data[variant][d][0]:.2f}" for d in sorted(data[variant]))
         )
     fig, ax = plt.subplots(figsize=(4.4, 2.0))
-    draw_sweep(ax, data, arms)
+    draw_sweep(ax, data, variants)
     ax.set_xticks(sorted(data["A"]))
     ax.legend(
         loc="upper center",
@@ -539,9 +543,9 @@ def fig_ablation(rows, c):
 
 def fig_ablation_main(rows, c):
     """Ablation figure sized for a half-width minipage."""
-    arms = ["A", "B", "C", "D", "F"]
+    variants = ["A", "B", "C", "D", "F"]
     short = {"A": "FB", "B": "FB-norm", "C": "SM-sq", "D": "D-FB", "F": "D-FB-soft"}
-    data = sweep(rows, arms, c)
+    data = sweep(rows, variants, c)
     style()
     plt.rcParams.update(
         {
@@ -556,11 +560,11 @@ def fig_ablation_main(rows, c):
     ax.axhline(1.0, color=EXACT, ls="--", lw=0.8)
     ax.axhline(0.0, color=GRID, lw=0.6)
     handles = []
-    for arm in arms:
-        name, col, mk = ARM[arm]
-        ds = sorted(data[arm])
-        m = np.array([data[arm][d][0] for d in ds])
-        e = np.array([data[arm][d][1] for d in ds])
+    for variant in variants:
+        name, col, mk = VARIANT[variant]
+        ds = sorted(data[variant])
+        m = np.array([data[variant][d][0] for d in ds])
+        e = np.array([data[variant][d][1] for d in ds])
         ax.fill_between(ds, m - e, m + e, color=col, alpha=0.16, lw=0)
         (h,) = ax.plot(
             ds,
@@ -571,7 +575,7 @@ def fig_ablation_main(rows, c):
             mfc="white",
             mew=0.9,
             lw=1.3,
-            label=short[arm],
+            label=short[variant],
         )
         handles.append(h)
     ax.set_xlabel("feature dimension $d$")
@@ -582,7 +586,7 @@ def fig_ablation_main(rows, c):
     order = [0, 1, 2, 3, 4]
     ax.legend(
         [handles[i] for i in order],
-        [short[arms[i]] for i in order],
+        [short[variants[i]] for i in order],
         loc="upper center",
         bbox_to_anchor=(0.42, -0.26),
         ncol=5,
@@ -671,14 +675,14 @@ def fig_panels(c, rows):
             (T[2 * b + 1] @ r / (1 - GAMMA), 0.0),
         )
     ]
-    for arm in ("A", "D"):
-        name, col, _ = ARM[arm]
+    for variant in ("A", "D"):
+        name, col, _ = VARIANT[variant]
         groups.append(
             (
                 name,
                 col,
-                ci95([float(x["q0"]) for x in sub if x["arm"] == arm]),
-                ci95([float(x["q1"]) for x in sub if x["arm"] == arm]),
+                ci95([float(x["q0"]) for x in sub if x["arm"] == variant]),
+                ci95([float(x["q1"]) for x in sub if x["arm"] == variant]),
             )
         )
     w = 0.38

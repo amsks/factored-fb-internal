@@ -10,7 +10,7 @@ from impls.critics.hilp import HILPCritic, hilp_phi_loss
 
 def _critic():
     cfg = make_config(
-        "hilp_tdjc",
+        "hilp",
         "flowbc",
         "cube_single",
         [

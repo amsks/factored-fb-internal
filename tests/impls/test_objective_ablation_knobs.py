@@ -30,8 +30,8 @@ def test_loss_is_the_cross_entropy():
     assert np.isclose(float(loss), float(info["density_ce"]))
 
 
-def test_degenerate_covariance_gives_neutral_index_not_nan():
-    """A zero-trace feature covariance gives the neutral index, not NaN."""
+def test_degenerate_covariance_gives_neutral_z_not_nan():
+    """A zero-trace feature covariance gives the neutral z, not NaN."""
     ex_obs, ex_act = _ex()
     c, params, targets = DensityFBCritic.build(
         ex_obs, ex_act, _cfg(infer_z=True, eval_pool_size=8)
@@ -41,7 +41,7 @@ def test_degenerate_covariance_gives_neutral_index_not_nan():
     cov = jnp.zeros((d, d))
     coef = c._z_centered_coef(m_c, cov)
     np.testing.assert_array_equal(np.asarray(coef), 0.0)
-    z = _sphere_or_neutral(coef, float(d), c.z_const_eps)
+    z = _sphere_or_neutral(coef, float(d), c.const_reward_eps)
     assert bool(jnp.all(jnp.isfinite(z)))
     np.testing.assert_allclose(
         np.asarray(jnp.linalg.norm(z, axis=-1)), np.sqrt(d), rtol=1e-5

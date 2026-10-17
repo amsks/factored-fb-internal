@@ -90,7 +90,7 @@ def infer_cond_noop_reason(pre_cond, post_cond, rewards, agent=None):
     return None
 
 
-def route_b_invalid_reason(pre_cond, relabel_agent, rewards):
+def relabel_invalid_reason(pre_cond, relabel_agent, rewards):
     """Reason a reward-inference row is invalid (no-op inference or zero z), or None."""
     reason = infer_cond_noop_reason(
         pre_cond, relabel_agent.cond_eval, rewards, agent=relabel_agent
@@ -296,7 +296,7 @@ def main(_):
                             )
                         )
                         # Invalid rows are logged with success=NaN and not rolled
-                        invalid = route_b_invalid_reason(
+                        invalid = relabel_invalid_reason(
                             pre_cond, relabel_agent, relabel_rewards
                         )
                         if invalid is not None:
@@ -318,7 +318,7 @@ def main(_):
                             row = {**row, **relabel_agent.witness()}
                         row = {
                             **row,
-                            "route_b_valid": 0.0 if invalid else 1.0,
+                            "inference_valid": 0.0 if invalid else 1.0,
                             "invalid_reason": invalid or "",
                         }
                         scope = f"eval_relabel/task{tid}"

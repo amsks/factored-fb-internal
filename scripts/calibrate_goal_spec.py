@@ -4,9 +4,9 @@ Default: eps so the hit rate of random state pairs matches cube-single's (0.0133
 With --target_support: eps so the softmax goal kernel over 1024 candidate next states has a
 given effective support exp(entropy).
 
-    python scripts/calibrate_hit_spec.py --ogbench_npz ~/.ogbench/data/cube-single-play-v0.npz \
+    python scripts/calibrate_goal_spec.py --ogbench_npz ~/.ogbench/data/cube-single-play-v0.npz \
         --block 19:22 --report_eps 0.4
-    python scripts/calibrate_hit_spec.py --data_dir ~/exorl_data/exorl/datasets/walker/rnd \
+    python scripts/calibrate_goal_spec.py --data_dir ~/exorl_data/exorl/datasets/walker/rnd \
         --block 0:24 --target_support 60
 """
 
