@@ -4,7 +4,7 @@
 # for reward-weighted task inference.
 #
 # Hit spec for this layout, passed as an override (quote it):
-#     --override 'measure_hit_spec="0:2:0.03"'
+#     --override 'goal_spec="0:2:0.03"'
 # 0:2 is the (x, y) block of the [x, y, vx, vy] observation; 0.03 is the maze's target size.
 adapter: unified
 env_name: dmc-point-mass-maze     # run naming only

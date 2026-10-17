@@ -22,7 +22,7 @@ not being tracked.
 
 DEVIATION from the brief, stated because it matters: the task cannot be given to both
 methods as reward samples. FB has `infer_cond` (z = sum r*B), but these Density-FB
-checkpoints were trained goal-conditioned (`measure_density_z: false`) and the config notes
+checkpoints were trained goal-conditioned (`infer_z: false`) and the config notes
 a checkpoint trained with it off cannot be restored with it on. So both critics get the
 IDENTICAL goal observations instead -- same rows, same draws, same everything else.
 """

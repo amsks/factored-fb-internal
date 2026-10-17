@@ -1,19 +1,24 @@
-# RLDP critic (impls/critics/rldp.py): FB whose backward map is learned by multi-step
-# latent prediction instead of the successor loss.
+# RLDP (impls/critics/rldp.py): FB with B learned by multi-step latent prediction.
+
+# Optimisation
 batch_size: 256
+discount: 0.99
+lr_f: 1.0e-4
+lr_b: 1.0e-4                # B and the predictor
+lr_actor: 1.0e-4
+f_target_tau: 0.005
+b_target_tau: 0.005
+
+# Representation
 z_dim: 50
 L_dim: 50
 num_parallel: 2
-discount: 0.99
-f_target_tau: 0.005
-b_target_tau: 0.005
-ortho_coef: 1.0           # orthonormality term on B(s_t)
-train_goal_ratio: 0.5
 norm_z: true
-lr_f: 1.0e-4
-lr_b: 1.0e-4              # also the predictor's learning rate
-lr_actor: 1.0e-4
-horizon: 5                # latent-prediction rollout length h
+ortho_coef: 1.0
+train_goal_ratio: 0.5
+horizon: 5                  # prediction steps
+
+# Networks
 forward:
   hidden_dim: 512
   hidden_layers: 2
@@ -30,4 +35,5 @@ predictor:
   hidden_dim: 512
   hidden_layers: 2
   embedding_layers: 2
-dataset_class: WindowedDataset   # supplies the h-1 future (observation, action) columns
+
+dataset_class: WindowedDataset

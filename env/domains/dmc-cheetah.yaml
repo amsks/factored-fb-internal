@@ -5,7 +5,7 @@
 # The density critics need the hit spec (which observation columns count as reaching a state,
 # and within what radius) for this layout. It is passed as an override because the critic yaml
 # merges after the domain (quote it: a bare a:b:c parses as a sexagesimal number), e.g.
-#     --override 'measure_hit_spec="<a:b:radius>"'
+#     --override 'goal_spec="<a:b:radius>"'
 # with the value the ExoRL launchers pass (scripts/launch_exorl_*.sh). Radii are calibrated so
 # the fraction of random observation pairs inside the ball matches cube-single's hit rate
 # under 19:22:0.4 (scripts/calibrate_hit_spec.py).

@@ -1,18 +1,23 @@
-# Forward-Backward critic at the TD-JEPA reference settings (impls/critics/fb.py).
-# critic/fb_tdj.yaml and critic/fb_ref.yaml inherit it unchanged.
+# Forward-Backward at the TD-JEPA settings (impls/critics/fb.py).
+
+# Optimisation
 batch_size: 256
-z_dim: 50
-L_dim: 50                # width of the left encoder that F reads
-num_parallel: 2          # F heads; the TD target and Q average over them
 discount: 0.99
-f_target_tau: 0.005
-b_target_tau: 0.005
-ortho_coef: 1000.0       # weight of the orthonormality term on Cov(B)
-train_goal_ratio: 0.5    # fraction of training z that are B(s') rather than random
-norm_z: true
 lr_f: 1.0e-4
 lr_b: 1.0e-4
 lr_actor: 1.0e-4
+f_target_tau: 0.005
+b_target_tau: 0.005
+
+# Representation
+z_dim: 50
+L_dim: 50
+num_parallel: 2
+norm_z: true
+ortho_coef: 1000.0
+train_goal_ratio: 0.5
+
+# Networks
 forward:
   hidden_dim: 512
   hidden_layers: 2

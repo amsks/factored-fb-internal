@@ -59,7 +59,7 @@ def test_state_plus_reward_index_is_refused():
     """Reward inference stores its evaluation pool as hit-spec columns, so it runs only with
     B on the hit-spec columns."""
     cfg = make_config("density_fb_state", "flowbc", "cube_single",
-                      ["measure_density_z=true", "measure_density_z_eval_pool_m=4"])
+                      ["infer_z=true", "eval_pool_size=4"])
     rng = np.random.default_rng(0)
     with pytest.raises(ValueError, match="backward_input"):
         Agent.create("density_fb_state", "flowbc", 0,

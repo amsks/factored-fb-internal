@@ -5,6 +5,6 @@
 # The density critics' hit spec is the conjunction of the env's own success rule in
 # observation units: cube ||d||<=0.04 m -> 0.4; button one-hot exact match -> 0.5;
 # drawer |d|<=0.04 m x18 -> 0.72; window |d|<=0.04 m x15 -> 0.6:
-#   measure_hit_spec="19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6"
+#   goal_spec="19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6"
 # Passed as an override (it lives in the critic group).
 env_name: scene-play-v0

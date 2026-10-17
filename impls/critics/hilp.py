@@ -91,8 +91,8 @@ class HILPCritic:
     z_dim: int
     num_parallel: int
     discount: float
-    hilp_discount: float
-    hilp_expectile: float
+    phi_discount: float
+    expectile: float
     phi_tau: float
     sf_tau: float
     norm_z: bool
@@ -148,7 +148,7 @@ class HILPCritic:
                 params["hilp_phi1"], params["hilp_phi2"], target["hilp_phi1"], target["hilp_phi2"],
                 lambda p, x: self._phi(p, x),
                 batch["observations"], batch["hilp_future_observations"], batch["next_observations"],
-                self.hilp_discount, self.hilp_expectile)
+                self.phi_discount, self.expectile)
 
         assert stage == "sf", stage
         obs, action = batch["observations"], batch["actions"]
@@ -259,7 +259,7 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
     sf = ForwardMap(z_dim=z_dim, hidden_dim=config["sf"]["hidden_dim"],
                     num_parallel=P, hidden_layers=config["sf"]["hidden_layers"],
                     embedding_layers=config["sf"]["embedding_layers"])
-    le_cfg = config["hilp_left_encoder"]
+    le_cfg = config["left_encoder"]
     le = PhiMap(z_dim=L_dim, hidden_dim=int(le_cfg["hidden_dim"]),
                 hidden_layers=int(le_cfg["hidden_layers"]), norm=bool(le_cfg["norm"]))
     stats_mod = _HILPStats(dim=z_dim, dtype=jnp.zeros((), ex_obs.dtype).dtype)
@@ -278,14 +278,14 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
         hilp_phi1=phi1, hilp_phi2=phi2, hilp_sf=sf, hilp_stats=stats_mod, hilp_le=le,
         z_dim=z_dim, num_parallel=P,
         discount=float(config["discount"]),
-        hilp_discount=float(config["hilp_discount"]),
-        hilp_expectile=float(config["hilp_expectile"]),
+        phi_discount=float(config["phi_discount"]),
+        expectile=float(config["expectile"]),
         phi_tau=float(config["phi_target_tau"]),
         sf_tau=float(config["sf_target_tau"]),
         norm_z=bool(config["norm_z"]),
-        stats_momentum=float(config["hilp_stats_momentum"]),
-        mix_ratio=float(config["hilp_mix_ratio"]),
-        sf_loss_scale=float(config["hilp_sf_loss_scale"]),
+        stats_momentum=float(config["phi_stats_tau"]),
+        mix_ratio=float(config["train_goal_ratio"]),
+        sf_loss_scale=float(config["sf_loss_scale"]),
     )
     targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
     return critic, params, targets

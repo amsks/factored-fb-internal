@@ -16,12 +16,12 @@ towers. There is no orthonormality loss, mass anchor or other regulariser on F o
 Actor. The actor maximises the reward averaged under the predicted distribution,
 Q(s, a, g) = sum_j w(s, a, g, u_j) r(u_j), with the critic frozen and the smaller of the
 two heads taken. The reward depends on the task interface:
-  * goal-conditioned (`measure_density_z` false): r(u) is the hit kernel
+  * goal-conditioned (`infer_z` false): r(u) is the hit kernel
     softmax_j(-0.5 ||(u_j - g) / eps||^2) over the observation blocks and radii named by
-    `measure_hit_spec`;
-  * reward inference (`measure_density_z` true): the task is a latent z and
+    `goal_spec`;
+  * reward inference (`infer_z` true): the task is a latent z and
     r(u) = (B_slow(u) - mu)^T z / sqrt(d), the linear reward z encodes.
-`measure_density_actor_value: linear_fz` replaces the softmax average by FB's linear
+`actor_value: linear_fz` replaces the softmax average by FB's linear
 readout F(s, a, z)^T z (with z = B(g) on the goal arm), leaving the critic unchanged.
 
 Inferring z from reward samples {(u_j, r_j)}: ridge regression of the reward on the
@@ -34,7 +34,7 @@ centered slow backward features,
 B_slow is a slow polyak copy of B and (mu, C) are running estimates of its mean and
 covariance over next states. z is unchanged by adding a constant to, or positively
 rescaling, the reward. During training each row's z is inferred from the hit-kernel
-reward of its hindsight goal, or with probability `measure_density_z_rand_frac` replaced
+reward of its hindsight goal, or with probability `z_random_frac` replaced
 by a uniform draw on the sqrt(d) sphere. A goal given at evaluation goes through the same
 regression, on a pool of next states frozen at the first update.
 
@@ -76,7 +76,7 @@ class _MLP(nn.Module):
         return x
 
 
-# ── Meta Motivo's network shapes (metamotivo/nn_models.py), `measure_density_archi: motivo`.
+# ── Meta Motivo's network shapes (metamotivo/nn_models.py), `archi: motivo`.
 # F is two embedding branches, over (obs, cond) and (obs, action), each narrowing to
 # hidden_dim // 2 and concatenated back to hidden_dim, then a trunk. The hidden-dims lists
 # are read as (hidden_dim, n_layers): [1024, 1024] is width 1024 with 2 trunk layers.
@@ -212,7 +212,7 @@ class DensityFBCritic:
     density_f: Any
     density_b: Any
     obs_dim: int
-    blocks: tuple           # parsed measure_hit_spec: ((start, stop, eps), ...)
+    blocks: tuple           # parsed goal_spec: ((start, stop, eps), ...)
     discount: float
     temp: float
     tau: float
@@ -224,7 +224,7 @@ class DensityFBCritic:
     # 'hit_spec': B reads the eps-scaled hit-spec columns. 'state': B reads the full
     # observation (goal arm only); the hit kernel still uses the hit-spec columns.
     backward_input: str = "hit_spec"
-    # reward-inference arm (measure_density_z); the z_* fields are read only when z_on
+    # reward-inference arm (infer_z); the z_* fields are read only when z_on
     z_on: bool = False
     z_dim: int = 0
     z_rand_frac: float = 0.5        # fraction of rows whose z is a sqrt(d)-sphere draw
@@ -358,7 +358,7 @@ class DensityFBCritic:
         raw = _raw_block_cols(nobs, self.blocks)
         if raw.shape[0] < self.z_eval_pool_m:
             raise ValueError(
-                f"measure_density_z_eval_pool_m={self.z_eval_pool_m} exceeds the batch "
+                f"eval_pool_size={self.z_eval_pool_m} exceeds the batch "
                 f"({raw.shape[0]} next states) the evaluation pool is drawn from.")
         pool_new = jnp.where(st["filled"] > 0.5, st["pool"], raw[:self.z_eval_pool_m])
 
@@ -511,54 +511,54 @@ class DensityFBCritic:
             raise ValueError(f"density_fb takes [B, obs_dim] state observations, got shape "
                              f"{tuple(jnp.shape(ex_obs))}")
         hd = tuple(config["value_hidden_dims"])
-        _hb = config.get("measure_density_b_hidden_dims") or None
+        _hb = config.get("backward_hidden_dims") or None
         hd_b = tuple(_hb) if _hb else hd                     # null: same as F
         ln = bool(config["layer_norm"])
-        d = int(config["measure_density_dim"])
-        blocks = parse_hit_spec(config.get("measure_hit_spec", "19:22:0.4"))
+        d = int(config["z_dim"])
+        blocks = parse_hit_spec(config.get("goal_spec", "19:22:0.4"))
         obs_dim = int(ex_obs.shape[-1])
         if max(b for (_a, b, _e) in blocks) > obs_dim:
-            raise ValueError(f"measure_hit_spec {blocks} reaches past obs_dim={obs_dim}")
-        z_on = bool(config.get("measure_density_z", False))
-        actor_value = str(config.get("measure_density_actor_value", "softmax"))
+            raise ValueError(f"goal_spec {blocks} reaches past obs_dim={obs_dim}")
+        z_on = bool(config.get("infer_z", False))
+        actor_value = str(config.get("actor_value", "softmax"))
         if actor_value not in ("softmax", "linear_fz"):
-            raise ValueError(f"measure_density_actor_value must be 'softmax' or 'linear_fz', "
+            raise ValueError(f"actor_value must be 'softmax' or 'linear_fz', "
                              f"got {actor_value!r}")
         backward_input = str(config.get("backward_input", "hit_spec"))
         if backward_input not in ("hit_spec", "state"):
             raise ValueError(f"backward_input must be 'hit_spec' or 'state', "
                              f"got {backward_input!r}")
         if z_on and backward_input != "hit_spec":
-            raise ValueError("measure_density_z requires backward_input='hit_spec'")
-        archi = str(config.get("measure_density_archi", "mlp"))
+            raise ValueError("infer_z requires backward_input='hit_spec'")
+        archi = str(config.get("archi", "mlp"))
         if archi not in ("mlp", "motivo"):
-            raise ValueError(f"measure_density_archi must be 'mlp' or 'motivo', got {archi!r}")
-        b_norm = bool(config.get("measure_density_b_norm", False))
-        z_rand_frac = float(config.get("measure_density_z_rand_frac", 0.5))
-        z_lam = float(config.get("measure_density_z_ridge_lambda_mult", 0.01))
-        z_floor = float(config.get("measure_density_z_cov_eig_floor", 1e-6))
-        z_eps = float(config.get("measure_density_z_const_eps", 1e-6))
-        z_enc_tau = float(config.get("measure_density_z_enc_tau", 0.0005))
-        z_sigma_tau = float(config.get("measure_density_z_sigma_tau", 0.005))
-        z_pool_m = int(config.get("measure_density_z_eval_pool_m", 256))
+            raise ValueError(f"archi must be 'mlp' or 'motivo', got {archi!r}")
+        b_norm = bool(config.get("norm_backward", False))
+        z_rand_frac = float(config.get("z_random_frac", 0.5))
+        z_lam = float(config.get("ridge_lambda", 0.01))
+        z_floor = float(config.get("cov_eig_floor", 1e-6))
+        z_eps = float(config.get("const_reward_eps", 1e-6))
+        z_enc_tau = float(config.get("slow_backward_tau", 0.0005))
+        z_sigma_tau = float(config.get("feature_stats_tau", 0.005))
+        z_pool_m = int(config.get("eval_pool_size", 256))
         if z_on:
-            assert 0.0 <= z_rand_frac <= 1.0, "measure_density_z_rand_frac must be in [0, 1]"
-            assert z_lam > 0.0, "measure_density_z_ridge_lambda_mult must be > 0"
-            assert z_floor > 0.0, "measure_density_z_cov_eig_floor must be > 0"
-            assert z_eps > 0.0, "measure_density_z_const_eps must be > 0"
-            assert 0.0 < z_enc_tau <= 0.1, "measure_density_z_enc_tau must be in (0, 0.1]"
-            assert 0.0 < z_sigma_tau <= 1.0, "measure_density_z_sigma_tau must be in (0, 1]"
-            assert z_pool_m > 1, "measure_density_z_eval_pool_m must be > 1"
+            assert 0.0 <= z_rand_frac <= 1.0, "z_random_frac must be in [0, 1]"
+            assert z_lam > 0.0, "ridge_lambda must be > 0"
+            assert z_floor > 0.0, "cov_eig_floor must be > 0"
+            assert z_eps > 0.0, "const_reward_eps must be > 0"
+            assert 0.0 < z_enc_tau <= 0.1, "slow_backward_tau must be in (0, 0.1]"
+            assert 0.0 < z_sigma_tau <= 1.0, "feature_stats_tau must be in (0, 1]"
+            assert z_pool_m > 1, "eval_pool_size must be > 1"
             _bs = int(config.get("batch_size", z_pool_m))
             assert z_pool_m <= _bs, \
-                f"measure_density_z_eval_pool_m={z_pool_m} exceeds batch_size={_bs}"
+                f"eval_pool_size={z_pool_m} exceeds batch_size={_bs}"
 
         rf, rb, rz = jr.split(jr.PRNGKey(config["seed"] + 6000), 3)
         if archi == "motivo":
             # hidden dims read as (width, n_layers), so every entry must be equal
             if len(set(hd)) != 1 or len(set(hd_b)) != 1:
                 raise ValueError(
-                    f"measure_density_archi='motivo' needs equal hidden-dim entries; got "
+                    f"archi='motivo' needs equal hidden-dim entries; got "
                     f"value_hidden_dims={list(hd)} and b={list(hd_b)}")
             density_f = _ensemblize(_MotivoF, 2)(
                 obs_dim=obs_dim, act_dim=ex_actions.shape[-1], hidden_dim=hd[0],
@@ -588,7 +588,7 @@ class DensityFBCritic:
             params["density_zstats"] = zstats_mod.init(rz)["params"]
         obj = cls(density_f=density_f, density_b=density_b, obs_dim=obs_dim, blocks=blocks,
                   discount=float(config["discount"]),
-                  temp=float(config["measure_density_temp"]), tau=float(config["tau"]),
+                  temp=float(config["temperature"]), tau=float(config["tau"]),
                   actor_value=actor_value, archi=archi, b_norm=b_norm,
                   backward_input=backward_input,
                   z_on=z_on, z_dim=d, z_rand_frac=z_rand_frac,

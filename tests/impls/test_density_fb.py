@@ -22,7 +22,7 @@ def _cfg(**over):
     cfg = dict(
         lr=3e-4, lr_actor=3e-4, batch_size=B, discount=0.99, tau=0.005, seed=0,
         value_hidden_dims=[32, 32], layer_norm=True,
-        measure_hit_spec="19:22:0.4", measure_density_dim=D, measure_density_temp=1.0,
+        goal_spec="19:22:0.4", z_dim=D, temperature=1.0,
     )
     cfg.update(over)
     return cfg
@@ -114,7 +114,7 @@ def test_target_towers_init_mirror_and_soft_update():
     from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
     cfg = load_config("density_fb", "flowbc", "cube_single")
-    cfg["measure_density_dim"] = D
+    cfg["z_dim"] = D
     cfg["value_hidden_dims"] = [32, 32]
     agent = Agent.create("density_fb", "flowbc", 0, ex_obs, ex_act, cfg)
 
@@ -226,7 +226,7 @@ def test_combo_builds_and_updates(actor):
     from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
     cfg = load_config("density_fb", actor, "cube_single")
-    cfg["measure_density_dim"] = D
+    cfg["z_dim"] = D
     cfg["value_hidden_dims"] = [32, 32]
     cfg["batch_size"] = 16
     agent = Agent.create("density_fb", actor, 0, ex_obs, ex_act, cfg)
@@ -328,7 +328,7 @@ def test_flowbc_bootstrap_draws_the_value_goal_action():
     from impls.utils.config_utils import load_config
     ex_obs, ex_act = _ex()
     cfg = load_config("density_fb", "flowbc", "cube_single")
-    cfg["measure_density_dim"] = D
+    cfg["z_dim"] = D
     cfg["value_hidden_dims"] = [32, 32]
     agent = Agent.create("density_fb", "flowbc", 0, ex_obs, ex_act, cfg)
     b = _batch(seed=5)
@@ -354,7 +354,7 @@ def test_flowbc_drift_instrumentation_does_not_change_the_update():
     ex_obs, ex_act = _ex()
     from impls.utils.config_utils import load_config
     cfg = load_config("density_fb", "flowbc", "cube_single")
-    cfg["measure_density_dim"] = D
+    cfg["z_dim"] = D
     cfg["value_hidden_dims"] = [32, 32]
     b = _batch()
 

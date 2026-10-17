@@ -7,7 +7,7 @@ Run on its own, on CPU (running all of tests/impls in one process core-dumps):
 
 THE BUG. Route B calls `agent.infer_eval_cond(obs, rewards)`, wraps the result in
 `InferredCondAgent` and evaluates, but never asked whether inference did anything. For the
-goal-conditioned density_fb critic (measure_density_z off) `infer_cond` returns the zero-goal
+goal-conditioned density_fb critic (infer_z off) `infer_cond` returns the zero-goal
 PLACEHOLDER, so the policy was rolled on goal=0 and the success rate landed in
 eval_relabel.csv as if it were a zero-shot number (hub rows carried inferred_cond_norm=0.0).
 `infer_cond_noop_reason` already detects exactly this, but was only wired into the
@@ -89,8 +89,8 @@ def _density_fb_cfg(**extra):
     cfg = load_config("density_fb", "flowbc", "cube_single")
     # env_name names the run dir (impls/main.py::get_exp_name); the adapter is stubbed.
     cfg = {**cfg, "env_name": "tiny",
-           "batch_size": 16, "measure_density_dim": 8, "value_hidden_dims": [32, 32],
-           "measure_density_z": False, "measure_density_z_eval_pool_m": 8,
+           "batch_size": 16, "z_dim": 8, "value_hidden_dims": [32, 32],
+           "infer_z": False, "eval_pool_size": 8,
            "eval_relabel_size": 20, "eval_relabel_shift": 1.0, "eval_relabel_episodes": 3}
     cfg.update(extra)
     return cfg

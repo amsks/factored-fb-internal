@@ -155,12 +155,12 @@ SB, SOBS, SACT, SZ, SH, SL = 6, 5, 3, 4, 8, 3
 
 def _sf_cfg(**over):
     cfg = dict(seed=0, z_dim=SZ, L_dim=SL, num_parallel=2, discount=0.98, norm_z=True,
-               hilp_discount=0.98, hilp_expectile=0.5, phi_target_tau=0.005,
-               sf_target_tau=0.01, hilp_stats_momentum=0.005, hilp_mix_ratio=0.5,
-               hilp_sf_loss_scale=0.5,
+               phi_discount=0.98, expectile=0.5, phi_target_tau=0.005,
+               sf_target_tau=0.01, phi_stats_tau=0.005, train_goal_ratio=0.5,
+               sf_loss_scale=0.5,
                phi=dict(hidden_dim=SH, hidden_layers=2),
                sf=dict(hidden_dim=SH, hidden_layers=2, embedding_layers=2),
-               hilp_left_encoder=dict(hidden_dim=SH, hidden_layers=2, norm=True))
+               left_encoder=dict(hidden_dim=SH, hidden_layers=2, norm=True))
     cfg.update(over)
     return cfg
 

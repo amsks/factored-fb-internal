@@ -3,7 +3,7 @@
 # NOT the reward-inference route the current tab:benchmarks cells use).
 #
 # The only change from the z-conditioned MW/MS runs is the critic and the eval route:
-#   critic  density_fb   (measure_density_z: false -- the policy conditions on the raw goal)
+#   critic  density_fb   (infer_z: false -- the policy conditions on the raw goal)
 #   eval    native goal-conditioned (eval.csv); NO eval_relabel_* / reward-inference flags
 # Everything else -- flowbc actor, per-task goal masks, per-task hit spec, data root, discount
 # 0.99, budget -- is identical to the z runs. Protocol masks copied from
@@ -59,7 +59,7 @@ for t in $TASKS; do
   [ -n "${PROTO[$t]+x}" ] || { echo "no protocol for $t (goal-observable tasks only)" >&2; exit 2; }
   case "${HIT[$t]:-}" in ""|*REQUIRED*) echo "hit spec for $t is unset/REQUIRED -- fill HIT[$t] first" >&2; exit 2;; esac
   for s in $SEEDS; do
-    ov="${PROTO[$t]} measure_density_hard=true measure_hit_spec=\"${HIT[$t]}\""
+    ov="${PROTO[$t]} measure_density_hard=true goal_spec=\"${HIT[$t]}\""
     ovflags=""; for kv in $ov; do ovflags+=" --override $kv"; done
     cmd="CUDA_VISIBLE_DEVICES=\$GPU $ENVBASE $PY -m impls.main --critic density_fb --actor $ACTOR --domain $t --seed $s"
     cmd+=" --train_steps $TRAIN_STEPS --eval_interval $EVAL_INTERVAL --save_interval $SAVE_INTERVAL"

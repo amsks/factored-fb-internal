@@ -25,7 +25,7 @@ def test_degenerate_covariance_gives_neutral_index_not_nan():
     """tr(C_hat) = 0 (constant backward features): the ridge and relative floor are both zero;
     the absolute floor must make the solve return c = 0 and the neutral index, never NaN."""
     ex_obs, ex_act = _ex()
-    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg(measure_density_z=True, measure_density_z_eval_pool_m=8))
+    c, params, targets = DensityFBCritic.build(ex_obs, ex_act, _cfg(infer_z=True, eval_pool_size=8))
     d = int(c.z_dim)
     m_c = jnp.zeros((2, d)); cov = jnp.zeros((d, d))
     coef = c._z_centered_coef(m_c, cov)

@@ -1,6 +1,6 @@
 """density_fb's REWARD-SAMPLE INDEX (spec 30 P1, the centered dual encoder).
 
-`measure_density_z` (default OFF) replaces the critic's goal conditioning with an index z
+`infer_z` (default OFF) replaces the critic's goal conditioning with an index z
 inferred from reward samples {(u_j, r_j)}, which is what makes `infer_cond(net, obs,
 rewards)` a real zero-shot task interface instead of the placeholder it was.
 
@@ -56,8 +56,8 @@ def _cfg(z=True, **over):
     cfg = dict(
         lr=3e-4, lr_actor=3e-4, batch_size=B, discount=0.99, tau=0.005, seed=0,
         value_hidden_dims=[32, 32], layer_norm=True,
-        measure_hit_spec="19:22:0.4", measure_density_dim=D, measure_density_temp=1.0,
-        measure_density_z=z,
+        goal_spec="19:22:0.4", z_dim=D, temperature=1.0,
+        infer_z=z,
     )
     cfg.update(over)
     return cfg
@@ -86,7 +86,7 @@ def _built(z=True, **over):
     """(critic, params) from build() -- enough for every pure-index assertion. `params`
     carries `density_b_zenc` and `density_zstats` when the index is on."""
     ex_obs, ex_act = _ex()
-    over.setdefault("measure_density_z_eval_pool_m", 8)   # B=16 batches in this file
+    over.setdefault("eval_pool_size", 8)   # B=16 batches in this file
     critic, params, _targets = DensityFBCritic.build(ex_obs, ex_act, _cfg(z, **over))
     return critic, params
 
@@ -128,7 +128,7 @@ def test_index_is_off_by_default_in_the_shipped_config():
     """The knob has to be asked for. Every published density_fb cell is goal-conditioned;
     a default-on index would silently change all of them (and their checkpoint widths)."""
     cfg = load_config("density_fb", "flowbc", "cube_single")
-    assert cfg["measure_density_z"] is False
+    assert cfg["infer_z"] is False
     critic, _params, _t = DensityFBCritic.build(*_ex(), {**cfg, "seed": 0, "batch_size": B})
     assert critic.z_on is False
     assert critic.cvec_dim == OBS, "conditioning width must stay the observation width"
@@ -365,7 +365,7 @@ def test_the_ridge_uses_the_mean_eigenvalue_convention_and_floors_the_spectrum()
     assert np.allclose(got, ((np.asarray(m_c) @ vec) / (ev_f + lam)[None, :]) @ vec.T,
                        atol=1e-10)
     # a bigger ridge must shrink the coefficient -- the knob is live
-    critic_big = _built(measure_density_z_ridge_lambda_mult=10.0)[0]
+    critic_big = _built(ridge_lambda=10.0)[0]
     assert np.linalg.norm(np.asarray(critic_big._z_centered_coef(m_c, cov))) \
         < np.linalg.norm(got)
 
@@ -390,9 +390,9 @@ def test_one_reward_sample_raises_instead_of_returning_a_zero_index():
 # ==========================================================================================
 def _agent(actor="flowbc", z=True, **over):
     cfg = load_config("density_fb", actor, "cube_single")
-    cfg = {**cfg, "batch_size": B, "measure_density_dim": D,
-           "value_hidden_dims": [32, 32], "measure_density_z": z,
-           "measure_density_z_eval_pool_m": 8, **over}
+    cfg = {**cfg, "batch_size": B, "z_dim": D,
+           "value_hidden_dims": [32, 32], "infer_z": z,
+           "eval_pool_size": 8, **over}
     ex_obs, ex_act = _ex()
     return Agent.create("density_fb", actor, 0, ex_obs, ex_act, cfg), cfg
 
@@ -460,7 +460,7 @@ def test_infer_cond_uses_the_eps_scaled_queries_not_the_raw_block_columns():
 def test_cvec_vgoal_is_z_shaped_and_matches_the_actor_width():
     """The bug class this guards: density_fb declares BOOT_COND="value_goal", so every actor
     draws its TD bootstrap action conditioned on cond["_cvec_vgoal"]. With the index on the
-    actor net is z-wide (cvec_dim = measure_density_dim), so publishing the raw goal there
+    actor net is z-wide (cvec_dim = z_dim), so publishing the raw goal there
     hands a goal-shaped vector to a z-shaped net. Asserted three ways."""
     agent, _cfg = _agent()
     batch = _batch()
@@ -540,12 +540,12 @@ def test_the_index_never_carries_a_gradient_into_the_backward_tower():
 
 
 def test_the_training_index_mixes_in_sphere_draws():
-    """FB's standard task-prior mix (measure_density_z_rand_frac): a fraction of the rows
+    """FB's standard task-prior mix (z_random_frac): a fraction of the rows
     carry a fresh sqrt(d)-sphere draw rather than the encoded index, so the actor sees the
     whole conditioning sphere. At frac=0 every row is the encoder's; at frac=1 none is."""
     batch = _batch()
-    a0, _ = _agent(z=True, measure_density_z_rand_frac=0.0)
-    a1, _ = _agent(z=True, measure_density_z_rand_frac=1.0)
+    a0, _ = _agent(z=True, z_random_frac=0.0)
+    a1, _ = _agent(z=True, z_random_frac=1.0)
     c0 = a0.critic.sample_cond(a0.net, batch, jax.random.PRNGKey(5))
     c1 = a1.critic.sample_cond(a1.net, batch, jax.random.PRNGKey(5))
     assert not np.allclose(np.asarray(c0["z"]), np.asarray(c1["z"]))
@@ -613,7 +613,7 @@ def test_the_index_reads_the_slow_tower_not_the_online_or_target_one():
 
     The three towers must have DIVERGED for this to mean anything, so run a few updates
     first, then assert the index tracks density_b_zenc specifically. The shipped centered
-    arm asserts measure_density_z_enc_tau > 0, which is exactly the condition selecting the
+    arm asserts slow_backward_tau > 0, which is exactly the condition selecting the
     slow copy over target_density_b (bridge `_density_z_enc_module`)."""
     agent, _c = _agent()
     for seed in (1, 2, 3):
@@ -812,9 +812,9 @@ def test_the_pool_uses_the_raw_scaled_coordinate_conventions_correctly():
 
 def test_the_real_m256_pool_runs_end_to_end():
     """The pinned M. Everything else in this file runs a small pool so the batches stay
-    cheap; this one uses the shipped measure_density_z_eval_pool_m = 256 with a batch big
+    cheap; this one uses the shipped eval_pool_size = 256 with a batch big
     enough to draw it, and drives the native-goal reward-sample API through it."""
-    agent, cfg = _agent(measure_density_z_eval_pool_m=256, batch_size=POOL_M)
+    agent, cfg = _agent(eval_pool_size=256, batch_size=POOL_M)
     assert agent.critic.z_eval_pool_m == 256
     trained = agent.update(_batch(b=POOL_M))[0]
     st = trained.net["density_zstats"].params
@@ -829,16 +829,16 @@ def test_a_pool_larger_than_the_batch_is_refused():
     """The pool is drawn from one batch's next states, so it cannot exceed batch_size. The
     bridge asserts this; a silently-shrunk pool would change the eval M without saying so."""
     with pytest.raises(AssertionError, match="exceeds batch_size"):
-        DensityFBCritic.build(*_ex(), _cfg(z=True, measure_density_z_eval_pool_m=1024))
+        DensityFBCritic.build(*_ex(), _cfg(z=True, eval_pool_size=1024))
 
 
 def test_the_centered_encoder_refuses_a_fast_index_tower():
-    """measure_density_z_enc_tau must be > 0: at 0 the bridge's _density_z_enc_module selects
+    """slow_backward_tau must be > 0: at 0 the bridge's _density_z_enc_module selects
     target_density_b, and running the solve through the fast-drifting target tower is the
     known non-stationarity risk the contract exists to avoid."""
-    with pytest.raises(AssertionError, match="enc_tau"):
-        DensityFBCritic.build(*_ex(), _cfg(z=True, measure_density_z_enc_tau=0.0,
-                                           measure_density_z_eval_pool_m=8))
+    with pytest.raises(AssertionError, match="slow_backward_tau"):
+        DensityFBCritic.build(*_ex(), _cfg(z=True, slow_backward_tau=0.0,
+                                           eval_pool_size=8))
 
 
 # ==========================================================================================
@@ -848,7 +848,7 @@ def test_the_centered_encoder_refuses_a_fast_index_tower():
 # recomputed. It does not pin the RATES at which either is mixed, nor the covariance
 # eigenvalue floor. Three mutations survived the whole suite:
 #
-#   * measure_density_z_enc_tau -> 1.0 (the index tower stops being a slow copy);
+#   * slow_backward_tau -> 1.0 (the index tower stops being a slow copy);
 #   * the moments EMA'd at the JUST-WRITTEN index tower instead of the pre-step one;
 #   * the eigenvalue floor deleted from the ridge solve.
 #
@@ -893,17 +893,17 @@ def test_the_index_tower_ema_rate_is_pinned_across_several_updates():
 
 def test_a_different_index_tower_rate_produces_a_different_tower():
     """The rate is read from the CONFIG, not hard-coded: two agents identical but for
-    measure_density_z_enc_tau must disagree after the same updates. A build that ignored the
+    slow_backward_tau must disagree after the same updates. A build that ignored the
     knob (or pinned it to 1.0) passes every other test in this file."""
     # both inside the (0, 0.1] band the build asserts for the centered arm
-    slow, _c = _agent(measure_density_z_enc_tau=1e-4)
-    fast, _c = _agent(measure_density_z_enc_tau=0.05)
+    slow, _c = _agent(slow_backward_tau=1e-4)
+    fast, _c = _agent(slow_backward_tau=0.05)
     for seed in (1, 2, 3):
         b = _batch(seed=seed)
         slow, fast = slow.update(b)[0], fast.update(b)[0]
     zgap = _leafmax(slow.net["density_b_zenc"].params, fast.net["density_b_zenc"].params)
     bgap = _leafmax(slow.net["density_b"].params, fast.net["density_b"].params)
-    assert zgap > 1e-6, "measure_density_z_enc_tau does not reach the index tower"
+    assert zgap > 1e-6, "slow_backward_tau does not reach the index tower"
     # The online towers drift apart a little too -- the index conditions the actor, so the
     # rate feeds back into training. The effect must still be OVERWHELMINGLY on the tower
     # the knob names, or the assertion above could be satisfied by that feedback alone.
@@ -980,7 +980,7 @@ def test_the_covariance_eigenvalue_floor_is_exercised_and_load_bearing():
 # ==========================================================================================
 def _built_full(**over):
     ex_obs, ex_act = _ex()
-    over.setdefault("measure_density_z_eval_pool_m", 8)
+    over.setdefault("eval_pool_size", 8)
     return DensityFBCritic.build(ex_obs, ex_act, _cfg(True, **over))
 
 

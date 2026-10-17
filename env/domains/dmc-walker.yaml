@@ -2,7 +2,7 @@
 # reports undiscounted `episode_return`.
 #
 # Hit spec for this layout, passed as an override (quote it):
-#     --override 'measure_hit_spec="0:24:15.9"'
+#     --override 'goal_spec="0:24:15.9"'
 # The block is the full observation (orientations 0:14, height 14:15, velocities 15:24). The
 # radius is calibrated so the fraction of random observation pairs inside the ball matches
 # cube-single's hit rate under 19:22:0.4 (scripts/calibrate_hit_spec.py); it is dominated by

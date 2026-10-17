@@ -42,6 +42,47 @@ def _get_dotted(d, dotted_key):
     return node, True
 
 
+# Config keys renamed after the paper runs (old -> new). Run directories keep the old
+# names in their config.json, so every config entering the code goes through upgrade_config.
+LEGACY_RENAMES = {
+    "measure_hit_spec": "goal_spec",
+    "measure_density_dim": "z_dim",
+    "measure_density_temp": "temperature",
+    "measure_density_actor_value": "actor_value",
+    "measure_density_archi": "archi",
+    "measure_density_b_hidden_dims": "backward_hidden_dims",
+    "measure_density_b_norm": "norm_backward",
+    "measure_density_z": "infer_z",
+    "measure_density_z_rand_frac": "z_random_frac",
+    "measure_density_z_ridge_lambda_mult": "ridge_lambda",
+    "measure_density_z_cov_eig_floor": "cov_eig_floor",
+    "measure_density_z_enc_tau": "slow_backward_tau",
+    "measure_density_z_sigma_tau": "feature_stats_tau",
+    "measure_density_z_eval_pool_m": "eval_pool_size",
+    "measure_density_z_const_eps": "const_reward_eps",
+    "hilp_discount": "phi_discount",
+    "hilp_expectile": "expectile",
+    "hilp_stats_momentum": "phi_stats_tau",
+    "hilp_left_encoder": "left_encoder",
+    "hilp_sf_loss_scale": "sf_loss_scale",
+    "hilp_mix_ratio": "train_goal_ratio",
+    "hilp_future": "goal_future",
+    "hilp_p_randomgoal": "p_randomgoal",
+}
+
+
+def upgrade_config(config):
+    """Rename legacy keys in a top-level config dict."""
+    out = dict(config)
+    for old, new in LEGACY_RENAMES.items():
+        if old in out:
+            value = out.pop(old)
+            if new in out and out[new] != value:
+                raise ConfigError(f"config sets both {old!r} and {new!r} to different values")
+            out[new] = value
+    return out
+
+
 class ConfigError(ValueError):
     """Raised when a composed config is missing a required key."""
 
@@ -80,7 +121,7 @@ def load_config(critic, actor, domain, overrides=None):
             for p in parents:
                 node = node[p]
             del node[leaf]
-    out = OmegaConf.to_container(cfg, resolve=True)
+    out = upgrade_config(OmegaConf.to_container(cfg, resolve=True))
 
     for key in REQUIRED_KEYS.get(critic, ()):
         value, present = _get_dotted(out, key)

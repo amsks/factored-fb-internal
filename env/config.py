@@ -8,6 +8,7 @@ import os
 from omegaconf import OmegaConf
 
 from impls.utils.config_utils import (
+    upgrade_config,
     _load_group, _get_dotted, REQUIRED_KEYS, ConfigError,
 )
 
@@ -44,7 +45,7 @@ def make_config(critic, actor, domain, overrides=None):
             for p in parents:
                 node = node[p]
             del node[leaf]
-    out = OmegaConf.to_container(cfg, resolve=True)
+    out = upgrade_config(OmegaConf.to_container(cfg, resolve=True))
 
     # An override naming a key this tree does not read is silent: OmegaConf creates
     # `actor.lr` next to the real `lr_actor` and the run trains at the default. Fail loudly

@@ -18,6 +18,8 @@ import jax
 import numpy as np
 from flax.core.frozen_dict import FrozenDict
 
+from impls.utils.config_utils import upgrade_config
+
 
 def get_size(data):
     """Return the size of the dataset."""
@@ -270,9 +272,9 @@ class HILPFutureDataset:
     """The FB batch plus one geometrically-sampled hindsight future state, for HILP.
 
     HILP's phi objective takes `hilp_future_observations` as the goal. Following the HILP
-    reference buffer, the future is `step + Geometric(1 - hilp_future)` clipped to the
+    reference buffer, the future is `step + Geometric(1 - goal_future)` clipped to the
     anchor's own trajectory end (mean offset 100 steps at 0.99), then replaced by a uniformly
-    random dataset state with probability `hilp_p_randomgoal`. The clip can make obs == goal,
+    random dataset state with probability `p_randomgoal`. The clip can make obs == goal,
     which is the row HILP's indicator reward is written for.
     """
     dataset: Any
@@ -281,10 +283,10 @@ class HILPFutureDataset:
     def __post_init__(self):
         self.size = self.dataset.size
         (self.terminal_locs,) = np.nonzero(np.asarray(self.dataset['terminals']) > 0)
-        self.p = 1.0 - float(self.config.get('hilp_future', 0.99))
+        self.p = 1.0 - float(self.config.get('goal_future', 0.99))
         assert 0.0 < self.p <= 1.0, (
-            f"hilp_future must be in [0, 1); got {self.config.get('hilp_future')}")
-        self.p_randomgoal = float(self.config.get('hilp_p_randomgoal', 0.0))
+            f"goal_future must be in [0, 1); got {self.config.get('goal_future')}")
+        self.p_randomgoal = float(self.config.get('p_randomgoal', 0.0))
         # obs_mask_dims | goal_mask_dims, unioned as for FBDataset.
         dims = sorted(set(self.config.get('obs_mask_dims') or ()) |
                       set(self.config.get('goal_mask_dims') or ()))
@@ -318,6 +320,7 @@ _DATASET_CLASSES = {'GCDataset': GCDataset, 'WindowedDataset': WindowedDataset,
 def make_dataset(base, config):
     """Wrap a base Dataset per the critic's `dataset_class`. With none set (fb), the base
     FBDataset is used directly, with the obs/goal mask dims attached."""
+    config = upgrade_config(config)
     cls = _DATASET_CLASSES.get(config.get('dataset_class'))
     if cls is not None:
         return cls(base, config)

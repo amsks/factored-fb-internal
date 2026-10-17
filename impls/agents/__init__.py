@@ -8,6 +8,7 @@ import optax
 
 from impls.utils.flax_utils import TrainState, soft_update, nonpytree_field
 from impls.critics.base import check_combo
+from impls.utils.config_utils import upgrade_config
 from impls.critics.fb import FBCritic
 from impls.critics.density_fb import DensityFBCritic
 from impls.critics.hilp import HILPCritic
@@ -19,7 +20,7 @@ CRITICS = {"fb": FBCritic, "density_fb": DensityFBCritic, "hilp": HILPCritic, "r
 
 # Config-only variants: a --critic name that selects its own yaml but the same critic class.
 #   density_fb_z      Density-FB whose task vector z is inferred from reward samples
-#                     (the yaml sets measure_density_z: true); used for every ExoRL cell and
+#                     (the yaml sets infer_z: true); used for every ExoRL cell and
 #                     the reward-inference OGBench numbers.
 #   density_fb_state  goal-conditioned Density-FB whose backward network reads the full state
 #                     instead of the object coordinates (backward_input: state).
@@ -152,7 +153,7 @@ class Agent(flax.struct.PyTreeNode):
     # ---------------- factory ----------------
     @classmethod
     def create(cls, critic_name, actor_name, seed, ex_obs, ex_actions, config):
-        config = {**config, "seed": seed}
+        config = {**upgrade_config(config), "seed": seed}
         critic_cls = CRITICS[CRITIC_ALIASES.get(critic_name, critic_name)]
         actor_cls = ACTORS[actor_name]
         critic, cparams, targets = critic_cls.build(ex_obs, ex_actions, config)

@@ -1,31 +1,27 @@
-# density_fb: goal-conditioned Density-FB (impls/critics/density_fb.py).
-# The critic predicts a softmax distribution over the batch's next states,
-# softmax_j(F(s,a,g)^T B(u_j) / temp), trained by cross-entropy to the TD target
-# (1-gamma) * onehot(own next state) + gamma * target distribution at the actor's next
-# action. The actor maximises the hit-kernel goal reward averaged under that distribution.
+# Goal-conditioned Density-FB (impls/critics/density_fb.py).
+
+# Optimisation
 lr: 3.0e-4
 batch_size: 1024
-value_hidden_dims: [512, 512, 512]   # F (two heads) and, by default, B
-measure_density_b_hidden_dims: null  # B's hidden dims when they differ from F's
-layer_norm: true
 discount: 0.99
-tau: 0.005                           # polyak rate of the target F and B
-# Which observation columns define the task and how close counts as reaching it:
-# "start:stop:eps" blocks, comma-joined when every block must be reached.
-measure_hit_spec: "19:22:0.4"
-measure_density_dim: 50              # d, the width of F and B
-measure_density_temp: 1.0            # softmax temperature of F^T B
-backward_input: hit_spec             # B reads the eps-scaled hit-spec columns
-# What the actor maximises: 'softmax' averages the reward under the predicted
-# distribution; 'linear_fz' uses FB's linear readout F(s,a,z)^T z with z = B(g).
-measure_density_actor_value: softmax
-# 'mlp': one MLP per tower. 'motivo': Meta Motivo's forward/backward shapes, with the
-# hidden-dims lists read as (width, n_layers), so every entry must be equal.
-measure_density_archi: mlp
-measure_density_b_norm: false        # project B's output onto the sqrt(d) sphere
-measure_density_z: false             # goal-conditioned arm (see density_fb_z.yaml)
+tau: 0.005                  # target network update rate
 
-# goal sampling (GCDataset)
+# Networks
+value_hidden_dims: [512, 512, 512]
+backward_hidden_dims: null  # defaults to value_hidden_dims
+layer_norm: true
+archi: mlp                  # mlp or motivo
+z_dim: 50
+temperature: 1.0            # softmax temperature over F^T B
+norm_backward: false
+backward_input: hit_spec    # state or hit_spec (the goal_spec columns)
+
+# Task
+goal_spec: "19:22:0.4"      # start:stop:radius observation blocks, comma-joined
+actor_value: softmax        # softmax or linear_fz
+infer_z: false
+
+# Goal sampling (GCDataset)
 dataset_class: GCDataset
 value_p_curgoal: 0.2
 value_p_trajgoal: 0.5

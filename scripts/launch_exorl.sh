@@ -24,19 +24,19 @@ SEED=${2:?seed}
 shift 2
 PY=${PY:-python}
 
-COMMON=(--override lr=1e-4 --override 'measure_density_b_hidden_dims=[256,256]'
-        --override measure_density_archi=motivo --override measure_density_b_norm=true)
-SPHERE_Z=(--override measure_density_z_rand_frac=1.0 --override 'value_hidden_dims=[1024]'
+COMMON=(--override lr=1e-4 --override 'backward_hidden_dims=[256,256]'
+        --override archi=motivo --override norm_backward=true)
+SPHERE_Z=(--override z_random_frac=1.0 --override 'value_hidden_dims=[1024]'
           --override tau=0.001 --override actor.q_normalize=true)
 case $DOM in
   walker)     DOMAIN=dmc-walker; ARM=("${SPHERE_Z[@]}" --override discount=0.98
-                --override 'measure_hit_spec="0:24:15.9"') ;;
+                --override 'goal_spec="0:24:15.9"') ;;
   cheetah)    DOMAIN=dmc-cheetah; ARM=("${SPHERE_Z[@]}" --override discount=0.98
-                --override 'measure_hit_spec="8:17:7.264"') ;;
+                --override 'goal_spec="8:17:7.264"') ;;
   quadruped)  DOMAIN=dmc-quadruped; ARM=(--override discount=0.98 --override actor.q_normalize=false
-                --override 'measure_hit_spec="44:47:0.110,47:48:0.001"') ;;
+                --override 'goal_spec="44:47:0.110,47:48:0.001"') ;;
   point-mass) DOMAIN=dmc-point-mass-maze; ARM=(--override discount=0.99 --override lr_actor=1e-6
-                --override actor.q_normalize=false --override 'measure_hit_spec="0:2:0.03"') ;;
+                --override actor.q_normalize=false --override 'goal_spec="0:2:0.03"') ;;
   *) echo "unknown domain $DOM" >&2; exit 2 ;;
 esac
 

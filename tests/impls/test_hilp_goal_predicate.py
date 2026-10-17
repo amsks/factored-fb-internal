@@ -11,7 +11,7 @@ def _critic():
     cfg = make_config("hilp_tdjc", "flowbc", "cube_single", [
         "z_dim=2", "L_dim=2", "phi.hidden_dim=8", "phi.hidden_layers=2",
         "sf.hidden_dim=8", "sf.hidden_layers=1", "sf.embedding_layers=2",
-        "hilp_left_encoder.hidden_dim=8", "hilp_left_encoder.hidden_layers=2",
+        "left_encoder.hidden_dim=8", "left_encoder.hidden_layers=2",
     ]) | {"seed": 0}
     obs = jnp.zeros((1, 37)).at[:, 19:22].set(jnp.array([.1, .2, .3]))
     critic, params, target = HILPCritic.build(obs, jnp.zeros((1, 5)), cfg)
@@ -31,7 +31,7 @@ def test_stage_loss_is_the_phi_value_loss_on_full_states():
     expected, _ = hilp_phi_loss(
         params["hilp_phi1"], params["hilp_phi2"], target["hilp_phi1"], target["hilp_phi2"],
         lambda p, x: critic._phi(p, x), obs, goal, nobs,
-        critic.hilp_discount, critic.hilp_expectile)
+        critic.phi_discount, critic.expectile)
     np.testing.assert_array_equal(actual, expected)
 
 
@@ -41,5 +41,5 @@ def test_collapsed_features_cannot_declare_a_different_state_reached():
     goal, nobs = obs.at[:, 0].set(1.), obs.at[:, 0].set(2.)
     collapsed = _loss(critic, params, target, obs, goal, nobs)
     # Reward -1 and bootstrap at the distance floor -1e-3, against V = -1e-3.
-    np.testing.assert_allclose(collapsed, (-1. - critic.hilp_discount * .001 + .001) ** 2,
+    np.testing.assert_allclose(collapsed, (-1. - critic.phi_discount * .001 + .001) ** 2,
                                rtol=0, atol=1e-12)

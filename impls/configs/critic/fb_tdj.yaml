@@ -1,3 +1,2 @@
-# FB at the TD-JEPA reference settings: identical to critic/fb.yaml. The name is kept because
-# the paper's FB run directories use it.
+# Alias of fb, kept for the paper run directories.
 base: fb

@@ -45,14 +45,14 @@ case $METHOD in
   density_fb_state)    CRITIC=density_fb_state ;;
   density_fb_z)        CRITIC=density_fb_z ;;
   density_fb_linear)   CRITIC=density_fb;   STEPS=500000
-                       EXTRA=(--save_dir exp/fz_ablation_goal/linear_fz --override measure_density_actor_value=linear_fz) ;;
+                       EXTRA=(--save_dir exp/fz_ablation_goal/linear_fz --override actor_value=linear_fz) ;;
   density_fb_z_linear) CRITIC=density_fb_z; STEPS=500000
-                       EXTRA=(--save_dir exp/fz_ablation/linear_fz --override measure_density_actor_value=linear_fz) ;;
+                       EXTRA=(--save_dir exp/fz_ablation/linear_fz --override actor_value=linear_fz) ;;
   density_fb_500k)     CRITIC=density_fb;   STEPS=500000; EXTRA=(--save_dir exp/fz_ablation_goal/softmax) ;;
   density_fb_z_500k)   CRITIC=density_fb_z; STEPS=500000; EXTRA=(--save_dir exp/fz_ablation/softmax) ;;
   *) echo "unknown method $METHOD" >&2; exit 2 ;;
 esac
-case $CRITIC in density_fb*) EXTRA+=(--override "measure_hit_spec=$HIT") ;; esac
+case $CRITIC in density_fb*) EXTRA+=(--override "goal_spec=$HIT") ;; esac
 
 # Reward-sample evaluation (writes eval_relabel.csv). It draws dataset rows, which moves the
 # random stream of later training batches, so it is left off for the runs that were trained

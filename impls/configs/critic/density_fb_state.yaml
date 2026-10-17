@@ -1,5 +1,3 @@
-# density_fb_state: goal-conditioned Density-FB whose B tower reads the full observation
-# instead of the hit-spec columns. The hit-kernel reward the actor maximises still uses the
-# hit-spec columns.
+# Goal-conditioned Density-FB with B reading the full observation.
 base: density_fb
-backward_input: state                # B reads the full observation
+backward_input: state

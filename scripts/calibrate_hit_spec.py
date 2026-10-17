@@ -1,4 +1,4 @@
-"""Calibrate a `measure_hit_spec` radius.
+"""Calibrate a `goal_spec` radius.
 
 Two modes.
 
