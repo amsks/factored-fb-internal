@@ -281,6 +281,16 @@ def main(_):
                         else len(adapter.eval_tasks(env, cfg))
                     )
                     n_relabel_eps = int(cfg.get("eval_relabel_episodes", 10))
+                    # Roll out like OGBench's single-task envs: no cube permutation at
+                    # reset, since the relabelled rewards describe the unpermuted task.
+                    unwrapped = getattr(env, "unwrapped", env)
+                    singletask = cfg.get("eval_relabel_singletask", True) and hasattr(
+                        unwrapped, "_permute_blocks"
+                    )
+                    if singletask:
+                        saved = (unwrapped._permute_blocks, unwrapped._success_timing)
+                        unwrapped._permute_blocks = False
+                        unwrapped._success_timing = "pre"
                     for tid in range(1, n_relabel_tasks + 1):
                         relabel_obs, relabel_rewards = relabel_fn(
                             train_ds,
@@ -334,6 +344,8 @@ def main(_):
                                 step=i,
                             )
                         print("eval_relabel", i, "task", tid, row, flush=True)
+                    if singletask:
+                        unwrapped._permute_blocks, unwrapped._success_timing = saved
             if i % FLAGS.save_interval == 0:
                 save_agent(agent, run_dir, i)
             if _CHECKPOINT_SIGNAL["num"] is not None:

@@ -22,7 +22,7 @@ The actor is trained against the frozen critic, and the next action a' in each T
 - **RLDP** (`impls/critics/rldp.py`, config `rldp`). F is trained as in FB with B held fixed in that loss. B is trained by a 5-step latent prediction loss along the dataset actions. The actor and z are as in FB.
 
 There are two ways to give the agent a task at evaluation.
-Goal-conditioned evaluation (`eval.csv`) gives the environment's goal state; reward-inference evaluation (`eval_relabel.csv` on OGBench, and all ExoRL scoring) gives only dataset transitions labelled with the task reward, from which z is inferred and the policy is rolled out on z.
+Goal-conditioned evaluation (`eval.csv`) gives the environment's goal state; reward-inference evaluation (`eval_relabel.csv` on OGBench, and all ExoRL scoring) gives only dataset transitions labelled with the task reward, from which z is inferred and the policy is rolled out on z. As in OGBench's single-task environments, these rollouts keep the cubes in their listed order at reset (`eval_relabel_singletask`, on by default), so the reward samples and the rolled-out task agree.
 
 ## Installation
 

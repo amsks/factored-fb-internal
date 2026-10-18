@@ -64,10 +64,13 @@ def make_batch(seed=1):
     )
 
 
-def pair_statics(critic, actor):
+def pair_statics(critic, actor, overrides=None):
     """Return (boot, info) for one critic x actor pair at fixed seeds."""
     cfg = load_config(critic, actor, "cube_single")
     cfg["batch_size"] = B
+    # The fixture predates HILP's running-covariance whitening.
+    cfg["whiten_running_cov"] = False
+    cfg.update(overrides or {})
     agent = Agent.create(
         critic, actor, 0, jnp.zeros((B, OBS)), jnp.zeros((B, ACT)), cfg
     )
@@ -205,3 +208,10 @@ def test_check_combo_rejects_value_goal_the_critic_never_produces():
 
     with pytest.raises(ComboError, match="value_goal"):
         check_combo(_Inconsistent, DDPGBCActor)
+
+
+def test_hilp_running_cov_whitening_computes():
+    """HILP with running-covariance whitening gives finite bootstrap and losses."""
+    boot, info = pair_statics("hilp", "flowbc", {"whiten_running_cov": True})
+    for v in list(boot.values()) + list(info.values()):
+        assert np.all(np.isfinite(np.asarray(v)))

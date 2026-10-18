@@ -101,6 +101,7 @@ class HILPCritic:
     stats_momentum: float
     mix_ratio: float
     sf_loss_scale: float
+    whiten_running_cov: bool = False
 
     GROUPS = ("hilp_phi1", "hilp_phi2", "hilp_sf", "hilp_stats", "hilp_le")
     STAGES = ("phi", "sf")
@@ -228,8 +229,14 @@ class HILPCritic:
                 nobs[jax.random.permutation(r_perm, B)],
             )
         )  # [B, d]
-        cov = (phi.T @ phi) / phi.shape[0]
-        inv_cov = jnp.linalg.pinv(cov)
+        if self.whiten_running_cov:
+            cov = net["hilp_stats"].params["cov"]
+            inv_cov = jnp.linalg.inv(
+                cov + 1e-6 * jnp.eye(cov.shape[0], dtype=cov.dtype)
+            )
+        else:
+            cov = (phi.T @ phi) / phi.shape[0]
+            inv_cov = jnp.linalg.pinv(cov)
         new_z = project_z(phi @ inv_cov, self.norm_z)
         mix = (jax.random.uniform(r_mask, (B,)) < self.mix_ratio)[:, None]
         return {"z": jnp.where(mix, new_z, z)}
@@ -248,26 +255,31 @@ class HILPCritic:
         m = self.stats_momentum
         p = net["hilp_stats"].params
         phi1 = self._phi(pre_net["hilp_phi1"].params, batch["observations"])
+        new = {
+            "mean": p["mean"] * (1.0 - m) + jnp.mean(phi1, axis=0) * m,
+            "std": p["std"] * (1.0 - m) + jnp.std(phi1, axis=0) * m,
+        }
+        if self.whiten_running_cov:
+            new["cov"] = p["cov"] * (1.0 - m) + (phi1.T @ phi1 / phi1.shape[0]) * m
         net = dict(net)
-        net["hilp_stats"] = net["hilp_stats"].replace(
-            params={
-                "mean": p["mean"] * (1.0 - m) + jnp.mean(phi1, axis=0) * m,
-                "std": p["std"] * (1.0 - m) + jnp.std(phi1, axis=0) * m,
-            }
-        )
+        net["hilp_stats"] = net["hilp_stats"].replace(params=new)
         return net
 
 
 class _HILPStats(nn.Module):
-    """Running phi mean and std, stored as parameters; written only by `update_stats`."""
+    """Running phi statistics, stored as parameters; written only by `update_stats`."""
 
     dim: int
     dtype: Any = jnp.float32
+    with_cov: bool = False
 
     @nn.compact
     def __call__(self):
         mean = self.param("mean", lambda _k: jnp.zeros((self.dim,), self.dtype))
         std = self.param("std", lambda _k: jnp.ones((self.dim,), self.dtype))
+        if self.with_cov:
+            # Uncentered second moment of phi, used to whiten training z
+            self.param("cov", lambda _k: jnp.eye(self.dim, dtype=self.dtype))
         return mean, std
 
 
@@ -299,7 +311,12 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
         hidden_layers=int(le_cfg["hidden_layers"]),
         norm=bool(le_cfg["norm"]),
     )
-    stats_mod = _HILPStats(dim=z_dim, dtype=jnp.zeros((), ex_obs.dtype).dtype)
+    whiten_running_cov = bool(config.get("whiten_running_cov", False))
+    stats_mod = _HILPStats(
+        dim=z_dim,
+        dtype=jnp.zeros((), ex_obs.dtype).dtype,
+        with_cov=whiten_running_cov,
+    )
 
     r1, r2, rs, rst = jr.split(jr.PRNGKey(config["seed"]), 4)
     ex_z = jnp.zeros((ex_obs.shape[0], z_dim))
@@ -328,6 +345,7 @@ def _hilp_build(cls, ex_obs, ex_actions, config):
         stats_momentum=float(config["phi_stats_tau"]),
         mix_ratio=float(config["train_goal_ratio"]),
         sf_loss_scale=float(config["sf_loss_scale"]),
+        whiten_running_cov=whiten_running_cov,
     )
     targets = {g: copy.deepcopy(params[g]) for g in critic.TARGETS}
     return critic, params, targets
