@@ -1,0 +1,5 @@
+# ManiSkill3 PushCube, state observations, horizon 25.
+adapter: unified
+env_name: ms-push-cube          # run naming only
+task: ms-push-cube
+data_path: ${oc.env:FB_DATA_ROOT}/data/maniskill/ms-push-cube.npz

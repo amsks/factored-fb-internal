@@ -1,0 +1,5 @@
+# ManiSkill3 LiftPegUpright, state observations, horizon 25; eval uses the fixed data goal.
+adapter: unified
+env_name: ms-lift-peg          # run naming only
+task: ms-lift-peg
+data_path: ${oc.env:FB_DATA_ROOT}/data/maniskill/ms-lift-peg.npz

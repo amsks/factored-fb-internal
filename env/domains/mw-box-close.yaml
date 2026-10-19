@@ -1,0 +1,5 @@
+# MetaWorld box-close, goal-observable, action repeat 2, horizon 100.
+adapter: unified
+env_name: mw-box-close          # run naming only
+task: mw-box-close
+data_path: ${oc.env:FB_HF_EXPORT}/data/metaworld/mw-box-close.npz

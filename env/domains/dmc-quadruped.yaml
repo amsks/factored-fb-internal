@@ -1,0 +1,10 @@
+# ExoRL quadruped, RND exploration data, reward-specified tasks scored by episode return.
+# goal_spec is passed by scripts/launch_exorl_*.sh, calibrated by scripts/calibrate_goal_spec.py.
+adapter: unified
+env_name: dmc-quadruped        # run naming only
+task: dmc-quadruped
+exorl_task: walk               # one of stand / walk / run / jump
+exorl_algo: rnd
+data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/quadruped/rnd
+exorl_max_episodes: 5000
+keep_dataset_rewards: true

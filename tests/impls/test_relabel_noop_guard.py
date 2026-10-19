@@ -1,0 +1,253 @@
+"""Reward-inference evaluation in impls/main.py refuses to score a no-op inference.
+
+Run on CPU, in its own process:
+
+    JAX_PLATFORMS=cpu python -m pytest tests/impls/test_relabel_noop_guard.py -q
+"""
+
+import csv
+import math
+import os
+import types
+
+import numpy as np
+import pytest
+
+from env.ogbench import OGBenchAdapter
+from impls.utils.config_utils import load_config
+from impls.utils.datasets import FBDataset
+
+ACT_DIM = 2
+# density_fb's default goal_spec columns are obs[19:22].
+OBS_DIM = 40
+SUCCESS_FROM_EVALUATE = 0.75
+
+
+def _fake_env(task_infos):
+    return types.SimpleNamespace(unwrapped=types.SimpleNamespace(task_infos=task_infos))
+
+
+class _RelabelAdapter:
+    """Stub OGBench adapter with real relabelling and a fixed non-zero success."""
+
+    name = "ogbench"
+
+    def __init__(self, n_tasks=2, n_rows=40):
+        rng = np.random.default_rng(2)
+        self.task_infos = [
+            {"goal_xyzs": np.array([[0.1 * (t + 1), 0.0, 0.02]])}
+            for t in range(n_tasks)
+        ]
+        self._env = _fake_env(self.task_infos)
+        qpos = rng.uniform(-0.5, 0.5, size=(n_rows, 24)).astype(np.float64)
+        for t, info in enumerate(self.task_infos):
+            qpos[t + 1, 14:17] = info["goal_xyzs"][0]  # relabelling reads row idx + 1
+        observations = rng.standard_normal((n_rows, OBS_DIM)).astype(np.float32)
+        valids = np.ones(n_rows, np.float32)
+        valids[-1] = 0.0
+        self._train_ds = FBDataset.create(
+            observations=observations,
+            actions=np.tanh(rng.standard_normal((n_rows, ACT_DIM))).astype(np.float32),
+            qpos=qpos,
+            valids=valids,
+            terminals=1.0 - valids,
+            rewards=np.zeros(n_rows, np.float32),
+        )
+        self._train_ds.get_random_idxs = lambda n: np.arange(
+            min(n, self._train_ds.size - 1)
+        )
+        self.evaluate_calls = []
+
+    def make_env_and_datasets(self, cfg):
+        return self._env, self._train_ds, self._train_ds
+
+    def eval_tasks(self, env, cfg):
+        return list(range(1, len(self.task_infos) + 1))
+
+    def evaluate(
+        self, agent, env, task, cfg, num_episodes, num_video, any_step_success=False
+    ):
+        self.evaluate_calls.append(dict(task=task, any_step_success=any_step_success))
+        return {"success": SUCCESS_FROM_EVALUATE}, []
+
+    def relabel_infer_batch(
+        self, train_ds, env, task_id, num_samples, shift_reward=1.0
+    ):
+        return OGBenchAdapter().relabel_infer_batch(
+            train_ds, env, task_id, num_samples, shift_reward=shift_reward
+        )
+
+
+def _density_fb_cfg(**extra):
+    """Small goal-conditioned density_fb config with the reward-inference eval on."""
+    cfg = load_config("density_fb", "flowbc", "cube_single")
+    # env_name names the run dir; the adapter is stubbed.
+    cfg = {
+        **cfg,
+        "env_name": "tiny",
+        "batch_size": 16,
+        "z_dim": 8,
+        "value_hidden_dims": [32, 32],
+        "infer_z": False,
+        "eval_pool_size": 8,
+        "eval_relabel_size": 20,
+        "eval_relabel_shift": 1.0,
+        "eval_relabel_episodes": 3,
+    }
+    cfg.update(extra)
+    return cfg
+
+
+def _fb_cfg(**extra):
+    cfg = dict(
+        env_name="tiny",
+        task="b2d-tiny",
+        adapter="unified",
+        horizon=8,
+        batch_size=16,
+        z_dim=8,
+        L_dim=8,
+        num_parallel=2,
+        discount=0.99,
+        f_target_tau=0.005,
+        b_target_tau=0.005,
+        ortho_coef=1.0,
+        train_goal_ratio=0.5,
+        fb_pessimism_penalty=0.0,
+        norm_z=True,
+        lr_f=1e-4,
+        lr_b=1e-4,
+        lr_actor=1e-4,
+        forward=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
+        backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
+        left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
+        actor=dict(
+            type="flow",
+            hidden_dim=32,
+            hidden_layers=2,
+            embedding_layers=2,
+            bc_coeff=3.0,
+            q_coeff=1.0,
+            flow_steps=5,
+            lr_actor_vf=3e-4,
+            flow_vf_hidden_dim=32,
+            flow_vf_hidden_layers=4,
+        ),
+        eval_relabel_size=20,
+        eval_relabel_shift=1.0,
+        eval_relabel_episodes=3,
+    )
+    cfg.update(extra)
+    return cfg
+
+
+def _run_main(
+    tmp_path, monkeypatch, cfg, adapter, critic, actor="flowbc", steps=2, **over
+):
+    import impls.main as m
+
+    monkeypatch.setenv("WANDB_MODE", "disabled")
+    monkeypatch.setattr(m, "make_config", lambda *a, **k: dict(cfg))
+    monkeypatch.setattr(m, "get_adapter", lambda c: adapter)
+    monkeypatch.setattr(m, "save_agent", lambda agent, d, i: None)
+
+    m.FLAGS(["test"], known_only=True)
+    defaults = dict(
+        critic=critic,
+        actor=actor,
+        domain="tiny",
+        override=[],
+        seed=0,
+        train_steps=steps,
+        log_interval=10**9,
+        eval_interval=10**9,
+        save_interval=10**9,
+        eval_episodes=1,
+        auto_resume=False,
+        save_dir=str(tmp_path),
+        infer_cond_episodes=0,
+        eval_on_inferred_cond=False,
+    )
+    for k, v in {**defaults, **over}.items():
+        monkeypatch.setattr(m.FLAGS, k, v)
+    m.main(None)
+    return os.path.join(tmp_path, f"tiny_{critic}_{actor}_seed_0")
+
+
+def _relabel_rows(run_dir):
+    with open(os.path.join(run_dir, "eval_relabel.csv")) as f:
+        rows = list(csv.DictReader(f))
+    assert rows, "Route B wrote no rows at all"
+    return rows
+
+
+# density_fb with the z encoder off: the row is refused
+def test_relabel_refuses_to_score_a_noop_inference(tmp_path, monkeypatch):
+    adapter = _RelabelAdapter(n_tasks=2)
+    with pytest.warns(UserWarning, match="DensityFBCritic"):
+        run_dir = _run_main(
+            tmp_path, monkeypatch, _density_fb_cfg(), adapter, "density_fb"
+        )
+
+    rows = _relabel_rows(run_dir)
+    assert len(rows) == 2, "one Route B row per task, refused or not"
+    for r in rows:
+        assert "inference_valid" in r and "invalid_reason" in r, (
+            f"the row carries no validity flag -- it would be read as a real score: {r}"
+        )
+        assert float(r["inference_valid"]) == 0.0
+        assert "DensityFBCritic" in r["invalid_reason"], r["invalid_reason"]
+        assert math.isnan(float(r["success"])), (
+            f"a goal=0 rollout was SCORED as success={r['success']}"
+        )
+        # The placeholder is the zero vector.
+        assert float(r["inferred_cond_norm"]) == 0.0
+
+    # Only goal-conditioned evaluation reached the evaluator.
+    assert all(not c["any_step_success"] for c in adapter.evaluate_calls), (
+        "Route B still rolled the policy on a no-op conditioning"
+    )
+
+
+# fb: inference is live and the row is scored
+def test_relabel_passes_a_live_inference_through_unchanged(tmp_path, monkeypatch):
+    adapter = _RelabelAdapter(n_tasks=2)
+    run_dir = _run_main(tmp_path, monkeypatch, _fb_cfg(), adapter, "fb")
+
+    rows = _relabel_rows(run_dir)
+    assert len(rows) == 2
+    for r in rows:
+        assert float(r["inference_valid"]) == 1.0
+        assert r["invalid_reason"] == ""
+        assert float(r["success"]) == SUCCESS_FROM_EVALUATE
+        assert float(r["inferred_cond_norm"]) > 0.0
+    assert {c["task"] for c in adapter.evaluate_calls if c["any_step_success"]} == {
+        1,
+        2,
+    }
+
+
+# Detector alone: a zero-norm cond is refused
+def test_relabel_invalid_reason_flags_a_zero_norm_cond():
+    import jax.numpy as jnp
+
+    import impls.main as m
+
+    class _Critic:
+        pass
+
+    class _Agent:
+        critic = _Critic()
+        cond_eval = {"z": jnp.zeros((8,))}
+
+    wrapped = m.InferredCondAgent(_Agent())
+    pre = {"z": jnp.ones((8,))}  # cond changed, so only the norm check can refuse it
+    reason = m.relabel_invalid_reason(pre, wrapped, jnp.ones((8,)))
+    assert reason is not None and "_Critic" in reason and "norm" in reason
+
+    live = m.InferredCondAgent(
+        types.SimpleNamespace(critic=_Critic(), cond_eval={"z": jnp.ones((8,))})
+    )
+    assert (
+        m.relabel_invalid_reason({"z": jnp.zeros((8,))}, live, jnp.ones((8,))) is None
+    )
