@@ -12,9 +12,8 @@ import pytest
 
 from scripts.probes.cube_bottleneck import phases
 
-TORCH_ROOT = pathlib.Path(
-    os.environ.get("FACTORED_FB_TORCH_WORKTREE", "/home/adityamohan/git/Factored-FB")
-)
+# A checkout of the torch code (branch gciql-fb-bridge) that phases.py copies from.
+TORCH_ROOT = pathlib.Path(os.environ.get("FACTORED_FB_TORCH_WORKTREE", "/nonexistent"))
 
 # (source file, symbol) per vendored name, in phases.py order.
 VENDORED = [

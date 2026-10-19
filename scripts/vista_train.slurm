@@ -1,7 +1,7 @@
 #!/bin/bash
 # Train one run on TACC Vista's GH200 queue (after scripts/vista_setup.sh).
 #
-#   CRITIC=gciql ACTOR=ddpgbc DOMAIN=mw-bin-picking SEED=1 sbatch -A ASC26008 scripts/vista_train.slurm
+#   CRITIC=fb ACTOR=ddpgbc DOMAIN=mw-bin-picking SEED=1 sbatch -A <alloc> scripts/vista_train.slurm
 #
 #SBATCH -J fb-train              # job name
 #SBATCH -p gh                    # Vista GPU queue: 1x GH200 per node (use gh-dev for <2h tests)

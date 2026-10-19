@@ -3,7 +3,7 @@
 #
 #   FB_DATA_ROOT=/path/to/Factor-FB-Offline bash scripts/launch_mwms_baselines.sh            # dry run
 #   MODE=tmux  GPUS="0 1 2 3" FB_DATA_ROOT=... bash scripts/launch_mwms_baselines.sh           # local
-#   MODE=slurm ALLOC=ASC26008 FB_DATA_ROOT=... bash scripts/launch_mwms_baselines.sh          # array job
+#   MODE=slurm ALLOC=<alloc> FB_DATA_ROOT=... bash scripts/launch_mwms_baselines.sh          # array job
 #
 # Select with CRITICS, TASKS, SEEDS. Finished runs are skipped; partial runs resume.
 set -euo pipefail
@@ -32,7 +32,8 @@ LOGROOT="${LOGROOT:-logs/mwms_baselines}"
 PY="${PY:-python}"
 SESSION="${SESSION:-mwms_baselines}"
 GPUS="${GPUS:-0}"
-ALLOC="${ALLOC:-ASC26008}"
+ALLOC="${ALLOC:-}"
+[ "$MODE" != "slurm" ] || [ -n "$ALLOC" ] || { echo "set ALLOC to your slurm allocation" >&2; exit 2; }
 MAX_PARALLEL="${MAX_PARALLEL:-20}"          # slurm: array throttle (%N)
 VENV="${VENV:-${SCRATCH:-$HOME}/.venv-jax-fb}"   # slurm only: vista_train.slurm's venv
 mkdir -p "$LOGROOT"

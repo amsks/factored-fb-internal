@@ -2,7 +2,7 @@
 
 import os
 
-COLLECTED = os.environ.get("FB_COLLECTED", "/raid/tongle/rl/fb-data/collected")
+COLLECTED = os.environ.get("FB_COLLECTED", os.path.expanduser("~/fb-data/collected"))
 
 # task-slug prefix -> (family, eval horizon, family folder used in the data path)
 _PREFIX = {
