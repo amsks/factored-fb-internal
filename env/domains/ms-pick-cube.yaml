@@ -1,0 +1,5 @@
+# ManiSkill3 PickCube, state observations, horizon 25.
+adapter: unified
+env_name: ms-pick-cube          # run naming only
+task: ms-pick-cube
+data_path: ${oc.env:FB_DATA_ROOT}/data/maniskill/ms-pick-cube.npz

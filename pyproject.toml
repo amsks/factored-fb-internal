@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "factored-fb"
+version = "0.1.0"
+description = "Density-FB and successor-measure baselines (FB, HILP, RLDP) for zero-shot offline RL on OGBench, ExoRL, MetaWorld and ManiSkill (JAX)"
+requires-python = ">=3.11"
+# Core runtime deps (mirrored in requirements.txt). mujoco / dm_control / gymnasium are the
+# runtime deps of the vendored ogbench/ package, which is installed with this project.
+dependencies = [
+    "jax",
+    "flax",
+    "optax",
+    "distrax",
+    "numpy",
+    "gymnasium",
+    "mujoco>=3.1.6",
+    "dm_control>=1.0.20",
+    "absl-py",
+    "omegaconf",
+    "wandb",
+    "tqdm",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["impls*", "env*", "ogbench*"]
+
+[project.optional-dependencies]
+# ExoRL / dm_control domains (env/exorl_env.py, env/exorl_dmc_tasks).
+exorl = [
+    "dm_control>=1.0.20",
+    "mujoco>=3.1.6",
+    "lxml",
+    "scipy",
+]
+# MetaWorld domains (env/metaworld_env.py). This fork is the one the offline demonstrations
+# were collected with. huggingface_hub fetches the packed datasets (scripts/vista_setup.sh).
+metaworld = [
+    "metaworld @ git+https://github.com/nicklashansen/metaworld.git@22904d1f65afe920be4325d482808c385f4c0c38",
+    "huggingface_hub",
+]
+# ManiSkill3 domains (env/maniskill_env.py).
+maniskill = [
+    "mani_skill",
+    "huggingface_hub",
+]
+# Paper figures and analysis scripts (analysis/, scripts/).
+figures = [
+    "matplotlib",
+    "pandas",
+]
+dev = [
+    "isort>=5.13",
+    "ruff>=0.4",
+    "pytest>=8.0",
+]
+
+[tool.ruff]
+target-version = "py311"
+extend-exclude = ["ogbench", "scripts/probes/cube_bottleneck/phases.py"]
+
+[tool.isort]
+profile = "black"
+skip = ["ogbench"]
+skip_glob = ["scripts/probes/cube_bottleneck/phases.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

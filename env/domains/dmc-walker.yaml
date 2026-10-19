@@ -1,0 +1,10 @@
+# ExoRL walker, RND exploration data, reward-specified tasks scored by episode return.
+# goal_spec "0:24:15.9" (full observation), calibrated by scripts/calibrate_goal_spec.py.
+adapter: unified
+env_name: dmc-walker          # run naming only
+task: dmc-walker
+exorl_task: walk              # one of stand / walk / run / flip
+exorl_algo: rnd
+data_dir: ${oc.env:EXORL_DATA_ROOT,${oc.env:HOME}/exorl_data/exorl/datasets}/walker/rnd
+exorl_max_episodes: 5000      # 5M transitions
+keep_dataset_rewards: true    # keep the task reward

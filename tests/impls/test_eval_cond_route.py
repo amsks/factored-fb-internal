@@ -1,0 +1,425 @@
+"""Reward-inferred eval conditioning: it reaches the evaluator, is logged, and uses next states.
+
+Run on CPU, in its own process:
+
+    PYTHONPATH=$PWD JAX_PLATFORMS=cpu python -m pytest tests/impls/test_eval_cond_route.py -q
+"""
+
+import os
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+import pytest
+
+from impls.agent import CRITICS, Agent
+from impls.critics.base import (
+    INFER_COND_MARGINALS,
+    ComboError,
+    infer_cond_marginal,
+    infer_cond_rows,
+)
+
+SEED = 0
+OBS_DIM, ACT_DIM = 6, 2
+
+
+def _fb_cfg():
+    return dict(
+        env_name="tiny",
+        task="b2d-tiny",
+        adapter="unified",
+        horizon=8,
+        batch_size=16,
+        z_dim=8,
+        L_dim=8,
+        num_parallel=2,
+        discount=0.99,
+        f_target_tau=0.005,
+        b_target_tau=0.005,
+        ortho_coef=1.0,
+        train_goal_ratio=0.5,
+        fb_pessimism_penalty=0.0,
+        norm_z=True,
+        lr_f=1e-4,
+        lr_b=1e-4,
+        lr_actor=1e-4,
+        forward=dict(hidden_dim=32, hidden_layers=2, embedding_layers=2),
+        backward=dict(hidden_dim=32, hidden_layers=4, norm=True),
+        left_encoder=dict(hidden_dim=32, hidden_layers=4, norm=True),
+        actor=dict(
+            type="flow",
+            hidden_dim=32,
+            hidden_layers=2,
+            embedding_layers=2,
+            bc_coeff=3.0,
+            q_coeff=1.0,
+            flow_steps=5,
+            lr_actor_vf=3e-4,
+            flow_vf_hidden_dim=32,
+            flow_vf_hidden_layers=4,
+        ),
+    )
+
+
+def _fb_agent(cfg=None):
+    cfg = cfg or _fb_cfg()
+    return Agent.create(
+        "fb", "flowbc", SEED, jnp.zeros((2, OBS_DIM)), jnp.zeros((2, ACT_DIM)), cfg
+    )
+
+
+def _inferred(agent, n=16, seed=5):
+    """Agent whose cond_eval was inferred from non-degenerate reward samples."""
+    rng = np.random.default_rng(seed)
+    obs = jnp.asarray(rng.standard_normal((n, OBS_DIM)), jnp.float32)
+    rew = jnp.asarray(rng.standard_normal((n,)), jnp.float32)
+    return agent.infer_eval_cond(obs, rew)
+
+
+# Inferred-cond wrapper drops a supplied goal
+def test_the_wrapper_drops_a_supplied_goal_and_counts_it():
+    import impls.main as m
+
+    agent = _inferred(_fb_agent())
+    w = m.InferredCondAgent(agent)
+    obs = jnp.zeros((OBS_DIM,))
+    goal = jnp.arange(OBS_DIM, dtype=jnp.float32)
+    key = jax.random.PRNGKey(3)
+
+    with_goal = np.asarray(w.sample_actions(obs, goals=goal, seed=key, temperature=0))
+    want = np.asarray(agent.sample_actions(obs, goals=None, seed=key, temperature=0))
+    np.testing.assert_array_equal(with_goal, want)
+
+    # The unwrapped agent would re-derive z from the goal.
+    goal_driven = np.asarray(
+        agent.sample_actions(obs, goals=goal, seed=key, temperature=0)
+    )
+    assert not np.allclose(goal_driven, want), (
+        "test premise: for fb, a supplied goal must change the action (map_eval_cond)"
+    )
+
+    assert w.action_calls == 1 and w.goals_dropped == 1
+    wit = w.witness()
+    assert wit["inferred_cond"] == 1.0 and wit["inferred_cond_goals_dropped"] == 1.0
+    assert np.isfinite(wit["inferred_cond_norm"]) and wit["inferred_cond_norm"] > 0
+
+
+def test_witness_cos_neutral_separates_the_constant_reward_fallback():
+    """cos(cond, 1_d) is 1 for the neutral fallback and below 1 for a real inferred z."""
+    import impls.main as m
+
+    agent = _inferred(_fb_agent())
+    w = m.InferredCondAgent(agent)
+    d = int(jnp.asarray(w.cond_eval["z"]).ravel().shape[0])
+
+    # Neutral fallback: 1_d on the sqrt(d) sphere.
+    w.cond_eval = {"z": jnp.ones((d,))}
+    assert w.witness()["inferred_cond_cos_neutral"] == pytest.approx(1.0, abs=1e-6)
+
+    # A reward-informed z is not parallel to 1_d.
+    v = jnp.asarray(np.linspace(-1.0, 1.0, d), dtype=jnp.float32)
+    w.cond_eval = {"z": jnp.sqrt(jnp.array(float(d))) * v / jnp.linalg.norm(v)}
+    cos = w.witness()["inferred_cond_cos_neutral"]
+    assert abs(cos) < 0.99, f"a non-neutral z must not read as the fallback (cos={cos})"
+
+    # Both vectors lie on the sqrt(d) sphere; only one is the fallback.
+    root_d = float(np.sqrt(d))
+    for z in (jnp.ones((d,)), w.cond_eval["z"]):
+        w.cond_eval = {"z": jnp.sqrt(jnp.array(float(d))) * z / jnp.linalg.norm(z)}
+        assert w.witness()["inferred_cond_norm"] == pytest.approx(root_d, rel=1e-5)
+
+
+def test_the_wrapper_carries_the_inferred_cond_not_the_placeholder():
+    import impls.main as m
+
+    base = _fb_agent()
+    agent = _inferred(base)
+    w = m.InferredCondAgent(agent)
+    assert not np.allclose(
+        np.asarray(w.cond_eval["z"]), np.asarray(base.cond_eval["z"])
+    ), "the wrapper must expose the INFERRED cond, not eval_cond0"
+
+
+# Evaluators build no goal under the wrapper
+def test_needs_goal_frame_is_false_for_an_agent_that_rolls_an_inferred_cond():
+    import impls.main as m
+    from env.base import needs_goal_frame
+
+    agent = _fb_agent()
+    assert needs_goal_frame(agent), (
+        "fb exposes map_eval_cond, so normally it needs a goal"
+    )
+    assert not needs_goal_frame(m.InferredCondAgent(agent))
+
+
+def test_unified_evaluate_does_not_even_synthesise_a_goal_for_the_wrapper():
+    """The unified evaluator builds no goal frame for the inferred-cond wrapper."""
+    import impls.main as m
+    from env.unified import UnifiedAdapter
+
+    class _Env:
+        def reset(self, seed=None, options=None):
+            return np.zeros(OBS_DIM, np.float32), {"success": False}
+
+        def step(self, a):
+            return np.zeros(OBS_DIM, np.float32), 0.0, False, True, {"success": False}
+
+        def render(self):
+            return np.zeros((2, 2, 3), np.uint8)
+
+    cfg = {**_fb_cfg(), "eval_goal_mode": "synth"}
+    ad = UnifiedAdapter()
+    ad._horizon = 2
+    agent = _inferred(_fb_agent())
+
+    with pytest.raises(ValueError, match="no goal-in-obs layout"):
+        ad.evaluate(agent, _Env(), None, cfg, 1, 0)
+
+    row, _ = ad.evaluate(m.InferredCondAgent(agent), _Env(), None, cfg, 1, 0)
+    assert "success" in row
+
+
+# End to end through impls/main.py
+class _RecordingAdapter:
+    """Stub adapter that calls sample_actions with a goal and records the result."""
+
+    name = "unified"
+
+    def __init__(self):
+        self._horizon = 8
+        self._goal = np.arange(OBS_DIM, dtype=np.float32)
+        self.saw_goal_kwarg = []
+        self.env = None
+
+    def make_env_and_datasets(self, cfg):
+        from impls.utils.datasets import FBDataset
+
+        n_ep, ep_len = 6, 8
+        n = n_ep * ep_len
+        term = np.zeros((n_ep, ep_len), np.float32)
+        term[:, -1] = 1.0
+        rng = np.random.default_rng(0)
+        # observations < 0 and next_observations > 0, so the column is identifiable.
+        data = dict(
+            observations=(-1.0 - np.abs(rng.standard_normal((n, OBS_DIM)))).astype(
+                np.float32
+            ),
+            actions=np.tanh(rng.standard_normal((n, ACT_DIM))).astype(np.float32),
+            next_observations=(1.0 + np.abs(rng.standard_normal((n, OBS_DIM)))).astype(
+                np.float32
+            ),
+            rewards=rng.standard_normal(n).astype(np.float32),
+            terminals=term.reshape(-1),
+        )
+        return None, FBDataset.create(**data), FBDataset.create(**data)
+
+    def eval_tasks(self, env, cfg):
+        return [None]
+
+    def evaluate(self, agent, env, task, cfg, num_episodes, num_video):
+        goal = jnp.arange(OBS_DIM, dtype=jnp.float32)
+        a = agent.sample_actions(
+            jnp.zeros((OBS_DIM,)), goals=goal, seed=jax.random.PRNGKey(0), temperature=0
+        )
+        self.saw_goal_kwarg.append(np.asarray(a))
+        return {"success": 0.0}, []
+
+
+def _run_main(tmp_path, monkeypatch, cfg, adapter, critic, actor, steps, **over):
+    import impls.main as m
+
+    monkeypatch.setenv("WANDB_MODE", "disabled")
+    monkeypatch.setattr(m, "make_config", lambda *a, **k: dict(cfg))
+    monkeypatch.setattr(m, "get_adapter", lambda c: adapter)
+    monkeypatch.setattr(m, "save_agent", lambda agent, d, i: None)
+
+    m.FLAGS(["test"], known_only=True)
+    defaults = dict(
+        critic=critic,
+        actor=actor,
+        domain="tiny",
+        override=[],
+        seed=SEED,
+        train_steps=steps,
+        log_interval=10**9,
+        eval_interval=10**9,
+        save_interval=10**9,
+        eval_episodes=1,
+        auto_resume=False,
+        save_dir=str(tmp_path),
+        infer_cond_episodes=0,
+        eval_on_inferred_cond=False,
+    )
+    for k, v in {**defaults, **over}.items():
+        monkeypatch.setattr(m.FLAGS, k, v)
+    m.main(None)
+    return os.path.join(tmp_path, "tiny_fb_flowbc_seed_0")
+
+
+def test_eval_on_inferred_cond_reaches_the_evaluator_and_is_logged(
+    tmp_path, monkeypatch
+):
+    """With eval_on_inferred_cond the evaluator rolls the inferred cond and eval.csv records it."""
+    adapter = _RecordingAdapter()
+    run_dir = _run_main(
+        tmp_path,
+        monkeypatch,
+        _fb_cfg(),
+        adapter,
+        "fb",
+        "flowbc",
+        2,
+        infer_cond_episodes=16,
+        eval_on_inferred_cond=True,
+    )
+
+    assert adapter.saw_goal_kwarg, "the stub evaluator never ran"
+
+    header = open(os.path.join(run_dir, "eval.csv")).readline()
+    for col in (
+        "inferred_cond",
+        "inferred_cond_goals_dropped",
+        "inferred_cond_norm",
+        "inferred_cond_action_calls",
+    ):
+        assert col in header, (
+            f"{col} missing from eval.csv -- the run cannot prove anything"
+        )
+    rows = open(os.path.join(run_dir, "eval.csv")).read().strip().split("\n")[1:]
+    cols = header.strip().split(",")
+    rec = dict(zip(cols, rows[0].split(",")))
+    assert float(rec["inferred_cond"]) == 1.0
+    # The goal path was live and intercepted.
+    assert float(rec["inferred_cond_goals_dropped"]) == 1.0
+    assert float(rec["inferred_cond_action_calls"]) == 1.0
+    assert float(rec["inferred_cond_norm"]) > 0.0
+
+
+def test_without_the_flag_the_env_goal_still_wins(tmp_path, monkeypatch):
+    """Without eval_on_inferred_cond the env goal still conditions the policy."""
+    a_off = _RecordingAdapter()
+    run_dir = _run_main(
+        tmp_path,
+        monkeypatch,
+        _fb_cfg(),
+        a_off,
+        "fb",
+        "flowbc",
+        2,
+        infer_cond_episodes=16,
+        eval_on_inferred_cond=False,
+    )
+    a_on = _RecordingAdapter()
+    _run_main(
+        tmp_path / "on",
+        monkeypatch,
+        _fb_cfg(),
+        a_on,
+        "fb",
+        "flowbc",
+        2,
+        infer_cond_episodes=16,
+        eval_on_inferred_cond=True,
+    )
+
+    assert not np.allclose(a_off.saw_goal_kwarg[0], a_on.saw_goal_kwarg[0]), (
+        "the two routes produced the same action; the flag did nothing"
+    )
+    assert "inferred_cond" not in open(os.path.join(run_dir, "eval.csv")).readline(), (
+        "the witness columns must not appear in a run that did not take the route"
+    )
+
+
+def test_the_flag_is_refused_without_anything_to_infer(tmp_path, monkeypatch):
+    with pytest.raises(ValueError, match="infer_cond_episodes"):
+        _run_main(
+            tmp_path,
+            monkeypatch,
+            _fb_cfg(),
+            _RecordingAdapter(),
+            "fb",
+            "flowbc",
+            1,
+            infer_cond_episodes=0,
+            eval_on_inferred_cond=True,
+        )
+
+
+def test_the_noop_detector_now_names_the_goal_override():
+    """The no-op detector reports when the env goal overrides the inferred cond."""
+    import impls.main as m
+
+    agent = _inferred(_fb_agent())
+    pre = {"z": jnp.zeros((8,))}
+    reason = m.infer_cond_noop_reason(pre, agent.cond_eval, jnp.ones((8,)), agent=agent)
+    assert reason is not None and "eval_on_inferred_cond" in reason
+
+    wrapped = m.InferredCondAgent(agent)
+    assert (
+        m.infer_cond_noop_reason(pre, wrapped.cond_eval, jnp.ones((8,)), agent=wrapped)
+        is None
+    )
+    # The 3-argument call still works.
+    assert m.infer_cond_noop_reason(pre, agent.cond_eval, jnp.ones((8,))) is None
+
+
+# infer_cond input marginal
+def test_every_registered_critic_declares_a_valid_marginal():
+    for name, critic in sorted(CRITICS.items()):
+        m = infer_cond_marginal(critic)
+        assert m in INFER_COND_MARGINALS, f"{name} declares {m!r}"
+
+
+@pytest.mark.parametrize("name", ["fb", "rldp", "density_fb"])
+def test_the_fb_family_is_solved_against_the_next_state_marginal(name):
+    """FB-family critics infer the task from next observations."""
+    assert infer_cond_marginal(CRITICS[name]) == "next_observations"
+    assert infer_cond_rows(CRITICS[name]) == "next_observations"
+
+
+def test_an_undeclared_marginal_is_refused_by_name():
+    class _Bogus:
+        pass
+
+    with pytest.raises(ComboError, match="INFER_COND_MARGINAL"):
+        infer_cond_rows(_Bogus)
+
+    class _Wrong:
+        INFER_COND_MARGINAL = "value_goals"
+
+    with pytest.raises(ComboError, match="INFER_COND_MARGINAL"):
+        infer_cond_rows(_Wrong)
+
+
+def test_main_feeds_infer_cond_the_next_state_column(tmp_path, monkeypatch):
+    """impls/main.py passes next_observations to infer_cond."""
+    from impls.critics.fb import FBCritic
+
+    seen = []
+    real = FBCritic.infer_cond
+
+    def spy(self, net, obs, rewards):
+        seen.append(np.asarray(obs))
+        return real(self, net, obs, rewards)
+
+    monkeypatch.setattr(FBCritic, "infer_cond", spy)
+    _run_main(
+        tmp_path,
+        monkeypatch,
+        _fb_cfg(),
+        _RecordingAdapter(),
+        "fb",
+        "flowbc",
+        2,
+        infer_cond_episodes=16,
+        eval_on_inferred_cond=True,
+    )
+
+    assert seen, "infer_cond was never called"
+    rows = seen[0]
+    assert rows.shape == (16, OBS_DIM)
+    assert (rows > 0).all(), (
+        "infer_cond got the CURRENT-state column (all-negative in this fixture); the FB "
+        "family's readout must be solved on next_observations"
+    )

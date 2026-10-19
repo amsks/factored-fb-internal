@@ -1,0 +1,21 @@
+# Core runtime: JAX training on OGBench (cube-single, cube-double, scene).
+#
+# The vendored `ogbench/` package at the repo root is imported from the working directory
+# (run with PYTHONPATH=$PWD, or `pip install -e .`); mujoco / dm_control / gymnasium below are
+# its runtime dependencies. Optional groups for the other benchmarks and the figures are in
+# pyproject.toml: pip install -e ".[exorl,metaworld,maniskill,figures,dev]"
+jax
+flax
+optax
+distrax
+numpy
+gymnasium
+mujoco>=3.1.6
+dm_control>=1.0.20
+absl-py
+omegaconf
+wandb
+tqdm
+
+# Tests
+pytest

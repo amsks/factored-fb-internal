@@ -1,0 +1,12 @@
+# Density-FB with a latent task z inferred from reward samples.
+base: density_fb
+
+# Reward inference
+infer_z: true
+z_random_frac: 0.5          # fraction of training z drawn uniformly on the sphere
+ridge_lambda: 0.01          # ridge strength, relative to tr(C) / d
+cov_eig_floor: 1.0e-6
+slow_backward_tau: 0.0005   # update rate of the slow B copy that encodes z
+feature_stats_tau: 0.005    # update rate of the feature mean and covariance
+eval_pool_size: 256         # next states used to encode an evaluation goal
+const_reward_eps: 1.0e-6

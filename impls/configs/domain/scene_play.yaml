@@ -1,0 +1,10 @@
+# scene-play (state-based). obs dim 40 = 19 proprio + cube (pos 19:22 scaled x10, quat 22:26,
+# cos/sin yaw 26:28) + 2 buttons x [one-hot 2, pos, vel] (28:36) + drawer pos/vel (36:38) +
+# window pos/vel (38:40). Per-task eval over the 5 task_infos.
+#
+# The density critics' goal observation columns and success radius (goal_spec) are the conjunction of the env's own success rule in
+# observation units: cube ||d||<=0.04 m -> 0.4; button one-hot exact match -> 0.5;
+# drawer |d|<=0.04 m x18 -> 0.72; window |d|<=0.04 m x15 -> 0.6:
+#   goal_spec="19:22:0.4,28:30:0.5,32:34:0.5,36:37:0.72,38:39:0.6"
+# Passed as an override (it lives in the critic group).
+env_name: scene-play-v0

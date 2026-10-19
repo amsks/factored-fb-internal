@@ -1,0 +1,5 @@
+# MetaWorld bin-picking, goal-observable, action repeat 2, horizon 100.
+adapter: unified
+env_name: mw-bin-picking          # run naming only
+task: mw-bin-picking
+data_path: ${oc.env:FB_HF_EXPORT}/data/metaworld/mw-bin-picking.npz

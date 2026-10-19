@@ -1,0 +1,41 @@
+# HILP at the TD-JEPA OGBench settings (impls/critics/hilp.py).
+
+# Optimisation
+batch_size: 256
+discount: 0.99              # successor features
+phi_discount: 0.99          # phi value function
+lr_f: 1.0e-4                # successor features and left encoder
+lr_b: 1.0e-4                # phi
+lr_actor: 1.0e-4
+sf_target_tau: 0.005
+phi_target_tau: 0.005
+sf_loss_scale: 0.5
+stages_from_pre_step_params: true
+
+# Representation
+z_dim: 50
+L_dim: 50
+num_parallel: 2
+norm_z: true
+expectile: 0.5
+phi_stats_tau: 0.005        # update rate of the feature mean
+train_goal_ratio: 0.5       # fraction of training z from whitened features
+whiten_running_cov: true    # whiten with a running covariance of phi, as TD-JEPA
+
+# Networks
+phi:
+  hidden_dim: 512
+  hidden_layers: 4
+sf:
+  hidden_dim: 512
+  hidden_layers: 2
+  embedding_layers: 2
+left_encoder:
+  hidden_dim: 512
+  hidden_layers: 4
+  norm: true
+
+# Goal sampling (HILPFutureDataset)
+dataset_class: HILPFutureDataset
+goal_future: 0.99
+p_randomgoal: 0.375

@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.venv*/
+
+# Run outputs: checkpoints and eval logs (exp/), job logs, wandb, generated figures
+exp/
+logs/
+wandb/
+figures/
+graphify-out/
+
+# Outputs the analysis scripts regenerate (the small caches the figures read are kept)
+analysis/**/stdout.txt
+analysis/**/*_log.txt
+analysis/**/exact.json
+analysis/lemma_check/results.npz

@@ -1,0 +1,3 @@
+# Goal-conditioned Density-FB with B reading the full observation.
+base: density_fb
+backward_input: state
