@@ -24,7 +24,7 @@ def test_main_has_no_get_config():
 
 
 def test_every_config_name_is_registered():
-    from impls.agents import ACTORS, CRITIC_ALIASES, CRITICS
+    from impls.agent import ACTORS, CRITIC_ALIASES, CRITICS
 
     assert set(CRITIC_CONFIGS) <= set(CRITICS) | set(CRITIC_ALIASES)
     assert set(ACTOR_CONFIGS) == set(ACTORS)
@@ -34,7 +34,7 @@ def test_every_config_name_is_registered():
 @pytest.mark.parametrize("actor", ACTOR_CONFIGS)
 def test_every_config_pair_builds_from_the_real_yamls(critic, actor):
     """Every (critic yaml, actor yaml) pair builds an Agent."""
-    from impls.agents import Agent
+    from impls.agent import Agent
 
     cfg = load_config(critic, actor, "cube_single")
     agent = Agent.create(critic, actor, 0, jnp.zeros((2, 28)), jnp.zeros((2, 5)), cfg)

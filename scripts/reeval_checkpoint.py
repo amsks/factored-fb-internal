@@ -18,7 +18,7 @@ import numpy as np
 from absl import app, flags
 
 from env import get_adapter, make_config
-from impls.agents import Agent
+from impls.agent import Agent
 from impls.critics.base import infer_cond_rows
 from impls.utils.datasets import make_dataset
 

@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from impls.agents import Agent
+from impls.agent import Agent
 
 
 def _cfg(actor_kind):

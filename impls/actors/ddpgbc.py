@@ -83,7 +83,7 @@ class DDPGBCActor:
     def build(cls, ex_obs, ex_actions, config):
         import jax.random as jr
 
-        from impls.actors._motivo_nets import MotivoPolicy
+        from impls.utils.networks import MotivoPolicy
 
         a_cfg = config["actor"]
         odim = int(ex_obs.shape[-1])

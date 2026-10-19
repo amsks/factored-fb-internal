@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from impls.agents import Agent
+from impls.agent import Agent
 from impls.utils.config_utils import load_config
 from impls.utils.flax_utils import restore_agent, save_agent
 

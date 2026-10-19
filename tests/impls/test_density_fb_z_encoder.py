@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from impls.agents import Agent
+from impls.agent import Agent
 from impls.critics.density_fb import (
     DensityFBCritic,
     _delta_phi,
@@ -709,7 +709,7 @@ def test_the_z_encoder_state_takes_no_gradient_and_no_optimizer_step():
 
 def test_update_stats_is_a_noop_for_every_other_critic():
     """Only density_fb and hilp define update_stats; it is a no-op with the z encoder off."""
-    from impls.agents import CRITICS
+    from impls.agent import CRITICS
 
     defining = {n for n, c in CRITICS.items() if hasattr(c, "update_stats")}
     assert defining == {"density_fb", "hilp"}

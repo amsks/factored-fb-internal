@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from env import make_config
-from impls.agents import CRITICS, Agent
+from impls.agent import CRITICS, Agent
 
 OBS_DIM, ACT_DIM, B = 37, 5, 6
 

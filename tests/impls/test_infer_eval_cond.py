@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import impls.main as m
-from impls.agents import Agent
+from impls.agent import Agent
 
 
 def _fb_cfg():

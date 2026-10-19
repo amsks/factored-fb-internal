@@ -45,7 +45,7 @@ def load_variant(run_dir, epoch: int = 500000, *, with_env: bool = True) -> Vari
     import jax.numpy as jnp
 
     from env import get_adapter
-    from impls.agents import Agent
+    from impls.agent import Agent
     from impls.utils.datasets import make_dataset
     from impls.utils.flax_utils import restore_agent
 
@@ -129,7 +129,7 @@ def load_variant_eval(run_dir, epoch: int) -> Variant:
     import jax.numpy as jnp
 
     from env import get_adapter
-    from impls.agents import Agent
+    from impls.agent import Agent
     from impls.utils.datasets import make_dataset
     from impls.utils.flax_utils import restore_agent
 

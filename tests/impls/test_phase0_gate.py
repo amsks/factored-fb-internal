@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from impls.agents import ACTORS, Agent
+from impls.agent import ACTORS, Agent
 from impls.utils.config_utils import load_config
 from impls.utils.datasets import make_dataset
 from impls.utils.env_utils import make_env_and_datasets

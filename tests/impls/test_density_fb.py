@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from impls.agents import CRITICS, Agent
+from impls.agent import CRITICS, Agent
 from impls.critics.density_fb import (
     DensityFBCritic,
     _delta_phi,

@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from env import make_config
-from impls.agents import Agent
+from impls.agent import Agent
 
 OBS_DIM, ACT_DIM, B = 28, 5, 6  # cube-single's real width
 

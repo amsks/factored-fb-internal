@@ -1,7 +1,7 @@
 def test_short_train_and_checkpoint(tmp_path):
     import jax.numpy as jnp
 
-    from impls.agents import Agent
+    from impls.agent import Agent
     from impls.utils.config_utils import load_config
     from impls.utils.env_utils import make_env_and_datasets
     from impls.utils.flax_utils import restore_agent, save_agent

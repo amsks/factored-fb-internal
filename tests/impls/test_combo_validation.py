@@ -1,6 +1,6 @@
 import pytest
 
-from impls.agents import Agent
+from impls.agent import Agent
 from impls.critics.base import ComboError
 
 
@@ -52,7 +52,7 @@ def test_flowbc_on_fb_is_valid():
 
 
 def test_actor_requiring_a_missing_cond_key_raises(monkeypatch):
-    from impls import agents as ag
+    from impls import agent as ag
 
     class _GoalOnly:
         GROUPS = ("actor",)

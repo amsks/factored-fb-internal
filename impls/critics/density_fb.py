@@ -8,105 +8,14 @@ reward samples on centered features of a slow copy of B.
 
 import copy
 import dataclasses
-from typing import Any, Sequence
+from typing import Any
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
 from impls.critics.goal_spec import parse_goal_spec
-
-_DEFAULT_INIT = nn.initializers.variance_scaling(1.0, "fan_avg", "uniform")
-
-
-def _ensemblize(cls, num_qs, out_axes=0, **kwargs):
-    return nn.vmap(
-        cls,
-        variable_axes={"params": 0},
-        split_rngs={"params": True},
-        in_axes=None,
-        out_axes=out_axes,
-        axis_size=num_qs,
-        **kwargs,
-    )
-
-
-class _MLP(nn.Module):
-    hidden_dims: Sequence[int]
-    activations: Any = nn.gelu
-    activate_final: bool = False
-    layer_norm: bool = False
-
-    @nn.compact
-    def __call__(self, x):
-        for i, size in enumerate(self.hidden_dims):
-            x = nn.Dense(size, kernel_init=_DEFAULT_INIT)(x)
-            if i + 1 < len(self.hidden_dims) or self.activate_final:
-                x = self.activations(x)
-                if self.layer_norm:
-                    x = nn.LayerNorm()(x)
-        return x
-
-
-# Meta Motivo network shapes; hidden-dims lists are read as (width, n_layers).
-class _MotivoEmbed(nn.Module):
-    """Embedding branch with output width hidden_dim // 2."""
-
-    hidden_dim: int
-    layers: int = 2
-
-    @nn.compact
-    def __call__(self, x):
-        x = jnp.tanh(
-            nn.LayerNorm()(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(x))
-        )
-        for _ in range(self.layers - 2):
-            x = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(x))
-        return nn.relu(nn.Dense(self.hidden_dim // 2, kernel_init=_DEFAULT_INIT)(x))
-
-
-class _MotivoF(nn.Module):
-    """Forward map on a concatenated [obs, action, cond] row."""
-
-    obs_dim: int
-    act_dim: int
-    hidden_dim: int
-    out_dim: int
-    trunk_layers: int = 2
-    embed_layers: int = 2
-
-    @nn.compact
-    def __call__(self, x):
-        o = x[..., : self.obs_dim]
-        a = x[..., self.obs_dim : self.obs_dim + self.act_dim]
-        c = x[..., self.obs_dim + self.act_dim :]
-        e_z = _MotivoEmbed(self.hidden_dim, self.embed_layers)(
-            jnp.concatenate([o, c], -1)
-        )
-        e_sa = _MotivoEmbed(self.hidden_dim, self.embed_layers)(
-            jnp.concatenate([o, a], -1)
-        )
-        h = jnp.concatenate([e_sa, e_z], -1)
-        for _ in range(self.trunk_layers):
-            h = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(h))
-        return nn.Dense(self.out_dim, kernel_init=_DEFAULT_INIT)(h)
-
-
-class _MotivoB(nn.Module):
-    """Backward map; output normalisation is applied in `DensityFBCritic._B`."""
-
-    hidden_dim: int
-    out_dim: int
-    layers: int = 1
-
-    @nn.compact
-    def __call__(self, x):
-        h = jnp.tanh(
-            nn.LayerNorm()(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(x))
-        )
-        for _ in range(self.layers - 1):
-            h = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_DEFAULT_INIT)(h))
-        return nn.Dense(self.out_dim, kernel_init=_DEFAULT_INIT)(h)
+from impls.utils.networks import MLP, MotivoBackward, MotivoForward, ensemblize
 
 
 def _sphere(x, d):
@@ -561,7 +470,7 @@ class DensityFBCritic:
                     f"archi='motivo' needs equal hidden-dim entries; got "
                     f"value_hidden_dims={list(hd)} and b={list(hd_b)}"
                 )
-            density_f = _ensemblize(_MotivoF, 2)(
+            density_f = ensemblize(MotivoForward, 2)(
                 obs_dim=obs_dim,
                 act_dim=ex_actions.shape[-1],
                 hidden_dim=hd[0],
@@ -569,12 +478,12 @@ class DensityFBCritic:
                 trunk_layers=len(hd),
                 embed_layers=2,
             )
-            density_b = _MotivoB(hidden_dim=hd_b[0], out_dim=d, layers=len(hd_b))
+            density_b = MotivoBackward(hidden_dim=hd_b[0], out_dim=d, layers=len(hd_b))
         else:
-            density_f = _ensemblize(_MLP, 2)(
+            density_f = ensemblize(MLP, 2)(
                 (*hd, d), activate_final=False, layer_norm=ln
             )
-            density_b = _MLP((*hd_b, d), activate_final=False, layer_norm=ln)
+            density_b = MLP((*hd_b, d), activate_final=False, layer_norm=ln)
         ex_f = jnp.concatenate(
             [
                 ex_obs,

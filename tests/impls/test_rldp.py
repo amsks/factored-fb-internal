@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from impls.agents import _LR_KEY, CRITICS, Agent
+from impls.agent import _LR_KEY, CRITICS, Agent
 from impls.critics.rldp import RLDPCritic
 from impls.utils.config_utils import ConfigError, load_config
 from impls.utils.datasets import Dataset, make_dataset

@@ -1,11 +1,9 @@
-"""Networks for FB, HILP and RLDP and the flow actor.
-
-Backward/phi map, forward map F(s, a, z), RLDP's multi-step predictor and the
-noise-conditioned policy.
-"""
+"""Networks shared by the critics and actors."""
 
 import math
+from typing import Any, Sequence
 
+import distrax
 import flax.linen as nn
 import jax.numpy as jnp
 
@@ -239,3 +237,113 @@ class PredictorMap(nn.Module):
             name="tower",
         )
         return tower(x, action)
+
+
+_GLOROT_UNIFORM = nn.initializers.variance_scaling(1.0, "fan_avg", "uniform")
+
+
+class MLP(nn.Module):
+    """MLP; layer norm after each hidden activation if layer_norm."""
+
+    hidden_dims: Sequence[int]
+    activations: Any = nn.gelu
+    activate_final: bool = False
+    layer_norm: bool = False
+
+    @nn.compact
+    def __call__(self, x):
+        for i, size in enumerate(self.hidden_dims):
+            x = nn.Dense(size, kernel_init=_GLOROT_UNIFORM)(x)
+            if i + 1 < len(self.hidden_dims) or self.activate_final:
+                x = self.activations(x)
+                if self.layer_norm:
+                    x = nn.LayerNorm()(x)
+        return x
+
+
+# Meta Motivo network shapes
+class MotivoEmbed(nn.Module):
+    """Embedding branch with output width hidden_dim // 2."""
+
+    hidden_dim: int
+    layers: int = 2
+
+    @nn.compact
+    def __call__(self, x):
+        x = jnp.tanh(
+            nn.LayerNorm()(nn.Dense(self.hidden_dim, kernel_init=_GLOROT_UNIFORM)(x))
+        )
+        for _ in range(self.layers - 2):
+            x = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_GLOROT_UNIFORM)(x))
+        return nn.relu(nn.Dense(self.hidden_dim // 2, kernel_init=_GLOROT_UNIFORM)(x))
+
+
+class MotivoForward(nn.Module):
+    """Forward map on a concatenated [obs, action, cond] row."""
+
+    obs_dim: int
+    act_dim: int
+    hidden_dim: int
+    out_dim: int
+    trunk_layers: int = 2
+    embed_layers: int = 2
+
+    @nn.compact
+    def __call__(self, x):
+        o = x[..., : self.obs_dim]
+        a = x[..., self.obs_dim : self.obs_dim + self.act_dim]
+        c = x[..., self.obs_dim + self.act_dim :]
+        # Explicit names keep the parameter names of saved checkpoints
+        e_z = MotivoEmbed(self.hidden_dim, self.embed_layers, name="_MotivoEmbed_0")(
+            jnp.concatenate([o, c], -1)
+        )
+        e_sa = MotivoEmbed(self.hidden_dim, self.embed_layers, name="_MotivoEmbed_1")(
+            jnp.concatenate([o, a], -1)
+        )
+        h = jnp.concatenate([e_sa, e_z], -1)
+        for _ in range(self.trunk_layers):
+            h = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_GLOROT_UNIFORM)(h))
+        return nn.Dense(self.out_dim, kernel_init=_GLOROT_UNIFORM)(h)
+
+
+class MotivoBackward(nn.Module):
+    """Backward map; output normalisation is applied in `DensityFBCritic._B`."""
+
+    hidden_dim: int
+    out_dim: int
+    layers: int = 1
+
+    @nn.compact
+    def __call__(self, x):
+        h = jnp.tanh(
+            nn.LayerNorm()(nn.Dense(self.hidden_dim, kernel_init=_GLOROT_UNIFORM)(x))
+        )
+        for _ in range(self.layers - 1):
+            h = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_GLOROT_UNIFORM)(h))
+        return nn.Dense(self.out_dim, kernel_init=_GLOROT_UNIFORM)(h)
+
+
+class MotivoPolicy(nn.Module):
+    """Policy over the concatenated [obs, cond] input, split at `obs_dim`."""
+
+    obs_dim: int
+    action_dim: int
+    hidden_dim: int
+    trunk_layers: int = 2
+    embed_layers: int = 2
+
+    @nn.compact
+    def __call__(self, x, temperature=1.0):
+        o = x[..., : self.obs_dim]
+        c = x[..., self.obs_dim :]
+        e_z = MotivoEmbed(self.hidden_dim, self.embed_layers)(
+            jnp.concatenate([o, c], -1)
+        )
+        e_s = MotivoEmbed(self.hidden_dim, self.embed_layers)(o)
+        h = jnp.concatenate([e_s, e_z], -1)
+        for _ in range(self.trunk_layers):
+            h = nn.relu(nn.Dense(self.hidden_dim, kernel_init=_GLOROT_UNIFORM)(h))
+        means = jnp.tanh(nn.Dense(self.action_dim, kernel_init=_GLOROT_UNIFORM)(h))
+        return distrax.MultivariateNormalDiag(
+            loc=means, scale_diag=jnp.ones_like(means) * temperature
+        )
